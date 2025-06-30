@@ -48,8 +48,11 @@ void main() async {
 
     OutboundClient newOutboundClient(String toAtSign) {
       var inboundConnection = InboundConnectionImpl(mockSocket, toAtSign);
-      OutboundClient outboundClient = OutboundClient(inboundConnection,
-          toAtSign, AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
+      OutboundClient outboundClient = OutboundClient(
+          inboundConnection,
+          toAtSign,
+          AtSecondaryServerImpl.getInstance().secondaryAddressFinder,
+          false);
       outboundClient.outboundConnection =
           OutboundConnectionImpl(mockSocket, toAtSign);
 

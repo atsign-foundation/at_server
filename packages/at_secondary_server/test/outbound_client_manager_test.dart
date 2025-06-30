@@ -35,7 +35,8 @@ void main() {
       var clientManager =
           AtSecondaryServerImpl.getInstance().outboundClientManager;
       clientManager.poolSize = 5;
-      var outBoundClient = clientManager.getClient('bob', inboundConnection);
+      var outBoundClient =
+          clientManager.getClient('bob', inboundConnection, isHandShake: false);
       expect(outBoundClient.toAtSign, 'bob');
       expect(clientManager.getActiveConnectionSize(), 1);
     });
@@ -96,7 +97,8 @@ void main() {
       var clientManager =
           AtSecondaryServerImpl.getInstance().outboundClientManager;
       clientManager.poolSize = 5;
-      var outBoundClient_1 = clientManager.getClient('bob', inboundConnection);
+      var outBoundClient_1 =
+          clientManager.getClient('bob', inboundConnection, isHandShake: true);
       inboundConnection.close();
       expect(outBoundClient_1.isInValid(), true);
     });
@@ -108,7 +110,8 @@ void main() {
       var clientManager =
           AtSecondaryServerImpl.getInstance().outboundClientManager;
       clientManager.poolSize = 5;
-      var outBoundClient_1 = clientManager.getClient('bob', inboundConnection);
+      var outBoundClient_1 =
+          clientManager.getClient('bob', inboundConnection, isHandShake: false);
       outBoundClient_1.outboundConnection =
           OutboundConnectionImpl(mockSocket_2, 'bob');
       outBoundClient_1.close();
@@ -122,7 +125,8 @@ void main() {
       var clientManager =
           AtSecondaryServerImpl.getInstance().outboundClientManager;
       clientManager.poolSize = 5;
-      var outBoundClient_1 = clientManager.getClient('bob', inboundConnection);
+      var outBoundClient_1 =
+          clientManager.getClient('bob', inboundConnection, isHandShake: false);
       outBoundClient_1.outboundConnection =
           OutboundConnectionImpl(mockSocket_2, 'bob');
       expect(outBoundClient_1.isInValid(), false);

@@ -194,7 +194,7 @@ verbTestsSetUp() async {
   inboundPool.add(inboundConnection);
 
   outboundClientWithHandshake = OutboundClient(
-      inboundConnection, bob, mockSecondaryAddressFinder,
+      inboundConnection, bob, mockSecondaryAddressFinder, true,
       outboundConnectionFactory: mockOutboundConnectionFactory)
     ..notifyTimeoutMillis = 100
     ..lookupTimeoutMillis = 100
@@ -202,7 +202,7 @@ verbTestsSetUp() async {
     ..toPort = bobPort.toString()
     ..productionMode = false;
   outboundClientWithoutHandshake = OutboundClient(
-      inboundConnection, bob, mockSecondaryAddressFinder,
+      inboundConnection, bob, mockSecondaryAddressFinder, false,
       outboundConnectionFactory: mockOutboundConnectionFactory)
     ..notifyTimeoutMillis = 100
     ..lookupTimeoutMillis = 100

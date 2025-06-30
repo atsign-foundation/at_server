@@ -29,6 +29,7 @@ class OutboundClient {
   OutboundSocketConnection? outboundConnection;
   bool isConnectionCreated = false;
   bool isHandShakeDone = false;
+  bool handshakeRequired;
   DateTime lastUsed = DateTime.now();
   int lookupTimeoutMillis = 5 * 1000;
   int notifyTimeoutMillis = 10 * 1000;
@@ -51,8 +52,8 @@ class OutboundClient {
 
   late OutboundConnectionFactory _outboundConnectionFactory;
 
-  OutboundClient(
-      this.inboundConnection, this.toAtSign, this.secondaryAddressFinder,
+  OutboundClient(this.inboundConnection, this.toAtSign,
+      this.secondaryAddressFinder, this.handshakeRequired,
       {OutboundConnectionFactory? outboundConnectionFactory}) {
     outboundConnectionFactory ??= DefaultOutboundConnectionFactory();
     _outboundConnectionFactory = outboundConnectionFactory;
@@ -67,8 +68,21 @@ class OutboundClient {
   /// Throws a [SecondaryNotFoundException] if secondary is url is not found for atsign
   /// Throws a [SocketException] when a socket connection to secondary cannot be established
   /// Throws a [HandShakeException] for any exception in the handshake process
-  Future<bool> connect({bool handshake = true}) async {
-    logger.finer('connect(handshake:$handshake) called for $toAtSign');
+  Future<bool> connect({required bool handshake}) async {
+    if (handshake != handshakeRequired) {
+      String msg = 'This OutboundClient'
+          ' has handshakeRequired $handshakeRequired'
+          ' but connect has been called with handshake $handshake';
+      logger.shout(msg);
+      logger.shout(StackTrace.current);
+      throw HandShakeException(msg);
+    }
+    if (isConnectionCreated) {
+      logger.warning(
+          'connect(handshake:$handshake) called for $toAtSign but is already connected');
+      logger.warning(StackTrace.current);
+      return true;
+    }
     var result = false;
     try {
       // 1. Find secondary url for the toAtSign

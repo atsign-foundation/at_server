@@ -10,7 +10,7 @@ import 'package:meta/meta.dart';
 class OutboundClientManager {
   var logger = AtSignLogger('OutboundClientManager');
 
-  static const int defaultPoolSize = 10;
+  static const int defaultPoolSize = 200;
 
   final OutboundClientPool _pool = OutboundClientPool(size: defaultPoolSize);
 
@@ -30,7 +30,7 @@ class OutboundClientManager {
   ///  If the pool is not initialized, initializes the pool with [defaultPoolSize] and creates a new client
   ///  Throws a [OutboundConnectionLimitException] if connection cannot be added because pool has reached max capacity
   OutboundClient getClient(String toAtSign, InboundConnection inboundConnection,
-      {bool isHandShake = true}) {
+      {required bool isHandShake}) {
     if (closed) {
       throw StateError('getClient called but we are in closed state');
     }
@@ -40,7 +40,8 @@ class OutboundClientManager {
         _pool.get(toAtSign, inboundConnection, isHandShake: isHandShake);
 
     if (client != null) {
-      logger.finer('retrieved outbound client from pool to $toAtSign');
+      logger.info(
+          'retrieved outbound client to $toAtSign (handshake: $isHandShake) from pool');
       return client;
     }
 
@@ -54,9 +55,11 @@ class OutboundClientManager {
     }
 
     // No existing client found, and Pool has capacity - create a new client
-    var newClient =
-        OutboundClient(inboundConnection, toAtSign, secondaryAddressFinder);
+    var newClient = OutboundClient(
+        inboundConnection, toAtSign, secondaryAddressFinder, isHandShake);
     _pool.add(newClient);
+    logger.info(
+        'Created new outbound client to $toAtSign (handshake: $isHandShake) and added to pool');
     return newClient;
   }
 

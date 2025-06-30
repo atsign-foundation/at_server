@@ -11,7 +11,7 @@ class NotifyConnectionsPool {
       NotifyConnectionsPool._internal();
   static final logger = AtSignLogger('NotifyConnectionPool');
 
-  static const int defaultPoolSize = 50;
+  static const int defaultPoolSize = 200;
 
   final OutboundClientPool _outboundClientPool =
       OutboundClientPool(size: defaultPoolSize);
@@ -38,7 +38,8 @@ class NotifyConnectionsPool {
     var client = _outboundClientPool.get(toAtSign, inboundConnection);
 
     if (client != null) {
-      logger.finer('retrieved outbound client from pool to $toAtSign');
+      logger.info(
+          'retrieved outbound client to $toAtSign (handshake: true) from pool');
       return client;
     }
 
@@ -55,8 +56,10 @@ class NotifyConnectionsPool {
     // If client is null and pool has capacity, create a new OutboundClient and add it to the pool
     // and return it back
     var newClient = OutboundClient(inboundConnection, toAtSign,
-        AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
+        AtSecondaryServerImpl.getInstance().secondaryAddressFinder, true);
     _outboundClientPool.add(newClient);
+    logger.info(
+        'Created new outbound client to $toAtSign (handshake: true) and added to pool');
     return newClient;
   }
 }

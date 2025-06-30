@@ -122,11 +122,11 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   /// Returns [responseList] with any matching notifications added.
   Future<List> _getSentNotifications(List responseList, String fromAtSign,
       InboundConnection atConnection) async {
-    var outBoundClient =
-        outboundClientManager.getClient(fromAtSign, atConnection);
+    var outBoundClient = outboundClientManager
+        .getClient(fromAtSign, atConnection, isHandShake: true);
     // Need not connect again if the client's handshake is already done
     if (!outBoundClient.isHandShakeDone) {
-      var connectResult = await outBoundClient.connect();
+      var connectResult = await outBoundClient.connect(handshake: true);
       logger.finer('connect result: $connectResult');
     }
     var sentNotifications = await outBoundClient.notifyList(fromAtSign)!;

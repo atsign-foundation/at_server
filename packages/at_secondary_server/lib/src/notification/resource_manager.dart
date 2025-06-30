@@ -133,7 +133,7 @@ class ResourceManager {
     var outBoundClient = _notifyConnectionsPool.get(toAtSign);
     try {
       if (!outBoundClient.isHandShakeDone) {
-        var isConnected = await outBoundClient.connect();
+        var isConnected = await outBoundClient.connect(handshake: true);
         logger.finest('outBoundClient.connect() result: $isConnected');
       }
       return outBoundClient;
