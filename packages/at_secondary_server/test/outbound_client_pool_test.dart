@@ -207,23 +207,31 @@ void main() async {
       expect(notifyConnectionPool.getCapacity(), 2);
 
       final OutboundClient toAlice =
-          await notifyConnectionPool.getOutboundClient('alice');
+          await notifyConnectionPool.getOutboundClient(
+        '@alice',
+        connect: false,
+      );
       expect(notifyConnectionPool.getCapacity(), 1);
 
       await Future.delayed(Duration(milliseconds: 1));
-      var bob = notifyConnectionPool.getOutboundClient('bob');
+      final OutboundClient toBob = await notifyConnectionPool.getOutboundClient(
+        '@bob',
+        connect: false,
+      );
       expect(notifyConnectionPool.getCapacity(), 0);
 
       toAlice.lastUsed = DateTime.now();
-      expect(notifyConnectionPool.pool.clients()[0], bob);
+      expect(notifyConnectionPool.pool.clients()[0], toBob);
       expect(notifyConnectionPool.pool.clients()[1], toAlice);
 
       await Future.delayed(Duration(milliseconds: 1));
-      var charlie = notifyConnectionPool.getOutboundClient(
-          'charlie'); // as there is no capacity, bob should be evicted as the least recently used
+      OutboundClient toCharlie = await notifyConnectionPool.getOutboundClient(
+        '@charlie',
+        connect: false,
+      ); // as there is no capacity, bob should be evicted as the least recently used
       expect(notifyConnectionPool.getCapacity(), 0);
       expect(notifyConnectionPool.pool.clients()[0], toAlice);
-      expect(notifyConnectionPool.pool.clients()[1], charlie);
+      expect(notifyConnectionPool.pool.clients()[1], toCharlie);
     });
   });
 }
