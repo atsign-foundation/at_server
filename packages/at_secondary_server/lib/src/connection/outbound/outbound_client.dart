@@ -93,8 +93,6 @@ class OutboundClient {
       // 2. Create an outbound connection for the host and port
       outboundConnection = await _outboundConnectionFactory
           .createOutboundConnection(toHost, toPort, toAtSign);
-      isConnectionCreated = true;
-      logger.finer('Outbound connection created for $toHost $toPort $toAtSign');
 
       // 3. Listen to outbound message
       messageListener = OutboundMessageListener(this);
@@ -107,6 +105,10 @@ class OutboundClient {
         result = await _establishHandShake();
         isHandShakeDone = result;
       }
+
+      // 4. Register that the connection has been created successfully
+      isConnectionCreated = true;
+      logger.finer('Outbound connection created for $toHost $toPort $toAtSign');
     } on SecondaryNotFoundException catch (e) {
       logger
           .finer('Secondary server not found for $toAtSign | ${e.toString()}');
