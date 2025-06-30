@@ -1,3 +1,6 @@
+# 3.5.2
+- fix: Prevent OutboundClient from creating new socket connections unnecessarily
+
 # 3.5.1
 - build: update version number to 3.5.1
 
