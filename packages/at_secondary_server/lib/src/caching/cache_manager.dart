@@ -507,7 +507,8 @@ class AtCacheManager {
         otherAtSign, _dummyInboundConnection,
         isHandShake: handshakeRequired);
 
-    if (handshakeRequired && !outBoundClient.isHandShakeDone) {
+    if (!outBoundClient.isConnectionCreated ||
+        (handshakeRequired && !outBoundClient.isHandShakeDone)) {
       var connectResult =
           await outBoundClient.connect(handshake: handshakeRequired);
       logger.finer('connect result: $connectResult');
