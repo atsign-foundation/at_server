@@ -69,6 +69,10 @@ class OutboundClient {
   /// Throws a [SocketException] when a socket connection to secondary cannot be established
   /// Throws a [HandShakeException] for any exception in the handshake process
   Future<bool> connect({required bool handshake}) async {
+    // TODO There is the potential for races here under heavy load.
+    // TODO Need to make isHandshakeDone and isConnectionCreated into futures
+    // which return the futures of underlying completers which are completed
+    // when the appropriate thing has happened.
     if (handshake != handshakeRequired) {
       String msg = 'This OutboundClient'
           ' has handshakeRequired $handshakeRequired'
@@ -81,7 +85,7 @@ class OutboundClient {
       logger.warning(
           'connect(handshake:$handshake) called for $toAtSign but is already connected');
       logger.warning(StackTrace.current);
-      return true;
+      return isHandShakeDone;
     }
     var result = false;
     try {
