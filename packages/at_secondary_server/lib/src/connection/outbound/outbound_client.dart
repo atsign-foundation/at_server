@@ -100,21 +100,11 @@ class OutboundClient {
         result = await _establishHandShake();
         isHandShakeDone = result;
       }
-    } on SecondaryNotFoundException catch (e) {
-      logger
-          .finer('Secondary server not found for $toAtSign | ${e.toString()}');
-      rethrow;
-    } on SocketException catch (e) {
-      logger.finer(
-          'Socket exception connecting to secondary $toAtSign | ${e.toString()}');
-      rethrow;
-    } on HandShakeException catch (e) {
-      logger.finer(
-          'HandShakeException connecting to secondary $toAtSign | ${e.toString()}');
-      rethrow;
     } on Exception catch (e) {
-      logger.finer('Exception creating an Outbound Connection: $e');
-      rethrow;
+      close();
+      final msg = 'Connection failed to $toAtSign : $e';
+      logger.warning(msg);
+      throw ConnectionInvalidException(msg);
     }
 
     lastUsed = DateTime.now();
