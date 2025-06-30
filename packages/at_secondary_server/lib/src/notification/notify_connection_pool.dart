@@ -15,6 +15,7 @@ class NotifyConnectionsPool {
 
   final OutboundClientPool _outboundClientPool =
       OutboundClientPool(size: defaultPoolSize);
+
   OutboundClientPool get pool => _outboundClientPool;
 
   NotifyConnectionsPool._internal();
@@ -24,6 +25,7 @@ class NotifyConnectionsPool {
   }
 
   int get size => _outboundClientPool.size;
+
   set size(int s) => _outboundClientPool.size = s;
 
   int getCapacity() {
@@ -32,7 +34,10 @@ class NotifyConnectionsPool {
         _outboundClientPool.getCurrentSize();
   }
 
-  OutboundClient get(String toAtSign) {
+  Future<OutboundClient> getOutboundClient(
+    String toAtSign, {
+    bool connect = true,
+  }) async {
     _outboundClientPool.clearInvalidClients();
     var inboundConnection = DummyInboundConnection();
     var client = _outboundClientPool.get(toAtSign, inboundConnection);
@@ -57,6 +62,11 @@ class NotifyConnectionsPool {
     // and return it back
     var newClient = OutboundClient(inboundConnection, toAtSign,
         AtSecondaryServerImpl.getInstance().secondaryAddressFinder, true);
+    if (connect) {
+      await newClient.connect();
+    } else {
+      logger.warning('Created new client but not connecting it');
+    }
     _outboundClientPool.add(newClient);
     logger.info(
         'Created new outbound client to $toAtSign (handshake: true) and added to pool');

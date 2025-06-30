@@ -23,25 +23,30 @@ class OutboundClientManager {
   SecondaryAddressFinder secondaryAddressFinder;
 
   set poolSize(int s) => _pool.size = s;
+
   int get poolSize => _pool.size;
 
   /// If the pool is already initialized, checks and returns an outbound client if it is already in pool.
   /// Otherwise clears idle clients and creates a new outbound client if the pool has capacity. Returns null if pool does not have capacity.
   ///  If the pool is not initialized, initializes the pool with [defaultPoolSize] and creates a new client
   ///  Throws a [OutboundConnectionLimitException] if connection cannot be added because pool has reached max capacity
-  OutboundClient getClient(String toAtSign, InboundConnection inboundConnection,
-      {required bool isHandShake}) {
+  Future<OutboundClient> getClient(
+    String toAtSign,
+    InboundConnection inboundConnection, {
+    required bool handshakeRequired,
+    bool connect = true,
+  }) async {
     if (closed) {
       throw StateError('getClient called but we are in closed state');
     }
     _pool.clearInvalidClients();
     // Get OutboundClient for a given atSign and InboundConnection
     OutboundClient? client =
-        _pool.get(toAtSign, inboundConnection, isHandShake: isHandShake);
+        _pool.get(toAtSign, inboundConnection, isHandShake: handshakeRequired);
 
     if (client != null) {
       logger.info(
-          'retrieved outbound client to $toAtSign (handshake: $isHandShake) from pool');
+          'retrieved outbound client to $toAtSign (handshake: $handshakeRequired) from pool');
       return client;
     }
 
@@ -56,10 +61,15 @@ class OutboundClientManager {
 
     // No existing client found, and Pool has capacity - create a new client
     var newClient = OutboundClient(
-        inboundConnection, toAtSign, secondaryAddressFinder, isHandShake);
+        inboundConnection, toAtSign, secondaryAddressFinder, handshakeRequired);
+    if (connect) {
+      await newClient.connect();
+    } else {
+      logger.warning('Created new client but not connecting it');
+    }
     _pool.add(newClient);
     logger.info(
-        'Created new outbound client to $toAtSign (handshake: $isHandShake) and added to pool');
+        'Created new outbound client to $toAtSign (handshake: $handshakeRequired) and added to pool');
     return newClient;
   }
 

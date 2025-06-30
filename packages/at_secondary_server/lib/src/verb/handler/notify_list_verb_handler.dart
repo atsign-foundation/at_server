@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -122,13 +123,8 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   /// Returns [responseList] with any matching notifications added.
   Future<List> _getSentNotifications(List responseList, String fromAtSign,
       InboundConnection atConnection) async {
-    var outBoundClient = outboundClientManager
-        .getClient(fromAtSign, atConnection, isHandShake: true);
-    // Need not connect again if the client's handshake is already done
-    if (!outBoundClient.isHandShakeDone) {
-      var connectResult = await outBoundClient.connect(handshake: true);
-      logger.finer('connect result: $connectResult');
-    }
+    final OutboundClient outBoundClient = await outboundClientManager
+        .getClient(fromAtSign, atConnection, handshakeRequired: true);
     var sentNotifications = await outBoundClient.notifyList(fromAtSign)!;
     for (var element in sentNotifications) {
       responseList.add(Notification(element));

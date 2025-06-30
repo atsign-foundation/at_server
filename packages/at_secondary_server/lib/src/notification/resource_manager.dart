@@ -130,19 +130,7 @@ class ResourceManager {
   /// Returns OutboundClient, if connection is successful.
   /// Throws [ConnectionInvalidException] for any exceptions
   Future<OutboundClient> _connect(String toAtSign) async {
-    var outBoundClient = _notifyConnectionsPool.get(toAtSign);
-    try {
-      if (!outBoundClient.isHandShakeDone) {
-        var isConnected = await outBoundClient.connect(handshake: true);
-        logger.finest('outBoundClient.connect() result: $isConnected');
-      }
-      return outBoundClient;
-    } on Exception catch (e) {
-      var msg = 'Connection failed to $toAtSign with exception: $e';
-      logger.warning(msg);
-      outBoundClient.inboundConnection.metaData.isClosed = true;
-      throw ConnectionInvalidException(msg);
-    }
+    return await _notifyConnectionsPool.getOutboundClient(toAtSign);
   }
 
   /// Send the Notification to [atNotificationList.toAtSign]

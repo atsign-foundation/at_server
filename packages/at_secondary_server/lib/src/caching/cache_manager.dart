@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -503,16 +504,10 @@ class AtCacheManager {
     logger.info("_remoteLookup: $key");
     var index = key.indexOf('@');
     var otherAtSign = key.substring(index);
-    var outBoundClient = outboundClientManager.getClient(
+    OutboundClient outBoundClient = await outboundClientManager.getClient(
         otherAtSign, _dummyInboundConnection,
-        isHandShake: handshakeRequired);
+        handshakeRequired: handshakeRequired);
 
-    if (!outBoundClient.isConnectionCreated ||
-        (handshakeRequired && !outBoundClient.isHandShakeDone)) {
-      var connectResult =
-          await outBoundClient.connect(handshake: handshakeRequired);
-      logger.finer('connect result: $connectResult');
-    }
     return await outBoundClient.lookUp(key, handshake: handshakeRequired);
   }
 }

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
@@ -98,12 +99,12 @@ class ScanVerbHandler extends AbstractVerbHandler {
   Future<String?> _getExternalKeys(String forAtSign, String? scanRegex,
       InboundConnection atConnection) async {
     //scan has to be performed for another atSign
-    var outBoundClient = outboundClientManager
-        .getClient(forAtSign, atConnection, isHandShake: true);
+    final OutboundClient outBoundClient = await outboundClientManager
+        .getClient(forAtSign, atConnection, handshakeRequired: true);
     var handShake = false;
     // Performs handshake if not done.
     if (!outBoundClient.isHandShakeDone) {
-      await outBoundClient.connect(handshake: true);
+      await outBoundClient.connect();
       handShake = true;
     }
     var scanResult =

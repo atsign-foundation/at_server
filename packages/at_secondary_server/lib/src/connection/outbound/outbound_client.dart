@@ -68,22 +68,9 @@ class OutboundClient {
   /// Throws a [SecondaryNotFoundException] if secondary is url is not found for atsign
   /// Throws a [SocketException] when a socket connection to secondary cannot be established
   /// Throws a [HandShakeException] for any exception in the handshake process
-  Future<bool> connect({required bool handshake}) async {
-    // TODO There is the potential for races here under heavy load.
-    // TODO Need to make isHandshakeDone and isConnectionCreated into futures
-    // which return the futures of underlying completers which are completed
-    // when the appropriate thing has happened.
-    if (handshake != handshakeRequired) {
-      String msg = 'This OutboundClient'
-          ' has handshakeRequired $handshakeRequired'
-          ' but connect has been called with handshake $handshake';
-      logger.shout(msg);
-      logger.shout(StackTrace.current);
-      throw HandShakeException(msg);
-    }
+  Future<bool> connect() async {
     if (isConnectionCreated) {
-      logger.warning(
-          'connect(handshake:$handshake) called for $toAtSign but is already connected');
+      logger.warning('connect called for $toAtSign but is already connected');
       logger.warning(StackTrace.current);
       return isHandShakeDone;
     }
@@ -109,7 +96,7 @@ class OutboundClient {
       await checkRemotePublicKey();
 
       // 3. Establish handshake if required
-      if (handshake) {
+      if (handshakeRequired) {
         result = await _establishHandShake();
         isHandShakeDone = result;
       }

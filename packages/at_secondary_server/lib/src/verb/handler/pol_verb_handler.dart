@@ -62,11 +62,12 @@ class PolVerbHandler extends AbstractVerbHandler {
     }
     logger.info('pol from $fromAtSign');
 
-    OutboundClient oc = outboundClientManager
-        .getClient(fromAtSign!, _dummyInboundConnection, isHandShake: false);
+    final OutboundClient oc = await outboundClientManager.getClient(
+        fromAtSign!, _dummyInboundConnection,
+        handshakeRequired: false);
     if (!oc.isConnectionCreated) {
       try {
-        await oc.connect(handshake: false);
+        await oc.connect();
       } on Exception catch (e) {
         logger.finer(
             'Exception connecting to $fromAtSign\'s outbound client | $e');

@@ -211,13 +211,14 @@ verbTestsSetUp() async {
     ..productionMode = false;
 
   mockOutboundClientManager = MockOutboundClientManager();
-  when(() => mockOutboundClientManager.getClient(bob, any(), isHandShake: true))
-      .thenAnswer((_) {
+  when(() => mockOutboundClientManager.getClient(bob, any(),
+      handshakeRequired: true)).thenAnswer((_) async {
+    await outboundClientWithHandshake.connect();
     return outboundClientWithHandshake;
   });
-  when(() =>
-          mockOutboundClientManager.getClient(bob, any(), isHandShake: false))
-      .thenAnswer((_) {
+  when(() => mockOutboundClientManager.getClient(bob, any(),
+      handshakeRequired: false)).thenAnswer((_) async {
+    await outboundClientWithoutHandshake.connect();
     return outboundClientWithoutHandshake;
   });
 
