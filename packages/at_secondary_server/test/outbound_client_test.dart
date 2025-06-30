@@ -29,7 +29,7 @@ void main() {
         () {
       var connection1 = InboundConnectionImpl(mockSocket, 'aaa');
       var client = OutboundClient(connection1, 'bob',
-          AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
+          AtSecondaryServerImpl.getInstance().secondaryAddressFinder, true);
       client.outboundConnection = OutboundConnectionImpl(mockSocket, 'bob');
       connection1.close();
       expect(client.isInValid(), true);
@@ -38,7 +38,7 @@ void main() {
     test('test outbound client - invalid outbound client idle', () {
       var connection1 = InboundConnectionImpl(mockSocket, 'aaa');
       var client = OutboundClient(connection1, 'bob',
-          AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
+          AtSecondaryServerImpl.getInstance().secondaryAddressFinder, true);
       client.outboundConnection = OutboundConnectionImpl(mockSocket, 'bob');
       sleep(Duration(
           milliseconds: AtSecondaryServerImpl.getInstance()
@@ -51,7 +51,7 @@ void main() {
     test('test outbound client - valid outbound client', () {
       var connection1 = InboundConnectionImpl(mockSocket, 'aaa');
       var client = OutboundClient(connection1, 'bob',
-          AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
+          AtSecondaryServerImpl.getInstance().secondaryAddressFinder, true);
       client.outboundConnection = OutboundConnectionImpl(mockSocket, 'bob');
       expect(client.isInValid(), false);
     });
@@ -61,7 +61,7 @@ void main() {
         () {
       var connection1 = InboundConnectionImpl(mockSocket, 'aaa');
       var client = OutboundClient(connection1, 'bob',
-          AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
+          AtSecondaryServerImpl.getInstance().secondaryAddressFinder, false);
       client.outboundConnection = OutboundConnectionImpl(mockSocket, 'bob');
       client.outboundConnection!.metaData.isStale = true;
       expect(
@@ -75,7 +75,7 @@ void main() {
         () {
       var connection1 = InboundConnectionImpl(mockSocket, 'aaa');
       var client = OutboundClient(connection1, 'bob',
-          AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
+          AtSecondaryServerImpl.getInstance().secondaryAddressFinder, false);
       client.outboundConnection = OutboundConnectionImpl(mockSocket, 'bob');
       client.outboundConnection!.metaData.isClosed = true;
       expect(

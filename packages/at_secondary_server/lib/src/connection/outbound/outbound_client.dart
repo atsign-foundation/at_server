@@ -29,6 +29,7 @@ class OutboundClient {
   OutboundSocketConnection? outboundConnection;
   bool isConnectionCreated = false;
   bool isHandShakeDone = false;
+  bool handshakeRequired;
   DateTime lastUsed = DateTime.now();
   int lookupTimeoutMillis = 5 * 1000;
   int notifyTimeoutMillis = 10 * 1000;
@@ -51,8 +52,8 @@ class OutboundClient {
 
   late OutboundConnectionFactory _outboundConnectionFactory;
 
-  OutboundClient(
-      this.inboundConnection, this.toAtSign, this.secondaryAddressFinder,
+  OutboundClient(this.inboundConnection, this.toAtSign,
+      this.secondaryAddressFinder, this.handshakeRequired,
       {OutboundConnectionFactory? outboundConnectionFactory}) {
     outboundConnectionFactory ??= DefaultOutboundConnectionFactory();
     _outboundConnectionFactory = outboundConnectionFactory;
@@ -67,8 +68,12 @@ class OutboundClient {
   /// Throws a [SecondaryNotFoundException] if secondary is url is not found for atsign
   /// Throws a [SocketException] when a socket connection to secondary cannot be established
   /// Throws a [HandShakeException] for any exception in the handshake process
-  Future<bool> connect({bool handshake = true}) async {
-    logger.finer('connect(handshake:$handshake) called for $toAtSign');
+  Future<bool> connect() async {
+    if (isConnectionCreated) {
+      logger.warning('connect called for $toAtSign but is already connected');
+      logger.warning(StackTrace.current);
+      return isHandShakeDone;
+    }
     var result = false;
     try {
       // 1. Find secondary url for the toAtSign
@@ -79,6 +84,8 @@ class OutboundClient {
       // 2. Create an outbound connection for the host and port
       outboundConnection = await _outboundConnectionFactory
           .createOutboundConnection(toHost, toPort, toAtSign);
+
+      // Note that the outbound connection has been created successfully
       isConnectionCreated = true;
       logger.finer('Outbound connection created for $toHost $toPort $toAtSign');
 
@@ -89,25 +96,15 @@ class OutboundClient {
       await checkRemotePublicKey();
 
       // 3. Establish handshake if required
-      if (handshake) {
+      if (handshakeRequired) {
         result = await _establishHandShake();
         isHandShakeDone = result;
       }
-    } on SecondaryNotFoundException catch (e) {
-      logger
-          .finer('Secondary server not found for $toAtSign | ${e.toString()}');
-      rethrow;
-    } on SocketException catch (e) {
-      logger.finer(
-          'Socket exception connecting to secondary $toAtSign | ${e.toString()}');
-      rethrow;
-    } on HandShakeException catch (e) {
-      logger.finer(
-          'HandShakeException connecting to secondary $toAtSign | ${e.toString()}');
-      rethrow;
     } on Exception catch (e) {
-      logger.finer('Exception creating an Outbound Connection: $e');
-      rethrow;
+      close();
+      final msg = 'Connection failed to $toAtSign : $e';
+      logger.warning(msg);
+      throw ConnectionInvalidException(msg);
     }
 
     lastUsed = DateTime.now();

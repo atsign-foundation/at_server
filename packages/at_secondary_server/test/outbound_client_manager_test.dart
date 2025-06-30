@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
@@ -30,13 +31,18 @@ void main() {
   });
 
   group('A group of outbound client manager tests', () {
-    test('test outbound client manager - create new client ', () {
+    test('test outbound client manager - create new client ', () async {
       var inboundConnection = InboundConnectionImpl(mockSocket_1, 'aaa');
       var clientManager =
           AtSecondaryServerImpl.getInstance().outboundClientManager;
       clientManager.poolSize = 5;
-      var outBoundClient = clientManager.getClient('bob', inboundConnection);
-      expect(outBoundClient.toAtSign, 'bob');
+      final OutboundClient outBoundClient = await clientManager.getClient(
+        '@bob',
+        inboundConnection,
+        handshakeRequired: false,
+        connect: false,
+      );
+      expect(outBoundClient.toAtSign, '@bob');
       expect(clientManager.getActiveConnectionSize(), 1);
     });
 
@@ -91,24 +97,35 @@ void main() {
 
     test(
         'test outbound client manager - inbound is closed, outbound client is invalid',
-        () {
-      var inboundConnection = InboundConnectionImpl(mockSocket_1, 'aaa');
+        () async {
+      final InboundConnectionImpl inboundConnection =
+          InboundConnectionImpl(mockSocket_1, 'aaa');
       var clientManager =
           AtSecondaryServerImpl.getInstance().outboundClientManager;
       clientManager.poolSize = 5;
-      var outBoundClient_1 = clientManager.getClient('bob', inboundConnection);
-      inboundConnection.close();
+      final OutboundClient outBoundClient_1 = await clientManager.getClient(
+        '@bob',
+        inboundConnection,
+        handshakeRequired: true,
+        connect: false,
+      );
+      await inboundConnection.close();
       expect(outBoundClient_1.isInValid(), true);
     });
 
     test(
         'test outbound client manager - outbound client is closed, inbound is still valid',
-        () {
+        () async {
       var inboundConnection = InboundConnectionImpl(mockSocket_1, 'aaa');
       var clientManager =
           AtSecondaryServerImpl.getInstance().outboundClientManager;
       clientManager.poolSize = 5;
-      var outBoundClient_1 = clientManager.getClient('bob', inboundConnection);
+      final OutboundClient outBoundClient_1 = await clientManager.getClient(
+        'bob',
+        inboundConnection,
+        handshakeRequired: false,
+        connect: false,
+      );
       outBoundClient_1.outboundConnection =
           OutboundConnectionImpl(mockSocket_2, 'bob');
       outBoundClient_1.close();
@@ -117,12 +134,17 @@ void main() {
 
     test(
         'test outbound client manager - outbound client is idle and becomes invalid',
-        () {
+        () async {
       var inboundConnection = InboundConnectionImpl(mockSocket_1, 'aaa');
       var clientManager =
           AtSecondaryServerImpl.getInstance().outboundClientManager;
       clientManager.poolSize = 5;
-      var outBoundClient_1 = clientManager.getClient('bob', inboundConnection);
+      final OutboundClient outBoundClient_1 = await clientManager.getClient(
+        'bob',
+        inboundConnection,
+        handshakeRequired: false,
+        connect: false,
+      );
       outBoundClient_1.outboundConnection =
           OutboundConnectionImpl(mockSocket_2, 'bob');
       expect(outBoundClient_1.isInValid(), false);

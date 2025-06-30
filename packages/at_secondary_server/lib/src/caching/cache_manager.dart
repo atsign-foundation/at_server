@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -26,6 +27,8 @@ class AtCacheManager {
   final OutboundClientManager outboundClientManager;
 
   final logger = AtSignLogger('AtCacheManager');
+
+  final _dummyInboundConnection = DummyInboundConnection();
 
   AtCacheManager(String atSign, this.keyStore, this.outboundClientManager)
       : atSign = atSign.toAtsign();
@@ -127,11 +130,11 @@ class AtCacheManager {
       if (cachedKeyName.startsWith('cached:public:')) {
         remoteKeyName = cachedKeyName.replaceAll('cached:public:', '');
         remoteResponse =
-            await _remoteLookUp('all:$remoteKeyName', isHandShake: false);
+            await _remoteLookUp('all:$remoteKeyName', handshakeRequired: false);
       } else if (cachedKeyName.startsWith('cached:$atSign')) {
         remoteKeyName = cachedKeyName.replaceAll('cached:$atSign:', '');
         remoteResponse =
-            await _remoteLookUp('all:$remoteKeyName', isHandShake: true);
+            await _remoteLookUp('all:$remoteKeyName', handshakeRequired: true);
       } else {
         throw IllegalArgumentException(
             'remoteLookup called with invalid cachedKeyName $cachedKeyName');
@@ -496,19 +499,15 @@ class AtCacheManager {
   }
 
   /// Does the remote lookup - returns the atProtocol string which it receives
-  Future<String?> _remoteLookUp(String key, {required bool isHandShake}) async {
+  Future<String?> _remoteLookUp(String key,
+      {required bool handshakeRequired}) async {
     logger.info("_remoteLookup: $key");
     var index = key.indexOf('@');
     var otherAtSign = key.substring(index);
-    var outBoundClient = outboundClientManager.getClient(
-        otherAtSign, DummyInboundConnection(),
-        isHandShake: isHandShake);
-    // Need not connect again if the client's handshake is already done
+    OutboundClient outBoundClient = await outboundClientManager.getClient(
+        otherAtSign, _dummyInboundConnection,
+        handshakeRequired: handshakeRequired);
 
-    if (!outBoundClient.isHandShakeDone) {
-      var connectResult = await outBoundClient.connect(handshake: isHandShake);
-      logger.finer('connect result: $connectResult');
-    }
-    return await outBoundClient.lookUp(key, handshake: isHandShake);
+    return await outBoundClient.lookUp(key, handshake: handshakeRequired);
   }
 }

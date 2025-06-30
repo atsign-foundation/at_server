@@ -46,7 +46,7 @@ void main() {
     });
 
     test(
-        '$alice, to $alice server, lookup a key that @bob has shared with ttr 10 - verify cache and response',
+        'alice, to alice server, lookup a key that bob has shared with ttr 10 - verify cache and response',
         () async {
       // some key sharedBy @bob
       var keyName = 'some_key.some_namespace$bob';

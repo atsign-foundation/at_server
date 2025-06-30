@@ -194,7 +194,7 @@ verbTestsSetUp() async {
   inboundPool.add(inboundConnection);
 
   outboundClientWithHandshake = OutboundClient(
-      inboundConnection, bob, mockSecondaryAddressFinder,
+      inboundConnection, bob, mockSecondaryAddressFinder, true,
       outboundConnectionFactory: mockOutboundConnectionFactory)
     ..notifyTimeoutMillis = 100
     ..lookupTimeoutMillis = 100
@@ -202,7 +202,7 @@ verbTestsSetUp() async {
     ..toPort = bobPort.toString()
     ..productionMode = false;
   outboundClientWithoutHandshake = OutboundClient(
-      inboundConnection, bob, mockSecondaryAddressFinder,
+      inboundConnection, bob, mockSecondaryAddressFinder, false,
       outboundConnectionFactory: mockOutboundConnectionFactory)
     ..notifyTimeoutMillis = 100
     ..lookupTimeoutMillis = 100
@@ -211,13 +211,14 @@ verbTestsSetUp() async {
     ..productionMode = false;
 
   mockOutboundClientManager = MockOutboundClientManager();
-  when(() => mockOutboundClientManager.getClient(bob, any(), isHandShake: true))
-      .thenAnswer((_) {
+  when(() => mockOutboundClientManager.getClient(bob, any(),
+      handshakeRequired: true)).thenAnswer((_) async {
+    await outboundClientWithHandshake.connect();
     return outboundClientWithHandshake;
   });
-  when(() =>
-          mockOutboundClientManager.getClient(bob, any(), isHandShake: false))
-      .thenAnswer((_) {
+  when(() => mockOutboundClientManager.getClient(bob, any(),
+      handshakeRequired: false)).thenAnswer((_) async {
+    await outboundClientWithoutHandshake.connect();
     return outboundClientWithoutHandshake;
   });
 
