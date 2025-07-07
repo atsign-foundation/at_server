@@ -19,7 +19,7 @@ dependencies:
   basic_utils: 5.7.0
   ecdsa: 0.1.2
   encrypt: 5.0.3
-  at_commons: 5.4.0
+  at_commons: 5.4.1
   at_utils: 3.2.0
   at_chops: 2.2.0
   at_lookup: 3.1.0
