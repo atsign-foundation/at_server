@@ -2,7 +2,7 @@ name: at_root deploy (dev)
 on:
   push:
     branches:
-      - trunk
+      - feature/runner
     paths:
       - packages/*_root_server/**
 
