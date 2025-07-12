@@ -64,7 +64,7 @@ jobs:
 
   Deploy_On_Prod_K8:
     needs: Docker_Build
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, K8s]
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
