@@ -149,10 +149,10 @@ jobs:
             linux/amd64
             linux/arm64/v8
 
-      - name: Image digest vip
+      - name: Image digest EE
         run: echo ${{ steps.docker_build_vip.outputs.digest }}
 
-      - name: Google Chat Notification vip
+      - name: Google Chat Notification EE
         uses: Co-qn/google-chat-notification@3691ccf4763537d6e544bc6cdcccc1965799d056 # v1
         with:
           name: New Docker image for atsigncompany/ephemeral
