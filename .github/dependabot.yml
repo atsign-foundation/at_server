@@ -27,6 +27,7 @@ updates:
     directories:
       - "/packages/at_root_server"
       - "/packages/at_secondary_server"
+      - "/tools/build_ephemeral_environment/at_activate"
     schedule:
       interval: "daily"
     groups:
