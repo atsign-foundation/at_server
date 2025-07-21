@@ -279,14 +279,6 @@ jobs:
         working-directory: ${{ env.ftest-working-directory }}
         run: dart run test --concurrency=1
 
-      - name: Stop docker container
-        run: docker container stop at_virtual_env_cont
-
-      # Remove image created for at_virtual_env:trunk for running functional tests in pipeline.
-      - name: Remove docker image
-        run: docker rmi at_virtual_env:trunk
-
-
   end2end_test_prep:
     # Don't run on PRs from a fork or Dependabot as the secrets aren't available
     if: ${{ github.event.pull_request.head.repo.fork == false && github.actor != 'dependabot[bot]'}}
