@@ -207,7 +207,6 @@ jobs:
       upload-assets: true
 
   # Runs functional tests on at_secondary.
-  # If tests are successful, uploads root server and secondary server binaries for subsequent jobs
   functional_tests:
     runs-on: ubuntu-latest
     strategy:
@@ -279,22 +278,6 @@ jobs:
       - name: Run tests
         working-directory: ${{ env.ftest-working-directory }}
         run: dart run test --concurrency=1
-
-      # On push event, upload secondary server binary
-      - name: upload secondary server
-        if: ${{ github.event_name == 'push' && matrix.dart-channel == 'stable' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: secondary-server
-          path: packages/at_secondary_server/secondary
-
-      - name: Stop docker container
-        run: docker container stop at_virtual_env_cont
-
-      # Remove image created for at_virtual_env:trunk for running functional tests in pipeline.
-      - name: Remove docker image
-        run: docker rmi at_virtual_env:trunk
-
 
   end2end_test_prep:
     # Don't run on PRs from a fork or Dependabot as the secrets aren't available
