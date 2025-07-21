@@ -42,7 +42,7 @@ docker run -it -e DNS_FQDN="rainbow.crushware.com" \
   -v /tmp/rainbow/certs:/atsign/root/certs \
   -v /tmp/rainbow/certs:/atsign/secondary/base/certs \
   -e FIRST_PORT=2500 -p 64:64 -p 127.0.0.1:9001:9001 \
-  -p 2500-2600:2500-2600 -d cconstab/emphemeral 
+  -p 2500-2600:2500-2600 -d atsigncompany/ephemeral 
 ```
 
 The CRAM values will be printed out in the log file of the container and they
@@ -83,7 +83,7 @@ This would create the five atSigns instead of the defaults, for example:
    -v /tmp/rainbow/certs:/atsign/secondary/base/certs \
    -v/tmp/atsigns:/tmp/setup/atsigns \
    -e FIRST_PORT=2500 -p 64:64 -p 127.0.0.1:9001:9001 \
-   -p 2500-2600:2500-2600 -d cconstab/emphemeral 
+   -p 2500-2600:2500-2600 -d atsigncompany/ephemeral 
 ```
 
 ## Monitoring and administration of the running container
