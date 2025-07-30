@@ -1,12 +1,12 @@
 name: at_secondary
 description: Implementation of secondary server.
-version: 3.5.2
+version: 3.5.3
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://www.example.com
 publish_to: none
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: ">=3.0.0 <4.0.0"
 
 dependencies:
   args: 2.7.0
@@ -40,3 +40,10 @@ dev_dependencies:
   coverage: ^1.6.1
   lints: ^6.0.0
   mocktail: ^1.0.3
+
+dependency_overrides:
+  at_lookup:
+    git:
+      url: https://github.com/atsign-foundation/at_libraries
+      ref: 52bce94d107548d73f9f4086706bd4913a725aa8
+      path: packages/at_lookup

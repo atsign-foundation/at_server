@@ -1,3 +1,6 @@
+# 3.5.3
+- fix: Set the trusted cacert path for AtSecondaryFinder
+
 # 3.5.2
 - fix: Prevent OutboundClient from creating new socket connections unnecessarily
 

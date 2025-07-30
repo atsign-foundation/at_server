@@ -79,8 +79,16 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   AtSecondaryServerImpl._internal() {
+    final socketConfig = SecureSocketConfig()
+      ..decryptPackets = true
+      ..pathToCerts = AtSecondaryConfig.trustedCertificateLocation
+      ..tlsKeysSavePath = null;
+
     secondaryAddressFinder = CacheableSecondaryAddressFinder(
-        AtSecondaryConfig.rootServerUrl, AtSecondaryConfig.rootServerPort);
+      AtSecondaryConfig.rootServerUrl,
+      AtSecondaryConfig.rootServerPort,
+      socketConfig: socketConfig,
+    );
     outboundClientManager = OutboundClientManager(secondaryAddressFinder);
   }
 
