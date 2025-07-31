@@ -577,7 +577,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   /// Starts the secondary server in secure mode and calls the listen method of server socket.
   Future<void> _startSecuredServer() async {
-    var secCon = SecurityContext();
+    var secCon = SecurityContext.defaultContext;
     var retryCount = 0;
     var certsAvailable = false;
     // if certs are unavailable then retry max 10 minutes
