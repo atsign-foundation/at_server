@@ -45,5 +45,5 @@ dependency_overrides:
   at_lookup:
     git:
       url: https://github.com/atsign-foundation/at_libraries
-      ref: 52bce94d107548d73f9f4086706bd4913a725aa8
+      ref: 3b0a4ec6c6dcc460e87b50b3f7ba6117d8a675e0
       path: packages/at_lookup

@@ -80,7 +80,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   AtSecondaryServerImpl._internal() {
     final socketConfig = SecureSocketConfig()
-      ..decryptPackets = true
+      ..decryptPackets = false
       ..pathToCerts = AtSecondaryConfig.trustedCertificateLocation
       ..tlsKeysSavePath = null;
 
