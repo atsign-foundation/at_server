@@ -22,7 +22,7 @@ dependencies:
   at_commons: 5.4.1
   at_utils: 3.2.0
   at_chops: 2.2.0
-  at_lookup: 3.1.0
+  at_lookup: 3.2.0
   at_server_spec: 5.0.3
   at_persistence_spec: 3.1.0
   at_persistence_secondary_server: 4.1.0
@@ -40,10 +40,3 @@ dev_dependencies:
   coverage: ^1.6.1
   lints: ^6.0.0
   mocktail: ^1.0.3
-
-dependency_overrides:
-  at_lookup:
-    git:
-      url: https://github.com/atsign-foundation/at_libraries
-      ref: 3b0a4ec6c6dcc460e87b50b3f7ba6117d8a675e0
-      path: packages/at_lookup
