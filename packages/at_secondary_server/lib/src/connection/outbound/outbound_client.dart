@@ -380,7 +380,7 @@ class DefaultOutboundConnectionFactory implements OutboundConnectionFactory {
   Future<OutboundSocketConnection> createOutboundConnection(
       String host, int port, String toAtSign) async {
     AtSecurityContextImpl securityContext = AtSecurityContextImpl();
-    SecurityContext secConConnect = SecurityContext();
+    SecurityContext secConConnect = SecurityContext.defaultContext;
     secConConnect.useCertificateChain(securityContext.publicKeyPath());
     secConConnect.usePrivateKey(securityContext.privateKeyPath());
     secConConnect

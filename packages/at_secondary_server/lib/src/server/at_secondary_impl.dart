@@ -79,8 +79,16 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   AtSecondaryServerImpl._internal() {
+    final socketConfig = SecureSocketConfig()
+      ..decryptPackets = false
+      ..pathToCerts = AtSecondaryConfig.trustedCertificateLocation
+      ..tlsKeysSavePath = null;
+
     secondaryAddressFinder = CacheableSecondaryAddressFinder(
-        AtSecondaryConfig.rootServerUrl, AtSecondaryConfig.rootServerPort);
+      AtSecondaryConfig.rootServerUrl,
+      AtSecondaryConfig.rootServerPort,
+      socketConfig: socketConfig,
+    );
     outboundClientManager = OutboundClientManager(secondaryAddressFinder);
   }
 
@@ -569,7 +577,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   /// Starts the secondary server in secure mode and calls the listen method of server socket.
   Future<void> _startSecuredServer() async {
-    var secCon = SecurityContext();
+    var secCon = SecurityContext.defaultContext;
     var retryCount = 0;
     var certsAvailable = false;
     // if certs are unavailable then retry max 10 minutes
