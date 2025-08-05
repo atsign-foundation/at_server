@@ -1,3 +1,8 @@
+## 4.2.0 
+
+- chore(deps): bump uuid to `^4.0.0`
+- chore(deps): bump at_commons to `^5.5.0`
+
 ## 4.1.0
 - feat: Add `preRemoveHook` and `postRemoveHook` to KeyStore interfaces
 
