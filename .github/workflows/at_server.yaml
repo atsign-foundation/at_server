@@ -6,8 +6,8 @@ name: at_server
 on:
   push:
     tags:
-      - 'v*.*.*'
-      - 'c*.*.*'
+      - "v*.*.*"
+      - "c*.*.*"
     branches:
       - trunk
   pull_request:
@@ -23,7 +23,7 @@ env:
   e2etest-working-directory: ./tests/at_end2end_test
   install-pkam-working-directory: ./tools/build_virtual_environment/install_PKAM_Keys
 
-permissions:  # added using https://github.com/step-security/secure-workflows
+permissions: # added using https://github.com/step-security/secure-workflows
   contents: read
 
 jobs:
@@ -32,13 +32,13 @@ jobs:
     outputs:
       hashes: ${{ steps.hash.outputs.hashes }}
     permissions:
-      contents: write  # IMPORTANT: mandatory for making GitHub Releases
-      id-token: write  # IMPORTANT: mandatory for sigstore
+      contents: write # IMPORTANT: mandatory for making GitHub Releases
+      id-token: write # IMPORTANT: mandatory for sigstore
       attestations: write
     strategy:
       fail-fast: false
       matrix:
-        dart-channel: [stable,beta]
+        dart-channel: [stable, beta]
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -49,7 +49,7 @@ jobs:
 
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
-          go-version: 'stable'
+          go-version: "stable"
           cache-dependency-path: tools/osv-scanner/go.sum
 
       # Runs dart lint rules and unit tests on at_persistence_root_server
@@ -118,16 +118,16 @@ jobs:
       # Only run on stable channel
       - if: ${{ matrix.dart-channel == 'stable' && github.event_name == 'push' }}
         name: Create sbom folder
-        run: mkdir sboms        
+        run: mkdir sboms
       - if: ${{ matrix.dart-channel == 'stable' && github.event_name == 'push' }}
         name: Generate atDirectory SBOM
         uses: sbomify/github-action@8ea6f28cd562edee2665001cd4f17aaf7a283722 # v0.5.0
         env:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
-          COMPONENT_ID: '3hQHrn8mwK'
+          COMPONENT_ID: "3hQHrn8mwK"
           LOCK_FILE: ${{ env.root-working-directory }}/pubspec.lock
           SBOM_VERSION: ${{github.ref_name}}
-          OUTPUT_FILE: 'sboms/atdirectory-gha${{github.run_number}}-sbom.cdx.json'
+          OUTPUT_FILE: "sboms/atdirectory-gha${{github.run_number}}-sbom.cdx.json"
           AUGMENT: true
           ENRICH: true
           UPLOAD: true
@@ -136,10 +136,10 @@ jobs:
         uses: sbomify/github-action@8ea6f28cd562edee2665001cd4f17aaf7a283722 # v0.5.0
         env:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
-          COMPONENT_ID: 'wF66pn8rHZ'
+          COMPONENT_ID: "wF66pn8rHZ"
           LOCK_FILE: ${{ env.secondary-working-directory }}/pubspec.lock
           SBOM_VERSION: ${{github.ref_name}}
-          OUTPUT_FILE: 'sboms/atserver-gha${{github.run_number}}-sbom.cdx.json'
+          OUTPUT_FILE: "sboms/atserver-gha${{github.run_number}}-sbom.cdx.json"
           AUGMENT: true
           ENRICH: true
           UPLOAD: true
@@ -181,18 +181,18 @@ jobs:
       - if: ${{ matrix.dart-channel == 'stable' && startsWith(github.ref, 'refs/tags/') }}
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
         with:
-          subject-path: 'sboms/**'
+          subject-path: "sboms/**"
 
-#     Commenting out for now, need to investigate and fix but there are hotter fires burning right now
-#      - name: Convert coverage to LCOV format
-#        working-directory: ${{ env.secondary-working-directory }}
-#        run: dart pub run coverage:format_coverage --lcov --in=coverage --out=coverage.lcov --packages=.packages --report-on=lib
-#
-#      - name: Upload coverage to Codecov
-#        uses: codecov/codecov-action@v3.1.0
-#        with:
-#          token: ${{secrets.CODECOV_TOKEN_AT_SERVER}}
-#          file: ${{ env.secondary-working-directory }}/coverage.lcov
+  #     Commenting out for now, need to investigate and fix but there are hotter fires burning right now
+  #      - name: Convert coverage to LCOV format
+  #        working-directory: ${{ env.secondary-working-directory }}
+  #        run: dart pub run coverage:format_coverage --lcov --in=coverage --out=coverage.lcov --packages=.packages --report-on=lib
+  #
+  #      - name: Upload coverage to Codecov
+  #        uses: codecov/codecov-action@v3.1.0
+  #        with:
+  #          token: ${{secrets.CODECOV_TOKEN_AT_SERVER}}
+  #          file: ${{ env.secondary-working-directory }}/coverage.lcov
 
   sbom_provenance:
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
@@ -212,7 +212,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        dart-channel: [stable,beta]
+        dart-channel: [stable, beta]
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -269,7 +269,6 @@ jobs:
           dart pub get
           dart bin/install_PKAM_Keys.dart
 
-
       # could save around 4s here using a compiled binary
       - name: Check test environment readiness
         working-directory: ${{ env.ftest-working-directory }}
@@ -285,7 +284,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Place run number into version within pubspec.yaml
@@ -331,9 +329,9 @@ jobs:
             wget -q -O update_image.sh "$scriptURL"
             ./update_image.sh
 
-# The job runs end-to-end tests between the @cicd1[trunk] and @cicd2[trunk] secondaries
+  # The job runs end-to-end tests between the @cicd1[trunk] and @cicd2[trunk] secondaries
   end2end_test_12:
-    needs: [ end2end_test_prep ]
+    needs: [end2end_test_prep]
     concurrency: cicd12
     runs-on: ubuntu-latest
 
@@ -353,16 +351,16 @@ jobs:
 
       # Put config file in place
       - name: Config for @cicd1/2
-        run:  mv tests/at_end2end_test/config/config12.yaml tests/at_end2end_test/config/config.yaml
+        run: mv tests/at_end2end_test/config/config12.yaml tests/at_end2end_test/config/config.yaml
 
       # Run end-to-end test
       - name: end-to-end test
         working-directory: ${{ env.e2etest-working-directory }}
         run: dart test --concurrency=1
 
-# The job runs end-to-end tests between the @cicd3[trunk] and @cicd4[prod] secondaries
+  # The job runs end-to-end tests between the @cicd3[trunk] and @cicd4[prod] secondaries
   end2end_test_34:
-    needs: [ end2end_test_prep ]
+    needs: [end2end_test_prep]
     concurrency: cicd34
     runs-on: ubuntu-latest
 
@@ -382,16 +380,16 @@ jobs:
 
       # Put config file in place
       - name: Config for @cicd3/4
-        run:  mv tests/at_end2end_test/config/config34.yaml tests/at_end2end_test/config/config.yaml
+        run: mv tests/at_end2end_test/config/config34.yaml tests/at_end2end_test/config/config.yaml
 
       # Run end-to-end test
       - name: end-to-end test
         working-directory: ${{ env.e2etest-working-directory }}
         run: dart test --concurrency=1
 
-# The job runs end-to-end tests between the @cicd5[prod] and @cicd6[trunk] secondaries
+  # The job runs end-to-end tests between the @cicd5[prod] and @cicd6[trunk] secondaries
   end2end_test_56:
-    needs: [ end2end_test_prep ]
+    needs: [end2end_test_prep]
     concurrency: cicd56
     runs-on: ubuntu-latest
 
@@ -411,16 +409,16 @@ jobs:
 
       # Put config file in place
       - name: Config for @cicd5/6
-        run:  mv tests/at_end2end_test/config/config56.yaml tests/at_end2end_test/config/config.yaml
+        run: mv tests/at_end2end_test/config/config56.yaml tests/at_end2end_test/config/config.yaml
 
       # Run end-to-end test
       - name: end-to-end test
         working-directory: ${{ env.e2etest-working-directory }}
         run: dart test --concurrency=1
 
-# The job runs end-to-end tests between the staging run time secondaries
+  # The job runs end-to-end tests between the staging run time secondaries
   end2end_test_staging:
-    needs: [ end2end_test_prep ]
+    needs: [end2end_test_prep]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout at_server repo
@@ -458,11 +456,11 @@ jobs:
         working-directory: ${{ env.e2etest-working-directory }}
         run: dart pub get
 
-      - name: Cloning at_libraries
+      - name: Cloning at_client_sdk
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          repository: atsign-foundation/at_libraries
-          path: at_libraries
+          repository: atsign-foundation/at_client_sdk
+          path: at_client_sdk
           ref: trunk
 
       - name: Cloning at_tools
@@ -475,11 +473,11 @@ jobs:
       - name: Fetch Cram Keys
         id: cram_keys
         env:
-          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}   
-          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }} 
-          AT_SIGN_1_KEY: ${{ steps.atsign_names.outputs.AT_SIGN_1_KEY }} 
-          AT_SIGN_2_KEY: ${{ steps.atsign_names.outputs.AT_SIGN_2_KEY }} 
-        run: |     
+          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}
+          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }}
+          AT_SIGN_1_KEY: ${{ steps.atsign_names.outputs.AT_SIGN_1_KEY }}
+          AT_SIGN_2_KEY: ${{ steps.atsign_names.outputs.AT_SIGN_2_KEY }}
+        run: |
           for try in {1..5}; do
             CRAM_1_RESP=$(curl -s --location --request POST 'https://my.atsign.wtf/api/app/v3/activate-atsign' --header 'Authorization: ${{secrets.NODE_API_CREATE}}' --header 'Content-Type: application/json' --data-raw "{\"atSign\":\"$AT_SIGN_1\",\"ActivationKey\":\"$AT_SIGN_1_KEY\"}"  -w '%{http_code}' -o cram_1_resp.json)
             CRAM_2_RESP=$(curl -s --location --request POST 'https://my.atsign.wtf/api/app/v3/activate-atsign' --header 'Authorization: ${{secrets.NODE_API_CREATE}}' --header 'Content-Type: application/json' --data-raw "{\"atSign\":\"$AT_SIGN_2\",\"ActivationKey\":\"$AT_SIGN_2_KEY\"}"  -w '%{http_code}' -o cram_2_resp.json)
@@ -499,14 +497,14 @@ jobs:
               fi
             fi
             sleep 20
-          done  
+          done
 
       - name: Fetch atSign Hostname
         id: atsign_hosts
         env:
-          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}   
+          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}
           AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }}
-        run: |  
+        run: |
           for try in {1..5}; do
             AT_SIGN_1_HOST_RESP=$(./tools/scripts/staging_root_lookup.sh $AT_SIGN_1)
             AT_SIGN_2_HOST_RESP=$(./tools/scripts/staging_root_lookup.sh $AT_SIGN_2)
@@ -533,16 +531,16 @@ jobs:
             fi
             sleep 20
           done
-      
-      - name: Check Connection 
-        env:   
-          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}   
-          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }} 
-          AT_SIGN_1_HOST: ${{ steps.atsign_hosts.outputs.AT_SIGN_1_HOST }} 
+
+      - name: Check Connection
+        env:
+          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}
+          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }}
+          AT_SIGN_1_HOST: ${{ steps.atsign_hosts.outputs.AT_SIGN_1_HOST }}
           AT_SIGN_1_PORT: ${{ steps.atsign_hosts.outputs.AT_SIGN_1_PORT }}
-          AT_SIGN_2_HOST: ${{ steps.atsign_hosts.outputs.AT_SIGN_2_HOST }} 
+          AT_SIGN_2_HOST: ${{ steps.atsign_hosts.outputs.AT_SIGN_2_HOST }}
           AT_SIGN_2_PORT: ${{ steps.atsign_hosts.outputs.AT_SIGN_2_PORT }}
-        run: |      
+        run: |
           for try in {1..5}; do
             HOST_1_STATUS=$(./tools/scripts/staging_atsign_info.sh $AT_SIGN_1_HOST:$AT_SIGN_1_PORT)
             HOST_2_STATUS=$(./tools/scripts/staging_atsign_info.sh $AT_SIGN_2_HOST:$AT_SIGN_2_PORT)
@@ -568,22 +566,22 @@ jobs:
             fi
             sleep $((try * 20))
           done
-  
-      - name: Activating atsign    
+
+      - name: Activating atsign
         env:
-          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}   
-          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }}         
-          CRAM_KEY_1: ${{ steps.cram_keys.outputs.CRAM_KEY_1 }} 
-          CRAM_KEY_2: ${{ steps.cram_keys.outputs.CRAM_KEY_2 }} 
+          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}
+          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }}
+          CRAM_KEY_1: ${{ steps.cram_keys.outputs.CRAM_KEY_1 }}
+          CRAM_KEY_2: ${{ steps.cram_keys.outputs.CRAM_KEY_2 }}
         run: |
           mkdir -p /home/runner/.atsign/keys
-          ls -lrth at_libraries
-          cd at_libraries/packages/at_onboarding_cli/
+          ls -lrth at_client_sdk
+          cd at_client_sdk/packages/at_onboarding_cli/
           dart pub get
           dart run bin/activate_cli.dart -a @$AT_SIGN_1 -c $CRAM_KEY_1 -r root.atsign.wtf
           dart run bin/activate_cli.dart -a @$AT_SIGN_2 -c $CRAM_KEY_2 -r root.atsign.wtf
 
-      - name: Generate the at_demo_data.dart    
+      - name: Generate the at_demo_data.dart
         run: |
           cd at_tools/packages/at_dump_atKeys/
           dart pub get
@@ -592,13 +590,13 @@ jobs:
 
       - name: End-to-end test
         working-directory: ${{ env.e2etest-working-directory }}
-        run: dart test --concurrency=1               
-        
+        run: dart test --concurrency=1
+
       - name: Delete atSigns
         if: always() # Always try to clear up atSigns even if an earlier step has failed.
         env:
-          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}   
-          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }} 
+          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}
+          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }}
         run: |
           delete_atSign() {
             curl -s --location --request POST 'https://infrastructure-api-b.dev.atsign.cloud/api/infrastructure/delete' \
@@ -613,11 +611,11 @@ jobs:
 
       - name: Check that atSigns have been deleted
         env:
-          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}   
-          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }} 
+          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}
+          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }}
         # TODO if this step fails then it should do a gChat notification rather than exit 1
         # TODO this only checks that entry has been removed from root
-        run: |  
+        run: |
           sleep 20
           AT_SIGN_1_HOST_RESP=$((echo $AT_SIGN_1; sleep 1) | openssl s_client -connect root.atsign.wtf:64 2>/dev/null | grep --color=none "^@.*:" | cut -d'@' -f2)
           AT_SIGN_2_HOST_RESP=$((echo $AT_SIGN_2; sleep 1) | openssl s_client -connect root.atsign.wtf:64 2>/dev/null | grep --color=none "^@.*:" | cut -d'@' -f2)
@@ -626,13 +624,21 @@ jobs:
           else
             echo "atSigns still exist"
             exit 1
-          fi          
+          fi
 
   # This job runs on trigger event 'push' to trunk branch.
   # The job builds the staging version of at_virtual_env and pushes the image to docker hub.
   push_staging_virtual_env_images:
     # Runs only after functional tests are completed.
-    needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56, end2end_test_staging ]
+    needs:
+      [
+        unit_tests,
+        functional_tests,
+        end2end_test_12,
+        end2end_test_34,
+        end2end_test_56,
+        end2end_test_staging,
+      ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
     environment: staging
     runs-on: ubuntu-latest
@@ -686,7 +692,15 @@ jobs:
   # The job runs on completion of 'run_end2end_tests' job.
   push_staging_secondary_image:
     # Runs only after full test suite has completed.
-    needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56, end2end_test_staging ]
+    needs:
+      [
+        unit_tests,
+        functional_tests,
+        end2end_test_12,
+        end2end_test_34,
+        end2end_test_56,
+        end2end_test_staging,
+      ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
     environment: staging
     runs-on: ubuntu-latest
@@ -741,7 +755,15 @@ jobs:
   # The job runs on completion of 'run_end2end_tests' job.
   push_staging_observable_secondary_image:
     # Runs only after full test suite has completed.
-    needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56, end2end_test_staging ]
+    needs:
+      [
+        unit_tests,
+        functional_tests,
+        end2end_test_12,
+        end2end_test_34,
+        end2end_test_56,
+        end2end_test_staging,
+      ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
     environment: staging
     runs-on: ubuntu-latest
@@ -795,7 +817,14 @@ jobs:
   # The job builds the canary version of secondary server docker image and pushes to docker hub.
   push_canary_secondary_image:
     # Runs only after all tests are completed.
-    needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
+    needs:
+      [
+        unit_tests,
+        functional_tests,
+        end2end_test_12,
+        end2end_test_34,
+        end2end_test_56,
+      ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/c') }}
     runs-on: ubuntu-latest
     permissions:
@@ -861,7 +890,14 @@ jobs:
       registry-password: ${{ secrets.DOCKERHUB_TOKEN }}
 
   push_canary_virtualenv_image:
-    needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
+    needs:
+      [
+        unit_tests,
+        functional_tests,
+        end2end_test_12,
+        end2end_test_34,
+        end2end_test_56,
+      ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/c') }}
     runs-on: ubuntu-latest
     permissions:
@@ -931,7 +967,14 @@ jobs:
   # The job builds the production version of secondary server docker image and pushes to docker hub.
   push_prod_secondary_image:
     # Runs only after all tests are completed.
-    needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
+    needs:
+      [
+        unit_tests,
+        functional_tests,
+        end2end_test_12,
+        end2end_test_34,
+        end2end_test_56,
+      ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
     permissions:
@@ -992,7 +1035,14 @@ jobs:
       registry-password: ${{ secrets.DOCKERHUB_TOKEN }}
 
   push_prod_virtualenv_image:
-    needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
+    needs:
+      [
+        unit_tests,
+        functional_tests,
+        end2end_test_12,
+        end2end_test_34,
+        end2end_test_56,
+      ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
     permissions:
