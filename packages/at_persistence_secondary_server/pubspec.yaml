@@ -19,13 +19,6 @@ dependencies:
   at_persistence_spec: ^3.1.0
   meta: ^1.8.0
 
-dependency_overrides:
-  at_commons:
-    git:
-      url: https://github.com/atsign-foundation/at_client_sdk
-      path: packages/at_commons
-      ref: bump-uuid
-
 dev_dependencies:
   lints: ^6.0.0
   test: ^1.25.8
