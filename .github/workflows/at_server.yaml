@@ -456,13 +456,6 @@ jobs:
         working-directory: ${{ env.e2etest-working-directory }}
         run: dart pub get
 
-      - name: Cloning at_client_sdk
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          repository: atsign-foundation/at_client_sdk
-          path: at_client_sdk
-          ref: trunk
-
       - name: Cloning at_tools
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -575,11 +568,10 @@ jobs:
           CRAM_KEY_2: ${{ steps.cram_keys.outputs.CRAM_KEY_2 }}
         run: |
           mkdir -p /home/runner/.atsign/keys
-          ls -lrth at_client_sdk
-          cd at_client_sdk/packages/at_onboarding_cli/
-          dart pub get
-          dart run bin/activate_cli.dart -a @$AT_SIGN_1 -c $CRAM_KEY_1 -r root.atsign.wtf
-          dart run bin/activate_cli.dart -a @$AT_SIGN_2 -c $CRAM_KEY_2 -r root.atsign.wtf
+          wget https://github.com/atsign-foundation/noports/releases/latest/download/sshnp-linux-x64.tgz
+          tar -xvf sshnp-linux-x64.tgz sshnp/at_activate
+          sshnp/at_activate -a @$AT_SIGN_1 -c $CRAM_KEY_1 -r root.atsign.wtf
+          sshnp/at_activate -a @$AT_SIGN_2 -c $CRAM_KEY_2 -r root.atsign.wtf
 
       - name: Generate the at_demo_data.dart
         run: |
