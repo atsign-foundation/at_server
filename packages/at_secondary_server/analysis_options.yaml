@@ -20,6 +20,6 @@ linter:
     prefer_interpolation_to_compose_strings: true
     strict_top_level_inference: false
 
-analyzer:
+# analyzer:
 #   exclude:
 #     - path/to/excluded/files/**
