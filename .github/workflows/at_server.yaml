@@ -108,7 +108,7 @@ jobs:
       # placed here, as the `dart pub get` above will create them
       - name: Run osv-scanner
         run: |
-          go install github.com/google/osv-scanner/cmd/osv-scanner@04a8728383d8f286cf2b0f110e68482e8773df6e # v2.2.1
+          go install github.com/google/osv-scanner/v2/cmd/osv-scanner@04a8728383d8f286cf2b0f110e68482e8773df6e # v2.2.1
           osv-scanner --lockfile=${{ env.proot-working-directory }}/pubspec.lock
           osv-scanner --lockfile=${{ env.root-working-directory }}/pubspec.lock
           osv-scanner --lockfile=${{ env.psecondary-working-directory }}/pubspec.lock
