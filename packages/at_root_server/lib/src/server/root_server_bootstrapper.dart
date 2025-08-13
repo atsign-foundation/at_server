@@ -30,7 +30,7 @@ class RootServerBootStrapper {
     c.redisAuth = results['redis_auth'];
 
     if (AtRootConfig.useSSL) {
-      c.securityContext = AtSecurityContextImpl();
+      c.securityContext = AtRootSecurityContextImpl();
     }
 
     return c;

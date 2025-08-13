@@ -11,8 +11,7 @@ Future<void> main(List<String> arguments) async {
   var logger = AtSignLogger('main');
 
   try {
-    var bootStrapper = RootServerBootStrapper(arguments);
-    await bootStrapper.run();
+    await RootServerBootStrapper(arguments).run();
   } on AtServerException catch (exception) {
     logger.severe('Exception while starting root server:${exception.message}');
   } catch (exception) {

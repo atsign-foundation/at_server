@@ -16,13 +16,13 @@ class AtRootConfig {
           ? ConfigUtil.getPubspecConfig()!['version']
           : null;
 
-  static final Map<String, String> _envVars = Platform.environment;
+  static Map<String, String> envVars = Platform.environment;
 
   static String? get root_server_version => _root_server_version;
 
   static int get rootServerPort {
-    if (_envVars.containsKey('rootServerPort')) {
-      return int.parse(_envVars['rootServerPort']!);
+    if (envVars.containsKey('rootServerPort')) {
+      return int.parse(envVars['rootServerPort']!);
     }
     if (ConfigUtil.getYaml() != null &&
         ConfigUtil.getYaml()!['server'] != null &&
@@ -33,8 +33,8 @@ class AtRootConfig {
   }
 
   static int get httpsPort {
-    if (_envVars.containsKey('httpsPort')) {
-      return int.parse(_envVars['httpsPort']!);
+    if (envVars.containsKey('httpsPort')) {
+      return int.parse(envVars['httpsPort']!);
     }
     if (ConfigUtil.getYaml() != null &&
         ConfigUtil.getYaml()!['server'] != null &&
@@ -71,8 +71,8 @@ class AtRootConfig {
   }
 
   static String get privateKeyLocation {
-    if (_envVars.containsKey('privateKeyLocation')) {
-      return _envVars['privateKeyLocation']!;
+    if (envVars.containsKey('privateKeyLocation')) {
+      return envVars['privateKeyLocation']!;
     }
     if (ConfigUtil.getYaml() != null &&
         ConfigUtil.getYaml()!['security'] != null &&
@@ -83,8 +83,8 @@ class AtRootConfig {
   }
 
   static String get certificateChainLocation {
-    if (_envVars.containsKey('certificateChainLocation')) {
-      return _envVars['certificateChainLocation']!;
+    if (envVars.containsKey('certificateChainLocation')) {
+      return envVars['certificateChainLocation']!;
     }
     if (ConfigUtil.getYaml() != null &&
         ConfigUtil.getYaml()!['security'] != null &&
@@ -108,9 +108,10 @@ class AtRootConfig {
   }
 
   static bool? _getBoolEnvVar(String envVar) {
-    if (_envVars.containsKey(envVar)) {
-      (_envVars[envVar]!.toLowerCase() == 'true') ? true : false;
+    if (envVars.containsKey(envVar)) {
+      return (envVars[envVar]!.toLowerCase() == 'true') ? true : false;
+    } else {
+      return null;
     }
-    return null;
   }
 }

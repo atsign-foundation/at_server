@@ -8,4 +8,21 @@ class AtRootServerContext extends AtServerContext {
   int? redisServerPort;
   String? redisAuth;
   AtSecurityContext? securityContext;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AtRootServerContext &&
+          runtimeType == other.runtimeType &&
+          port == other.port &&
+          httpsPort == other.httpsPort &&
+          httpsEnabled == other.httpsEnabled &&
+          redisServerHost == other.redisServerHost &&
+          redisServerPort == other.redisServerPort &&
+          redisAuth == other.redisAuth &&
+          securityContext == other.securityContext;
+
+  @override
+  int get hashCode => Object.hash(port, httpsPort, httpsEnabled,
+      redisServerHost, redisServerPort, redisAuth, securityContext);
 }
