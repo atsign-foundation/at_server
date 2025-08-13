@@ -13,7 +13,7 @@ import 'package:at_commons/at_commons.dart';
 /// This Contains methods to start, stop and serve the requests.
 class RootServerImpl implements AtRootServer {
   final logger = AtSignLogger('RootServerImpl');
-  static late var _serverSocket;
+  static late dynamic _serverSocket;
   bool _isRunning = false;
   bool _stopInProgress = false;
   late AtRootServerContext serverContext;
@@ -48,22 +48,25 @@ class RootServerImpl implements AtRootServer {
       throw AtServerException('redis auth is not set');
     }
 
-    var port = serverContext.port;
     if (_isRunning) {
       return;
     }
     try {
       _isRunning = true;
       RootClientPool().init();
+
       if (serverContext.useSSL!) {
-        _startSecuredServer(port, serverContext.securityContext);
+        _startSecuredServer();
       } else {
-        _startUnSecuredServer(port!);
+        _startUnSecuredServer();
+      }
+
+      if (serverContext.httpsEnabled!) {
+        _startHttpsServer();
       }
     } on Exception catch (exception) {
       _isRunning = false;
-      throw AtServerException(
-          'rootServer().init error: ' + exception.toString());
+      throw AtServerException('rootServer().init error: $exception');
     }
   }
 
@@ -101,7 +104,7 @@ class RootServerImpl implements AtRootServer {
       var result = RootClientPool().closeAll();
       if (result) {
         //close server socket
-        _serverSocket.close();
+        await _serverSocket.close();
         _isRunning = false;
       }
     } on Exception {
@@ -122,7 +125,11 @@ class RootServerImpl implements AtRootServer {
     }
   }
 
-  void _startSecuredServer(int? port, AtSecurityContext? context) {
+  Future<void> _startHttpsServer() async {
+    throw UnimplementedError();
+  }
+
+  void _startSecuredServer() {
     try {
       var secCon = SecurityContext();
       var retryCount = 0;
@@ -142,14 +149,15 @@ class RootServerImpl implements AtRootServer {
           certsAvailable = true;
         } on FileSystemException {
           retryCount++;
-          logger.info('certs unavailable. Retry count ${retryCount}');
+          logger.info('certs unavailable. Retry count $retryCount');
         }
       }
       if (certsAvailable) {
-        SecureServerSocket.bind(InternetAddress.anyIPv4, port!, secCon)
+        SecureServerSocket.bind(
+                InternetAddress.anyIPv4, serverContext.port!, secCon)
             .then((SecureServerSocket socket) {
           logger.info(
-              'root server started on version : ${AtRootConfig.root_server_version}');
+              'root server started on version : ${AtRootConfig.rootServerVersion}');
           logger.info('Secure Socket open!');
           _serverSocket = socket;
           _listen(_serverSocket);
@@ -162,9 +170,9 @@ class RootServerImpl implements AtRootServer {
     }
   }
 
-  void _startUnSecuredServer(int port) {
+  void _startUnSecuredServer() {
     try {
-      ServerSocket.bind(InternetAddress.anyIPv4, port)
+      ServerSocket.bind(InternetAddress.anyIPv4, serverContext.port!)
           .then((ServerSocket socket) {
         logger.info('Unsecure Socket open');
         _serverSocket = socket;
@@ -184,10 +192,8 @@ class RootServerImpl implements AtRootServer {
         // See https://github.com/atsign-foundation/at_server/issues/1590
         return;
       }
-      logger.warning('ServerSocket stream error :' +
-          error.toString() +
-          'connecting to ' +
-          serverSocket.address.toString());
+      logger.warning(
+          'ServerSocket stream error :${error}connecting to ${serverSocket.address}');
     });
   }
 

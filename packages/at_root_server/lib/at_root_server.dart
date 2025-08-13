@@ -1,5 +1,3 @@
-library at_root_server;
-
 export 'package:at_root_server/src/client/at_root_client.dart';
 export 'package:at_root_server/src/client/at_root_client_pool.dart';
 export 'package:at_root_server/src/server/at_root_config.dart';

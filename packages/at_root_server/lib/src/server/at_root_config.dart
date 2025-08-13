@@ -4,14 +4,14 @@ import 'package:at_root_server/src/config_util.dart';
 import 'package:yaml/yaml.dart';
 
 class AtRootConfig {
-  static int _rootServerPort = 64;
-  static int _httpsPort = 443;
-  static bool _httpsEnabled = false;
-  static bool _debugLog = false;
-  static bool _useSSL = true;
-  static String _certificateChainLocation = 'certs/fullchain.pem';
-  static String _privateKeyLocation = 'certs/privkey.pem';
-  static String? _root_server_version =
+  static final int _rootServerPort = 64;
+  static final int _httpsPort = 443;
+  static final bool _httpsEnabled = false;
+  static final bool _debugLog = false;
+  static final bool _useSSL = true;
+  static final String _certificateChainLocation = 'certs/fullchain.pem';
+  static final String _privateKeyLocation = 'certs/privkey.pem';
+  static final String? _rootServerVersion =
       (ConfigUtil.getPubspecConfig() != null &&
               ConfigUtil.getPubspecConfig()!['version'] != null)
           ? ConfigUtil.getPubspecConfig()!['version']
@@ -20,7 +20,7 @@ class AtRootConfig {
   static YamlMap? yaml = ConfigUtil.getYaml();
   static Map<String, String> envVars = Platform.environment;
 
-  static String? get root_server_version => _root_server_version;
+  static String? get rootServerVersion => _rootServerVersion;
 
   static int get rootServerPort {
     if (envVars.containsKey('rootServerPort')) {

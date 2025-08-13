@@ -9,7 +9,7 @@ class CommandLineParser {
   /// Parses [arguments], a list of command-line arguments, matches them against the
   /// flags and options defined by this parser, and returns the result.
   ArgResults getParserResults(List<String> arguments) {
-    var results;
+    ArgResults results;
     var parser = ArgParser();
     parser.addOption('redis_host',
         abbr: 'h',
@@ -25,14 +25,14 @@ class CommandLineParser {
       if (arguments.isNotEmpty) {
         results = parser.parse(arguments);
         if (results.options.length != parser.options.length) {
-          throw ArgParserException('Invalid Arguments \n' + parser.usage);
+          throw ArgParserException('Invalid Arguments \n${parser.usage}');
         }
       } else {
-        throw ArgParserException('ArgParser Exception \n' + parser.usage);
+        throw ArgParserException('ArgParser Exception \n${parser.usage}');
       }
       return results;
     } on ArgParserException {
-      throw ArgParserException('ArgParserException\n' + parser.usage);
+      throw ArgParserException('ArgParserException\n${parser.usage}');
     }
   }
 }

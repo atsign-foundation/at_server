@@ -4,17 +4,17 @@ import 'package:at_server_spec/at_server_spec.dart';
 
 class AtRootSecurityContextImpl implements AtSecurityContext {
   static final Map<String, String> envVars = Platform.environment;
-  final String? _certChainPath = AtRootConfig.certificateChainLocation;
-  final String? _privateKeyPath = AtRootConfig.privateKeyLocation;
+  final String _certChainPath = AtRootConfig.certificateChainLocation;
+  final String _privateKeyPath = AtRootConfig.privateKeyLocation;
 
   @override
   String privateKeyPath() {
-    return _privateKeyPath!;
+    return _privateKeyPath;
   }
 
   @override
   String publicKeyPath() {
-    return _certChainPath!;
+    return _certChainPath;
   }
 
   @override
