@@ -5,6 +5,7 @@ import 'package:at_utils/at_logger.dart';
 
 Future<void> main(List<String> arguments) async {
   var isDebug = AtRootConfig.debugLog;
+  AtSignLogger.defaultLoggingHandler = AtSignLogger.stdErrLoggingHandler;
   if (isDebug) {
     AtSignLogger.root_level = 'finest';
   }
