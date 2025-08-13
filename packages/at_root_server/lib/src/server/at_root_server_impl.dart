@@ -150,11 +150,11 @@ class RootServerImpl implements AtRootServer {
 
             if (v == null) {
               request.response.statusCode = HttpStatus.notFound;
-              request.response.write('null\r\n');
+              request.response.write('null');
             } else {
               if (onwardLookup == null) {
                 request.response.statusCode = HttpStatus.ok;
-                request.response.write('$v\r\n');
+                request.response.write(v);
               } else {
                 request.response.statusCode = HttpStatus.movedTemporarily;
                 request.response.headers.add(
