@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:at_root_server/at_root_server.dart';
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 void main() {
   // Command-line arg parsing is tested in at_args_parser_test.dart
@@ -20,6 +21,7 @@ void main() {
 
   setUp(() {
     AtRootConfig.envVars = Platform.environment;
+    AtRootConfig.yaml = ConfigUtil.getYaml();
   });
 
   group('context creation', () {
@@ -71,7 +73,7 @@ void main() {
       expect(c.httpsEnabled.toString(), testEnv['httpsEnabled']);
     });
 
-    test('with useSSL false', () {
+    test('with useSSL false from environment', () {
       expect(AtRootConfig.envVars, Platform.environment);
 
       final Map<String, String> testEnv = {
@@ -86,6 +88,57 @@ void main() {
       expect(c.port, AtRootConfig.rootServerPort);
       expect(c.httpsPort, AtRootConfig.httpsPort);
       expect(c.httpsEnabled, AtRootConfig.httpsEnabled);
+
+      // useSSL == false results in this
+      expect(c.securityContext, isNull);
+    });
+
+    test('with overrides to AtRootConfig from YAML', () {
+      expect(AtRootConfig.yaml, ConfigUtil.getYaml());
+
+      YamlMap testYaml = loadYaml(''
+          'server:\n'
+          '  port: 4064\n'
+          '  httpsPort: 4443\n'
+          '  httpsEnabled: false\n'
+          'security:\n'
+          '  useSSL: true\n'
+          '  certificateChainLocation: \'/foo/bar/fullchain.pem\'\n'
+          '  privateKeyLocation: \'/foo/bar/privatekey.pem\'\n');
+
+      AtRootConfig.yaml = testYaml;
+
+      final boot = RootServerBootStrapper(args);
+      final c = RootServerBootStrapper.createAtRootServerContext(args);
+      expect(c, boot.rootContext);
+
+      expect(c.securityContext!.publicKeyPath(),
+          testYaml['security']['certificateChainLocation']);
+      expect(c.securityContext!.privateKeyPath(),
+          testYaml['security']['privateKeyLocation']);
+      expect(c.port, testYaml['server']['port']);
+      expect(c.httpsPort, testYaml['server']['httpsPort']);
+      expect(c.httpsEnabled, testYaml['server']['httpsEnabled']);
+    });
+
+    test('with useSSL false from YAML', () {
+      expect(AtRootConfig.yaml, ConfigUtil.getYaml());
+
+      YamlMap testYaml = loadYaml(''
+          'security:\n'
+          '  useSSL: false\n');
+
+      AtRootConfig.yaml = testYaml;
+
+      final boot = RootServerBootStrapper(args);
+      final c = RootServerBootStrapper.createAtRootServerContext(args);
+      expect(c, boot.rootContext);
+
+      expect(c.port, AtRootConfig.rootServerPort);
+      expect(c.httpsPort, AtRootConfig.httpsPort);
+      expect(c.httpsEnabled, AtRootConfig.httpsEnabled);
+
+      // useSSL == false results in this
       expect(c.securityContext, isNull);
     });
   });

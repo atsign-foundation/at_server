@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:at_root_server/src/config_util.dart';
+import 'package:yaml/yaml.dart';
 
 class AtRootConfig {
   static int _rootServerPort = 64;
@@ -16,6 +17,7 @@ class AtRootConfig {
           ? ConfigUtil.getPubspecConfig()!['version']
           : null;
 
+  static YamlMap? yaml = ConfigUtil.getYaml();
   static Map<String, String> envVars = Platform.environment;
 
   static String? get root_server_version => _root_server_version;
@@ -24,10 +26,10 @@ class AtRootConfig {
     if (envVars.containsKey('rootServerPort')) {
       return int.parse(envVars['rootServerPort']!);
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()!['server'] != null &&
-        ConfigUtil.getYaml()!['server']['port'] != null) {
-      return ConfigUtil.getYaml()!['server']['port'];
+    if (yaml != null &&
+        yaml!['server'] != null &&
+        yaml!['server']['port'] != null) {
+      return yaml!['server']['port'];
     }
     return _rootServerPort;
   }
@@ -36,10 +38,10 @@ class AtRootConfig {
     if (envVars.containsKey('httpsPort')) {
       return int.parse(envVars['httpsPort']!);
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()!['server'] != null &&
-        ConfigUtil.getYaml()!['server']['httpsPort'] != null) {
-      return ConfigUtil.getYaml()!['server']['httpsPort'];
+    if (yaml != null &&
+        yaml!['server'] != null &&
+        yaml!['server']['httpsPort'] != null) {
+      return yaml!['server']['httpsPort'];
     }
     return _httpsPort;
   }
@@ -49,10 +51,10 @@ class AtRootConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()!['server'] != null &&
-        ConfigUtil.getYaml()!['server']['httpsEnabled'] != null) {
-      return ConfigUtil.getYaml()!['server']['httpsEnabled'];
+    if (yaml != null &&
+        yaml!['server'] != null &&
+        yaml!['server']['httpsEnabled'] != null) {
+      return yaml!['server']['httpsEnabled'];
     }
     return _httpsEnabled;
   }
@@ -62,10 +64,8 @@ class AtRootConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()!['log'] != null &&
-        ConfigUtil.getYaml()!['log']['debug'] != null) {
-      return ConfigUtil.getYaml()!['log']['debug'];
+    if (yaml != null && yaml!['log'] != null && yaml!['log']['debug'] != null) {
+      return yaml!['log']['debug'];
     }
     return _debugLog;
   }
@@ -74,10 +74,10 @@ class AtRootConfig {
     if (envVars.containsKey('privateKeyLocation')) {
       return envVars['privateKeyLocation']!;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()!['security'] != null &&
-        ConfigUtil.getYaml()!['security']['privateKeyLocation'] != null) {
-      return ConfigUtil.getYaml()!['security']['privateKeyLocation'];
+    if (yaml != null &&
+        yaml!['security'] != null &&
+        yaml!['security']['privateKeyLocation'] != null) {
+      return yaml!['security']['privateKeyLocation'];
     }
     return _privateKeyLocation;
   }
@@ -86,10 +86,10 @@ class AtRootConfig {
     if (envVars.containsKey('certificateChainLocation')) {
       return envVars['certificateChainLocation']!;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()!['security'] != null &&
-        ConfigUtil.getYaml()!['security']['certificateChainLocation'] != null) {
-      return ConfigUtil.getYaml()!['security']['certificateChainLocation'];
+    if (yaml != null &&
+        yaml!['security'] != null &&
+        yaml!['security']['certificateChainLocation'] != null) {
+      return yaml!['security']['certificateChainLocation'];
     }
     return _certificateChainLocation;
   }
@@ -99,10 +99,10 @@ class AtRootConfig {
     if (result != null) {
       return result;
     }
-    if (ConfigUtil.getYaml() != null &&
-        ConfigUtil.getYaml()!['security'] != null &&
-        ConfigUtil.getYaml()!['security']['useSSL'] != null) {
-      return ConfigUtil.getYaml()!['security']['useSSL'];
+    if (yaml != null &&
+        yaml!['security'] != null &&
+        yaml!['security']['useSSL'] != null) {
+      return yaml!['security']['useSSL'];
     }
     return _useSSL;
   }
