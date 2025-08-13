@@ -19,6 +19,6 @@ linter:
     avoid_function_literals_in_foreach_calls: true
     prefer_interpolation_to_compose_strings: true
 
-analyzer:
+# analyzer:
 #   exclude:
 #     - path/to/excluded/files/**
