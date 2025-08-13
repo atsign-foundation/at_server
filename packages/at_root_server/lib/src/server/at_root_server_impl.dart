@@ -14,6 +14,7 @@ import 'package:at_commons/at_commons.dart';
 class RootServerImpl implements AtRootServer {
   final logger = AtSignLogger('RootServerImpl');
   static late dynamic _serverSocket;
+  static HttpServer? httpServer;
   bool _isRunning = false;
   bool _stopInProgress = false;
   late AtRootServerContext serverContext;
@@ -105,6 +106,9 @@ class RootServerImpl implements AtRootServer {
   Future<void> stop() async {
     _stopInProgress = true;
     try {
+      if (httpServer != null) {
+        await httpServer!.close();
+      }
       var result = RootClientPool().closeAll();
       if (result) {
         //close server socket
@@ -122,13 +126,13 @@ class RootServerImpl implements AtRootServer {
     secCon.useCertificateChain(serverContext.securityContext!.publicKeyPath());
     secCon.usePrivateKey(serverContext.securityContext!.privateKeyPath());
 
-    var server = await HttpServer.bindSecure(
+    httpServer = await HttpServer.bindSecure(
         InternetAddress.anyIPv4, serverContext.httpsPort!, secCon);
 
     logger.info('HttpsServer listening at ${serverContext.httpsPort}');
 
     final keyStoreManager = KeystoreManagerImpl();
-    server.listen((HttpRequest request) async {
+    httpServer!.listen((HttpRequest request) async {
       try {
         switch (request.method) {
           case 'GET':
