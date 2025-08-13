@@ -12,8 +12,7 @@ import 'package:at_commons/at_commons.dart';
 /// Impl class for the root server of the @protocol.
 /// This Contains methods to start, stop and serve the requests.
 class RootServerImpl implements AtRootServer {
-  static final bool? useSSL = AtRootConfig.useSSL;
-  var logger = AtSignLogger('RootServerImpl');
+  final logger = AtSignLogger('RootServerImpl');
   static late var _serverSocket;
   bool _isRunning = false;
   bool _stopInProgress = false;
@@ -56,7 +55,7 @@ class RootServerImpl implements AtRootServer {
     try {
       _isRunning = true;
       RootClientPool().init();
-      if (useSSL!) {
+      if (serverContext.useSSL!) {
         _startSecuredServer(port, serverContext.securityContext);
       } else {
         _startUnSecuredServer(port!);

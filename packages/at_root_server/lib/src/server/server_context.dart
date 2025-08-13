@@ -7,6 +7,7 @@ class AtRootServerContext extends AtServerContext {
   String? redisServerHost;
   int? redisServerPort;
   String? redisAuth;
+  bool? useSSL;
   AtSecurityContext? securityContext;
 
   @override
@@ -20,9 +21,10 @@ class AtRootServerContext extends AtServerContext {
           redisServerHost == other.redisServerHost &&
           redisServerPort == other.redisServerPort &&
           redisAuth == other.redisAuth &&
+          useSSL == other.useSSL &&
           securityContext == other.securityContext;
 
   @override
   int get hashCode => Object.hash(port, httpsPort, httpsEnabled,
-      redisServerHost, redisServerPort, redisAuth, securityContext);
+      redisServerHost, redisServerPort, redisAuth, useSSL, securityContext);
 }

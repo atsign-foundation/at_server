@@ -29,7 +29,8 @@ class RootServerBootStrapper {
     c.redisServerPort = int.parse(results['redis_port']);
     c.redisAuth = results['redis_auth'];
 
-    if (AtRootConfig.useSSL) {
+    c.useSSL = AtRootConfig.useSSL;
+    if (c.useSSL!) {
       c.securityContext = AtRootSecurityContextImpl();
     }
 
