@@ -133,10 +133,10 @@ class RootServerImpl implements AtRootServer {
         switch (request.method) {
           case 'GET':
             String requestPath = Uri.decodeComponent(request.requestedUri.path);
-            while (requestPath.startsWith('/')) {
+            if (requestPath.startsWith('/')) {
               requestPath = requestPath.substring(1);
             }
-            while (requestPath.startsWith('@')) {
+            if (requestPath.startsWith('@')) {
               requestPath = requestPath.substring(1);
             }
             List<String> pathParts = requestPath.split('/');
