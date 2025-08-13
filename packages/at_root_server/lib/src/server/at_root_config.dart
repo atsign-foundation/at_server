@@ -4,8 +4,10 @@ import 'package:at_root_server/src/config_util.dart';
 
 class AtRootConfig {
   static int _rootServerPort = 64;
+  static int _httpsPort = 443;
+  static bool _httpsEnabled = false;
   static bool _debugLog = false;
-  static bool? _useSSL = true;
+  static bool _useSSL = true;
   static String _certificateChainLocation = 'certs/fullchain.pem';
   static String _privateKeyLocation = 'certs/privkey.pem';
   static String? _root_server_version =
@@ -18,7 +20,7 @@ class AtRootConfig {
 
   static String? get root_server_version => _root_server_version;
 
-  static int? get rootServerPort {
+  static int get rootServerPort {
     if (_envVars.containsKey('rootServerPort')) {
       return int.parse(_envVars['rootServerPort']!);
     }
@@ -30,7 +32,32 @@ class AtRootConfig {
     return _rootServerPort;
   }
 
-  static bool? get debugLog {
+  static int get httpsPort {
+    if (_envVars.containsKey('httpsPort')) {
+      return int.parse(_envVars['httpsPort']!);
+    }
+    if (ConfigUtil.getYaml() != null &&
+        ConfigUtil.getYaml()!['server'] != null &&
+        ConfigUtil.getYaml()!['server']['httpsPort'] != null) {
+      return ConfigUtil.getYaml()!['server']['httpsPort'];
+    }
+    return _httpsPort;
+  }
+
+  static bool get httpsEnabled {
+    var result = _getBoolEnvVar('httpsEnabled');
+    if (result != null) {
+      return result;
+    }
+    if (ConfigUtil.getYaml() != null &&
+        ConfigUtil.getYaml()!['server'] != null &&
+        ConfigUtil.getYaml()!['server']['httpsEnabled'] != null) {
+      return ConfigUtil.getYaml()!['server']['httpsEnabled'];
+    }
+    return _httpsEnabled;
+  }
+
+  static bool get debugLog {
     var result = _getBoolEnvVar('debugLog');
     if (result != null) {
       return result;
@@ -43,9 +70,9 @@ class AtRootConfig {
     return _debugLog;
   }
 
-  static String? get privateKeyLocation {
+  static String get privateKeyLocation {
     if (_envVars.containsKey('privateKeyLocation')) {
-      return _envVars['privateKeyLocation'];
+      return _envVars['privateKeyLocation']!;
     }
     if (ConfigUtil.getYaml() != null &&
         ConfigUtil.getYaml()!['security'] != null &&
@@ -55,9 +82,9 @@ class AtRootConfig {
     return _privateKeyLocation;
   }
 
-  static String? get certificateChainLocation {
+  static String get certificateChainLocation {
     if (_envVars.containsKey('certificateChainLocation')) {
-      return _envVars['certificateChainLocation'];
+      return _envVars['certificateChainLocation']!;
     }
     if (ConfigUtil.getYaml() != null &&
         ConfigUtil.getYaml()!['security'] != null &&
@@ -67,7 +94,7 @@ class AtRootConfig {
     return _certificateChainLocation;
   }
 
-  static bool? get useSSL {
+  static bool get useSSL {
     var result = _getBoolEnvVar('useSSL');
     if (result != null) {
       return result;
@@ -75,7 +102,7 @@ class AtRootConfig {
     if (ConfigUtil.getYaml() != null &&
         ConfigUtil.getYaml()!['security'] != null &&
         ConfigUtil.getYaml()!['security']['useSSL'] != null) {
-      return _useSSL = ConfigUtil.getYaml()!['security']['useSSL'];
+      return ConfigUtil.getYaml()!['security']['useSSL'];
     }
     return _useSSL;
   }

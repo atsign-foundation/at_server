@@ -18,6 +18,8 @@ class RootServerBootStrapper {
       var results = CommandLineParser().getParserResults(arguments);
       var rootContext = AtRootServerContext();
       rootContext.port = AtRootConfig.rootServerPort;
+      rootContext.httpsPort = AtRootConfig.httpsPort;
+      rootContext.httpsEnabled = AtRootConfig.httpsEnabled;
       rootContext.redisServerHost = results['redis_host'];
       rootContext.redisServerPort = int.parse(results['redis_port']);
       rootContext.redisAuth = results['redis_auth'];

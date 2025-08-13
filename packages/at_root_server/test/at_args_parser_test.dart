@@ -25,7 +25,7 @@ void main() {
       expect(results.arguments[5], 'mypassword');
     });
 
-    test('parse all the arguments with abbrevation', () {
+    test('parse all the arguments with abbreviation', () {
       var arguments = ['-h', 'localhost', '-p', '6379', '-a', 'mypassword'];
       var results = CommandLineParser().getParserResults(arguments);
       expect(results.wasParsed('redis_host'), true);
