@@ -77,7 +77,7 @@ void main() {
     final redirectUrl = firstResponse.headers['location'];
     expect(redirectUrl, 'https://$atServerAddress/signing_publickey');
 
-    final secondResponse = await http.get(Uri.dataFromString(redirectUrl!));
+    final secondResponse = await http.get(Uri.parse(redirectUrl!));
     expect(secondResponse.statusCode, HttpStatus.ok);
     expect(secondResponse.body, startsWith('data:'));
     logger.info('Got signing_publickey ${secondResponse.body}');
