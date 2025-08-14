@@ -36,19 +36,28 @@ void main() {
   });
 
   test('lookup existing via https', () async {
+    List<Future> futures = [];
     for (final atSign in atSigns) {
       final Uri url = Uri.https('vip.ve.atsign.zone', atSign);
-      await expectLater(
-          http.get(url).then((response) => response.statusCode), HttpStatus.ok);
+      futures.add(expectLater(
+        http.get(url).then((response) => response.statusCode),
+        completion(HttpStatus.ok),
+      ));
     }
+    final responses = await Future.wait(futures);
+    logger.info('${responses.length} of ${atSigns.length} OK');
   });
 
   test('lookup non-existent via https', () async {
-    for (final atSign in atSigns) {
+    List<Future> futures = [];
+    for (final atSign in atSigns.map((e) => '${e}_nope')) {
       final Uri url = Uri.https('vip.ve.atsign.zone', atSign);
-      http.Response response = await http.get(url);
-      logger.info('https: $atSign: ${response.statusCode}: ${response.body}');
-      expect(response.statusCode, HttpStatus.notFound);
+      futures.add(expectLater(
+        http.get(url).then((response) => response.statusCode),
+        completion(HttpStatus.notFound),
+      ));
     }
+    final responses = await Future.wait(futures);
+    logger.info('${responses.length} of ${atSigns.length} OK');
   });
 }
