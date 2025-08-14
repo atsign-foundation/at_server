@@ -13,11 +13,12 @@ void main() {
   List<String> atSigns = at_demo_data.allAtsigns
     ..addAll(at_demo_data.apkamAtsigns)
     ..remove('anonymous');
+  final domain = 'vip .ve.atsign.zone';
 
   test('lookup existing atSign via 64', () async {
     List<Future> futures = [];
     for (final atSign in atSigns) {
-      final saf = CacheableSecondaryAddressFinder('vip.ve.atsign.zone', 64);
+      final saf = CacheableSecondaryAddressFinder(domain, 64);
       futures.add(saf.findSecondary(atSign));
     }
     final responses = await Future.wait(futures);
@@ -27,7 +28,7 @@ void main() {
   test('lookup non-existent atSign avia 64', () async {
     List<Future> futures = [];
     for (final atSign in atSigns.map((e) => '${e}_nope')) {
-      final saf = CacheableSecondaryAddressFinder('vip.ve.atsign.zone', 64);
+      final saf = CacheableSecondaryAddressFinder(domain, 64);
       futures.add(expectLater(saf.findSecondary(atSign),
           throwsA(isA<SecondaryNotFoundException>())));
     }
@@ -38,7 +39,7 @@ void main() {
   test('lookup existing atSign via https', () async {
     List<Future> futures = [];
     for (final atSign in atSigns) {
-      final Uri url = Uri.https('vip.ve.atsign.zone', atSign);
+      final Uri url = Uri.https(domain, atSign);
       futures.add(expectLater(
         http.get(url).then((response) => response.statusCode),
         completion(HttpStatus.ok),
@@ -51,7 +52,7 @@ void main() {
   test('lookup non-existent atSign via https', () async {
     List<Future> futures = [];
     for (final atSign in atSigns.map((e) => '${e}_nope')) {
-      final Uri url = Uri.https('vip.ve.atsign.zone', atSign);
+      final Uri url = Uri.https(domain, atSign);
       futures.add(expectLater(
         http.get(url).then((response) => response.statusCode),
         completion(HttpStatus.notFound),
@@ -63,11 +64,12 @@ void main() {
 
   test('lookup signing_publickey via https', () async {
     final atSign = '@gary';
-      final Uri url = Uri.https('vip.ve.atsign.zone', '$atSign/signing_publickey');
-      logger.info('http GET to $url');
-      await expectLater(
-        http.get(url).then((response) => response.statusCode),
-        completion(HttpStatus.ok),
-      );
+    // final Uri url = Uri.https(domain, '/$atSign/signing_publickey');
+    final Uri url = Uri.https(domain, '/$atSign');
+    logger.info('http GET to $url');
+    await expectLater(
+      http.get(url).then((response) => response.statusCode),
+      completion(HttpStatus.ok),
+    );
   });
 }
