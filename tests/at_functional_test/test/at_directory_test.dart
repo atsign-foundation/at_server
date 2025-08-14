@@ -14,7 +14,7 @@ void main() {
     ..addAll(at_demo_data.apkamAtsigns)
     ..remove('anonymous');
 
-  test('lookup existing via 64', () async {
+  test('lookup existing atSign via 64', () async {
     List<Future> futures = [];
     for (final atSign in atSigns) {
       final saf = CacheableSecondaryAddressFinder('vip.ve.atsign.zone', 64);
@@ -24,7 +24,7 @@ void main() {
     logger.info('${responses.length} of ${atSigns.length} OK');
   });
 
-  test('lookup non-existent via 64', () async {
+  test('lookup non-existent atSign avia 64', () async {
     List<Future> futures = [];
     for (final atSign in atSigns.map((e) => '${e}_nope')) {
       final saf = CacheableSecondaryAddressFinder('vip.ve.atsign.zone', 64);
@@ -35,7 +35,7 @@ void main() {
     logger.info('${responses.length} of ${atSigns.length} OK');
   });
 
-  test('lookup existing via https', () async {
+  test('lookup existing atSign via https', () async {
     List<Future> futures = [];
     for (final atSign in atSigns) {
       final Uri url = Uri.https('vip.ve.atsign.zone', atSign);
@@ -48,13 +48,26 @@ void main() {
     logger.info('${responses.length} of ${atSigns.length} OK');
   });
 
-  test('lookup non-existent via https', () async {
+  test('lookup non-existent atSign via https', () async {
     List<Future> futures = [];
     for (final atSign in atSigns.map((e) => '${e}_nope')) {
       final Uri url = Uri.https('vip.ve.atsign.zone', atSign);
       futures.add(expectLater(
         http.get(url).then((response) => response.statusCode),
         completion(HttpStatus.notFound),
+      ));
+    }
+    final responses = await Future.wait(futures);
+    logger.info('${responses.length} of ${atSigns.length} OK');
+  });
+
+  test('lookup signing_publickey via https', () async {
+    List<Future> futures = [];
+    for (final atSign in atSigns) {
+      final Uri url = Uri.https('vip.ve.atsign.zone', '$atSign/signing_publickey');
+      futures.add(expectLater(
+        http.get(url).then((response) => response.statusCode),
+        completion(HttpStatus.ok),
       ));
     }
     final responses = await Future.wait(futures);
