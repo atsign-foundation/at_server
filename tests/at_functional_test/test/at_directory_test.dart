@@ -13,7 +13,7 @@ void main() {
   List<String> atSigns = at_demo_data.allAtsigns
     ..addAll(at_demo_data.apkamAtsigns)
     ..remove('anonymous');
-  final domain = 'vip .ve.atsign.zone';
+  final domain = 'vip.ve.atsign.zone';
 
   test('lookup existing atSign via 64', () async {
     List<Future> futures = [];
