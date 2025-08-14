@@ -68,11 +68,18 @@ void main() {
     final Uri atServerUrl = Uri.https(domain, '/$atSign');
     final String atServerAddress = (await http.get(atServerUrl)).body;
 
-    final Uri spkUrl = Uri.https(domain, '/$atSign/signing_publickey');
-    logger.info('http GET to $spkUrl');
-    final request = http.Request('GET', spkUrl)..followRedirects = false;
-    final response = await http.Client().send(request);
-    expect(response.statusCode, HttpStatus.movedTemporarily);
-    expect(response.headers['location'], '$atServerAddress/signing_publickey');
+    final Uri firstUrl = Uri.https(domain, '/$atSign/signing_publickey');
+    logger.info('http GET to $firstUrl');
+    final firstRequest = http.Request('GET', firstUrl)..followRedirects = false;
+    final firstResponse = await http.Client().send(firstRequest);
+    expect(firstResponse.statusCode, HttpStatus.movedTemporarily);
+
+    final redirectUrl = firstResponse.headers['location'];
+    expect(redirectUrl, 'https://$atServerAddress/signing_publickey');
+
+    final secondResponse = await http.get(Uri.dataFromString(redirectUrl!));
+    expect(secondResponse.statusCode, HttpStatus.ok);
+    expect(secondResponse.body, startsWith('data:'));
+    logger.info('Got signing_publickey ${secondResponse.body}');
   });
 }
