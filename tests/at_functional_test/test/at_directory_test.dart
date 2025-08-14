@@ -64,8 +64,8 @@ void main() {
 
   test('lookup signing_publickey via https', () async {
     final atSign = '@gary';
-    // final Uri url = Uri.https(domain, '/$atSign/signing_publickey');
-    final Uri url = Uri.https(domain, '/$atSign');
+    final Uri url = Uri.https(domain, '/$atSign/signing_publickey');
+    // final Uri url = Uri.https(domain, '/$atSign');
     logger.info('http GET to $url');
     await expectLater(
       http.get(url).then((response) => response.statusCode),
