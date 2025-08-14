@@ -64,10 +64,15 @@ void main() {
 
   test('lookup signing_publickey via https', () async {
     final atSign = '@gary';
-    final Uri url = Uri.https(domain, '/$atSign/signing_publickey');
-    logger.info('http GET to $url');
-    final request = http.Request('GET', url)..followRedirects = false;
+
+    final Uri atServerUrl = Uri.https(domain, '/$atSign');
+    final String atServerAddress = (await http.get(atServerUrl)).body;
+
+    final Uri spkUrl = Uri.https(domain, '/$atSign/signing_publickey');
+    logger.info('http GET to $spkUrl');
+    final request = http.Request('GET', spkUrl)..followRedirects = false;
     final response = await http.Client().send(request);
     expect(response.statusCode, HttpStatus.movedTemporarily);
+    expect(response.headers['location'], '$atServerAddress/signing_publickey');
   });
 }
