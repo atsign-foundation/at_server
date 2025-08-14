@@ -62,7 +62,7 @@ void main() {
   });
 
   test('lookup signing_publickey via https', () async {
-    final atSign = at_demo_data.apkamAtsigns.first;
+    final atSign = '@gary';
       final Uri url = Uri.https('vip.ve.atsign.zone', '$atSign/signing_publickey');
       logger.info('http GET to $url');
       await expectLater(
