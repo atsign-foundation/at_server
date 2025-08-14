@@ -14,11 +14,11 @@ void main() {
     ..addAll(at_demo_data.apkamAtsigns)
     ..remove('anonymous');
   final domain = 'vip.ve.atsign.zone';
+  final saf = CacheableSecondaryAddressFinder(domain, 64);
 
   test('lookup existing atSign via 64', () async {
     List<Future> futures = [];
     for (final atSign in atSigns) {
-      final saf = CacheableSecondaryAddressFinder(domain, 64);
       futures.add(saf.findSecondary(atSign));
     }
     final responses = await Future.wait(futures);
@@ -28,7 +28,6 @@ void main() {
   test('lookup non-existent atSign avia 64', () async {
     List<Future> futures = [];
     for (final atSign in atSigns.map((e) => '${e}_nope')) {
-      final saf = CacheableSecondaryAddressFinder(domain, 64);
       futures.add(expectLater(saf.findSecondary(atSign),
           throwsA(isA<SecondaryNotFoundException>())));
     }
@@ -65,21 +64,14 @@ void main() {
   test('lookup signing_publickey via https', () async {
     final atSign = '@gary';
 
-    final Uri atServerUrl = Uri.https(domain, '/$atSign');
-    final String atServerAddress = (await http.get(atServerUrl)).body;
+    final Uri redirectingUrl = Uri.https(domain, '/$atSign/signing_publickey');
+    final String pskResponseViaHttps = (await http.get(redirectingUrl)).body;
 
-    final Uri firstUrl = Uri.https(domain, '/$atSign/signing_publickey');
-    logger.info('http GET to $firstUrl');
-    final firstRequest = http.Request('GET', firstUrl)..followRedirects = false;
-    final firstResponse = await http.Client().send(firstRequest);
-    expect(firstResponse.statusCode, HttpStatus.movedTemporarily);
+    final AtLookupImpl al =
+        AtLookupImpl(atSign, domain, 64, secondaryAddressFinder: saf);
+    final pskResponseViaAtProtocolSocket =
+        await al.executeCommand('lookup:signing_publickey$atSign');
 
-    final redirectUrl = firstResponse.headers['location'];
-    expect(redirectUrl, 'https://$atServerAddress/signing_publickey');
-
-    final secondResponse = await http.get(Uri.parse(redirectUrl!));
-    expect(secondResponse.statusCode, HttpStatus.ok);
-    expect(secondResponse.body, startsWith('data:'));
-    logger.info('Got signing_publickey ${secondResponse.body}');
+    expect(pskResponseViaHttps, pskResponseViaAtProtocolSocket);
   });
 }
