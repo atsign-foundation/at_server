@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:test/test.dart';
@@ -21,7 +22,13 @@ void main() {
     }
   });
 
-  test('lookup non-existent via 64', () {});
+  test('lookup non-existent via 64', () async {
+    for (final atSign in atSigns.map((e) => '${e}_nope')) {
+      final saf = CacheableSecondaryAddressFinder('vip.ve.atsign.zone', 64);
+      await expectLater(saf.findSecondary(atSign),
+          throwsA(isA<SecondaryNotFoundException>()));
+    }
+  });
 
   test('lookup existing via https', () async {
     for (final atSign in atSigns) {
