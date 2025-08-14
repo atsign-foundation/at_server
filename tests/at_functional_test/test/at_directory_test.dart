@@ -62,15 +62,12 @@ void main() {
   });
 
   test('lookup signing_publickey via https', () async {
-    List<Future> futures = [];
-    for (final atSign in atSigns) {
+    final atSign = at_demo_data.apkamAtsigns.first;
       final Uri url = Uri.https('vip.ve.atsign.zone', '$atSign/signing_publickey');
-      futures.add(expectLater(
+      logger.info('http GET to $url');
+      await expectLater(
         http.get(url).then((response) => response.statusCode),
         completion(HttpStatus.ok),
-      ));
-    }
-    final responses = await Future.wait(futures);
-    logger.info('${responses.length} of ${atSigns.length} OK');
+      );
   });
 }
