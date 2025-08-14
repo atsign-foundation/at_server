@@ -10,7 +10,8 @@ void main() {
   AtSignLogger.defaultLoggingHandler = AtSignLogger.stdErrLoggingHandler;
   final AtSignLogger logger = AtSignLogger(' at_directory_test ');
   List<String> atSigns = at_demo_data.allAtsigns
-    ..addAll(at_demo_data.apkamAtsigns);
+    ..addAll(at_demo_data.apkamAtsigns)
+    ..remove('anonymous');
 
   test('lookup existing via 64', () async {
     for (final atSign in atSigns) {
