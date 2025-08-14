@@ -15,29 +15,40 @@ void main() {
     ..remove('anonymous');
 
   test('lookup existing via 64', () async {
+    List<Future> futures = [];
     for (final atSign in atSigns) {
       final saf = CacheableSecondaryAddressFinder('vip.ve.atsign.zone', 64);
-      final addr = await saf.findSecondary(atSign);
-      logger.info('atProtocol socket: $atSign: $addr');
+      futures.add(saf.findSecondary(atSign));
     }
+    final responses = await Future.wait(futures);
+    logger.info('${responses.length} of ${atSigns.length} OK');
   });
 
   test('lookup non-existent via 64', () async {
+    List<Future> futures = [];
     for (final atSign in atSigns.map((e) => '${e}_nope')) {
       final saf = CacheableSecondaryAddressFinder('vip.ve.atsign.zone', 64);
-      await expectLater(saf.findSecondary(atSign),
-          throwsA(isA<SecondaryNotFoundException>()));
+      futures.add(expectLater(saf.findSecondary(atSign),
+          throwsA(isA<SecondaryNotFoundException>())));
     }
+    final responses = await Future.wait(futures);
+    logger.info('${responses.length} of ${atSigns.length} OK');
   });
 
   test('lookup existing via https', () async {
     for (final atSign in atSigns) {
       final Uri url = Uri.https('vip.ve.atsign.zone', atSign);
-      http.Response response = await http.get(url);
-      logger.info('https: $atSign: ${response.statusCode}: ${response.body}');
-      expect(response.statusCode, HttpStatus.ok);
+      await expectLater(
+          http.get(url).then((response) => response.statusCode), HttpStatus.ok);
     }
   });
 
-  test('lookup non-existent via https', () {});
+  test('lookup non-existent via https', () async {
+    for (final atSign in atSigns) {
+      final Uri url = Uri.https('vip.ve.atsign.zone', atSign);
+      http.Response response = await http.get(url);
+      logger.info('https: $atSign: ${response.statusCode}: ${response.body}');
+      expect(response.statusCode, HttpStatus.notFound);
+    }
+  });
 }
