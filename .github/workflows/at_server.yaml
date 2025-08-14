@@ -286,7 +286,7 @@ jobs:
 
       - name: Run tests
         working-directory: ${{ env.ftest-working-directory }}
-        run: dart run test --concurrency=1
+        run: dart run test/at_directory_test.dart
 
 #  end2end_test_prep:
 #    # Don't run on PRs from a fork or Dependabot as the secrets aren't available

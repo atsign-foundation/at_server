@@ -13,29 +13,29 @@ void main() {
   var rootServerPort = 64;
   var rootServer = 'vip.ve.atsign.zone';
 
-  late SecureSocket _secureSocket;
+  late SecureSocket secureSocket;
 
   bool isRootServerStarted = false;
 
   test('Checking for root server readiness', () async {
     while (retryCount < maxRetryCount) {
       try {
-        _secureSocket = await SecureSocket.connect(rootServer, rootServerPort,
+        secureSocket = await SecureSocket.connect(rootServer, rootServerPort,
             timeout: Duration(seconds: 1));
-        socketListener(_secureSocket);
+        socketListener(secureSocket);
         var response = await readResponse();
         if (response == '@') {
           print('Secure Socket is open for Root Server');
         }
         isRootServerStarted =
-            await _lookupForSecondaryAddress(_secureSocket, atSign, rootServer);
+            await _lookupForSecondaryAddress(secureSocket, atSign, rootServer);
         if (isRootServerStarted) {
           print('Root server started successfully');
-          _secureSocket.close();
+          secureSocket.close();
           break;
         } else {
           print('Root server is not completely initialized');
-          _secureSocket.close();
+          secureSocket.close();
           retryCount = retryCount + 1;
           await Future.delayed(Duration(seconds: 5));
         }
@@ -55,8 +55,8 @@ void main() {
 }
 
 Future<bool> _lookupForSecondaryAddress(
-    SecureSocket _secureSocket, String atSign, String rootServer) async {
-  _secureSocket.write('$atSign\n');
+    SecureSocket secureSocket, String atSign, String rootServer) async {
+  secureSocket.write('$atSign\n');
   var response = await readResponse();
   if (response.toString().startsWith(rootServer)) {
     print('Root Server is up and running');

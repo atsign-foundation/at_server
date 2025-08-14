@@ -100,8 +100,7 @@ void main() {
 }
 
 // calculates the time difference between command before and after execution
-Duration timeDifference(var beforeCommand, var afterCommand) {
-  var timeDifferenceValue = DateTime.fromMillisecondsSinceEpoch(afterCommand)
+Duration timeDifference(int beforeCommand, int afterCommand) {
+  return DateTime.fromMillisecondsSinceEpoch(afterCommand)
       .difference(DateTime.fromMillisecondsSinceEpoch(beforeCommand));
-  return timeDifferenceValue;
 }

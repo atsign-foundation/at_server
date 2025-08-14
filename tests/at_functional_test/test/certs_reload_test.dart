@@ -2,7 +2,7 @@ import 'package:at_functional_test/conf/config_util.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
 import 'package:test/test.dart';
 
-log(prefix, command, response) {
+void log(String prefix, String command, String response) {
   print('${prefix}SENT ${command.padRight(45)} RCVD $response');
 }
 
