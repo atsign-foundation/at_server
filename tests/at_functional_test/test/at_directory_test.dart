@@ -117,8 +117,9 @@ void main() {
         () async {
       int successes = 0;
       int isolateCounter = 0;
+      List<Future<bool>> futures = [];
       for (final atSign in atSigns) {
-        final bool succeeded = await Isolate.run(() async {
+        futures.add(Isolate.run(() async {
           AtSignLogger.defaultLoggingHandler =
               AtSignLogger.stdErrLoggingHandler;
           AtSignLogger.root_level = 'shout';
@@ -127,12 +128,15 @@ void main() {
           logger.level = 'info';
 
           return await doTheGet(atSign);
-        }, debugName: 'isolate ${++isolateCounter}');
-        if (succeeded) {
+        }, debugName: 'isolate ${++isolateCounter}'));
+      }
+
+      List<bool> outcomes = await Future.wait(futures);
+      for (final b in outcomes) {
+        if (b) {
           successes++;
         }
       }
-
       if (successes != atSigns.length) {
         throw Exception('Only $successes successes out of ${atSigns.length}');
       }
@@ -141,9 +145,14 @@ void main() {
 
     test('lookup signing_publickey via https with redirect', () async {
       int successes = 0;
+      List<Future<bool>> futures = [];
       for (final atSign in atSigns) {
-        final bool succeeded = await doTheGet(atSign);
-        if (succeeded) {
+        futures.add(doTheGet(atSign));
+      }
+
+      List<bool> outcomes = await Future.wait(futures);
+      for (final b in outcomes) {
+        if (b) {
           successes++;
         }
       }
