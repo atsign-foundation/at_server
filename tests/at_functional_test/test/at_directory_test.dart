@@ -14,10 +14,7 @@ import 'package:http/http.dart' as http;
 // (2) race conditions, as in each test we are executing requests for all of
 //     the atSigns in the ve - but in parallel rather than sequentially.
 void main() {
-  AtSignLogger.defaultLoggingHandler = AtSignLogger.stdErrLoggingHandler;
   AtSignLogger.root_level = 'shout';
-  final AtSignLogger mainLogger = AtSignLogger(' at_directory_test ');
-  mainLogger.level = 'info';
   final root = 'vip.ve.atsign.zone';
 
   group('basic atDirectory tests', () {
@@ -32,7 +29,7 @@ void main() {
         futures.add(saf.findSecondary(atSign));
       }
       final responses = await Future.wait(futures);
-      mainLogger.info('${responses.length} of ${atSigns.length} OK');
+      stderr.writeln('${responses.length} of ${atSigns.length} OK');
     });
 
     test('lookup non-existent atSign avia 64', () async {
@@ -43,7 +40,7 @@ void main() {
             throwsA(isA<SecondaryNotFoundException>())));
       }
       final responses = await Future.wait(futures);
-      mainLogger.info('${responses.length} of ${atSigns.length} OK');
+      stderr.writeln('${responses.length} of ${atSigns.length} OK');
     });
 
     test('lookup existing atSign via https', () async {
@@ -56,7 +53,7 @@ void main() {
         ));
       }
       final responses = await Future.wait(futures);
-      mainLogger.info('${responses.length} of ${atSigns.length} OK');
+      stderr.writeln('${responses.length} of ${atSigns.length} OK');
     });
 
     test('lookup non-existent atSign via https', () async {
@@ -69,7 +66,7 @@ void main() {
         ));
       }
       final responses = await Future.wait(futures);
-      mainLogger.info('${responses.length} of ${atSigns.length} OK');
+      stderr.writeln('${responses.length} of ${atSigns.length} OK');
     });
   });
 
@@ -133,7 +130,7 @@ void main() {
       if (successes != atSigns.length) {
         throw Exception('Only $successes successes out of ${atSigns.length}');
       }
-      mainLogger.info('$successes successes out of ${atSigns.length} OK');
+      stderr.writeln('$successes successes out of ${atSigns.length} OK');
     });
 
     test('lookup signing_publickey via https with redirect', () async {
@@ -153,7 +150,7 @@ void main() {
       if (successes != atSigns.length) {
         throw Exception('Only $successes successes out of ${atSigns.length}');
       }
-      mainLogger.info('$successes successes out of ${atSigns.length} OK');
+      stderr.writeln('$successes successes out of ${atSigns.length} OK');
     });
   });
 }
