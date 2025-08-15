@@ -14,13 +14,31 @@ import 'package:http/http.dart' as http;
 //     the atSigns in the ve - but in parallel rather than sequentially.
 void main() {
   AtSignLogger.defaultLoggingHandler = AtSignLogger.stdErrLoggingHandler;
-  AtSignLogger.root_level='shout';
+  AtSignLogger.root_level = 'shout';
   final AtSignLogger logger = AtSignLogger(' at_directory_test ');
-  logger.level='info';
+  logger.level = 'info';
   List<String> atSigns = at_demo_data.allAtsigns
     ..addAll(at_demo_data.apkamAtsigns)
     ..remove('anonymous');
   final root = 'vip.ve.atsign.zone';
+
+  // - Annoyingly, the Dart http clients do not set alpn protocols
+  // - And the client in the `http` package does not allow setting a context;
+  // it uses the default context. We can setAlpnProtocols in the default
+  // context, but this means every connection to the atServer uses those
+  // protocols, so normal AtLookup connections fail
+  // - So, we use dart.io's HttpClient which allows us to pass a context
+  // - In order to demonstrate that AtLookup is not interfered with, we
+  //   do this initialization of the HttpClient before any of the tests run.
+  final SecurityContext context = SecurityContext(withTrustedRoots: true);
+  context.setAlpnProtocols(['http/1.1'], false);
+  final HttpClient client = HttpClient(context: context);
+
+  Future<(int, String)> httpClientGet(Uri uri) async {
+    HttpClientRequest request = await client.getUrl(uri);
+    HttpClientResponse response = await request.close();
+    return (response.statusCode, await response.transform(utf8.decoder).join());
+  }
 
   test('lookup existing atSign via 64', () async {
     List<Future> futures = [];
@@ -69,16 +87,6 @@ void main() {
     logger.info('${responses.length} of ${atSigns.length} OK');
   });
 
-  Future<(int, String)> httpClientGet(Uri uri) async {
-    final SecurityContext context = SecurityContext(withTrustedRoots: true);
-    context.setAlpnProtocols(['http/1.1'], false);
-    final HttpClient client = HttpClient(context: context);
-
-    HttpClientRequest request = await client.getUrl(uri);
-    HttpClientResponse response = await request.close();
-    return (response.statusCode, await response.transform(utf8.decoder).join());
-  }
-
   // For each atSign
   // - Fetch public:signing_publickey from each atServer via AtLookup
   // - Fetch it from https://<rootHost>/$atSign/signing_publickey
@@ -94,7 +102,8 @@ void main() {
       final pskFromAtLookup = await AtLookupImpl(atSign, root, 64)
           .executeCommand('lookup:signing_publickey$atSign\n');
 
-      final (statusCode, body) = await httpClientGet(Uri.https(root, '/$atSign/signing_publickey'));
+      final (statusCode, body) =
+          await httpClientGet(Uri.https(root, '/$atSign/signing_publickey'));
 
       expect(statusCode, HttpStatus.ok);
       final pskFromHttpRedirect = body;
