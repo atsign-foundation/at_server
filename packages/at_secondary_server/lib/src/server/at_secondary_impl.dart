@@ -532,9 +532,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           }
           logger.finer('Key to look up: $lookupKey');
           secondaryKeyStore.get(lookupKey)!.then((AtData? value) {
-            req.response.writeln('data:${value?.data}');
+            req.response.statusCode=HttpStatus.ok;
+            req.response.write('data:${value?.data}');
             req.response.close();
           }, onError: (error) {
+            req.response.statusCode=HttpStatus.notFound;
             req.response.writeln('error:no such key $lookupKey');
             req.response.close();
           });
