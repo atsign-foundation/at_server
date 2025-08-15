@@ -78,7 +78,7 @@ void main() {
       ..addAll(at_demo_data.apkamAtsigns)
       ..remove('anonymous');
 
-    Future<bool> doTheGet(String atSign, AtSignLogger logger) async {
+    Future<bool> doTheGet(String atSign) async {
       final String command = 'lookup:signing_publickey$atSign';
       final atLookup = AtLookupImpl(atSign, root, 64);
       final String pskFromAtLookup;
@@ -95,7 +95,7 @@ void main() {
       final bool pskMatched = pskFromHttpRedirect == pskFromAtLookup;
 
       if (!statusOk || !pskMatched) {
-        logger.warning('Check failed for $atSign : status: $statusCode'
+        stderr.writeln('Error: Check failed for $atSign : status: $statusCode'
             ' pskFromHttpRedirect: $pskFromHttpRedirect'
             ' pskFromAtLookup: $pskFromAtLookup');
       }
@@ -120,14 +120,7 @@ void main() {
       List<Future<bool>> futures = [];
       for (final atSign in atSigns) {
         futures.add(Isolate.run(() async {
-          AtSignLogger.defaultLoggingHandler =
-              AtSignLogger.stdErrLoggingHandler;
-          AtSignLogger.root_level = 'shout';
-          AtSignLogger isolateLogger = AtSignLogger(
-              Isolate.current.debugName ?? 'lookup psk for $atSign');
-          isolateLogger.level = 'info';
-
-          return await doTheGet(atSign, isolateLogger);
+          return await doTheGet(atSign);
         }, debugName: 'isolate ${++isolateCounter}'));
       }
 
@@ -147,7 +140,7 @@ void main() {
       int successes = 0;
       List<Future<bool>> futures = [];
       for (final atSign in atSigns) {
-        futures.add(doTheGet(atSign, mainLogger));
+        futures.add(doTheGet(atSign));
       }
 
       List<bool> outcomes = await Future.wait(futures);
