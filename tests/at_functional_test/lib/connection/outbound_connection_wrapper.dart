@@ -51,8 +51,6 @@ class OutboundConnectionFactory {
         return await _cramAuthentication();
       case AuthType.apkam:
         return await _apkamAuthentication(enrollmentId);
-      default:
-        return await _pkamAuthentication();
     }
   }
 
