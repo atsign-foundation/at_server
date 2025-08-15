@@ -34,7 +34,7 @@ class RootClient {
   ///  @param - data : data received from client over the socket
   Future<void> _messageHandler(data) async {
     try {
-      logger.finest('${_address}:${_port} In root client _messagehandler');
+      logger.finest('$_address:$_port In root client _messagehandler');
       var message = utf8.decode(data);
       message = message.toLowerCase();
       _buffer.append(message);
@@ -46,7 +46,7 @@ class RootClient {
         if (_buffer.isEnd()) {
           var result = await _keyStoreManager.getKeyStore().get(lookupPayload);
           logger.info(
-              '${_address}:${_port} Looked up: $lookupPayload | Found: $result');
+              '$_address:$_port Looked up: $lookupPayload | Found: $result');
 
           if (result == null) {
             notFoundCount++;
@@ -64,12 +64,12 @@ class RootClient {
             }
           }
           result ??= 'null';
-          write(result + '\r\n@');
+          write('$result\r\n@');
           _buffer.clear();
         }
       }
     } on Exception catch (exception) {
-      logger.severe('${_address}:${_port} _messageHandler | $exception');
+      logger.severe('$_address:$_port _messageHandler | $exception');
       _socket.destroy();
     } catch (error) {
       _errorHandler(error.toString());
@@ -81,7 +81,7 @@ class RootClient {
   ///  @param - error : error string
   void _errorHandler(error) {
     if (state == RootClientState.listening) {
-      logger.severe('${_address}:${_port} Error: $error');
+      logger.severe('$_address:$_port Error: $error');
       removeClient(this);
     }
   }
@@ -90,7 +90,7 @@ class RootClient {
   ///  Return type - void
   void _finishedHandler() {
     if (state == RootClientState.listening) {
-      logger.info('${_address}:${_port} Disconnected');
+      logger.info('$_address:$_port Disconnected');
       removeClient(this);
     }
   }

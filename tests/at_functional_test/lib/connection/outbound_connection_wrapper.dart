@@ -5,6 +5,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_demo_data/at_demo_data.dart';
 import 'package:at_functional_test/utils/auth_utils.dart';
 import 'package:at_lookup/at_lookup.dart';
+// ignore: implementation_imports
 import 'package:at_lookup/src/connection/outbound_message_listener.dart';
 import 'package:at_utils/at_logger.dart';
 
@@ -30,7 +31,7 @@ class OutboundConnectionFactory {
   Future<String> sendRequestToServer(String message,
       {int maxWaitMilliSeconds = 90000}) async {
     if (!(message.endsWith('\n'))) {
-      message = message + '\n';
+      message = '$message\n';
     }
     await _outboundConnection.write(message);
     return await getServerResponse(maxWaitMilliSeconds: maxWaitMilliSeconds);
@@ -50,8 +51,6 @@ class OutboundConnectionFactory {
         return await _cramAuthentication();
       case AuthType.apkam:
         return await _apkamAuthentication(enrollmentId);
-      default:
-        return await _pkamAuthentication();
     }
   }
 

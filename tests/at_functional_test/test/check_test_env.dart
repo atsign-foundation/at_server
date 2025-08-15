@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 void main() {
-  SecureSocket _secureSocket;
+  SecureSocket secureSocket;
   var rootServer = 'vip.ve.atsign.zone';
   var atsign = '@sitaram🛠';
   var atsignPort = 25017;
@@ -14,8 +14,8 @@ void main() {
   String response = '';
 
   test('Checking for test environment readiness', () async {
-    _secureSocket = await SecureSocket.connect(rootServer, atsignPort);
-    _secureSocket.listen((data) async {
+    secureSocket = await SecureSocket.connect(rootServer, atsignPort);
+    secureSocket.listen((data) async {
       response = utf8.decode(data);
       if (response == '@') {
         return;
@@ -24,17 +24,17 @@ void main() {
       if (response.startsWith('error') && retryCount <= maxRetryCount) {
         retryCount = retryCount + 1;
         await Future.delayed(Duration(seconds: 1));
-        _secureSocket.write('lookup:pkaminstalled$atsign\n');
+        secureSocket.write('lookup:pkaminstalled$atsign\n');
         return;
       }
       if (retryCount >= maxRetryCount) {
-        _secureSocket.close();
+        secureSocket.close();
       }
       expect(response.startsWith('data:yes'), true);
       if (response.startsWith('data:yes')) {
-        await _secureSocket.close();
+        await secureSocket.close();
       }
     });
-    _secureSocket.write('lookup:pkaminstalled$atsign\n');
+    secureSocket.write('lookup:pkaminstalled$atsign\n');
   });
 }

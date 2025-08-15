@@ -12,9 +12,9 @@ import 'package:at_commons/at_commons.dart';
 /// Impl class for the root server of the @protocol.
 /// This Contains methods to start, stop and serve the requests.
 class RootServerImpl implements AtRootServer {
-  static final bool? useSSL = AtRootConfig.useSSL;
-  var logger = AtSignLogger('RootServerImpl');
-  static late var _serverSocket;
+  final logger = AtSignLogger('RootServerImpl');
+  static late dynamic _serverSocket;
+  static HttpServer? httpServer;
   bool _isRunning = false;
   bool _stopInProgress = false;
   late AtRootServerContext serverContext;
@@ -49,22 +49,25 @@ class RootServerImpl implements AtRootServer {
       throw AtServerException('redis auth is not set');
     }
 
-    var port = serverContext.port;
     if (_isRunning) {
       return;
     }
     try {
       _isRunning = true;
       RootClientPool().init();
-      if (useSSL!) {
-        _startSecuredServer(port, serverContext.securityContext);
+
+      if (serverContext.useSSL!) {
+        _startSecuredServer();
       } else {
-        _startUnSecuredServer(port!);
+        _startUnSecuredServer();
+      }
+
+      if (serverContext.httpsEnabled!) {
+        _startHttpsServer();
       }
     } on Exception catch (exception) {
       _isRunning = false;
-      throw AtServerException(
-          'rootServer().init error: ' + exception.toString());
+      throw AtServerException('rootServer().init error: $exception');
     }
   }
 
@@ -74,19 +77,23 @@ class RootServerImpl implements AtRootServer {
   ///                  contains socket on which the connection has been made..
   /// AtClientConnection contains Instance of Client Socket
   void _handle(AtClientConnection request) {
-    var socket = request.getSocket();
-    // if stopInProgress is true - reject serve request
-    if (_stopInProgress) {
-      logger.severe("Stop in progress. Can't accept new requests.");
-      socket.write("Stop in progress. Can't accept new requests.");
-      socket.close();
-      return;
+    try {
+      var socket = request.getSocket();
+      // if stopInProgress is true - reject serve request
+      if (_stopInProgress) {
+        logger.severe("Stop in progress. Can't accept new requests.");
+        socket.write("Stop in progress. Can't accept new requests.");
+        socket.close();
+        return;
+      }
+      logger.info('Connection from '
+          '${socket.remoteAddress.address}:${socket.remotePort}');
+      var client = RootClient(socket);
+      logger.info('connection successful');
+      client.write('@');
+    } catch (e) {
+      logger.warning('Error in _handle(request): $e');
     }
-    logger.info('Connection from '
-        '${socket.remoteAddress.address}:${socket.remotePort}');
-    var client = RootClient(socket);
-    logger.info('connection successful');
-    client.write('@');
   }
 
   /// Method to Stop the server.
@@ -99,10 +106,13 @@ class RootServerImpl implements AtRootServer {
   Future<void> stop() async {
     _stopInProgress = true;
     try {
+      if (httpServer != null) {
+        await httpServer!.close();
+      }
       var result = RootClientPool().closeAll();
       if (result) {
         //close server socket
-        _serverSocket.close();
+        await _serverSocket.close();
         _isRunning = false;
       }
     } on Exception {
@@ -110,22 +120,68 @@ class RootServerImpl implements AtRootServer {
     }
   }
 
-  Future<KeystoreManagerImpl?> getKeyStoreManager() async {
-    try {
-      var keyStoreManager = KeystoreManagerImpl();
-      var result = await (keyStoreManager.getKeyStore().get('ping'));
-      logger.info(result);
-      assert(result != null && 'pong'.compareTo(result) == 0);
-      return keyStoreManager;
-    } catch (exception) {
-      logger.severe(exception);
-      return null;
-    }
+  Future<void> _startHttpsServer() async {
+    var secCon = SecurityContext.defaultContext;
+
+    secCon.useCertificateChain(serverContext.securityContext!.publicKeyPath());
+    secCon.usePrivateKey(serverContext.securityContext!.privateKeyPath());
+
+    httpServer = await HttpServer.bindSecure(
+        InternetAddress.anyIPv4, serverContext.httpsPort!, secCon);
+
+    logger.info('HttpsServer listening at ${serverContext.httpsPort}');
+
+    final keyStoreManager = KeystoreManagerImpl();
+    httpServer!.listen((HttpRequest request) async {
+      try {
+        switch (request.method) {
+          case 'GET':
+            String requestPath = Uri.decodeComponent(request.requestedUri.path);
+            if (requestPath.startsWith('/')) {
+              requestPath = requestPath.substring(1);
+            }
+            if (requestPath.startsWith('@')) {
+              requestPath = requestPath.substring(1);
+            }
+            List<String> pathParts = requestPath.split('/');
+            String atSign = pathParts[0];
+            String? onwardLookup;
+            if (pathParts.length >= 2) {
+              onwardLookup = pathParts[1];
+            }
+            logger.info('GET ${request.requestedUri.path} ($requestPath)');
+            String? v = await keyStoreManager.getKeyStore().get(atSign);
+
+            if (v == null) {
+              request.response.statusCode = HttpStatus.notFound;
+              request.response.write('null');
+            } else {
+              if (onwardLookup == null) {
+                request.response.statusCode = HttpStatus.ok;
+                request.response.write(v);
+              } else {
+                request.response.statusCode = HttpStatus.movedTemporarily;
+                request.response.headers.add(
+                    HttpHeaders.locationHeader, 'https://$v/$onwardLookup');
+              }
+            }
+          default:
+            request.response.statusCode = HttpStatus.unauthorized;
+            request.response.write('Unauthorized');
+        }
+      } catch (e) {
+        logger.info('Error while handling http req'
+            ' ${Uri.decodeFull(request.requestedUri.toString())}'
+            ' : $e');
+      } finally {
+        await request.response.close();
+      }
+    });
   }
 
-  void _startSecuredServer(int? port, AtSecurityContext? context) {
+  void _startSecuredServer() {
     try {
-      var secCon = SecurityContext();
+      var secCon = SecurityContext.defaultContext;
       var retryCount = 0;
       var certsAvailable = false;
       // if certs are unavailable then retry max 10 minutes
@@ -143,15 +199,16 @@ class RootServerImpl implements AtRootServer {
           certsAvailable = true;
         } on FileSystemException {
           retryCount++;
-          logger.info('certs unavailable. Retry count ${retryCount}');
+          logger.info('certs unavailable. Retry count $retryCount');
         }
       }
       if (certsAvailable) {
-        SecureServerSocket.bind(InternetAddress.anyIPv4, port!, secCon)
+        SecureServerSocket.bind(
+                InternetAddress.anyIPv4, serverContext.port!, secCon)
             .then((SecureServerSocket socket) {
           logger.info(
-              'root server started on version : ${AtRootConfig.root_server_version}');
-          logger.info('Secure Socket open!');
+              'root server started on version : ${AtRootConfig.rootServerVersion}');
+          logger.info('SecureServerSocket listening at ${serverContext.port}');
           _serverSocket = socket;
           _listen(_serverSocket);
         });
@@ -163,9 +220,9 @@ class RootServerImpl implements AtRootServer {
     }
   }
 
-  void _startUnSecuredServer(int port) {
+  void _startUnSecuredServer() {
     try {
-      ServerSocket.bind(InternetAddress.anyIPv4, port)
+      ServerSocket.bind(InternetAddress.anyIPv4, serverContext.port!)
           .then((ServerSocket socket) {
         logger.info('Unsecure Socket open');
         _serverSocket = socket;
@@ -184,11 +241,9 @@ class RootServerImpl implements AtRootServer {
         // This is not unusual.
         // See https://github.com/atsign-foundation/at_server/issues/1590
         return;
+      } else {
+        logger.warning('ServerSocket.listen: onError :$error');
       }
-      logger.warning('ServerSocket stream error :' +
-          error.toString() +
-          'connecting to ' +
-          serverSocket.address.toString());
     });
   }
 

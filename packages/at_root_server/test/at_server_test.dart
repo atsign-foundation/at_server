@@ -4,12 +4,24 @@ import 'package:test/test.dart';
 import 'package:at_root_server/src/server/at_root_server_impl.dart';
 
 void main() {
+  late RootServerImpl rootServerImpl;
+  late AtRootServerContext atRootServerContext;
+  setUp(() {
+    rootServerImpl = RootServerImpl();
+    atRootServerContext = AtRootServerContext();
+    rootServerImpl.setServerContext(atRootServerContext);
+  });
   group('Root server tests for AtServerException', () {
-    test('Redis host not set - AtServerException', () {
-      var rootServerImpl = RootServerImpl();
-      var atRootServerContext = AtRootServerContext();
-      rootServerImpl.setServerContext(atRootServerContext);
+    test('root server port not set - AtServerException', () {
+      expect(
+          () => rootServerImpl.start(),
+          throwsA(predicate((dynamic e) =>
+              e is AtServerException &&
+              e.message == 'server port is not set')));
+    });
 
+    test('Redis host not set - AtServerException', () {
+      atRootServerContext.port = 12345;
       expect(
           () => rootServerImpl.start(),
           throwsA(predicate((dynamic e) =>
@@ -17,10 +29,8 @@ void main() {
     });
 
     test('Redis port is not set - AtServerException', () {
-      var rootServerImpl = RootServerImpl();
-      var atRootServerContext = AtRootServerContext();
+      atRootServerContext.port = 12345;
       atRootServerContext.redisServerHost = 'localhost';
-      rootServerImpl.setServerContext(atRootServerContext);
 
       expect(
           () => rootServerImpl.start(),
@@ -29,30 +39,14 @@ void main() {
     });
 
     test('Redis auth is not set - AtServerException', () {
-      var rootServerImpl = RootServerImpl();
-      var atRootServerContext = AtRootServerContext();
+      atRootServerContext.port = 12345;
       atRootServerContext.redisServerHost = 'localhost';
       atRootServerContext.redisServerPort = 6379;
-      rootServerImpl.setServerContext(atRootServerContext);
 
       expect(
           () => rootServerImpl.start(),
           throwsA(predicate((dynamic e) =>
               e is AtServerException && e.message == 'redis auth is not set')));
-    });
-
-    test('root server port not set - AtServerException', () {
-      var rootServerImpl = RootServerImpl();
-      var atRootServerContext = AtRootServerContext();
-      //Setting server port to null
-      atRootServerContext.port = null;
-      rootServerImpl.setServerContext(atRootServerContext);
-
-      expect(
-          () => rootServerImpl.start(),
-          throwsA(predicate((dynamic e) =>
-              e is AtServerException &&
-              e.message == 'server port is not set')));
     });
   });
 }

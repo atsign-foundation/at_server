@@ -12,35 +12,35 @@ void main() {
   int maxRetryCount = 10;
   int retryCount = 1;
 
-  SecureSocket? _secureSocket;
+  SecureSocket? secureSocket;
 
   test('Checking for test environment readiness', () async {
     while (retryCount < maxRetryCount) {
       try {
-        _secureSocket = await SecureSocket.connect(rootServer, atsignPort);
+        secureSocket = await SecureSocket.connect(rootServer, atsignPort);
       } on Exception {
         print(
             'Failed connecting to $rootServer:$atsignPort. Retrying for connection.. $retryCount');
         await Future.delayed(Duration(seconds: 1));
         retryCount = retryCount + 1;
       }
-      if (_secureSocket != null) {
+      if (secureSocket != null) {
         break;
       }
     }
-    assert(_secureSocket != null);
+    assert(secureSocket != null);
 
-    _secureSocket?.listen(expectAsync1((data) async {
+    secureSocket?.listen(expectAsync1((data) async {
       response = utf8.decode(data);
       // Ignore the '@' which is returned when connection is established.
       if (response == '@') {
         return;
       }
       response = response.replaceFirst('data:', '');
-      await _secureSocket?.close();
+      await secureSocket?.close();
       expect(response.startsWith('null'), false);
       print('All atSign are up and running');
     }, count: 2));
-    _secureSocket?.write('lookup:signing_publickey$atsign\n');
+    secureSocket?.write('lookup:signing_publickey$atsign\n');
   });
 }

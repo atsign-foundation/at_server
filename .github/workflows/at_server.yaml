@@ -232,12 +232,21 @@ jobs:
       - name: Add entry to hosts file
         run: echo "127.0.0.1    vip.ve.atsign.zone" | sudo tee -a /etc/hosts
 
-      - name: Generate secondary server binary
+      - name: Generate atDirectory binary (root)
+        working-directory: ${{ env.root-working-directory }}
+        run: dart pub get && dart compile exe bin/main.dart -o root
+
+      - name: Generate atServer binary (secondary)
         working-directory: ${{ env.secondary-working-directory }}
         run: dart pub get && dart compile exe bin/main.dart -o secondary
 
-      - name: copy secondary to tools/build_virtual_environment/ve
+
+      - name: copy root and secondary binaries to tools/build_virtual_environment/ve
         run: |
+          mkdir -p tools/build_virtual_environment/ve/contents/atsign/root
+          cp packages/at_root_server/root tools/build_virtual_environment/ve/contents/atsign/root/
+          cp packages/at_root_server/pubspec.yaml tools/build_virtual_environment/ve/contents/atsign/root/
+          chmod 755 tools/build_virtual_environment/ve/contents/atsign/root/root
           cp packages/at_secondary_server/secondary tools/build_virtual_environment/ve/contents/atsign/secondary/
           cp packages/at_secondary_server/pubspec.yaml tools/build_virtual_environment/ve/contents/atsign/secondary/
           chmod 755 tools/build_virtual_environment/ve/contents/atsign/secondary/secondary
@@ -252,7 +261,7 @@ jobs:
 
       - name: Run docker container
         # -d: run container in detached mode. --rm: remove container on stop -p: bind ports to host
-        run: docker run -d --rm --name at_virtual_env_cont -e testingMode="true" -p 6379:6379 -p 25000-25019:25000-25019 -p 64:64 at_virtual_env:trunk
+        run: docker run -d --rm --name at_virtual_env_cont -e testingMode="true" -e httpsEnabled="true" -p 6379:6379 -p 25000-25099:25000-25099 -p 64:64 -p 443:443 at_virtual_env:trunk
 
       - name: Check docker readiness to load PKAM keys
         working-directory: ${{ env.ftest-working-directory }}
