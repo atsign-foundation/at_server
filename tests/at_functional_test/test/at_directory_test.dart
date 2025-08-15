@@ -16,8 +16,8 @@ import 'package:http/http.dart' as http;
 void main() {
   AtSignLogger.defaultLoggingHandler = AtSignLogger.stdErrLoggingHandler;
   AtSignLogger.root_level = 'shout';
-  final AtSignLogger logger = AtSignLogger(' at_directory_test ');
-  logger.level = 'info';
+  final AtSignLogger mainLogger = AtSignLogger(' at_directory_test ');
+  mainLogger.level = 'info';
   final root = 'vip.ve.atsign.zone';
 
   group('basic atDirectory tests', () {
@@ -32,7 +32,7 @@ void main() {
         futures.add(saf.findSecondary(atSign));
       }
       final responses = await Future.wait(futures);
-      logger.info('${responses.length} of ${atSigns.length} OK');
+      mainLogger.info('${responses.length} of ${atSigns.length} OK');
     });
 
     test('lookup non-existent atSign avia 64', () async {
@@ -43,7 +43,7 @@ void main() {
             throwsA(isA<SecondaryNotFoundException>())));
       }
       final responses = await Future.wait(futures);
-      logger.info('${responses.length} of ${atSigns.length} OK');
+      mainLogger.info('${responses.length} of ${atSigns.length} OK');
     });
 
     test('lookup existing atSign via https', () async {
@@ -56,7 +56,7 @@ void main() {
         ));
       }
       final responses = await Future.wait(futures);
-      logger.info('${responses.length} of ${atSigns.length} OK');
+      mainLogger.info('${responses.length} of ${atSigns.length} OK');
     });
 
     test('lookup non-existent atSign via https', () async {
@@ -69,7 +69,7 @@ void main() {
         ));
       }
       final responses = await Future.wait(futures);
-      logger.info('${responses.length} of ${atSigns.length} OK');
+      mainLogger.info('${responses.length} of ${atSigns.length} OK');
     });
   });
 
@@ -78,7 +78,7 @@ void main() {
       ..addAll(at_demo_data.apkamAtsigns)
       ..remove('anonymous');
 
-    Future<bool> doTheGet(String atSign) async {
+    Future<bool> doTheGet(String atSign, AtSignLogger logger) async {
       final String command = 'lookup:signing_publickey$atSign';
       final atLookup = AtLookupImpl(atSign, root, 64);
       final String pskFromAtLookup;
@@ -123,11 +123,11 @@ void main() {
           AtSignLogger.defaultLoggingHandler =
               AtSignLogger.stdErrLoggingHandler;
           AtSignLogger.root_level = 'shout';
-          AtSignLogger logger = AtSignLogger(
+          AtSignLogger isolateLogger = AtSignLogger(
               Isolate.current.debugName ?? 'lookup psk for $atSign');
-          logger.level = 'info';
+          isolateLogger.level = 'info';
 
-          return await doTheGet(atSign);
+          return await doTheGet(atSign, isolateLogger);
         }, debugName: 'isolate ${++isolateCounter}'));
       }
 
@@ -140,14 +140,14 @@ void main() {
       if (successes != atSigns.length) {
         throw Exception('Only $successes successes out of ${atSigns.length}');
       }
-      logger.info('$successes successes out of ${atSigns.length} OK');
+      mainLogger.info('$successes successes out of ${atSigns.length} OK');
     });
 
     test('lookup signing_publickey via https with redirect', () async {
       int successes = 0;
       List<Future<bool>> futures = [];
       for (final atSign in atSigns) {
-        futures.add(doTheGet(atSign));
+        futures.add(doTheGet(atSign, mainLogger));
       }
 
       List<bool> outcomes = await Future.wait(futures);
@@ -160,7 +160,7 @@ void main() {
       if (successes != atSigns.length) {
         throw Exception('Only $successes successes out of ${atSigns.length}');
       }
-      logger.info('$successes successes out of ${atSigns.length} OK');
+      mainLogger.info('$successes successes out of ${atSigns.length} OK');
     });
   });
 }
