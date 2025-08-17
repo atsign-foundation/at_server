@@ -17,9 +17,11 @@ void main() {
   final root = 'vip.ve.atsign.zone';
 
   group('basic atDirectory tests', () {
-    List<String> atSigns = at_demo_data.allAtsigns
-      ..addAll(at_demo_data.apkamAtsigns)
-      ..remove('anonymous');
+    List<String> atSigns = [];
+    for (int i = 1; i < 15; i++) {
+      // note starting at index 1, to ignore 'anonymous'
+      atSigns.add(at_demo_data.allAtsigns[i]);
+    }
 
     test('lookup existing atSign via 64', () async {
       List<Future> futures = [];
@@ -153,9 +155,8 @@ void main() {
     test('lookup the metadata of some key via https with redirect', () async {
       int successes = 0;
       List<Future<bool>> futures = [];
-      // List<String> atSignsForMetadataTest = ['@client'];
-      List<String> atSignsForMetadataTest = at_demo_data.allAtsigns;
-      for (final atSign in atSignsForMetadataTest) {
+      // List<String> atSigns = ['@client'];
+      for (final atSign in atSigns) {
         futures.add(
           getAndComparePublicKeyMetadata(
             'signing_publickey',
@@ -171,12 +172,10 @@ void main() {
         }
       }
 
-      if (successes != atSignsForMetadataTest.length) {
-        throw Exception(
-            'Only $successes successes out of ${atSignsForMetadataTest.length}');
+      if (successes != atSigns.length) {
+        throw Exception('Only $successes successes out of ${atSigns.length}');
       }
-      stderr.writeln(
-          '$successes successes out of ${atSignsForMetadataTest.length} OK');
+      stderr.writeln('$successes successes out of ${atSigns.length} OK');
     });
   });
 }
