@@ -100,7 +100,7 @@ void main() {
         String key, String atSign) async {
       final String command = 'lookup:meta:$key$atSign';
       final atLookup = AtLookupImpl(atSign, root, 64);
-      String atMetaDataFromAtLookup;
+      String atMetaDataFromAtLookup = '';
       try {
         atMetaDataFromAtLookup = (await atLookup.executeCommand('$command\n'))!;
         if (atMetaDataFromAtLookup.startsWith('data:')) {
@@ -153,10 +153,15 @@ void main() {
     test('lookup the metadata of some key via https with redirect', () async {
       int successes = 0;
       List<Future<bool>> futures = [];
-      // List<String> atSigns = ['@client'];
-      List<String> atSigns = at_demo_data.allAtsigns;
-      for (final atSign in atSigns) {
-        futures.add(getAndComparePublicKeyMetadata('publickey', atSign));
+      // List<String> atSignsForMetadataTest = ['@client'];
+      List<String> atSignsForMetadataTest = at_demo_data.allAtsigns;
+      for (final atSign in atSignsForMetadataTest) {
+        futures.add(
+          getAndComparePublicKeyMetadata(
+            'signing_publickey',
+            atSign,
+          ),
+        );
       }
 
       List<bool> outcomes = await Future.wait(futures);
@@ -166,10 +171,12 @@ void main() {
         }
       }
 
-      if (successes != atSigns.length) {
-        throw Exception('Only $successes successes out of ${atSigns.length}');
+      if (successes != atSignsForMetadataTest.length) {
+        throw Exception(
+            'Only $successes successes out of ${atSignsForMetadataTest.length}');
       }
-      stderr.writeln('$successes successes out of ${atSigns.length} OK');
+      stderr.writeln(
+          '$successes successes out of ${atSignsForMetadataTest.length} OK');
     });
   });
 }
