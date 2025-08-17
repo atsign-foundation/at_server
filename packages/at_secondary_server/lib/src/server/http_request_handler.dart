@@ -4,7 +4,8 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_utils/at_logger.dart';
 
-const String atRequestType = 'at_rt';
+const String paramNameAtRequestType = 'at_rt';
+const String paramNameContentType = 'at_ct';
 
 class AtServerHttpRequestHandler {
   final String currentAtSign;
@@ -28,8 +29,18 @@ class AtServerHttpRequestHandler {
         request.response.statusCode = HttpStatus.methodNotAllowed;
         await request.response.close();
       } else {
-        String decodedPath = Uri.decodeComponent(request.uri.path);
+        final String decodedPath = Uri.decodeComponent(request.uri.path);
         logger.finer('Decoded path $decodedPath');
+
+        String? inferredContentType;
+        if (decodedPath.endsWith('.html')) {
+          inferredContentType = 'text/html';
+        }
+
+        String responseContentType =
+            request.uri.queryParameters[paramNameContentType] ??
+                inferredContentType ??
+                'text/plain';
 
         String lookupKey = getKeyToLookup(decodedPath);
         logger.info('Key to look up: $lookupKey');
@@ -43,10 +54,14 @@ class AtServerHttpRequestHandler {
           return;
         }
         logger.info(
-            'request type: ${request.uri.queryParameters[atRequestType]}');
+            'request type: ${request.uri.queryParameters[paramNameAtRequestType]}');
+        request.response.headers.add(
+          HttpHeaders.contentTypeHeader,
+          responseContentType,
+        );
         request.response.statusCode = HttpStatus.ok;
         request.response.write(SecondaryUtil.prepareResponseData(
-          request.uri.queryParameters[atRequestType],
+          request.uri.queryParameters[paramNameAtRequestType],
           atData,
         ));
         await request.response.close();
