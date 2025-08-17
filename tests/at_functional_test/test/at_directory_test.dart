@@ -77,9 +77,12 @@ void main() {
     Future<bool> getAndCompareSigningKeyData(String atSign) async {
       final String command = 'lookup:signing_publickey$atSign';
       final atLookup = AtLookupImpl(atSign, root, 64);
-      final String pskFromAtLookup;
+      String pskFromAtLookup;
       try {
         pskFromAtLookup = (await atLookup.executeCommand('$command\n'))!;
+        if (pskFromAtLookup.startsWith('data:')) {
+          pskFromAtLookup = pskFromAtLookup.replaceFirst('data:', '');
+        }
       } finally {
         await atLookup.close();
       }
@@ -87,16 +90,10 @@ void main() {
       final (statusCode, pskFromHttpRedirect) = await dartIoHttpClientGet(
           Uri.https(root, '/$atSign/signing_publickey'));
 
-      final bool statusOk = statusCode == HttpStatus.ok;
-      final bool pskMatched = pskFromHttpRedirect == pskFromAtLookup;
+      expect(statusCode, HttpStatus.ok);
+      expect(pskFromHttpRedirect, pskFromAtLookup);
 
-      if (!statusOk || !pskMatched) {
-        stderr.writeln('Error: Check failed for $atSign : status: $statusCode'
-            ' pskFromHttpRedirect: $pskFromHttpRedirect'
-            ' pskFromAtLookup: $pskFromAtLookup');
-      }
-
-      return statusOk && pskMatched;
+      return true;
     }
 
     Future<bool> getAndComparePublicKeyMetadata(
@@ -157,6 +154,7 @@ void main() {
       int successes = 0;
       List<Future<bool>> futures = [];
       // List<String> atSigns = ['@client'];
+      List<String> atSigns = at_demo_data.allAtsigns;
       for (final atSign in atSigns) {
         futures.add(getAndComparePublicKeyMetadata('publickey', atSign));
       }
