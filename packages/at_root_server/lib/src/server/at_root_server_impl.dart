@@ -7,7 +7,7 @@ import 'package:at_root_server/src/server/server_context.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_persistence_root_server/at_persistence_root_server.dart';
 import 'package:at_utils/at_logger.dart';
-import 'package:at_commons/at_commons.dart';
+import 'package:at_commons/at_commons.dart' hide StringBuffer;
 
 /// Impl class for the root server of the @protocol.
 /// This Contains methods to start, stop and serve the requests.
@@ -132,51 +132,69 @@ class RootServerImpl implements AtRootServer {
     logger.info('HttpsServer listening at ${serverContext.httpsPort}');
 
     final keyStoreManager = KeystoreManagerImpl();
-    httpServer!.listen((HttpRequest request) async {
-      try {
-        switch (request.method) {
-          case 'GET':
-            String requestPath = Uri.decodeComponent(request.requestedUri.path);
-            if (requestPath.startsWith('/')) {
-              requestPath = requestPath.substring(1);
-            }
-            if (requestPath.startsWith('@')) {
-              requestPath = requestPath.substring(1);
-            }
-            List<String> pathParts = requestPath.split('/');
-            String atSign = pathParts[0];
-            String? onwardLookup;
-            if (pathParts.length >= 2) {
-              onwardLookup = pathParts[1];
-            }
-            logger.info('GET ${request.requestedUri.path} ($requestPath)');
-            String? v = await keyStoreManager.getKeyStore().get(atSign);
-
-            if (v == null) {
-              request.response.statusCode = HttpStatus.notFound;
-              request.response.write('null');
-            } else {
-              if (onwardLookup == null) {
-                request.response.statusCode = HttpStatus.ok;
-                request.response.write(v);
-              } else {
-                request.response.statusCode = HttpStatus.movedTemporarily;
-                request.response.headers.add(
-                    HttpHeaders.locationHeader, 'https://$v/$onwardLookup');
-              }
-            }
-          default:
-            request.response.statusCode = HttpStatus.unauthorized;
-            request.response.write('Unauthorized');
-        }
-      } catch (e) {
-        logger.info('Error while handling http req'
-            ' ${Uri.decodeFull(request.requestedUri.toString())}'
-            ' : $e');
-      } finally {
-        await request.response.close();
-      }
+    httpServer!.listen((HttpRequest request) {
+      handleHttpRequest(request, keyStoreManager);
     });
+  }
+
+  Future<void> handleHttpRequest(
+    HttpRequest request,
+    KeystoreManagerImpl keyStoreManager,
+  ) async {
+    try {
+      switch (request.method) {
+        case 'GET':
+          String decodedRequestPath = Uri.decodeComponent(request.uri.path);
+          logger.info('GET $decodedRequestPath');
+
+          if (decodedRequestPath.startsWith('/')) {
+            decodedRequestPath = decodedRequestPath.substring(1);
+          }
+          if (decodedRequestPath.startsWith('@')) {
+            decodedRequestPath = decodedRequestPath.substring(1);
+          }
+          List<String> pathParts = decodedRequestPath.split('/');
+          String atSignToLookUp;
+          String redirectPath = '';
+          atSignToLookUp = pathParts.removeAt(0);
+          if (pathParts.isNotEmpty) {
+            redirectPath = pathParts.join('/');
+          }
+
+          String? v = await keyStoreManager.getKeyStore().get(atSignToLookUp);
+
+          if (v == null) {
+            request.response.statusCode = HttpStatus.notFound;
+            request.response.write('404 not found');
+          } else {
+            if (redirectPath.isEmpty) {
+              request.response.statusCode = HttpStatus.ok;
+              request.response.write(v);
+            } else {
+              final locationHeaderValue = StringBuffer('https://$v');
+              locationHeaderValue.write('/$redirectPath');
+              if (request.uri.query.isNotEmpty) {
+                locationHeaderValue.write('?${request.uri.query}');
+              }
+
+              request.response.statusCode = HttpStatus.movedTemporarily;
+              request.response.headers.add(
+                HttpHeaders.locationHeader,
+                locationHeaderValue.toString(),
+              );
+            }
+          }
+        default:
+          request.response.statusCode = HttpStatus.unauthorized;
+          request.response.write('Unauthorized');
+      }
+    } catch (e) {
+      logger.info('Error while handling http req'
+          ' ${Uri.decodeFull(request.requestedUri.toString())}'
+          ' : $e');
+    } finally {
+      await request.response.close();
+    }
   }
 
   void _startSecuredServer() {

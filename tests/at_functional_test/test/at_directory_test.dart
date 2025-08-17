@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:isolate';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart';
@@ -75,7 +74,7 @@ void main() {
       ..addAll(at_demo_data.apkamAtsigns)
       ..remove('anonymous');
 
-    Future<bool> doTheGet(String atSign) async {
+    Future<bool> getAndCompareSigningKeyData(String atSign) async {
       final String command = 'lookup:signing_publickey$atSign';
       final atLookup = AtLookupImpl(atSign, root, 64);
       final String pskFromAtLookup;
@@ -100,6 +99,30 @@ void main() {
       return statusOk && pskMatched;
     }
 
+    Future<bool> getAndComparePublicKeyMetadata(
+        String key, String atSign) async {
+      final String command = 'lookup:meta:$key$atSign';
+      final atLookup = AtLookupImpl(atSign, root, 64);
+      String atMetaDataFromAtLookup;
+      try {
+        atMetaDataFromAtLookup = (await atLookup.executeCommand('$command\n'))!;
+        if (atMetaDataFromAtLookup.startsWith('data:')) {
+          atMetaDataFromAtLookup =
+              atMetaDataFromAtLookup.replaceFirst('data:', '');
+        }
+      } finally {
+        await atLookup.close();
+      }
+
+      final (statusCode, atMetaDataFromHttpGet) = await dartIoHttpClientGet(
+          Uri.https(root, '/$atSign/$key?at_rt=meta'));
+
+      expect(statusCode, HttpStatus.ok);
+      expect(atMetaDataFromHttpGet, atMetaDataFromAtLookup);
+
+      return true;
+    }
+
     // For each atSign
     // - Fetch public:signing_publickey from each atServer via AtLookup
     // - Fetch it from https://<rootHost>/$atSign/signing_publickey
@@ -110,15 +133,11 @@ void main() {
     //   - Default behaviour of the Dart http clients (whether HttpClient from dart.io
     //     or Client from the http package) is to follow GET redirects
     // - Assert that the values we fetched via AtLookup and http are identical
-    test('lookup signing_publickey via https with redirect in isolates',
-        () async {
+    test('lookup signing_publickey via https with redirect', () async {
       int successes = 0;
-      int isolateCounter = 0;
       List<Future<bool>> futures = [];
       for (final atSign in atSigns) {
-        futures.add(Isolate.run(() async {
-          return await doTheGet(atSign);
-        }, debugName: 'isolate ${++isolateCounter}'));
+        futures.add(getAndCompareSigningKeyData(atSign));
       }
 
       List<bool> outcomes = await Future.wait(futures);
@@ -127,17 +146,19 @@ void main() {
           successes++;
         }
       }
+
       if (successes != atSigns.length) {
         throw Exception('Only $successes successes out of ${atSigns.length}');
       }
       stderr.writeln('$successes successes out of ${atSigns.length} OK');
     });
 
-    test('lookup signing_publickey via https with redirect', () async {
+    test('lookup the metadata of some key via https with redirect', () async {
       int successes = 0;
       List<Future<bool>> futures = [];
+      // List<String> atSigns = ['@client'];
       for (final atSign in atSigns) {
-        futures.add(doTheGet(atSign));
+        futures.add(getAndComparePublicKeyMetadata('publickey', atSign));
       }
 
       List<bool> outcomes = await Future.wait(futures);
