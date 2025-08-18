@@ -47,11 +47,6 @@ jobs:
         with:
           sdk: ${{ matrix.dart-channel}}
 
-      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
-        with:
-          go-version: "stable"
-          cache-dependency-path: tools/osv-scanner/go.sum
-
       # Runs dart lint rules and unit tests on at_persistence_root_server
       - name: Install dependencies in at_persistence_root_server
         working-directory: ${{ env.proot-working-directory }}
@@ -107,12 +102,13 @@ jobs:
       # It needs to look at pubspec.lock files, which is why it's
       # placed here, as the `dart pub get` above will create them
       - name: Run osv-scanner
-        run: |
-          go install github.com/google/osv-scanner/v2/cmd/osv-scanner@04a8728383d8f286cf2b0f110e68482e8773df6e # v2.2.1
-          osv-scanner --lockfile=${{ env.proot-working-directory }}/pubspec.lock
-          osv-scanner --lockfile=${{ env.root-working-directory }}/pubspec.lock
-          osv-scanner --lockfile=${{ env.psecondary-working-directory }}/pubspec.lock
-          osv-scanner --lockfile=${{ env.secondary-working-directory }}/pubspec.lock
+        uses: google/osv-scanner-action/osv-scanner-action@456ceb78310755116e0a3738121351006286b797 # v2.2.1
+        with:
+          scan-args: |-
+            --lockfile=${{ env.proot-working-directory }}/pubspec.lock
+            --lockfile=${{ env.root-working-directory }}/pubspec.lock
+            --lockfile=${{ env.psecondary-working-directory }}/pubspec.lock
+            --lockfile=${{ env.secondary-working-directory }}/pubspec.lock
 
       # Generating SBOMs also needs pubspec.lock
       # Only run on stable channel
