@@ -6,7 +6,7 @@ USER root
 # tools/build_virtual_environment/ve
 COPY ./contents /
 
-EXPOSE 64 6379 9001
+EXPOSE 64 443 6379 9001
 
 # Run supervisor configuration file on container startup
 CMD ["supervisord", "-n"]
