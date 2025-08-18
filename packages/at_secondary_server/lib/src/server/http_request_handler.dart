@@ -1,10 +1,10 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:mime/mime.dart' as mime;
+import 'package:at_base2e15/at_base2e15.dart';
 
 const String paramNameAtRequestType = 'at_rt';
 const String paramNameContentType = 'at_ct';
@@ -48,7 +48,7 @@ class AtServerHttpRequestHandler {
           return;
         }
 
-        Object? responseContent = getResponseContent(
+        List<int>? responseContent = getResponseContent(
           atData: atData,
           queryParams: request.uri.queryParameters,
         );
@@ -68,7 +68,9 @@ class AtServerHttpRequestHandler {
 
         request.response.statusCode = HttpStatus.ok;
 
-        request.response.write(responseContent);
+        if (responseContent != null) {
+          request.response.add(responseContent);
+        }
 
         await request.response.close();
       }
@@ -142,7 +144,7 @@ class AtServerHttpRequestHandler {
     }
   }
 
-  Object? getResponseContent({
+  List<int>? getResponseContent({
     required AtData atData,
     required Map<String, String> queryParams,
   }) {
@@ -155,16 +157,21 @@ class AtServerHttpRequestHandler {
         return SecondaryUtil.prepareResponseData(
           queryParams[paramNameAtRequestType],
           atData,
-        );
+        )!
+            .codeUnits;
       } else {
-        // decode the base64 to Uint8list
-        return base64Decode(atData.data!);
+        logger.info('2e15-encoded data length: ${atData.data!.length}');
+        // decode to Uint8list
+        final bytes = Base2e15.decode(atData.data!);
+        logger.info('decoded data length: ${bytes.length}');
+        return bytes;
       }
     } else {
       return SecondaryUtil.prepareResponseData(
         queryParams[paramNameAtRequestType],
         atData,
-      );
+      )!
+          .codeUnits;
     }
   }
 
