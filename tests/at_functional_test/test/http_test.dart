@@ -76,7 +76,7 @@ void main() {
       ..addAll(at_demo_data.apkamAtsigns)
       ..remove('anonymous');
 
-    Future<bool> getAndCompareSigningKeyData(String atSign) async {
+    Future<bool> getAndCompareServerSigningKeyData(String atSign) async {
       final String command = 'lookup:signing_publickey$atSign';
       final atLookup = AtLookupImpl(atSign, root, 64);
       String pskFromAtLookup;
@@ -98,7 +98,7 @@ void main() {
       return true;
     }
 
-    Future<bool> getAndComparePublicKeyMetadata(
+    Future<bool> getAndCompareServerSigningKeyMetadata(
         String key, String atSign) async {
       final String command = 'lookup:meta:$key$atSign';
       final atLookup = AtLookupImpl(atSign, root, 64);
@@ -119,6 +119,8 @@ void main() {
       expect(statusCode, HttpStatus.ok);
       expect(atMetaDataFromHttpGet, atMetaDataFromAtLookup);
 
+      stderr.writeln('getAndCompareServerSigningKeyMetadata: $atSign OK');
+
       return true;
     }
 
@@ -136,7 +138,7 @@ void main() {
       int successes = 0;
       List<Future<bool>> futures = [];
       for (final atSign in atSigns) {
-        futures.add(getAndCompareSigningKeyData(atSign));
+        futures.add(getAndCompareServerSigningKeyData(atSign));
       }
 
       List<bool> outcomes = await Future.wait(futures);
@@ -158,7 +160,7 @@ void main() {
       // List<String> atSigns = ['@client'];
       for (final atSign in atSigns) {
         futures.add(
-          getAndComparePublicKeyMetadata(
+          getAndCompareServerSigningKeyMetadata(
             'signing_publickey',
             atSign,
           ),
