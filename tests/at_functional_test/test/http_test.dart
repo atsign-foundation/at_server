@@ -160,7 +160,6 @@ void main() {
       int successes = 0;
       List<Future<bool>> futures = [];
       // List<String> atSigns = ['@client', '@ashish🛠'];
-      List<String> atSigns = ['@client'];
       for (final atSign in atSigns) {
         futures.add(
           getAndCompareServerSigningKeyMetadata(
