@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:mime/mime.dart' as mime;
 
 const String paramNameAtRequestType = 'at_rt';
 const String paramNameContentType = 'at_ct';
@@ -32,18 +34,9 @@ class AtServerHttpRequestHandler {
         final String decodedPath = Uri.decodeComponent(request.uri.path);
         logger.finer('Decoded path $decodedPath');
 
-        String? inferredContentType;
-        if (decodedPath.endsWith('.html')) {
-          inferredContentType = 'text/html';
-        }
-
-        String responseContentType =
-            request.uri.queryParameters[paramNameContentType] ??
-                inferredContentType ??
-                'text/plain';
-
-        String lookupKey = getKeyToLookup(decodedPath);
+        final String lookupKey = getKeyToLookup(decodedPath);
         logger.info('Key to look up: $lookupKey');
+
         AtData? atData;
         try {
           atData = (await secondaryKeyStore.get(lookupKey))!;
@@ -53,6 +46,18 @@ class AtServerHttpRequestHandler {
           await request.response.close();
           return;
         }
+
+        String responseContentType = getResponseContentType(
+          isBinary: atData.metaData?.isBinary ?? false,
+          queryParams: request.uri.queryParameters,
+          keyStoreKey: lookupKey,
+        );
+
+        Object? responseContent = getResponseContent(
+          atData: atData,
+          queryParams: request.uri.queryParameters,
+        );
+
         logger.info(
             'request type: ${request.uri.queryParameters[paramNameAtRequestType]}');
         request.response.headers.add(
@@ -60,10 +65,7 @@ class AtServerHttpRequestHandler {
           responseContentType,
         );
         request.response.statusCode = HttpStatus.ok;
-        request.response.write(SecondaryUtil.prepareResponseData(
-          request.uri.queryParameters[paramNameAtRequestType],
-          atData,
-        ));
+        request.response.write(responseContent);
         await request.response.close();
       }
     } catch (e, st) {
@@ -112,5 +114,78 @@ class AtServerHttpRequestHandler {
     }
 
     return lookupKey;
+  }
+
+  String getResponseContentType({
+    required bool isBinary,
+    required Map<String, String> queryParams,
+    required String keyStoreKey,
+  }) {
+    String? inferredContentType =
+        mime.lookupMimeType(getPseudoWebPath(keyStoreKey));
+    if (isBinary) {
+      return queryParams[paramNameContentType] ??
+          inferredContentType ??
+          'application/octet-stream';
+    } else {
+      return queryParams[paramNameContentType] ??
+          inferredContentType ??
+          'text/plain';
+    }
+  }
+
+  Object? getResponseContent({
+    required AtData atData,
+    required Map<String, String> queryParams,
+  }) {
+    if (atData.data == null) {
+      return null;
+    }
+
+    if (atData.metaData?.isBinary ?? false) {
+      if (queryParams[paramNameAtRequestType] == 'meta') {
+        return SecondaryUtil.prepareResponseData(
+          queryParams[paramNameAtRequestType],
+          atData,
+        );
+      } else {
+        // decode the base64 to Uint8list
+        return base64Decode(atData.data!);
+      }
+    } else {
+      return SecondaryUtil.prepareResponseData(
+        queryParams[paramNameAtRequestType],
+        atData,
+      );
+    }
+  }
+
+  String getPseudoWebPath(String keyStoreKey) {
+    if (keyStoreKey.startsWith('public:')) {
+      keyStoreKey = keyStoreKey.replaceFirst('public:', '');
+    }
+    if (keyStoreKey.endsWith(currentAtSign)) {
+      keyStoreKey =
+          keyStoreKey.substring(0, keyStoreKey.length - currentAtSign.length);
+    }
+
+    // index.html.foo.bar.baz
+    // will become baz/bar/foo/index.html
+    final List<String> parts = keyStoreKey.split('.');
+    switch (parts.length) {
+      case 0:
+        return '';
+      case 1: // index
+        return parts[0];
+      case 2: // index.html
+        return '${parts[0]}.${parts[1]}';
+      default: // index.html.foo.bar.baz => baz/bar/foo/index.html
+        StringBuffer sb = StringBuffer(parts.last);
+        for (int i = parts.length - 2; i > 1; i--) {
+          sb.write('/${parts[i]}');
+        }
+        sb.write('/${parts[0]}.${parts[1]}');
+        return sb.toString();
+    }
   }
 }

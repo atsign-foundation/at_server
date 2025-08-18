@@ -59,15 +59,20 @@ void main() async {
     await verbTestsTearDown();
   });
 
-  Future<void> check(
-    int expectedStatus,
-    String expectedBody,
-    String method,
-    String uri,
-  ) async {
+  Future<void> check({
+    required int expectedStatus,
+    required String expectedBody,
+    required ContentType? expectedContentType,
+    required String method,
+    required String uri,
+  }) async {
     final FakeHttpRequest request = createRequest(method, uri);
     await (handler.handle(request));
     expect(request.response.statusCode, expectedStatus);
+    expect(request.response.headers.contentType?.mimeType,
+        expectedContentType?.mimeType);
+    expect(request.response.headers.contentType?.charset,
+        expectedContentType?.charset);
     switch (request.response.statusCode) {
       case HttpStatus.ok:
         break;
@@ -91,30 +96,68 @@ void main() async {
   Future<void> basicChecks({
     required int expectedStatus,
     required String expectedBody,
+    required ContentType? expectedContentType,
     required String method,
     required String key,
   }) async {
     String fullKey = handler.getKeyToLookup('public:$key$atSign');
 
     // WITH public: prefix, WITH atSign suffix
-    await check(expectedStatus, expectedBody, method, '/public:$key$atSign');
-    await check(expectedStatus, jsonEncode(mdMap[fullKey]), method,
-        '/public:$key$atSign?at_rt=meta');
+    await check(
+      expectedStatus: expectedStatus,
+      expectedBody: expectedBody,
+      expectedContentType: expectedContentType,
+      method: method,
+      uri: '/public:$key$atSign',
+    );
+    await check(
+        expectedStatus: expectedStatus,
+        expectedBody: jsonEncode(mdMap[fullKey]),
+        expectedContentType: expectedContentType,
+        method: method,
+        uri: '/public:$key$atSign?at_rt=meta');
 
     // WITH public: prefix, WITHOUT atSign suffix
-    await check(expectedStatus, expectedBody, method, '/public:$key');
-    await check(expectedStatus, jsonEncode(mdMap[fullKey]), method,
-        '/public:$key?at_rt=meta');
+    await check(
+        expectedStatus: expectedStatus,
+        expectedBody: expectedBody,
+        expectedContentType: expectedContentType,
+        method: method,
+        uri: '/public:$key');
+    await check(
+        expectedStatus: expectedStatus,
+        expectedBody: jsonEncode(mdMap[fullKey]),
+        expectedContentType: expectedContentType,
+        method: method,
+        uri: '/public:$key?at_rt=meta');
 
     // WITHOUT public: prefix, WITH atSign suffix
-    await check(expectedStatus, expectedBody, method, '/$key$atSign');
-    await check(expectedStatus, jsonEncode(mdMap[fullKey]), method,
-        '/$key$atSign?at_rt=meta');
+    await check(
+        expectedStatus: expectedStatus,
+        expectedBody: expectedBody,
+        expectedContentType: expectedContentType,
+        method: method,
+        uri: '/$key$atSign');
+    await check(
+        expectedStatus: expectedStatus,
+        expectedBody: jsonEncode(mdMap[fullKey]),
+        expectedContentType: expectedContentType,
+        method: method,
+        uri: '/$key$atSign?at_rt=meta');
 
     // WITHOUT public: prefix, WITHOUT atSign suffix
-    await check(expectedStatus, expectedBody, method, '/$key');
     await check(
-        expectedStatus, jsonEncode(mdMap[fullKey]), method, '/$key?at_rt=meta');
+        expectedStatus: expectedStatus,
+        expectedBody: expectedBody,
+        expectedContentType: expectedContentType,
+        method: method,
+        uri: '/$key');
+    await check(
+        expectedStatus: expectedStatus,
+        expectedBody: jsonEncode(mdMap[fullKey]),
+        expectedContentType: expectedContentType,
+        method: method,
+        uri: '/$key?at_rt=meta');
   }
 
   group('http basic checks status 200', () {
@@ -122,6 +165,7 @@ void main() async {
       await basicChecks(
           expectedStatus: HttpStatus.ok,
           expectedBody: publicFoo,
+          expectedContentType: ContentType.parse('text/plain'),
           method: 'GET',
           key: 'foo');
     });
@@ -130,6 +174,7 @@ void main() async {
       await basicChecks(
           expectedStatus: HttpStatus.ok,
           expectedBody: publicFooBar,
+          expectedContentType: ContentType.parse('text/plain'),
           method: 'GET',
           key: 'foo.bar');
     });
@@ -138,6 +183,7 @@ void main() async {
       await basicChecks(
           expectedStatus: HttpStatus.ok,
           expectedBody: publicFooBarBaz,
+          expectedContentType: ContentType.parse('text/plain'),
           method: 'GET',
           key: 'foo.bar.baz');
     });
@@ -146,6 +192,7 @@ void main() async {
       await basicChecks(
           expectedStatus: HttpStatus.ok,
           expectedBody: publicIndexHtmlBody,
+          expectedContentType: ContentType.parse('text/html'),
           method: 'GET',
           key: 'index.html.foo.bar.baz');
     });
@@ -154,6 +201,7 @@ void main() async {
       await basicChecks(
           expectedStatus: HttpStatus.ok,
           expectedBody: hiddenIndexHtmlBody,
+          expectedContentType: ContentType.parse('text/html'),
           method: 'GET',
           key: '_index.html.foo.bar.baz');
     });
@@ -172,6 +220,7 @@ void main() async {
         await basicChecks(
           expectedStatus: HttpStatus.ok,
           expectedBody: publicIndexHtmlBody,
+          expectedContentType: ContentType.parse('text/html'),
           method: 'GET',
           key: k,
         );
@@ -190,6 +239,7 @@ void main() async {
         await basicChecks(
           expectedStatus: HttpStatus.ok,
           expectedBody: hiddenIndexHtmlBody,
+          expectedContentType: ContentType.parse('text/html'),
           method: 'GET',
           key: k,
         );
@@ -201,6 +251,7 @@ void main() async {
       await basicChecks(
         expectedStatus: HttpStatus.notFound,
         expectedBody: '404 Not Found',
+        expectedContentType: null,
         method: 'GET',
         key: 'nope',
       );
@@ -209,6 +260,7 @@ void main() async {
       await basicChecks(
         expectedStatus: HttpStatus.notFound,
         expectedBody: '404 Not Found',
+        expectedContentType: null,
         method: 'GET',
         key: '$alice:foo.bar$alice',
       );
@@ -217,6 +269,7 @@ void main() async {
       await basicChecks(
         expectedStatus: HttpStatus.notFound,
         expectedBody: '404 Not Found',
+        expectedContentType: null,
         method: 'GET',
         key: '$bob:foo.bar$alice',
       );
@@ -225,6 +278,7 @@ void main() async {
       await basicChecks(
         expectedStatus: HttpStatus.methodNotAllowed,
         expectedBody: '',
+        expectedContentType: null,
         method: 'HEAD',
         key: publicFooBar,
       );
@@ -233,6 +287,7 @@ void main() async {
       await basicChecks(
         expectedStatus: HttpStatus.methodNotAllowed,
         expectedBody: '',
+        expectedContentType: null,
         method: 'PUT',
         key: publicFooBar,
       );
@@ -241,6 +296,7 @@ void main() async {
       await basicChecks(
         expectedStatus: HttpStatus.methodNotAllowed,
         expectedBody: '',
+        expectedContentType: null,
         method: 'POST',
         key: publicFooBar,
       );
@@ -249,6 +305,7 @@ void main() async {
       await basicChecks(
         expectedStatus: HttpStatus.methodNotAllowed,
         expectedBody: '',
+        expectedContentType: null,
         method: 'DELETE',
         key: publicFooBar,
       );
@@ -261,11 +318,41 @@ void main() async {
       await basicChecks(
         expectedStatus: HttpStatus.badRequest,
         expectedBody: '',
+        expectedContentType: null,
         method: 'GET',
         key: b.toString(),
       );
     });
   });
+}
+
+class FakeHttpHeaders extends Fake implements HttpHeaders {
+  final Map<String, List<String>> _headers = {};
+
+  @override
+  void add(String name, Object value, {bool preserveHeaderCase = false}) {
+    name = name.toLowerCase();
+    if (!_headers.containsKey(name)) {
+      _headers[name] = [value.toString()];
+    } else {
+      _headers[name]!.add(value.toString());
+    }
+  }
+
+  @override
+  List<String>? operator [](String name) {
+    return _headers[name.toLowerCase()];
+  }
+
+  @override
+  ContentType? get contentType {
+    var values = _headers[HttpHeaders.contentTypeHeader];
+    if (values != null) {
+      return ContentType.parse(values[0]);
+    } else {
+      return null;
+    }
+  }
 }
 
 class FakeHttpResponse extends Fake implements HttpResponse {
@@ -276,6 +363,9 @@ class FakeHttpResponse extends Fake implements HttpResponse {
 
   @override
   late int statusCode;
+
+  @override
+  FakeHttpHeaders headers = FakeHttpHeaders();
 
   @override
   void write(Object? object) {
