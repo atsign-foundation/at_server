@@ -114,7 +114,7 @@ void main() {
       }
 
       final (statusCode, atMetaDataFromHttpGet) = await dartIoHttpClientGet(
-          Uri.https(root, '/$atSign/$key?at_rt=meta'));
+          Uri.https(root, '/$atSign/$key', {'at_rt': 'meta'}));
 
       expect(statusCode, HttpStatus.ok);
       expect(atMetaDataFromHttpGet, atMetaDataFromAtLookup);
@@ -157,7 +157,8 @@ void main() {
     test('lookup the metadata of some key via https with redirect', () async {
       int successes = 0;
       List<Future<bool>> futures = [];
-      // List<String> atSigns = ['@client'];
+      // List<String> atSigns = ['@client', '@ashish🛠'];
+      List<String> atSigns = ['@client'];
       for (final atSign in atSigns) {
         futures.add(
           getAndCompareServerSigningKeyMetadata(
