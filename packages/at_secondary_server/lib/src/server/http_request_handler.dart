@@ -58,8 +58,6 @@ class AtServerHttpRequestHandler {
           queryParams: request.uri.queryParameters,
         );
 
-        logger.info(
-            'request type: ${request.uri.queryParameters[paramNameAtRequestType]}');
         request.response.headers.add(
           HttpHeaders.contentTypeHeader,
           responseContentType,
