@@ -110,7 +110,9 @@ void main() {
               atMetaDataFromAtLookup.replaceFirst('data:', '');
         }
       } finally {
-        await atLookup.close();
+        try {
+          await atLookup.close();
+        } catch (_) {}
       }
 
       final (statusCode, atMetaDataFromHttpGet) = await dartIoHttpClientGet(
