@@ -25,14 +25,15 @@ class AtServerHttpRequestHandler {
         return;
       }
 
-      logger.info(
-          'Handling Http Request: ${request.method} path: ${request.uri.path} params: ${request.uri.queryParameters}');
       if (request.method.toUpperCase() != 'GET') {
+        logger.info('Ignoring ${request.method}'
+            ' ${Uri.decodeComponent(request.uri.path)}');
         request.response.statusCode = HttpStatus.methodNotAllowed;
         await request.response.close();
       } else {
         final String decodedPath = Uri.decodeComponent(request.uri.path);
-        logger.finer('Decoded path $decodedPath');
+        logger.info('Path: $decodedPath'
+            ' params: ${request.uri.queryParameters}');
 
         final String lookupKey = getKeyToLookup(decodedPath);
         logger.info('Key to look up: $lookupKey');
@@ -47,23 +48,28 @@ class AtServerHttpRequestHandler {
           return;
         }
 
-        String responseContentType = getResponseContentType(
-          isBinary: atData.metaData?.isBinary ?? false,
-          queryParams: request.uri.queryParameters,
-          keyStoreKey: lookupKey,
-        );
-
         Object? responseContent = getResponseContent(
           atData: atData,
           queryParams: request.uri.queryParameters,
         );
 
-        request.response.headers.add(
-          HttpHeaders.contentTypeHeader,
-          responseContentType,
-        );
+        ContentType? responseContentType;
+        if (responseContent != null) {
+          responseContentType = getResponseContentType(
+            isBinary: atData.metaData?.isBinary ?? false,
+            queryParams: request.uri.queryParameters,
+            keyStoreKey: lookupKey,
+          );
+        }
+        if (responseContentType != null) {
+          logger.info('Setting response content-type to $responseContentType');
+          request.response.headers.contentType = responseContentType;
+        }
+
         request.response.statusCode = HttpStatus.ok;
+
         request.response.write(responseContent);
+
         await request.response.close();
       }
     } catch (e, st) {
@@ -114,21 +120,25 @@ class AtServerHttpRequestHandler {
     return lookupKey;
   }
 
-  String getResponseContentType({
+  ContentType? getResponseContentType({
     required bool isBinary,
     required Map<String, String> queryParams,
     required String keyStoreKey,
   }) {
+    if (queryParams[paramNameAtRequestType] == 'meta') {
+      return ContentType.parse('application/json; charset=utf-8');
+    }
     String? inferredContentType =
         mime.lookupMimeType(getPseudoWebPath(keyStoreKey));
     if (isBinary) {
-      return queryParams[paramNameContentType] ??
+      return ContentType.parse(queryParams[paramNameContentType] ??
           inferredContentType ??
-          'application/octet-stream';
+          'application/octet-stream');
     } else {
-      return queryParams[paramNameContentType] ??
+      String mimeType = queryParams[paramNameContentType] ??
           inferredContentType ??
           'text/plain';
+      return ContentType.parse('$mimeType; charset=utf-8');
     }
   }
 

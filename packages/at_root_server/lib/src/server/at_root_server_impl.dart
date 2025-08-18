@@ -142,6 +142,11 @@ class RootServerImpl implements AtRootServer {
     KeystoreManagerImpl keyStoreManager,
   ) async {
     try {
+      if (request.uri.toString().length > 1000) {
+        request.response.statusCode = HttpStatus.badRequest;
+        await request.response.close();
+        return;
+      }
       switch (request.method) {
         case 'GET':
           String decodedRequestPath = Uri.decodeComponent(request.uri.path);
@@ -172,7 +177,8 @@ class RootServerImpl implements AtRootServer {
               request.response.write(v);
             } else {
               final locationHeaderValue = StringBuffer('https://$v');
-              locationHeaderValue.write('/$redirectPath');
+              locationHeaderValue
+                  .write('/${Uri.encodeComponent(redirectPath)}');
               if (request.uri.query.isNotEmpty) {
                 locationHeaderValue.write('?${request.uri.query}');
               }
