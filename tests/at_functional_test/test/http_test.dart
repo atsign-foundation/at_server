@@ -101,44 +101,52 @@ void main() {
     Future<bool> getAndCompareServerSigningKeyMetadata(
         String key, String atSign) async {
       int attempts = 3;
-      for (int i = 0; i < attempts; i++) {
-        final String command = 'lookup:meta:$key$atSign';
-        final atLookup = AtLookupImpl(atSign, root, 64);
-        String atMetaDataFromAtLookup = '';
+      for (int i = 1; i <= attempts; i++) {
         try {
-          atMetaDataFromAtLookup =
-              (await atLookup.executeCommand('$command\n'))!;
-          if (atMetaDataFromAtLookup.startsWith('data:')) {
-            atMetaDataFromAtLookup =
-                atMetaDataFromAtLookup.replaceFirst('data:', '');
-          }
-        } finally {
+          final String command = 'lookup:meta:$key$atSign';
+          final atLookup = AtLookupImpl(atSign, root, 64);
+          String atMetaDataFromAtLookup = '';
           try {
-            await atLookup.close();
-          } catch (_) {}
+            atMetaDataFromAtLookup =
+                (await atLookup.executeCommand('$command\n'))!;
+            if (atMetaDataFromAtLookup.startsWith('data:')) {
+              atMetaDataFromAtLookup =
+                  atMetaDataFromAtLookup.replaceFirst('data:', '');
+            }
+          } finally {
+            try {
+              await atLookup.close();
+            } catch (_) {}
+          }
+
+          final (statusCode, atMetaDataFromHttpGet) = await dartIoHttpClientGet(
+              Uri.https(root, '/$atSign/$key', {'at_rt': 'meta'}));
+
+          if (statusCode != HttpStatus.ok ||
+              atMetaDataFromHttpGet != atMetaDataFromAtLookup) {
+            stderr.writeln('getAndCompareServerSigningKeyMetadata:'
+                ' http statusCode $statusCode;'
+                ' data matches:'
+                ' ${atMetaDataFromHttpGet == atMetaDataFromAtLookup}');
+            continue;
+          }
+          expect(statusCode, HttpStatus.ok);
+          expect(atMetaDataFromHttpGet, atMetaDataFromAtLookup);
+
+          stderr.writeln('getAndCompareServerSigningKeyMetadata: $atSign OK');
+
+          return true;
+        } catch (e, st) {
+          stderr.writeln('Exception $e'
+              ' in getAndCompareServerSigningKeyMetadata for $atSign'
+              ' - will retry ');
+          stderr.writeln('Stack trace:\n$st');
         }
-
-        final (statusCode, atMetaDataFromHttpGet) = await dartIoHttpClientGet(
-            Uri.https(root, '/$atSign/$key', {'at_rt': 'meta'}));
-
-        if (statusCode != HttpStatus.ok ||
-            atMetaDataFromHttpGet != atMetaDataFromAtLookup) {
-          stderr.writeln('getAndCompareServerSigningKeyMetadata:'
-              ' http statusCode $statusCode;'
-              ' data matches:'
-              ' ${atMetaDataFromHttpGet == atMetaDataFromAtLookup}');
-          continue;
-        }
-        expect(statusCode, HttpStatus.ok);
-        expect(atMetaDataFromHttpGet, atMetaDataFromAtLookup);
-
-        stderr.writeln('getAndCompareServerSigningKeyMetadata: $atSign OK');
-
-        return true;
       }
 
-      throw Exception(
-          'getAndCompareServerSigningKeyMetadata failed $attempts times for $atSign');
+      stderr.writeln('getAndCompareServerSigningKeyMetadata'
+          ' failed $attempts times for $atSign');
+      return false;
     }
 
     // For each atSign
