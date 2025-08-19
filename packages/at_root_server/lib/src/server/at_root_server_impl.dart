@@ -160,10 +160,11 @@ class RootServerImpl implements AtRootServer {
           }
           List<String> pathParts = decodedRequestPath.split('/');
           String atSignToLookUp;
-          String redirectPath = '';
+          String encodedRedirectPath = '';
           atSignToLookUp = pathParts.removeAt(0);
           if (pathParts.isNotEmpty) {
-            redirectPath = pathParts.join('/');
+            encodedRedirectPath =
+                pathParts.map((s) => Uri.encodeComponent(s)).join('/');
           }
 
           String? v = await keyStoreManager.getKeyStore().get(atSignToLookUp);
@@ -172,13 +173,12 @@ class RootServerImpl implements AtRootServer {
             request.response.statusCode = HttpStatus.notFound;
             request.response.write('404 not found');
           } else {
-            if (redirectPath.isEmpty) {
+            if (encodedRedirectPath.isEmpty) {
               request.response.statusCode = HttpStatus.ok;
               request.response.write(v);
             } else {
               final locationHeaderValue = StringBuffer('https://$v');
-              locationHeaderValue
-                  .write('/${Uri.encodeComponent(redirectPath)}');
+              locationHeaderValue.write('/$encodedRedirectPath');
               if (request.uri.query.isNotEmpty) {
                 locationHeaderValue.write('?${request.uri.query}');
               }
