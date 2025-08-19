@@ -6,7 +6,7 @@ server:
   # The port on which to have an https server listening
   httpsPort: 443
   # Whether to enable an https server
-  httpsEnabled: false
+  httpsEnabled: true
 
 # The @Protocol application log configurations
 log:

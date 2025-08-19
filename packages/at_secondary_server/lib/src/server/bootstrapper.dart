@@ -15,9 +15,9 @@ class SecondaryServerBootStrapper {
   List<String> arguments;
   static final bool? useTLS = AtSecondaryConfig.useTLS;
 
-  SecondaryServerBootStrapper(this.arguments);
-
   var logger = AtSignLogger('SecondaryServerBootStrapper');
+
+  SecondaryServerBootStrapper(this.arguments);
 
   late AtSecondaryServerImpl secondaryServerInstance;
 

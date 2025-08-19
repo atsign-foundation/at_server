@@ -4,7 +4,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:at_commons/at_commons.dart';
+import 'package:at_commons/at_commons.dart' hide StringBuffer;
 import 'package:at_lookup/at_lookup.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
@@ -34,6 +34,8 @@ import 'package:at_utils/at_utils.dart';
 import 'package:crypton/crypton.dart';
 import 'package:meta/meta.dart';
 import 'package:uuid/uuid.dart';
+
+import 'http_request_handler.dart';
 
 /// [AtSecondaryServerImpl] is a singleton class which implements [AtSecondaryServer]
 class AtSecondaryServerImpl implements AtSecondaryServer {
@@ -94,7 +96,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   dynamic _serverSocket;
   bool _isRunning = false;
-  var currentAtSign;
+  late String currentAtSign;
   var _commitLog;
   var _accessLog;
   var signingKey;
@@ -510,6 +512,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // Second, make an HttpServer which is handling sockets which are passed
     // to the pseudoServerSocket
     HttpServer httpServer = HttpServer.listenOn(pseudoServerSocket);
+    final httpReqHandler =
+        AtServerHttpRequestHandler(currentAtSign, secondaryKeyStore);
     httpServer.listen((HttpRequest req) {
       if (req.uri.path == '/ws') {
         // Upgrade an HttpRequest to a WebSocket connection.
@@ -517,30 +521,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         WebSocketTransformer.upgrade(req)
             .then((WebSocket ws) => webSocketListener(ws));
       } else {
-        logger.info('Got Http Request: ${req.method} ${req.uri}');
-        if (req.method.toUpperCase() != 'GET') {
-          req.response.statusCode = HttpStatus.badRequest;
-          req.response.close();
-        } else {
-          // TODO URL decoding, need to handle emojis for example
-          var lookupKey = req.uri.path.substring(1);
-          if (!lookupKey.startsWith('public:')) {
-            lookupKey = 'public:$lookupKey';
-          }
-          if (!lookupKey.endsWith(currentAtSign)) {
-            lookupKey = '$lookupKey$currentAtSign';
-          }
-          logger.finer('Key to look up: $lookupKey');
-          secondaryKeyStore.get(lookupKey)!.then((AtData? value) {
-            req.response.statusCode=HttpStatus.ok;
-            req.response.write('data:${value?.data}');
-            req.response.close();
-          }, onError: (error) {
-            req.response.statusCode=HttpStatus.notFound;
-            req.response.writeln('error:no such key $lookupKey');
-            req.response.close();
-          });
-        }
+        httpReqHandler.handle(req);
       }
     });
 

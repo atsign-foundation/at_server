@@ -1,3 +1,6 @@
+# 3.6.0
+- feat: Expanded http support
+
 # 3.5.3
 - fix: Set the trusted cacert path for AtSecondaryFinder
 
