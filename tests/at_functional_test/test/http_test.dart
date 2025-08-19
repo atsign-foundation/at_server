@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:isolate';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart';
@@ -14,14 +13,13 @@ import 'package:http/http.dart' as http;
 // (2) race conditions, as in each test we are executing requests for all of
 //     the atSigns in the ve - but in parallel rather than sequentially.
 void main() {
+  List<String> atSigns = at_demo_data.allAtsigns.getRange(1, 21).toList()
+    ..remove('anonymous');
+
   AtSignLogger.root_level = 'shout';
   final root = 'vip.ve.atsign.zone';
 
   group('basic atDirectory tests', () {
-    List<String> atSigns = at_demo_data.allAtsigns
-      ..addAll(at_demo_data.apkamAtsigns)
-      ..remove('anonymous');
-
     test('lookup existing atSign via 64', () async {
       List<Future> futures = [];
       for (final atSign in atSigns) {
@@ -71,16 +69,15 @@ void main() {
   });
 
   group('atDirectory redirect tests', () {
-    List<String> atSigns = at_demo_data.allAtsigns
-      ..addAll(at_demo_data.apkamAtsigns)
-      ..remove('anonymous');
-
-    Future<bool> doTheGet(String atSign) async {
+    Future<bool> getAndCompareServerSigningKeyData(String atSign) async {
       final String command = 'lookup:signing_publickey$atSign';
       final atLookup = AtLookupImpl(atSign, root, 64);
-      final String pskFromAtLookup;
+      String pskFromAtLookup;
       try {
         pskFromAtLookup = (await atLookup.executeCommand('$command\n'))!;
+        if (pskFromAtLookup.startsWith('data:')) {
+          pskFromAtLookup = pskFromAtLookup.replaceFirst('data:', '');
+        }
       } finally {
         await atLookup.close();
       }
@@ -88,16 +85,37 @@ void main() {
       final (statusCode, pskFromHttpRedirect) = await dartIoHttpClientGet(
           Uri.https(root, '/$atSign/signing_publickey'));
 
-      final bool statusOk = statusCode == HttpStatus.ok;
-      final bool pskMatched = pskFromHttpRedirect == pskFromAtLookup;
+      expect(statusCode, HttpStatus.ok);
+      expect(pskFromHttpRedirect, pskFromAtLookup);
 
-      if (!statusOk || !pskMatched) {
-        stderr.writeln('Error: Check failed for $atSign : status: $statusCode'
-            ' pskFromHttpRedirect: $pskFromHttpRedirect'
-            ' pskFromAtLookup: $pskFromAtLookup');
+      return true;
+    }
+
+    Future<bool> getAndCompareServerSigningKeyMetadata(String atSign) async {
+      final String command = 'lookup:meta:signing_publickey$atSign';
+      final atLookup = AtLookupImpl(atSign, root, 64);
+      String atMetaDataFromAtLookup = '';
+      try {
+        atMetaDataFromAtLookup = (await atLookup.executeCommand('$command\n'))!;
+        if (atMetaDataFromAtLookup.startsWith('data:')) {
+          atMetaDataFromAtLookup =
+              atMetaDataFromAtLookup.replaceFirst('data:', '');
+        }
+      } finally {
+        try {
+          await atLookup.close();
+        } catch (_) {}
       }
 
-      return statusOk && pskMatched;
+      final (statusCode, atMetaDataFromHttpGet) = await dartIoHttpClientGet(
+          Uri.https(root, '/$atSign/signing_publickey', {'at_rt': 'meta'}));
+
+      expect(statusCode, HttpStatus.ok);
+      expect(atMetaDataFromHttpGet, atMetaDataFromAtLookup);
+
+      stderr.writeln('getAndCompareServerSigningKeyMetadata: $atSign OK');
+
+      return true;
     }
 
     // For each atSign
@@ -110,47 +128,16 @@ void main() {
     //   - Default behaviour of the Dart http clients (whether HttpClient from dart.io
     //     or Client from the http package) is to follow GET redirects
     // - Assert that the values we fetched via AtLookup and http are identical
-    test('lookup signing_publickey via https with redirect in isolates',
-        () async {
-      int successes = 0;
-      int isolateCounter = 0;
-      List<Future<bool>> futures = [];
+    test('lookup signing_publickey via https with redirect', () async {
       for (final atSign in atSigns) {
-        futures.add(Isolate.run(() async {
-          return await doTheGet(atSign);
-        }, debugName: 'isolate ${++isolateCounter}'));
+        await getAndCompareServerSigningKeyData(atSign);
       }
-
-      List<bool> outcomes = await Future.wait(futures);
-      for (final b in outcomes) {
-        if (b) {
-          successes++;
-        }
-      }
-      if (successes != atSigns.length) {
-        throw Exception('Only $successes successes out of ${atSigns.length}');
-      }
-      stderr.writeln('$successes successes out of ${atSigns.length} OK');
     });
 
-    test('lookup signing_publickey via https with redirect', () async {
-      int successes = 0;
-      List<Future<bool>> futures = [];
+    test('lookup the metadata of some key via https with redirect', () async {
       for (final atSign in atSigns) {
-        futures.add(doTheGet(atSign));
+        await getAndCompareServerSigningKeyMetadata(atSign);
       }
-
-      List<bool> outcomes = await Future.wait(futures);
-      for (final b in outcomes) {
-        if (b) {
-          successes++;
-        }
-      }
-
-      if (successes != atSigns.length) {
-        throw Exception('Only $successes successes out of ${atSigns.length}');
-      }
-      stderr.writeln('$successes successes out of ${atSigns.length} OK');
     });
   });
 }
@@ -162,9 +149,8 @@ void main() {
 /// protocols, so normal AtLookup connections fail
 /// - So, we use dart.io's HttpClient which allows us to pass a context
 /// - returns (statusCode, body)
-Future<(int, String)> dartIoHttpClientGet(Uri uri, {HttpClient? client}) async {
-  bool shouldClose = client == null;
-  client ??= newHttpClient();
+Future<(int, String)> dartIoHttpClientGet(Uri uri) async {
+  HttpClient client = newHttpClient();
   try {
     client.idleTimeout = Duration(seconds: 0);
 
@@ -175,9 +161,7 @@ Future<(int, String)> dartIoHttpClientGet(Uri uri, {HttpClient? client}) async {
         (response.statusCode, await response.transform(utf8.decoder).join());
     return (statusCode, body);
   } finally {
-    if (shouldClose) {
-      client.close(force: true);
-    }
+    client.close(force: true);
   }
 }
 

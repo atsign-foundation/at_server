@@ -254,7 +254,7 @@ class SimpleOutboundWebsocketConnection extends SimpleOutboundConnection {
       String key =
           base64.encode(List<int>.generate(8, (_) => random.nextInt(256)));
 
-      SecurityContext context = SecurityContext.defaultContext;
+      SecurityContext context = SecurityContext(withTrustedRoots: true);
       context.setAlpnProtocols(['http/1.1'], false);
       HttpClient client = HttpClient(context: context);
 

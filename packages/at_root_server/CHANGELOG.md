@@ -1,3 +1,11 @@
+## 2.2.0
+
+- feat: add https support for looking up atServer addresses
+- feat: add support for redirects so can http GET from  
+  `https://<root fqdn>/<atSign>/publickey` and get redirected to
+  `https://<atServer fqdn:port>/publickey`
+- build[deps]: multiple dependency upgrades
+
 ## 2.1.2
 - build[deps]: Upgraded the following package:
   - args to v2.6.0

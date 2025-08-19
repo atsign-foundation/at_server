@@ -11,6 +11,7 @@ import 'package:at_utils/at_logger.dart';
 /// Throws [ArgParserException] for invalid arguments passed.
 /// @ param - `List<String>` atSign and port
 Future<void> main(List<String> arguments) async {
+  AtSignLogger.defaultLoggingHandler = AtSignLogger.stdErrLoggingHandler;
   AtSignLogger.root_level = AtSecondaryConfig.logLevel;
 
   var logger = AtSignLogger('main');

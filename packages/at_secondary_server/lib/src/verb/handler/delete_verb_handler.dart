@@ -185,7 +185,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     for (var key in AtSecondaryConfig.protectedKeys) {
       // protected keys are stored as 'signing_publickey<@atsign>'
       // replace <@atsign> with actual atsign during runtime
-      protectedKeys.add(key.replaceFirst('<@atsign>', atsign!));
+      protectedKeys.add(key.replaceFirst('<@atsign>', atsign));
     }
     return protectedKeys;
   }
