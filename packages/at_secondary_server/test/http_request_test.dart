@@ -208,7 +208,7 @@ void main() async {
       await basicChecks(
           expectedStatus: HttpStatus.ok,
           expectedBody: valueJpeg,
-          expectedContentType: ContentType.parse('image/jpeg'),
+          expectedContentType: ContentType.parse('image/jpeg; charset=utf-8'),
           method: 'GET',
           key: keyJpeg);
     });
@@ -216,7 +216,7 @@ void main() async {
       await basicChecks(
           expectedStatus: HttpStatus.ok,
           expectedBody: valueAac,
-          expectedContentType: ContentType.parse('audio/aac'),
+          expectedContentType: ContentType.parse('audio/aac; charset=utf-8'),
           method: 'GET',
           key: keyAac);
     });
@@ -224,7 +224,8 @@ void main() async {
       await basicChecks(
           expectedStatus: HttpStatus.ok,
           expectedBody: valueGenericBinary,
-          expectedContentType: ContentType.parse('application/octet-stream'),
+          expectedContentType:
+              ContentType.parse('application/octet-stream; charset=utf-8'),
           method: 'GET',
           key: keyGenericBinary);
     });
