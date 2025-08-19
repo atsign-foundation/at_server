@@ -860,6 +860,7 @@ void main() async {
             AtData()
               ..data = '8897896765'
               ..metaData = (AtMetaData()..ttl = 1));
+        await Future.delayed(Duration(milliseconds: 2));
         // manually trigger the deleteExpiredKeys to remove the expired keys
         await secondaryPersistenceStore!
             .getSecondaryKeyStore()

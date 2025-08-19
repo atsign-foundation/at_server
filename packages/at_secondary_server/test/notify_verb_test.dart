@@ -71,6 +71,7 @@ void main() {
   });
 
   group('A group of notify accept tests', () {
+    AtSecondaryServerImpl.getInstance().currentAtSign = alice;
     test('test notify command accept test', () {
       var command = 'notify:@colin:location@colin';
       var handler = NotifyVerbHandler(mockKeyStore);

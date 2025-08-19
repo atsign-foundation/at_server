@@ -10,6 +10,7 @@ import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dar
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/executor/default_verb_executor.dart';
 import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
@@ -41,6 +42,7 @@ void main() {
   });
 
   group('A group of stats verb tests', () {
+    AtSecondaryServerImpl.getInstance().currentAtSign = alice;
     test('test stats getVerb', () {
       var handler = StatsVerbHandler(mockKeyStore);
       var verb = handler.getVerb();
