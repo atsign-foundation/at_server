@@ -51,7 +51,7 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
     socket.done.onError((error, stackTrace) {
       logger
           .info('socket.done.onError called with $error. Calling this.close()');
-      this.close();
+      close();
     });
   }
 
