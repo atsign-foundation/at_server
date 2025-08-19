@@ -13,16 +13,13 @@ import 'package:http/http.dart' as http;
 // (2) race conditions, as in each test we are executing requests for all of
 //     the atSigns in the ve - but in parallel rather than sequentially.
 void main() {
+  List<String> atSigns = at_demo_data.allAtsigns.getRange(1, 21).toList()
+    ..remove('anonymous');
+
   AtSignLogger.root_level = 'shout';
   final root = 'vip.ve.atsign.zone';
 
   group('basic atDirectory tests', () {
-    List<String> atSigns = [];
-    for (int i = 1; i < 15; i++) {
-      // note starting at index 1, to ignore 'anonymous'
-      atSigns.add(at_demo_data.allAtsigns[i]);
-    }
-
     test('lookup existing atSign via 64', () async {
       List<Future> futures = [];
       for (final atSign in atSigns) {
@@ -72,10 +69,6 @@ void main() {
   });
 
   group('atDirectory redirect tests', () {
-    List<String> atSigns = at_demo_data.allAtsigns
-      ..addAll(at_demo_data.apkamAtsigns)
-      ..remove('anonymous');
-
     Future<bool> getAndCompareServerSigningKeyData(String atSign) async {
       final String command = 'lookup:signing_publickey$atSign';
       final atLookup = AtLookupImpl(atSign, root, 64);
@@ -98,55 +91,31 @@ void main() {
       return true;
     }
 
-    Future<bool> getAndCompareServerSigningKeyMetadata(
-        String key, String atSign) async {
-      int attempts = 3;
-      for (int i = 1; i <= attempts; i++) {
-        try {
-          final String command = 'lookup:meta:$key$atSign';
-          final atLookup = AtLookupImpl(atSign, root, 64);
-          String atMetaDataFromAtLookup = '';
-          try {
-            atMetaDataFromAtLookup =
-                (await atLookup.executeCommand('$command\n'))!;
-            if (atMetaDataFromAtLookup.startsWith('data:')) {
-              atMetaDataFromAtLookup =
-                  atMetaDataFromAtLookup.replaceFirst('data:', '');
-            }
-          } finally {
-            try {
-              await atLookup.close();
-            } catch (_) {}
-          }
-
-          final (statusCode, atMetaDataFromHttpGet) = await dartIoHttpClientGet(
-              Uri.https(root, '/$atSign/$key', {'at_rt': 'meta'}));
-
-          if (statusCode != HttpStatus.ok ||
-              atMetaDataFromHttpGet != atMetaDataFromAtLookup) {
-            stderr.writeln('getAndCompareServerSigningKeyMetadata:'
-                ' http statusCode $statusCode;'
-                ' data matches:'
-                ' ${atMetaDataFromHttpGet == atMetaDataFromAtLookup}');
-            continue;
-          }
-          expect(statusCode, HttpStatus.ok);
-          expect(atMetaDataFromHttpGet, atMetaDataFromAtLookup);
-
-          stderr.writeln('getAndCompareServerSigningKeyMetadata: $atSign OK');
-
-          return true;
-        } catch (e, st) {
-          stderr.writeln('Exception $e'
-              ' in getAndCompareServerSigningKeyMetadata for $atSign'
-              ' - will retry ');
-          stderr.writeln('Stack trace:\n$st');
+    Future<bool> getAndCompareServerSigningKeyMetadata(String atSign) async {
+      final String command = 'lookup:meta:signing_publickey$atSign';
+      final atLookup = AtLookupImpl(atSign, root, 64);
+      String atMetaDataFromAtLookup = '';
+      try {
+        atMetaDataFromAtLookup = (await atLookup.executeCommand('$command\n'))!;
+        if (atMetaDataFromAtLookup.startsWith('data:')) {
+          atMetaDataFromAtLookup =
+              atMetaDataFromAtLookup.replaceFirst('data:', '');
         }
+      } finally {
+        try {
+          await atLookup.close();
+        } catch (_) {}
       }
 
-      stderr.writeln('getAndCompareServerSigningKeyMetadata'
-          ' failed $attempts times for $atSign');
-      return false;
+      final (statusCode, atMetaDataFromHttpGet) = await dartIoHttpClientGet(
+          Uri.https(root, '/$atSign/signing_publickey', {'at_rt': 'meta'}));
+
+      expect(statusCode, HttpStatus.ok);
+      expect(atMetaDataFromHttpGet, atMetaDataFromAtLookup);
+
+      stderr.writeln('getAndCompareServerSigningKeyMetadata: $atSign OK');
+
+      return true;
     }
 
     // For each atSign
@@ -160,49 +129,15 @@ void main() {
     //     or Client from the http package) is to follow GET redirects
     // - Assert that the values we fetched via AtLookup and http are identical
     test('lookup signing_publickey via https with redirect', () async {
-      int successes = 0;
-      List<Future<bool>> futures = [];
       for (final atSign in atSigns) {
-        futures.add(getAndCompareServerSigningKeyData(atSign));
+        await getAndCompareServerSigningKeyData(atSign);
       }
-
-      List<bool> outcomes = await Future.wait(futures);
-      for (final b in outcomes) {
-        if (b) {
-          successes++;
-        }
-      }
-
-      if (successes != atSigns.length) {
-        throw Exception('Only $successes successes out of ${atSigns.length}');
-      }
-      stderr.writeln('$successes successes out of ${atSigns.length} OK');
     });
 
     test('lookup the metadata of some key via https with redirect', () async {
-      int successes = 0;
-      List<Future<bool>> futures = [];
-      // List<String> atSigns = ['@client', '@ashish🛠'];
       for (final atSign in atSigns) {
-        futures.add(
-          getAndCompareServerSigningKeyMetadata(
-            'signing_publickey',
-            atSign,
-          ),
-        );
+        await getAndCompareServerSigningKeyMetadata(atSign);
       }
-
-      List<bool> outcomes = await Future.wait(futures);
-      for (final b in outcomes) {
-        if (b) {
-          successes++;
-        }
-      }
-
-      if (successes != atSigns.length) {
-        throw Exception('Only $successes successes out of ${atSigns.length}');
-      }
-      stderr.writeln('$successes successes out of ${atSigns.length} OK');
     });
   });
 }
@@ -214,9 +149,8 @@ void main() {
 /// protocols, so normal AtLookup connections fail
 /// - So, we use dart.io's HttpClient which allows us to pass a context
 /// - returns (statusCode, body)
-Future<(int, String)> dartIoHttpClientGet(Uri uri, {HttpClient? client}) async {
-  bool shouldClose = client == null;
-  client ??= newHttpClient();
+Future<(int, String)> dartIoHttpClientGet(Uri uri) async {
+  HttpClient client = newHttpClient();
   try {
     client.idleTimeout = Duration(seconds: 0);
 
@@ -227,9 +161,7 @@ Future<(int, String)> dartIoHttpClientGet(Uri uri, {HttpClient? client}) async {
         (response.statusCode, await response.transform(utf8.decoder).join());
     return (statusCode, body);
   } finally {
-    if (shouldClose) {
-      client.close(force: true);
-    }
+    client.close(force: true);
   }
 }
 
