@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:at_base2e15/at_base2e15.dart';
 import 'package:at_commons/at_commons.dart' hide StringBuffer;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/server/http_request_handler.dart';
@@ -15,7 +16,7 @@ void main() async {
   late AtServerHttpRequestHandler handler;
 
   final Map<String, Map> mdMap = {};
-  Future<void> put(String key, {String? value}) async {
+  Future<void> putText(String key, String value) async {
     final AtMetaData atMetaData = AtMetaData.fromCommonsMetadata(
       Metadata()
         ..ttl = 1234
@@ -24,7 +25,23 @@ void main() async {
     );
     // If no value supplied, set the value to be the same as the key name
     AtData d = AtData()
-      ..data = value ?? key
+      ..data = value
+      ..metaData = atMetaData;
+    await secondaryKeyStore.put(key, d);
+    mdMap[key] = SecondaryUtil.removeNulls(atMetaData.toJson())!;
+  }
+
+  Future<void> putBinary(String key, List<int> value) async {
+    final AtMetaData atMetaData = AtMetaData.fromCommonsMetadata(
+      Metadata()
+        ..ttl = 1234
+        ..ttr = 5
+        ..isBinary = true,
+      alice,
+    );
+    // If no value supplied, set the value to be the same as the key name
+    AtData d = AtData()
+      ..data = Base2e15.encode(value)
       ..metaData = atMetaData;
     await secondaryKeyStore.put(key, d);
     mdMap[key] = SecondaryUtil.removeNulls(atMetaData.toJson())!;
@@ -39,23 +56,32 @@ void main() async {
     return req;
   }
 
-  String publicFoo = 'public:foo$alice';
-  String publicFooBar = 'public:foo.bar$alice';
-  String publicFooBarBaz = 'public:foo.bar.baz$alice';
-  String publicIndexHtml = 'public:index.html.foo.bar.baz$alice';
-  String publicIndexHtmlBody = '<body><h1>Hello, world!!!</h1></body>';
-  String hiddenIndexHtml = 'public:_index.html.foo.bar.baz$alice';
-  String hiddenIndexHtmlBody = '<body><h1>Hidden worlds</h1></body>';
+  String keyFoo = 'public:foo$alice';
+  String keyFooBar = 'public:foo.bar$alice';
+  String keyFooBarBaz = 'public:foo.bar.baz$alice';
+  String keyIndexHtml = 'public:index.html.foo.bar.baz$alice';
+  String valueIndexHtml = '<body><h1>Hello, world!!!</h1></body>';
+  String keyHiddenIndexHtml = 'public:_index.html.foo.bar.baz$alice';
+  String valueHiddenIndexHtml = '<body><h1>Hidden worlds</h1></body>';
+  String keyJpeg = 'public:some.jpg.assets.my_app$alice';
+  List<int> valueJpeg = keyJpeg.codeUnits;
+  String keyAac = 'public:some.aac.assets.my_app$alice';
+  List<int> valueAac = keyAac.codeUnits;
+  String keyGenericBinary = 'public:generic_binary.binaries.my_app$alice';
+  List<int> valueGenericBinary = keyGenericBinary.codeUnits;
 
   setUp(() async {
     await verbTestsSetUp();
     handler = AtServerHttpRequestHandler(alice, secondaryKeyStore);
     handler.logger.level = 'warning';
-    await put(publicFoo);
-    await put(publicFooBar);
-    await put(publicFooBarBaz);
-    await put(publicIndexHtml, value: publicIndexHtmlBody);
-    await put(hiddenIndexHtml, value: hiddenIndexHtmlBody);
+    await putText(keyFoo, keyFoo);
+    await putText(keyFooBar, keyFooBar);
+    await putText(keyFooBarBaz, keyFooBarBaz);
+    await putText(keyIndexHtml, valueIndexHtml);
+    await putText(keyHiddenIndexHtml, valueHiddenIndexHtml);
+    await putBinary(keyJpeg, valueJpeg);
+    await putBinary(keyAac, valueAac);
+    await putBinary(keyGenericBinary, valueGenericBinary);
   });
 
   tearDown(() async {
@@ -64,7 +90,7 @@ void main() async {
 
   Future<void> check({
     required int expectedStatus,
-    required String expectedBody,
+    required dynamic expectedBody,
     required ContentType? expectedContentType,
     required String method,
     required String uri,
@@ -85,7 +111,11 @@ void main() async {
       default:
         expectedBody = '';
     }
-    expect(request.response.body, expectedBody);
+    if (expectedBody is List<int>) {
+      expect(request.response.bodyAsBytes, expectedBody);
+    } else {
+      expect(request.response.bodyAsString, expectedBody);
+    }
   }
 
   // For each key, try various permutations
@@ -98,11 +128,17 @@ void main() async {
   // one for both data and metadata
   Future<void> basicChecks({
     required int expectedStatus,
-    required String expectedBody,
+    required dynamic expectedBody,
     required ContentType? expectedContentType,
     required String method,
     required String key,
   }) async {
+    if (key.startsWith('public:')) {
+      key = key.replaceFirst('public:', '');
+    }
+    if (key.endsWith(atSign)) {
+      key = key.substring(0, key.length - atSign.length);
+    }
     String fullKey = handler.getKeyToLookup('public:$key$atSign');
 
     ContentType? metadataContentType;
@@ -168,10 +204,35 @@ void main() async {
   }
 
   group('http basic checks status 200', () {
+    test('get fake jpeg', () async {
+      await basicChecks(
+          expectedStatus: HttpStatus.ok,
+          expectedBody: valueJpeg,
+          expectedContentType: ContentType.parse('image/jpeg'),
+          method: 'GET',
+          key: keyJpeg);
+    });
+    test('get fake aac', () async {
+      await basicChecks(
+          expectedStatus: HttpStatus.ok,
+          expectedBody: valueAac,
+          expectedContentType: ContentType.parse('audio/aac'),
+          method: 'GET',
+          key: keyAac);
+    });
+    test('get generic binary', () async {
+      await basicChecks(
+          expectedStatus: HttpStatus.ok,
+          expectedBody: valueGenericBinary,
+          expectedContentType: ContentType.parse('application/octet-stream'),
+          method: 'GET',
+          key: keyGenericBinary);
+    });
+
     test('get public key', () async {
       await basicChecks(
           expectedStatus: HttpStatus.ok,
-          expectedBody: publicFoo,
+          expectedBody: keyFoo,
           expectedContentType: ContentType.parse('text/plain; charset=utf-8'),
           method: 'GET',
           key: 'foo');
@@ -180,7 +241,7 @@ void main() async {
     test('get public key with namespace', () async {
       await basicChecks(
           expectedStatus: HttpStatus.ok,
-          expectedBody: publicFooBar,
+          expectedBody: keyFooBar,
           expectedContentType: ContentType.parse('text/plain; charset=utf-8'),
           method: 'GET',
           key: 'foo.bar');
@@ -189,7 +250,7 @@ void main() async {
     test('get public key with namespaces', () async {
       await basicChecks(
           expectedStatus: HttpStatus.ok,
-          expectedBody: publicFooBarBaz,
+          expectedBody: keyFooBarBaz,
           expectedContentType: ContentType.parse('text/plain; charset=utf-8'),
           method: 'GET',
           key: 'foo.bar.baz');
@@ -198,7 +259,7 @@ void main() async {
     test('get public key with many namespaces', () async {
       await basicChecks(
           expectedStatus: HttpStatus.ok,
-          expectedBody: publicIndexHtmlBody,
+          expectedBody: valueIndexHtml,
           expectedContentType: ContentType.parse('text/html; charset=utf-8'),
           method: 'GET',
           key: 'index.html.foo.bar.baz');
@@ -207,7 +268,7 @@ void main() async {
     test('get public hidden key with many namespaces', () async {
       await basicChecks(
           expectedStatus: HttpStatus.ok,
-          expectedBody: hiddenIndexHtmlBody,
+          expectedBody: valueHiddenIndexHtml,
           expectedContentType: ContentType.parse('text/html; charset=utf-8'),
           method: 'GET',
           key: '_index.html.foo.bar.baz');
@@ -226,7 +287,7 @@ void main() async {
       ]) {
         await basicChecks(
           expectedStatus: HttpStatus.ok,
-          expectedBody: publicIndexHtmlBody,
+          expectedBody: valueIndexHtml,
           expectedContentType: ContentType.parse('text/html; charset=utf-8'),
           method: 'GET',
           key: k,
@@ -245,7 +306,7 @@ void main() async {
       ]) {
         await basicChecks(
           expectedStatus: HttpStatus.ok,
-          expectedBody: hiddenIndexHtmlBody,
+          expectedBody: valueHiddenIndexHtml,
           expectedContentType: ContentType.parse('text/html; charset=utf-8'),
           method: 'GET',
           key: k,
@@ -287,7 +348,7 @@ void main() async {
         expectedBody: '',
         expectedContentType: null,
         method: 'HEAD',
-        key: publicFooBar,
+        key: keyFooBar,
       );
     });
     test('PUT', () async {
@@ -296,7 +357,7 @@ void main() async {
         expectedBody: '',
         expectedContentType: null,
         method: 'PUT',
-        key: publicFooBar,
+        key: keyFooBar,
       );
     });
     test('POST', () async {
@@ -305,7 +366,7 @@ void main() async {
         expectedBody: '',
         expectedContentType: null,
         method: 'POST',
-        key: publicFooBar,
+        key: keyFooBar,
       );
     });
     test('DELETE', () async {
@@ -314,7 +375,7 @@ void main() async {
         expectedBody: '',
         expectedContentType: null,
         method: 'DELETE',
-        key: publicFooBar,
+        key: keyFooBar,
       );
     });
     test('Impossibly long key', () async {
@@ -367,9 +428,11 @@ class FakeHttpHeaders extends Fake implements HttpHeaders {
 }
 
 class FakeHttpResponse extends Fake implements HttpResponse {
-  StringBuffer b = StringBuffer();
+  final List<int> _data = [];
 
-  String get body => b.toString();
+  List<int> get bodyAsBytes => _data;
+
+  String get bodyAsString => String.fromCharCodes(_data);
   bool _isClosed = false;
 
   @override
@@ -379,11 +442,18 @@ class FakeHttpResponse extends Fake implements HttpResponse {
   FakeHttpHeaders headers = FakeHttpHeaders();
 
   @override
+  void add(List<int> data) {
+    _data.addAll(data);
+  }
+
+  @override
   void write(Object? object) {
     if (_isClosed) {
       throw StateError('FakeHttpResponse is closed');
     }
-    b.write(object);
+    if (object != null) {
+      add(object.toString().codeUnits);
+    }
   }
 
   @override

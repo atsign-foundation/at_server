@@ -48,7 +48,7 @@ class AtServerHttpRequestHandler {
           return;
         }
 
-        List<int>? responseContent = getResponseContent(
+        dynamic responseContent = getResponseContent(
           atData: atData,
           queryParams: request.uri.queryParameters,
         );
@@ -69,7 +69,11 @@ class AtServerHttpRequestHandler {
         request.response.statusCode = HttpStatus.ok;
 
         if (responseContent != null) {
-          request.response.add(responseContent);
+          if (responseContent is List<int>) {
+            request.response.add(responseContent);
+          } else {
+            request.response.write(responseContent);
+          }
         }
 
         await request.response.close();
@@ -144,7 +148,7 @@ class AtServerHttpRequestHandler {
     }
   }
 
-  List<int>? getResponseContent({
+  dynamic getResponseContent({
     required AtData atData,
     required Map<String, String> queryParams,
   }) {
@@ -157,8 +161,7 @@ class AtServerHttpRequestHandler {
         return SecondaryUtil.prepareResponseData(
           queryParams[paramNameAtRequestType],
           atData,
-        )!
-            .codeUnits;
+        );
       } else {
         logger.info('2e15-encoded data length: ${atData.data!.length}');
         // decode to Uint8list
@@ -170,8 +173,7 @@ class AtServerHttpRequestHandler {
       return SecondaryUtil.prepareResponseData(
         queryParams[paramNameAtRequestType],
         atData,
-      )!
-          .codeUnits;
+      );
     }
   }
 
