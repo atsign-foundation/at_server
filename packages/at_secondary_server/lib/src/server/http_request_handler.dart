@@ -134,17 +134,23 @@ class AtServerHttpRequestHandler {
     if (queryParams[paramNameAtRequestType] == 'meta') {
       return ContentType.parse('application/json; charset=utf-8');
     }
-    String? inferredContentType =
+    String? inferredMimeType =
         mime.lookupMimeType(getPseudoWebPath(keyStoreKey));
     if (isBinary) {
-      return ContentType.parse(queryParams[paramNameContentType] ??
-          inferredContentType ??
-          'application/octet-stream');
-    } else {
       String mimeType = queryParams[paramNameContentType] ??
-          inferredContentType ??
-          'text/plain';
-      return ContentType.parse('$mimeType; charset=utf-8');
+          inferredMimeType ??
+          'application/octet-stream';
+      final cts = '$mimeType; charset=utf-8';
+      final ct = ContentType.parse(cts);
+      logger.finer('Got content-type $ct from $cts');
+      return ct;
+    } else {
+      String mimeType =
+          queryParams[paramNameContentType] ?? inferredMimeType ?? 'text/plain';
+      final cts = '$mimeType; charset=utf-8';
+      final ct = ContentType.parse(cts);
+      logger.finer('Got content-type $ct from $cts');
+      return ct;
     }
   }
 
@@ -163,10 +169,10 @@ class AtServerHttpRequestHandler {
           atData,
         );
       } else {
-        logger.info('2e15-encoded data length: ${atData.data!.length}');
+        logger.finer('2e15-encoded data length: ${atData.data!.length}');
         // decode to Uint8list
         final bytes = Base2e15.decode(atData.data!);
-        logger.info('decoded data length: ${bytes.length}');
+        logger.finer('decoded data length: ${bytes.length}');
         return bytes;
       }
     } else {
