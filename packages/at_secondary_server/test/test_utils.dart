@@ -389,11 +389,13 @@ AtMetaData createRandomAtMetaData(String owner,
     md.encoding = createRandomString(5);
     md.pubKeyCS = createRandomString(5);
     md.sharedKeyEnc = createRandomString(10);
+    md.encKeyName = createRandomString(10);
     md.dataSignature = createRandomString(7);
     md.isCascade = createRandomNullableBoolean();
     md.ttl = createRandomNullablePositiveInt();
     md.ttb = createRandomNullablePositiveInt();
     md.ttr = createRandomNullablePositiveInt();
+    md.pubKeyHash = PublicKeyHash(createRandomString(6), createRandomString(4));
   }
 
   if (refreshAt != null) {
