@@ -159,7 +159,9 @@ void main() {
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key
-            ..atMetaData = (AtMetaData()..encKeyName = 'encKeyName'))
+            ..atMetaData = (AtMetaData()
+              ..encKeyName = 'encKeyName'
+              ..sharedKeyEnc = 'shared_key_encrypted'))
           .build();
       await monitorVerbHandler.processAtNotification(atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
@@ -167,6 +169,9 @@ void main() {
           .trim();
       var notificationMap = jsonDecode(inboundConnection.lastWrittenData!);
       expect(notificationMap['metadata']['pubKeyHash'], null);
+      expect(notificationMap['metadata']['encKeyName'], 'encKeyName');
+      expect(
+          notificationMap['metadata']['sharedKeyEnc'], 'shared_key_encrypted');
     });
     tearDown(() async {
       await verbTestsTearDown();
@@ -735,6 +740,7 @@ void main() {
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
 
+      AtMetaData randomMetadata = createRandomAtMetaData('@bob');
       var atNotification = (AtNotificationBuilder()
             ..id = 'abc'
             ..fromAtSign = '@bob'
@@ -743,7 +749,8 @@ void main() {
             ..notification = 'phone.wavi'
             ..type = NotificationType.self
             ..opType = OperationType.update
-            ..messageType = MessageType.key)
+            ..messageType = MessageType.key
+            ..atMetaData = randomMetadata)
           .build();
       // The notification callback method is registered in "MonitorVerbHandler.processVerb"
       await AtNotificationCallback.getInstance()
@@ -759,6 +766,15 @@ void main() {
       expect(notificationMap['key'], 'phone.wavi');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
+      expect(notificationMap['metadata']['pubKeyCS'], randomMetadata.pubKeyCS);
+      expect(notificationMap['metadata']['sharedKeyEnc'],
+          randomMetadata.sharedKeyEnc);
+      expect(
+          notificationMap['metadata']['encKeyName'], randomMetadata.encKeyName);
+      expect(notificationMap['metadata']['dataSignature'],
+          randomMetadata.dataSignature);
+      expect(notificationMap['metadata']['pubKeyHash'],
+          jsonEncode(randomMetadata.pubKeyHash?.toJson()));
     });
 
     test(
@@ -771,6 +787,7 @@ void main() {
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
 
+      AtMetaData randomMetadata = createRandomAtMetaData('@bob');
       var atNotification = (AtNotificationBuilder()
             ..id = 'abc'
             ..fromAtSign = '@bob'
@@ -779,7 +796,8 @@ void main() {
             ..notification = 'phone.wavi'
             ..type = NotificationType.received
             ..opType = OperationType.update
-            ..messageType = MessageType.key)
+            ..messageType = MessageType.key
+            ..atMetaData = randomMetadata)
           .build();
       // The notification callback method is registered in "MonitorVerbHandler.processVerb"
       await AtNotificationCallback.getInstance()
@@ -795,6 +813,15 @@ void main() {
       expect(notificationMap['key'], 'phone.wavi');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
+      expect(notificationMap['metadata']['pubKeyCS'], randomMetadata.pubKeyCS);
+      expect(notificationMap['metadata']['sharedKeyEnc'],
+          randomMetadata.sharedKeyEnc);
+      expect(
+          notificationMap['metadata']['encKeyName'], randomMetadata.encKeyName);
+      expect(notificationMap['metadata']['dataSignature'],
+          randomMetadata.dataSignature);
+      expect(notificationMap['metadata']['pubKeyHash'],
+          jsonEncode(randomMetadata.pubKeyHash?.toJson()));
     });
 
     test(
@@ -821,6 +848,119 @@ void main() {
       await AtNotificationCallback.getInstance()
           .invokeCallbacks(atNotification);
       expect(inboundConnection.lastWrittenData, null);
+    });
+
+    tearDown(() async {
+      await verbTestsTearDown();
+      AtNotificationCallback.getInstance().callbackMethods.clear();
+    });
+  });
+
+  group('A test to verify initial notifications list has all metadata', () {
+    setUp(() async {
+      await verbTestsSetUp();
+    });
+
+    test(
+        'A test to verify self notification is written to monitor connection in initial list',
+        () async {
+      int epoch = DateTime.timestamp().millisecondsSinceEpoch;
+      await Future.delayed(Duration(milliseconds: 1));
+      AtMetaData randomMetadata = createRandomAtMetaData('@bob');
+      var atNotification = (AtNotificationBuilder()
+            ..id = 'abc'
+            ..fromAtSign = '@bob'
+            ..notificationDateTime = DateTime.now()
+            ..toAtSign = alice
+            ..notification = 'phone.wavi'
+            ..type = NotificationType.self
+            ..opType = OperationType.update
+            ..messageType = MessageType.key
+            ..atMetaData = randomMetadata)
+          .build();
+      await AtNotificationKeystore.getInstance()
+          .put(atNotification.id, atNotification);
+
+      String monitorCommand = 'monitor:selfNotifications:$epoch';
+
+      MonitorVerbHandler monitorVerbHandler =
+          MonitorVerbHandler(secondaryKeyStore);
+      HashMap<String, String?> verbParams =
+          monitorVerbHandler.parse(monitorCommand);
+      inboundConnection.metaData.isAuthenticated = true;
+      await monitorVerbHandler.processVerb(
+          Response(), verbParams, inboundConnection);
+
+      inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
+          ?.replaceAll('notification:', '')
+          .trim();
+      var notificationMap = jsonDecode(inboundConnection.lastWrittenData!);
+      expect(notificationMap['id'], 'abc');
+      expect(notificationMap['from'], '@bob');
+      expect(notificationMap['to'], alice);
+      expect(notificationMap['key'], 'phone.wavi');
+      expect(notificationMap['messageType'], 'MessageType.key');
+      expect(notificationMap['operation'], 'update');
+      expect(notificationMap['metadata']['pubKeyCS'], randomMetadata.pubKeyCS);
+      expect(notificationMap['metadata']['sharedKeyEnc'],
+          randomMetadata.sharedKeyEnc);
+      expect(
+          notificationMap['metadata']['encKeyName'], randomMetadata.encKeyName);
+      expect(notificationMap['metadata']['dataSignature'],
+          randomMetadata.dataSignature);
+      expect(notificationMap['metadata']['pubKeyHash'],
+          jsonEncode(randomMetadata.pubKeyHash?.toJson()));
+    });
+
+    test(
+        'A test to verify received notification is written to monitor connection in initial list',
+        () async {
+      int epoch = DateTime.timestamp().millisecondsSinceEpoch;
+      await Future.delayed(Duration(milliseconds: 1));
+
+      AtMetaData randomMetadata = createRandomAtMetaData('@bob');
+      var atNotification = (AtNotificationBuilder()
+            ..id = 'abc'
+            ..fromAtSign = '@bob'
+            ..notificationDateTime = DateTime.now()
+            ..toAtSign = alice
+            ..notification = 'phone.wavi'
+            ..type = NotificationType.received
+            ..opType = OperationType.update
+            ..messageType = MessageType.key
+            ..atMetaData = randomMetadata)
+          .build();
+      await AtNotificationKeystore.getInstance()
+          .put(atNotification.id, atNotification);
+
+      String monitorCommand = 'monitor:$epoch';
+      MonitorVerbHandler monitorVerbHandler =
+          MonitorVerbHandler(secondaryKeyStore);
+      HashMap<String, String?> verbParams =
+          monitorVerbHandler.parse(monitorCommand);
+      inboundConnection.metaData.isAuthenticated = true;
+      await monitorVerbHandler.processVerb(
+          Response(), verbParams, inboundConnection);
+
+      inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
+          ?.replaceAll('notification:', '')
+          .trim();
+      var notificationMap = jsonDecode(inboundConnection.lastWrittenData!);
+      expect(notificationMap['id'], 'abc');
+      expect(notificationMap['from'], '@bob');
+      expect(notificationMap['to'], alice);
+      expect(notificationMap['key'], 'phone.wavi');
+      expect(notificationMap['messageType'], 'MessageType.key');
+      expect(notificationMap['operation'], 'update');
+      expect(notificationMap['metadata']['pubKeyCS'], randomMetadata.pubKeyCS);
+      expect(notificationMap['metadata']['sharedKeyEnc'],
+          randomMetadata.sharedKeyEnc);
+      expect(
+          notificationMap['metadata']['encKeyName'], randomMetadata.encKeyName);
+      expect(notificationMap['metadata']['dataSignature'],
+          randomMetadata.dataSignature);
+      expect(notificationMap['metadata']['pubKeyHash'],
+          jsonEncode(randomMetadata.pubKeyHash?.toJson()));
     });
 
     tearDown(() async {

@@ -138,6 +138,8 @@ class MonitorVerbHandler extends AbstractVerbHandler {
           "skeEncKeyName": atNotification.atMetadata?.skeEncKeyName,
           "skeEncAlgo": atNotification.atMetadata?.skeEncAlgo,
           "sharedKeyEnc": atNotification.atMetadata?.sharedKeyEnc,
+          "pubKeyCS": atNotification.atMetadata?.pubKeyCS,
+          "dataSignature": atNotification.atMetadata?.dataSignature,
         };
 
       notification.metadata?.putIfAbsent(
@@ -217,6 +219,9 @@ class Notification {
         ? atNotification.atMetadata!.isEncrypted!
         : false;
     metadata = {
+      "sharedKeyEnc": atNotification.atMetadata?.sharedKeyEnc,
+      "pubKeyCS": atNotification.atMetadata?.pubKeyCS,
+      "dataSignature": atNotification.atMetadata?.dataSignature,
       "encKeyName": atNotification.atMetadata?.encKeyName,
       "encAlgo": atNotification.atMetadata?.encAlgo,
       "ivNonce": atNotification.atMetadata?.ivNonce,
