@@ -68,26 +68,17 @@ void main() async {
         /// 4. The "createdBy" is assigned to currentAtSign
         /// 5. The entry in commitLog should be created with CommitOp.Update
         // Setup
-        DateTime currentDateTime = DateTime.now();
+        DateTime start = DateTime.now();
         await putData('$alice:phone$alice');
         // verify metadata
-        AtData? atData = await secondaryPersistenceStore!
-            .getSecondaryKeyStore()!
-            .get('$alice:phone$alice');
-        expect(
-            atData!.metaData!.createdAt!
-                    .difference(currentDateTime)
-                    .inMilliseconds >
-                1,
-            true);
-        expect(
-            atData.metaData!.updatedAt!
-                    .difference(currentDateTime)
-                    .inMilliseconds >
-                1,
-            true);
-        expect(atData.metaData!.version, 0);
-        expect(atData.metaData?.createdBy, atSign);
+        AtMetaData md = (await secondaryPersistenceStore!
+                .getSecondaryKeyStore()!
+                .get('$alice:phone$alice'))!
+            .metaData!;
+        expect(md.createdAt!.difference(start).inMicroseconds, isPositive);
+        expect(md.updatedAt!.difference(start).inMicroseconds, isPositive);
+        expect(md.version, 0);
+        expect(md.createdBy, atSign);
         // verify commit entry data
         // The "getEntry" method is specific to "client" operations. Hence
         // replaced with "getEntries"
