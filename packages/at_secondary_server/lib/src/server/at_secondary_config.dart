@@ -76,9 +76,12 @@ class AtSecondaryConfig {
   static const int _outboundMaxLimit = 200;
   static const int _unauthenticatedInboundIdleTimeMillis =
       10 * 60 * 1000; // 10 minutes
+  static const int _unauthenticatedOutboundIdleTimeMillis =
+      _unauthenticatedInboundIdleTimeMillis - 1000;
   static const int _authenticatedInboundIdleTimeMillis =
-      30 * 24 * 60 * 60 * 1000; // 30 days
-  static const int _outboundIdleTimeMillis = 600000;
+      60 * 60 * 1000; // 1 hour
+  static const int _authenticatedOutboundIdleTimeMillis =
+      _authenticatedInboundIdleTimeMillis - 1000;
 
   //Lookup
   static const int _lookupDepthOfResolution = 3;
@@ -423,7 +426,7 @@ class AtSecondaryConfig {
   }
 
   // ignore: non_constant_identifier_names
-  static int get outbound_idletime_millis {
+  static int get unauthenticated_outbound_idletime_millis {
     var result = _getIntEnvVar('outbound_idletime_millis');
     if (result != null) {
       return result;
@@ -431,12 +434,12 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['connection', 'outbound_idle_time_millis']);
     } on ElementNotFoundException {
-      return _outboundIdleTimeMillis;
+      return _unauthenticatedOutboundIdleTimeMillis;
     }
   }
 
   // ignore: non_constant_identifier_names
-  static int get inbound_idletime_millis {
+  static int get unauthenticated_inbound_idletime_millis {
     var result = _getIntEnvVar('inbound_idletime_millis');
     if (result != null) {
       return result;
@@ -459,6 +462,20 @@ class AtSecondaryConfig {
           ['connection', 'authenticated_inbound_idle_time_millis']);
     } on ElementNotFoundException {
       return _authenticatedInboundIdleTimeMillis;
+    }
+  }
+
+  // ignore: non_constant_identifier_names
+  static int get authenticated_outbound_idletime_millis {
+    var result = _getIntEnvVar('authenticated_outbound_idletime_millis');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(
+          ['connection', 'authenticated_outbound_idle_time_millis']);
+    } on ElementNotFoundException {
+      return _authenticatedOutboundIdleTimeMillis;
     }
   }
 

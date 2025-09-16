@@ -7,6 +7,8 @@ import 'package:at_server_spec/at_server_spec.dart';
 abstract class OutboundSocketConnection<T extends Socket>
     extends BaseSocketConnection {
   OutboundSocketConnection(T super.socket);
+  bool get authenticated;
+  set authenticated(bool b);
 }
 
 /// Metadata information for [OutboundSocketConnection]

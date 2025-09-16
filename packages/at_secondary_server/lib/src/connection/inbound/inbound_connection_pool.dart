@@ -1,5 +1,6 @@
 import 'dart:collection';
 
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
 
@@ -28,12 +29,50 @@ class InboundConnectionPool {
     }
   }
 
+  Map mdSnippet(InboundConnectionMetadata md) => {
+        'from': md.fromAtSign,
+        'created': md.created?.toIso8601String(),
+        'lastAccessed': md.lastAccessed?.toIso8601String()
+      };
+
+  Map<String, dynamic> get stats {
+    int selfAuthCount = 0;
+    List selfAuthList = [];
+
+    int polAuthCount = 0;
+    List polAuthList = [];
+
+    int unAuthCount = 0;
+    List unAuthList = [];
+
+    for (final c in _connections) {
+      InboundConnectionMetadata md = c.metaData as InboundConnectionMetadata;
+      if (md.isAuthenticated) {
+        selfAuthCount++;
+        selfAuthList.add(mdSnippet(md));
+      } else if (c.metaData.isPolAuthenticated) {
+        polAuthCount++;
+        polAuthList.add(mdSnippet(md));
+      } else {
+        unAuthCount++;
+        unAuthList.add(mdSnippet(md));
+      }
+    }
+    return {
+      'total': selfAuthCount + polAuthCount + unAuthCount,
+      'selfAuthenticated': {'count': selfAuthCount, 'list': selfAuthList},
+      'polAuthenticated': {'count': polAuthCount, 'list': polAuthList},
+      'unAuthenticated': {'count': unAuthCount, 'list': unAuthList},
+    };
+  }
+
   bool hasCapacity() {
     return _connections.length < _size;
   }
 
   bool passedEightyFivePercent = false;
   bool passedNinetyFivePercent = false;
+
   void add(InboundConnection inboundConnection) {
     _connections.add(inboundConnection);
     _checkWarningStatesOnAdd();

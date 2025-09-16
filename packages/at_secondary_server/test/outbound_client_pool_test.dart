@@ -27,7 +27,8 @@ void main() async {
 
   setUp(() {
     var serverContext = AtSecondaryContext();
-    serverContext.outboundIdleTimeMillis = outboundIdleTimeMillis;
+    serverContext.unauthenticatedOutboundIdleTimeMillis =
+        outboundIdleTimeMillis;
     AtSecondaryServerImpl.getInstance().serverContext = serverContext;
     outboundClientPool = OutboundClientPool();
 
