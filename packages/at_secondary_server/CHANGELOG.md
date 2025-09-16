@@ -1,3 +1,8 @@
+# 3.7.0
+- feat : better `stats:1` (inbound connections) output
+- fix: better idle time defaults for inbound and outbound connections, 
+  authenticated and unauthenticated 
+
 # 3.6.0
 - feat: Expanded http support
 
