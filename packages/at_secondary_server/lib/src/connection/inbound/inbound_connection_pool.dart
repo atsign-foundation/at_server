@@ -59,6 +59,7 @@ class InboundConnectionPool {
       }
     }
     return {
+      'total': selfAuthCount + polAuthCount + unAuthCount,
       'selfAuthenticated': {'count': selfAuthCount, 'list': selfAuthList},
       'polAuthenticated': {'count': polAuthCount, 'list': polAuthList},
       'unAuthenticated': {'count': unAuthCount, 'list': unAuthList},
