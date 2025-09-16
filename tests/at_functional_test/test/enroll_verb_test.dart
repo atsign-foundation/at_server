@@ -1151,7 +1151,7 @@ void main() {
       inboundConnectionResult =
           inboundConnectionResult.replaceFirst('data:', '');
       int numberOfInboundConnectionsBeforeRevoke =
-          int.parse(jsonDecode(inboundConnectionResult)[0]['value']['total']);
+          jsonDecode(inboundConnectionResult)[0]['value']['total'];
       await firstAtSignConnection.sendRequestToServer(
           'enroll:revoke:{"enrollmentId":"${enrollmentIds[2]}"}');
       // get number of inbound connections after revoke
@@ -1160,7 +1160,7 @@ void main() {
       inboundConnectionResult =
           inboundConnectionResult.replaceFirst('data:', '');
       int numberOfInboundConnectionsAfterRevoke =
-          int.parse(jsonDecode(inboundConnectionResult)[0]['value']['total']);
+          jsonDecode(inboundConnectionResult)[0]['value']['total'];
       expect(numberOfInboundConnectionsAfterRevoke,
           numberOfInboundConnectionsBeforeRevoke - 1);
 
