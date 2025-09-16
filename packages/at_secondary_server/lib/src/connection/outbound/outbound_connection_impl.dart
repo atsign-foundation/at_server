@@ -7,8 +7,20 @@ import 'package:uuid/uuid.dart';
 
 class OutboundConnectionImpl<T extends Socket>
     extends OutboundSocketConnection {
-  static int? outboundIdleTime =
-      AtSecondaryServerImpl.getInstance().serverContext!.outboundIdleTimeMillis;
+  @override
+  bool authenticated = false;
+
+  int get outboundIdleTime {
+    if (authenticated) {
+      return AtSecondaryServerImpl.getInstance()
+          .serverContext!
+          .authenticatedOutboundIdleTimeMillis;
+    } else {
+      return AtSecondaryServerImpl.getInstance()
+          .serverContext!
+          .unauthenticatedOutboundIdleTimeMillis;
+    }
+  }
 
   OutboundConnectionImpl(T socket, String? toAtSign) : super(socket) {
     var sessionId = '_${Uuid().v4()}';
@@ -40,7 +52,7 @@ class OutboundConnectionImpl<T extends Socket>
   }
 
   bool _isIdle() {
-    return _getIdleTimeMillis() > outboundIdleTime!;
+    return _getIdleTimeMillis() > outboundIdleTime;
   }
 
   @override

@@ -31,16 +31,6 @@ class SecondaryServerBootStrapper {
       secondaryContext.port = int.parse(results['server_port']);
       secondaryContext.currentAtSign = AtUtils.fixAtSign(results['at_sign']);
       secondaryContext.sharedSecret = results['shared_secret'];
-      secondaryContext.inboundConnectionLimit =
-          AtSecondaryConfig.inbound_max_limit;
-      secondaryContext.outboundConnectionLimit =
-          AtSecondaryConfig.outbound_max_limit;
-      secondaryContext.unauthenticatedInboundIdleTimeMillis =
-          AtSecondaryConfig.inbound_idletime_millis;
-      secondaryContext.authenticatedInboundIdleTimeMillis =
-          AtSecondaryConfig.authenticated_inbound_idletime_millis;
-      secondaryContext.outboundIdleTimeMillis =
-          AtSecondaryConfig.outbound_idletime_millis;
       if (useTLS!) {
         secondaryContext.securityContext = AtSecurityContextImpl();
       }

@@ -26,7 +26,7 @@ void main() {
   setUp(() {
     var serverContext = AtSecondaryContext();
     serverContext.unauthenticatedInboundIdleTimeMillis = 50;
-    serverContext.outboundIdleTimeMillis = 30;
+    serverContext.unauthenticatedOutboundIdleTimeMillis = 30;
     AtSecondaryServerImpl.getInstance().serverContext = serverContext;
   });
 
@@ -151,13 +151,13 @@ void main() {
       sleep(Duration(
           milliseconds: AtSecondaryServerImpl.getInstance()
                   .serverContext!
-                  .outboundIdleTimeMillis ~/
+                  .unauthenticatedOutboundIdleTimeMillis ~/
               2));
       expect(outBoundClient_1.isInValid(), false);
       sleep(Duration(
           milliseconds: AtSecondaryServerImpl.getInstance()
                       .serverContext!
-                      .outboundIdleTimeMillis ~/
+                      .unauthenticatedOutboundIdleTimeMillis ~/
                   2 +
               1));
       expect(outBoundClient_1.isInValid(), true);

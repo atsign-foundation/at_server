@@ -17,7 +17,7 @@ void main() {
 
   setUp(() {
     var serverContext = AtSecondaryContext();
-    serverContext.outboundIdleTimeMillis = 50;
+    serverContext.unauthenticatedOutboundIdleTimeMillis = 50;
     AtSecondaryServerImpl.getInstance().serverContext = serverContext;
     mockSocket = MockSocket();
     when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
@@ -43,7 +43,7 @@ void main() {
       sleep(Duration(
           milliseconds: AtSecondaryServerImpl.getInstance()
                   .serverContext!
-                  .outboundIdleTimeMillis +
+                  .unauthenticatedOutboundIdleTimeMillis +
               1));
       expect(client.isInValid(), true);
     });

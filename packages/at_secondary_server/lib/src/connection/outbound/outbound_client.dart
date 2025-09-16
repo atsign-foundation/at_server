@@ -204,6 +204,7 @@ class OutboundClient {
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
       if (handShakeResult.startsWith('$currentAtSign@')) {
         logger.info("pol handshake complete");
+        outboundConnection!.authenticated = true;
         return true;
       } else {
         logger.info(
