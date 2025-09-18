@@ -27,7 +27,6 @@ import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_update_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
-import 'package:at_secondary/src/verb/metrics/metrics_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_utils/at_utils.dart';
@@ -42,13 +41,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   static final bool? useTLS = AtSecondaryConfig.useTLS;
   static final AtSecondaryServerImpl _singleton =
       AtSecondaryServerImpl._internal();
-  static final inboundConnectionFactory =
-      InboundConnectionManager.getInstance();
-  static final String? storagePath = AtSecondaryConfig.storagePath;
-  static final String? commitLogPath = AtSecondaryConfig.commitLogPath;
-  static final String? accessLogPath = AtSecondaryConfig.accessLogPath;
-  static final String? notificationStoragePath =
-      AtSecondaryConfig.notificationStoragePath;
+
   static final int? expiringRunFreqMins = AtSecondaryConfig.expiringRunFreqMins;
   static final int? commitLogCompactionFrequencyMins =
       AtSecondaryConfig.commitLogCompactionFrequencyMins;
@@ -97,7 +90,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   dynamic _serverSocket;
   bool _isRunning = false;
   late String currentAtSign;
-  var _commitLog;
+  late AtCommitLog commitLog;
   var _accessLog;
   var signingKey;
   AtSecondaryContext? serverContext;
@@ -119,6 +112,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late var atAccessLogCompactionConfig;
   late var atNotificationCompactionConfig;
   late EnrollmentManager enrollmentManager;
+  late InboundConnectionManager inboundConnectionManager;
 
   @override
   void setExecutor(VerbExecutor executor) {
@@ -209,7 +203,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     //Commit Log Compaction
     commitLogCompactionJobInstance =
-        AtCompactionJob(_commitLog, secondaryPersistenceStore);
+        AtCompactionJob(commitLog, secondaryPersistenceStore);
     atCommitLogCompactionConfig = AtCompactionConfig()
       ..compactionPercentage = commitLogCompactionPercentage
       ..compactionFrequencyInMins = commitLogCompactionFrequencyMins!;
@@ -321,8 +315,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // We're currently in process of restarting, so we can delete the file which triggers restarts
     await certificateReloadJob!.deleteRestartFile();
 
-    // Initialize inbound factory and outbound manager
-    inboundConnectionFactory.init(serverContext!.inboundConnectionLimit);
+    inboundConnectionManager = InboundConnectionManager(
+        serverAtSign: currentAtSign,
+        poolSize: serverContext!.inboundConnectionLimit);
 
     // Notification job
     notificationResourceManager = ResourceManager.getInstance();
@@ -406,7 +401,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.finest('Subscribing to dynamic changes made to inbound_max_limit');
       AtSecondaryConfig.subscribe(ModifiableConfigs.inboundMaxLimit)
           ?.listen((newSize) {
-        inboundConnectionFactory.init(newSize, isColdInit: false);
+        inboundConnectionManager.pool.resize(newSize);
         logger.finest(
             'inbound_max_limit change received. Modifying inbound_max_limit of server to $newSize');
       });
@@ -441,7 +436,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
               ModifiableConfigs.commitLogCompactionFrequencyMins)
           ?.listen((newFrequency) async {
         await restartCompaction(commitLogCompactionJobInstance,
-            atCommitLogCompactionConfig, newFrequency, _commitLog);
+            atCommitLogCompactionConfig, newFrequency, commitLog);
       });
 
       //subscriber for autoNotify state change
@@ -486,8 +481,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   webSocketListener(WebSocket ws) async {
     InboundConnection? connection;
     try {
-      var inBoundConnectionManager = InboundConnectionManager.getInstance();
-      connection = inBoundConnectionManager.createWebSocketConnection(ws,
+      connection = inboundConnectionManager.createWebSocketConnection(ws,
           sessionId: '_${Uuid().v4()}');
       connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
       await connection.write('@');
@@ -535,8 +529,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         try {
           logger.info(
               'In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
-          var inBoundConnectionManager = InboundConnectionManager.getInstance();
-          connection = inBoundConnectionManager.createSocketConnection(
+          connection = inboundConnectionManager.createSocketConnection(
               clientSocket,
               sessionId: '_${Uuid().v4()}');
           connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
@@ -675,7 +668,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       await StatsNotificationService.getInstance().cancel();
 
       logger.info("Terminating all inbound connections");
-      inboundConnectionFactory.removeAllConnections();
+      inboundConnectionManager.close();
 
       logger.info("Stopping Notification Resource Manager");
       notificationResourceManager.stop();
@@ -713,23 +706,22 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// Initializes [SecondaryKeyStore], [AtCommitLog], [AtNotificationKeystore] and [AtAccessLog] instances.
   Future<void> _initializePersistentInstances() async {
     // Initialize commit log
-    _commitLog = await AtCommitLogManagerImpl.getInstance().getCommitLog(
+    commitLog = (await AtCommitLogManagerImpl.getInstance().getCommitLog(
         serverContext!.currentAtSign!,
-        commitLogPath: commitLogPath);
-    LastCommitIDMetricImpl.getInstance().atCommitLog = _commitLog;
-    _commitLog!.addEventListener(
-        CommitLogCompactionService(_commitLog.commitLogKeyStore));
+        commitLogPath: AtSecondaryConfig.commitLogPath))!;
+    commitLog.addEventListener(
+        CommitLogCompactionService(commitLog.commitLogKeyStore));
 
     // Initialize access log
     var atAccessLog = await AtAccessLogManagerImpl.getInstance().getAccessLog(
         serverContext!.currentAtSign!,
-        accessLogPath: accessLogPath);
+        accessLogPath: AtSecondaryConfig.accessLogPath);
     _accessLog = atAccessLog;
 
     // Initialize notification storage
     var notificationKeystore = AtNotificationKeystore.getInstance();
     notificationKeystore.currentAtSign = serverContext!.currentAtSign!;
-    await notificationKeystore.init(notificationStoragePath!);
+    await notificationKeystore.init(AtSecondaryConfig.notificationStoragePath);
     // Loads the notifications into Map.
     await NotificationUtil.loadNotificationMap();
 
@@ -739,7 +731,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
             .getSecondaryPersistenceStore(serverContext!.currentAtSign)!;
     hivePersistenceManager =
         secondaryPersistenceStore.getHivePersistenceManager()!;
-    await hivePersistenceManager.init(storagePath!);
+    await hivePersistenceManager.init(AtSecondaryConfig.storagePath);
 
     var atData = AtData();
     atData.data = serverContext!.sharedSecret;
@@ -749,7 +741,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     secondaryKeyStore = SecondaryPersistenceStoreFactory.getInstance()
         .getSecondaryPersistenceStore(serverContext!.currentAtSign)!
         .getSecondaryKeyStore()!;
-    secondaryKeyStore.commitLog = _commitLog;
+    secondaryKeyStore.commitLog = commitLog;
 
     keyStoreManager.keyStore = secondaryKeyStore;
     // Initialize the hive store

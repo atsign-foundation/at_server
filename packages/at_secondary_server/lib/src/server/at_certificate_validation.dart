@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:at_secondary/src/connection/inbound/connection_util.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -128,15 +127,18 @@ class AtCertificateValidationJob {
   ///     - If count is 0, return true (we're able to restart gracefully)
   /// - If the gracefulExitWaitTimeout has passed, we need to restart anyway. Return false
   Future<bool> waitUntilReadyToRestart() async {
-    AtSecondaryServerImpl.getInstance().pause();
+    final atServer = AtSecondaryServerImpl.getInstance();
+    atServer.pause();
 
     DateTime gracePeriodEnd = DateTime.now().add(gracefulExitWaitTimeout);
 
     int monitorSize, totalSize, activeSize;
     while (DateTime.now().toUtc().microsecondsSinceEpoch <
         gracePeriodEnd.microsecondsSinceEpoch) {
-      monitorSize = ConnectionUtil.getMonitorConnectionSize();
-      totalSize = ConnectionUtil.getActiveConnectionSize();
+      monitorSize =
+          atServer.inboundConnectionManager.pool.getMonitorConnectionSize();
+      totalSize =
+          atServer.inboundConnectionManager.pool.getActiveConnectionSize();
       activeSize = totalSize - monitorSize;
       logger.info(
           'Active connections $activeSize ($totalSize total, $monitorSize monitor(s))');
@@ -148,8 +150,10 @@ class AtCertificateValidationJob {
         await Future.delayed(Duration(seconds: 1));
       }
     }
-    monitorSize = ConnectionUtil.getMonitorConnectionSize();
-    totalSize = ConnectionUtil.getActiveConnectionSize();
+    monitorSize =
+        atServer.inboundConnectionManager.pool.getMonitorConnectionSize();
+    totalSize =
+        atServer.inboundConnectionManager.pool.getActiveConnectionSize();
     activeSize = totalSize - monitorSize;
     logger.warning(
         'gracefulExitWaitTimeout $gracefulExitWaitTimeout has passed. Will restart server even though we may have active connections');

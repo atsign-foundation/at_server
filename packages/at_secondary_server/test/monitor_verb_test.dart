@@ -5,7 +5,7 @@ import 'package:at_chops/at_chops.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/enroll_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
@@ -17,15 +17,15 @@ import 'package:uuid/uuid.dart';
 import 'test_utils.dart';
 
 void main() {
-  setUpAll(() {
-    InboundConnectionPool.getInstance().init(3, isColdInit: true);
+  setUp(() async {
+    await verbTestsSetUp();
+    atServer.inboundConnectionManager =
+        InboundConnectionManager(serverAtSign: alice, poolSize: 3);
   });
+
   group(
       'A group tests to verify monitor verb when connection is authenticate using legacy PKAM',
       () {
-    setUp(() async {
-      await verbTestsSetUp();
-    });
     test('A test to verify monitor verb writes all notifications', () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       inboundConnection.metaData.isAuthenticated = true;

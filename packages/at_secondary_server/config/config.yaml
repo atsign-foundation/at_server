@@ -64,13 +64,13 @@ connection:
 
   # The maximum idle time in milliseconds for an **authenticated** inbound connection.
   # Connections which have been idle for longer than this will be closed.
-  # Default value is 1 hour (60 * 60 * 1000 == 3600000
-  authenticated_inbound_idle_time_millis: 3600000
+  # Default value is 10 minutes (10 * 60 * 1000 == 600000)
+  authenticated_inbound_idle_time_millis: 600000
 
   # The maximum idle time in milliseconds for an **authenticated** outbound connection.
   # Connections which have been idle for longer than this will be closed.
-  # Default value is 59 minutes 59 seconds (1 second less than authenticated_inbound_idletime_millis)
-  authenticated_outbound_idle_time_millis: 3599000
+  # Default value is 9 minutes 59 seconds (1 second less than authenticated_inbound_idletime_millis)
+  authenticated_outbound_idle_time_millis: 599000
 
   # At any point, at most [outbound_max_limit] outbound connections are allowed.
   outbound_max_limit: 200

@@ -9,30 +9,26 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart
 
 /// Factory to create and maintain [InboundConnection] using [InboundConnectionPool]
 class InboundConnectionManager implements AtConnectionFactory {
-  static final InboundConnectionManager _singleton =
-      InboundConnectionManager._internal();
+  final int poolSize;
+  late InboundConnectionPool pool;
+  final String serverAtSign;
+  bool _closed = false;
 
-  InboundConnectionManager._internal();
+  bool get closed => _closed;
 
-  static const int defaultPoolSize = 100;
-
-  bool _isInitialized = false;
-
-  late InboundConnectionPool _pool;
-
-  factory InboundConnectionManager.getInstance() {
-    return _singleton;
+  InboundConnectionManager(
+      {required this.serverAtSign, required this.poolSize}) {
+    pool = InboundConnectionPool(serverAtSign: serverAtSign, size: poolSize);
   }
 
   /// Creates and adds an [InboundConnectionImpl] to the pool
-  /// If the pool is not initialized, initializes the pool with [defaultPoolSize]
   /// @param socket - client socket
   /// @param sessionId - current sessionId
   /// Throws a [InboundConnectionLimitException] if pool doesn't have capacity
   @override
   InboundConnection createSocketConnection(Socket socket, {String? sessionId}) {
-    if (!_isInitialized) {
-      init(defaultPoolSize);
+    if (closed) {
+      throw StateError('InboundConnectionManager is closed');
     }
     if (!hasCapacity()) {
       throw InboundConnectionLimitException(
@@ -40,8 +36,8 @@ class InboundConnectionManager implements AtConnectionFactory {
     }
     sessionId ??= '_${Uuid().v4()}';
     var atConnection =
-        InboundConnectionImpl(socket, sessionId, owningPool: _pool);
-    _pool.add(atConnection);
+        InboundConnectionImpl(socket, sessionId, owningPool: pool);
+    pool.add(atConnection);
 
     return atConnection;
   }
@@ -54,35 +50,28 @@ class InboundConnectionManager implements AtConnectionFactory {
   @override
   InboundConnection createWebSocketConnection(WebSocket ws,
       {String? sessionId}) {
-    if (!_isInitialized) {
-      init(defaultPoolSize);
+    if (closed) {
+      throw StateError('InboundConnectionManager is closed');
     }
     if (!hasCapacity()) {
       throw InboundConnectionLimitException(
           'max limit reached on inbound pool');
     }
     sessionId ??= '_${Uuid().v4()}';
-    var atConnection = InboundWebSocketConnection(ws, sessionId, _pool);
-    _pool.add(atConnection);
+    var atConnection = InboundWebSocketConnection(ws, sessionId, pool);
+    pool.add(atConnection);
 
     return atConnection;
   }
 
   bool hasCapacity() {
-    _pool.clearInvalidConnections();
-    return _pool.hasCapacity();
+    pool.clearInvalidConnections();
+    return pool.hasCapacity();
   }
 
-  /// Initialises inbound client pool with a given size.
-  /// @param - size - Maximum clients the pool can hold
-  void init(int size, {bool isColdInit = true}) {
-    _pool = InboundConnectionPool.getInstance();
-    _pool.init(size, isColdInit: isColdInit);
-    _isInitialized = true;
-  }
-
-  /// Closes all the active connections accepted by the secondary
-  bool removeAllConnections() {
-    return _pool.clearAllConnections();
+  /// Closes all the active inbound connections, prevents new ones.
+  bool close() {
+    _closed = true;
+    return pool.clearAllConnections();
   }
 }

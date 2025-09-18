@@ -810,7 +810,7 @@ void main() {
     });
 
     test('test auto_notify notification expiry', () async {
-      SecondaryKeyStore keyStore = secondaryPersistenceStore!
+      SecondaryKeyStore keyStore = secondaryPersistenceStore
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
       AbstractUpdateVerbHandler.setAutoNotify(true);

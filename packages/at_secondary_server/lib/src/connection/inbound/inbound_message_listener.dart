@@ -4,8 +4,8 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_commons/at_commons.dart' as at_commons;
 import 'package:at_secondary/src/connection/base_connection.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
@@ -125,6 +125,9 @@ class InboundMessageListener {
   Future<void> _closeConnection() async {
     await connection.close();
     // Removes the connection from the InboundConnectionPool.
-    InboundConnectionPool.getInstance().remove(connection);
+    AtSecondaryServerImpl.getInstance()
+        .inboundConnectionManager
+        .pool
+        .remove(connection);
   }
 }

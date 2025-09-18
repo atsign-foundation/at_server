@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_utils/at_logger.dart';
@@ -55,8 +55,6 @@ class StatsNotificationService {
   final _logger = AtSignLogger('StatsNotificationService');
   late String currentAtSign;
   AtCommitLog? atCommitLog;
-  InboundConnectionPool inboundConnectionPool =
-      InboundConnectionPool.getInstance();
 
   static final Duration zeroDuration = Duration(microseconds: 0);
 
@@ -138,7 +136,10 @@ class StatsNotificationService {
     try {
       latestCommitID ??= atCommitLog!.lastCommittedSequenceNumber().toString();
       // Gets the list of active connections.
-      var connectionsList = inboundConnectionPool.getConnections();
+      var connectionsList = AtSecondaryServerImpl.getInstance()
+          .inboundConnectionManager
+          .pool
+          .getConnections();
       // Iterates on the list of active connections.
       for (var connection in connectionsList) {
         if (connection.isMonitor != null && connection.isMonitor!) {
