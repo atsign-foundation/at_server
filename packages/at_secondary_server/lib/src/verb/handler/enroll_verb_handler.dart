@@ -5,7 +5,6 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
@@ -384,7 +383,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
   Future<void> _dropRevokedClientConnection(String enrollmentId, bool forceFlag,
       InboundConnection currentInboundConnection, responseJson) async {
-    final inboundPool = InboundConnectionPool.getInstance();
+    final inboundPool =
+        AtSecondaryServerImpl.getInstance().inboundConnectionManager.pool;
     List<InboundConnection> connectionsToRemove = [];
     for (InboundConnection connection in inboundPool.getConnections()) {
       var inboundConnectionMetadata =

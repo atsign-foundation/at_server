@@ -2,8 +2,9 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:mocktail/mocktail.dart';
@@ -21,91 +22,96 @@ void main() async {
 
   verbTestsSetUpLogging();
 
+  late InboundConnectionPool pool;
+
   setUpAll(() {
     serverContext.unauthenticatedInboundIdleTimeMillis = 250;
     serverContext.authenticatedInboundIdleTimeMillis = 500;
     serverContext.inboundConnectionLowWaterMarkRatio = 0.5;
     serverContext.unauthenticatedMinAllowableIdleTimeMillis = 20;
     serverContext.authenticatedMinAllowableIdleTimeMillis = 100;
-    AtSecondaryServerImpl.getInstance().serverContext = serverContext;
-    InboundConnectionPool.getInstance().init(10);
+    atServer.serverContext = serverContext;
+    atServer.inboundConnectionManager = InboundConnectionManager(
+        serverAtSign: alice, poolSize: AtSecondaryConfig.inbound_max_limit);
+    pool = atServer.inboundConnectionManager.pool;
+    pool.resize(10);
 
     mockSocket = MockSocket();
     when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
         .thenReturn(true);
   });
   tearDown(() {
-    InboundConnectionPool.getInstance().clearAllConnections();
+    pool.clearAllConnections();
   });
   group('A group of inbound connection pool test', () {
     test('test connection pool init', () {
-      InboundConnectionPool.getInstance().init((5));
-      expect(InboundConnectionPool.getInstance().getCapacity(), 5);
-      expect(InboundConnectionPool.getInstance().getCurrentSize(), 0);
+      pool.resize(5);
+      expect(pool.getCapacity(), 5);
+      expect(pool.getCurrentSize(), 0);
     });
 
     test('test connection pool add connections', () {
-      var poolInstance = InboundConnectionPool.getInstance();
-      poolInstance.init(5);
+      pool.resize(5);
       var connection1 = InboundConnectionImpl(mockSocket, 'aaa');
       var connection2 = InboundConnectionImpl(mockSocket, 'bbb');
-      poolInstance.add(connection1);
-      poolInstance.add(connection2);
-      expect(poolInstance.getCapacity(), 5);
-      expect(poolInstance.getCurrentSize(), 2);
+      pool.add(connection1);
+      pool.add(connection2);
+      expect(pool.getCapacity(), 5);
+      expect(pool.getCurrentSize(), 2);
     });
     test('test connection pool has capacity', () {
-      var poolInstance = InboundConnectionPool.getInstance();
-      poolInstance.init(2);
+      pool.resize(2);
       var connection1 = InboundConnectionImpl(mockSocket, 'aaa');
-      poolInstance.add(connection1);
-      expect(poolInstance.hasCapacity(), true);
+      pool.add(connection1);
+      expect(pool.hasCapacity(), true);
     });
 
     test('test connection pool has no capacity', () {
-      var poolInstance = InboundConnectionPool.getInstance();
-      poolInstance.init(2);
+      pool.resize(2);
       var connection1 = InboundConnectionImpl(mockSocket, 'aaa');
       var connection2 = InboundConnectionImpl(mockSocket, 'bbb');
-      poolInstance.add(connection1);
-      poolInstance.add(connection2);
-      expect(poolInstance.hasCapacity(), false);
+      pool.add(connection1);
+      pool.add(connection2);
+      expect(pool.hasCapacity(), false);
     });
 
     test('test connection pool - clear closed connection', () {
-      var poolInstance = InboundConnectionPool.getInstance();
-      poolInstance.init(2);
-      var connection1 = MockInboundConnectionImpl(mockSocket, 'aaa');
-      var connection2 = MockInboundConnectionImpl(mockSocket, 'bbb');
-      poolInstance.add(connection1);
-      poolInstance.add(connection2);
-      expect(poolInstance.getCurrentSize(), 2);
+      pool.resize(2);
+      var connection1 =
+          FakeInboundConnectionImpl(mockSocket, 'aaa', owningPool: pool);
+      var connection2 =
+          FakeInboundConnectionImpl(mockSocket, 'bbb', owningPool: pool);
+      pool.add(connection1);
+      pool.add(connection2);
+      expect(pool.getCurrentSize(), 2);
       connection1.close();
-      poolInstance.clearInvalidConnections();
-      expect(poolInstance.getCurrentSize(), 1);
+      pool.clearInvalidConnections();
+      expect(pool.getCurrentSize(), 1);
     });
 
     test('test connection pool - clear idle connection', () async {
-      var poolInstance = InboundConnectionPool.getInstance();
-      poolInstance.init(10);
-      var connection1 = MockInboundConnectionImpl(mockSocket, 'aaa');
-      var connection2 = MockInboundConnectionImpl(mockSocket, 'bbb');
-      var connection3 = MockInboundConnectionImpl(mockSocket, 'ccc');
-      poolInstance.add(connection1);
-      poolInstance.add(connection2);
-      poolInstance.add(connection3);
+      pool.resize(10);
+      var connection1 =
+          FakeInboundConnectionImpl(mockSocket, 'aaa', owningPool: pool);
+      var connection2 =
+          FakeInboundConnectionImpl(mockSocket, 'bbb', owningPool: pool);
+      var connection3 =
+          FakeInboundConnectionImpl(mockSocket, 'ccc', owningPool: pool);
+      pool.add(connection1);
+      pool.add(connection2);
+      pool.add(connection3);
       sleep(Duration(
           milliseconds:
               (serverContext.unauthenticatedInboundIdleTimeMillis * 0.9)
                   .floor()));
       await connection2.write('test data');
-      expect(poolInstance.getCurrentSize(), 3);
+      expect(pool.getCurrentSize(), 3);
       sleep(Duration(
           milliseconds:
               (serverContext.unauthenticatedInboundIdleTimeMillis * 0.2)
                   .floor()));
-      poolInstance.clearInvalidConnections();
-      expect(poolInstance.getCurrentSize(), 1);
+      pool.clearInvalidConnections();
+      expect(pool.getCurrentSize(), 1);
     });
 
     /// Verify that, at lowWaterMark, allowable idle time is still as configured by inboundIdleTimeMillis
@@ -113,18 +119,18 @@ void main() async {
         () async {
       int maxPoolSize = 10;
 
-      var poolInstance = InboundConnectionPool.getInstance();
-      poolInstance.init(maxPoolSize);
+      pool.resize(maxPoolSize);
       List<AtConnection> connections = [];
 
       int lowWaterMark =
           (maxPoolSize * serverContext.inboundConnectionLowWaterMarkRatio)
               .floor();
       for (int i = 0; i < lowWaterMark; i++) {
-        var mockConnection =
-            MockInboundConnectionImpl(mockSocket, 'mock session $i');
+        var mockConnection = FakeInboundConnectionImpl(
+            mockSocket, 'mock session $i',
+            owningPool: pool);
         connections.add(mockConnection);
-        poolInstance.add(mockConnection);
+        pool.add(mockConnection);
       }
 
       sleep(Duration(
@@ -133,14 +139,14 @@ void main() async {
                   .floor()));
 
       await connections[1].write('test data');
-      expect(poolInstance.getCurrentSize(), lowWaterMark);
+      expect(pool.getCurrentSize(), lowWaterMark);
       sleep(Duration(
           milliseconds:
               ((serverContext.unauthenticatedInboundIdleTimeMillis * 0.1) + 1)
                   .floor()));
 
-      poolInstance.clearInvalidConnections();
-      expect(poolInstance.getCurrentSize(), 1);
+      pool.clearInvalidConnections();
+      expect(pool.getCurrentSize(), 1);
     });
 
     /// Verify that, beyond lowWaterMark, allowable idle time progressively reduces
@@ -159,22 +165,22 @@ void main() async {
         () async {
       int maxPoolSize = 100; // Please don't change this
 
-      var poolInstance = InboundConnectionPool.getInstance();
-      poolInstance.init(maxPoolSize);
-      List<MockInboundConnectionImpl> connections = [];
+      pool.resize(maxPoolSize);
+      List<FakeInboundConnectionImpl> connections = [];
 
       int desiredPoolSize = (maxPoolSize * 0.9).floor();
       int numUnauthenticated = 0;
       for (int i = 0; i < desiredPoolSize; i++) {
-        var mockConnection =
-            MockInboundConnectionImpl(mockSocket, 'mock session $i');
+        var mockConnection = FakeInboundConnectionImpl(
+            mockSocket, 'mock session $i',
+            owningPool: pool);
         if (i.isEven) {
           mockConnection.metaData.isAuthenticated = true;
         } else {
           numUnauthenticated++;
         }
         connections.add(mockConnection);
-        poolInstance.add(mockConnection);
+        pool.add(mockConnection);
       }
 
       DateTime startTimeAsDateTime = DateTime.now();
@@ -187,7 +193,7 @@ void main() async {
       }
 
       int unauthenticatedActualAllowableIdleTime = calcActualAllowableIdleTime(
-          poolInstance,
+          pool,
           maxPoolSize,
           serverContext.unauthenticatedMinAllowableIdleTimeMillis,
           serverContext.unauthenticatedInboundIdleTimeMillis);
@@ -213,12 +219,12 @@ void main() async {
             .write('test data'); // odds are not authenticated
       }
 
-      expect(poolInstance.getCurrentSize(), desiredPoolSize);
+      expect(pool.getCurrentSize(), desiredPoolSize);
 
       // pool size should be as expected before checking invalidity
-      poolInstance.clearInvalidConnections();
+      pool.clearInvalidConnections();
       // no invalid connections should have yet been cleared
-      expect(poolInstance.getCurrentSize(), desiredPoolSize);
+      expect(pool.getCurrentSize(), desiredPoolSize);
 
       // now let's sleep until the unused connections will have been idle for longer than the currently allowable idle time for UNAUTHENTICATED connections
       elapsed = DateTime.now().millisecondsSinceEpoch - startTimeAsMillis;
@@ -231,18 +237,18 @@ void main() async {
 
       // now when we clear invalid connections, we're going to see all of the unused unauthenticated connections returned to pool
       // Since we wrote to 10 unauthenticated connections, that means we will clean up numUnauthenticated - 10
-      var preClearSize = poolInstance.getCurrentSize();
-      poolInstance.clearInvalidConnections();
+      var preClearSize = pool.getCurrentSize();
+      pool.clearInvalidConnections();
       int expected =
           desiredPoolSize - (numUnauthenticated - numUnAuthToWriteTo);
       elapsed = DateTime.now().millisecondsSinceEpoch - startTimeAsMillis;
       logger.info(
           '$elapsed milliseconds after start: expect pool size after unauthenticated clean up to be $expected (pre-clear size was $preClearSize)');
-      expect(poolInstance.getCurrentSize(), expected);
+      expect(pool.getCurrentSize(), expected);
 
       // now let's sleep until the unused connections will have been idle for longer than the currently allowable idle time for AUTHENTICATED connections
       int authenticatedActualAllowableIdleTime = calcActualAllowableIdleTime(
-          poolInstance,
+          pool,
           maxPoolSize,
           serverContext.authenticatedMinAllowableIdleTimeMillis,
           serverContext.authenticatedInboundIdleTimeMillis);
@@ -259,23 +265,22 @@ void main() async {
       // Since we wrote to 3 (numAuthToWriteTo variable above) authenticated connections, that means we will clean up an additional numAuthenticated - 3 connections
       // And we'll also be cleaning up all of the UN-Authenticated connections, leaving us
       // with just the 3 'authenticated' connections
-      preClearSize = poolInstance.getCurrentSize();
-      poolInstance.clearInvalidConnections();
+      preClearSize = pool.getCurrentSize();
+      pool.clearInvalidConnections();
       expected = numAuthToWriteTo;
       elapsed = DateTime.now().millisecondsSinceEpoch - startTimeAsMillis;
       logger.info(
           '$elapsed milliseconds after start : expect pool size after AUTHenticated clean up to be $expected (pre-clear size was $preClearSize)');
-      expect(poolInstance.getCurrentSize(), expected);
+      expect(pool.getCurrentSize(), expected);
     });
   });
 }
 
 int calcActualAllowableIdleTime(
-    poolInstance, maxPoolSize, minAllowableIdleTime, maxAllowableIdleTime) {
+    pool, maxPoolSize, minAllowableIdleTime, maxAllowableIdleTime) {
   int lowWaterMark =
       (maxPoolSize * serverContext.inboundConnectionLowWaterMarkRatio).floor();
-  int numConnectionsOverLwm =
-      max(poolInstance.getCurrentSize() - lowWaterMark, 0);
+  int numConnectionsOverLwm = max(pool.getCurrentSize() - lowWaterMark, 0);
   double idleTimeReductionFactor =
       1 - (numConnectionsOverLwm / (maxPoolSize - lowWaterMark));
   return (((maxAllowableIdleTime - minAllowableIdleTime) *
@@ -284,9 +289,9 @@ int calcActualAllowableIdleTime(
       .floor();
 }
 
-class MockInboundConnectionImpl extends InboundConnectionImpl {
-  MockInboundConnectionImpl(super.socket, String super.sessionId)
-      : super(owningPool: InboundConnectionPool.getInstance());
+class FakeInboundConnectionImpl extends InboundConnectionImpl {
+  FakeInboundConnectionImpl(super.socket, String super.sessionId,
+      {required super.owningPool});
 
   @override
   Future<void> close() async {

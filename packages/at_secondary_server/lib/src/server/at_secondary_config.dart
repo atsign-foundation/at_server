@@ -79,7 +79,7 @@ class AtSecondaryConfig {
   static const int _unauthenticatedOutboundIdleTimeMillis =
       _unauthenticatedInboundIdleTimeMillis - 1000;
   static const int _authenticatedInboundIdleTimeMillis =
-      60 * 60 * 1000; // 1 hour
+      10 * 60 * 1000; // 10 minutes
   static const int _authenticatedOutboundIdleTimeMillis =
       _authenticatedInboundIdleTimeMillis - 1000;
 
@@ -381,9 +381,9 @@ class AtSecondaryConfig {
     }
   }
 
-  static String? get notificationStoragePath {
-    if (_envVars.containsKey('notificationStoragePath')) {
-      return _envVars['notificationStoragePath'];
+  static String get notificationStoragePath {
+    if (_envVars['notificationStoragePath'] != null) {
+      return _envVars['notificationStoragePath']!;
     }
     try {
       return getConfigFromYaml(['hive', 'notificationStoragePath']);
@@ -392,9 +392,9 @@ class AtSecondaryConfig {
     }
   }
 
-  static String? get accessLogPath {
-    if (_envVars.containsKey('accessLogPath')) {
-      return _envVars['accessLogPath'];
+  static String get accessLogPath {
+    if (_envVars['accessLogPath'] != null) {
+      return _envVars['accessLogPath']!;
     }
     try {
       return getConfigFromYaml(['hive', 'accessLogPath']);
@@ -403,9 +403,9 @@ class AtSecondaryConfig {
     }
   }
 
-  static String? get commitLogPath {
-    if (_envVars.containsKey('commitLogPath')) {
-      return _envVars['commitLogPath'];
+  static String get commitLogPath {
+    if (_envVars['commitLogPath'] != null) {
+      return _envVars['commitLogPath']!;
     }
     try {
       return getConfigFromYaml(['hive', 'commitLogPath']);
@@ -414,9 +414,9 @@ class AtSecondaryConfig {
     }
   }
 
-  static String? get storagePath {
-    if (_envVars.containsKey('secondaryStoragePath')) {
-      return _envVars['secondaryStoragePath'];
+  static String get storagePath {
+    if (_envVars['secondaryStoragePath'] != null) {
+      return _envVars['secondaryStoragePath']!;
     }
     try {
       return getConfigFromYaml(['hive', 'storagePath']);

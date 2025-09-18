@@ -24,7 +24,9 @@ class MockInboundConnectionPool extends Mock implements InboundConnectionPool {
 }
 
 void main() {
-  verbTestsSetUpLogging();
+  setUp(() async {
+    await verbTestsSetUp();
+  });
 
   AtCommitLog mockAtCommitLog = MockAtCommitLog();
   InboundConnectionPool mockInboundConnectionPool = MockInboundConnectionPool();
@@ -41,7 +43,7 @@ void main() {
         StatsNotificationServiceState.notScheduled);
 
     statsNotificationService.atCommitLog = mockAtCommitLog;
-    statsNotificationService.inboundConnectionPool = mockInboundConnectionPool;
+    atServer.inboundConnectionManager.pool = mockInboundConnectionPool;
 
     when(() => mockAtCommitLog.lastCommittedSequenceNumber())
         .thenAnswer((_) => 4);

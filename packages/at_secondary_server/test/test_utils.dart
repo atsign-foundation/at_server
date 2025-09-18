@@ -8,7 +8,7 @@ import 'package:at_lookup/at_lookup.dart' as at_lookup;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
@@ -113,7 +113,7 @@ late Function() socketOnDoneFn;
 late Function(Exception e, StackTrace st) socketOnErrorFn;
 
 String storageDir = '${Directory.current.path}/unit_test_storage';
-SecondaryPersistenceStore? secondaryPersistenceStore;
+late SecondaryPersistenceStore secondaryPersistenceStore;
 late AtCommitLog atCommitLog;
 
 /// Creates and persists a new approved enrollment
@@ -135,13 +135,15 @@ Future<String> createAndPersistAnEnrollment(
     'requestType': 'newEnrollment',
     'approval': {'state': 'approved'}
   };
-  await secondaryPersistenceStore!.getSecondaryKeyStore()?.put(
+  await secondaryPersistenceStore.getSecondaryKeyStore()?.put(
         key,
         AtData()..data = jsonEncode(enrollJson),
         skipCommit: true,
       );
   return id;
 }
+
+AtSecondaryServerImpl get atServer => AtSecondaryServerImpl.getInstance();
 
 void verbTestsSetUpLogging() {
   AtSignLogger.root_level = 'shout';
@@ -157,18 +159,17 @@ verbTestsSetUpAll() async {
 verbTestsSetUp() async {
   verbTestsSetUpLogging();
   // Initialize secondary persistent store
-  secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore(alice);
+  atServer.secondaryPersistenceStore = secondaryPersistenceStore =
+      SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(alice)!;
   // Initialize commit log
-  atCommitLog = (await AtCommitLogManagerImpl.getInstance()
+  atServer.commitLog = atCommitLog = (await AtCommitLogManagerImpl.getInstance()
       .getCommitLog(alice, commitLogPath: storageDir, enableCommitId: true))!;
-  secondaryPersistenceStore!.getSecondaryKeyStore()?.commitLog = atCommitLog;
+  secondaryPersistenceStore.getSecondaryKeyStore()?.commitLog = atCommitLog;
   // Init the hive instances
-  await secondaryPersistenceStore!
-      .getHivePersistenceManager()!
-      .init(storageDir);
+  await secondaryPersistenceStore.getHivePersistenceManager()!.init(storageDir);
 
-  secondaryKeyStore = secondaryPersistenceStore!.getSecondaryKeyStore()!;
+  secondaryKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
 
   var notificationKeystore = AtNotificationKeystore.getInstance();
   notificationKeystore.currentAtSign = alice;
@@ -189,9 +190,11 @@ verbTestsSetUp() async {
 
   inboundConnection = DummyInboundConnection();
   registerFallbackValue(inboundConnection);
-  final inboundPool = InboundConnectionPool.getInstance();
-  inboundPool.init(5);
-  inboundPool.add(inboundConnection);
+  atServer.inboundConnectionManager =
+      InboundConnectionManager(serverAtSign: alice, poolSize: 5);
+  // final inboundPool = InboundConnectionPool.getInstance();
+  // inboundPool.init(5);
+  // inboundPool.add(inboundConnection);
 
   outboundClientWithHandshake = OutboundClient(
       inboundConnection, bob, mockSecondaryAddressFinder, true,

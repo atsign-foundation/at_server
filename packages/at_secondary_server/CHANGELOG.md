@@ -1,5 +1,12 @@
+# 3.7.1
+- feat : added `stats:16` for a summary of number of inbound connections by 
+  type (self, other, anon) and `stats:17` for a detailed report on all 
+  inbound connections including atSigns, time established, last accessed time.
+- fix: better idle time defaults for inbound and outbound connections, 
+  authenticated and unauthenticated 
+- refactor: removed a bunch of singletons
+
 # 3.7.0
-- feat : better `stats:1` (inbound connections) output
 - fix: better idle time defaults for inbound and outbound connections, 
   authenticated and unauthenticated 
 
