@@ -12,9 +12,15 @@ permissions:  # added using https://github.com/step-security/secure-workflows
 jobs:
   Docker_Build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # for creating OIDC tokens for signing.
     steps:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
 
       # Extract branch for docker tag
       - name: Get branch name
@@ -29,17 +35,42 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
+        with:
+          tags: |
+            type=raw,value=dev_env
+            type=raw,value=dev_env-gha${{ github.run_number }}
+            type=raw,value=dev_env-${{ env.BRANCH }}-gha${{ github.run_number }}
+          images: |
+            atsigncompany/root
+          labels: |
+            org.opencontainers.image.description=atDirectory dev image
+
       # Build the Docker image for Dev
       - name: Build and push
+        id: docker_build
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           file: packages/at_root_server/Dockerfile
           context: packages/at_root_server
           push: true
-          tags: |
-            atsigncompany/root:dev_env
-            atsigncompany/root:dev_env-gha${{ github.run_number }}
-            atsigncompany/root:dev_env-${{ env.BRANCH }}-gha${{ github.run_number }}
+          sbom: true
+          provenance: version=v1,mode=max
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Sign the images with GitHub OIDC Token
+        env:
+          DIGEST: ${{ steps.docker_build.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          images=""
+          for tag in ${TAGS}; do
+            images+="${tag}@${DIGEST} "
+          done
+          cosign sign --yes ${images}
 
   Deploy_On_Dev_K8:
       needs: Docker_Build

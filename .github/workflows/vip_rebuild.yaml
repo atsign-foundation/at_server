@@ -15,9 +15,15 @@ permissions:  # added using https://github.com/step-security/secure-workflows
 jobs:
   ve_base:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # for creating OIDC tokens for signing.
     steps:
       - name: Checkout trunk
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
@@ -31,18 +37,42 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
+        with:
+          tags: |
+            type=raw,value=latest
+            type=raw,value=vip_rebuild-gha${{ github.run_number }}
+          images: |
+            atsigncompany/vebase
+          labels: |
+            org.opencontainers.image.description=Base image for Atsign Virtual Environment
+
       - name: Build and push new VE base
         id: docker_build_base
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           file: tools/build_virtual_environment/ve_base/Dockerfile
           push: true
-          tags: |
-            atsigncompany/vebase:latest
-            atsigncompany/vebase:vip_rebuild-gha${{ github.run_number }}
+          sbom: true
+          provenance: version=v1,mode=max
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           platforms: |
             linux/amd64
             linux/arm64/v8
+
+      - name: Sign the images with GitHub OIDC Token
+        env:
+          DIGEST: ${{ steps.docker_build_base.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          images=""
+          for tag in ${TAGS}; do
+            images+="${tag}@${DIGEST} "
+          done
+          cosign sign --yes ${images}
 
       - name: Image digest VE base
         run: echo ${{ steps.docker_build_base.outputs.digest }}
@@ -57,6 +87,9 @@ jobs:
   push_prod_virtualenv_image:
     needs: [ ve_base ]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # for creating OIDC tokens for signing.
     steps:
       - name: Get latest production tag
         id: prod_tag
@@ -70,6 +103,9 @@ jobs:
         with:
           ref: ${{ steps.prod_tag.outputs.prod_tag}}
 
+      - name: Install cosign
+        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
 
@@ -82,6 +118,16 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
+        with:
+          tags: |
+            type=raw,value=vip
+            type=raw,value=vip_rebuild-gha${{ github.run_number }}
+          images: |
+            atsigncompany/virtualenv
+
       - name: Build and push vip
         id: docker_build_vip
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
@@ -90,12 +136,21 @@ jobs:
           context: .
           push: true
           provenance: false
-          tags: |
-            atsigncompany/virtualenv:vip
-            atsigncompany/virtualenv:vip_rebuild-gha${{ github.run_number }}
+          tags: ${{ steps.meta.outputs.tags }}
           platforms: |
             linux/amd64
             linux/arm64/v8
+
+      - name: Sign the images with GitHub OIDC Token
+        env:
+          DIGEST: ${{ steps.docker_build_vip.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          images=""
+          for tag in ${TAGS}; do
+            images+="${tag}@${DIGEST} "
+          done
+          cosign sign --yes ${images}
 
       - name: Image digest vip
         run: echo ${{ steps.docker_build_vip.outputs.digest }}
@@ -109,6 +164,9 @@ jobs:
 
   push_prod_ephemeral_image:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # for creating OIDC tokens for signing.
     steps:
       - name: Get latest production tag
         id: prod_tag
@@ -122,6 +180,9 @@ jobs:
         with:
           ref: ${{ steps.prod_tag.outputs.prod_tag}}
 
+      - name: Install cosign
+        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
 
@@ -134,6 +195,16 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
+        with:
+          tags: |
+            type=raw,value=latest
+            type=raw,value=vip_rebuild-gha${{ github.run_number }}
+          images: |
+            atsigncompany/ephemeral
+
       - name: Build and push ephemeral
         id: docker_build_ephemeral
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
@@ -142,12 +213,21 @@ jobs:
           context: .
           push: true
           provenance: false
-          tags: |
-            atsigncompany/ephemeral:latest
-            atsigncompany/ephemeral:vip_rebuild-gha${{ github.run_number }}
+          tags: ${{ steps.meta.outputs.tags }}
           platforms: |
             linux/amd64
             linux/arm64/v8
+
+      - name: Sign the images with GitHub OIDC Token
+        env:
+          DIGEST: ${{ steps.docker_build_ephemeral.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          images=""
+          for tag in ${TAGS}; do
+            images+="${tag}@${DIGEST} "
+          done
+          cosign sign --yes ${images}
 
       - name: Image digest EE
         run: echo ${{ steps.docker_build_vip.outputs.digest }}

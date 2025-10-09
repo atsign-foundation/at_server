@@ -16,10 +16,14 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write # for creating OIDC tokens for signing.
     outputs:
       digest: ${{ steps.docker_build_canary_to_prod.outputs.digest }}
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
 
       # Extract version for docker tag
       - name: Get version
@@ -37,24 +41,43 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
+        with:
+          tags: |
+            type=raw,value=dess
+            type=raw,value=latest
+            type=raw,value=prod
+            type=raw,value=prod-${{ env.VERSION }}
+          images: |
+            atsigncompany/secondary
+
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_canary_to_prod
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           push: true
-          provenance: false
+          provenance: false # need right type of image spec for Shepherd
           file: tools/build_secondary/Dockerfile.canary_to_prod
           context: .
-          tags: |
-            atsigncompany/secondary:dess
-            atsigncompany/secondary:latest
-            atsigncompany/secondary:prod
-            atsigncompany/secondary:prod-${{ env.VERSION }}
+          tags: ${{ steps.meta.outputs.tags }}
           platforms: |
             linux/amd64
             linux/arm64/v8
             linux/arm/v7
+
+      - name: Sign the images with GitHub OIDC Token
+        env:
+          DIGEST: ${{ steps.docker_build_canary_to_prod.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          images=""
+          for tag in ${TAGS}; do
+            images+="${tag}@${DIGEST} "
+          done
+          cosign sign --yes ${images}
 
   prod_secondary_provenance:
     needs: [deploy_canary_secondary_to_prod_image]
@@ -77,10 +100,14 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write # for creating OIDC tokens for signing.
     outputs:
       digest: ${{ steps.docker_build_canary_to_vip.outputs.digest }}
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
 
       # Extract version for docker tag
       - name: Get version
@@ -98,6 +125,19 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
+        with:
+          tags: |
+            type=raw,value=latest
+            type=raw,value=vip
+            type=raw,value=vip-${{ env.VERSION }}
+          images: |
+            atsigncompany/virtualenv
+          labels: |
+            org.opencontainers.image.description=Atsign Virtual Environment
+
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push virtualenv image for amd64 and arm64
         id: docker_build_canary_to_vip
@@ -106,13 +146,22 @@ jobs:
           push: true
           file: tools/build_virtual_environment/ve/Dockerfile.canary_to_vip
           context: .
-          tags: |
-            atsigncompany/virtualenv:latest
-            atsigncompany/virtualenv:vip
-            atsigncompany/virtualenv:vip-${{ env.VERSION }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           platforms: |
             linux/amd64
             linux/arm64/v8
+
+      - name: Sign the images with GitHub OIDC Token
+        env:
+          DIGEST: ${{ steps.docker_build_canary_to_vip.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          images=""
+          for tag in ${TAGS}; do
+            images+="${tag}@${DIGEST} "
+          done
+          cosign sign --yes ${images}
 
   prod_virtualenv_provenance:
     needs: [deploy_canary_virtualenv_to_prod_image]
