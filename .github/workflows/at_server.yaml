@@ -287,9 +287,14 @@ jobs:
     # Don't run on PRs from a fork or Dependabot as the secrets aren't available
     if: ${{ github.event.pull_request.head.repo.fork == false && github.actor != 'dependabot[bot]'}}
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
+      id-token: write # for creating OIDC tokens for signing.
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
 
       - name: Place run number into version within pubspec.yaml
         working-directory: ${{ env.secondary-working-directory }}
@@ -306,6 +311,16 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
+        with:
+          tags: |
+            type=raw,value=dess_cicd
+            type=raw,value=cicd-${{ env.BRANCH }}-gha${{ github.run_number }}
+          images: |
+            atsigncompany/secondary
+
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for x64
         id: docker_build_secondary
@@ -315,11 +330,19 @@ jobs:
           provenance: false
           file: tools/build_secondary/Dockerfile
           context: .
-          tags: |
-            atsigncompany/secondary:dess_cicd
-            atsigncompany/secondary:cicd-${{ env.BRANCH }}-gha${{ github.run_number }}
+          tags: ${{ steps.meta.outputs.tags }}
           platforms: |
             linux/amd64
+      - name: Sign the images with GitHub OIDC Token
+        env:
+          DIGEST: ${{ steps.docker_build_secondary.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          images=""
+          for tag in ${TAGS}; do
+            images+="${tag}@${DIGEST} "
+          done
+          cosign sign --yes ${images}
 
       # Logs into CICD VMs and runs script to update to just pushed image
       - name: update image on cicd VMs
@@ -639,9 +662,14 @@ jobs:
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
     environment: staging
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
+      id-token: write # for creating OIDC tokens for signing.
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
 
       - name: Place run number into version within pubspec.yaml
         working-directory: ${{ env.secondary-working-directory }}
@@ -665,6 +693,16 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
+        with:
+          tags: |
+            type=raw,value=dev_env
+            type=raw,value=${{ env.BRANCH }}-gha${{ github.run_number }}
+          images: |
+            atsigncompany/virtualenv
+
       # Builds and pushes the at_virtual_env to docker hub.
       - name: Build and push
         id: docker_build
@@ -674,12 +712,21 @@ jobs:
           context: .
           push: true
           provenance: false
-          tags: |
-            atsigncompany/virtualenv:dev_env
-            atsigncompany/virtualenv:${{ env.BRANCH }}-gha${{ github.run_number }}
+          tags: ${{ steps.meta.outputs.tags }}
           platforms: |
             linux/amd64
             linux/arm64/v8
+
+      - name: Sign the images with GitHub OIDC Token
+        env:
+          DIGEST: ${{ steps.docker_build.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          images=""
+          for tag in ${TAGS}; do
+            images+="${tag}@${DIGEST} "
+          done
+          cosign sign --yes ${images}
 
       - name: Image digest of at_virtual_env
         run: echo ${{ steps.docker_build_trunk.outputs.digest }}
@@ -701,9 +748,14 @@ jobs:
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
     environment: staging
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
+      id-token: write # for creating OIDC tokens for signing.
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
 
       - name: Place run number into version within pubspec.yaml
         working-directory: ${{ env.secondary-working-directory }}
@@ -727,6 +779,17 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
+        with:
+          tags: |
+            type=raw,value=dev_env
+            type=raw,value=dess_wtf
+            type=raw,value=dev_env-${{ env.BRANCH }}-gha${{ github.run_number }}
+          images: |
+            atsigncompany/secondary
+
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
@@ -736,13 +799,21 @@ jobs:
           provenance: false
           file: tools/build_secondary/Dockerfile
           context: .
-          tags: |
-            atsigncompany/secondary:dev_env
-            atsigncompany/secondary:dess_wtf
-            atsigncompany/secondary:dev_env-${{ env.BRANCH }}-gha${{ github.run_number }}
+          tags: ${{ steps.meta.outputs.tags }}
           platforms: |
             linux/amd64
             linux/arm64/v8
+
+      - name: Sign the images with GitHub OIDC Token
+        env:
+          DIGEST: ${{ steps.docker_build_secondary.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          images=""
+          for tag in ${TAGS}; do
+            images+="${tag}@${DIGEST} "
+          done
+          cosign sign --yes ${images}
 
       - name: Image digest of secondary server
         run: echo ${{ steps.docker_build_secondary.outputs.digest }}
@@ -764,9 +835,14 @@ jobs:
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
     environment: staging
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
+      id-token: write # for creating OIDC tokens for signing.
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
 
       - name: Place run number into version within pubspec.yaml
         working-directory: ${{ env.secondary-working-directory }}
@@ -790,6 +866,16 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
+        with:
+          tags: |
+            type=raw,value=dev_obs
+            type=raw,value=dev_obs-${{ env.BRANCH }}-gha${{ github.run_number }}
+          images: |
+            atsigncompany/secondary
+
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_observable_secondary
@@ -799,12 +885,21 @@ jobs:
           provenance: false
           file: tools/build_secondary/Dockerfile.observe
           context: .
-          tags: |
-            atsigncompany/secondary:dev_obs
-            atsigncompany/secondary:dev_obs-${{ env.BRANCH }}-gha${{ github.run_number }}
+          tags: ${{ steps.meta.outputs.tags }}
           platforms: |
             linux/amd64
             linux/arm64/v8
+
+      - name: Sign the images with GitHub OIDC Token
+        env:
+          DIGEST: ${{ steps.docker_build_observable_secondary.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          images=""
+          for tag in ${TAGS}; do
+            images+="${tag}@${DIGEST} "
+          done
+          cosign sign --yes ${images}
 
       - name: Image digest of secondary server
         run: echo ${{ steps.docker_build_observable_secondary.outputs.digest }}
@@ -827,10 +922,14 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write # for creating OIDC tokens for signing.
     outputs:
       digest: ${{ steps.docker_build_secondary.outputs.digest }}
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
 
       # Extract version for docker tag
       - name: Get version
@@ -854,6 +953,16 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
+        with:
+          tags: |
+            type=raw,value=canary
+            type=raw,value=canary-${{ env.VERSION }}
+          images: |
+            atsigncompany/secondary
+
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
@@ -863,13 +972,22 @@ jobs:
           provenance: false
           file: tools/build_secondary/Dockerfile
           context: .
-          tags: |
-            atsigncompany/secondary:canary
-            atsigncompany/secondary:canary-${{ env.VERSION }}
+          tags: ${{ steps.meta.outputs.tags }}
           platforms: |
             linux/amd64
             linux/arm64/v8
             linux/arm/v7
+
+      - name: Sign the images with GitHub OIDC Token
+        env:
+          DIGEST: ${{ steps.docker_build_secondary.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          images=""
+          for tag in ${TAGS}; do
+            images+="${tag}@${DIGEST} "
+          done
+          cosign sign --yes ${images}
 
   provenance_canary_secondary_image:
     needs: [push_canary_secondary_image]
@@ -900,10 +1018,14 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write # for creating OIDC tokens for signing.
     outputs:
       digest: ${{ steps.docker_build.outputs.digest }}
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
 
       - name: Get version
         run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
@@ -926,6 +1048,16 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
+        with:
+          tags: |
+            type=raw,value=canary
+            type=raw,value=canary-${{ env.VERSION }}
+          images: |
+            atsigncompany/virtualenv
+
       - name: Build and push
         id: docker_build
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
@@ -934,12 +1066,21 @@ jobs:
           context: .
           push: true
           provenance: false
-          tags: |
-            atsigncompany/virtualenv:canary
-            atsigncompany/virtualenv:canary-${{ env.VERSION }}
+          tags: ${{ steps.meta.outputs.tags }}
           platforms: |
             linux/amd64
             linux/arm64/v8
+
+      - name: Sign the images with GitHub OIDC Token
+        env:
+          DIGEST: ${{ steps.docker_build.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          images=""
+          for tag in ${TAGS}; do
+            images+="${tag}@${DIGEST} "
+          done
+          cosign sign --yes ${images}
 
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
