@@ -15,11 +15,15 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write # for creating OIDC tokens for signing.
     outputs:
       digest: ${{ steps.docker_build.outputs.digest }}
     steps:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 # v3.10.0
 
       # Extract branch for docker tag
       - name: Get branch name
@@ -34,6 +38,19 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
+        with:
+          tags: |
+            type=raw,value=prod
+            type=raw,value=prod-gha${{ github.run_number }}
+            type=raw,value=prod-${{ env.BRANCH }}-gha${{ github.run_number }}
+          images: |
+            atsigncompany/root
+          labels: |
+            org.opencontainers.image.description=atDirectory prod image
+
       # Build the Docker image for Dev
       - name: Build and push
         id: docker_build
@@ -42,10 +59,21 @@ jobs:
           file: packages/at_root_server/Dockerfile
           context: packages/at_root_server
           push: true
-          tags: |
-            atsigncompany/root:prod
-            atsigncompany/root:prod-gha${{ github.run_number }}
-            atsigncompany/root:prod-${{ env.BRANCH }}-gha${{ github.run_number }}
+          sbom: true
+          provenance: version=v1,mode=max
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Sign the images with GitHub OIDC Token
+        env:
+          DIGEST: ${{ steps.docker_build.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          images=""
+          for tag in ${TAGS}; do
+            images+="${tag}@${DIGEST} "
+          done
+          cosign sign --yes ${images}
 
   provenance:
     needs: [Docker_Build]
