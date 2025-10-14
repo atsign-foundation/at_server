@@ -1,3 +1,11 @@
+# 3.7.2
+
+- fix: improved memory usage and error handling in StatsNotificationService. 
+  Fixes a minor bug in StatsNotificationService which would only occur when 
+  running an atServer on a development machine which is put to "sleep" for a 
+  while.
+- refactor: Removed unnecessary instance variable from StatsNotificationService
+
 # 3.7.1
 - feat : added `stats:16` for a summary of number of inbound connections by 
   type (self, other, anon) and `stats:17` for a detailed report on all 
