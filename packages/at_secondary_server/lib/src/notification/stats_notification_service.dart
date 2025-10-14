@@ -133,6 +133,10 @@ class StatsNotificationService {
         .inboundConnectionManager
         .pool
         .getConnections();
+    if (connectionsList.isEmpty) {
+      _logger.finer('No stats written. (No connections.)');
+      return;
+    }
     // For each inbound connection: if it is a monitor, write stats
     int numOfMonitorConn = 0;
     notification
