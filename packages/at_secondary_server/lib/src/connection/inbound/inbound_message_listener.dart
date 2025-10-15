@@ -43,6 +43,7 @@ class InboundMessageListener {
   /// Handles messages on the inbound client's connection and calls the verb executor
   /// Closes the inbound connection in case of any error.
   Future<void> _messageHandler(streamData) async {
+    connection.metaData.lastAccessed = DateTime.now().toUtc();
     logger.finest('_messageHandler received ${streamData.runtimeType}'
         ' : $streamData ');
     List<int> data;
