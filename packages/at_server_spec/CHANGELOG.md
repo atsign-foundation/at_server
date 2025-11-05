@@ -1,3 +1,6 @@
+## 5.0.4
+- chore: remove an `@experimental` annotation
+
 ## 5.0.3
 - feat: defensive code: ensure `isAuthenticated` and `isPolAuthenticated` 
   may not both be true at the same time
