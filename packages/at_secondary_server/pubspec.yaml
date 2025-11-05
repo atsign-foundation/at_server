@@ -13,7 +13,7 @@ dependencies:
   uuid: 4.5.2
   convert: 3.1.2
   cron: 0.5.1
-  crypto: 3.0.6
+  crypto: 3.0.7
   crypton: 2.2.1
   collection: 1.19.1
   basic_utils: 5.7.0
