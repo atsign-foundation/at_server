@@ -1,6 +1,5 @@
 import 'package:at_server_spec/src/verb/verb.dart';
 import 'package:at_commons/at_commons.dart';
-import 'package:meta/meta.dart';
 
 /// Verb used for generating OTP for APKAM enrollments
 class Otp extends Verb {
