@@ -13,6 +13,7 @@ import 'package:uuid/uuid.dart';
 import 'abstract_verb_handler.dart';
 
 class OtpVerbHandler extends AbstractVerbHandler {
+  // ignore: experimental_member_use
   static Otp otpVerb = Otp();
 
   @visibleForTesting

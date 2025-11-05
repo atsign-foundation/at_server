@@ -19,8 +19,6 @@ linter:
     avoid_function_literals_in_foreach_calls: true
     prefer_interpolation_to_compose_strings: true
     strict_top_level_inference: false
-    undefined_lint: false
-    experimental_member_use: false
 
 # analyzer:
 #   exclude:
