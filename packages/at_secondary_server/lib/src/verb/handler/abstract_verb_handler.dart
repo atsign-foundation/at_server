@@ -249,6 +249,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
     // the enrollManageNamespace
     // Prevents update, delete or any other operations on the enrollment key
     if (authorizedNamespace.$1 == EnrollmentConstants.enrollManageNamespace) {
+      // ignore: experimental_member_use
       return (getVerb() is Otp || getVerb() is Enroll || getVerb() is Monitor)
           ? (authorizedNamespace.$2 == 'r' || authorizedNamespace.$2 == 'rw')
           : false;

@@ -3,7 +3,6 @@ import 'package:at_commons/at_commons.dart';
 import 'package:meta/meta.dart';
 
 /// Verb used for generating OTP for APKAM enrollments
-@experimental
 class Otp extends Verb {
   @override
   String name() => 'otp';
