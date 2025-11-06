@@ -5,7 +5,7 @@
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/atsign-foundation/at_server/badge)](https://securityscorecards.dev/viewer/?uri=github.com/atsign-foundation/at_server&sort_by=check-score&sort_direction=desc)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/6713/badge)](https://www.bestpractices.dev/projects/6713)
 [![SLSA 3](https://slsa.dev/images/gh-badge-level3.svg)](https://slsa.dev)
-[![sbomified](https://sbomify.com/assets/images/logo/badge.svg)](https://app.sbomify.com/component/wF66pn8rHZ)
+[![sbomified](https://sbomify.com/assets/images/logo/badge.svg)](https://app.sbomify.com/public/product/yiJJfn8vMN/)
 
 # at_server
 
