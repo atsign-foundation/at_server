@@ -23,6 +23,9 @@ class OutboundClient {
 
   final InboundConnection inboundConnection;
   final String toAtSign;
+  late OutboundMessageListener messageListener;
+  final OutboundConnectionFactory outboundConnectionFactory;
+
 
   String? toHost;
   String? toPort;
@@ -47,10 +50,6 @@ class OutboundClient {
     return 'OutboundClient{toAtSign: $toAtSign, toHost: $toHost, toPort: $toPort, '
         'isConnectionCreated: $isConnectionCreated, isHandShakeDone: $isHandShakeDone}';
   }
-
-  late OutboundMessageListener messageListener;
-
-  late OutboundConnectionFactory outboundConnectionFactory;
 
   OutboundClient(
     this.inboundConnection,
