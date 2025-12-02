@@ -19,12 +19,11 @@ class AtSecondaryConfig {
   static const bool _testingMode = false;
 
   //Certificate Paths
-  static const String _certificateChainLocation = 'certs/fullchain.pem';
-  static const String _privateKeyLocation = 'certs/privkey.pem';
+  static const String _fullchainLocation = 'certs/fullchain.pem';
+  static const String _privkeyLocation = 'certs/privkey.pem';
 
-  static const String _certificateChainLocationMtls =
-      'certs/fullchain_mtls.pem';
-  static const String _privateKeyLocationMtls = 'certs/privkey_mtls.pem';
+  static const String _fullchainLocationMtls = 'certs/mtls/fullchain.pem';
+  static const String _privkeyLocationMtls = 'certs/mtls/privkey.pem';
 
   static const String _trustedCertificateLocation = '/etc/cacert/cacert.pem';
 
@@ -579,7 +578,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['security', 'privateKeyLocation']);
     } on ElementNotFoundException {
-      return _privateKeyLocation;
+      return _privkeyLocation;
     }
   }
 
@@ -590,7 +589,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['security', 'certificateChainLocation']);
     } on ElementNotFoundException {
-      return _certificateChainLocation;
+      return _fullchainLocation;
     }
   }
 
@@ -601,7 +600,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['security', 'privateKeyLocationMtls']);
     } on ElementNotFoundException {
-      return _privateKeyLocationMtls;
+      return _privkeyLocationMtls;
     }
   }
 
@@ -612,7 +611,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['security', 'certificateChainLocationMtls']);
     } on ElementNotFoundException {
-      return _certificateChainLocationMtls;
+      return _fullchainLocationMtls;
     }
   }
 

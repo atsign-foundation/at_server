@@ -399,8 +399,13 @@ class DefaultOutboundConnectionFactory implements OutboundConnectionFactory {
     } else if (requireCerts) {
       throw StateError('SSL Certificates are required, but none were found');
     }
-    securityContext
-        .setTrustedCertificates(atSecurityContext.trustedCertificatePath);
+
+    if (File(atSecurityContext.trustedCertificatePath).existsSync()) {
+      securityContext
+          .setTrustedCertificates(atSecurityContext.trustedCertificatePath);
+    } else if (requireCerts) {
+      throw StateError('${atSecurityContext.trustedCertificatePath} is required but not found');
+    }
   }
 
   @override
