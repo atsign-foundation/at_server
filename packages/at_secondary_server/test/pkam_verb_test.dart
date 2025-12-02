@@ -177,9 +177,7 @@ void main() async {
     Response response = Response();
     late String enrollmentId;
 
-    setUp(() async {
-      await verbTestsSetUp();
-    });
+    setUp(() async => await verbTestsSetUp());
 
     tearDown(() async => await verbTestsTearDown());
 

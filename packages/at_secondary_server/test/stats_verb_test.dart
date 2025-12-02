@@ -30,14 +30,13 @@ void main() {
   SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
   AtCacheManager mockAtCacheManager = MockAtCacheManager();
-  MockSocket mockSocket = MockSocket();
+  FakeSocket mockSocket = FakeSocket();
   EnrollmentManager mockEnrollmentManager = MockEnrollmentManager();
+  NotificationManager mockNotificationManager = MockNotificationManager();
 
   setUpAll(() async {
     await verbTestsSetUpAll();
-    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
-        .thenReturn(true);
-  });
+      });
 
   final atServer = AtSecondaryServerImpl.getInstance();
 
@@ -128,7 +127,7 @@ void main() {
         mockOutboundClientManager,
         mockAtCacheManager,
         StatsNotificationService.getInstance(),
-        NotificationManager.getInstance(),
+        mockNotificationManager,
         mockEnrollmentManager,
         alice,
       );

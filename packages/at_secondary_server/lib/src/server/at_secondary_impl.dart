@@ -10,11 +10,14 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/caching/cache_refresh_job.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_client.dart'
+    show OutboundConnectionFactory, DefaultOutboundConnectionFactory;
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/stream_manager.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
+import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/queue_manager.dart';
 import 'package:at_secondary/src/notification/resource_manager.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
@@ -64,6 +67,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   late SecondaryAddressFinder secondaryAddressFinder;
   late OutboundClientManager outboundClientManager;
+  late OutboundConnectionFactory outboundConnectionFactory;
 
   late bool _isPaused;
 
@@ -74,6 +78,17 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   AtSecondaryServerImpl._internal() {
+    // TODO There's a whole lifecycle mess here that needs to be cleaned up
+    // at some point. Currently we create this singleton which then has a
+    // lifecycle where it can be started and stopped. When it is started, all
+    // of its relevant state is recreated, since things (e.g. ssl certs) may
+    // have changed. When it is stopped, all relevant state is cleared.
+    // This should not be a singleton, and state management should be
+    // 'stop the current server; create new instance; start new instance'.
+    // Doing this will be a massive chunk of busywork.
+    // NB: These specific instance variables are depended on by unit tests
+    // so they are initialized here, but are also initialized as part of the
+    // `start()` function
     final socketConfig = SecureSocketConfig()
       ..decryptPackets = false
       ..pathToCerts = AtSecondaryConfig.trustedCertificateLocation
@@ -84,7 +99,13 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       AtSecondaryConfig.rootServerPort,
       socketConfig: socketConfig,
     );
-    outboundClientManager = OutboundClientManager(secondaryAddressFinder);
+    outboundConnectionFactory = DefaultOutboundConnectionFactory(
+      requireCerts: false, // so unit tests can work
+    );
+    outboundClientManager = OutboundClientManager(
+      secondaryAddressFinder,
+      outboundConnectionFactory,
+    );
   }
 
   dynamic _serverSocket;
@@ -230,7 +251,34 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     await notificationKeyStoreCompactionJobInstance
         .scheduleCompactionJob(atNotificationCompactionConfig);
 
-    outboundClientManager.poolSize = serverContext!.outboundConnectionLimit;
+    final socketConfig = SecureSocketConfig()
+      ..decryptPackets = false
+      ..pathToCerts = AtSecondaryConfig.trustedCertificateLocation
+      ..tlsKeysSavePath = null;
+
+    secondaryAddressFinder = CacheableSecondaryAddressFinder(
+      AtSecondaryConfig.rootServerUrl,
+      AtSecondaryConfig.rootServerPort,
+      socketConfig: socketConfig,
+    );
+    outboundConnectionFactory = DefaultOutboundConnectionFactory(
+      requireCerts: true,
+    );
+    outboundClientManager = OutboundClientManager(
+      secondaryAddressFinder,
+      outboundConnectionFactory,
+      poolSize: serverContext!.outboundConnectionLimit,
+    );
+    notificationResourceManager = ResourceManager(NotifyConnectionsPool(
+      outboundConnectionFactory,
+      poolSize: serverContext!.outboundConnectionLimit,
+    ));
+
+    // Start the notification sender
+    notificationResourceManager.start();
+
+    NotificationManager notificationManager =
+        NotificationManager(notificationResourceManager);
 
     // Refresh Cached Keys
     cacheManager = AtCacheManager(serverContext!.currentAtSign!,
@@ -259,7 +307,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         outboundClientManager,
         cacheManager,
         StatsNotificationService.getInstance(),
-        NotificationManager.getInstance(),
+        notificationManager,
         enrollmentManager,
         currentAtSign,
       );
@@ -274,7 +322,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           outboundClientManager,
           cacheManager,
           StatsNotificationService.getInstance(),
-          NotificationManager.getInstance(),
+          notificationManager,
           enrollmentManager,
           currentAtSign,
         );
@@ -287,7 +335,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     if (certificateReloadJob == null) {
       certificateReloadJob = AtCertificateValidationJob(
           this,
-          AtSecondaryConfig.certificateChainLocation!
+          AtSecondaryConfig.certificateChainLocation
               .replaceAll('fullchain.pem', 'restart'),
           AtSecondaryConfig.isForceRestart!);
       await certificateReloadJob!.start();
@@ -318,12 +366,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     inboundConnectionManager = InboundConnectionManager(
         serverAtSign: currentAtSign,
         poolSize: serverContext!.inboundConnectionLimit);
-
-    // Notification job
-    notificationResourceManager = ResourceManager.getInstance();
-    notificationResourceManager.outboundConnectionLimit =
-        serverContext!.outboundConnectionLimit;
-    notificationResourceManager.start();
 
     // Starts StatsNotificationService to keep monitor connections alive
     await StatsNotificationService.getInstance().schedule(currentAtSign);
@@ -562,11 +604,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         if (certsAvailable || retryCount > 60) {
           break;
         }
-        secCon.useCertificateChain(
-            serverContext!.securityContext!.publicKeyPath());
-        secCon.usePrivateKey(serverContext!.securityContext!.privateKeyPath());
+        secCon
+            .useCertificateChain(serverContext!.securityContext!.publicKeyPath);
+        secCon.usePrivateKey(serverContext!.securityContext!.privateKeyPath);
         secCon.setTrustedCertificates(
-            serverContext!.securityContext!.trustedCertificatePath());
+            serverContext!.securityContext!.trustedCertificatePath);
         certsAvailable = true;
         // secCon.setAlpnProtocols(['atp/1.0', 'h2', 'http/1.1'], true);
         secCon.setAlpnProtocols(['atProtocol/1.0', 'http/1.1'], true);

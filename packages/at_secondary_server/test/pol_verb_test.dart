@@ -24,15 +24,14 @@ void main() async {
   SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
   AtCacheManager mockAtCacheManager = MockAtCacheManager();
-  MockSocket mockSocket = MockSocket();
+  FakeSocket mockSocket = FakeSocket();
   EnrollmentManager mockEnrollmentManager = MockEnrollmentManager();
+  NotificationManager mockNotificationManager = MockNotificationManager();
 
   verbTestsSetUpLogging();
 
   setUpAll(() {
-    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
-        .thenReturn(true);
-  });
+      });
 
   test('test pol Verb', () {
     var handler = PolVerbHandler(
@@ -70,7 +69,7 @@ void main() async {
       mockOutboundClientManager,
       mockAtCacheManager,
       StatsNotificationService.getInstance(),
-      NotificationManager.getInstance(),
+      mockNotificationManager,
       mockEnrollmentManager,
       alice,
     );

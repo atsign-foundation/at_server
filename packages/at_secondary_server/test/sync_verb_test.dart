@@ -17,13 +17,11 @@ import 'package:test/test.dart';
 import 'test_utils.dart';
 
 void main() {
-  MockSocket mockSocket = MockSocket();
+  FakeSocket mockSocket = FakeSocket();
 
   setUpAll(() async {
     await verbTestsSetUpAll();
-    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
-        .thenReturn(true);
-  });
+      });
 
   setUp(() async {
     await verbTestsSetUp();

@@ -19,7 +19,7 @@ import 'test_utils.dart';
 
 void main() {
   late SecondaryKeyStore mockKeyStore;
-  late MockSocket mockSocket;
+  late FakeSocket mockSocket;
 
   verbTestsSetUpLogging();
 
@@ -27,10 +27,8 @@ void main() {
   late SecondaryKeyStoreManager keyStoreManager;
   setUp(() async {
     mockKeyStore = MockSecondaryKeyStore();
-    mockSocket = MockSocket();
-    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
-        .thenReturn(true);
-    keyStoreManager = await setUpFunc(storageDir);
+    mockSocket = FakeSocket();
+        keyStoreManager = await setUpFunc(storageDir);
   });
 
   group('A group of cram verb regex test', () {

@@ -12,7 +12,7 @@ import 'test_utils.dart';
 void main() {
   verbTestsSetUpLogging();
 
-  late MockSocket mockSocket;
+  late FakeSocket mockSocket;
 
   late InboundConnectionManager icm;
 
@@ -21,10 +21,8 @@ void main() {
       ..unauthenticatedInboundIdleTimeMillis = 10000;
     atServer.inboundConnectionManager = icm = InboundConnectionManager(
         serverAtSign: alice, poolSize: AtSecondaryConfig.inbound_max_limit);
-    mockSocket = MockSocket();
-    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
-        .thenReturn(true);
-  });
+    mockSocket = FakeSocket();
+      });
 
   tearDown(() {
     atServer.inboundConnectionManager.close();

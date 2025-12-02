@@ -2460,8 +2460,11 @@ void main() {
       inboundConnection.metadata.isAuthenticated = true;
       castMetadata(inboundConnection).enrollmentId = '123';
 
-      DeleteVerbHandler deleteVerbHandler =
-          DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
+      DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+      );
 
       expect(
           () async => await deleteVerbHandler.process(

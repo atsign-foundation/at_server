@@ -14,7 +14,9 @@ class StreamVerbHandler extends AbstractVerbHandler {
 
   InboundConnection? atConnection;
 
-  StreamVerbHandler(super.keyStore);
+  final NotificationManager notificationManager;
+
+  StreamVerbHandler(super.keyStore, this.notificationManager);
 
   @override
   bool accept(String command) => command.startsWith(getName(VerbEnum.stream));
@@ -113,8 +115,7 @@ class StreamVerbHandler extends AbstractVerbHandler {
           ..notification = key
           ..opType = OperationType.update)
         .build();
-    var notificationId =
-        await NotificationManager.getInstance().notify(atNotification);
+    var notificationId = await notificationManager.notify(atNotification);
     logger.finer('notification_id : $notificationId');
   }
 

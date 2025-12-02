@@ -8,15 +8,13 @@ import 'package:test/test.dart';
 import 'test_utils.dart';
 
 void main() async {
-  late MockSocket mockSocket;
+  late FakeSocket mockSocket;
 
   verbTestsSetUpLogging();
 
   setUp(() async {
-    mockSocket = MockSocket();
-    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
-        .thenReturn(true);
-  });
+    mockSocket = FakeSocket();
+      });
 
   group('A test to verify the rate limiter on inbound connection', () {
     test('A test to verify requests exceeding the limit are rejected', () {

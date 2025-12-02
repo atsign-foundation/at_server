@@ -22,12 +22,11 @@ import 'package:uuid/uuid.dart';
 import 'test_utils.dart';
 
 void main() {
-  MockSocket mockSocket = MockSocket();
+  FakeSocket mockSocket = FakeSocket();
+  NotificationManager mockNotificationManager = MockNotificationManager();
 
   setUpAll(() {
-    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
-        .thenReturn(true);
-  });
+      });
 
   group('A group of scan verb tests', () {
     setUpAll(() async {
@@ -87,7 +86,7 @@ void main() {
         mockOutboundClientManager,
         cacheManager,
         StatsNotificationService.getInstance(),
-        NotificationManager.getInstance(),
+        mockNotificationManager,
         enMgr,
         alice,
       );

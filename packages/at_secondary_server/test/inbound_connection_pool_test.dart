@@ -18,7 +18,7 @@ var serverContext = AtSecondaryContext();
 AtSignLogger logger = AtSignLogger('inbound_connection_pool_test');
 
 void main() async {
-  late MockSocket mockSocket;
+  late FakeSocket mockSocket;
 
   verbTestsSetUpLogging();
 
@@ -36,10 +36,8 @@ void main() async {
     pool = atServer.inboundConnectionManager.pool;
     pool.resize(10);
 
-    mockSocket = MockSocket();
-    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
-        .thenReturn(true);
-  });
+    mockSocket = FakeSocket();
+      });
   tearDown(() {
     pool.clearAllConnections();
   });

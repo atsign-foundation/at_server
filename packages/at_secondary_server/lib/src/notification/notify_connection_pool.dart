@@ -7,22 +7,21 @@ import 'package:at_utils/at_logger.dart';
 
 /// Class to maintains the pool of outbound connections for notifying.
 class NotifyConnectionsPool {
-  static final NotifyConnectionsPool _singleton =
-      NotifyConnectionsPool._internal();
   static final logger = AtSignLogger('NotifyConnectionPool');
 
   static const int defaultPoolSize = 200;
 
-  final OutboundClientPool _outboundClientPool =
-      OutboundClientPool(size: defaultPoolSize);
+  late final OutboundClientPool _outboundClientPool;
+  final OutboundConnectionFactory outboundConnectionFactory;
 
-  OutboundClientPool get pool => _outboundClientPool;
-
-  NotifyConnectionsPool._internal();
-
-  factory NotifyConnectionsPool.getInstance() {
-    return _singleton;
+  NotifyConnectionsPool(
+    this.outboundConnectionFactory, {
+    int poolSize = defaultPoolSize,
+  }) {
+    _outboundClientPool = OutboundClientPool(size: poolSize);
   }
+
+  OutboundClientPool get outboundClientPool => _outboundClientPool;
 
   int get size => _outboundClientPool.size;
 
@@ -60,8 +59,13 @@ class NotifyConnectionsPool {
 
     // If client is null and pool has capacity, create a new OutboundClient and add it to the pool
     // and return it back
-    var newClient = OutboundClient(inboundConnection, toAtSign,
-        AtSecondaryServerImpl.getInstance().secondaryAddressFinder, true);
+    var newClient = OutboundClient(
+      inboundConnection,
+      toAtSign,
+      AtSecondaryServerImpl.getInstance().secondaryAddressFinder,
+      true,
+      outboundConnectionFactory,
+    );
     if (connect) {
       await newClient.connect();
     } else {

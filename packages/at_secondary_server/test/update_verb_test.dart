@@ -32,14 +32,12 @@ import 'test_utils.dart';
 
 void main() {
   late SecondaryKeyStore mockKeyStore;
-  late MockSocket mockSocket;
+  late FakeSocket mockSocket;
 
   setUpAll(() async {
     await verbTestsSetUpAll();
     mockKeyStore = MockSecondaryKeyStore();
-    mockSocket = MockSocket();
-    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
-        .thenReturn(true);
+    mockSocket = FakeSocket();
   });
 
   setUp(() async {
@@ -1318,8 +1316,6 @@ void main() {
     Response response = Response();
     late String enrollmentId;
     setUp(() async {
-      await verbTestsSetUp();
-
       inboundConnection.metadata.isAuthenticated =
           true; // owner connection, authenticated
       enrollmentId = Uuid().v4();
@@ -1383,7 +1379,6 @@ void main() {
               e.message ==
                   'Connection with enrollment ID $enrollmentId is not authorized to update key: $alice:dummykey.wavi$alice')));
     });
-    tearDown(() async => await verbTestsTearDown());
   });
 
   group(
@@ -1433,14 +1428,10 @@ void main() {
                     'Connection with enrollment ID $enrollmentId is not authorized to update key: $alice:dummykey.wavi$alice')));
       });
     }
-    tearDown(() async => await verbTestsTearDown());
   });
   group('A group of tests related to access authorization', () {
     Response response = Response();
     late String enrollmentId;
-    setUp(() async {
-      await verbTestsSetUp();
-    });
 
     test('A test to verify update verb is allowed if key is a reserved key',
         () async {
@@ -1752,18 +1743,11 @@ void main() {
               e.message ==
                   'Connection with enrollment ID $enrollmentId is not authorized to update key: at_connections.bob.alice.buzz$alice')));
     });
-    tearDown(() async => await verbTestsTearDown());
   });
 
   group('A group of tests related to apkam keys expiry', () {
     Response response = Response();
     late String enrollmentId;
-
-    setUp(() async {
-      await verbTestsSetUp();
-    });
-
-    tearDown(() async => await verbTestsTearDown());
 
     test('A test to verify update verb fails when apkam keys are expired',
         () async {

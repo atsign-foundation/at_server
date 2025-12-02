@@ -16,7 +16,7 @@ import 'test_utils.dart';
 
 void main() async {
   late SecondaryKeyStore mockKeyStore;
-  late MockSocket mockSocket;
+  late FakeSocket mockSocket;
 
   verbTestsSetUpLogging();
 
@@ -24,10 +24,8 @@ void main() async {
   late SecondaryKeyStoreManager keyStoreManager;
   setUp(() async {
     mockKeyStore = MockSecondaryKeyStore();
-    mockSocket = MockSocket();
-    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
-        .thenReturn(true);
-    keyStoreManager = await setUpFunc(storageDir);
+    mockSocket = FakeSocket();
+        keyStoreManager = await setUpFunc(storageDir);
   });
   group('A group of from verb regex test', () {
     test('test from correct syntax with @', () {

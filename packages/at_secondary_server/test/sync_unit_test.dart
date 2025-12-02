@@ -28,14 +28,13 @@ String atSign = alice;
 void main() async {
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
   AtCacheManager mockAtCacheManager = MockAtCacheManager();
-  MockSocket mockSocket = MockSocket();
+  FakeSocket mockSocket = FakeSocket();
+  NotificationManager mockNotificationManager = MockNotificationManager();
 
   verbTestsSetUpLogging();
 
   setUpAll(() async {
-    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
-        .thenReturn(true);
-  });
+      });
 
   Future<String> putData(String key) async {
     final data = Uuid().v4();
@@ -259,7 +258,7 @@ void main() async {
           mockOutboundClientManager,
           mockAtCacheManager,
           StatsNotificationService.getInstance(),
-          NotificationManager.getInstance(),
+          mockNotificationManager,
           enMgr,
           alice,
         );
@@ -333,7 +332,7 @@ void main() async {
           mockOutboundClientManager,
           mockAtCacheManager,
           StatsNotificationService.getInstance(),
-          NotificationManager.getInstance(),
+          mockNotificationManager,
           enMgr,
           alice,
         );

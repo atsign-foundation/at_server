@@ -138,23 +138,26 @@ class FromVerbHandler extends AbstractVerbHandler {
 
   bool _verifyClientCerts(X509Certificate cn, String host) {
     var subject = cn.subject;
-    logger.finer('Connected from: $subject');
+    logger.shout(
+        'Connected from: $cn $subject issued by ${cn.issuer} valid from ${cn.startValidity} to ${cn.endValidity}');
     if (subject.contains(host)) {
+      // TODO Dig in to the possible values of subject
       return true;
     }
     // If you would like to see the cert
     var x509Pem = cn.pem;
     // test with an internet available certificate to ensure we are picking out the SAN and not the CN
     var data = X509Utils.x509CertificateFromPem(x509Pem);
-    var subjectAlternativeName =
+    List<String> subjectAlternativeNames =
         data.tbsCertificate?.extensions?.subjectAlternativNames ?? [];
-    logger.finer('SAN: $subjectAlternativeName');
-    if (subjectAlternativeName.contains(host)) {
+    logger.shout('SAN: $subjectAlternativeNames');
+    if (subjectAlternativeNames.contains(host)) {
       return true;
     }
-    var commonName = data.tbsCertificate?.subject['2.5.4.3'] ?? '';
-    logger.finer('CN: $commonName');
+    String commonName = data.tbsCertificate?.subject['2.5.4.3'] ?? '';
+    logger.shout('CN: $commonName');
     if (commonName.contains(host)) {
+      // Probably should be an equality test
       return true;
     }
     return false;
