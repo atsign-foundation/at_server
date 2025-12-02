@@ -13,13 +13,23 @@ log:
 
 # The atProtocol security configurations.
 security:
-  # To start secondary server in Secure/UnSecure mode. When [useTLS] is set to false, the secondary server starts in un-secure mode.
-  # When [useTLS] is set to true, the secondary server starts in secure mode. On setting [useTLS] to true, the [certificateChainLocation] and
-  # [privateKeyLocation] should be populated with the path's to respective certificates.
-  useTLS: true
+  # Files for the certificate presented to clients when they connect
+  # These files must exist
   certificateChainLocation: 'certs/fullchain.pem'
   privateKeyLocation: 'certs/privkey.pem'
+
+  # Files for the certificate we present to other atServers when we connect
+  # If not present, we present the same cert as we present to clients
+  certificateChainLocationMtls: 'certs/mtls/fullchain.pem'
+  privateKeyLocationMtls: 'certs/mtls/privkey.pem'
+
+  # File containing the list of root CA certs we should trust when another
+  # atServer connects to us
   trustedCertificateLocation: '/etc/cacert/cacert.pem'
+
+  # Whether to require a client certificate when another atServer
+  # connects to us. This should NEVER be set to false except in exceptional
+  # circumstances, and then probably only for testing purposes.
   clientCertificateRequired: true
 
 # The atProtocol storage configurations
