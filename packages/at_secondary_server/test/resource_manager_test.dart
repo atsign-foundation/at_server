@@ -19,8 +19,8 @@ void main() async {
 
   // mock object for outbound client
   OutboundClient mockOutboundClient = MockOutboundClient();
-  ResourceManager notifsResourceMgr = ResourceManager(
-      NotifyConnectionsPool(DefaultOutboundConnectionFactory(requireCerts: false)));
+  ResourceManager notifsResourceMgr = ResourceManager(NotifyConnectionsPool(
+      DefaultOutboundConnectionFactory(requireCerts: false)));
   var storageDir = '${Directory.current.path}/test/hive';
 
   //  forcing the notification sending to fail with an exception

@@ -7,7 +7,6 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_server_spec/at_server_spec.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 import 'package:at_utils/at_utils.dart';
 
@@ -37,7 +36,7 @@ void main() async {
     pool.resize(10);
 
     mockSocket = FakeSocket();
-      });
+  });
   tearDown(() {
     pool.clearAllConnections();
   });

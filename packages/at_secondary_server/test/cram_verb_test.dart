@@ -12,7 +12,6 @@ import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/from_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
@@ -28,7 +27,7 @@ void main() {
   setUp(() async {
     mockKeyStore = MockSecondaryKeyStore();
     mockSocket = FakeSocket();
-        keyStoreManager = await setUpFunc(storageDir);
+    keyStoreManager = await setUpFunc(storageDir);
   });
 
   group('A group of cram verb regex test', () {

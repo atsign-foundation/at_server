@@ -13,7 +13,6 @@ import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
-import 'package:mocktail/mocktail.dart';
 
 import 'test_utils.dart';
 
@@ -24,8 +23,7 @@ void main() async {
 
   verbTestsSetUpLogging();
 
-  setUpAll(() {
-      });
+  setUpAll(() {});
 
   var storageDir = '${Directory.current.path}/test/hive';
   late SecondaryKeyStoreManager keyStoreManager;

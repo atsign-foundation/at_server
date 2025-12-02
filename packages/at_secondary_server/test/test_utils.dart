@@ -316,7 +316,8 @@ verbTestsSetUp() async {
   });
 
   notificationManager = NotificationManager(ResourceManager(
-      NotifyConnectionsPool(DefaultOutboundConnectionFactory(requireCerts: false))));
+      NotifyConnectionsPool(
+          DefaultOutboundConnectionFactory(requireCerts: false))));
   registerFallbackValue(AtNotificationBuilder().build());
   // when(() => notificationManager.notify(any()))
   //     .thenAnswer((invocation) async => 'some-notification-id');

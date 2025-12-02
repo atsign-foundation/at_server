@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -22,7 +21,6 @@ import 'package:test/test.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:uuid/uuid.dart';
-import 'package:mocktail/mocktail.dart';
 
 import 'test_utils.dart';
 
@@ -36,7 +34,7 @@ void main() {
 
   setUpAll(() async {
     await verbTestsSetUpAll();
-      });
+  });
 
   final atServer = AtSecondaryServerImpl.getInstance();
 

@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
@@ -16,7 +14,6 @@ import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
-import 'package:mocktail/mocktail.dart';
 
 import 'test_utils.dart';
 
@@ -30,8 +27,7 @@ void main() async {
 
   verbTestsSetUpLogging();
 
-  setUpAll(() {
-      });
+  setUpAll(() {});
 
   test('test pol Verb', () {
     var handler = PolVerbHandler(

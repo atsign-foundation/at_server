@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_pool.dart';
@@ -7,7 +5,6 @@ import 'package:at_secondary/src/connection/outbound/outbound_connection_impl.da
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
@@ -21,8 +18,7 @@ void main() async {
 
   verbTestsSetUpLogging();
 
-  setUpAll(() {
-      });
+  setUpAll(() {});
 
   setUp(() {
     var serverContext = AtSecondaryContext();
@@ -30,8 +26,8 @@ void main() async {
         outboundIdleTimeMillis;
     AtSecondaryServerImpl.getInstance().serverContext = serverContext;
     outboundClientPool = OutboundClientPool();
-    notifyConnectionsPool =
-        NotifyConnectionsPool(DefaultOutboundConnectionFactory(requireCerts: false));
+    notifyConnectionsPool = NotifyConnectionsPool(
+        DefaultOutboundConnectionFactory(requireCerts: false));
 
     notifyConnectionsPool.size = 2;
   });

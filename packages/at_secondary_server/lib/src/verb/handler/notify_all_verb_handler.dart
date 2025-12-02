@@ -108,8 +108,7 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
               ..atMetaData = atMetadata)
             .build();
 
-        var notificationID =
-            await notificationManager.notify(atNotification);
+        var notificationID = await notificationManager.notify(atNotification);
         resultMap[forAtSign] = notificationID;
       }
     }

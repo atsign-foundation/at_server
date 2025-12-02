@@ -5,7 +5,6 @@ import 'package:at_secondary/src/connection/outbound/outbound_connection_impl.da
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_commons/at_commons.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
@@ -22,7 +21,7 @@ void main() {
     serverContext.unauthenticatedOutboundIdleTimeMillis = 50;
     AtSecondaryServerImpl.getInstance().serverContext = serverContext;
     mockSocket = FakeSocket();
-      });
+  });
 
   group('A group of outbound client tests', () {
     test('test outbound client - invalid outbound client if inbound is invalid',

@@ -1,8 +1,5 @@
-import 'dart:io';
-
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
@@ -14,7 +11,7 @@ void main() async {
 
   setUp(() async {
     mockSocket = FakeSocket();
-      });
+  });
 
   group('A test to verify the rate limiter on inbound connection', () {
     test('A test to verify requests exceeding the limit are rejected', () {

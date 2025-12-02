@@ -10,7 +10,6 @@ import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/from_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 import 'test_utils.dart';
 
@@ -25,7 +24,7 @@ void main() async {
   setUp(() async {
     mockKeyStore = MockSecondaryKeyStore();
     mockSocket = FakeSocket();
-        keyStoreManager = await setUpFunc(storageDir);
+    keyStoreManager = await setUpFunc(storageDir);
   });
   group('A group of from verb regex test', () {
     test('test from correct syntax with @', () {

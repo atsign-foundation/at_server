@@ -16,17 +16,13 @@ import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/from_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_all_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_fetch_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_remove_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_status_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
-import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:crypto/crypto.dart';
 import 'package:crypton/crypton.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
@@ -374,10 +370,10 @@ void main() {
       var notifyResponse = Response();
 
       var notifyVerbParams = HashMap<String, String>.from({
-        'operation':'delete',
-        'forAtSign':alice,
-        'atSign':alice,
-        'atKey':'phone',
+        'operation': 'delete',
+        'forAtSign': alice,
+        'atSign': alice,
+        'atKey': 'phone',
       });
       await notifyVerbHandler.processVerb(
           notifyResponse, notifyVerbParams, atConnection);
@@ -1012,84 +1008,84 @@ void main() {
     // tests to validate message type
     test(
         'A test to validate messageType.key is returned when key string is passed',
-            () {
-          expect(notifyVerbHandler.getMessageType('key'), MessageType.key);
-          expect(notifyVerbHandler.getMessageType('KEY'), MessageType.key);
-        });
+        () {
+      expect(notifyVerbHandler.getMessageType('key'), MessageType.key);
+      expect(notifyVerbHandler.getMessageType('KEY'), MessageType.key);
+    });
 
     test(
         'A test to validate messageType.text is returned when text string is passed',
-            () {
-          expect(notifyVerbHandler.getMessageType('text'), MessageType.text);
-          expect(notifyVerbHandler.getMessageType('TEXT'), MessageType.text);
-        });
+        () {
+      expect(notifyVerbHandler.getMessageType('text'), MessageType.text);
+      expect(notifyVerbHandler.getMessageType('TEXT'), MessageType.text);
+    });
 
     test(
         'A test to validate default messageType is returned when null is passed',
-            () {
-          expect(notifyVerbHandler.getMessageType(null), MessageType.key);
-          expect(notifyVerbHandler.getMessageType(''), MessageType.key);
-        });
+        () {
+      expect(notifyVerbHandler.getMessageType(null), MessageType.key);
+      expect(notifyVerbHandler.getMessageType(''), MessageType.key);
+    });
 
     // tests to validate operation type
     test(
         'A test to validate operationType.update is returned when update string is passed',
-            () {
-          expect(
-              notifyVerbHandler.getOperationType('update'), OperationType.update);
-          expect(
-              notifyVerbHandler.getOperationType('UPDATE'), OperationType.update);
-        });
+        () {
+      expect(
+          notifyVerbHandler.getOperationType('update'), OperationType.update);
+      expect(
+          notifyVerbHandler.getOperationType('UPDATE'), OperationType.update);
+    });
 
     test(
         'A test to validate operationType.delete is returned when delete string is passed',
-            () {
-          expect(
-              notifyVerbHandler.getOperationType('delete'), OperationType.delete);
-          expect(
-              notifyVerbHandler.getOperationType('DELETE'), OperationType.delete);
-        });
+        () {
+      expect(
+          notifyVerbHandler.getOperationType('delete'), OperationType.delete);
+      expect(
+          notifyVerbHandler.getOperationType('DELETE'), OperationType.delete);
+    });
 
     test(
         'A test to validate default operationType is returned when null or empty string is passed',
-            () {
-          expect(notifyVerbHandler.getOperationType(null), OperationType.update);
-          expect(notifyVerbHandler.getOperationType(''), OperationType.update);
-        });
+        () {
+      expect(notifyVerbHandler.getOperationType(null), OperationType.update);
+      expect(notifyVerbHandler.getOperationType(''), OperationType.update);
+    });
 
     // test to validate notification expiry duration
     test(
         'A test to validate default notification expiry duration is returned when null or 0 is passed',
-            () {
-          expect(
-              notifyVerbHandler.getNotificationExpiryInMillis(null),
-              Duration(minutes: AtSecondaryConfig.notificationExpiryInMins)
-                  .inMilliseconds);
-          expect(
-              notifyVerbHandler.getNotificationExpiryInMillis('0'),
-              Duration(minutes: AtSecondaryConfig.notificationExpiryInMins)
-                  .inMilliseconds);
-        });
+        () {
+      expect(
+          notifyVerbHandler.getNotificationExpiryInMillis(null),
+          Duration(minutes: AtSecondaryConfig.notificationExpiryInMins)
+              .inMilliseconds);
+      expect(
+          notifyVerbHandler.getNotificationExpiryInMillis('0'),
+          Duration(minutes: AtSecondaryConfig.notificationExpiryInMins)
+              .inMilliseconds);
+    });
 
     test(
         'A test to validate notification expiry duration positive integer is passed',
-            () {
-          expect(notifyVerbHandler.getNotificationExpiryInMillis('30'), 30);
-        });
+        () {
+      expect(notifyVerbHandler.getNotificationExpiryInMillis('30'), 30);
+    });
 
     test(
         'A test to assert exception when negative integer is passed to notification expiry duration ',
-            () {
-          expect(() => notifyVerbHandler.getNotificationExpiryInMillis('-30'),
-              throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
-        });
+        () {
+      expect(() => notifyVerbHandler.getNotificationExpiryInMillis('-30'),
+          throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
+    });
 
     test(
         'A test to assert exception when character is passed to notification expiry duration ',
-            () {
-          expect(() => notifyVerbHandler.getNotificationExpiryInMillis('abc'),
-              throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
-        });
+        () {
+      expect(() => notifyVerbHandler.getNotificationExpiryInMillis('abc'),
+          throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
+    });
   });
 
   group(
