@@ -138,7 +138,7 @@ class FromVerbHandler extends AbstractVerbHandler {
 
   bool _verifyClientCerts(X509Certificate cn, String host) {
     var subject = cn.subject;
-    logger.shout(
+    logger.info(
         'Connected from: $cn $subject issued by ${cn.issuer} valid from ${cn.startValidity} to ${cn.endValidity}');
     if (subject.contains(host)) {
       // TODO Dig in to the possible values of subject
@@ -150,12 +150,12 @@ class FromVerbHandler extends AbstractVerbHandler {
     var data = X509Utils.x509CertificateFromPem(x509Pem);
     List<String> subjectAlternativeNames =
         data.tbsCertificate?.extensions?.subjectAlternativNames ?? [];
-    logger.shout('SAN: $subjectAlternativeNames');
+    logger.info('SAN: $subjectAlternativeNames');
     if (subjectAlternativeNames.contains(host)) {
       return true;
     }
     String commonName = data.tbsCertificate?.subject['2.5.4.3'] ?? '';
-    logger.shout('CN: $commonName');
+    logger.info('CN: $commonName');
     if (commonName.contains(host)) {
       // Probably should be an equality test
       return true;
