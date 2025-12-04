@@ -1,13 +1,8 @@
 import 'package:at_secondary/src/server/at_secondary_config.dart';
-import 'package:at_server_spec/at_server_spec.dart';
 
-class AtSecurityContextImpl implements AtSecurityContext {
+class AtSecurityContextImpl {
   static final AtSecurityContextImpl _singleton =
       AtSecurityContextImpl._internal();
-  final String? _certChainPath = AtSecondaryConfig.certificateChainLocation;
-  final String? _privateKeyPath = AtSecondaryConfig.privateKeyLocation;
-  final String? _trustedCertificatePath =
-      AtSecondaryConfig.trustedCertificateLocation;
 
   factory AtSecurityContextImpl() {
     return _singleton;
@@ -15,24 +10,21 @@ class AtSecurityContextImpl implements AtSecurityContext {
 
   AtSecurityContextImpl._internal();
 
-  @override
-  String privateKeyPath() {
-    return _privateKeyPath!;
-  }
+  /// Returns path of the public key of the server cert presented to clients.
+  String get publicKeyPath => AtSecondaryConfig.certificateChainLocation;
 
-  @override
-  String publicKeyPath() {
-    return _certChainPath!;
-  }
+  /// Returns path of the private key of the server cert.
+  String get privateKeyPath => AtSecondaryConfig.privateKeyLocation;
 
-  @override
-  String trustedCertificatePath() {
-    return _trustedCertificatePath!;
-  }
+  /// Returns path of the public key of the client cert which we will present
+  /// to other atServers when we connect to them.
+  String get publicKeyPathMtls =>
+      AtSecondaryConfig.certificateChainLocationMtls;
 
-  @override
-  String bundle() {
-    // TODO: implement bundle
-    return '';
-  }
+  /// Returns path of the private key of the client cert.
+  String get privateKeyPathMtls => AtSecondaryConfig.privateKeyLocationMtls;
+
+  /// Returns path of trusted root certificates file.
+  String get trustedCertificatePath =>
+      AtSecondaryConfig.trustedCertificateLocation;
 }

@@ -13,7 +13,6 @@ import 'package:meta/meta.dart';
 /// Class that is responsible for sending the notifications.
 class ResourceManager {
   static final logger = AtSignLogger('NotificationResourceManager');
-  static final ResourceManager _singleton = ResourceManager._internal();
 
   bool _isProcessingQueue = false;
 
@@ -25,18 +24,13 @@ class ResourceManager {
 
   static var maxRetries = AtSecondaryConfig.maxNotificationRetries;
 
-  ResourceManager._internal();
+  final NotifyConnectionsPool notifyConnectionsPool;
 
-  factory ResourceManager.getInstance() {
-    return _singleton;
-  }
+  ResourceManager(this.notifyConnectionsPool);
 
-  final NotifyConnectionsPool _notifyConnectionsPool =
-      NotifyConnectionsPool.getInstance();
+  int get outboundConnectionLimit => notifyConnectionsPool.size;
 
-  int get outboundConnectionLimit => _notifyConnectionsPool.size;
-
-  set outboundConnectionLimit(int ocl) => _notifyConnectionsPool.size = ocl;
+  set outboundConnectionLimit(int ocl) => notifyConnectionsPool.size = ocl;
 
   void start() {
     _started = true;
@@ -88,7 +82,7 @@ class ResourceManager {
     late Iterator notificationIterator;
     try {
       //1. Find the cap on the notifyConnectionsPool size
-      var numberOfOutboundConnections = _notifyConnectionsPool.size;
+      var numberOfOutboundConnections = notifyConnectionsPool.size;
 
       //2. Get the atsign on priority basis.
       var atSignIterator = AtNotificationMap.getInstance()
@@ -130,7 +124,7 @@ class ResourceManager {
   /// Returns OutboundClient, if connection is successful.
   /// Throws [ConnectionInvalidException] for any exceptions
   Future<OutboundClient> _connect(String toAtSign) async {
-    return await _notifyConnectionsPool.getOutboundClient(toAtSign);
+    return await notifyConnectionsPool.getOutboundClient(toAtSign);
   }
 
   /// Send the Notification to [atNotificationList.toAtSign]

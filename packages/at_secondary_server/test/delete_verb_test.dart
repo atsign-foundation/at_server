@@ -34,7 +34,10 @@ void main() {
 
     test('test delete getVerb', () {
       var handler = DeleteVerbHandler(
-          secondaryKeyStore, StatsNotificationService.getInstance());
+        secondaryKeyStore,
+        StatsNotificationService.getInstance(),
+        notificationManager,
+      );
       var verb = handler.getVerb();
       expect(verb is Delete, true);
     });
@@ -42,7 +45,10 @@ void main() {
     test('test delete command accept test', () {
       var command = 'delete:@bob:email@colin';
       var handler = DeleteVerbHandler(
-          secondaryKeyStore, StatsNotificationService.getInstance());
+        secondaryKeyStore,
+        StatsNotificationService.getInstance(),
+        notificationManager,
+      );
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -51,7 +57,10 @@ void main() {
       var command = 'DEL ETE:@bob:email@colin';
       command = SecondaryUtil.convertCommand(command);
       var handler = DeleteVerbHandler(
-          secondaryKeyStore, StatsNotificationService.getInstance());
+        secondaryKeyStore,
+        StatsNotificationService.getInstance(),
+        notificationManager,
+      );
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -108,7 +117,10 @@ void main() {
     setUp(() async {
       await verbTestsSetUp();
       handler = DeleteVerbHandler(
-          secondaryKeyStore, StatsNotificationService.getInstance());
+        secondaryKeyStore,
+        StatsNotificationService.getInstance(),
+        notificationManager,
+      );
     });
 
     test('verify deletion of signing public key throws exception', () {
@@ -196,7 +208,10 @@ void main() {
 
       inboundConnection.metaData.isAuthenticated = true;
       deleteHandler = DeleteVerbHandler(
-          secondaryKeyStore, StatsNotificationService.getInstance());
+        secondaryKeyStore,
+        StatsNotificationService.getInstance(),
+        notificationManager,
+      );
       updateHandler = UpdateVerbHandler(
         secondaryKeyStore,
         StatsNotificationService.getInstance(),
@@ -326,16 +341,22 @@ void main() {
       String deleteCommand = 'delete:$alice:phone.wavi$alice';
       HashMap<String, String?> deleteVerbParams =
           getVerbParam(VerbSyntax.delete, deleteCommand);
-      DeleteVerbHandler deleteVerbHandler =
-          DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
+      DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+      );
       await deleteVerbHandler.processVerb(
           response, deleteVerbParams, inboundConnection);
       expect(response.data, isNotNull);
       // Delete a key with buzz namespace
       deleteCommand = 'delete:$alice:phone.buzz$alice';
       deleteVerbParams = getVerbParam(VerbSyntax.delete, deleteCommand);
-      deleteVerbHandler =
-          DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
+      deleteVerbHandler = DeleteVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+      );
       await deleteVerbHandler.processVerb(
           response, deleteVerbParams, inboundConnection);
       expect(response.data, isNotNull);
@@ -364,8 +385,11 @@ void main() {
       String deleteCommand = 'delete:dummykey.wavi$alice';
       HashMap<String, String?> deleteVerbParams =
           getVerbParam(VerbSyntax.delete, deleteCommand);
-      DeleteVerbHandler deleteVerbHandler =
-          DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
+      DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+      );
       expect(
           () async => await deleteVerbHandler.processVerb(
               response, deleteVerbParams, inboundConnection),
@@ -398,8 +422,11 @@ void main() {
       String deleteCommand = 'delete:dummykey.wavi$alice';
       HashMap<String, String?> deleteVerbParams =
           getVerbParam(VerbSyntax.delete, deleteCommand);
-      DeleteVerbHandler deleteVerbHandler =
-          DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
+      DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+      );
       await deleteVerbHandler.processVerb(
           response, deleteVerbParams, inboundConnection);
       expect(response.data, isNotNull);
@@ -422,8 +449,11 @@ void main() {
       String deleteCommand = 'delete:$bob:shared_key$alice';
       HashMap<String, String?> deleteVerbParams =
           getVerbParam(VerbSyntax.delete, deleteCommand);
-      DeleteVerbHandler deleteVerbHandler =
-          DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
+      DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+      );
       await deleteVerbHandler.processVerb(
           response, deleteVerbParams, inboundConnection);
       expect(response.isError, false);
@@ -451,8 +481,11 @@ void main() {
       String deleteCommand = 'delete:$bob:shared_key$alice';
       HashMap<String, String?> deleteVerbParams =
           getVerbParam(VerbSyntax.delete, deleteCommand);
-      DeleteVerbHandler deleteVerbHandler =
-          DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
+      DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+      );
       await deleteVerbHandler.processVerb(
           response, deleteVerbParams, inboundConnection);
       expect(response.data, isNotNull);
@@ -483,6 +516,7 @@ void main() {
       DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
         secondaryKeyStore,
         statsNotificationService,
+        notificationManager,
       );
       await deleteVerbHandler.processVerb(
           response, deleteVerbParams, inboundConnection);
@@ -511,8 +545,11 @@ void main() {
       String deleteCommand = 'delete:$alice:secretdata$alice';
       HashMap<String, String?> deleteVerbParams =
           getVerbParam(VerbSyntax.delete, deleteCommand);
-      DeleteVerbHandler deleteVerbHandler =
-          DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
+      DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+      );
       expect(
           () async => await deleteVerbHandler.processVerb(
               response, deleteVerbParams, inboundConnection),
@@ -557,8 +594,11 @@ void main() {
         String deleteCommand = 'delete:$alice:dummykey.wavi$alice';
         HashMap<String, String?> deleteVerbParams =
             getVerbParam(VerbSyntax.delete, deleteCommand);
-        DeleteVerbHandler deleteVerbHandler =
-            DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
+        DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
+          secondaryKeyStore,
+          statsNotificationService,
+          notificationManager,
+        );
         expect(
             () async => await deleteVerbHandler.processVerb(
                 response, deleteVerbParams, inboundConnection),
@@ -605,8 +645,11 @@ void main() {
       await Future.delayed(Duration(milliseconds: 1));
       String deleteCommand = 'delete:$alice:phone.wavi$alice';
 
-      DeleteVerbHandler deleteVerbHandler =
-          DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
+      DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+      );
       response = await deleteVerbHandler.processInternal(
           deleteCommand, inboundConnection);
       expect(response.isError, true);

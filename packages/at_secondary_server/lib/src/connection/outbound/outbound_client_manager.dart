@@ -12,15 +12,22 @@ class OutboundClientManager {
 
   static const int defaultPoolSize = 200;
 
-  final OutboundClientPool _pool = OutboundClientPool(size: defaultPoolSize);
+  late final OutboundClientPool _pool;
 
-  OutboundClientManager(this.secondaryAddressFinder);
+  OutboundClientManager(
+    this.secondaryAddressFinder,
+    this.outboundConnectionFactory, {
+    int poolSize = defaultPoolSize,
+  }) {
+    _pool = OutboundClientPool(size: poolSize);
+  }
 
   @visibleForTesting
   bool closed = false;
 
   @visibleForTesting
   SecondaryAddressFinder secondaryAddressFinder;
+  final OutboundConnectionFactory outboundConnectionFactory;
 
   set poolSize(int s) => _pool.size = s;
 
@@ -61,7 +68,12 @@ class OutboundClientManager {
 
     // No existing client found, and Pool has capacity - create a new client
     var newClient = OutboundClient(
-        inboundConnection, toAtSign, secondaryAddressFinder, handshakeRequired);
+      inboundConnection,
+      toAtSign,
+      secondaryAddressFinder,
+      handshakeRequired,
+      outboundConnectionFactory,
+    );
     if (connect) {
       await newClient.connect();
     } else {

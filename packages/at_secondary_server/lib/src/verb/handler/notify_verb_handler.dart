@@ -23,7 +23,9 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   static Notify notify = Notify();
   final int _maxKeyLength = 255;
 
-  NotifyVerbHandler(super.keyStore);
+  final NotificationManager notificationManager;
+
+  NotifyVerbHandler(super.keyStore, this.notificationManager);
 
   AtNotificationBuilder atNotificationBuilder = AtNotificationBuilder();
 
@@ -226,8 +228,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     }
     // Send the notification to notification queue manager to notify to the forAtSign
     // and return the notification Id to the currentAtSign
-    var notificationId = await NotificationManager.getInstance()
-        .notify(atNotificationBuilder.build());
+    var notificationId =
+        await notificationManager.notify(atNotificationBuilder.build());
     response.data = notificationId;
     return;
   }

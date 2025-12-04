@@ -5,23 +5,15 @@ import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
 
 void main() {
-  MockSocket mockSocket_1 = MockSocket();
-  MockSocket mockSocket_2 = MockSocket();
+  FakeSocket mockSocket_1 = FakeSocket();
+  FakeSocket mockSocket_2 = FakeSocket();
 
   verbTestsSetUpLogging();
-
-  setUpAll(() async {
-    when(() => mockSocket_1.setOption(SocketOption.tcpNoDelay, true))
-        .thenReturn(true);
-    when(() => mockSocket_2.setOption(SocketOption.tcpNoDelay, true))
-        .thenReturn(true);
-  });
 
   setUp(() {
     var serverContext = AtSecondaryContext();

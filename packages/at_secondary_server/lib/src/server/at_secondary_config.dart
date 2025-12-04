@@ -19,8 +19,12 @@ class AtSecondaryConfig {
   static const bool _testingMode = false;
 
   //Certificate Paths
-  static const String _certificateChainLocation = 'certs/fullchain.pem';
-  static const String _privateKeyLocation = 'certs/privkey.pem';
+  static const String _fullchainLocation = 'certs/fullchain.pem';
+  static const String _privkeyLocation = 'certs/privkey.pem';
+
+  static const String _fullchainLocationMtls = 'certs/mtls/fullchain.pem';
+  static const String _privkeyLocationMtls = 'certs/mtls/privkey.pem';
+
   static const String _trustedCertificateLocation = '/etc/cacert/cacert.pem';
 
   //Secondary Storage
@@ -556,9 +560,9 @@ class AtSecondaryConfig {
     }
   }
 
-  static String? get trustedCertificateLocation {
+  static String get trustedCertificateLocation {
     if (_envVars.containsKey('securityTrustedCertificateLocation')) {
-      return _envVars['securityTrustedCertificateLocation'];
+      return _envVars['securityTrustedCertificateLocation']!;
     }
     try {
       return getConfigFromYaml(['security', 'trustedCertificateLocation']);
@@ -567,25 +571,47 @@ class AtSecondaryConfig {
     }
   }
 
-  static String? get privateKeyLocation {
+  static String get privateKeyLocation {
     if (_envVars.containsKey('securityPrivateKeyLocation')) {
-      return _envVars['securityPrivateKeyLocation'];
+      return _envVars['securityPrivateKeyLocation']!;
     }
     try {
       return getConfigFromYaml(['security', 'privateKeyLocation']);
     } on ElementNotFoundException {
-      return _privateKeyLocation;
+      return _privkeyLocation;
     }
   }
 
-  static String? get certificateChainLocation {
+  static String get certificateChainLocation {
     if (_envVars.containsKey('securityCertificateChainLocation')) {
-      return _envVars['securityCertificateChainLocation'];
+      return _envVars['securityCertificateChainLocation']!;
     }
     try {
       return getConfigFromYaml(['security', 'certificateChainLocation']);
     } on ElementNotFoundException {
-      return _certificateChainLocation;
+      return _fullchainLocation;
+    }
+  }
+
+  static String get privateKeyLocationMtls {
+    if (_envVars.containsKey('securityPrivateKeyLocationMtls')) {
+      return _envVars['securityPrivateKeyLocationMtls']!;
+    }
+    try {
+      return getConfigFromYaml(['security', 'privateKeyLocationMtls']);
+    } on ElementNotFoundException {
+      return _privkeyLocationMtls;
+    }
+  }
+
+  static String get certificateChainLocationMtls {
+    if (_envVars.containsKey('securityCertificateChainLocationMtls')) {
+      return _envVars['securityCertificateChainLocationMtls']!;
+    }
+    try {
+      return getConfigFromYaml(['security', 'certificateChainLocationMtls']);
+    } on ElementNotFoundException {
+      return _fullchainLocationMtls;
     }
   }
 

@@ -4,6 +4,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/notification/at_notification_map.dart';
+import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/queue_manager.dart';
 import 'package:at_secondary/src/notification/resource_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -18,7 +19,8 @@ void main() async {
 
   // mock object for outbound client
   OutboundClient mockOutboundClient = MockOutboundClient();
-  ResourceManager rm = ResourceManager.getInstance();
+  ResourceManager notifsResourceMgr = ResourceManager(NotifyConnectionsPool(
+      DefaultOutboundConnectionFactory(requireCerts: false)));
   var storageDir = '${Directory.current.path}/test/hive';
 
   //  forcing the notification sending to fail with an exception
@@ -72,7 +74,7 @@ void main() async {
       // Iterator containing all the notifications
       Iterator notificationIterator =
           [atNotification1, atNotification2, atNotification3].iterator;
-      await rm.sendNotifications(
+      await notifsResourceMgr.sendNotifications(
           atsign, mockOutboundClient, notificationIterator);
       var atNotificationList = [];
       var itr = QueueManager.getInstance().dequeue(atsign);
@@ -95,8 +97,8 @@ void main() async {
             ..notification = '@bob:phone$alice')
           .build();
 
-      var notifyCommand = ResourceManager.getInstance()
-          .prepareNotifyCommandBody(atNotification);
+      var notifyCommand =
+          notifsResourceMgr.prepareNotifyCommandBody(atNotification);
 
       /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
       expect(notifyCommand,
@@ -105,8 +107,8 @@ void main() async {
 
     test('Test to verify prepare notification without passing any fields', () {
       var atNotification = (AtNotificationBuilder()..id = '1122').build();
-      var notifyCommand = ResourceManager.getInstance()
-          .prepareNotifyCommandBody(atNotification);
+      var notifyCommand =
+          notifsResourceMgr.prepareNotifyCommandBody(atNotification);
 
       /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
       expect(notifyCommand,
@@ -120,8 +122,8 @@ void main() async {
             ..notification = '@bob:phone$alice'
             ..opType = OperationType.delete)
           .build();
-      var notifyCommand = ResourceManager.getInstance()
-          .prepareNotifyCommandBody(atNotification);
+      var notifyCommand =
+          notifsResourceMgr.prepareNotifyCommandBody(atNotification);
 
       /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
       expect(notifyCommand,
@@ -136,8 +138,8 @@ void main() async {
             ..notifier = 'wavi'
             ..messageType = MessageType.text)
           .build();
-      var notifyCommand = ResourceManager.getInstance()
-          .prepareNotifyCommandBody(atNotification);
+      var notifyCommand =
+          notifsResourceMgr.prepareNotifyCommandBody(atNotification);
 
       /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
       expect(notifyCommand,
@@ -174,8 +176,8 @@ void main() async {
             ))
           .build();
 
-      var notifyCommand = ResourceManager.getInstance()
-          .prepareNotifyCommandBody(atNotification);
+      var notifyCommand =
+          notifsResourceMgr.prepareNotifyCommandBody(atNotification);
 
       /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
       expect(

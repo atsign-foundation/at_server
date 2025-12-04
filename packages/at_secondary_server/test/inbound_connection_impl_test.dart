@@ -1,21 +1,16 @@
-import 'dart:io';
-
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
 
 void main() async {
-  late MockSocket mockSocket;
+  late FakeSocket mockSocket;
 
   verbTestsSetUpLogging();
 
   setUp(() async {
-    mockSocket = MockSocket();
-    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
-        .thenReturn(true);
+    mockSocket = FakeSocket();
   });
 
   group('A test to verify the rate limiter on inbound connection', () {

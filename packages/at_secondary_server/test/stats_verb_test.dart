@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -22,7 +21,6 @@ import 'package:test/test.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:uuid/uuid.dart';
-import 'package:mocktail/mocktail.dart';
 
 import 'test_utils.dart';
 
@@ -30,13 +28,12 @@ void main() {
   SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
   AtCacheManager mockAtCacheManager = MockAtCacheManager();
-  MockSocket mockSocket = MockSocket();
+  FakeSocket mockSocket = FakeSocket();
   EnrollmentManager mockEnrollmentManager = MockEnrollmentManager();
+  NotificationManager mockNotificationManager = MockNotificationManager();
 
   setUpAll(() async {
     await verbTestsSetUpAll();
-    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
-        .thenReturn(true);
   });
 
   final atServer = AtSecondaryServerImpl.getInstance();
@@ -128,7 +125,7 @@ void main() {
         mockOutboundClientManager,
         mockAtCacheManager,
         StatsNotificationService.getInstance(),
-        NotificationManager.getInstance(),
+        mockNotificationManager,
         mockEnrollmentManager,
         alice,
       );

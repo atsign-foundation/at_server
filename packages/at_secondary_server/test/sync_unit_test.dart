@@ -1,6 +1,5 @@
 import 'dart:collection';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -13,7 +12,6 @@ import 'package:at_secondary/src/verb/handler/batch_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
 import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
@@ -28,14 +26,10 @@ String atSign = alice;
 void main() async {
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
   AtCacheManager mockAtCacheManager = MockAtCacheManager();
-  MockSocket mockSocket = MockSocket();
+  FakeSocket mockSocket = FakeSocket();
+  NotificationManager mockNotificationManager = MockNotificationManager();
 
   verbTestsSetUpLogging();
-
-  setUpAll(() async {
-    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
-        .thenReturn(true);
-  });
 
   Future<String> putData(String key) async {
     final data = Uuid().v4();
@@ -259,7 +253,7 @@ void main() async {
           mockOutboundClientManager,
           mockAtCacheManager,
           StatsNotificationService.getInstance(),
-          NotificationManager.getInstance(),
+          mockNotificationManager,
           enMgr,
           alice,
         );
@@ -333,7 +327,7 @@ void main() async {
           mockOutboundClientManager,
           mockAtCacheManager,
           StatsNotificationService.getInstance(),
-          NotificationManager.getInstance(),
+          mockNotificationManager,
           enMgr,
           alice,
         );

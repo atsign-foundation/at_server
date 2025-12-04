@@ -115,20 +115,24 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
       outboundClientManager,
       cacheManager,
     ));
-    _verbHandlers.add(DeleteVerbHandler(keyStore, statsNotificationService));
+    _verbHandlers.add(DeleteVerbHandler(
+      keyStore,
+      statsNotificationService,
+      notificationManager,
+    ));
     _verbHandlers.add(StatsVerbHandler(keyStore));
     _verbHandlers.add(ConfigVerbHandler(keyStore));
     _verbHandlers.add(MonitorVerbHandler(keyStore));
-    _verbHandlers.add(StreamVerbHandler(keyStore));
-    _verbHandlers.add(NotifyVerbHandler(keyStore));
+    _verbHandlers.add(StreamVerbHandler(keyStore, notificationManager));
+    _verbHandlers.add(NotifyVerbHandler(keyStore, notificationManager));
     _verbHandlers.add(NotifyListVerbHandler(keyStore, outboundClientManager));
     _verbHandlers.add(BatchVerbHandler(keyStore, this));
     _verbHandlers.add(NotifyStatusVerbHandler(keyStore));
-    _verbHandlers.add(NotifyAllVerbHandler(keyStore));
+    _verbHandlers.add(NotifyAllVerbHandler(keyStore, notificationManager));
     _verbHandlers.add(SyncProgressiveVerbHandler(keyStore));
     _verbHandlers.add(InfoVerbHandler(keyStore));
     _verbHandlers.add(NoOpVerbHandler(keyStore));
-    _verbHandlers.add(NotifyRemoveVerbHandler(keyStore));
+    _verbHandlers.add(NotifyRemoveVerbHandler(keyStore, notificationManager));
     _verbHandlers.add(NotifyFetchVerbHandler(keyStore));
     _verbHandlers.add(EnrollVerbHandler(keyStore, enrollmentManager));
     _verbHandlers.add(OtpVerbHandler(keyStore));

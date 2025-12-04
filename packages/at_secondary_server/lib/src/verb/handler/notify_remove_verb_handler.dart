@@ -11,7 +11,12 @@ import 'package:at_server_spec/at_verb_spec.dart';
 class NotifyRemoveVerbHandler extends AbstractVerbHandler {
   static NotifyRemove notifyRemove = NotifyRemove();
 
-  NotifyRemoveVerbHandler(super.keyStore);
+  final NotificationManager notificationManager;
+
+  NotifyRemoveVerbHandler(
+    super.keyStore,
+    this.notificationManager,
+  );
 
   @override
   bool accept(String command) => command.startsWith('notify:remove:');
@@ -42,7 +47,7 @@ class NotifyRemoveVerbHandler extends AbstractVerbHandler {
             'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId} is not authorized to remove notify key: $atKey');
       }
     }
-    await NotificationManager.getInstance().remove(id);
+    await notificationManager.remove(id);
     response.data = 'success';
   }
 }

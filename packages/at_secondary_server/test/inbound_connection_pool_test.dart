@@ -7,7 +7,6 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_server_spec/at_server_spec.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 import 'package:at_utils/at_utils.dart';
 
@@ -18,7 +17,7 @@ var serverContext = AtSecondaryContext();
 AtSignLogger logger = AtSignLogger('inbound_connection_pool_test');
 
 void main() async {
-  late MockSocket mockSocket;
+  late FakeSocket mockSocket;
 
   verbTestsSetUpLogging();
 
@@ -36,9 +35,7 @@ void main() async {
     pool = atServer.inboundConnectionManager.pool;
     pool.resize(10);
 
-    mockSocket = MockSocket();
-    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
-        .thenReturn(true);
+    mockSocket = FakeSocket();
   });
   tearDown(() {
     pool.clearAllConnections();

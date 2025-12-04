@@ -18,7 +18,13 @@ class DeleteVerbHandler extends ChangeVerbHandler {
   static bool _autoNotify = AtSecondaryConfig.autoNotify;
   Set<String>? protectedKeys;
 
-  DeleteVerbHandler(super.keyStore, super.statsNotificationService);
+  final NotificationManager notificationManager;
+
+  DeleteVerbHandler(
+    super.keyStore,
+    super.statsNotificationService,
+    this.notificationManager,
+  );
 
   //setter to set autoNotify value from dynamic server config "config:set".
   //only works when testingMode is set to true
@@ -145,7 +151,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       // send notification to other secondary if [AtSecondaryConfig.autoNotify] is true
       if (_autoNotify && (forAtSign != atSign)) {
         try {
-          _notify(
+          await _notify(
               forAtSign,
               atSign,
               key,
@@ -162,7 +168,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     }
   }
 
-  void _notify(forAtSign, atSign, key, priority) {
+  Future<void> _notify(forAtSign, atSign, key, priority) async {
     if (forAtSign == null) {
       return;
     }
@@ -175,7 +181,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
           ..priority = priority
           ..opType = OperationType.delete)
         .build();
-    NotificationManager.getInstance().notify(atNotification);
+    await notificationManager.notify(atNotification);
   }
 
   Set<String> _getProtectedKeys(String? atsign) {

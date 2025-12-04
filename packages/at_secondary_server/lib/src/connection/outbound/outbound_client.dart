@@ -19,10 +19,13 @@ import 'package:meta/meta.dart';
 // Connects to an secondary and performs required handshake to be ready to run rest of the commands
 /// Handshake involves running "from", "pol" verbs on the secondary
 class OutboundClient {
-  var logger = AtSignLogger('OutboundClient');
+  static final logger = AtSignLogger('OutboundClient');
 
   final InboundConnection inboundConnection;
   final String toAtSign;
+  late OutboundMessageListener messageListener;
+  final OutboundConnectionFactory outboundConnectionFactory;
+
 
   String? toHost;
   String? toPort;
@@ -48,16 +51,13 @@ class OutboundClient {
         'isConnectionCreated: $isConnectionCreated, isHandShakeDone: $isHandShakeDone}';
   }
 
-  late OutboundMessageListener messageListener;
-
-  late OutboundConnectionFactory _outboundConnectionFactory;
-
-  OutboundClient(this.inboundConnection, this.toAtSign,
-      this.secondaryAddressFinder, this.handshakeRequired,
-      {OutboundConnectionFactory? outboundConnectionFactory}) {
-    outboundConnectionFactory ??= DefaultOutboundConnectionFactory();
-    _outboundConnectionFactory = outboundConnectionFactory;
-  }
+  OutboundClient(
+    this.inboundConnection,
+    this.toAtSign,
+    this.secondaryAddressFinder,
+    this.handshakeRequired,
+    this.outboundConnectionFactory,
+  );
 
   /// Connects to an secondary and performs required handshake to be ready to run rest of the commands
   /// Handshake involves running "from", "pol" verbs on the secondary
@@ -82,7 +82,7 @@ class OutboundClient {
       String toHost = secondaryInfo[0];
       int toPort = int.parse(secondaryInfo[1]);
       // 2. Create an outbound connection for the host and port
-      outboundConnection = await _outboundConnectionFactory
+      outboundConnection = await outboundConnectionFactory
           .createOutboundConnection(toHost, toPort, toAtSign);
 
       // Note that the outbound connection has been created successfully
@@ -377,17 +377,44 @@ abstract class OutboundConnectionFactory {
 }
 
 class DefaultOutboundConnectionFactory implements OutboundConnectionFactory {
+  final AtSignLogger logger = AtSignLogger('DefaultOutboundConnectionFactory')
+    ..level = 'info'; // Log stuff regardless of overall log level
+  final AtSecurityContextImpl atSecurityContext = AtSecurityContextImpl();
+  final SecurityContext securityContext =
+      SecurityContext(withTrustedRoots: true);
+  final bool requireCerts;
+
+  DefaultOutboundConnectionFactory({required this.requireCerts}) {
+    if (File(atSecurityContext.privateKeyPathMtls).existsSync() &&
+        File(atSecurityContext.publicKeyPathMtls).existsSync()) {
+      logger.info('Using MTLS cert when making outbound client connections');
+      securityContext.useCertificateChain('mtls_certs/fullchain.pem');
+      securityContext.usePrivateKey('mtls_certs/privkey.pem');
+    } else if (File(atSecurityContext.privateKeyPath).existsSync() &&
+        File(atSecurityContext.publicKeyPath).existsSync()) {
+      logger.info('Using server cert when making outbound client connections');
+      securityContext.useCertificateChain(atSecurityContext.publicKeyPath);
+      securityContext.usePrivateKey(atSecurityContext.privateKeyPath);
+    } else if (requireCerts) {
+      throw StateError('SSL Certificates are required, but none were found');
+    }
+
+    if (File(atSecurityContext.trustedCertificatePath).existsSync()) {
+      securityContext
+          .setTrustedCertificates(atSecurityContext.trustedCertificatePath);
+    } else if (requireCerts) {
+      throw StateError('${atSecurityContext.trustedCertificatePath} is required but not found');
+    }
+  }
+
   @override
   Future<OutboundSocketConnection> createOutboundConnection(
       String host, int port, String toAtSign) async {
-    AtSecurityContextImpl securityContext = AtSecurityContextImpl();
-    SecurityContext secConConnect = SecurityContext.defaultContext;
-    secConConnect.useCertificateChain(securityContext.publicKeyPath());
-    secConConnect.usePrivateKey(securityContext.privateKeyPath());
-    secConConnect
-        .setTrustedCertificates(securityContext.trustedCertificatePath());
-    var secureSocket =
-        await SecureSocket.connect(host, port, context: secConConnect);
+    var secureSocket = await SecureSocket.connect(
+      host,
+      port,
+      context: securityContext,
+    );
     return OutboundConnectionImpl(secureSocket, toAtSign);
   }
 }

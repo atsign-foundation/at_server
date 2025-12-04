@@ -13,7 +13,10 @@ import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
+import 'package:at_secondary/src/notification/at_notification_map.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
+import 'package:at_secondary/src/notification/notify_connection_pool.dart';
+import 'package:at_secondary/src/notification/resource_manager.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -58,7 +61,7 @@ class MockSecureSocket extends Mock implements SecureSocket {}
 
 class MockEnrollmentManager extends Mock implements EnrollmentManager {}
 
-class MockSocket extends Mock implements Socket {
+class FakeSocket extends Fake implements Socket {
   Completer completer = Completer();
 
   @override
@@ -75,6 +78,9 @@ class MockSocket extends Mock implements Socket {
 
   @override
   int get port => 5555;
+
+  @override
+  bool setOption(SocketOption option, bool enabled) => true;
 }
 
 class MockStreamSubscription<T> extends Mock implements StreamSubscription<T> {}
@@ -102,7 +108,7 @@ late MockOutboundConnection mockOutboundConnection;
 late MockSecondaryAddressFinder mockSecondaryAddressFinder;
 late MockSecureSocket mockSecureSocket;
 late DummyInboundConnection inboundConnection;
-late MockNotificationManager notificationManager;
+late NotificationManager notificationManager;
 late MockStatsNotificationService statsNotificationService;
 late EnrollmentManager enMgr;
 
@@ -197,16 +203,24 @@ verbTestsSetUp() async {
   // inboundPool.add(inboundConnection);
 
   outboundClientWithHandshake = OutboundClient(
-      inboundConnection, bob, mockSecondaryAddressFinder, true,
-      outboundConnectionFactory: mockOutboundConnectionFactory)
+    inboundConnection,
+    bob,
+    mockSecondaryAddressFinder,
+    true,
+    mockOutboundConnectionFactory,
+  )
     ..notifyTimeoutMillis = 100
     ..lookupTimeoutMillis = 100
     ..toHost = bobHost
     ..toPort = bobPort.toString()
     ..productionMode = false;
   outboundClientWithoutHandshake = OutboundClient(
-      inboundConnection, bob, mockSecondaryAddressFinder, false,
-      outboundConnectionFactory: mockOutboundConnectionFactory)
+    inboundConnection,
+    bob,
+    mockSecondaryAddressFinder,
+    false,
+    mockOutboundConnectionFactory,
+  )
     ..notifyTimeoutMillis = 100
     ..lookupTimeoutMillis = 100
     ..toHost = bobHost
@@ -301,10 +315,12 @@ verbTestsSetUp() async {
     socketOnDataFn("data:$bobOriginalPublicKeyAsJson\n$alice@".codeUnits);
   });
 
-  notificationManager = MockNotificationManager();
+  notificationManager = NotificationManager(ResourceManager(
+      NotifyConnectionsPool(
+          DefaultOutboundConnectionFactory(requireCerts: false))));
   registerFallbackValue(AtNotificationBuilder().build());
-  when(() => notificationManager.notify(any()))
-      .thenAnswer((invocation) async => 'some-notification-id');
+  // when(() => notificationManager.notify(any()))
+  //     .thenAnswer((invocation) async => 'some-notification-id');
 
   statsNotificationService = MockStatsNotificationService();
 }
@@ -314,6 +330,8 @@ Future<void> verbTestsTearDown() async {
   secondaryKeyStore.postRemoveHooks.clear();
   await SecondaryPersistenceStoreFactory.getInstance().close();
   await AtCommitLogManagerImpl.getInstance().close();
+  await AtNotificationKeystore.getInstance().close(); // TODO deep
+  AtNotificationMap.getInstance().clear(); // TODO sigh
   var isExists = await Directory(storageDir).exists();
   if (isExists) {
     Directory(storageDir).deleteSync(recursive: true);

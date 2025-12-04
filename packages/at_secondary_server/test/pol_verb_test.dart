@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
@@ -16,7 +14,6 @@ import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
-import 'package:mocktail/mocktail.dart';
 
 import 'test_utils.dart';
 
@@ -24,15 +21,13 @@ void main() async {
   SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
   AtCacheManager mockAtCacheManager = MockAtCacheManager();
-  MockSocket mockSocket = MockSocket();
+  FakeSocket mockSocket = FakeSocket();
   EnrollmentManager mockEnrollmentManager = MockEnrollmentManager();
+  NotificationManager mockNotificationManager = MockNotificationManager();
 
   verbTestsSetUpLogging();
 
-  setUpAll(() {
-    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
-        .thenReturn(true);
-  });
+  setUpAll(() {});
 
   test('test pol Verb', () {
     var handler = PolVerbHandler(
@@ -70,7 +65,7 @@ void main() async {
       mockOutboundClientManager,
       mockAtCacheManager,
       StatsNotificationService.getInstance(),
-      NotificationManager.getInstance(),
+      mockNotificationManager,
       mockEnrollmentManager,
       alice,
     );

@@ -12,14 +12,13 @@ import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/from_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
 
 void main() {
   late SecondaryKeyStore mockKeyStore;
-  late MockSocket mockSocket;
+  late FakeSocket mockSocket;
 
   verbTestsSetUpLogging();
 
@@ -27,9 +26,7 @@ void main() {
   late SecondaryKeyStoreManager keyStoreManager;
   setUp(() async {
     mockKeyStore = MockSecondaryKeyStore();
-    mockSocket = MockSocket();
-    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
-        .thenReturn(true);
+    mockSocket = FakeSocket();
     keyStoreManager = await setUpFunc(storageDir);
   });
 

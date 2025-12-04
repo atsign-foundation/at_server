@@ -5,13 +5,14 @@ import 'package:at_secondary/src/connection/outbound/outbound_connection_impl.da
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_commons/at_commons.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
 
 void main() {
-  late MockSocket mockSocket;
+  late FakeSocket mockSocket;
+  OutboundConnectionFactory outboundConnectionFactory =
+      DefaultOutboundConnectionFactory(requireCerts: false);
 
   verbTestsSetUpLogging();
 
@@ -19,17 +20,20 @@ void main() {
     var serverContext = AtSecondaryContext();
     serverContext.unauthenticatedOutboundIdleTimeMillis = 50;
     AtSecondaryServerImpl.getInstance().serverContext = serverContext;
-    mockSocket = MockSocket();
-    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
-        .thenReturn(true);
+    mockSocket = FakeSocket();
   });
 
   group('A group of outbound client tests', () {
     test('test outbound client - invalid outbound client if inbound is invalid',
         () {
       var connection1 = InboundConnectionImpl(mockSocket, 'aaa');
-      var client = OutboundClient(connection1, 'bob',
-          AtSecondaryServerImpl.getInstance().secondaryAddressFinder, true);
+      var client = OutboundClient(
+        connection1,
+        'bob',
+        AtSecondaryServerImpl.getInstance().secondaryAddressFinder,
+        true,
+        outboundConnectionFactory,
+      );
       client.outboundConnection = OutboundConnectionImpl(mockSocket, 'bob');
       connection1.close();
       expect(client.isInValid(), true);
@@ -37,8 +41,13 @@ void main() {
 
     test('test outbound client - invalid outbound client idle', () {
       var connection1 = InboundConnectionImpl(mockSocket, 'aaa');
-      var client = OutboundClient(connection1, 'bob',
-          AtSecondaryServerImpl.getInstance().secondaryAddressFinder, true);
+      var client = OutboundClient(
+        connection1,
+        'bob',
+        AtSecondaryServerImpl.getInstance().secondaryAddressFinder,
+        true,
+        outboundConnectionFactory,
+      );
       client.outboundConnection = OutboundConnectionImpl(mockSocket, 'bob');
       sleep(Duration(
           milliseconds: AtSecondaryServerImpl.getInstance()
@@ -50,8 +59,13 @@ void main() {
 
     test('test outbound client - valid outbound client', () {
       var connection1 = InboundConnectionImpl(mockSocket, 'aaa');
-      var client = OutboundClient(connection1, 'bob',
-          AtSecondaryServerImpl.getInstance().secondaryAddressFinder, true);
+      var client = OutboundClient(
+        connection1,
+        'bob',
+        AtSecondaryServerImpl.getInstance().secondaryAddressFinder,
+        true,
+        outboundConnectionFactory,
+      );
       client.outboundConnection = OutboundConnectionImpl(mockSocket, 'bob');
       expect(client.isInValid(), false);
     });
@@ -60,8 +74,13 @@ void main() {
         'test outbound client - stale connection - connection invalid exception',
         () {
       var connection1 = InboundConnectionImpl(mockSocket, 'aaa');
-      var client = OutboundClient(connection1, 'bob',
-          AtSecondaryServerImpl.getInstance().secondaryAddressFinder, false);
+      var client = OutboundClient(
+        connection1,
+        'bob',
+        AtSecondaryServerImpl.getInstance().secondaryAddressFinder,
+        false,
+        outboundConnectionFactory,
+      );
       client.outboundConnection = OutboundConnectionImpl(mockSocket, 'bob');
       client.outboundConnection!.metaData.isStale = true;
       expect(
@@ -74,8 +93,13 @@ void main() {
         'test outbound client - closed connection - connection invalid exception',
         () {
       var connection1 = InboundConnectionImpl(mockSocket, 'aaa');
-      var client = OutboundClient(connection1, 'bob',
-          AtSecondaryServerImpl.getInstance().secondaryAddressFinder, false);
+      var client = OutboundClient(
+        connection1,
+        'bob',
+        AtSecondaryServerImpl.getInstance().secondaryAddressFinder,
+        false,
+        outboundConnectionFactory,
+      );
       client.outboundConnection = OutboundConnectionImpl(mockSocket, 'bob');
       client.outboundConnection!.metaData.isClosed = true;
       expect(

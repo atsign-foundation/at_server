@@ -18,7 +18,12 @@ import 'abstract_verb_handler.dart';
 class NotifyAllVerbHandler extends AbstractVerbHandler {
   static NotifyAll notifyAll = NotifyAll();
 
-  NotifyAllVerbHandler(super.keyStore);
+  final NotificationManager notificationManager;
+
+  NotifyAllVerbHandler(
+    super.keyStore,
+    this.notificationManager,
+  );
 
   @override
   bool accept(String command) =>
@@ -103,8 +108,7 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
               ..atMetaData = atMetadata)
             .build();
 
-        var notificationID =
-            await NotificationManager.getInstance().notify(atNotification);
+        var notificationID = await notificationManager.notify(atNotification);
         resultMap[forAtSign] = notificationID;
       }
     }

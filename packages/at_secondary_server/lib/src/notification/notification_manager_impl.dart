@@ -5,13 +5,9 @@ import 'package:at_secondary/src/notification/resource_manager.dart';
 
 /// Class implementing [NotificationManagerSpec].
 class NotificationManager implements NotificationManagerSpec {
-  static final NotificationManager _singleton = NotificationManager._internal();
+  final ResourceManager resourceManager;
 
-  NotificationManager._internal();
-
-  factory NotificationManager.getInstance() {
-    return _singleton;
-  }
+  NotificationManager(this.resourceManager);
 
   @override
   Future<String?> notify(AtNotification atNotification) async {
@@ -34,7 +30,7 @@ class NotificationManager implements NotificationManagerSpec {
     if (atNotification.type == NotificationType.sent) {
       var queueManager = QueueManager.getInstance();
       queueManager.enqueue(atNotification);
-      ResourceManager.getInstance().nudge();
+      resourceManager.nudge();
     }
 
     // Adding notification to hive key-store.

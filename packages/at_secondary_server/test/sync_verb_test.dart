@@ -1,6 +1,5 @@
 import 'dart:collection';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:at_chops/at_chops.dart';
 import 'package:at_commons/at_commons.dart';
@@ -11,18 +10,15 @@ import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
 
 void main() {
-  MockSocket mockSocket = MockSocket();
+  FakeSocket mockSocket = FakeSocket();
 
   setUpAll(() async {
     await verbTestsSetUpAll();
-    when(() => mockSocket.setOption(SocketOption.tcpNoDelay, true))
-        .thenReturn(true);
   });
 
   setUp(() async {
