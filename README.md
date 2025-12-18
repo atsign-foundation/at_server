@@ -95,3 +95,5 @@ cosign verify atsigncompany/secondary:latest \
 --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
 --certificate-identity-regexp='^https://github.com/atsign-foundation/at_server/.+'
 ```
+
+1
