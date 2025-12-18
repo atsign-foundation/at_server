@@ -96,4 +96,4 @@ cosign verify atsigncompany/secondary:latest \
 --certificate-identity-regexp='^https://github.com/atsign-foundation/at_server/.+'
 ```
 
-4
+5
