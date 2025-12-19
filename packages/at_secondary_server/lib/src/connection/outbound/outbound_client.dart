@@ -388,8 +388,8 @@ class DefaultOutboundConnectionFactory implements OutboundConnectionFactory {
     if (File(atSecurityContext.privateKeyPathMtls).existsSync() &&
         File(atSecurityContext.publicKeyPathMtls).existsSync()) {
       logger.info('Using MTLS cert when making outbound client connections');
-      securityContext.useCertificateChain('mtls_certs/fullchain.pem');
-      securityContext.usePrivateKey('mtls_certs/privkey.pem');
+      securityContext.useCertificateChain(atSecurityContext.publicKeyPathMtls);
+      securityContext.usePrivateKey(atSecurityContext.privateKeyPathMtls);
     } else if (File(atSecurityContext.privateKeyPath).existsSync() &&
         File(atSecurityContext.publicKeyPath).existsSync()) {
       logger.info('Using server cert when making outbound client connections');
