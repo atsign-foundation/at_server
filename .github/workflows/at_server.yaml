@@ -646,6 +646,10 @@ jobs:
             exit 1
           fi
 
+      - name: Deliberately fail so that we can re-run
+        run: |
+          exit 1
+
   # This job runs on trigger event 'push' to trunk branch.
   # The job builds the staging version of at_virtual_env and pushes the image to docker hub.
   push_staging_virtual_env_images:
