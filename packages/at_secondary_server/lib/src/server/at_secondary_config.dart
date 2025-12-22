@@ -112,7 +112,7 @@ class AtSecondaryConfig {
   static final List<String> _malformedKeys = [];
   static const bool _shouldRemoveMalformedKeys = true;
 
-  static final bool _skipCommitsForExpiredKeys = false;
+  static final bool _skipCommitsForExpiredKeys = true;
 
   // Protected Keys
   // <@atsign> is a placeholder. To be replaced with actual atsign during runtime
