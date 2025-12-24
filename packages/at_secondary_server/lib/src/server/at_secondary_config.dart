@@ -112,7 +112,7 @@ class AtSecondaryConfig {
   static final List<String> _malformedKeys = [];
   static const bool _shouldRemoveMalformedKeys = true;
 
-  static final bool _skipCommitsForExpiredKeys = false;
+  static final bool _skipCommitsForExpiredKeys = true;
 
   // Protected Keys
   // <@atsign> is a placeholder. To be replaced with actual atsign during runtime
@@ -759,6 +759,22 @@ class AtSecondaryConfig {
     }
   }
 
+  static bool get skipCommitsForExpiredKeys {
+    // read from env var if set
+    bool? result = _getBoolEnvVar('skipCommitsForExpiredKeys');
+    if (result != null) {
+      return result;
+    }
+
+    // read from config file if available
+    try {
+      return getConfigFromYaml(['hive', 'skipCommitsForExpiredKeys']);
+    } on ElementNotFoundException {
+      // if not found, fallback to class variable
+      return _skipCommitsForExpiredKeys;
+    }
+  }
+
   static Set<String> get protectedKeys {
     try {
       YamlList keys = getConfigFromYaml(['hive', 'protectedKeys']);
@@ -819,10 +835,6 @@ class AtSecondaryConfig {
 
   static set timeFrameInMills(int timeWindowInMills) {
     _timeFrameInMills = timeWindowInMills;
-  }
-
-  static get skipCommitsForExpiredKeys {
-    return _skipCommitsForExpiredKeys;
   }
 
   static int get enrollmentResponseDelayIntervalInSeconds {
