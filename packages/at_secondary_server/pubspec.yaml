@@ -1,6 +1,6 @@
 name: at_secondary
 description: Implementation of secondary server.
-version: 3.8.0
+version: 3.9.0
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://www.example.com
 publish_to: none
@@ -8,6 +8,12 @@ publish_to: none
 environment:
   sdk: ">=3.0.0 <4.0.0"
 
+dependency_overrides:
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_client_sdk
+      path: packages/at_commons
+      ref: gkc-extend-info-verb-syntax
 dependencies:
   args: 2.7.0
   uuid: 4.5.2
