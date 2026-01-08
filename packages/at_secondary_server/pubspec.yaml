@@ -1,6 +1,6 @@
 name: at_secondary
 description: Implementation of secondary server.
-version: 3.7.2
+version: 3.8.0
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://www.example.com
 publish_to: none
@@ -19,8 +19,8 @@ dependencies:
   basic_utils: 5.7.0
   ecdsa: 0.1.2
   encrypt: 5.0.3
-  at_commons: 5.6.2
-  at_utils: 3.3.0
+  at_commons: 5.7.0
+  at_utils: 3.4.0
   at_chops: 2.2.0
   at_lookup: 3.4.1
   at_server_spec: 5.0.4
