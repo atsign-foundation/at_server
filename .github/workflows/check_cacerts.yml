@@ -1,0 +1,31 @@
+name: CA Root Check
+
+on:
+  schedule:
+    # Runs at 06:26 UTC every Monday
+    - cron: '26 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-cacerts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      - name: Run Certificate Comparison
+        id: compare_cacerts
+        working-directory: packages/at_secondary_server/cacert
+        run: ${{ github.workspace }}/tools/compare_cacerts.sh
+
+      - name: Google Chat Notification on failure
+        if: steps.compare_cacerts.outcome == 'failure'
+        uses: Co-qn/google-chat-notification@3691ccf4763537d6e544bc6cdcccc1965799d056 # v1
+        with:
+          name: Changes found in cacerts
+          url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
+          status: ${{ job.status }}
