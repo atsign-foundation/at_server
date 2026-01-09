@@ -1,7 +1,11 @@
+# 3.9.0
+
+- feat: Add `info` subcommands `info:mtls` and `info:mtlsbrief`
+
 # 3.8.0
 
-- feat: When available, present mtls client certs to other atServers, rather 
-  than presenting the server's server certs, which we can no longer depend 
+- feat: When available, present mtls client certs to other atServers, rather
+  than presenting the server's server certs, which we can no longer depend
   on to have the client bit.
 
 # 3.7.2

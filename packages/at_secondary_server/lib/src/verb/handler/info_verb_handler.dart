@@ -1,5 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
@@ -20,7 +21,8 @@ class InfoVerbHandler extends AbstractVerbHandler {
   }
 
   @override
-  bool accept(String command) => command == 'info' || command == 'info:brief';
+  bool accept(String command) =>
+      command == 'info' || command.startsWith('info:');
 
   @override
   Verb getVerb() => infoVerb;
@@ -48,7 +50,34 @@ class InfoVerbHandler extends AbstractVerbHandler {
             .getEnrollmentById(atConnectionMetadata.enrollmentId!);
       }
     } else {
-      infoMap['uptimeAsMillis'] = uptime.inMilliseconds;
+      String subCommand = verbParams[paramFullCommandAsReceived]!.split(':')[1];
+      switch (subCommand) {
+        case 'brief':
+          infoMap['uptimeAsMillis'] = uptime.inMilliseconds;
+          break;
+        case 'mtls':
+          final File f = File(AtSecondaryConfig.certificateChainLocationMtls);
+          if (f.existsSync()) {
+            infoMap['mtls_fullchain'] = f.readAsStringSync();
+          }
+          break;
+        case 'mtlsbrief':
+          final File cert =
+              File(AtSecondaryConfig.certificateChainLocationMtls);
+          if (cert.existsSync()) {
+            infoMap['mtls_fullchain_last_modified'] =
+                cert.lastModifiedSync().toUtc().toIso8601String();
+          }
+          final File key = File(AtSecondaryConfig.privateKeyLocationMtls);
+          if (key.existsSync()) {
+            infoMap['mtls_privkey_last_modified'] =
+                key.lastModifiedSync().toUtc().toIso8601String();
+          }
+          break;
+        default:
+          throw InvalidSyntaxException(
+              'Invalid command $paramFullCommandAsReceived');
+      }
     }
     response.data = json.encode(infoMap);
   }
