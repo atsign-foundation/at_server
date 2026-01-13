@@ -36,6 +36,7 @@ jobs:
         run: |-
           sudo mkdir -p /gluster/@/api/keys
           sudo chmod -R 777 /gluster/@/api/keys
+          echo "${{secrets.DUMMY_PRIVKEY}}" > /gluster/@/api/keys/dummy.key
           echo "${{secrets.LETSENCRYPT_PRIVKEY}}" > /gluster/@/api/keys/letsencrypt.key
           echo "${{secrets.ZEROSSL_PRIVKEY}}" > /gluster/@/api/keys/zerossl.key
           echo "${{secrets.GOOGLE_PRIVKEY}}" > /gluster/@/api/keys/google.key
