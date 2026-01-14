@@ -92,6 +92,9 @@ jobs:
           WS: ${{ github.workspace }}
           DO_KEY: ${{ secrets.DO_KEY }}
           gChat_url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
+          # Python in venv will use certifi trust store by default
+          REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
+          SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
       # create PR with renewed certificates
       - name: Create Pull Request
         id: cpr
