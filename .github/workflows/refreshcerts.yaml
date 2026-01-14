@@ -52,6 +52,10 @@ jobs:
         run: |
           echo "${{ vars.PRODCA }}" | sudo tee /usr/local/share/ca-certificates/stepcaprod.crt > /dev/null
           sudo update-ca-certificates
+      # Test npt connection to prod CA
+      - name: Test npt connection to prod CA
+        run: |
+          curl https://ca.atsign.org:3443/acme/acme/directory
       # Install Python Libraries and run Python ACME script
       - name: Install uv
         uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b # v7.2.0
@@ -66,20 +70,21 @@ jobs:
           uv pip install --require-hashes -r requirements.txt
           cd ../secondaries-scripts/sec_ops
           ./create_cert_workflow.sh vip.ve.atsign.zone
-          cp privkey.pem ../../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/privkey.pem
-          cp fullchain.pem ../../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/fullchain.pem
+          mv privkey.pem ../../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/privkey.pem
+          mv fullchain.pem ../../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/fullchain.pem
           cp ../../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/*.pem \
             ../../tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/
           cp ../../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/*.pem \
             ../../tools/build_ephemeral_environment/ee_base/contents/atsign/root/certs/
           cp ../../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/*.pem \
             ../../tools/build_ephemeral_environment/ee_base/contents/atsign/secondary/base/certs/
+          rm vip.ve.atsign.zone*
           ./create_mtls_workflow.sh vip.ve.atsign.zone
           cp mtls/privkey.pem ../../tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/mtls/
           cp mtls/fullchain.pem ../../tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/mtls/
           cp ../../tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/mtls/*.pem \
             ../../tools/build_ephemeral_environment/ee_base/contents/atsign/secondary/base/certs/mtls/
-          cd ../../.. && rm -rf  vip.ve.atsign.zone* secondaries-scripts
+          cd ../.. && rm -rf secondaries-scripts
         env:
           DO_KEY: ${{ secrets.DO_KEY }}
           gChat_url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
