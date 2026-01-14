@@ -24,7 +24,7 @@ RUN \
   dart pub update ; \
   dart compile exe bin/at_activate.dart -o at_activate
 
-FROM debian:stable-20260112-slim@sha256:265395bbb3971e8c5b19c150a395dea7cd503e5a630bf26fd935aa443acc7ea7
+FROM debian:stable-20260112-slim@sha256:fa7991b272e289a0e841553d857dfd723453fd7adad54d2c813a6be433e4afcc
 # was debian:stable-20221114-slim
 USER root
 
