@@ -22,7 +22,7 @@ class CacheUpdateResult {
 
 class AtCacheManager {
   /// This atServer's atSign
-  final String atSign;
+  final Atsign atSign;
   final SecondaryKeyStore<String, AtData?, AtMetaData?> keyStore;
   final OutboundClientManager outboundClientManager;
 
@@ -350,7 +350,7 @@ class AtCacheManager {
     AtData atData,
     AtData? existingAtData,
   ) async {
-    var otherAtSign =
+    Atsign otherAtSign =
         cachedKeyName.replaceFirst('cached:public:publickey@', '@').toAtsign();
     try {
       // 1) If it's not currently in the cache, then just update the cache and return
@@ -431,7 +431,7 @@ class AtCacheManager {
   /// know that they first check if there is a shared key, and if not then they
   /// create one.
   Future<void> _handleOthersPublicKeyHasChanged(
-    String otherAtSign,
+    Atsign otherAtSign,
     String cachedKeyName,
     AtData atData,
     AtData existingAtData,

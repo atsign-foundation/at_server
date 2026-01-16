@@ -26,7 +26,6 @@ class OutboundClient {
   late OutboundMessageListener messageListener;
   final OutboundConnectionFactory outboundConnectionFactory;
 
-
   String? toHost;
   String? toPort;
   OutboundSocketConnection? outboundConnection;
@@ -403,7 +402,8 @@ class DefaultOutboundConnectionFactory implements OutboundConnectionFactory {
       securityContext
           .setTrustedCertificates(atSecurityContext.trustedCertificatePath);
     } else if (requireCerts) {
-      throw StateError('${atSecurityContext.trustedCertificatePath} is required but not found');
+      throw StateError(
+          '${atSecurityContext.trustedCertificatePath} is required but not found');
     }
   }
 

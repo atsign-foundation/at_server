@@ -1,3 +1,7 @@
+# 3.9.1
+
+- chore: deal with breaking changes introduced by at_commons 5.8.0
+
 # 3.9.0
 
 - feat: Add `info` subcommands `info:mtls` and `info:mtlsbrief`
