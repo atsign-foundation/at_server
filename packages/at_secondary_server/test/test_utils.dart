@@ -86,8 +86,8 @@ class FakeSocket extends Fake implements Socket {
 class MockStreamSubscription<T> extends Mock implements StreamSubscription<T> {}
 
 // String alice = '@alice🛠';
-String alice = '@alice';
-String bob = '@bob';
+Atsign alice = '@alice'.toAtsign();
+Atsign bob = '@bob'.toAtsign();
 var bobHost = "domain.testing.bob.bob.bob";
 var bobPort = 12345;
 var bobServerSigningKeypair = RSAKeypair.fromRandom();

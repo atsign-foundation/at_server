@@ -1,3 +1,4 @@
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
@@ -44,7 +45,7 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
   final NotificationManager notificationManager;
   final StatsNotificationService statsNotificationService;
   final EnrollmentManager enrollmentManager;
-  final String atSign;
+  late final Atsign atSign;
 
   DefaultVerbHandlerManager(
     this.keyStore,
@@ -53,8 +54,9 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     this.statsNotificationService,
     this.notificationManager,
     this.enrollmentManager,
-    this.atSign,
+    String atSign,
   ) {
+    this.atSign = atSign.toAtsign();
     _loadVerbHandlers();
   }
 

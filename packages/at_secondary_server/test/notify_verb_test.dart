@@ -444,7 +444,7 @@ void main() {
     });
   });
 
-  Atsign testUser1 = '@test_user_1';
+  Atsign testUser1 = '@test_user_1'.toAtsign();
 
   group('A group of notify verb test', () {
     setUp(() async => await verbTestsSetUp());
