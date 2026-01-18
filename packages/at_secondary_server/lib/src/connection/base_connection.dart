@@ -43,11 +43,10 @@ abstract class BaseSocketConnection<T extends Socket> extends AtConnection {
     }
     try {
       underlying.write(data);
-      await underlying.flush();
       metaData.lastAccessed = DateTime.now().toUtc();
-    } on Exception catch (e) {
+    } catch (e) {
       metaData.isStale = true;
-      logger.severe(e.toString());
+      logger.severe('write caught ${e.toString()}');
       throw AtIOException(e.toString());
     }
   }
