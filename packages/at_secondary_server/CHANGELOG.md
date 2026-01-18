@@ -1,3 +1,9 @@
+# 3.9.2
+
+- fix: remove call to `flush` from `BaseSocketConnection.write()` thus
+  preventing a race which was triggering a `StreamSink is bound to a stream`
+  StateError
+
 # 3.9.1
 
 - chore: deal with breaking changes introduced by at_commons 5.8.0
