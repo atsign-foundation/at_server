@@ -562,6 +562,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       throw IllegalStateException(
           'Cannot approve a ${enrollStatus.name} enrollment. Only pending enrollments can be approved');
     }
+    if (operation == 'deny' && EnrollmentStatus.pending != enrollStatus) {
+      throw IllegalStateException(
+          'Cannot deny a ${enrollStatus.name} enrollment. Only pending enrollments can be denied');
+    }
     if (operation == 'revoke' && EnrollmentStatus.approved != enrollStatus) {
       throw IllegalStateException(
           'Cannot revoke a ${enrollStatus.name} enrollment. Only approved enrollments can be revoked');

@@ -1582,6 +1582,36 @@ void main() {
                   'Failed to approve enrollment id: $enrollmentId. Cannot approve a revoked enrollment. Only pending enrollments can be approved')));
     });
 
+    test('A test to verify that an approved enrollment cannot be denied',
+        () async {
+      Response response = Response();
+      //approve enrollment
+      String approveEnrollmentCommand =
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key"}';
+      HashMap<String, String?> approveEnrollVerbParams =
+          getVerbParam(VerbSyntax.enroll, approveEnrollmentCommand);
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session_id';
+      await enrollVerbHandler.processVerb(
+          response, approveEnrollVerbParams, inboundConnection);
+      expect(jsonDecode(response.data!)['enrollmentId'], enrollmentId);
+      expect(jsonDecode(response.data!)['status'], 'approved');
+
+      // Deny an approved enrollment throws AtEnrollmentException
+      expect(
+          () async => await enrollVerbHandler.processVerb(
+              response,
+              getVerbParam(VerbSyntax.enroll,
+                  'enroll:deny:{"enrollmentId":"$enrollmentId"}'),
+              inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is IllegalStateException &&
+              e.message ==
+                  'Failed to deny enrollment id: $enrollmentId.'
+                      ' Cannot deny a approved enrollment.'
+                      ' Only pending enrollments can be denied')));
+    });
+
     test('A test to verify pending enrollment cannot be revoked', () async {
       Response response = Response();
       //revoke enrollment

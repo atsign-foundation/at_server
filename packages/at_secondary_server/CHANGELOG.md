@@ -1,3 +1,7 @@
+# 3.9.3
+
+- fix: only allow `enroll:deny` to operate on `pending` enrollments
+
 # 3.9.2
 
 - fix: remove call to `flush` from `BaseSocketConnection.write()` thus
