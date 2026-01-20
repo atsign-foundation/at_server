@@ -1,3 +1,7 @@
+# 3.9.4
+
+ - build(deps): Add pubspec.lock and use ^ in pubspec.yaml
+
 # 3.9.3
 
 - fix: only allow `enroll:deny` to operate on `pending` enrollments

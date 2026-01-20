@@ -1,3 +1,7 @@
+## 2.2.1
+
+ - build(deps): Add pubspec.lock and use ^ in pubspec.yaml
+
 ## 2.2.0
 
 - feat: add https support for looking up atServer addresses
