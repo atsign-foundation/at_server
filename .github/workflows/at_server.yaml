@@ -122,7 +122,7 @@ jobs:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
           COMPONENT_ID: "3hQHrn8mwK"
           LOCK_FILE: ${{ env.root-working-directory }}/pubspec.lock
-          SBOM_VERSION: ${{github.ref_name}}
+          COMPONENT_VERSION: ${{github.ref_name}}-gha${{github.run_number}}
           OUTPUT_FILE: "sboms/atdirectory-gha${{github.run_number}}-sbom.cdx.json"
           AUGMENT: true
           ENRICH: true
@@ -134,7 +134,7 @@ jobs:
           TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
           COMPONENT_ID: "wF66pn8rHZ"
           LOCK_FILE: ${{ env.secondary-working-directory }}/pubspec.lock
-          SBOM_VERSION: ${{github.ref_name}}
+          COMPONENT_VERSION: ${{github.ref_name}}-gha${{github.run_number}}
           OUTPUT_FILE: "sboms/atserver-gha${{github.run_number}}-sbom.cdx.json"
           AUGMENT: true
           ENRICH: true
