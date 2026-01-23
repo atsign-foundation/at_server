@@ -20,7 +20,7 @@ jobs:
       id-token: write # for creating OIDC tokens for signing.
     steps:
       - name: Checkout trunk
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install cosign
         uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
@@ -99,7 +99,7 @@ jobs:
           echo "prod_tag=${PROD_TAG}" >> $GITHUB_OUTPUT
 
       - name: Checkout latest production tag
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ steps.prod_tag.outputs.prod_tag}}
 
@@ -176,7 +176,7 @@ jobs:
           echo "prod_tag=${PROD_TAG}" >> $GITHUB_OUTPUT
 
       - name: Checkout latest production tag
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ steps.prod_tag.outputs.prod_tag}}
 
