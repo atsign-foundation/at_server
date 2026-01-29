@@ -16,6 +16,7 @@ enum AtServerTelemetryEventType {
   stream
 }
 
+// ignore: experimental_member_use
 class AtServerTelemetryEvent extends AtTelemetryEvent {
   AtServerTelemetryEventType eventType;
 
@@ -51,6 +52,7 @@ class AtServerInteractionEvent extends AtServerTelemetryEvent {
       };
 }
 
+// ignore: experimental_member_use
 class AtServerTelemetrySample extends AtTelemetrySample {
   AtServerTelemetrySample(super.name, super.value);
 }
