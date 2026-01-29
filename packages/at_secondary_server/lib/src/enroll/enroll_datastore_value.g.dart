@@ -1,5 +1,5 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
-// dart run build_runner build to generate this file
+
 part of 'enroll_datastore_value.dart';
 
 // **************************************************************************
@@ -19,7 +19,11 @@ EnrollDataStoreValue _$EnrollDataStoreValueFromJson(
           $enumDecodeNullable(_$EnrollRequestTypeEnumMap, json['requestType'])
       ..approval = json['approval'] == null
           ? null
-          : EnrollApproval.fromJson(json['approval'] as Map<String, dynamic>);
+          : EnrollApproval.fromJson(json['approval'] as Map<String, dynamic>)
+      ..encryptedAPKAMSymmetricKey =
+          json['encryptedAPKAMSymmetricKey'] as String?
+      ..apkamKeysExpiryDuration =
+          Duration(milliseconds: json['apkamKeysExpiryInMillis'] ?? 0);
 
 Map<String, dynamic> _$EnrollDataStoreValueToJson(
         EnrollDataStoreValue instance) =>
@@ -31,6 +35,9 @@ Map<String, dynamic> _$EnrollDataStoreValueToJson(
       'apkamPublicKey': instance.apkamPublicKey,
       'requestType': _$EnrollRequestTypeEnumMap[instance.requestType],
       'approval': instance.approval,
+      'encryptedAPKAMSymmetricKey': instance.encryptedAPKAMSymmetricKey,
+      'apkamKeysExpiryInMillis':
+          instance.apkamKeysExpiryDuration.inMilliseconds,
     };
 
 const _$EnrollRequestTypeEnumMap = {

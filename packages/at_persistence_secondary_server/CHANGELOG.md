@@ -1,3 +1,48 @@
+## 4.2.0 
+
+- chore(deps): bump uuid to `^4.0.0`
+- chore(deps): bump at_commons to `^5.5.0`
+
+## 4.1.0
+- feat: Add `preRemoveHook` and `postRemoveHook` to KeyStore interfaces
+
+## 4.0.0
+- refactor: Take up new major version 3.0.0 of at_persistence_spec, update and 
+  simplify the HiveKeyStore implementation accordingly
+- feat: (non-breaking) Add persistence support for the new `immutable` flag
+## 3.1.0
+- feat: commit log changes for sync skipDeletesUntil feature
+- build[deps]: Upgraded the following package:
+  - at_commons to v5.1.0
+## 3.0.66
+- feat: Add "PublicKeyHash" to the "AtMetadata" which holds the hash value of encryption public key
+- build[deps]: Upgraded the following packages:
+  - at_commons to v5.0.2
+  - lints to v5.0.0
+  - test to v1.25.8
+## 3.0.65
+- fix: Modified checks in commit log keystore _alwaysIncludeInSync method to match only reserved shared_key,
+  encryption public key and public key without namespace.
+- build[deps]: Upgraded the following packages:
+  - at_commons to v5.0.1
+## 3.0.64
+- build[deps]: Upgraded the following packages:
+  - at_commons to v5.0.0
+  - at_utils to v3.0.19
+## 3.0.63
+- fix: Ensure only latest commitEntry for each present in CommitLogCache
+## 3.0.62
+- fix: Add check for hive key max length (255 chars)
+- build[deps]: Upgraded the following packages:
+  - at_commons to v4.0.5
+  - hive to v2.2.3
+  - crypto to v3.0.3
+## 3.0.61
+- feat: delete entries for expired keys are not committed to the commitLog [feature not enabled yet]
+## 3.0.60
+- build[deps]: Upgraded the following packages:
+    - at_commons to v4.0.0
+    - at_utils to v3.0.16
 ## 3.0.59
 - fix: When checking namespace authorization, gracefully handle any malformed 
   keys which happen to be in the commit log for historical reasons

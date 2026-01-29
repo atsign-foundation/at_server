@@ -5,55 +5,48 @@ import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
 
 /// Base class for common socket operations
-abstract class BaseConnection extends AtConnection {
-  late final Socket? _socket;
+abstract class BaseSocketConnection<T extends Socket> extends AtConnection {
+  final T _socket;
+  @override
   late AtConnectionMetaData metaData;
   late AtSignLogger logger;
 
-  BaseConnection(Socket? socket) {
+  BaseSocketConnection(this._socket) {
     logger = AtSignLogger(runtimeType.toString());
-    socket?.setOption(SocketOption.tcpNoDelay, true);
-    _socket = socket;
-  }
-
-  @override
-  AtConnectionMetaData getMetaData() {
-    return metaData;
+    _socket.setOption(SocketOption.tcpNoDelay, true);
   }
 
   @override
   Future<void> close() async {
     try {
-      var address = getSocket().remoteAddress;
-      var port = getSocket().remotePort;
-      await _socket!.close();
+      var address = underlying.remoteAddress;
+      var port = underlying.remotePort;
+      await _socket.close();
       logger.finer('$address:$port Disconnected');
-      getMetaData().isClosed = true;
+      metaData.isClosed = true;
     } on Exception {
-      getMetaData().isStale = true;
+      metaData.isStale = true;
       // Ignore exception on a connection close
     } on Error {
-      getMetaData().isStale = true;
+      metaData.isStale = true;
       // Ignore error on a connection close
     }
   }
 
   @override
-  Socket getSocket() {
-    return _socket!;
-  }
+  T get underlying => _socket;
 
   @override
-  void write(String data) {
+  Future<void> write(String data) async {
     if (isInValid()) {
       throw ConnectionInvalidException('Connection is invalid');
     }
     try {
-      getSocket().write(data);
-      getMetaData().lastAccessed = DateTime.now().toUtc();
-    } on Exception catch (e) {
-      getMetaData().isStale = true;
-      logger.severe(e.toString());
+      underlying.write(data);
+      metaData.lastAccessed = DateTime.now().toUtc();
+    } catch (e) {
+      metaData.isStale = true;
+      logger.severe('write caught ${e.toString()}');
       throw AtIOException(e.toString());
     }
   }

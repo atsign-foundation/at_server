@@ -1,4 +1,4 @@
-FROM dart:3.2.3@sha256:6f115649ce95f0df25195fc463a39d4ba74450907e1e93cb1a0d657bbbd8ce94 AS buildimage
+FROM dart:3.10.8@sha256:538a59844eff5c6f6b8c761a974f1f035bb115f68710f6a90c32430af01c2241 AS buildimage
 ENV HOMEDIR=/atsign
 ENV USER_ID=1024
 ENV GROUP_ID=1024
@@ -7,6 +7,8 @@ WORKDIR /app
 # If building manually then (from the repo root):
 ## sudo docker build -t atsigncompany/secondary \
 ## -f tools/build_secondary/Dockerfile .
+COPY ./packages/at_server_spec/ ./at_server_spec
+COPY ./packages/at_persistence_spec/ ./at_persistence_spec
 COPY ./packages/at_persistence_secondary_server/ ./at_persistence_secondary_server
 COPY ./packages/at_secondary_server/ ./at_secondary_server
 RUN \

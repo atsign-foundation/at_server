@@ -9,21 +9,17 @@ permissions:  # added using https://github.com/step-security/secure-workflows
 
 jobs:
   refresh-ACME-cert:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     name: SSL Renewal for vip.ve.atsign.zone
     steps:
-      - name: Set up Python
-        uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
-        with:
-          python-version: 3.9 #install the python needed
       - name: setup certinfo
         uses: atsign-company/certinfo-action@e33db584f27bbbc0260af9916aeaefbec0db8ef4 # v1.0.1
       # checkout at_server code
       - name: checkout repo content
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       # Pull ACME script
       - name: Pull ACME script
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: atsign-company/secondaries-scripts
           path: secondaries-scripts
@@ -34,39 +30,84 @@ jobs:
         run: |-
           sudo mkdir -p /gluster/@/api/keys
           sudo chmod -R 777 /gluster/@/api/keys
+          echo "${{secrets.DUMMY_PRIVKEY}}" > /gluster/@/api/keys/dummy.key
           echo "${{secrets.LETSENCRYPT_PRIVKEY}}" > /gluster/@/api/keys/letsencrypt.key
           echo "${{secrets.ZEROSSL_PRIVKEY}}" > /gluster/@/api/keys/zerossl.key
           echo "${{secrets.GOOGLE_PRIVKEY}}" > /gluster/@/api/keys/google.key
       # Install Python Libraries
+      - name: Install uv
+        uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b # v7.2.0
       - name: Install Python Libraries
         run: |-
-          python3 -m pip install --require-hashes -r tools/requirements.txt
-      # Run Python ACME script
-      - name: Run ACME script
+          sudo apt-get install python3-poetry-plugin-export
+          uv venv
+          . .venv/bin/activate
+          cd tools
+          poetry export --format requirements.txt --output requirements.txt
+          uv pip install --require-hashes -r requirements.txt
+      # Ensure runner trusts our CA
+      - name: Add Custom CA to Runner Trust Store
+        run: |
+          echo "${{ vars.PRODCA }}" | sudo tee /usr/local/share/ca-certificates/stepcaprod.crt > /dev/null
+          sudo update-ca-certificates
+      # Install NoPorts and atKeys
+      - name: Setup NoPorts and Authentication
+        uses: atsign-foundation/noports-action@464b931232f49cd302ecf5eb913cfe2c778fbd6e # v1.0.0
+        with:
+          atsign: '@stepcaprod'
+          atkeys-secret: ${{ secrets.ATKEYS_STEPCAPROD }}
+      # Connect to the Atsign Prod CA
+      - name: Establish a NoPorts tunnel
+        run: |
+          nohup npt -f stepcaprod -t cookingthelemon -r rv_am -d stepcaprod \
+            -l 3443 -p 3443 --rh 127.0.0.1 --lh 127.0.0.1 -T 0 \
+            > npt.log 2> npt.err < /dev/null &
+          tail -f npt.err | grep -m 1 "npt is listening"
+      # Test npt connection to prod CA
+      - name: Test npt connection to prod CA
+        run: |
+          curl https://ca.atsign.org:3443/acme/acme/directory
+      # Create and copy certs (mTLS first)
+      - name: Run create_cert scripts then copy certs to right place
         run: |-
           chmod -R 777 secondaries-scripts
-          cd secondaries-scripts && ./create_cert_workflow.sh vip.ve.atsign.zone
-          cp cert.pem ../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/cert.pem
-          cp privkey.pem ../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/privkey.pem
-          cp fullchain.pem ../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/fullchain.pem
-          cp ../tools/build_virtual_environment/ve_base/contents/atsign/root/certs/*.pem \
-            ../tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/
-          cd .. && rm -rf  vip.ve.atsign.zone* secondaries-scripts
+          . .venv/bin/activate
+          cd secondaries-scripts/sec_ops
+          ./create_mtls_workflow.sh vip.ve.atsign.zone
+          cp mtls/privkey.pem ${WS}/tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/mtls/
+          cp mtls/fullchain.pem ${WS}/tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/mtls/
+          cp ${WS}/tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/mtls/*.pem \
+            ${WS}/tools/build_ephemeral_environment/ee_base/contents/atsign/secondary/base/certs/mtls/
+          ./create_cert_workflow.sh vip.ve.atsign.zone
+          cp privkey.pem ${WS}/tools/build_virtual_environment/ve_base/contents/atsign/root/certs/privkey.pem
+          cp fullchain.pem ${WS}/tools/build_virtual_environment/ve_base/contents/atsign/root/certs/fullchain.pem
+          cp ${WS}/tools/build_virtual_environment/ve_base/contents/atsign/root/certs/*.pem \
+            ${WS}/tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs/
+          cp ${WS}/tools/build_virtual_environment/ve_base/contents/atsign/root/certs/*.pem \
+            ${WS}/tools/build_ephemeral_environment/ee_base/contents/atsign/root/certs/
+          cp ${WS}/tools/build_virtual_environment/ve_base/contents/atsign/root/certs/*.pem \
+            ${WS}/tools/build_ephemeral_environment/ee_base/contents/atsign/secondary/base/certs/
+          cd ${WS} && rm -rf secondaries-scripts
         env:
+          WS: ${{ github.workspace }}
           DO_KEY: ${{ secrets.DO_KEY }}
           gChat_url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
-
-      # create PR with renewed certificate
+          # Python in venv will use certifi trust store by default
+          REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
+          SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+      # create PR with renewed certificates
       - name: Create Pull Request
         id: cpr
-        uses: peter-evans/create-pull-request@153407881ec5c347639a548ade7d8ad1d6740e38 # v5.0.2
+        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
         with:
           token: ${{ secrets.MY_GITHUB_TOKEN }}
           commit-message: 'chore: New certificates for at_server'
           committer: library-action[bot] <41898282+github-actions[bot]@users.noreply.github.com>
           author: library-action[bot] <41898282+github-actions[bot]@users.noreply.github.com>
           signoff: false
-          add-paths: ./tools/build_virtual_environment
+          add-paths: |
+            ./tools/build_ephemeral_environment
+            ./tools/build_virtual_environment
           branch: bot-new-certs
           delete-branch: true
           title: 'chore: New certificates generated'

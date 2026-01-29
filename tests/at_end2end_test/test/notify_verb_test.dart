@@ -1,17 +1,21 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:at_commons/at_commons.dart';
+import 'package:at_utils/at_logger.dart';
 import 'package:test/test.dart';
 import 'package:version/version.dart';
 
 import 'e2e_test_utils.dart' as e2e;
 
+AtSignLogger logger = AtSignLogger(' notify_verb_test ');
+
 void main() {
   late String atSign_1;
-  late e2e.SimpleOutboundSocketHandler sh1;
+  late e2e.SimpleOutboundConnection sh1;
 
   late String atSign_2;
-  late e2e.SimpleOutboundSocketHandler sh2;
+  late e2e.SimpleOutboundConnection sh2;
 
   var lastValue = Random().nextInt(30);
 
@@ -36,9 +40,81 @@ void main() {
   });
 
   setUp(() async {
-    print("Clearing socket response queues");
+    logger.info("Clearing socket response queues");
     sh1.clear();
     sh2.clear();
+  });
+
+  // atsign1 send 5 notifications to atsign2 in some specific namespace
+  // atsign1 wait for all 5 notifications to be delivered
+  // atsign2 create connection, issue monitor command for that namespace
+  // verify atsign2 receives all 5 notifications immediately
+  test('monitor receives multiple pending notifications immediately', () async {
+    e2e.SimpleOutboundConnection notifySH, monitorSH;
+    notifySH = await e2e.getSocketHandler(atSign_1);
+    monitorSH = await e2e.getSocketHandler(atSign_2);
+
+    try {
+      var atServerVersion = Version.parse(await monitorSH.getVersion());
+      if (atServerVersion < Version(3, 0, 43)) {
+        logger.info(
+            '\n\nNOT running monitor test as atServer is running version $atServerVersion\n\n');
+        return;
+      }
+      List<String> sentNotificationIds = [];
+
+      int startTime = DateTime.now().millisecondsSinceEpoch;
+
+      // Wait for a couple of seconds in case of time drift
+      // between client and server
+      await Future.delayed(Duration(seconds: 2));
+
+      int numNotifications = 5;
+      // atsign1 send N notifications to atsign2 in some specific namespace
+      for (int i = 1; i <= numNotifications; i++) {
+        await notifySH.writeCommand('notify:update'
+            ':messageType:key:$atSign_2:monitor.e2etest$atSign_1'
+            ':message_$i');
+        String response = await notifySH.read();
+        logger.info('notify verb response : $response');
+        assert((!response.contains('Invalid syntax')) &&
+            (!response.contains('null')));
+        String notificationId = response.replaceAll('data:', '');
+        sentNotificationIds.add(notificationId);
+      }
+      // atsign1 wait for all 5 notifications to be delivered
+      for (String notificationId in sentNotificationIds) {
+        String response = await getNotifyStatus(notifySH, notificationId,
+            returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
+        logger.info('notify status response : $response');
+        expect(response, contains('data:delivered'));
+      }
+
+      // atsign2 issue monitor command for that namespace since $startTime
+      await monitorSH.writeCommand('monitor:strict:$startTime monitor.e2etest');
+      // Wait for a second
+      await Future.delayed(Duration(seconds: 1));
+
+      List<String> toCheck = [...sentNotificationIds];
+      logger.info(
+          'Will wait for these notification IDs to be received: $toCheck');
+      // verify atsign2 receives all notifications
+      while (toCheck.isNotEmpty) {
+        String receivedNotif = await monitorSH.read(
+            log: true, timeoutMillis: 5000, throwTimeoutException: true);
+        final notifJson =
+            jsonDecode(receivedNotif.replaceFirst('notification: ', ''));
+        var notifId = notifJson['id'];
+        if (toCheck.contains(notifId)) {
+          logger.info('Received $notifId');
+          toCheck.remove(notifId);
+        }
+      }
+      expect(toCheck, isEmpty);
+    } finally {
+      notifySH.close();
+      monitorSH.close();
+    }
   });
 
   test('notify verb for notifying a key update to the atsign', () async {
@@ -47,7 +123,7 @@ void main() {
     await sh2.writeCommand(
         'notify:update:messageType:key:notifier:system:ttr:-1:$atSign_1:email$atSign_2:$value');
     String response = await sh2.read();
-    print('notify verb response : $response');
+    logger.info('notify verb response : $response');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
     String notificationId = response.replaceAll('data:', '');
@@ -55,13 +131,13 @@ void main() {
     // notify status
     response = await getNotifyStatus(sh2, notificationId,
         returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-    print('notify status response : $response');
+    logger.info('notify status response : $response');
     expect(response, contains('data:delivered'));
 
     ///notify:list verb
     await sh1.writeCommand('notify:list');
     response = await sh1.read();
-    print('notify list verb response : $response');
+    logger.info('notify list verb response : $response');
     expect(
         response,
         contains(
@@ -75,7 +151,7 @@ void main() {
     await sh1.writeCommand(
         'notify:update:messageType:key:notifier:system:ttr:-1:$atSign_2:city.me$atSign_1:$value');
     String response = await sh1.read();
-    print('notify verb response : $response');
+    logger.info('notify verb response : $response');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
     String notificationId = response.replaceAll('data:', '');
@@ -83,7 +159,7 @@ void main() {
     // Assert notification status
     response = await getNotifyStatus(sh1, notificationId,
         returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-    print('notify status response : $response');
+    logger.info('notify status response : $response');
     expect(response, contains('data:delivered'));
 
     // Fetch notification
@@ -114,7 +190,7 @@ void main() {
     var value = '+91-901282346$lastValue';
     await sh2.writeCommand('notify:$atSign_1:contact-no$atSign_2:$value');
     String response = await sh2.read();
-    print('notify verb response : $response');
+    logger.info('notify verb response : $response');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
     String notificationId = response.replaceAll('data:', '');
@@ -122,14 +198,14 @@ void main() {
     // notify status
     response = await getNotifyStatus(sh2, notificationId,
         returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-    print('notify status response : $response');
+    logger.info('notify status response : $response');
     assert(response.contains('data:delivered'));
 
     ///notify:list verb
     if (atSign2ServerVersion > Version(3, 0, 35)) {
       await sh1.writeCommand('notify:list');
       response = await sh1.read();
-      print('notify list verb response : $response');
+      logger.info('notify list verb response : $response');
       expect(response,
           contains('"key":"$atSign_1:contact-no$atSign_2","value":"$value'));
     }
@@ -141,7 +217,7 @@ void main() {
     await sh2.writeCommand(
         'notify:update:ttr:-1:$atSign_1:fav-city$atSign_2:$value');
     String response = await sh2.read();
-    print('notify verb response : $response');
+    logger.info('notify verb response : $response');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
     String notificationId = response.replaceAll('data:', '');
@@ -149,13 +225,13 @@ void main() {
     // notify status
     response = await getNotifyStatus(sh2, notificationId,
         returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-    print('notify status response : $response');
+    logger.info('notify status response : $response');
     assert(response.contains('data:delivered'));
 
     ///notify:list verb
     await sh1.writeCommand('notify:list');
     response = await sh1.read();
-    print('notify list verb response : $response');
+    logger.info('notify list verb response : $response');
     expect(
         response,
         contains(
@@ -168,7 +244,7 @@ void main() {
     await sh2.writeCommand(
         'notify:update:messageType:text:notifier:chat:ttr:-1:$atSign_1:$value');
     String response = await sh2.read();
-    print('notify verb response : $response');
+    logger.info('notify verb response : $response');
     String notificationId = response.replaceAll('data:', '');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
@@ -176,13 +252,13 @@ void main() {
     // notify status
     response = await getNotifyStatus(sh2, notificationId,
         returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-    print('notify status response : $response');
+    logger.info('notify status response : $response');
     expect(response, contains('data:delivered'));
 
     ///notify:list verb
     await sh1.writeCommand('notify:list');
     response = await sh1.read();
-    print('notify list verb response : $response');
+    logger.info('notify list verb response : $response');
     expect(response,
         contains('"key":"$atSign_1:$value","value":null,"operation":"update"'));
   });
@@ -192,7 +268,7 @@ void main() {
     await sh1.writeCommand(
         'notify:delete:messageType:key:notifier:system:ttr:-1:$atSign_2:email$atSign_1');
     String response = await sh1.read();
-    print('notify verb response : $response');
+    logger.info('notify verb response : $response');
     String notificationId = response.replaceAll('data:', '');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
@@ -200,13 +276,13 @@ void main() {
     //  notify status
     response = await getNotifyStatus(sh1, notificationId,
         returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-    print('notify status response : $response');
+    logger.info('notify status response : $response');
     expect(response, contains('data:delivered'));
 
     //notify:list verb with regex
     await sh2.writeCommand('notify:list:email');
     response = await sh2.read();
-    print('notify list verb response : $response');
+    logger.info('notify list verb response : $response');
     if (atSign1ServerVersion > Version(3, 0, 35)) {
       expect(
           response,
@@ -219,7 +295,7 @@ void main() {
     //   /// NOTIFY VERB
     await sh1.writeCommand('notify:update:messageType:text:$atSign_2:Hello!');
     String response = await sh1.read();
-    print('notify verb response : $response');
+    logger.info('notify verb response : $response');
     String notificationId = response.replaceAll('data:', '');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
@@ -227,14 +303,14 @@ void main() {
     // notify status
     response = await getNotifyStatus(sh1, notificationId,
         returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-    print('notify status response : $response');
+    logger.info('notify status response : $response');
     expect(response, contains('data:delivered'));
 
     String keyRequired =
         '"key":"$atSign_2:Hello!","value":null,"operation":"update"';
     response = await retryCommandUntilMatchOrTimeout(
         sh2, 'notify:list', keyRequired, 15000);
-    print('notify list response for text $response');
+    logger.info('notify list response for text $response');
     expect(response, contains(keyRequired));
   });
 
@@ -244,7 +320,7 @@ void main() {
     await sh1.writeCommand(
         'notify:update:messageType:key:ttr:-1:$atSign_2:company$atSign_1:$value');
     String response = await sh1.read();
-    print('notify verb response : $response');
+    logger.info('notify verb response : $response');
     String notificationId = response.replaceAll('data:', '');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
@@ -252,7 +328,7 @@ void main() {
     // notify status
     response = await getNotifyStatus(sh1, notificationId,
         returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-    print('notify status response : $response');
+    logger.info('notify status response : $response');
     expect(response, contains('data:delivered'));
 
     // notify:list
@@ -260,7 +336,7 @@ void main() {
         '"key":"$atSign_2:company$atSign_1","value":"$value","operation":"update"';
     response = await retryCommandUntilMatchOrTimeout(
         sh2, 'notify:list:company', keyRequired, 15000);
-    print('notify list response $response');
+    logger.info('notify list response $response');
     expect(response, contains(keyRequired));
   });
 
@@ -269,7 +345,7 @@ void main() {
     await sh1
         .writeCommand('notify:all:$atSign_2:whatsapp$atSign_1:+91-901291029');
     String response = await sh1.read();
-    print('notify verb response : $response');
+    logger.info('notify verb response : $response');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
 
@@ -277,7 +353,7 @@ void main() {
     String shouldContain = '"key":"$atSign_2:whatsapp$atSign_1"';
     response = await retryCommandUntilMatchOrTimeout(
         sh2, 'notify:list:whatsapp', shouldContain, 15000);
-    print('notify list verb response : $response');
+    logger.info('notify list verb response : $response');
     expect(response, contains(shouldContain));
   });
 
@@ -287,7 +363,7 @@ void main() {
     await sh2.writeCommand(
         'notify:update:messageType:key:ttln:$ttln:ttr:-1:$atSign_2:message$atSign_2:Hey!');
     String response = await sh2.read();
-    print('notify verb response : $response');
+    logger.info('notify verb response : $response');
     String notificationId = response.replaceAll('data:', '');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
@@ -297,7 +373,7 @@ void main() {
     //   // notify status before ttln expiry time
     response = await getNotifyStatus(sh2, notificationId,
         returnWhenStatusIn: ['delivered'], timeOutMillis: 10000);
-    print('notify status response : $response');
+    logger.info('notify status response : $response');
     expect(response, contains('data:delivered'));
 
     // Wait until ttln has been reached
@@ -309,7 +385,7 @@ void main() {
     /// notify status after ttln expiry time
     response = await getNotifyStatus(sh2, notificationId,
         returnWhenStatusIn: ['expired'], timeOutMillis: 1000);
-    print('notify status response : $response');
+    logger.info('notify status response : $response');
     expect(response, contains('data:expired'));
 
     // check that notification doesn't exist in other atsign after expiry
@@ -328,7 +404,7 @@ void main() {
     await sh2.writeCommand(
         'notify:update:messageType:key:ttln:$ttln:ttr:-1:@xyz:message$atSign_2:Hey!');
     String response = await sh2.read();
-    print('notify verb response : $response');
+    logger.info('notify verb response : $response');
     String notificationId = response.replaceAll('data:', '');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
@@ -349,7 +425,7 @@ void main() {
     /// notify status after ttln expiry time
     response = await getNotifyStatus(sh2, notificationId,
         returnWhenStatusIn: ['expired'], timeOutMillis: 5000);
-    print('notify status response : $response');
+    logger.info('notify status response : $response');
     expect(response, contains('data:expired'));
   });
 
@@ -360,7 +436,7 @@ void main() {
     await sh2.writeCommand(
         'notify:update:messageType:text:ttln:$ttln:ttr:-1:$atSign_1:Hello!');
     String response = await sh2.read();
-    print('notify verb response : $response');
+    logger.info('notify verb response : $response');
     String notificationId = response.replaceAll('data:', '');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
@@ -370,7 +446,7 @@ void main() {
     // notify status before ttln expiry time
     response = await getNotifyStatus(sh2, notificationId,
         returnWhenStatusIn: ['delivered'], timeOutMillis: 10000);
-    print('notify status response : $response');
+    logger.info('notify status response : $response');
     expect(response, contains('data:delivered'));
 
     // Wait until ttln has been reached
@@ -382,7 +458,7 @@ void main() {
     /// notify status after ttln expiry time
     response = await getNotifyStatus(sh2, notificationId,
         returnWhenStatusIn: ['expired'], timeOutMillis: 1000);
-    print('notify status response : $response');
+    logger.info('notify status response : $response');
     expect(response, contains('data:expired'));
   });
 
@@ -390,7 +466,7 @@ void main() {
     var key = 'testcachedkey-$lastValue';
     // Sending the update notification from the sender side
     await sh1.writeCommand(
-        'notify:update:ttr:10000:ccd:true:$atSign_2:$key$atSign_1:cachedvalue-$lastValue');
+        'notify:update:ttr:10000:ccd:true:$atSign_2:$key$atSign_1:cached_value-$lastValue');
     var response = await sh1.read();
     response = response.replaceAll('data:', '');
     // assert the notification-id is not null.
@@ -413,7 +489,7 @@ void main() {
     // Look for the value of the cached key on  the receiver atSign
     await sh2.writeCommand('llookup:cached:$atSign_2:$key$atSign_1');
     response = await sh2.read();
-    expect(response, 'data:cachedvalue-$lastValue');
+    expect(response, 'data:cached_value-$lastValue');
 
     // Send the delete notification from the sender side
     await sh1.writeCommand('notify:delete:$atSign_2:$key$atSign_1');
@@ -439,7 +515,7 @@ void main() {
     await sh1.writeCommand(
         'notify:update:messageType:key:ttr:-1:$atSign_2:organisation.wavi$atSign_1:$value');
     String response = await sh1.read();
-    print('notify verb response : $response');
+    logger.info('notify verb response : $response');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
     String notificationId = response.replaceAll('data:', '');
@@ -449,13 +525,13 @@ void main() {
     // notify status
     response = await getNotifyStatus(sh1, notificationId,
         returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-    print('notify status response : $response');
+    logger.info('notify status response : $response');
     expect(response, contains('data:delivered'));
     var timeAfterNotification = DateTime.now().millisecondsSinceEpoch;
     var timeDifferenceValue =
         DateTime.fromMillisecondsSinceEpoch(timeAfterNotification).difference(
             DateTime.fromMillisecondsSinceEpoch(timeBeforeNotification));
-    print('time difference is $timeDifferenceValue');
+    logger.info('time difference is $timeDifferenceValue');
     expect(timeDifferenceValue.inMilliseconds <= 10000, true);
 
     // notify:list
@@ -476,7 +552,7 @@ void main() {
     // Wait for delivered status
     var deliveryStatus = await getNotifyStatus(sh1, notificationIdFromAtSign1,
         returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-    print('notify status response, first notification : $deliveryStatus');
+    logger.info('notify status response, first notification : $deliveryStatus');
     expect(deliveryStatus, contains('data:delivered'));
 
     await sh2.writeCommand('notify:fetch:$notificationIdFromAtSign1');
@@ -493,7 +569,8 @@ void main() {
     // Wait for delivered status
     deliveryStatus = await getNotifyStatus(sh1, notificationIdFromAtSign1,
         returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-    print('notify status response, second notification : $deliveryStatus');
+    logger
+        .info('notify status response, second notification : $deliveryStatus');
     expect(deliveryStatus, contains('data:delivered'));
 
     await sh2.writeCommand('notify:fetch:$notificationIdFromAtSign1');
@@ -509,12 +586,27 @@ void main() {
   test('notify verb for notifying a key update with shared key metadata',
       () async {
     /// NOTIFY VERB
+    PublicKeyHash somePubKeyHash = PublicKeyHash('someHash', 'someHashAlgo');
+    var immutableFragment = '';
+    bool? expectedImmutable;
+    if (atSign1ServerVersion >= Version(3, 4, 0) &&
+        atSign2ServerVersion >= Version(3, 4, 0)) {
+      logger.info('Will assert on immutable flag as versions are >= 3.4.0');
+      immutableFragment = ':immutable:true';
+      expectedImmutable = true;
+    }
+    var now = DateTime.now().millisecondsSinceEpoch;
+    String atKey = '$atSign_2:phone-$now.wavi$atSign_1';
     await sh1.writeCommand('notify:update:messageType:key:notifier:SYSTEM'
-        ':ttln:86400000:ttr:60000:ccd:false'
+        ':ttln:86400000:ttl:60000:ttr:60:ccd:false'
         ':sharedKeyEnc:abc:pubKeyCS:3c55db695d94b304827367a4f5cab8ae'
-        ':$atSign_2:phone.wavi$atSign_1:Some ciphertext');
+        ':pubKeyHash:${somePubKeyHash.hash}'
+        ':hashingAlgo:${somePubKeyHash.hashingAlgo}'
+        '$immutableFragment'
+        ':$atKey'
+        ':Some ciphertext');
     String response = await sh1.read();
-    print('notify verb response : $response');
+    logger.info('notify verb response : $response');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
     String notificationId = response.replaceAll('data:', '');
@@ -522,19 +614,37 @@ void main() {
     // notify status
     response = await getNotifyStatus(sh1, notificationId,
         returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-    print('notify status response : $response');
+    logger.info('notify status response : $response');
     expect(response, contains('data:delivered'));
 
-    await sh2.writeCommand('llookup:all:cached:$atSign_2:phone.wavi$atSign_1');
+    await sh2.writeCommand('llookup:all:cached:$atKey');
     response = await sh2.read();
     response = response.replaceAll('data:', '');
     var decodedResponse = jsonDecode(response);
-    expect(decodedResponse['key'], 'cached:$atSign_2:phone.wavi$atSign_1');
+    expect(decodedResponse['key'], 'cached:$atKey');
     expect(decodedResponse['data'], 'Some ciphertext');
     expect(decodedResponse['metaData']['sharedKeyEnc'], 'abc');
     expect(decodedResponse['metaData']['pubKeyCS'],
         '3c55db695d94b304827367a4f5cab8ae');
-    expect(decodedResponse['metaData']['ttr'], 60000);
+    expect(decodedResponse['metaData']['ttr'], 60);
+    expect(decodedResponse['metaData']['ttl'], 60000);
+    expect(PublicKeyHash.fromJson(decodedResponse['metaData']['pubKeyHash']),
+        somePubKeyHash);
+    expect(decodedResponse['metaData']['immutable'], expectedImmutable);
+
+    // Let's try to delete the cached record on the recipient side.
+    // Cached data should *always* be deletable regardless of immutable flag.
+    await sh2.writeCommand('delete:cached:$atKey');
+    response = await sh2.read();
+    expect(response, contains(RegExp(r'^data:\d+')));
+
+    // And let's try to retrieve it again
+    await sh2.writeCommand('llookup:all:cached:$atKey');
+    response = await sh2.read();
+    response = response.replaceAll('error:', '');
+    decodedResponse = jsonDecode(response);
+    expect(decodedResponse['errorCode'], 'AT0015');
+    expect(decodedResponse['errorDescription'], contains('key not found'));
   });
 
   test('notify verb for notifying a key update with new encryption metadata',
@@ -571,7 +681,7 @@ void main() {
         ':$atSign_2:phone.wavi$atSign_1'
         ':Some ciphertext');
     String response = await sh1.read();
-    print('notify verb response : $response');
+    logger.info('notify verb response : $response');
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
     String notificationId = response.replaceAll('data:', '');
@@ -579,7 +689,7 @@ void main() {
     // notify status
     response = await getNotifyStatus(sh1, notificationId,
         returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-    print('notify status response : $response');
+    logger.info('notify status response : $response');
     expect(response, contains('data:delivered'));
 
     await sh2.writeCommand('llookup:all:cached:$atSign_2:phone.wavi$atSign_1');
@@ -618,11 +728,11 @@ void main() {
       }
 
       /// NOTIFY VERB
-      var value = 'testingvalue';
+      var value = 'testing_value';
       await sh2.writeCommand(
           'notify:update:messageType:key:$atSign_1:testkey$atSign_2:$value');
       String response = await sh2.read();
-      print('notify verb response : $response');
+      logger.info('notify verb response : $response');
       assert((!response.contains('Invalid syntax')) &&
           (!response.contains('null')));
       String notificationId = response.replaceAll('data:', '');
@@ -630,13 +740,13 @@ void main() {
       // notify status
       response = await getNotifyStatus(sh2, notificationId,
           returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-      print('notify status response : $response');
+      logger.info('notify status response : $response');
       assert(response.contains('data:delivered'));
 
       ///notify:list verb
       await sh1.writeCommand('notify:list');
       response = await sh1.read();
-      print('notify list verb response : $response');
+      logger.info('notify list verb response : $response');
       expect(
           response,
           contains(
@@ -652,9 +762,9 @@ void main() {
       }
 
       /// NOTIFY VERB
-      await sh2.writeCommand('notify:update:$atSign_1:nottrkey$atSign_2');
+      await sh2.writeCommand('notify:update:$atSign_1:no_ttr_key$atSign_2');
       String response = await sh2.read();
-      print('notify verb response : $response');
+      logger.info('notify verb response : $response');
       assert((!response.contains('Invalid syntax')) &&
           (!response.contains('null')));
       String notificationId = response.replaceAll('data:', '');
@@ -662,17 +772,17 @@ void main() {
       // notify status
       response = await getNotifyStatus(sh2, notificationId,
           returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-      print('notify status response : $response');
+      logger.info('notify status response : $response');
       assert(response.contains('data:delivered'));
 
       ///notify:list verb
       await sh1.writeCommand('notify:list');
       response = await sh1.read();
-      print('notify list verb response : $response');
+      logger.info('notify list verb response : $response');
       expect(
           response,
           contains(
-              '"key":"$atSign_1:nottrkey$atSign_2","value":null,"operation":"update"'));
+              '"key":"$atSign_1:no_ttr_key$atSign_2","value":null,"operation":"update"'));
     });
 
     test(
@@ -688,7 +798,7 @@ void main() {
       await sh2.writeCommand(
           'notify:update:messageType:text:$atSign_1:hello_world$atSign_2');
       String response = await sh2.read();
-      print('notify verb response : $response');
+      logger.info('notify verb response : $response');
       assert((!response.contains('Invalid syntax')) &&
           (!response.contains('null')));
       String notificationId = response.replaceAll('data:', '');
@@ -696,13 +806,13 @@ void main() {
       // notify status
       response = await getNotifyStatus(sh2, notificationId,
           returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-      print('notify status response : $response');
+      logger.info('notify status response : $response');
       assert(response.contains('data:delivered'));
 
       ///notify:list verb
       await sh1.writeCommand('notify:list');
       response = await sh1.read();
-      print('notify list verb response : $response');
+      logger.info('notify list verb response : $response');
       expect(
           response,
           contains(
@@ -722,7 +832,7 @@ void main() {
       await sh2.writeCommand(
           'notify:delete:messageType:text:$atSign_1:hello_world$atSign_2');
       String response = await sh2.read();
-      print('notify verb response : $response');
+      logger.info('notify verb response : $response');
       assert((!response.contains('Invalid syntax')) &&
           (!response.contains('null')));
       String notificationId = response.replaceAll('data:', '');
@@ -730,13 +840,13 @@ void main() {
       // notify status
       response = await getNotifyStatus(sh2, notificationId,
           returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-      print('notify status response : $response');
+      logger.info('notify status response : $response');
       assert(response.contains('data:delivered'));
 
       ///notify:list verb
       await sh1.writeCommand('notify:list');
       response = await sh1.read();
-      print('notify list verb response : $response');
+      logger.info('notify list verb response : $response');
       expect(
           response,
           contains(
@@ -753,7 +863,7 @@ void main() {
       /// NOTIFY VERB
       await sh2.writeCommand('notify:delete:$atSign_1:twitter-id$atSign_2');
       String response = await sh2.read();
-      print('notify verb response : $response');
+      logger.info('notify verb response : $response');
       assert((!response.contains('Invalid syntax')) &&
           (!response.contains('null')));
       String notificationId = response.replaceAll('data:', '');
@@ -761,13 +871,13 @@ void main() {
       // notify status
       response = await getNotifyStatus(sh2, notificationId,
           returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-      print('notify status response : $response');
+      logger.info('notify status response : $response');
       assert(response.contains('data:delivered'));
 
       ///notify:list verb
       await sh1.writeCommand('notify:list');
       response = await sh1.read();
-      print('notify list verb response : $response');
+      logger.info('notify list verb response : $response');
       expect(
           response,
           contains(
@@ -778,10 +888,10 @@ void main() {
 
 // get notify status
 Future<String> getNotifyStatus(
-    e2e.SimpleOutboundSocketHandler sh, String notificationId,
+    e2e.SimpleOutboundConnection sh, String notificationId,
     {List<String>? returnWhenStatusIn, int timeOutMillis = 5000}) async {
   returnWhenStatusIn ??= ['expired'];
-  print(
+  logger.info(
       "getNotifyStatus will check for notify:status response in '$returnWhenStatusIn' for $timeOutMillis");
 
   int loopDelay = 1000;
@@ -789,9 +899,13 @@ Future<String> getNotifyStatus(
   String response = 'NO_RESPONSE';
 
   bool readTimedOut = false;
+  bool first = true;
   int endTime = DateTime.now().millisecondsSinceEpoch + timeOutMillis;
   while (DateTime.now().millisecondsSinceEpoch < endTime) {
-    await Future.delayed(Duration(milliseconds: loopDelay));
+    if (!first) {
+      await Future.delayed(Duration(milliseconds: loopDelay));
+    }
+    first = false;
 
     if (!readTimedOut) {
       await sh.writeCommand('notify:status:$notificationId', log: true);
@@ -800,7 +914,7 @@ Future<String> getNotifyStatus(
         log: true, timeoutMillis: loopDelay, throwTimeoutException: false);
 
     readTimedOut =
-        (response == e2e.SimpleOutboundSocketHandler.readTimedOutMessage);
+        (response == e2e.SimpleOutboundConnection.readTimedOutMessage);
 
     if (response.startsWith('data:')) {
       String status = response.replaceFirst('data:', '').replaceAll('\n', '');
@@ -810,17 +924,14 @@ Future<String> getNotifyStatus(
     }
   }
 
-  print(
+  logger.info(
       "getNotifyStatus return with response $response (was waiting for '$returnWhenStatusIn')");
 
   return response;
 }
 
-Future<String> retryCommandUntilMatchOrTimeout(
-    e2e.SimpleOutboundSocketHandler sh,
-    String command,
-    String shouldContain,
-    int timeoutMillis) async {
+Future<String> retryCommandUntilMatchOrTimeout(e2e.SimpleOutboundConnection sh,
+    String command, String shouldContain, int timeoutMillis) async {
   int loopDelay = 1000;
 
   String response = 'NO_RESPONSE';
@@ -838,16 +949,16 @@ Future<String> retryCommandUntilMatchOrTimeout(
         log: false, timeoutMillis: loopDelay, throwTimeoutException: false);
 
     readTimedOut =
-        (response == e2e.SimpleOutboundSocketHandler.readTimedOutMessage);
+        (response == e2e.SimpleOutboundConnection.readTimedOutMessage);
     if (readTimedOut) {
       continue;
     }
 
     if (response.contains(shouldContain)) {
-      print("Got response, contained $shouldContain");
+      logger.info("Got response, contained $shouldContain");
       break;
     }
-    print("Got response, didn't contain $shouldContain");
+    logger.info("Got response, didn't contain $shouldContain");
   }
 
   return response;

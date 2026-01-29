@@ -21,8 +21,11 @@ enum Type { sent, received }
 
 class NotifyVerbHandler extends AbstractVerbHandler {
   static Notify notify = Notify();
+  final int _maxKeyLength = 255;
 
-  NotifyVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  final NotificationManager notificationManager;
+
+  NotifyVerbHandler(super.keyStore, this.notificationManager);
 
   AtNotificationBuilder atNotificationBuilder = AtNotificationBuilder();
 
@@ -66,21 +69,27 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       await processNotificationMutex.acquire();
       atNotificationBuilder.reset();
       var atConnectionMetadata =
-          atConnection.getMetaData() as InboundConnectionMetadata;
+          atConnection.metaData as InboundConnectionMetadata;
       _validateNotifyVerbParams(verbParams);
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
       // If '@' is missing before an atSign, the formatAtSign method prefixes '@' before atSign.
-      verbParams[FOR_AT_SIGN] = AtUtils.formatAtSign(verbParams[FOR_AT_SIGN]);
-      verbParams[AT_SIGN] = AtUtils.formatAtSign(verbParams[AT_SIGN]);
+      if (verbParams[AtConstants.forAtSign] != null) {
+        verbParams[AtConstants.forAtSign] =
+            AtUtils.fixAtSign(verbParams[AtConstants.forAtSign]!);
+      }
+      if (verbParams[AtConstants.atSign] != null) {
+        verbParams[AtConstants.atSign] =
+            AtUtils.fixAtSign(verbParams[AtConstants.atSign]!);
+      }
       logger.finer(
-          'fromAtSign : ${atConnectionMetadata.fromAtSign} \n atSign : ${verbParams[AT_SIGN]} \n key : ${verbParams[AT_KEY]}');
+          'fromAtSign : ${atConnectionMetadata.fromAtSign} \n atSign : ${verbParams[AtConstants.atSign]} \n key : ${verbParams[AtConstants.atKey]}');
       // When connection is authenticated, it indicates the sender side of the
       // the notification
       // If the currentAtSign and forAtSign are same, store the notification and return
       // Else, store the notification to keystore and notify to the toAtSign.
       if (atConnectionMetadata.isAuthenticated) {
         await _handleAuthenticatedConnection(
-            currentAtSign, verbParams, response);
+            currentAtSign, verbParams, atConnectionMetadata, response);
       }
       // When connection is polAuthenticated, it indicates the receiver side of the
       // the notification. Store the notification to the keystore.
@@ -98,11 +107,11 @@ class NotifyVerbHandler extends AbstractVerbHandler {
 
   Future<void> _handlePolAuthenticatedConnection(
       HashMap<String, String?> verbParams,
-      InboundConnectionMetadata atConnectionMetadata,
+      InboundConnectionMetadata polConnectionMetadata,
       Response response) async {
-    logger.info('Storing the notification ${verbParams[AT_KEY]}');
+    logger.info('Storing the notification ${verbParams[AtConstants.atKey]}');
     var atNotificationBuilder = _populateNotificationBuilder(verbParams,
-        fromAtSign: atConnectionMetadata.fromAtSign!);
+        fromAtSign: polConnectionMetadata.fromAtSign!);
     // If messageType is key, atMetadata is set in "_populateNotificationBuilder"
     // When messageType is text, atNotificationBuilder.atMetadata fields are
     // not applicable except "atMetadata.isEncrypted".
@@ -110,23 +119,28 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     // "atMetadata.isEncrypted" represents if the message is encrypted or not.
     if (atNotificationBuilder.messageType == MessageType.text) {
       atNotificationBuilder.atMetaData = _atMetadataPool[
-          SecondaryUtil.getBoolFromString(verbParams[IS_ENCRYPTED])];
+          SecondaryUtil.getBoolFromString(verbParams[AtConstants.isEncrypted])];
     }
     // Store the notification to the notification keystore.
     await NotificationUtil.storeNotification(atNotificationBuilder.build());
-    OperationType operationType = getOperationType(verbParams[OPERATION]);
+    OperationType operationType =
+        getOperationType(verbParams[AtConstants.operation]);
     // When Operation is update, cache key only when TTR is set.
     // So if TTR is null,  do nothing.
     // Also, If operation is delete removed the cached key - irrespective of TTR value.
     // So, If operation is not delete and TTR is null, return.
     if (operationType != OperationType.delete &&
-        (_getTimeToRefresh(verbParams[AT_TTR]) == null)) {
+        (_getTimeToRefresh(verbParams[AtConstants.ttr]) == null)) {
       response.data = 'data:success';
       return;
     }
     // form a cached key
     String cachedNotificationKey =
-        '$CACHED:${atNotificationBuilder.notification}';
+        '${AtConstants.cached}:${atNotificationBuilder.notification}';
+    if (cachedNotificationKey.length > _maxKeyLength) {
+      throw InvalidAtKeyException(
+          'notification key length ${cachedNotificationKey.length} is greater than $_maxKeyLength chars');
+    }
     // If operationType is delete, remove the cached key only
     // when cascade delete is set to true
     int? cachedKeyCommitId;
@@ -148,11 +162,11 @@ class NotifyVerbHandler extends AbstractVerbHandler {
         atMetadata = await keyStore.getMeta(cachedNotificationKey);
       }
       var metadata = AtMetadataBuilder(
-              newAtMetaData: atNotificationBuilder.atMetaData,
+              atSign: polConnectionMetadata.fromAtSign!,
+              newAtMetaData: atNotificationBuilder.atMetaData!,
               existingMetaData: atMetadata)
           .build();
-      cachedKeyCommitId = await _storeCachedKeys(
-          cachedNotificationKey, metadata,
+      cachedKeyCommitId = await _storeCachedKey(cachedNotificationKey, metadata,
           atValue: atNotificationBuilder.atValue);
       //write the latest commit id to the StatsNotificationService
       _writeStats(cachedKeyCommitId, operationType.name);
@@ -174,23 +188,36 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     return;
   }
 
-  Future<void> _handleAuthenticatedConnection(currentAtSign,
-      HashMap<String, String?> verbParams, Response response) async {
+  Future<void> _handleAuthenticatedConnection(
+      currentAtSign,
+      HashMap<String, String?> verbParams,
+      InboundConnectionMetadata inboundConnectionMetadata,
+      Response response) async {
     // When messageType is 'text', by syntax sharedBy is not populated, so set it to currentAtSign.
-    verbParams[AT_SIGN] ??= currentAtSign;
-    // Check if the sharedBy atSign is currentAtSign. If yes allow to send notifications
+    verbParams[AtConstants.atSign] ??= currentAtSign;
+    var keyToNotify = _getFullFormedAtKey(
+        getMessageType(verbParams[AtConstants.messageType]), verbParams);
+    // Check whether the sharedBy atSign is currentAtSign and whether the connection has namespace access for APKAM. If yes allow to send notifications
     // else throw UnAuthorizedException
-    if (!_isAuthorizedToSendNotification(verbParams[AT_SIGN], currentAtSign)) {
+    bool isAuthorized = await _isAuthorizedToSendNotification(
+        verbParams[AtConstants.atSign],
+        currentAtSign,
+        verbParams,
+        keyToNotify,
+        inboundConnectionMetadata);
+
+    if (!isAuthorized) {
       throw UnAuthorizedException(
-          '${verbParams[AT_SIGN]} is not authorized to send notification as $currentAtSign');
+          'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'
+          ' is not authorized to notify key: $keyToNotify');
     }
     logger.finer(
-        'currentAtSign : $currentAtSign, forAtSign : ${verbParams[FOR_AT_SIGN]}, atSign : ${verbParams[AT_SIGN]}');
+        'currentAtSign : $currentAtSign, forAtSign : ${verbParams[AtConstants.forAtSign]}, atSign : ${verbParams[AtConstants.atSign]}');
     final atNotificationBuilder =
         _populateNotificationBuilder(verbParams, fromAtSign: currentAtSign);
     // If the currentAtSign and forAtSign are same, store the notification to keystore
     // and return
-    if (currentAtSign == verbParams[FOR_AT_SIGN]) {
+    if (currentAtSign == verbParams[AtConstants.forAtSign]) {
       // Since notification is stored to keystore, marking the notification
       // status as delivered
       atNotificationBuilder.notificationStatus = NotificationStatus.delivered;
@@ -201,8 +228,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     }
     // Send the notification to notification queue manager to notify to the forAtSign
     // and return the notification Id to the currentAtSign
-    var notificationId = await NotificationManager.getInstance()
-        .notify(atNotificationBuilder.build());
+    var notificationId =
+        await notificationManager.notify(atNotificationBuilder.build());
     response.data = notificationId;
     return;
   }
@@ -211,7 +238,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   /// key Key to cache.
   /// AtMetadata metadata of the key.
   /// atValue value of the key to cache.
-  Future<int> _storeCachedKeys(String? cachedKey, AtMetaData? atMetaData,
+  Future<int> _storeCachedKey(String? cachedKey, AtMetaData? atMetaData,
       {String? atValue}) async {
     var atData = AtData();
     atData.data = atValue;
@@ -254,7 +281,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
 
   /// Performs the validations on the notification verb params
   void _validateNotifyVerbParams(HashMap<String, String?> verbParams) {
-    if (verbParams[STRATEGY] == 'latest' && verbParams[NOTIFIER] == null) {
+    if (verbParams[AtConstants.strategy] == 'latest' &&
+        verbParams[AtConstants.notifier] == null) {
       throw InvalidSyntaxException(
           'For Strategy latest, notifier cannot be null');
     }
@@ -266,35 +294,41 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       // fromAtSign represents who sent the notification.
       // on sender, fromAtSign is same as currentAtSign and on receiver side,
-      // If notification is of messageType "key" fromAtSign is fetched from verbparams
+      // If notification is of messageType "key" fromAtSign is fetched from verbParams
       // If notification is of messageType "text" fromAtSign is fetched from atConnectionMetadata.fromAtSign
       {String fromAtSign = ''}) {
     atNotificationBuilder = atNotificationBuilder
-      ..toAtSign = AtUtils.formatAtSign(verbParams[FOR_AT_SIGN])
+      ..toAtSign = AtUtils.fixAtSign(verbParams[AtConstants.forAtSign] ?? '')
       ..fromAtSign = fromAtSign
       ..notificationDateTime = DateTime.now().toUtcMillisecondsPrecision()
       ..notification = _getFullFormedAtKey(
-          getMessageType(verbParams[MESSAGE_TYPE]), verbParams)
-      ..opType = getOperationType(verbParams[AT_OPERATION])
-      ..priority = SecondaryUtil.getNotificationPriority(verbParams[PRIORITY])
-      ..messageType = getMessageType(verbParams[MESSAGE_TYPE])
+          getMessageType(verbParams[AtConstants.messageType]), verbParams)
+      ..opType = getOperationType(verbParams[AtConstants.operation])
+      ..priority = SecondaryUtil.getNotificationPriority(
+          verbParams[AtConstants.priority])
+      ..messageType = getMessageType(verbParams[AtConstants.messageType])
       ..notificationStatus = NotificationStatus.queued
       ..atMetaData = _getAtMetadataForNotification(verbParams)
       ..type = _getNotificationType(
-          AtUtils.formatAtSign(verbParams[FOR_AT_SIGN])!,
+          AtUtils.fixAtSign(verbParams[AtConstants.forAtSign] ?? ''),
           AtSecondaryServerImpl.getInstance().currentAtSign)
-      ..ttl = getNotificationExpiryInMillis(verbParams[AT_TTL_NOTIFICATION])
-      ..atValue = verbParams[AT_VALUE];
-    atNotificationBuilder.strategy = _getStrategy(verbParams[STRATEGY]);
-    atNotificationBuilder.notifier =
-        _getNotifier(verbParams[NOTIFIER], _getStrategy(verbParams[STRATEGY]));
+      ..ttl =
+          getNotificationExpiryInMillis(verbParams[AtConstants.ttlNotification])
+      ..atValue = verbParams[AtConstants.atValue];
+    atNotificationBuilder.strategy =
+        _getStrategy(verbParams[AtConstants.strategy]);
+    atNotificationBuilder.notifier = _getNotifier(
+        verbParams[AtConstants.notifier],
+        _getStrategy(verbParams[AtConstants.strategy]));
     // For strategy latest, if depth is null, default it to 1.
     // For strategy all, depth is not considered.
-    atNotificationBuilder.depth = (_getIntParam(verbParams[LATEST_N]) != null)
-        ? _getIntParam(verbParams[LATEST_N])
-        : 1;
-    if (verbParams[ID] != null && verbParams[ID]!.isNotEmpty) {
-      atNotificationBuilder.id = verbParams[ID];
+    atNotificationBuilder.depth =
+        (_getIntParam(verbParams[AtConstants.latestN]) != null)
+            ? _getIntParam(verbParams[AtConstants.latestN])
+            : 1;
+    if (verbParams[AtConstants.id] != null &&
+        verbParams[AtConstants.id]!.isNotEmpty) {
+      atNotificationBuilder.id = verbParams[AtConstants.id];
     }
     return atNotificationBuilder;
   }
@@ -306,43 +340,58 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       ..createdBy = AtSecondaryServerImpl.getInstance().currentAtSign;
     // If operation type is update, set value and ttr to cache a key
     // If operation type is delete, set ttr when not null to delete the cached key.
-    int? ttrMillis = _getTimeToRefresh(verbParams[AT_TTR]);
-    if (getOperationType(verbParams[AT_OPERATION]) == OperationType.update &&
-            (ttrMillis != null && verbParams[AT_VALUE] != null) ||
-        getOperationType(verbParams[AT_OPERATION]) == OperationType.delete &&
+    int? ttrMillis = _getTimeToRefresh(verbParams[AtConstants.ttr]);
+    if (getOperationType(verbParams[AtConstants.operation]) ==
+                OperationType.update &&
+            (ttrMillis != null && verbParams[AtConstants.atValue] != null) ||
+        getOperationType(verbParams[AtConstants.operation]) ==
+                OperationType.delete &&
             ttrMillis != null) {
       atMetadata.ttr = ttrMillis;
-      atMetadata.isCascade = _getCascadeDelete(verbParams[CCD], ttrMillis);
+      atMetadata.isCascade =
+          _getCascadeDelete(verbParams[AtConstants.ccd], ttrMillis);
     }
-    atMetadata.ttb = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
-    atMetadata.ttl = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
+    atMetadata.ttb = AtMetadataUtil.validateTTB(verbParams[AtConstants.ttb]);
+    atMetadata.ttl = AtMetadataUtil.validateTTL(verbParams[AtConstants.ttl]);
 
-    if (verbParams[SHARED_KEY_ENCRYPTED] != null) {
-      atMetadata.sharedKeyEnc = verbParams[SHARED_KEY_ENCRYPTED];
+    if (verbParams[AtConstants.sharedKeyEncrypted] != null) {
+      atMetadata.sharedKeyEnc = verbParams[AtConstants.sharedKeyEncrypted];
     }
-    if (verbParams[SHARED_WITH_PUBLIC_KEY_CHECK_SUM] != null) {
-      atMetadata.pubKeyCS = verbParams[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
+    if (verbParams[AtConstants.sharedWithPublicKeyCheckSum] != null) {
+      atMetadata.pubKeyCS = verbParams[AtConstants.sharedWithPublicKeyCheckSum];
     }
-    if (verbParams[ENCRYPTING_KEY_NAME] != null) {
-      atMetadata.encKeyName = verbParams[ENCRYPTING_KEY_NAME];
+    if (verbParams[AtConstants.sharedWithPublicKeyHash].isNotNullOrEmpty &&
+        verbParams[AtConstants.sharedWithPublicKeyHashingAlgo]
+            .isNotNullOrEmpty) {
+      atMetadata.pubKeyHash = PublicKeyHash(
+          verbParams[AtConstants.sharedWithPublicKeyHash]!,
+          verbParams[AtConstants.sharedWithPublicKeyHashingAlgo]!);
     }
-    if (verbParams[ENCRYPTING_ALGO] != null) {
-      atMetadata.encAlgo = verbParams[ENCRYPTING_ALGO];
+    if (verbParams[AtConstants.encryptingKeyName] != null) {
+      atMetadata.encKeyName = verbParams[AtConstants.encryptingKeyName];
     }
-    if (verbParams[IV_OR_NONCE] != null) {
-      atMetadata.ivNonce = verbParams[IV_OR_NONCE];
+    if (verbParams[AtConstants.encryptingAlgo] != null) {
+      atMetadata.encAlgo = verbParams[AtConstants.encryptingAlgo];
     }
-    if (verbParams[SHARED_KEY_ENCRYPTED_ENCRYPTING_KEY_NAME] != null) {
+    if (verbParams[AtConstants.ivOrNonce] != null) {
+      atMetadata.ivNonce = verbParams[AtConstants.ivOrNonce];
+    }
+    if (verbParams[AtConstants.sharedKeyEncryptedEncryptingKeyName] != null) {
       atMetadata.skeEncKeyName =
-          verbParams[SHARED_KEY_ENCRYPTED_ENCRYPTING_KEY_NAME];
+          verbParams[AtConstants.sharedKeyEncryptedEncryptingKeyName];
     }
-    if (verbParams[SHARED_KEY_ENCRYPTED_ENCRYPTING_ALGO] != null) {
-      atMetadata.skeEncAlgo = verbParams[SHARED_KEY_ENCRYPTED_ENCRYPTING_ALGO];
+    if (verbParams[AtConstants.sharedKeyEncryptedEncryptingAlgo] != null) {
+      atMetadata.skeEncAlgo =
+          verbParams[AtConstants.sharedKeyEncryptedEncryptingAlgo];
     }
-    atMetadata.isEncrypted = _getIsEncrypted(
-        getMessageType(verbParams[MESSAGE_TYPE]),
-        verbParams[AT_KEY]!,
-        verbParams[IS_ENCRYPTED]);
+    if (verbParams[AtConstants.immutable] != null) {
+      atMetadata.immutable =
+          SecondaryUtil.getBoolFromString(verbParams[AtConstants.immutable]);
+    }
+    atMetadata.isEncrypted = getIsEncrypted(
+        getMessageType(verbParams[AtConstants.messageType]),
+        verbParams[AtConstants.atKey]!,
+        verbParams[AtConstants.isEncrypted]);
     return atMetadata;
   }
 
@@ -384,7 +433,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   /// 'validateNotifyVerbParams' method in this class.
   String _getNotifier(String? notifier, String strategy) {
     if ((notifier == null || notifier.isEmpty) && strategy == 'all') {
-      notifier = SYSTEM;
+      notifier = AtConstants.system;
     }
     return notifier!;
   }
@@ -432,22 +481,28 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     return NotificationType.sent;
   }
 
-  bool _getIsEncrypted(
+  @visibleForTesting
+  bool getIsEncrypted(
       MessageType messageType, String key, String? isEncryptedStr) {
     if (messageType == MessageType.key && key.startsWith('public')) {
       return false;
-    } else if (messageType == MessageType.text) {
-      return SecondaryUtil.getBoolFromString(isEncryptedStr);
-    } else {
-      return true;
     }
+    if (messageType == MessageType.text) {
+      return SecondaryUtil.getBoolFromString(isEncryptedStr);
+    }
+    // respect the 'false' value if one was supplied
+    if (isEncryptedStr != null && isEncryptedStr.toLowerCase() == 'false') {
+      return false;
+    }
+    // At this point, has to return true for legacy reasons. See #1944
+    return true;
   }
 
   String _getFullFormedAtKey(
       MessageType messageType, HashMap<String, String?> verbParam) {
     // If message type text do not concatenate fromAtSign (currentAtSign)
     if (messageType == MessageType.text) {
-      return '${verbParam[FOR_AT_SIGN]}:${verbParam[AT_KEY]}';
+      return '${verbParam[AtConstants.forAtSign]}:${verbParam[AtConstants.atKey]}';
     }
     // If message type is key, concatenate the atSign's
     // In the notify regex, although, "public" and "forAtSign" are mutually exclusive
@@ -460,13 +515,22 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     // the "publicScope" named group contains "@receiverAtSign" and "atKey" named group contains
     // "public:something.namespace".
     //
-    if (verbParam[AT_KEY]!.startsWith('public')) {
-      return '${verbParam[AT_KEY]}${verbParam[AT_SIGN]}';
+    if (verbParam[AtConstants.atKey]!.startsWith('public')) {
+      return '${verbParam[AtConstants.atKey]}${verbParam[AtConstants.atSign]}';
     }
-    return '${verbParam[FOR_AT_SIGN]}:${verbParam[AT_KEY]}${verbParam[AT_SIGN]}';
+    return '${verbParam[AtConstants.forAtSign]}:${verbParam[AtConstants.atKey]}${verbParam[AtConstants.atSign]}';
   }
 
-  bool _isAuthorizedToSendNotification(String? sharedBy, String currentAtSign) {
-    return sharedBy == currentAtSign;
+  Future<bool> _isAuthorizedToSendNotification(
+      String? sharedBy,
+      String currentAtSign,
+      HashMap<String, String?> verbParams,
+      String keyToNotify,
+      InboundConnectionMetadata connectionMetadata) async {
+    if (sharedBy != currentAtSign) {
+      throw UnAuthorizedException(
+          '${verbParams[AtConstants.atSign]} is not authorized to send notification as $currentAtSign');
+    }
+    return await super.isAuthorized(connectionMetadata, atKey: keyToNotify);
   }
 }

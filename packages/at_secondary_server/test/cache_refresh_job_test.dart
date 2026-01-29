@@ -73,13 +73,13 @@ void main() {
     test('Run with some records to refresh which have ttr > 0 not yet reached',
         () async {
       await createRandomKeyStoreEntry(
-          '@bob', 'cached:@alice:1.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:1.key.app@bob', secondaryKeyStore,
           commonsMetadata: Metadata()..ttr = 1);
       await createRandomKeyStoreEntry(
-          '@bob', 'cached:@alice:2.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:2.key.app@bob', secondaryKeyStore,
           commonsMetadata: Metadata()..ttr = 2);
       await createRandomKeyStoreEntry(
-          '@bob', 'cached:@alice:3.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:3.key.app@bob', secondaryKeyStore,
           commonsMetadata: Metadata()..ttr = 3);
       AtCacheRefreshJob job = AtCacheRefreshJob(alice, cacheManager);
       Map result = await job.refreshNow();
@@ -96,23 +96,22 @@ void main() {
         () async {
       DateTime past = DateTime.now().toUtc().subtract(Duration(seconds: 1));
       await createRandomKeyStoreEntry(
-          '@bob', 'cached:@alice:1.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:1.key.app@bob', secondaryKeyStore,
           commonsMetadata: Metadata()..ttr = null, refreshAt: past);
       await createRandomKeyStoreEntry(
-          '@bob', 'cached:@alice:2.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:2.key.app@bob', secondaryKeyStore,
           commonsMetadata: Metadata()..ttr = 1);
       await createRandomKeyStoreEntry(
-          '@bob', 'cached:@alice:3.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:3.key.app@bob', secondaryKeyStore,
           commonsMetadata: Metadata()..ttr = null, refreshAt: past);
 
       List<String> toRefresh = await cacheManager.getKeyNamesToRefresh();
-      expect(toRefresh.contains('cached:@alice:1.key.app@bob'), true);
-      expect(toRefresh.contains('cached:@alice:2.key.app@bob'), false);
-      expect(toRefresh.contains('cached:@alice:3.key.app@bob'), true);
+      expect(toRefresh.contains('cached:$alice:1.key.app@bob'), true);
+      expect(toRefresh.contains('cached:$alice:2.key.app@bob'), false);
+      expect(toRefresh.contains('cached:$alice:3.key.app@bob'), true);
 
       AtCacheRefreshJob job = AtCacheRefreshJob(alice, cacheManager);
       Map result = await job.refreshNow();
-      print(result);
       expect(result['keysChecked'], 2);
       expect(result['valueUnchanged'], 0);
       expect(result['valueChanged'], 0);
@@ -125,40 +124,39 @@ void main() {
         () async {
       DateTime past = DateTime.now().toUtc().subtract(Duration(seconds: 1));
       await createRandomKeyStoreEntry(
-          '@bob', 'cached:@alice:1.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:1.key.app@bob', secondaryKeyStore,
           data: 'value 1 old',
           commonsMetadata: Metadata()..ttr = null,
           refreshAt: past);
       await createRandomKeyStoreEntry(
-          '@bob', 'cached:@alice:2.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:2.key.app@bob', secondaryKeyStore,
           data: 'value 2 old', commonsMetadata: Metadata()..ttr = 1);
       await createRandomKeyStoreEntry(
-          '@bob', 'cached:@alice:3.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:3.key.app@bob', secondaryKeyStore,
           data: 'value 3 old',
           commonsMetadata: Metadata()..ttr = null,
           refreshAt: past);
 
       List<String> toRefresh = await cacheManager.getKeyNamesToRefresh();
-      expect(toRefresh.contains('cached:@alice:1.key.app@bob'), true);
-      expect(toRefresh.contains('cached:@alice:2.key.app@bob'), false);
-      expect(toRefresh.contains('cached:@alice:3.key.app@bob'), true);
+      expect(toRefresh.contains('cached:$alice:1.key.app@bob'), true);
+      expect(toRefresh.contains('cached:$alice:2.key.app@bob'), false);
+      expect(toRefresh.contains('cached:$alice:3.key.app@bob'), true);
 
       when(() => mockOutboundConnection.write('lookup:all:1.key.app@bob\n'))
           .thenAnswer((Invocation invocation) async {
         socketOnDataFn(
-            'error:{"errorCode":"AT0015","errorDescription":"@alice:1.key.app@bob does not exist"}\n$alice@'
+            'error:{"errorCode":"AT0015","errorDescription":"$alice:1.key.app@bob does not exist"}\n$alice@'
                 .codeUnits);
       });
       when(() => mockOutboundConnection.write('lookup:all:3.key.app@bob\n'))
           .thenAnswer((Invocation invocation) async {
         socketOnDataFn(
-            'error:{"errorCode":"AT0015","errorDescription":"@alice:3.key.app@bob does not exist"}\n$alice@'
+            'error:{"errorCode":"AT0015","errorDescription":"$alice:3.key.app@bob does not exist"}\n$alice@'
                 .codeUnits);
       });
 
       AtCacheRefreshJob job = AtCacheRefreshJob(alice, cacheManager);
       Map result = await job.refreshNow();
-      print(result);
       expect(result['keysChecked'], 2);
       expect(result['valueUnchanged'], 0);
       expect(result['valueChanged'], 0);
@@ -171,46 +169,46 @@ void main() {
         () async {
       DateTime past = DateTime.now().toUtc().subtract(Duration(seconds: 1));
       await createRandomKeyStoreEntry(
-          '@bob', 'cached:@alice:1.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:1.key.app@bob', secondaryKeyStore,
           data: 'value 1 old',
           commonsMetadata: Metadata()..ttr = null,
           refreshAt: past);
 
       await createRandomKeyStoreEntry(
-          '@bob', 'cached:@alice:2.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:2.key.app@bob', secondaryKeyStore,
           data: 'value 2 old', commonsMetadata: Metadata()..ttr = 5);
 
       AtData data3 = await createRandomKeyStoreEntry(
-          '@bob', 'cached:@alice:3.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:3.key.app@bob', secondaryKeyStore,
           data: 'value 3 old', commonsMetadata: Metadata()..ttr = 1);
 
       AtData data4 = await createRandomKeyStoreEntry(
-          '@bob', 'cached:@alice:4.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:4.key.app@bob', secondaryKeyStore,
           data: 'value 4 old',
           commonsMetadata: Metadata()..ttr = null,
           refreshAt: past);
 
       await createRandomKeyStoreEntry(
-          '@bob', 'cached:@alice:5.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:5.key.app@bob', secondaryKeyStore,
           data: 'value 5 old', commonsMetadata: Metadata()..ttr = 1);
 
       await Future.delayed(Duration(milliseconds: 1001));
 
       List<String> toRefresh = await cacheManager.getKeyNamesToRefresh();
-      expect(toRefresh.contains('cached:@alice:1.key.app@bob'),
+      expect(toRefresh.contains('cached:$alice:1.key.app@bob'),
           true); // ttr null but we set a refreshAt in the past
       expect(
-          toRefresh.contains('cached:@alice:2.key.app@bob'), false); // ttr is 5
-      expect(toRefresh.contains('cached:@alice:3.key.app@bob'), true); // ttr 1
-      expect(toRefresh.contains('cached:@alice:4.key.app@bob'),
+          toRefresh.contains('cached:$alice:2.key.app@bob'), false); // ttr is 5
+      expect(toRefresh.contains('cached:$alice:3.key.app@bob'), true); // ttr 1
+      expect(toRefresh.contains('cached:$alice:4.key.app@bob'),
           true); // ttr null but we set a refreshAt in the past
-      expect(toRefresh.contains('cached:@alice:5.key.app@bob'), true); // ttr 1
+      expect(toRefresh.contains('cached:$alice:5.key.app@bob'), true); // ttr 1
 
       // key 1 no longer exists (deleted by remote)
       when(() => mockOutboundConnection.write('lookup:all:1.key.app@bob\n'))
           .thenAnswer((Invocation invocation) async {
         socketOnDataFn(
-            'error:{"errorCode":"AT0015","errorDescription":"@alice:1.key.app@bob does not exist"}\n$alice@'
+            'error:{"errorCode":"AT0015","errorDescription":"$alice:1.key.app@bob does not exist"}\n$alice@'
                 .codeUnits);
       });
       // key 2 won't be checked, nothing to mock
@@ -218,7 +216,7 @@ void main() {
       when(() => mockOutboundConnection.write('lookup:all:3.key.app@bob\n'))
           .thenAnswer((Invocation invocation) async {
         var json = SecondaryUtil.prepareResponseData('all', data3,
-            key: '@alice:3.key.app@bob')!;
+            key: '$alice:3.key.app@bob')!;
         socketOnDataFn('data:$json\n$alice@'.codeUnits);
       });
       // key 4 value changed
@@ -226,14 +224,13 @@ void main() {
           .thenAnswer((Invocation invocation) async {
         data4.data = 'value 4 new';
         var json = SecondaryUtil.prepareResponseData('all', data4,
-            key: '@alice:3.key.app@bob')!;
+            key: '$alice:3.key.app@bob')!;
         socketOnDataFn('data:$json\n$alice@'.codeUnits);
       });
       // key 5 exception from remote - we'll get an exception because we're not defining a mock
 
       AtCacheRefreshJob job = AtCacheRefreshJob(alice, cacheManager);
       Map result = await job.refreshNow();
-      print(result);
       expect(result['keysChecked'], 4);
       expect(result['valueUnchanged'], 1);
       expect(result['valueChanged'], 1);

@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_pool.dart';
@@ -9,38 +7,56 @@ import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:test/test.dart';
 
+import 'test_utils.dart';
+
 void main() async {
   // ignore: prefer_typing_uninitialized_variables
   late OutboundClientPool outboundClientPool;
+  late NotifyConnectionsPool notifyConnectionsPool;
   final int outboundIdleTimeMillis = 200;
+  FakeSocket mockSocket = FakeSocket();
+
+  verbTestsSetUpLogging();
+
+  setUpAll(() {});
+
   setUp(() {
     var serverContext = AtSecondaryContext();
-    serverContext.outboundIdleTimeMillis = outboundIdleTimeMillis;
+    serverContext.unauthenticatedOutboundIdleTimeMillis =
+        outboundIdleTimeMillis;
     AtSecondaryServerImpl.getInstance().serverContext = serverContext;
     outboundClientPool = OutboundClientPool();
+    notifyConnectionsPool = NotifyConnectionsPool(
+        DefaultOutboundConnectionFactory(requireCerts: false));
 
-    NotifyConnectionsPool.getInstance().size = 2;
+    notifyConnectionsPool.size = 2;
   });
 
   tearDown(() {
     outboundClientPool.clearAllClients();
-    NotifyConnectionsPool.getInstance().pool.clearAllClients();
+    notifyConnectionsPool.outboundClientPool.clearAllClients();
   });
 
   group('A group of outbound client pool test', () {
+    OutboundConnectionFactory outboundConnectionFactory =
+        DefaultOutboundConnectionFactory(requireCerts: false);
     test('test outbound client pool init', () {
       outboundClientPool.size = 5;
       expect(outboundClientPool.getCapacity(), 5);
       expect(outboundClientPool.getCurrentSize(), 0);
     });
 
-    Socket? dummySocket;
     OutboundClient newOutboundClient(String toAtSign) {
-      var inboundConnection = InboundConnectionImpl(dummySocket, toAtSign);
-      OutboundClient outboundClient =
-          OutboundClient(inboundConnection, toAtSign, AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
+      var inboundConnection = InboundConnectionImpl(mockSocket, toAtSign);
+      OutboundClient outboundClient = OutboundClient(
+        inboundConnection,
+        toAtSign,
+        AtSecondaryServerImpl.getInstance().secondaryAddressFinder,
+        false,
+        outboundConnectionFactory,
+      );
       outboundClient.outboundConnection =
-          OutboundConnectionImpl(dummySocket, toAtSign);
+          OutboundConnectionImpl(mockSocket, toAtSign);
 
       return outboundClient;
     }
@@ -152,55 +168,67 @@ void main() async {
     test(
         'test notify connections pool removes least recently used when at capacity, with lastUsed as per order of OutboundClient creation',
         () async {
-      NotifyConnectionsPool notifyConnectionPool =
-          NotifyConnectionsPool.getInstance();
+      notifyConnectionsPool.size = 2;
+      expect(notifyConnectionsPool.getCapacity(), 2);
 
-      notifyConnectionPool.size = 2;
-      expect(notifyConnectionPool.getCapacity(), 2);
-
-      var alice = notifyConnectionPool.get('alice');
-      expect(notifyConnectionPool.getCapacity(), 1);
-
-      await Future.delayed(Duration(milliseconds: 1));
-      var bob = notifyConnectionPool.get('bob');
-      expect(notifyConnectionPool.getCapacity(), 0);
-      expect(notifyConnectionPool.pool.clients()[0], alice);
-      expect(notifyConnectionPool.pool.clients()[1], bob);
+      OutboundClient toAlice = await notifyConnectionsPool.getOutboundClient(
+        '@alice',
+        connect: false,
+      );
+      expect(notifyConnectionsPool.getCapacity(), 1);
 
       await Future.delayed(Duration(milliseconds: 1));
-      var charlie = notifyConnectionPool.get(
-          'charlie'); // as there is no capacity, alice should be evicted as the least recently used
-      expect(notifyConnectionPool.getCapacity(), 0);
-      expect(notifyConnectionPool.pool.clients()[0], bob);
-      expect(notifyConnectionPool.pool.clients()[1], charlie);
+      OutboundClient toBob = await notifyConnectionsPool.getOutboundClient(
+        '@bob',
+        connect: false,
+      );
+      expect(notifyConnectionsPool.getCapacity(), 0);
+      expect(notifyConnectionsPool.outboundClientPool.clients()[0], toAlice);
+      expect(notifyConnectionsPool.outboundClientPool.clients()[1], toBob);
+
+      await Future.delayed(Duration(milliseconds: 1));
+      OutboundClient toCharlie = await notifyConnectionsPool.getOutboundClient(
+        '@charlie',
+        connect: false,
+      ); // as there is no capacity, alice should be evicted as the least recently used
+      expect(notifyConnectionsPool.getCapacity(), 0);
+      expect(notifyConnectionsPool.outboundClientPool.clients()[0], toBob);
+      expect(notifyConnectionsPool.outboundClientPool.clients()[1], toCharlie);
     });
 
     test(
         'test notify connections pool removes least recently used when at capacity, with lastUsed CHANGED compared with order of object creation',
         () async {
-      NotifyConnectionsPool notifyConnectionPool =
-          NotifyConnectionsPool.getInstance();
+      notifyConnectionsPool.size = 2;
+      expect(notifyConnectionsPool.getCapacity(), 2);
 
-      notifyConnectionPool.size = 2;
-      expect(notifyConnectionPool.getCapacity(), 2);
-
-      var alice = notifyConnectionPool.get('alice');
-      expect(notifyConnectionPool.getCapacity(), 1);
-
-      await Future.delayed(Duration(milliseconds: 1));
-      var bob = notifyConnectionPool.get('bob');
-      expect(notifyConnectionPool.getCapacity(), 0);
-
-      alice.lastUsed = DateTime.now();
-      expect(notifyConnectionPool.pool.clients()[0], bob);
-      expect(notifyConnectionPool.pool.clients()[1], alice);
+      final OutboundClient toAlice =
+          await notifyConnectionsPool.getOutboundClient(
+        '@alice',
+        connect: false,
+      );
+      expect(notifyConnectionsPool.getCapacity(), 1);
 
       await Future.delayed(Duration(milliseconds: 1));
-      var charlie = notifyConnectionPool.get(
-          'charlie'); // as there is no capacity, bob should be evicted as the least recently used
-      expect(notifyConnectionPool.getCapacity(), 0);
-      expect(notifyConnectionPool.pool.clients()[0], alice);
-      expect(notifyConnectionPool.pool.clients()[1], charlie);
+      final OutboundClient toBob =
+          await notifyConnectionsPool.getOutboundClient(
+        '@bob',
+        connect: false,
+      );
+      expect(notifyConnectionsPool.getCapacity(), 0);
+
+      toAlice.lastUsed = DateTime.now();
+      expect(notifyConnectionsPool.outboundClientPool.clients()[0], toBob);
+      expect(notifyConnectionsPool.outboundClientPool.clients()[1], toAlice);
+
+      await Future.delayed(Duration(milliseconds: 1));
+      OutboundClient toCharlie = await notifyConnectionsPool.getOutboundClient(
+        '@charlie',
+        connect: false,
+      ); // as there is no capacity, bob should be evicted as the least recently used
+      expect(notifyConnectionsPool.getCapacity(), 0);
+      expect(notifyConnectionsPool.outboundClientPool.clients()[0], toAlice);
+      expect(notifyConnectionsPool.outboundClientPool.clients()[1], toCharlie);
     });
   });
 }

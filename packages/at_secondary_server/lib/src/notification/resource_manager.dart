@@ -13,7 +13,6 @@ import 'package:meta/meta.dart';
 /// Class that is responsible for sending the notifications.
 class ResourceManager {
   static final logger = AtSignLogger('NotificationResourceManager');
-  static final ResourceManager _singleton = ResourceManager._internal();
 
   bool _isProcessingQueue = false;
 
@@ -25,18 +24,13 @@ class ResourceManager {
 
   static var maxRetries = AtSecondaryConfig.maxNotificationRetries;
 
-  ResourceManager._internal();
+  final NotifyConnectionsPool notifyConnectionsPool;
 
-  factory ResourceManager.getInstance() {
-    return _singleton;
-  }
+  ResourceManager(this.notifyConnectionsPool);
 
-  final NotifyConnectionsPool _notifyConnectionsPool =
-      NotifyConnectionsPool.getInstance();
+  int get outboundConnectionLimit => notifyConnectionsPool.size;
 
-  int get outboundConnectionLimit => _notifyConnectionsPool.size;
-
-  set outboundConnectionLimit(int ocl) => _notifyConnectionsPool.size = ocl;
+  set outboundConnectionLimit(int ocl) => notifyConnectionsPool.size = ocl;
 
   void start() {
     _started = true;
@@ -88,7 +82,7 @@ class ResourceManager {
     late Iterator notificationIterator;
     try {
       //1. Find the cap on the notifyConnectionsPool size
-      var numberOfOutboundConnections = _notifyConnectionsPool.size;
+      var numberOfOutboundConnections = notifyConnectionsPool.size;
 
       //2. Get the atsign on priority basis.
       var atSignIterator = AtNotificationMap.getInstance()
@@ -130,19 +124,7 @@ class ResourceManager {
   /// Returns OutboundClient, if connection is successful.
   /// Throws [ConnectionInvalidException] for any exceptions
   Future<OutboundClient> _connect(String toAtSign) async {
-    var outBoundClient = _notifyConnectionsPool.get(toAtSign);
-    try {
-      if (!outBoundClient.isHandShakeDone) {
-        var isConnected = await outBoundClient.connect();
-        logger.finest('outBoundClient.connect() result: $isConnected');
-      }
-      return outBoundClient;
-    } on Exception catch (e) {
-      var msg = 'Connection failed to $toAtSign with exception: $e';
-      logger.warning(msg);
-      outBoundClient.inboundConnection.getMetaData().isClosed = true;
-      throw ConnectionInvalidException(msg);
-    }
+    return await notifyConnectionsPool.getOutboundClient(toAtSign);
   }
 
   /// Send the Notification to [atNotificationList.toAtSign]
@@ -207,38 +189,46 @@ class ResourceManager {
     }
     var atMetaData = atNotification.atMetadata;
     if (atMetaData != null) {
+      if (atNotification.atMetadata!.immutable == true) {
+        commandBody = '${AtConstants.immutable}:true:$commandBody';
+      }
       if (atNotification.atMetadata!.skeEncAlgo != null) {
         commandBody =
-            '$SHARED_KEY_ENCRYPTED_ENCRYPTING_ALGO:${atNotification.atMetadata!.skeEncAlgo}:$commandBody';
+            '${AtConstants.sharedKeyEncryptedEncryptingAlgo}:${atNotification.atMetadata!.skeEncAlgo}:$commandBody';
       }
       if (atNotification.atMetadata!.skeEncKeyName != null) {
         commandBody =
-            '$SHARED_KEY_ENCRYPTED_ENCRYPTING_KEY_NAME:${atNotification.atMetadata!.skeEncKeyName}:$commandBody';
+            '${AtConstants.sharedKeyEncryptedEncryptingKeyName}:${atNotification.atMetadata!.skeEncKeyName}:$commandBody';
       }
       if (atNotification.atMetadata!.ivNonce != null) {
         commandBody =
-            '$IV_OR_NONCE:${atNotification.atMetadata!.ivNonce}:$commandBody';
+            '${AtConstants.ivOrNonce}:${atNotification.atMetadata!.ivNonce}:$commandBody';
       }
       if (atNotification.atMetadata!.encAlgo != null) {
         commandBody =
-            '$ENCRYPTING_ALGO:${atNotification.atMetadata!.encAlgo}:$commandBody';
+            '${AtConstants.encryptingAlgo}:${atNotification.atMetadata!.encAlgo}:$commandBody';
       }
       if (atNotification.atMetadata!.encKeyName != null) {
         commandBody =
-            '$ENCRYPTING_KEY_NAME:${atNotification.atMetadata!.encKeyName}:$commandBody';
+            '${AtConstants.encryptingKeyName}:${atNotification.atMetadata!.encKeyName}:$commandBody';
+      }
+      if (atNotification.atMetadata!.pubKeyHash != null) {
+        commandBody =
+            '${AtConstants.sharedWithPublicKeyHash}:${atNotification.atMetadata!.pubKeyHash?.hash}:${AtConstants.sharedWithPublicKeyHashingAlgo}:${atNotification.atMetadata!.pubKeyHash?.hashingAlgo}:$commandBody';
       }
       if (atNotification.atMetadata!.pubKeyCS != null) {
         commandBody =
-            '$SHARED_WITH_PUBLIC_KEY_CHECK_SUM:${atNotification.atMetadata!.pubKeyCS}:$commandBody';
+            '${AtConstants.sharedWithPublicKeyCheckSum}:${atNotification.atMetadata!.pubKeyCS}:$commandBody';
       }
       if (atNotification.atMetadata!.sharedKeyEnc != null) {
         commandBody =
-            '$SHARED_KEY_ENCRYPTED:${atNotification.atMetadata!.sharedKeyEnc}:$commandBody';
+            '${AtConstants.sharedKeyEncrypted}:${atNotification.atMetadata!.sharedKeyEnc}:$commandBody';
       }
-      if (atNotification.atMetadata!.isEncrypted != null &&
-          atNotification.atMetadata!.isEncrypted == true) {
-        commandBody = '$IS_ENCRYPTED:true:$commandBody';
-      }
+
+      String? isEncryptedStr =
+          (atNotification.atMetadata!.isEncrypted ?? false) ? 'true' : 'false';
+      commandBody = '${AtConstants.isEncrypted}:$isEncryptedStr:$commandBody';
+
       if (atMetaData.ttr != null) {
         commandBody =
             'ttr:${atMetaData.ttr}:ccd:${atMetaData.isCascade}:$commandBody';

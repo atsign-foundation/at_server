@@ -77,6 +77,12 @@ class AtMetaData extends HiveObject {
   @HiveField(23)
   String? skeEncAlgo;
 
+  @HiveField(24)
+  PublicKeyHash? pubKeyHash;
+
+  @HiveField(25)
+  bool? immutable;
+
   @override
   String toString() {
     return toJson().toString();
@@ -90,8 +96,8 @@ class AtMetaData extends HiveObject {
       ..ttb = ttb
       ..ttr = ttr
       ..ccd = isCascade
-      ..isBinary = isBinary
-      ..isEncrypted = isEncrypted
+      ..isBinary = (isBinary == null) ? false : isBinary!
+      ..isEncrypted = (isEncrypted == null) ? false : isEncrypted!
       ..dataSignature = dataSignature
       ..sharedKeyEnc = sharedKeyEnc
       ..pubKeyCS = pubKeyCS
@@ -100,10 +106,12 @@ class AtMetaData extends HiveObject {
       ..encAlgo = encAlgo
       ..ivNonce = ivNonce
       ..skeEncKeyName = skeEncKeyName
-      ..skeEncAlgo = skeEncAlgo;
+      ..skeEncAlgo = skeEncAlgo
+      ..pubKeyHash = pubKeyHash
+      ..immutable = immutable ?? false;
   }
 
-  factory AtMetaData.fromCommonsMetadata(Metadata metadata) {
+  factory AtMetaData.fromCommonsMetadata(Metadata metadata, String atSign) {
     var atMetadata = AtMetaData();
     atMetadata
       ..ttl = metadata.ttl
@@ -120,8 +128,10 @@ class AtMetaData extends HiveObject {
       ..encAlgo = metadata.encAlgo
       ..ivNonce = metadata.ivNonce
       ..skeEncKeyName = metadata.skeEncKeyName
-      ..skeEncAlgo = metadata.skeEncAlgo;
-    return AtMetadataBuilder(newAtMetaData: atMetadata).build();
+      ..skeEncAlgo = metadata.skeEncAlgo
+      ..pubKeyHash = metadata.pubKeyHash
+      ..immutable = metadata.immutable;
+    return AtMetadataBuilder(atSign: atSign, newAtMetaData: atMetadata).build();
   }
 
   Map toJson() {
@@ -151,6 +161,8 @@ class AtMetaData extends HiveObject {
     map[AtConstants.ivOrNonce] = ivNonce;
     map[AtConstants.sharedKeyEncryptedEncryptingKeyName] = skeEncKeyName;
     map[AtConstants.sharedKeyEncryptedEncryptingAlgo] = skeEncAlgo;
+    map[AtConstants.sharedWithPublicKeyHash] = pubKeyHash?.toJson();
+    map[AtConstants.immutable] = immutable;
     return map;
   }
 
@@ -205,6 +217,9 @@ class AtMetaData extends HiveObject {
     ivNonce = json[AtConstants.ivOrNonce];
     skeEncKeyName = json[AtConstants.sharedKeyEncryptedEncryptingKeyName];
     skeEncAlgo = json[AtConstants.sharedKeyEncryptedEncryptingAlgo];
+    pubKeyHash =
+        PublicKeyHash.fromJson(json[AtConstants.sharedWithPublicKeyHash]);
+    immutable = json[AtConstants.immutable];
 
     return this;
   }
@@ -237,7 +252,9 @@ class AtMetaData extends HiveObject {
           encAlgo == other.encAlgo &&
           ivNonce == other.ivNonce &&
           skeEncKeyName == other.skeEncKeyName &&
-          skeEncAlgo == other.skeEncAlgo;
+          skeEncAlgo == other.skeEncAlgo &&
+          pubKeyHash == other.pubKeyHash &&
+          immutable == other.immutable;
 
   @override
   int get hashCode =>
@@ -264,7 +281,9 @@ class AtMetaData extends HiveObject {
       encAlgo.hashCode ^
       ivNonce.hashCode ^
       skeEncKeyName.hashCode ^
-      skeEncAlgo.hashCode;
+      skeEncAlgo.hashCode ^
+      pubKeyHash.hashCode ^
+      immutable.hashCode;
 }
 
 class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
@@ -301,13 +320,15 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..encAlgo = fields[20]
       ..ivNonce = fields[21]
       ..skeEncKeyName = fields[22]
-      ..skeEncAlgo = fields[23];
+      ..skeEncAlgo = fields[23]
+      ..pubKeyHash = fields[24]
+      ..immutable = fields[25];
   }
 
   @override
   void write(BinaryWriter writer, AtMetaData obj) {
     writer
-      ..writeByte(24)
+      ..writeByte(26)
       ..writeByte(0)
       ..write(obj.createdBy)
       ..writeByte(1)
@@ -355,6 +376,35 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..writeByte(22)
       ..write(obj.skeEncKeyName)
       ..writeByte(23)
-      ..write(obj.skeEncAlgo);
+      ..write(obj.skeEncAlgo)
+      ..writeByte(24)
+      ..write(obj.pubKeyHash)
+      ..writeByte(25)
+      ..write(obj.immutable);
+  }
+}
+
+@HiveType(typeId: 11)
+class PublicKeyHashAdapter extends TypeAdapter<PublicKeyHash> {
+  @override
+  final int typeId = typeAdapterMap['PublicKeyHashAdapter'];
+
+  @override
+  PublicKeyHash read(BinaryReader reader) {
+    var numOfFields = reader.readByte();
+    var fields = <int, dynamic>{
+      for (var i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
+    };
+    return PublicKeyHash(fields[0] as String, fields[1] as String);
+  }
+
+  @override
+  void write(BinaryWriter writer, PublicKeyHash obj) {
+    writer
+      ..writeByte(2)
+      ..writeByte(0)
+      ..write(obj.hash)
+      ..writeByte(1)
+      ..write(obj.hashingAlgo);
   }
 }

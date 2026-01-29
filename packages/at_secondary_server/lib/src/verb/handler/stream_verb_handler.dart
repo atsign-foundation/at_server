@@ -14,7 +14,9 @@ class StreamVerbHandler extends AbstractVerbHandler {
 
   InboundConnection? atConnection;
 
-  StreamVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  final NotificationManager notificationManager;
+
+  StreamVerbHandler(super.keyStore, this.notificationManager);
 
   @override
   bool accept(String command) => command.startsWith(getName(VerbEnum.stream));
@@ -47,13 +49,11 @@ class StreamVerbHandler extends AbstractVerbHandler {
           logger.severe('sender connection is null for stream id:$streamId');
           throw UnAuthenticatedException('Invalid stream id');
         }
-        senderConnection.getMetaData().isStream = true;
-        senderConnection.getMetaData().streamId = streamId;
-        atConnection.getMetaData().streamId = streamId;
-        senderConnection.receiverSocket =
-            StreamManager.receiverSocketMap[streamId]!.getSocket();
+        senderConnection.metaData.isStream = true;
+        senderConnection.metaData.streamId = streamId;
+        atConnection.metaData.streamId = streamId;
         logger.info('writing stream ack');
-        senderConnection.getSocket().write('stream:ack $streamId\n');
+        senderConnection.underlying.write('stream:ack $streamId\n');
         break;
       case 'done':
         var senderConnection = StreamManager.senderSocketMap[streamId];
@@ -61,13 +61,13 @@ class StreamVerbHandler extends AbstractVerbHandler {
           logger.severe('sender connection is null for stream id:$streamId');
           throw UnAuthenticatedException('Invalid stream id');
         }
-        StreamManager.senderSocketMap[streamId]!
-            .write('stream:done $streamId\n');
+        await StreamManager.senderSocketMap[streamId]!.write('stream:done'
+            ' $streamId\n');
         _cleanUp(streamId);
         break;
       case 'init':
-        if (!atConnection.getMetaData().isAuthenticated &&
-            !atConnection.getMetaData().isPolAuthenticated) {
+        if (!atConnection.metaData.isAuthenticated &&
+            !atConnection.metaData.isPolAuthenticated) {
           throw UnAuthenticatedException(
               'Stream init requires either pol or auth');
         }
@@ -115,19 +115,18 @@ class StreamVerbHandler extends AbstractVerbHandler {
           ..notification = key
           ..opType = OperationType.update)
         .build();
-    var notificationId =
-        await NotificationManager.getInstance().notify(atNotification);
+    var notificationId = await notificationManager.notify(atNotification);
     logger.finer('notification_id : $notificationId');
   }
 
   void _cleanUp(String streamId) {
     final receiverConnection = StreamManager.receiverSocketMap[streamId];
     if (receiverConnection != null) {
-      receiverConnection.getSocket().destroy();
+      receiverConnection.underlying.destroy();
     }
     final senderConnection = StreamManager.senderSocketMap[streamId];
     if (senderConnection != null) {
-      senderConnection.getSocket().destroy();
+      senderConnection.underlying.destroy();
     }
     StreamManager.receiverSocketMap.remove(streamId);
     StreamManager.senderSocketMap.remove(streamId);

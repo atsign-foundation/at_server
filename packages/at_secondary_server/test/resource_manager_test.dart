@@ -4,18 +4,23 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/notification/at_notification_map.dart';
+import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/queue_manager.dart';
 import 'package:at_secondary/src/notification/resource_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'test_utils.dart';
 
 class MockOutboundClient extends Mock implements OutboundClient {}
 
 void main() async {
+  verbTestsSetUpLogging();
+
   // mock object for outbound client
   OutboundClient mockOutboundClient = MockOutboundClient();
-  ResourceManager rm = ResourceManager.getInstance();
+  ResourceManager notifsResourceMgr = ResourceManager(NotifyConnectionsPool(
+      DefaultOutboundConnectionFactory(requireCerts: false)));
   var storageDir = '${Directory.current.path}/test/hive';
 
   //  forcing the notification sending to fail with an exception
@@ -38,7 +43,7 @@ void main() async {
             ..atValue = 'bob@gmail.com'
             ..notification = 'email'
             ..fromAtSign = '@bob'
-            ..toAtSign = '@alice'
+            ..toAtSign = alice
             ..strategy = 'all'
             ..opType = OperationType.update
             ..ttl = -1
@@ -48,7 +53,7 @@ void main() async {
             ..id = '122'
             ..atValue = '90192019021'
             ..fromAtSign = '@bob'
-            ..toAtSign = '@alice'
+            ..toAtSign = alice
             ..strategy = 'all'
             ..opType = OperationType.update
             ..notification = 'phone'
@@ -57,7 +62,7 @@ void main() async {
       var atNotification3 = (AtNotificationBuilder()
             ..id = '123'
             ..fromAtSign = '@bob'
-            ..toAtSign = '@alice'
+            ..toAtSign = alice
             ..atValue = 'USA'
             ..strategy = 'all'
             ..opType = OperationType.update
@@ -65,22 +70,22 @@ void main() async {
             ..retryCount = 1)
           .build();
 
-      var atsign = '@alice';
+      var atsign = alice;
       // Iterator containing all the notifications
       Iterator notificationIterator =
           [atNotification1, atNotification2, atNotification3].iterator;
-      await rm.sendNotifications(
+      await notifsResourceMgr.sendNotifications(
           atsign, mockOutboundClient, notificationIterator);
       var atNotificationList = [];
       var itr = QueueManager.getInstance().dequeue(atsign);
       while (itr.moveNext()) {
         atNotificationList.add(itr.current);
       }
-      // Expecting that the atNotificationList[0] returned from the dequeue() is same as the notification we passed i.e., atNotificationid1.id
+      // Expecting that the atNotificationList[0] returned from the dequeue() is same as the notification id we passed
       expect(atNotificationList[0].id, '121');
-      // Expecting that the atNotificationList[1] returned from the dequeue() is same as the notification we passed i.e., atNotificationid2.id
+      // Expecting that the atNotificationList[1] returned from the dequeue() is same as the notification id we passed
       expect(atNotificationList[1].id, '122');
-      // Expecting that the atNotificationList[2] returned from the dequeue() is same as the notification we passed i.e., atNotificationid3.id
+      // Expecting that the atNotificationList[2] returned from the dequeue() is same as the notification id we passed
       expect(atNotificationList[2].id, '123');
     }, timeout: Timeout(Duration(seconds: 10)));
   });
@@ -89,21 +94,21 @@ void main() async {
     test('Test to verify prepare notification command', () {
       var atNotification = (AtNotificationBuilder()
             ..id = '1234'
-            ..notification = '@bob:phone@alice')
+            ..notification = '@bob:phone$alice')
           .build();
 
-      var notifyCommand = ResourceManager.getInstance()
-          .prepareNotifyCommandBody(atNotification);
+      var notifyCommand =
+          notifsResourceMgr.prepareNotifyCommandBody(atNotification);
 
       /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
       expect(notifyCommand,
-          'id:1234:messageType:key:notifier:system:ttln:900000:@bob:phone@alice');
+          'id:1234:messageType:key:notifier:system:ttln:900000:@bob:phone$alice');
     });
 
     test('Test to verify prepare notification without passing any fields', () {
       var atNotification = (AtNotificationBuilder()..id = '1122').build();
-      var notifyCommand = ResourceManager.getInstance()
-          .prepareNotifyCommandBody(atNotification);
+      var notifyCommand =
+          notifsResourceMgr.prepareNotifyCommandBody(atNotification);
 
       /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
       expect(notifyCommand,
@@ -114,63 +119,65 @@ void main() async {
         () {
       var atNotification = (AtNotificationBuilder()
             ..id = '1234'
-            ..notification = '@bob:phone@alice'
+            ..notification = '@bob:phone$alice'
             ..opType = OperationType.delete)
           .build();
-      var notifyCommand = ResourceManager.getInstance()
-          .prepareNotifyCommandBody(atNotification);
+      var notifyCommand =
+          notifsResourceMgr.prepareNotifyCommandBody(atNotification);
 
       /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
       expect(notifyCommand,
-          'id:1234:delete:messageType:key:notifier:system:ttln:900000:@bob:phone@alice');
+          'id:1234:delete:messageType:key:notifier:system:ttln:900000:@bob:phone$alice');
     });
 
     test('Test to verify prepare notification command for message type text',
         () {
       var atNotification = (AtNotificationBuilder()
             ..id = '1234'
-            ..notification = '@bob:phone@alice'
+            ..notification = '@bob:phone$alice'
             ..notifier = 'wavi'
             ..messageType = MessageType.text)
           .build();
-      var notifyCommand = ResourceManager.getInstance()
-          .prepareNotifyCommandBody(atNotification);
+      var notifyCommand =
+          notifsResourceMgr.prepareNotifyCommandBody(atNotification);
 
       /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
       expect(notifyCommand,
-          'id:1234:messageType:text:notifier:wavi:ttln:900000:@bob:phone@alice');
+          'id:1234:messageType:text:notifier:wavi:ttln:900000:@bob:phone$alice');
     });
 
-    test(
-        'Test to verify prepare an update notification command with a value and all the metadata',
-        () {
+    testNotificationMetaData({required bool immutable}) {
       var ttln = 24 * 60 * 60 * 1000;
+      var fromAtsign = alice;
       var atNotification = (AtNotificationBuilder()
-            ..fromAtSign = '@alice'
+            ..fromAtSign = fromAtsign
             ..toAtSign = '@bob'
             ..id = '1234'
             ..opType = OperationType.update
             ..messageType = MessageType.key
             ..atValue = 'Hi Bob, Alice here'
-            ..notification = '@bob:test.test@alice'
+            ..notification = '@bob:test.test$fromAtsign'
             ..notificationDateTime = DateTime.now().toUtcMillisecondsPrecision()
             ..ttl = ttln
-            ..atMetaData = AtMetaData.fromCommonsMetadata(Metadata()
-              ..ttr = 1
-              ..ccd = true
-              ..pubKeyCS = '123'
-              ..sharedKeyEnc = 'abc'
-              ..encKeyName = 'ekn'
-              ..encAlgo = 'ea'
-              ..ivNonce = 'ivn'
-              ..skeEncKeyName = 'ske_ekn'
-              ..skeEncAlgo = 'ske_ea'))
+            ..atMetaData = AtMetaData.fromCommonsMetadata(
+              Metadata()
+                ..ttr = 1
+                ..ccd = true
+                ..pubKeyCS = '123'
+                ..sharedKeyEnc = 'abc'
+                ..encKeyName = 'ekn'
+                ..encAlgo = 'ea'
+                ..ivNonce = 'ivn'
+                ..skeEncKeyName = 'ske_ekn'
+                ..skeEncAlgo = 'ske_ea'
+                ..pubKeyHash = PublicKeyHash('someHash', 'someAlgo')
+                ..immutable = immutable,
+              fromAtsign,
+            ))
           .build();
 
-      var notifyCommand = ResourceManager.getInstance()
-          .prepareNotifyCommandBody(atNotification);
-
-      print(notifyCommand);
+      var notifyCommand =
+          notifsResourceMgr.prepareNotifyCommandBody(atNotification);
 
       /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
       expect(
@@ -178,11 +185,21 @@ void main() async {
           'id:1234:update:messageType:key:notifier:system'
           ':ttln:$ttln'
           ':ttr:1:ccd:true'
+          ':isEncrypted:false'
           ':sharedKeyEnc:abc:pubKeyCS:123'
+          ':pubKeyHash:someHash:hashingAlgo:someAlgo'
           ':encKeyName:ekn:encAlgo:ea:ivNonce:ivn'
           ':skeEncKeyName:ske_ekn:skeEncAlgo:ske_ea'
-          ':@bob:test.test@alice'
+          '${immutable ? ':immutable:true' : ''}'
+          ':@bob:test.test$alice'
           ':Hi Bob, Alice here');
+    }
+
+    test(
+        'Test to verify prepare an update notification command with a value and all the metadata',
+        () {
+      testNotificationMetaData(immutable: false);
+      testNotificationMetaData(immutable: true);
     });
   });
 }

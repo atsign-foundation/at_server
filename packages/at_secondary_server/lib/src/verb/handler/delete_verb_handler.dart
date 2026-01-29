@@ -4,7 +4,6 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
-import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -19,9 +18,13 @@ class DeleteVerbHandler extends ChangeVerbHandler {
   static bool _autoNotify = AtSecondaryConfig.autoNotify;
   Set<String>? protectedKeys;
 
-  DeleteVerbHandler(SecondaryKeyStore keyStore,
-      StatsNotificationService statsNotificationService)
-      : super(keyStore, statsNotificationService);
+  final NotificationManager notificationManager;
+
+  DeleteVerbHandler(
+    super.keyStore,
+    super.statsNotificationService,
+    this.notificationManager,
+  );
 
   //setter to set autoNotify value from dynamic server config "config:set".
   //only works when testingMode is set to true
@@ -57,25 +60,29 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    String? atSign = AtUtils.formatAtSign(verbParams[AT_SIGN]);
-    var deleteKey = verbParams[AT_KEY];
+    String atSign = '';
+    if (verbParams[AtConstants.atSign] != null) {
+      atSign = AtUtils.fixAtSign(verbParams[AtConstants.atSign]!);
+    }
+    var deleteKey = verbParams[AtConstants.atKey];
     // If key is cram secret do not append atsign.
-    if (verbParams[AT_KEY] != AT_CRAM_SECRET) {
+    if (verbParams[AtConstants.atKey] != AtConstants.atCramSecret) {
       deleteKey = '$deleteKey$atSign';
     }
     // fetch protected keys listed in config.yaml
     protectedKeys ??= _getProtectedKeys(atSign);
     // check to see if a key is protected. Cannot delete key if it's protected
-    if (_isProtectedKey(deleteKey!)) {
+    if (_isProtectedKey(deleteKey!, isCached: verbParams['isCached'])) {
       throw UnAuthorizedException(
           'Cannot delete protected key: \'$deleteKey\'');
     }
     // Sets Response bean to the response bean in ChangeVerbHandler
     await super.processVerb(response, verbParams, atConnection);
-    var keyNamespace =
-        verbParams[AT_KEY]!.substring(deleteKey.lastIndexOf('.') + 1);
-    if (verbParams[FOR_AT_SIGN] != null) {
-      deleteKey = '${AtUtils.formatAtSign(verbParams[FOR_AT_SIGN])}:$deleteKey';
+    // var keyNamespace = verbParams[AtConstants.atKey]!
+    //     .substring(deleteKey.lastIndexOf('.') + 1);
+    if (verbParams[AtConstants.forAtSign] != null) {
+      deleteKey =
+          '${AtUtils.fixAtSign(verbParams[AtConstants.forAtSign]!)}:$deleteKey';
     }
     if (verbParams['isPublic'] == 'true') {
       deleteKey = 'public:$deleteKey';
@@ -85,20 +92,41 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     }
     assert(deleteKey.isNotEmpty);
     deleteKey = deleteKey.trim().toLowerCase().replaceAll(' ', '');
-    if (deleteKey == AT_CRAM_SECRET) {
-      await keyStore.put(AT_CRAM_SECRET_DELETED, AtData()..data = 'true');
+    if (deleteKey == AtConstants.atCramSecret) {
+      await keyStore.put(
+          AtConstants.atCramSecretDeleted, AtData()..data = 'true');
     }
-    final enrollApprovalId =
-        (atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId;
-    bool isAuthorized = true; // for legacy clients allow access by default
-    if (enrollApprovalId != null) {
-      isAuthorized = await super.isAuthorized(enrollApprovalId, keyNamespace);
-    }
+
+    InboundConnectionMetadata inboundConnectionMetadata =
+        atConnection.metaData as InboundConnectionMetadata;
+
+    bool isAuthorized =
+        await super.isAuthorized(inboundConnectionMetadata, atKey: deleteKey);
+
     if (!isAuthorized) {
       throw UnAuthorizedException(
-          'Enrollment Id: $enrollApprovalId is not authorized for delete operation on the key: $deleteKey');
+          'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'
+          ' is not authorized to delete key: $deleteKey');
     }
     try {
+      // if this is not cached (because we should always be allowed to delete
+      // cached data from other atSigns)
+      // and the data exists
+      // then check if the data is immutable
+      // and if so, prevent deletion unless the "force" flag was set
+      if (verbParams['isCached'] != 'true') {
+        if (keyStore.isKeyExists(deleteKey)) {
+          AtData atData = await keyStore.get(deleteKey)!;
+          if (atData.metaData?.immutable == true) {
+            // immutable records need the force flag in order to be deleted
+            bool force = verbParams[AtConstants.force] == AtConstants.force;
+            if (!force) {
+              throw IllegalStateException(
+                  'Immutable records may not be deleted without the force flag');
+            }
+          }
+        }
+      }
       var result = await keyStore.remove(deleteKey);
       response.data = result?.toString();
       logger.finer('delete success. delete key: $deleteKey');
@@ -110,17 +138,25 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       if (!deleteKey.startsWith('@')) {
         return;
       }
-      var forAtSign = verbParams[FOR_AT_SIGN];
-      var key = verbParams[AT_KEY];
-      var atSign = verbParams[AT_SIGN];
-      forAtSign = AtUtils.formatAtSign(forAtSign);
-      atSign = AtUtils.formatAtSign(atSign);
+      var forAtSign = verbParams[AtConstants.forAtSign];
+      var key = verbParams[AtConstants.atKey];
+      var atSign = verbParams[AtConstants.atSign];
+      if (forAtSign.isNotNullOrEmpty) {
+        forAtSign = AtUtils.fixAtSign(forAtSign!);
+      }
+      if (atSign.isNotNullOrEmpty) {
+        atSign = AtUtils.fixAtSign(atSign!);
+      }
 
       // send notification to other secondary if [AtSecondaryConfig.autoNotify] is true
       if (_autoNotify && (forAtSign != atSign)) {
         try {
-          _notify(forAtSign, atSign, key,
-              SecondaryUtil.getNotificationPriority(verbParams[PRIORITY]));
+          await _notify(
+              forAtSign,
+              atSign,
+              key,
+              SecondaryUtil.getNotificationPriority(
+                  verbParams[AtConstants.priority]));
         } catch (exception) {
           logger.severe(
               'Exception while sending notification ${exception.toString()}');
@@ -132,7 +168,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     }
   }
 
-  void _notify(forAtSign, atSign, key, priority) {
+  Future<void> _notify(forAtSign, atSign, key, priority) async {
     if (forAtSign == null) {
       return;
     }
@@ -145,7 +181,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
           ..priority = priority
           ..opType = OperationType.delete)
         .build();
-    NotificationManager.getInstance().notify(atNotification);
+    await notificationManager.notify(atNotification);
   }
 
   Set<String> _getProtectedKeys(String? atsign) {
@@ -155,13 +191,14 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     for (var key in AtSecondaryConfig.protectedKeys) {
       // protected keys are stored as 'signing_publickey<@atsign>'
       // replace <@atsign> with actual atsign during runtime
-      protectedKeys.add(key.replaceFirst('<@atsign>', atsign!));
+      protectedKeys.add(key.replaceFirst('<@atsign>', atsign));
     }
     return protectedKeys;
   }
 
-  bool _isProtectedKey(String key) {
-    if (protectedKeys!.contains(key)) {
+  bool _isProtectedKey(String key, {String? isCached}) {
+    isCached ??= 'false';
+    if (protectedKeys!.contains(key) && isCached == 'false') {
       logger.severe('Cannot delete key. \'$key\' is a protected key');
       return true;
     }

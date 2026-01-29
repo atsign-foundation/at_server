@@ -1,5 +1,3 @@
-library at_persistence_secondary_server;
-
 export 'package:at_persistence_secondary_server/src/compaction/at_compaction_job.dart';
 export 'package:at_persistence_secondary_server/src/compaction/commit_log_compaction_service.dart';
 export 'package:at_persistence_secondary_server/src/compaction/at_compaction_stats_service.dart';
@@ -24,7 +22,6 @@ export 'package:at_persistence_secondary_server/src/notification/at_notification
 export 'package:at_persistence_secondary_server/src/notification/at_notification_keystore.dart';
 export 'package:at_persistence_secondary_server/src/notification/at_notification_manager.dart';
 export 'package:at_persistence_secondary_server/src/notification/at_notification_strategy.dart';
-export 'package:at_persistence_secondary_server/src/utils/at_metadata_adapter.dart';
 export 'package:at_persistence_secondary_server/src/utils/date_time_extensions.dart';
 export 'package:at_persistence_spec/at_persistence_spec.dart';
 export 'package:at_persistence_secondary_server/src/compaction/at_compaction_service.dart';

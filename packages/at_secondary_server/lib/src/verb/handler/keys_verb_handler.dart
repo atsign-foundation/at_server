@@ -4,8 +4,8 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -14,7 +14,9 @@ import 'package:at_server_spec/at_verb_spec.dart';
 class KeysVerbHandler extends AbstractVerbHandler {
   static Keys keys = Keys();
 
-  KeysVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  final EnrollmentManager enMgr;
+  final Atsign atSign;
+  KeysVerbHandler(super.keyStore, this.enMgr, this.atSign);
 
   @override
   bool accept(String command) => command.startsWith('keys:');
@@ -30,39 +32,42 @@ class KeysVerbHandler extends AbstractVerbHandler {
     HashMap<String, String?> verbParams,
     InboundConnection atConnection,
   ) async {
-    final keyVisibility = verbParams[visibility];
+    final keyVisibility = verbParams[AtConstants.visibility];
     final atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     bool hasManageAccess = false;
-    var connectionMetadata =
-        atConnection.getMetaData() as InboundConnectionMetadata;
+    var connectionMetadata = atConnection.metaData as InboundConnectionMetadata;
     final enrollIdFromMetadata = connectionMetadata.enrollmentId;
     if (enrollIdFromMetadata == null) {
       throw AtEnrollmentException(
           'Keys verb cannot be accessed without an enrollmentId');
     }
     logger.finer('enrollIdFromMetadata:$enrollIdFromMetadata');
-    final key =
-        '$enrollIdFromMetadata.$newEnrollmentKeyPattern.$enrollManageNamespace';
 
-    var enrollData = await _getEnrollData(key, atSign);
-    if (enrollData != null) {
-      final enrollDataStoreValue =
-          EnrollDataStoreValue.fromJson(jsonDecode(enrollData.data!));
+    try {
+      EnrollDataStoreValue enrollDataStoreValue =
+          await AtSecondaryServerImpl.getInstance()
+              .enrollmentManager
+              .getEnrollmentById(connectionMetadata.enrollmentId!);
+
       if (enrollDataStoreValue.approval?.state != 'approved') {
         throw AtEnrollmentException(
             'Enrollment Id $enrollIdFromMetadata is not approved. current state: ${enrollDataStoreValue.approval?.state}');
       }
-      hasManageAccess =
-          enrollDataStoreValue.namespaces[enrollManageNamespace] == 'rw';
+      hasManageAccess = enrollDataStoreValue
+              .namespaces[EnrollmentConstants.enrollManageNamespace] ==
+          'rw';
+    } on KeyNotFoundException {
+      logger.severe(
+          'Enrollment details not found for the enrollmentId: ${connectionMetadata.enrollmentId}');
     }
 
-    final value = verbParams[keyValue];
+    final value = verbParams[AtConstants.keyValue];
     final valueJson = {
       'value': value,
-      'keyType': verbParams[keyType],
-      enrollmentId: enrollIdFromMetadata
+      'keyType': verbParams[AtConstants.keyType],
+      AtConstants.enrollmentId: enrollIdFromMetadata
     };
-    final operation = verbParams[AT_OPERATION];
+    final operation = verbParams[AtConstants.operation];
 
     switch (operation) {
       case 'put':
@@ -79,15 +84,6 @@ class KeysVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  Future<AtData?> _getEnrollData(String key, String atSign) async {
-    try {
-      return await keyStore.get('$key$atSign');
-    } on KeyNotFoundException {
-      logger.warning('enrollment key not found in keystore $key');
-      throw AtEnrollmentException('Enrollment Id $key not found in keystore');
-    }
-  }
-
   Future<void> _handlePutOperation(
     HashMap<String, String?> verbParams,
     String atSign,
@@ -97,7 +93,8 @@ class KeysVerbHandler extends AbstractVerbHandler {
   ) async {
     final keyName = _getKeyName(verbParams, atSign, keyVisibility);
     if (keyName != null) {
-      valueJson['encryptionKeyName'] = verbParams[encryptionKeyName];
+      valueJson['encryptionKeyName'] =
+          verbParams[AtConstants.encryptionKeyName];
       final atData = AtData()..data = jsonEncode(valueJson);
       final result = await keyStore.put(keyName, atData, skipCommit: true);
       response.data = result.toString();
@@ -111,8 +108,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
     Response response,
     String enrollIdFromMetadata,
   ) async {
-    final keyNameFromParams = verbParams[keyName];
-    var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+    final keyNameFromParams = verbParams[AtConstants.keyName];
     if (keyNameFromParams != null && keyNameFromParams.isNotEmpty) {
       try {
         final value = await keyStore.get(keyNameFromParams);
@@ -124,15 +120,15 @@ class KeysVerbHandler extends AbstractVerbHandler {
       }
     }
     final filteredKeys = await _getFilteredKeys(
-        keyVisibility, hasManageAccess, enrollIdFromMetadata, atSign);
+        keyVisibility, hasManageAccess, enrollIdFromMetadata);
     response.data = jsonEncode(filteredKeys);
   }
 
   /// If current enrollment has __manage access then return both __global and __manage keys with visibility [keyVisibility]
   /// Otherwise return only __global keys with visibility [keyVisibility]
-  /// Also return the encrypted default encrption private key and encrypted self encryption key for enrollmentId [enrollIdFromMetadata]
-  Future<List<String>> _getFilteredKeys(String? keyVisibility,
-      bool hasManageAccess, String enrollIdFromMetadata, String atSign) async {
+  /// Also return the encrypted default encryption private key and encrypted self encryption key for enrollmentId [enId]
+  Future<List<String>> _getFilteredKeys(
+      String? keyVisibility, bool hasManageAccess, String enId) async {
     final result = keyVisibility != null && keyVisibility.isNotEmpty
         ? hasManageAccess
             ? keyStore.getKeys(
@@ -144,15 +140,12 @@ class KeysVerbHandler extends AbstractVerbHandler {
 
     final filteredKeys = <String>[];
     for (final key in result) {
-      await _addKeyIfEnrollmentIdMatches(
-          filteredKeys, key, enrollIdFromMetadata);
+      await _addKeyIfEnrollmentIdMatches(filteredKeys, key, enId);
     }
 
     final keyMap = {
-      'private':
-          '$enrollIdFromMetadata.$defaultEncryptionPrivateKey.$enrollManageNamespace$atSign',
-      'self':
-          '$enrollIdFromMetadata.$defaultSelfEncryptionKey.$enrollManageNamespace$atSign',
+      'private': enMgr.keyForPEK(enId),
+      'self': enMgr.keyForSEK(enId),
     };
 
     final keyString = keyMap[keyVisibility];
@@ -173,7 +166,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
     HashMap<String, String?> verbParams,
     Response response,
   ) async {
-    final keyNameFromParams = verbParams[keyName];
+    final keyNameFromParams = verbParams[AtConstants.keyName];
     response.data =
         (await keyStore.remove(keyNameFromParams, skipCommit: true)).toString();
   }
@@ -186,16 +179,16 @@ class KeysVerbHandler extends AbstractVerbHandler {
     final value = await keyStore.get(key);
     if (value != null && value.data != null) {
       final valueJson = jsonDecode(value.data);
-      if (valueJson[enrollmentId] == enrollIdFromMetadata) {
+      if (valueJson[AtConstants.enrollmentId] == enrollIdFromMetadata) {
         filteredKeys.add(key);
       }
     }
   }
 
   /// Key structure varies based on visibility. Construct and return the key name based on [keyVisibility]
-  /// Key name for public visibility - 'public:<keyname>.__public_keys.<namespace>@<atsign>'
-  /// Key name for private visibility - 'private:<appName>.<deviceName>.<keyname>.__private_keys.<namespace>@<atsign>'
-  /// Key name for self visibility  - '<appName>.<deviceName>.<keyname>.__self_keys.<namespace>@<atsign>'
+  /// Key name for public visibility - `'public:<keyname>.__public_keys.<namespace>@<atsign>'`
+  /// Key name for private visibility - `'private:<appName>.<deviceName>.<keyname>.__private_keys.<namespace>@<atsign>'`
+  /// Key name for self visibility  - `'<appName>.<deviceName>.<keyname>.__self_keys.<namespace>@<atsign>'`
   /// returns null, if [keyVisibility] is not public|private|self
   String? _getKeyName(HashMap<String, String?> verbParams, String atSign,
       String? keyVisibility) {
@@ -210,15 +203,15 @@ class KeysVerbHandler extends AbstractVerbHandler {
   }
 
   String _getPublicKeyName(HashMap<String, String?> verbParams, String atSign) {
-    return '${verbParams[visibility]}:${verbParams[keyName]}.__${verbParams[visibility]}_keys.${verbParams[namespace]}$atSign';
+    return '${verbParams[AtConstants.visibility]}:${verbParams[AtConstants.keyName]}.__${verbParams[AtConstants.visibility]}_keys.${verbParams[AtConstants.namespace]}$atSign';
   }
 
   String _getPrivateKeyName(
       HashMap<String, String?> verbParams, String atSign) {
-    return '${verbParams[visibility]}:${verbParams[APP_NAME]}.${verbParams[deviceName]}.${verbParams[keyName]}.__${verbParams[visibility]}_keys.${verbParams[namespace]}$atSign';
+    return '${verbParams[AtConstants.visibility]}:${verbParams[AtConstants.appName]}.${verbParams[AtConstants.deviceName]}.${verbParams[AtConstants.keyName]}.__${verbParams[AtConstants.visibility]}_keys.${verbParams[AtConstants.namespace]}$atSign';
   }
 
   String _getSelfKeyName(HashMap<String, String?> verbParams, String atSign) {
-    return '${verbParams[APP_NAME]}.${verbParams[deviceName]}.${verbParams[keyName]}.__${verbParams[visibility]}_keys.${verbParams[namespace]}$atSign';
+    return '${verbParams[AtConstants.appName]}.${verbParams[AtConstants.deviceName]}.${verbParams[AtConstants.keyName]}.__${verbParams[AtConstants.visibility]}_keys.${verbParams[AtConstants.namespace]}$atSign';
   }
 }

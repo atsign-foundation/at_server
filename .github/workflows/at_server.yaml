@@ -6,8 +6,8 @@ name: at_server
 on:
   push:
     tags:
-      - 'v*.*.*'
-      - 'c*.*.*'
+      - "v*.*.*"
+      - "c*.*.*"
     branches:
       - trunk
   pull_request:
@@ -23,22 +23,29 @@ env:
   e2etest-working-directory: ./tests/at_end2end_test
   install-pkam-working-directory: ./tools/build_virtual_environment/install_PKAM_Keys
 
-permissions:  # added using https://github.com/step-security/secure-workflows
+permissions: # added using https://github.com/step-security/secure-workflows
   contents: read
 
 jobs:
   unit_tests:
     runs-on: ubuntu-latest
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
+    permissions:
+      contents: write # IMPORTANT: mandatory for making GitHub Releases
+      id-token: write # IMPORTANT: mandatory for sigstore
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        dart-channel: [stable, beta]
 
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - uses: dart-lang/setup-dart@b64355ae6ca0b5d484f0106a033dd1388965d06d # v1.6.0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: dart-lang/setup-dart@e51d8e571e22473a2ddebf0ef8a2123f0ab2c02c # v1.7.1
         with:
-          sdk: stable
-      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
-        with:
-          go-version: 'stable'
-          cache-dependency-path: tools/osv-scanner/go.sum
+          sdk: ${{ matrix.dart-channel}}
 
       # Runs dart lint rules and unit tests on at_persistence_root_server
       - name: Install dependencies in at_persistence_root_server
@@ -95,34 +102,120 @@ jobs:
       # It needs to look at pubspec.lock files, which is why it's
       # placed here, as the `dart pub get` above will create them
       - name: Run osv-scanner
-        run: |
-          go install github.com/google/osv-scanner/cmd/osv-scanner@6316373e47d7e3e4b4fd3630c4bbc10987738de6 # v1.4.3
-          osv-scanner --lockfile=${{ env.proot-working-directory }}/pubspec.lock
-          osv-scanner --lockfile=${{ env.root-working-directory }}/pubspec.lock
-          osv-scanner --lockfile=${{ env.psecondary-working-directory }}/pubspec.lock
-          osv-scanner --lockfile=${{ env.secondary-working-directory }}/pubspec.lock
+        uses: google/osv-scanner-action/osv-scanner-action@2a387edfbe02a11d856b89172f6e978100177eb4 # v2.3.2
+        with:
+          scan-args: |-
+            --lockfile=${{ env.proot-working-directory }}/pubspec.lock
+            --lockfile=${{ env.root-working-directory }}/pubspec.lock
+            --lockfile=${{ env.psecondary-working-directory }}/pubspec.lock
+            --lockfile=${{ env.secondary-working-directory }}/pubspec.lock
 
-#     Commenting out for now, need to investigate and fix but there are hotter fires burning right now
-#      - name: Convert coverage to LCOV format
-#        working-directory: ${{ env.secondary-working-directory }}
-#        run: dart pub run coverage:format_coverage --lcov --in=coverage --out=coverage.lcov --packages=.packages --report-on=lib
-#
-#      - name: Upload coverage to Codecov
-#        uses: codecov/codecov-action@v3.1.0
-#        with:
-#          token: ${{secrets.CODECOV_TOKEN_AT_SERVER}}
-#          file: ${{ env.secondary-working-directory }}/coverage.lcov
+      # Generating SBOMs also needs pubspec.lock
+      # Only run on stable channel
+      - if: ${{ matrix.dart-channel == 'stable' && github.event_name == 'push' }}
+        name: Create sbom folder
+        run: mkdir sboms
+      - if: ${{ matrix.dart-channel == 'stable' && github.event_name == 'push' }}
+        name: Generate atDirectory SBOM
+        uses: sbomify/github-action@7906c48e206fe1a885df761bc7239ff3dcfef6b8 # v0.12
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
+          COMPONENT_ID: "3hQHrn8mwK"
+          LOCK_FILE: ${{ env.root-working-directory }}/pubspec.lock
+          COMPONENT_VERSION: ${{github.ref_name}}-gha${{github.run_number}}
+          OUTPUT_FILE: "sboms/atdirectory-gha${{github.run_number}}-sbom.cdx.json"
+          AUGMENT: true
+          ENRICH: true
+          UPLOAD: true
+      - if: ${{ matrix.dart-channel == 'stable' && github.event_name == 'push' }}
+        name: Generate atServer SBOM
+        uses: sbomify/github-action@7906c48e206fe1a885df761bc7239ff3dcfef6b8 # v0.12
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_TOKEN }}
+          COMPONENT_ID: "wF66pn8rHZ"
+          LOCK_FILE: ${{ env.secondary-working-directory }}/pubspec.lock
+          COMPONENT_VERSION: ${{github.ref_name}}-gha${{github.run_number}}
+          OUTPUT_FILE: "sboms/atserver-gha${{github.run_number}}-sbom.cdx.json"
+          AUGMENT: true
+          ENRICH: true
+          UPLOAD: true
+      - if: ${{ matrix.dart-channel == 'stable' && startsWith(github.ref, 'refs/tags/') }}
+        name: Rename SBOMs to use release tag
+        run: |
+          cd sboms
+          mv atdirectory-gha${{github.run_number}}-sbom.cdx.json \
+            atdirectory-${{github.ref_name}}-sbom.cdx.json
+          mv atserver-gha${{github.run_number}}-sbom.cdx.json \
+            atserver-${{github.ref_name}}-sbom.cdx.json
+      - if: ${{ matrix.dart-channel == 'stable' && github.event_name == 'push' }}
+        name: Generate SHA256 checksums
+        working-directory: sboms
+        run: sha256sum * > checksums.txt
+      - if: ${{ matrix.dart-channel == 'stable' && github.event_name == 'push' }}
+        name: Upload SBOMs
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: SBOMs
+          path: sboms/**
+      - if: ${{ matrix.dart-channel == 'stable' && startsWith(github.ref, 'refs/tags/') }}
+        name: Upload artifacts to GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        # Upload to GitHub Release using the `gh` CLI.
+        # `dist/` contains the built packages, and the
+        # sigstore-produced signatures and certificates.
+        run: >-
+          gh release upload
+          '${{ github.ref_name }}' sboms/**
+          --repo '${{ github.repository }}'
+      - if: ${{ matrix.dart-channel == 'stable' && startsWith(github.ref, 'refs/tags/') }}
+        id: hash
+        name: Pass artifact hashes for SLSA provenance
+        working-directory: sboms
+        run: |
+          echo "hashes=$(cat checksums.txt | base64 -w0)" >> "$GITHUB_OUTPUT"
+      - if: ${{ matrix.dart-channel == 'stable' && startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f # v3.2.0
+        with:
+          subject-path: "sboms/**"
+
+  #     Commenting out for now, need to investigate and fix but there are hotter fires burning right now
+  #      - name: Convert coverage to LCOV format
+  #        working-directory: ${{ env.secondary-working-directory }}
+  #        run: dart pub run coverage:format_coverage --lcov --in=coverage --out=coverage.lcov --packages=.packages --report-on=lib
+  #
+  #      - name: Upload coverage to Codecov
+  #        uses: codecov/codecov-action@v3.1.0
+  #        with:
+  #          token: ${{secrets.CODECOV_TOKEN_AT_SERVER}}
+  #          file: ${{ env.secondary-working-directory }}/coverage.lcov
+
+  sbom_provenance:
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
+    needs: [unit_tests]
+    permissions:
+      actions: read # Needed for detection of GitHub Actions environment.
+      id-token: write # Needed for provenance signing and ID
+      contents: write # Needed for release uploads
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0 # 5a775b367a56d5bd118a224a811bba288150a563
+    with:
+      base64-subjects: "${{ needs.unit_tests.outputs.hashes }}"
+      upload-assets: true
 
   # Runs functional tests on at_secondary.
-  # If tests are successful, uploads root server and secondary server binaries for subsequent jobs
   functional_tests:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dart-channel: [stable, beta]
 
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - uses: dart-lang/setup-dart@b64355ae6ca0b5d484f0106a033dd1388965d06d # v1.6.0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: dart-lang/setup-dart@e51d8e571e22473a2ddebf0ef8a2123f0ab2c02c # v1.7.1
         with:
-          sdk: stable
+          sdk: ${{ matrix.dart-channel}}
 
       - name: Install dependencies
         working-directory: ${{ env.ftest-working-directory }}
@@ -135,19 +228,28 @@ jobs:
       - name: Add entry to hosts file
         run: echo "127.0.0.1    vip.ve.atsign.zone" | sudo tee -a /etc/hosts
 
-      - name: Generate secondary server binary
+      - name: Generate atDirectory binary (root)
+        working-directory: ${{ env.root-working-directory }}
+        run: dart pub get && dart compile exe bin/main.dart -o root
+
+      - name: Generate atServer binary (secondary)
         working-directory: ${{ env.secondary-working-directory }}
         run: dart pub get && dart compile exe bin/main.dart -o secondary
 
-      - name: copy secondary to tools/build_virtual_environment/ve
+
+      - name: copy root and secondary binaries to tools/build_virtual_environment/ve
         run: |
+          mkdir -p tools/build_virtual_environment/ve/contents/atsign/root
+          cp packages/at_root_server/root tools/build_virtual_environment/ve/contents/atsign/root/
+          cp packages/at_root_server/pubspec.yaml tools/build_virtual_environment/ve/contents/atsign/root/
+          chmod 755 tools/build_virtual_environment/ve/contents/atsign/root/root
           cp packages/at_secondary_server/secondary tools/build_virtual_environment/ve/contents/atsign/secondary/
           cp packages/at_secondary_server/pubspec.yaml tools/build_virtual_environment/ve/contents/atsign/secondary/
           chmod 755 tools/build_virtual_environment/ve/contents/atsign/secondary/secondary
           ls -laR tools/build_virtual_environment/ve/*
 
       - name: Build docker image
-        uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           file: tools/build_virtual_environment/ve/Dockerfile
           context: tools/build_virtual_environment/ve
@@ -155,7 +257,7 @@ jobs:
 
       - name: Run docker container
         # -d: run container in detached mode. --rm: remove container on stop -p: bind ports to host
-        run: docker run -d --rm --name at_virtual_env_cont -e testingMode="true" -p 6379:6379 -p 25000-25017:25000-25017 -p 64:64 at_virtual_env:trunk
+        run: docker run -d --rm --name at_virtual_env_cont -e testingMode="true" -e httpsEnabled="true" -p 6379:6379 -p 25000-25099:25000-25099 -p 64:64 -p 443:443 at_virtual_env:trunk
 
       - name: Check docker readiness to load PKAM keys
         working-directory: ${{ env.ftest-working-directory }}
@@ -172,7 +274,6 @@ jobs:
           dart pub get
           dart bin/install_PKAM_Keys.dart
 
-
       # could save around 4s here using a compiled binary
       - name: Check test environment readiness
         working-directory: ${{ env.ftest-working-directory }}
@@ -182,30 +283,18 @@ jobs:
         working-directory: ${{ env.ftest-working-directory }}
         run: dart run test --concurrency=1
 
-      # On push event, upload secondary server binary
-      - name: upload secondary server
-        if: ${{ github.event_name == 'push' }}
-        uses: actions/upload-artifact@a8a3f3ad30e3422c9c7b888a15615d19a852ae32 # v3.1.3
-        with:
-          name: secondary-server
-          path: packages/at_secondary_server/secondary
-
-      - name: Stop docker container
-        run: docker container stop at_virtual_env_cont
-
-      # Remove image created for at_virtual_env:trunk for running functional tests in pipeline.
-      - name: Remove docker image
-        run: docker rmi at_virtual_env:trunk
-
-
   end2end_test_prep:
     # Don't run on PRs from a fork or Dependabot as the secrets aren't available
     if: ${{ github.event.pull_request.head.repo.fork == false && github.actor != 'dependabot[bot]'}}
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
+      id-token: write # for creating OIDC tokens for signing.
     steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - name: Install cosign
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
 
       - name: Place run number into version within pubspec.yaml
         working-directory: ${{ env.secondary-working-directory }}
@@ -214,32 +303,50 @@ jobs:
           grep version pubspec.yaml | head -1
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Login to DockerHub
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        with:
+          tags: |
+            type=raw,value=dess_cicd
+            type=raw,value=cicd-${{ env.BRANCH }}-gha${{ github.run_number }}
+          images: |
+            atsigncompany/secondary
+
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for x64
         id: docker_build_secondary
-        uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           push: true
           provenance: false
           file: tools/build_secondary/Dockerfile
           context: .
-          tags: |
-            atsigncompany/secondary:dess_cicd
-            atsigncompany/secondary:cicd-${{ env.BRANCH }}-gha${{ github.run_number }}
+          tags: ${{ steps.meta.outputs.tags }}
           platforms: |
             linux/amd64
+      - name: Sign the images with GitHub OIDC Token
+        env:
+          DIGEST: ${{ steps.docker_build_secondary.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          images=""
+          for tag in ${TAGS}; do
+            images+="${tag}@${DIGEST} "
+          done
+          cosign sign --yes ${images}
 
       # Logs into CICD VMs and runs script to update to just pushed image
       - name: update image on cicd VMs
-        uses: appleboy/ssh-action@55dabf81b49d4120609345970c91507e2d734799 # v1.0.0
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
         with:
           host: "cicd1.atsign.wtf,cicd2.atsign.wtf"
           username: ubuntu
@@ -250,15 +357,15 @@ jobs:
             wget -q -O update_image.sh "$scriptURL"
             ./update_image.sh
 
-# The job runs end-to-end tests between the @cicd1[trunk] and @cicd2[trunk] secondaries
+  # The job runs end-to-end tests between the @cicd1[trunk] and @cicd2[trunk] secondaries
   end2end_test_12:
-    needs: [ end2end_test_prep ]
+    needs: [end2end_test_prep]
     concurrency: cicd12
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - uses: dart-lang/setup-dart@b64355ae6ca0b5d484f0106a033dd1388965d06d # v 1.6.0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: dart-lang/setup-dart@e51d8e571e22473a2ddebf0ef8a2123f0ab2c02c # v 1.7.1
         with:
           sdk: stable
 
@@ -272,22 +379,22 @@ jobs:
 
       # Put config file in place
       - name: Config for @cicd1/2
-        run:  mv tests/at_end2end_test/config/config12.yaml tests/at_end2end_test/config/config.yaml
+        run: mv tests/at_end2end_test/config/config12.yaml tests/at_end2end_test/config/config.yaml
 
       # Run end-to-end test
       - name: end-to-end test
         working-directory: ${{ env.e2etest-working-directory }}
         run: dart test --concurrency=1
 
-# The job runs end-to-end tests between the @cicd3[trunk] and @cicd4[prod] secondaries
+  # The job runs end-to-end tests between the @cicd3[trunk] and @cicd4[prod] secondaries
   end2end_test_34:
-    needs: [ end2end_test_prep ]
+    needs: [end2end_test_prep]
     concurrency: cicd34
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - uses: dart-lang/setup-dart@b64355ae6ca0b5d484f0106a033dd1388965d06d # v1.6.0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: dart-lang/setup-dart@e51d8e571e22473a2ddebf0ef8a2123f0ab2c02c # v1.7.1
         with:
           sdk: stable
 
@@ -301,22 +408,22 @@ jobs:
 
       # Put config file in place
       - name: Config for @cicd3/4
-        run:  mv tests/at_end2end_test/config/config34.yaml tests/at_end2end_test/config/config.yaml
+        run: mv tests/at_end2end_test/config/config34.yaml tests/at_end2end_test/config/config.yaml
 
       # Run end-to-end test
       - name: end-to-end test
         working-directory: ${{ env.e2etest-working-directory }}
         run: dart test --concurrency=1
 
-# The job runs end-to-end tests between the @cicd5[prod] and @cicd6[trunk] secondaries
+  # The job runs end-to-end tests between the @cicd5[prod] and @cicd6[trunk] secondaries
   end2end_test_56:
-    needs: [ end2end_test_prep ]
+    needs: [end2end_test_prep]
     concurrency: cicd56
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - uses: dart-lang/setup-dart@b64355ae6ca0b5d484f0106a033dd1388965d06d # v1.6.0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: dart-lang/setup-dart@e51d8e571e22473a2ddebf0ef8a2123f0ab2c02c # v1.7.1
         with:
           sdk: stable
 
@@ -330,20 +437,20 @@ jobs:
 
       # Put config file in place
       - name: Config for @cicd5/6
-        run:  mv tests/at_end2end_test/config/config56.yaml tests/at_end2end_test/config/config.yaml
+        run: mv tests/at_end2end_test/config/config56.yaml tests/at_end2end_test/config/config.yaml
 
       # Run end-to-end test
       - name: end-to-end test
         working-directory: ${{ env.e2etest-working-directory }}
         run: dart test --concurrency=1
 
-# The job runs end-to-end tests between the staging run time secondaries
+  # The job runs end-to-end tests between the staging run time secondaries
   end2end_test_staging:
-    needs: [ end2end_test_prep ]
+    needs: [end2end_test_prep]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout at_server repo
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Create atSigns
         id: atsign_names
@@ -369,7 +476,7 @@ jobs:
           fi
 
       - name: Install Dart
-        uses: dart-lang/setup-dart@b64355ae6ca0b5d484f0106a033dd1388965d06d # v1.6.0
+        uses: dart-lang/setup-dart@e51d8e571e22473a2ddebf0ef8a2123f0ab2c02c # v1.7.1
         with:
           sdk: stable
 
@@ -377,15 +484,8 @@ jobs:
         working-directory: ${{ env.e2etest-working-directory }}
         run: dart pub get
 
-      - name: Cloning at_libraries
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-        with:
-          repository: atsign-foundation/at_libraries
-          path: at_libraries
-          ref: trunk
-
       - name: Cloning at_tools
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: atsign-foundation/at_tools
           path: at_tools
@@ -394,11 +494,11 @@ jobs:
       - name: Fetch Cram Keys
         id: cram_keys
         env:
-          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}   
-          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }} 
-          AT_SIGN_1_KEY: ${{ steps.atsign_names.outputs.AT_SIGN_1_KEY }} 
-          AT_SIGN_2_KEY: ${{ steps.atsign_names.outputs.AT_SIGN_2_KEY }} 
-        run: |     
+          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}
+          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }}
+          AT_SIGN_1_KEY: ${{ steps.atsign_names.outputs.AT_SIGN_1_KEY }}
+          AT_SIGN_2_KEY: ${{ steps.atsign_names.outputs.AT_SIGN_2_KEY }}
+        run: |
           for try in {1..5}; do
             CRAM_1_RESP=$(curl -s --location --request POST 'https://my.atsign.wtf/api/app/v3/activate-atsign' --header 'Authorization: ${{secrets.NODE_API_CREATE}}' --header 'Content-Type: application/json' --data-raw "{\"atSign\":\"$AT_SIGN_1\",\"ActivationKey\":\"$AT_SIGN_1_KEY\"}"  -w '%{http_code}' -o cram_1_resp.json)
             CRAM_2_RESP=$(curl -s --location --request POST 'https://my.atsign.wtf/api/app/v3/activate-atsign' --header 'Authorization: ${{secrets.NODE_API_CREATE}}' --header 'Content-Type: application/json' --data-raw "{\"atSign\":\"$AT_SIGN_2\",\"ActivationKey\":\"$AT_SIGN_2_KEY\"}"  -w '%{http_code}' -o cram_2_resp.json)
@@ -418,14 +518,14 @@ jobs:
               fi
             fi
             sleep 20
-          done  
+          done
 
       - name: Fetch atSign Hostname
         id: atsign_hosts
         env:
-          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}   
+          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}
           AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }}
-        run: |  
+        run: |
           for try in {1..5}; do
             AT_SIGN_1_HOST_RESP=$(./tools/scripts/staging_root_lookup.sh $AT_SIGN_1)
             AT_SIGN_2_HOST_RESP=$(./tools/scripts/staging_root_lookup.sh $AT_SIGN_2)
@@ -452,16 +552,16 @@ jobs:
             fi
             sleep 20
           done
-      
-      - name: Check Connection 
-        env:   
-          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}   
-          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }} 
-          AT_SIGN_1_HOST: ${{ steps.atsign_hosts.outputs.AT_SIGN_1_HOST }} 
+
+      - name: Check Connection
+        env:
+          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}
+          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }}
+          AT_SIGN_1_HOST: ${{ steps.atsign_hosts.outputs.AT_SIGN_1_HOST }}
           AT_SIGN_1_PORT: ${{ steps.atsign_hosts.outputs.AT_SIGN_1_PORT }}
-          AT_SIGN_2_HOST: ${{ steps.atsign_hosts.outputs.AT_SIGN_2_HOST }} 
+          AT_SIGN_2_HOST: ${{ steps.atsign_hosts.outputs.AT_SIGN_2_HOST }}
           AT_SIGN_2_PORT: ${{ steps.atsign_hosts.outputs.AT_SIGN_2_PORT }}
-        run: |      
+        run: |
           for try in {1..5}; do
             HOST_1_STATUS=$(./tools/scripts/staging_atsign_info.sh $AT_SIGN_1_HOST:$AT_SIGN_1_PORT)
             HOST_2_STATUS=$(./tools/scripts/staging_atsign_info.sh $AT_SIGN_2_HOST:$AT_SIGN_2_PORT)
@@ -476,7 +576,7 @@ jobs:
               sed -i "s/ATSIGN_2_HOST/$AT_SIGN_2_HOST/g" tests/at_end2end_test/config/config-e2e_test_runtime.yaml  
               mv tests/at_end2end_test/config/config-e2e_test_runtime.yaml tests/at_end2end_test/config/config.yaml                       
               cat tests/at_end2end_test/config/config.yaml 
-              echo "Connection successfull"
+              echo "Connection successful"
               break
             else
               echo "Connection error on attempt ${try}"
@@ -485,24 +585,23 @@ jobs:
                 exit 1
               fi
             fi
-            sleep 20
+            sleep $((try * 20))
           done
-  
-      - name: Activating atsign    
+
+      - name: Activating atsign
         env:
-          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}   
-          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }}         
-          CRAM_KEY_1: ${{ steps.cram_keys.outputs.CRAM_KEY_1 }} 
-          CRAM_KEY_2: ${{ steps.cram_keys.outputs.CRAM_KEY_2 }} 
+          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}
+          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }}
+          CRAM_KEY_1: ${{ steps.cram_keys.outputs.CRAM_KEY_1 }}
+          CRAM_KEY_2: ${{ steps.cram_keys.outputs.CRAM_KEY_2 }}
         run: |
           mkdir -p /home/runner/.atsign/keys
-          ls -lrth at_libraries
-          cd at_libraries/packages/at_onboarding_cli/
-          dart pub get
-          dart run bin/activate_cli.dart -a @$AT_SIGN_1 -c $CRAM_KEY_1 -r root.atsign.wtf
-          dart run bin/activate_cli.dart -a @$AT_SIGN_2 -c $CRAM_KEY_2 -r root.atsign.wtf
+          wget https://github.com/atsign-foundation/noports/releases/latest/download/sshnp-linux-x64.tgz
+          tar -xvf sshnp-linux-x64.tgz sshnp/at_activate
+          sshnp/at_activate -a @$AT_SIGN_1 -c $CRAM_KEY_1 -r root.atsign.wtf
+          sshnp/at_activate -a @$AT_SIGN_2 -c $CRAM_KEY_2 -r root.atsign.wtf
 
-      - name: Generate the at_demo_data.dart    
+      - name: Generate the at_demo_data.dart
         run: |
           cd at_tools/packages/at_dump_atKeys/
           dart pub get
@@ -511,13 +610,13 @@ jobs:
 
       - name: End-to-end test
         working-directory: ${{ env.e2etest-working-directory }}
-        run: dart test --concurrency=1               
-        
+        run: dart test --concurrency=1
+
       - name: Delete atSigns
         if: always() # Always try to clear up atSigns even if an earlier step has failed.
         env:
-          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}   
-          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }} 
+          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}
+          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }}
         run: |
           delete_atSign() {
             curl -s --location --request POST 'https://infrastructure-api-b.dev.atsign.cloud/api/infrastructure/delete' \
@@ -532,11 +631,11 @@ jobs:
 
       - name: Check that atSigns have been deleted
         env:
-          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}   
-          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }} 
+          AT_SIGN_1: ${{ steps.atsign_names.outputs.AT_SIGN_1 }}
+          AT_SIGN_2: ${{ steps.atsign_names.outputs.AT_SIGN_2 }}
         # TODO if this step fails then it should do a gChat notification rather than exit 1
         # TODO this only checks that entry has been removed from root
-        run: |  
+        run: |
           sleep 20
           AT_SIGN_1_HOST_RESP=$((echo $AT_SIGN_1; sleep 1) | openssl s_client -connect root.atsign.wtf:64 2>/dev/null | grep --color=none "^@.*:" | cut -d'@' -f2)
           AT_SIGN_2_HOST_RESP=$((echo $AT_SIGN_2; sleep 1) | openssl s_client -connect root.atsign.wtf:64 2>/dev/null | grep --color=none "^@.*:" | cut -d'@' -f2)
@@ -545,19 +644,32 @@ jobs:
           else
             echo "atSigns still exist"
             exit 1
-          fi          
+          fi
 
   # This job runs on trigger event 'push' to trunk branch.
   # The job builds the staging version of at_virtual_env and pushes the image to docker hub.
   push_staging_virtual_env_images:
     # Runs only after functional tests are completed.
-    needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56, end2end_test_staging ]
+    needs:
+      [
+        unit_tests,
+        functional_tests,
+        end2end_test_12,
+        end2end_test_34,
+        end2end_test_56,
+        end2end_test_staging,
+      ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
     environment: staging
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
+      id-token: write # for creating OIDC tokens for signing.
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
 
       - name: Place run number into version within pubspec.yaml
         working-directory: ${{ env.secondary-working-directory }}
@@ -570,32 +682,51 @@ jobs:
         run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Login to DockerHub
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        with:
+          tags: |
+            type=raw,value=dev_env
+            type=raw,value=${{ env.BRANCH }}-gha${{ github.run_number }}
+          images: |
+            atsigncompany/virtualenv
+
       # Builds and pushes the at_virtual_env to docker hub.
       - name: Build and push
         id: docker_build
-        uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           file: tools/build_virtual_environment/ve/Dockerfile.vip
           context: .
           push: true
           provenance: false
-          tags: |
-            atsigncompany/virtualenv:dev_env
-            atsigncompany/virtualenv:${{ env.BRANCH }}-gha${{ github.run_number }}
+          tags: ${{ steps.meta.outputs.tags }}
           platforms: |
             linux/amd64
             linux/arm64/v8
+
+      - name: Sign the images with GitHub OIDC Token
+        env:
+          DIGEST: ${{ steps.docker_build.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          images=""
+          for tag in ${TAGS}; do
+            images+="${tag}@${DIGEST} "
+          done
+          cosign sign --yes ${images}
 
       - name: Image digest of at_virtual_env
         run: echo ${{ steps.docker_build_trunk.outputs.digest }}
@@ -605,13 +736,26 @@ jobs:
   # The job runs on completion of 'run_end2end_tests' job.
   push_staging_secondary_image:
     # Runs only after full test suite has completed.
-    needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56, end2end_test_staging ]
+    needs:
+      [
+        unit_tests,
+        functional_tests,
+        end2end_test_12,
+        end2end_test_34,
+        end2end_test_56,
+        end2end_test_staging,
+      ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
     environment: staging
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
+      id-token: write # for creating OIDC tokens for signing.
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
 
       - name: Place run number into version within pubspec.yaml
         working-directory: ${{ env.secondary-working-directory }}
@@ -624,33 +768,52 @@ jobs:
         run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Login to DockerHub
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        with:
+          tags: |
+            type=raw,value=dev_env
+            type=raw,value=dess_wtf
+            type=raw,value=dev_env-${{ env.BRANCH }}-gha${{ github.run_number }}
+          images: |
+            atsigncompany/secondary
+
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
-        uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           push: true
           provenance: false
           file: tools/build_secondary/Dockerfile
           context: .
-          tags: |
-            atsigncompany/secondary:dev_env
-            atsigncompany/secondary:dess_wtf
-            atsigncompany/secondary:dev_env-${{ env.BRANCH }}-gha${{ github.run_number }}
+          tags: ${{ steps.meta.outputs.tags }}
           platforms: |
             linux/amd64
             linux/arm64/v8
+
+      - name: Sign the images with GitHub OIDC Token
+        env:
+          DIGEST: ${{ steps.docker_build_secondary.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          images=""
+          for tag in ${TAGS}; do
+            images+="${tag}@${DIGEST} "
+          done
+          cosign sign --yes ${images}
 
       - name: Image digest of secondary server
         run: echo ${{ steps.docker_build_secondary.outputs.digest }}
@@ -660,13 +823,26 @@ jobs:
   # The job runs on completion of 'run_end2end_tests' job.
   push_staging_observable_secondary_image:
     # Runs only after full test suite has completed.
-    needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56, end2end_test_staging ]
+    needs:
+      [
+        unit_tests,
+        functional_tests,
+        end2end_test_12,
+        end2end_test_34,
+        end2end_test_56,
+        end2end_test_staging,
+      ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'trunk') }}
     environment: staging
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
+      id-token: write # for creating OIDC tokens for signing.
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
 
       - name: Place run number into version within pubspec.yaml
         working-directory: ${{ env.secondary-working-directory }}
@@ -679,32 +855,51 @@ jobs:
         run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Login to DockerHub
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        with:
+          tags: |
+            type=raw,value=dev_obs
+            type=raw,value=dev_obs-${{ env.BRANCH }}-gha${{ github.run_number }}
+          images: |
+            atsigncompany/secondary
+
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_observable_secondary
-        uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           push: true
           provenance: false
           file: tools/build_secondary/Dockerfile.observe
           context: .
-          tags: |
-            atsigncompany/secondary:dev_obs
-            atsigncompany/secondary:dev_obs-${{ env.BRANCH }}-gha${{ github.run_number }}
+          tags: ${{ steps.meta.outputs.tags }}
           platforms: |
             linux/amd64
             linux/arm64/v8
+
+      - name: Sign the images with GitHub OIDC Token
+        env:
+          DIGEST: ${{ steps.docker_build_observable_secondary.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          images=""
+          for tag in ${TAGS}; do
+            images+="${tag}@${DIGEST} "
+          done
+          cosign sign --yes ${images}
 
       - name: Image digest of secondary server
         run: echo ${{ steps.docker_build_observable_secondary.outputs.digest }}
@@ -714,12 +909,27 @@ jobs:
   # The job builds the canary version of secondary server docker image and pushes to docker hub.
   push_canary_secondary_image:
     # Runs only after all tests are completed.
-    needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
+    needs:
+      [
+        unit_tests,
+        functional_tests,
+        end2end_test_12,
+        end2end_test_34,
+        end2end_test_56,
+      ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/c') }}
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
+      packages: write
+      id-token: write # for creating OIDC tokens for signing.
+    outputs:
+      digest: ${{ steps.docker_build_secondary.outputs.digest }}
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
 
       # Extract version for docker tag
       - name: Get version
@@ -732,40 +942,90 @@ jobs:
           grep version pubspec.yaml | head -1
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Login to DockerHub
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        with:
+          tags: |
+            type=raw,value=canary
+            type=raw,value=canary-${{ env.VERSION }}
+          images: |
+            atsigncompany/secondary
+
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_secondary
-        uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           push: true
           provenance: false
           file: tools/build_secondary/Dockerfile
           context: .
-          tags: |
-            atsigncompany/secondary:canary
-            atsigncompany/secondary:canary-${{ env.VERSION }}
+          tags: ${{ steps.meta.outputs.tags }}
           platforms: |
             linux/amd64
             linux/arm64/v8
             linux/arm/v7
+
+      - name: Sign the images with GitHub OIDC Token
+        env:
+          DIGEST: ${{ steps.docker_build_secondary.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          images=""
+          for tag in ${TAGS}; do
+            images+="${tag}@${DIGEST} "
+          done
+          cosign sign --yes ${images}
+
+  provenance_canary_secondary_image:
+    needs: [push_canary_secondary_image]
+    permissions:
+      actions: read # for detecting the Github Actions environment.
+      id-token: write # for creating OIDC tokens for signing.
+      packages: write # for uploading attestations.
+    if: startsWith(github.ref, 'refs/tags/')
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      image: "atsigncompany/secondary"
+      digest: ${{ needs.push_canary_secondary_image.outputs.digest }}
+    secrets:
+      registry-username: ${{ secrets.DOCKERHUB_USERNAME }}
+      registry-password: ${{ secrets.DOCKERHUB_TOKEN }}
 
   push_canary_virtualenv_image:
-    needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
+    needs:
+      [
+        unit_tests,
+        functional_tests,
+        end2end_test_12,
+        end2end_test_34,
+        end2end_test_56,
+      ]
     if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/c') }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write # for creating OIDC tokens for signing.
+    outputs:
+      digest: ${{ steps.docker_build.outputs.digest }}
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
 
       - name: Get version
         run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
@@ -777,119 +1037,65 @@ jobs:
           grep version pubspec.yaml | head -1
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Login to DockerHub
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        with:
+          tags: |
+            type=raw,value=canary
+            type=raw,value=canary-${{ env.VERSION }}
+          images: |
+            atsigncompany/virtualenv
+
       - name: Build and push
         id: docker_build
-        uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           file: tools/build_virtual_environment/ve/Dockerfile.vip
           context: .
           push: true
           provenance: false
-          tags: |
-            atsigncompany/virtualenv:canary
-            atsigncompany/virtualenv:canary-${{ env.VERSION }}
+          tags: ${{ steps.meta.outputs.tags }}
           platforms: |
             linux/amd64
             linux/arm64/v8
+
+      - name: Sign the images with GitHub OIDC Token
+        env:
+          DIGEST: ${{ steps.docker_build.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          images=""
+          for tag in ${TAGS}; do
+            images+="${tag}@${DIGEST} "
+          done
+          cosign sign --yes ${images}
 
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
 
-  # The below jobs run's on completion of 'run_end2end_tests' job.
-  # This job run's on trigger event 'push' and when a release is tagged.
-  # The job builds the production version of secondary server docker image and pushes to docker hub.
-  push_prod_secondary_image:
-    # Runs only after all tests are completed.
-    needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
-    if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/v') }}
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-
-      # Extract version for docker tag
-      - name: Get version
-        run: echo "VERSION=${GITHUB_REF##*/}" >> $GITHUB_ENV
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
-
-      - name: Login to DockerHub
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      # Builds and pushes the secondary server image to docker hub.
-      - name: Build and push secondary image for amd64 and arm64
-        id: docker_build_secondary
-        uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
-        with:
-          push: true
-          provenance: false
-          file: tools/build_secondary/Dockerfile
-          context: .
-          tags: |
-            atsigncompany/secondary:prod
-            atsigncompany/secondary:prod-${{ env.VERSION }}
-            atsigncompany/secondary:dess
-          platforms: |
-            linux/amd64
-            linux/arm64/v8
-            linux/arm/v7
-
-  push_prod_virtualenv_image:
-    needs: [ unit_tests, functional_tests, end2end_test_12, end2end_test_34, end2end_test_56 ]
-    if: ${{ github.repository == 'atsign-foundation/at_server' && github.event_name == 'push' && contains(github.ref, 'refs/tags/v') }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
-
-      - name: Login to DockerHub
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build and push
-        id: docker_build
-        uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
-        with:
-          file: tools/build_virtual_environment/ve/Dockerfile.vip
-          context: .
-          push: true
-          provenance: false
-          tags: |
-            atsigncompany/virtualenv:vip
-            atsigncompany/virtualenv:GHA${{ github.run_number }}
-          platforms: |
-            linux/amd64
-            linux/arm64/v8
-
-      - name: Image digest
-        run: echo ${{ steps.docker_build.outputs.digest }}
-
-      - name: Google Chat Notification
-        uses: Co-qn/google-chat-notification@3691ccf4763537d6e544bc6cdcccc1965799d056 # v1
-        with:
-          name: New Docker image for atsigncompany/virtualenv:vip
-          url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
-          status: ${{ job.status }}
+  provenance_canary_virtualenv_image:
+    needs: [push_canary_virtualenv_image]
+    permissions:
+      actions: read # for detecting the Github Actions environment.
+      id-token: write # for creating OIDC tokens for signing.
+      packages: write # for uploading attestations.
+    if: startsWith(github.ref, 'refs/tags/')
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      image: "atsigncompany/virtualenv"
+      digest: ${{ needs.push_canary_virtualenv_image.outputs.digest }}
+    secrets:
+      registry-username: ${{ secrets.DOCKERHUB_USERNAME }}
+      registry-password: ${{ secrets.DOCKERHUB_TOKEN }}

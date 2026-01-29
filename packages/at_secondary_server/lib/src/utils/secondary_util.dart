@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_utils/at_logger.dart';
@@ -22,8 +21,8 @@ class SecondaryUtil {
     var keystoreManager =
         secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
     SecondaryKeyStore keyStore = keystoreManager.getKeyStore();
-    await keyStore.put('public:$key', atData,
-        time_to_live: 60 * 1000); //expire in 1 min
+    atData.metaData = AtMetaData()..ttl = 60 * 1000;
+    await keyStore.put('public:$key', atData); //expire in 1 min
   }
 
   static List<String> getSecondaryInfo(String url) {
@@ -73,7 +72,7 @@ class SecondaryUtil {
       var birthTime = atData.metaData!.availableAt;
       var endOfLifeTime = atData.metaData!.expiresAt;
       logger.finest(
-          'isActiveKey found birthTime $birthTime and endOfLifeTime $endOfLifeTime');
+          'isActiveKey ${atData.key} found birthTime $birthTime and endOfLifeTime $endOfLifeTime');
       if (birthTime == null && endOfLifeTime == null) return true;
       if (birthTime != null) {
         var ttbMillis = birthTime.toUtc().millisecondsSinceEpoch;
@@ -96,8 +95,7 @@ class SecondaryUtil {
   static String signChallenge(String challenge, String privateKey) {
     var key = RSAPrivateKey.fromString(privateKey);
     challenge = challenge.trim();
-    var signature =
-        key.createSHA256Signature(utf8.encode(challenge) as Uint8List);
+    var signature = key.createSHA256Signature(utf8.encode(challenge));
     return base64Encode(signature);
   }
 

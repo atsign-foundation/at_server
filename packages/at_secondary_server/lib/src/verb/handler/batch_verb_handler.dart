@@ -5,7 +5,6 @@ import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 
 // BatchVerbHandler is used to process batch of commands
@@ -13,8 +12,7 @@ class BatchVerbHandler extends AbstractVerbHandler {
   static Batch batch = Batch();
   final VerbHandlerManager verbHandlerManager;
 
-  BatchVerbHandler(SecondaryKeyStore keyStore, this.verbHandlerManager)
-      : super(keyStore);
+  BatchVerbHandler(super.keyStore, this.verbHandlerManager);
 
   // Method to verify whether command is accepted or not
   // Input: command

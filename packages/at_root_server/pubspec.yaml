@@ -1,30 +1,29 @@
 name: at_root_server
 description: Root server implementation.
-version: 2.1.0
+version: 2.2.1
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://atsign.dev
 publish_to: none
 
 environment:
-  sdk: '>=2.15.0 <4.0.0'
+  sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
-  args: 2.4.2
-  uuid: 3.0.7
-  yaml: 3.1.2
-  at_commons: 3.0.57
-  at_utils: 3.0.15
-  at_server_spec: 3.0.15
+  args: ^2.7.0
+  uuid: ^4.5.2
+  yaml: ^3.1.3
+  at_commons: ^5.8.0
+  at_utils: ^3.4.0
+  at_server_spec: ^5.0.4
   at_persistence_root_server:
     git:
       url: https://github.com/atsign-foundation/at_server.git
       path: packages/at_persistence_root_server
       ref: trunk
-      version: ^2.0.5
+      version: ^2.0.7
+  meta: ^1.17.0
 
 dev_dependencies:
-  # Adding test_cov for generating the test coverage.
-  test_cov: ^1.0.1
-  lints: ^3.0.0
-  test: ^1.24.6
-  coverage: ^1.6.3
+  lints: ^6.0.0
+  test: ^1.26.3
+  coverage: ^1.15.0

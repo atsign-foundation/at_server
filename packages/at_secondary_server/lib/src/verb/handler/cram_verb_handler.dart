@@ -13,7 +13,7 @@ import 'package:crypto/crypto.dart';
 class CramVerbHandler extends AbstractVerbHandler {
   static Cram cram = Cram();
 
-  CramVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  CramVerbHandler(super.keyStore);
 
   @override
   bool accept(String command) =>
@@ -29,9 +29,9 @@ class CramVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    var atConnectionMetadata = atConnection.getMetaData();
+    var atConnectionMetadata = atConnection.metaData;
     var sessionID = atConnectionMetadata.sessionID;
-    var digest = verbParams[AT_DIGEST];
+    var digest = verbParams[AtConstants.atDigest];
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     var secret = await keyStore.get('privatekey:at_secret');
 

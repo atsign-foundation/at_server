@@ -3,27 +3,19 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/connection/connection_metrics.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/regex_util.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_provider.dart';
 import 'package:at_commons/at_commons.dart';
 
-class InboundMetricImpl implements MetricProvider {
-  static final InboundMetricImpl _singleton = InboundMetricImpl._internal();
-  var connectionMetrics = ConnectionMetricsImpl();
-
-  InboundMetricImpl._internal();
-
-  factory InboundMetricImpl.getInstance() {
-    return _singleton;
-  }
+class InboundMetricImpl extends MetricProvider {
+  InboundMetricImpl(super.atServer);
 
   @override
   String getMetrics({String? regex}) {
-    var connections = connectionMetrics.getInboundConnections().toString();
-    return connections;
+    return atServer.inboundConnectionManager.pool
+        .getActiveConnectionSize()
+        .toString();
   }
 
   @override
@@ -32,20 +24,40 @@ class InboundMetricImpl implements MetricProvider {
   }
 }
 
-class OutBoundMetricImpl implements MetricProvider {
-  static final OutBoundMetricImpl _singleton = OutBoundMetricImpl._internal();
-  var connectionMetrics = ConnectionMetricsImpl();
+class InboundSummaryMetricImpl extends MetricProvider {
+  InboundSummaryMetricImpl(super.atServer);
 
-  OutBoundMetricImpl._internal();
-
-  factory OutBoundMetricImpl.getInstance() {
-    return _singleton;
+  @override
+  Map<String, dynamic> getMetrics({String? regex}) {
+    return atServer.inboundConnectionManager.pool.getStats(detailed: false);
   }
 
   @override
+  String getName() {
+    return 'activeInboundConnectionsSummary';
+  }
+}
+
+class InboundDetailedMetricImpl extends MetricProvider {
+  InboundDetailedMetricImpl(super.atServer);
+
+  @override
+  Map<String, dynamic> getMetrics({String? regex}) {
+    return atServer.inboundConnectionManager.pool.getStats(detailed: true);
+  }
+
+  @override
+  String getName() {
+    return 'activeInboundConnectionsDetailed';
+  }
+}
+
+class OutBoundMetricImpl extends MetricProvider {
+  OutBoundMetricImpl(super.atServer);
+
+  @override
   String getMetrics({String? regex}) {
-    var connections = connectionMetrics.getOutboundConnections().toString();
-    return connections;
+    return atServer.outboundClientManager.getActiveConnectionSize().toString();
   }
 
   @override
@@ -54,33 +66,23 @@ class OutBoundMetricImpl implements MetricProvider {
   }
 }
 
-class LastCommitIDMetricImpl implements MetricProvider {
-  static final LastCommitIDMetricImpl _singleton =
-      LastCommitIDMetricImpl._internal();
-  AtCommitLog? _atCommitLog;
-
-  set atCommitLog(value) {
-    _atCommitLog = value;
-  }
-
-  LastCommitIDMetricImpl._internal();
-
-  factory LastCommitIDMetricImpl.getInstance() {
-    return _singleton;
-  }
+class LastCommitIDMetricImpl extends MetricProvider {
+  LastCommitIDMetricImpl(super.atServer);
 
   @override
-  Future<String> getMetrics({String? regex, List<String>? enrolledNamespaces}) async {
+  Future<String> getMetrics(
+      {String? regex, List<String>? enrolledNamespaces}) async {
     logger.finer('In commitID getMetrics...regex : $regex');
-    var lastCommitID;
+    int? lastCommitID;
     if (regex != null || enrolledNamespaces != null) {
       regex ??= '.*';
-      lastCommitID =
-          await _atCommitLog?.lastCommittedSequenceNumberWithRegex(regex, enrolledNamespace: enrolledNamespaces);
+      lastCommitID = await atServer.commitLog
+          .lastCommittedSequenceNumberWithRegex(regex,
+              enrolledNamespace: enrolledNamespaces);
       return lastCommitID.toString();
     }
-    lastCommitID = _atCommitLog?.lastCommittedSequenceNumber().toString();
-    return lastCommitID;
+    lastCommitID = atServer.commitLog.lastCommittedSequenceNumber();
+    return lastCommitID.toString();
   }
 
   @override
@@ -89,23 +91,17 @@ class LastCommitIDMetricImpl implements MetricProvider {
   }
 }
 
-class SecondaryStorageMetricImpl implements MetricProvider {
-  static final SecondaryStorageMetricImpl _singleton =
-      SecondaryStorageMetricImpl._internal();
-  var secondaryStorageLocation = Directory(AtSecondaryServerImpl.storagePath!);
-
-  SecondaryStorageMetricImpl._internal();
-
-  factory SecondaryStorageMetricImpl.getInstance() {
-    return _singleton;
-  }
+class SecondaryStorageMetricImpl extends MetricProvider {
+  SecondaryStorageMetricImpl(super.atServer);
 
   @override
   int getMetrics({String? regex}) {
     var secondaryStorageSize = 0;
     //The listSync function returns the list of files in the hive storage location.
     // The below loop iterates recursively into sub-directories over each file and gets the file size using lengthSync function
-    secondaryStorageLocation.listSync(recursive: true).forEach((element) {
+    Directory(AtSecondaryConfig.storagePath)
+        .listSync(recursive: true)
+        .forEach((element) {
       if (element is File) {
         secondaryStorageSize =
             secondaryStorageSize + File(element.path).lengthSync();
@@ -121,21 +117,14 @@ class SecondaryStorageMetricImpl implements MetricProvider {
   }
 }
 
-class MostVisitedAtSignMetricImpl implements MetricProvider {
-  static final MostVisitedAtSignMetricImpl _singleton =
-      MostVisitedAtSignMetricImpl._internal();
-
-  MostVisitedAtSignMetricImpl._internal();
-
-  factory MostVisitedAtSignMetricImpl.getInstance() {
-    return _singleton;
-  }
+class MostVisitedAtSignMetricImpl extends MetricProvider {
+  MostVisitedAtSignMetricImpl(super.atServer);
 
   @override
   Future<String> getMetrics({String? regex}) async {
     final length = AtSecondaryConfig.stats_top_visits!;
     var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
-        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
+        .getAccessLog(atServer.currentAtSign));
     return jsonEncode(await atAccessLog?.mostVisitedAtSigns(length));
   }
 
@@ -145,21 +134,14 @@ class MostVisitedAtSignMetricImpl implements MetricProvider {
   }
 }
 
-class MostVisitedAtKeyMetricImpl implements MetricProvider {
-  static final MostVisitedAtKeyMetricImpl _singleton =
-      MostVisitedAtKeyMetricImpl._internal();
-
-  MostVisitedAtKeyMetricImpl._internal();
-
-  factory MostVisitedAtKeyMetricImpl.getInstance() {
-    return _singleton;
-  }
+class MostVisitedAtKeyMetricImpl extends MetricProvider {
+  MostVisitedAtKeyMetricImpl(super.atServer);
 
   @override
   Future<String> getMetrics({String? regex}) async {
     final length = AtSecondaryConfig.stats_top_keys!;
     var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
-        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
+        .getAccessLog(atServer.currentAtSign));
     return jsonEncode(await atAccessLog?.mostVisitedKeys(length));
   }
 
@@ -169,15 +151,8 @@ class MostVisitedAtKeyMetricImpl implements MetricProvider {
   }
 }
 
-class SecondaryServerVersion implements MetricProvider {
-  static final SecondaryServerVersion _singleton =
-      SecondaryServerVersion._internal();
-
-  SecondaryServerVersion._internal();
-
-  factory SecondaryServerVersion.getInstance() {
-    return _singleton;
-  }
+class SecondaryServerVersion extends MetricProvider {
+  SecondaryServerVersion(super.atServer);
 
   @override
   String? getMetrics({String? regex}) {
@@ -190,20 +165,13 @@ class SecondaryServerVersion implements MetricProvider {
   }
 }
 
-class LastLoggedInDatetimeMetricImpl implements MetricProvider {
-  static final LastLoggedInDatetimeMetricImpl _singleton =
-      LastLoggedInDatetimeMetricImpl._internal();
-
-  LastLoggedInDatetimeMetricImpl._internal();
-
-  factory LastLoggedInDatetimeMetricImpl.getInstance() {
-    return _singleton;
-  }
+class LastLoggedInDatetimeMetricImpl extends MetricProvider {
+  LastLoggedInDatetimeMetricImpl(super.atServer);
 
   @override
   Future<String?> getMetrics({String? regex}) async {
     var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
-        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
+        .getAccessLog(atServer.currentAtSign));
     var entry = await atAccessLog!.getLastAccessLogEntry();
     return entry.requestDateTime!.toUtc().toString();
   }
@@ -214,22 +182,16 @@ class LastLoggedInDatetimeMetricImpl implements MetricProvider {
   }
 }
 
-class DiskSizeMetricImpl implements MetricProvider {
-  static final DiskSizeMetricImpl _singleton = DiskSizeMetricImpl._internal();
-
-  DiskSizeMetricImpl._internal();
-
-  factory DiskSizeMetricImpl.getInstance() {
-    return _singleton;
-  }
+class DiskSizeMetricImpl extends MetricProvider {
+  DiskSizeMetricImpl(super.atServer);
 
   @override
   String getMetrics({String? regex}) {
-    Directory storageLocation = Directory(AtSecondaryServerImpl.storagePath!);
     var diskSize = 0;
     //The listSync function returns the list of files in the hive storage location.
     // In the loop iterating recursively into sub-directories and gets the size of each file using lengthSync
-    for (var file in storageLocation.listSync(recursive: true)) {
+    for (var file
+        in Directory(AtSecondaryConfig.storagePath).listSync(recursive: true)) {
       if (file is File) {
         diskSize = diskSize + File(file.path).lengthSync();
       }
@@ -258,19 +220,13 @@ class DiskSizeMetricImpl implements MetricProvider {
   }
 }
 
-class LastPkamMetricImpl implements MetricProvider {
-  static final LastPkamMetricImpl _singleton = LastPkamMetricImpl._internal();
-
-  LastPkamMetricImpl._internal();
-
-  factory LastPkamMetricImpl.getInstance() {
-    return _singleton;
-  }
+class LastPkamMetricImpl extends MetricProvider {
+  LastPkamMetricImpl(super.atServer);
 
   @override
   Future<String?> getMetrics({String? regex}) async {
     var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
-        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
+        .getAccessLog(atServer.currentAtSign));
     var entry = await atAccessLog!.getLastPkamAccessLogEntry();
     return (entry != null)
         ? entry.requestDateTime!.toUtc().toString()
@@ -283,15 +239,8 @@ class LastPkamMetricImpl implements MetricProvider {
   }
 }
 
-class NotificationsMetricImpl implements MetricProvider {
-  static final NotificationsMetricImpl _singleton =
-      NotificationsMetricImpl._internal();
-
-  NotificationsMetricImpl._internal();
-
-  factory NotificationsMetricImpl.getInstance() {
-    return _singleton;
-  }
+class NotificationsMetricImpl extends MetricProvider {
+  NotificationsMetricImpl(super.atServer);
 
   String _asString(dynamic enumData) {
     return enumData == null ? 'null' : enumData.toString().split('.')[1];
@@ -299,7 +248,7 @@ class NotificationsMetricImpl implements MetricProvider {
 
   @override
   Future<String?> getMetrics({String? regex}) async {
-    Map<String, dynamic> _metricsMap = <String, dynamic>{
+    Map<String, dynamic> metricsMap = <String, dynamic>{
       "total": 0,
       "type": <String, int>{
         "sent": 0,
@@ -320,8 +269,8 @@ class NotificationsMetricImpl implements MetricProvider {
       },
       "createdOn": 0,
     };
-    _metricsMap = await getNotificationStats(_metricsMap);
-    return jsonEncode(_metricsMap);
+    metricsMap = await getNotificationStats(metricsMap);
+    return jsonEncode(metricsMap);
   }
 
   bool _check(var notifications, String key, String? value) {
@@ -329,38 +278,38 @@ class NotificationsMetricImpl implements MetricProvider {
   }
 
   Future<Map<String, dynamic>> getNotificationStats(
-      Map<String, dynamic> _metrics) async {
+      Map<String, dynamic> metrics) async {
     AtNotificationKeystore notificationKeystore =
         AtNotificationKeystore.getInstance();
     List notificationsList = await notificationKeystore.getValues();
-    _metrics['total'] = notificationsList.length;
+    metrics['total'] = notificationsList.length;
     for (var notifications in notificationsList) {
       if (_check(notifications, 'type', 'sent')) {
-        _metrics['type']['sent']++;
+        metrics['type']['sent']++;
       } else if (_check(notifications, 'type', 'received')) {
-        _metrics['type']['received']++;
+        metrics['type']['received']++;
       }
       if (_check(notifications, 'notificationStatus', 'delivered')) {
-        _metrics['status']['delivered']++;
+        metrics['status']['delivered']++;
       } else if (_check(notifications, 'notificationStatus', 'errored')) {
-        _metrics['status']['failed']++;
+        metrics['status']['failed']++;
       } else if (_check(notifications, 'notificationStatus', 'queued') ||
           _check(notifications, 'status', null)) {
-        _metrics['status']['queued']++;
+        metrics['status']['queued']++;
       }
       if (_check(notifications, 'opType', 'update')) {
-        _metrics['operations']['update']++;
+        metrics['operations']['update']++;
       } else if (_check(notifications, 'opType', 'delete')) {
-        _metrics['operations']['delete']++;
+        metrics['operations']['delete']++;
       }
       if (_check(notifications, 'messageType', 'key')) {
-        _metrics['messageType']['key']++;
+        metrics['messageType']['key']++;
       } else if (_check(notifications, 'messageType', 'text')) {
-        _metrics['messageType']['text']++;
+        metrics['messageType']['text']++;
       }
     }
-    _metrics['createdOn'] = DateTime.now().millisecondsSinceEpoch;
-    return _metrics;
+    metrics['createdOn'] = DateTime.now().millisecondsSinceEpoch;
+    return metrics;
   }
 
   @override
@@ -369,19 +318,12 @@ class NotificationsMetricImpl implements MetricProvider {
   }
 }
 
-class KeyStorageMetricImpl implements MetricProvider {
-  static final KeyStorageMetricImpl _singleton =
-      KeyStorageMetricImpl._internal();
-
-  KeyStorageMetricImpl._internal();
-
-  factory KeyStorageMetricImpl.getInstance() {
-    return _singleton;
-  }
+class KeyStorageMetricImpl extends MetricProvider {
+  KeyStorageMetricImpl(super.atServer);
 
   @override
   Future<String?> getMetrics({String? regex}) async {
-    return AtSecondaryServerImpl.getInstance().currentAtSign;
+    return atServer.currentAtSign;
   }
 
   @override
@@ -390,24 +332,16 @@ class KeyStorageMetricImpl implements MetricProvider {
   }
 }
 
-class CommitLogCompactionStats implements MetricProvider {
-  static final CommitLogCompactionStats _singleton =
-      CommitLogCompactionStats.internal();
-
-  CommitLogCompactionStats.internal();
-
-  factory CommitLogCompactionStats.getInstance() {
-    return _singleton;
-  }
+class CommitLogCompactionStats extends MetricProvider {
+  CommitLogCompactionStats(super.atServer);
 
   @override
   getMetrics({String? regex}) async {
     var keyStore = SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(
-            AtSecondaryServerImpl.getInstance().currentAtSign)
+        .getSecondaryPersistenceStore(atServer.currentAtSign)
         ?.getSecondaryKeyStore();
-    if (keyStore!.isKeyExists(commitLogCompactionKey)) {
-      AtData? atData = await keyStore.get(commitLogCompactionKey);
+    if (keyStore!.isKeyExists(AtConstants.commitLogCompactionKey)) {
+      AtData? atData = await keyStore.get(AtConstants.commitLogCompactionKey);
       if (atData != null && atData.data != null) {
         return atData.data;
       }
@@ -421,24 +355,16 @@ class CommitLogCompactionStats implements MetricProvider {
   }
 }
 
-class AccessLogCompactionStats implements MetricProvider {
-  static final AccessLogCompactionStats _singleton =
-      AccessLogCompactionStats._internal();
-
-  AccessLogCompactionStats._internal();
-
-  factory AccessLogCompactionStats.getInstance() {
-    return _singleton;
-  }
+class AccessLogCompactionStats extends MetricProvider {
+  AccessLogCompactionStats(super.atServer);
 
   @override
   getMetrics({String? regex}) async {
     var keyStore = SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(
-            AtSecondaryServerImpl.getInstance().currentAtSign)
+        .getSecondaryPersistenceStore(atServer.currentAtSign)
         ?.getSecondaryKeyStore();
-    if (keyStore!.isKeyExists(accessLogCompactionKey)) {
-      AtData? atData = await keyStore.get(accessLogCompactionKey);
+    if (keyStore!.isKeyExists(AtConstants.accessLogCompactionKey)) {
+      AtData? atData = await keyStore.get(AtConstants.accessLogCompactionKey);
       if (atData != null && atData.data != null) {
         return atData.data;
       }
@@ -452,24 +378,17 @@ class AccessLogCompactionStats implements MetricProvider {
   }
 }
 
-class NotificationCompactionStats implements MetricProvider {
-  static final NotificationCompactionStats _singleton =
-      NotificationCompactionStats.internal();
-
-  NotificationCompactionStats.internal();
-
-  factory NotificationCompactionStats.getInstance() {
-    return _singleton;
-  }
+class NotificationCompactionStats extends MetricProvider {
+  NotificationCompactionStats(super.atServer);
 
   @override
   getMetrics({String? regex}) async {
     var keyStore = SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(
-            AtSecondaryServerImpl.getInstance().currentAtSign)
+        .getSecondaryPersistenceStore(atServer.currentAtSign)
         ?.getSecondaryKeyStore();
-    if (keyStore!.isKeyExists(notificationCompactionKey)) {
-      AtData? atData = await keyStore.get(notificationCompactionKey);
+    if (keyStore!.isKeyExists(AtConstants.notificationCompactionKey)) {
+      AtData? atData =
+          await keyStore.get(AtConstants.notificationCompactionKey);
       if (atData != null && atData.data != null) {
         return atData.data;
       }
@@ -483,21 +402,28 @@ class NotificationCompactionStats implements MetricProvider {
   }
 }
 
-class LatestCommitEntryOfEachKey implements MetricProvider {
+class LatestCommitEntryOfEachKey extends MetricProvider {
+  LatestCommitEntryOfEachKey(super.atServer);
+
   @override
   getMetrics({String? regex = '.*'}) async {
     var responseMap = <String, List<dynamic>>{};
     var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
-        .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
+        .getCommitLog(atServer.currentAtSign));
 
-    Iterator commitEntryIterator = atCommitLog!.getEntries(-1, regex: regex);
-
-    while (commitEntryIterator.moveNext()) {
-      CommitEntry commitEntry = commitEntryIterator.current.value;
-      responseMap[commitEntry.atKey!] = [
-        commitEntry.commitId,
-        commitEntry.operation.name
-      ];
+    int? lastCommitId = atCommitLog?.lastCommittedSequenceNumber();
+    int lastCommitIdReceived = -1;
+    while (lastCommitId != null && lastCommitIdReceived != lastCommitId) {
+      Iterator commitEntryIterator =
+          atCommitLog!.getEntries(lastCommitIdReceived, regex: regex);
+      while (commitEntryIterator.moveNext()) {
+        CommitEntry commitEntry = commitEntryIterator.current.value;
+        responseMap[commitEntry.atKey!] = [
+          commitEntry.commitId,
+          commitEntry.operation.name
+        ];
+        lastCommitIdReceived = commitEntry.commitId!;
+      }
     }
     return jsonEncode(responseMap);
   }

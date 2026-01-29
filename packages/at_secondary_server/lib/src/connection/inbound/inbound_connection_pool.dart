@@ -1,30 +1,68 @@
 import 'dart:collection';
 
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
 
 /// Pool to hold [InboundConnection]
 class InboundConnectionPool {
-  static final InboundConnectionPool _singleton =
-      InboundConnectionPool._internal();
   late int _size;
+  final String serverAtSign;
+  final List<InboundConnection> _connections = [];
 
-  factory InboundConnectionPool.getInstance() {
-    return _singleton;
+  InboundConnectionPool({required this.serverAtSign, required int size}) {
+    _size = size;
   }
-
-  InboundConnectionPool._internal();
 
   var logger = AtSignLogger('InboundConnectionPool');
 
-  late List<InboundConnection> _connections;
+  void resize(int newSize) {
+    _size = newSize;
+  }
 
-  /// [isColdInit] when set to true will create fresh/new connection pool, has to be set to true while server start.
-  /// setting it to false will change size of pool, will not overwrite existing connections. Will preserve the state of connection pool.
-  void init(int size, {bool isColdInit = true}) {
-    _size = size;
-    if (isColdInit) {
-      _connections = [];
+  Map mdSnippet(InboundConnectionMetadata md) => {
+        'from': md.isAuthenticated ? serverAtSign : md.fromAtSign,
+        'created': md.created?.toIso8601String(),
+        'lastAccessed': md.lastAccessed?.toIso8601String()
+      };
+
+  Map<String, dynamic> getStats({required bool detailed}) {
+    int selfAuthCount = 0;
+    List selfAuthList = [];
+
+    int polAuthCount = 0;
+    List polAuthList = [];
+
+    int unAuthCount = 0;
+    List unAuthList = [];
+
+    for (final c in _connections) {
+      InboundConnectionMetadata md = c.metaData as InboundConnectionMetadata;
+      if (md.isAuthenticated) {
+        selfAuthCount++;
+        selfAuthList.add(mdSnippet(md));
+      } else if (c.metaData.isPolAuthenticated) {
+        polAuthCount++;
+        polAuthList.add(mdSnippet(md));
+      } else {
+        unAuthCount++;
+        unAuthList.add(mdSnippet(md));
+      }
+    }
+    if (detailed) {
+      return {
+        'total': selfAuthCount + polAuthCount + unAuthCount,
+        'self': {'count': selfAuthCount, 'list': selfAuthList},
+        'other': {'count': polAuthCount, 'list': polAuthList},
+        'anon': {'count': unAuthCount, 'list': unAuthList},
+      };
+    } else {
+      return {
+        'total': selfAuthCount + polAuthCount + unAuthCount,
+        'self': selfAuthCount,
+        'other': polAuthCount,
+        'anon': unAuthCount,
+      };
     }
   }
 
@@ -34,6 +72,7 @@ class InboundConnectionPool {
 
   bool passedEightyFivePercent = false;
   bool passedNinetyFivePercent = false;
+
   void add(InboundConnection inboundConnection) {
     _connections.add(inboundConnection);
     _checkWarningStatesOnAdd();
@@ -76,9 +115,7 @@ class InboundConnectionPool {
     return _connections.length;
   }
 
-  int? getCapacity() {
-    return _size;
-  }
+  int getCapacity() => _size;
 
   bool clearAllConnections() {
     for (var connection in _connections.toList()) {
@@ -113,5 +150,34 @@ class InboundConnectionPool {
       logger.info('InboundConnectionPool < 85% of $_size');
       passedEightyFivePercent = false;
     }
+  }
+
+  /// Returns the number of active monitor connections.
+  int getMonitorConnectionSize() {
+    var count = 0;
+    getConnections().forEach((connection) {
+      if (!connection.isInValid() && connection.isMonitor!) {
+        count++;
+      }
+    });
+
+    return count;
+  }
+
+  /// Returns the number of active connections.
+  int getActiveConnectionSize() {
+    var count = 0;
+    getConnections().forEach((connection) {
+      if (!connection.isInValid()) {
+        count++;
+      }
+    });
+
+    return count;
+  }
+
+  /// Return total capacity of connection manager of connection pool.
+  int totalConnectionSize() {
+    return getConnections().length;
   }
 }

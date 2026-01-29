@@ -19,8 +19,12 @@ class AtSecondaryConfig {
   static const bool _testingMode = false;
 
   //Certificate Paths
-  static const String _certificateChainLocation = 'certs/fullchain.pem';
-  static const String _privateKeyLocation = 'certs/privkey.pem';
+  static const String _fullchainLocation = 'certs/fullchain.pem';
+  static const String _privkeyLocation = 'certs/privkey.pem';
+
+  static const String _fullchainLocationMtls = 'certs/mtls/fullchain.pem';
+  static const String _privkeyLocationMtls = 'certs/mtls/privkey.pem';
+
   static const String _trustedCertificateLocation = '/etc/cacert/cacert.pem';
 
   //Secondary Storage
@@ -76,9 +80,12 @@ class AtSecondaryConfig {
   static const int _outboundMaxLimit = 200;
   static const int _unauthenticatedInboundIdleTimeMillis =
       10 * 60 * 1000; // 10 minutes
+  static const int _unauthenticatedOutboundIdleTimeMillis =
+      _unauthenticatedInboundIdleTimeMillis - 1000;
   static const int _authenticatedInboundIdleTimeMillis =
-      30 * 24 * 60 * 60 * 1000; // 30 days
-  static const int _outboundIdleTimeMillis = 600000;
+      10 * 60 * 1000; // 10 minutes
+  static const int _authenticatedOutboundIdleTimeMillis =
+      _authenticatedInboundIdleTimeMillis - 1000;
 
   //Lookup
   static const int _lookupDepthOfResolution = 3;
@@ -104,6 +111,8 @@ class AtSecondaryConfig {
   // Malformed Keys
   static final List<String> _malformedKeys = [];
   static const bool _shouldRemoveMalformedKeys = true;
+
+  static final bool _skipCommitsForExpiredKeys = true;
 
   // Telemetry web hook
   static final String defaultTelemetryEventWebHook = '';
@@ -133,6 +142,8 @@ class AtSecondaryConfig {
   static int _maxEnrollRequestsAllowed = 5;
 
   static final int _timeFrameInHours = 1;
+
+  static final int _enrollmentResponseDelayIntervalInSeconds = 55;
 
   // For easy of testing, duration in hours is long. Hence introduced "timeFrameInMills"
   // to have a shorter time frame. This is defaulted to "_timeFrameInHours", can be modified
@@ -377,9 +388,9 @@ class AtSecondaryConfig {
     }
   }
 
-  static String? get notificationStoragePath {
-    if (_envVars.containsKey('notificationStoragePath')) {
-      return _envVars['notificationStoragePath'];
+  static String get notificationStoragePath {
+    if (_envVars['notificationStoragePath'] != null) {
+      return _envVars['notificationStoragePath']!;
     }
     try {
       return getConfigFromYaml(['hive', 'notificationStoragePath']);
@@ -388,9 +399,9 @@ class AtSecondaryConfig {
     }
   }
 
-  static String? get accessLogPath {
-    if (_envVars.containsKey('accessLogPath')) {
-      return _envVars['accessLogPath'];
+  static String get accessLogPath {
+    if (_envVars['accessLogPath'] != null) {
+      return _envVars['accessLogPath']!;
     }
     try {
       return getConfigFromYaml(['hive', 'accessLogPath']);
@@ -399,9 +410,9 @@ class AtSecondaryConfig {
     }
   }
 
-  static String? get commitLogPath {
-    if (_envVars.containsKey('commitLogPath')) {
-      return _envVars['commitLogPath'];
+  static String get commitLogPath {
+    if (_envVars['commitLogPath'] != null) {
+      return _envVars['commitLogPath']!;
     }
     try {
       return getConfigFromYaml(['hive', 'commitLogPath']);
@@ -410,9 +421,9 @@ class AtSecondaryConfig {
     }
   }
 
-  static String? get storagePath {
-    if (_envVars.containsKey('secondaryStoragePath')) {
-      return _envVars['secondaryStoragePath'];
+  static String get storagePath {
+    if (_envVars['secondaryStoragePath'] != null) {
+      return _envVars['secondaryStoragePath']!;
     }
     try {
       return getConfigFromYaml(['hive', 'storagePath']);
@@ -422,7 +433,7 @@ class AtSecondaryConfig {
   }
 
   // ignore: non_constant_identifier_names
-  static int get outbound_idletime_millis {
+  static int get unauthenticated_outbound_idletime_millis {
     var result = _getIntEnvVar('outbound_idletime_millis');
     if (result != null) {
       return result;
@@ -430,12 +441,12 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['connection', 'outbound_idle_time_millis']);
     } on ElementNotFoundException {
-      return _outboundIdleTimeMillis;
+      return _unauthenticatedOutboundIdleTimeMillis;
     }
   }
 
   // ignore: non_constant_identifier_names
-  static int get inbound_idletime_millis {
+  static int get unauthenticated_inbound_idletime_millis {
     var result = _getIntEnvVar('inbound_idletime_millis');
     if (result != null) {
       return result;
@@ -458,6 +469,20 @@ class AtSecondaryConfig {
           ['connection', 'authenticated_inbound_idle_time_millis']);
     } on ElementNotFoundException {
       return _authenticatedInboundIdleTimeMillis;
+    }
+  }
+
+  // ignore: non_constant_identifier_names
+  static int get authenticated_outbound_idletime_millis {
+    var result = _getIntEnvVar('authenticated_outbound_idletime_millis');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(
+          ['connection', 'authenticated_outbound_idle_time_millis']);
+    } on ElementNotFoundException {
+      return _authenticatedOutboundIdleTimeMillis;
     }
   }
 
@@ -538,9 +563,9 @@ class AtSecondaryConfig {
     }
   }
 
-  static String? get trustedCertificateLocation {
+  static String get trustedCertificateLocation {
     if (_envVars.containsKey('securityTrustedCertificateLocation')) {
-      return _envVars['securityTrustedCertificateLocation'];
+      return _envVars['securityTrustedCertificateLocation']!;
     }
     try {
       return getConfigFromYaml(['security', 'trustedCertificateLocation']);
@@ -549,25 +574,47 @@ class AtSecondaryConfig {
     }
   }
 
-  static String? get privateKeyLocation {
+  static String get privateKeyLocation {
     if (_envVars.containsKey('securityPrivateKeyLocation')) {
-      return _envVars['securityPrivateKeyLocation'];
+      return _envVars['securityPrivateKeyLocation']!;
     }
     try {
       return getConfigFromYaml(['security', 'privateKeyLocation']);
     } on ElementNotFoundException {
-      return _privateKeyLocation;
+      return _privkeyLocation;
     }
   }
 
-  static String? get certificateChainLocation {
+  static String get certificateChainLocation {
     if (_envVars.containsKey('securityCertificateChainLocation')) {
-      return _envVars['securityCertificateChainLocation'];
+      return _envVars['securityCertificateChainLocation']!;
     }
     try {
       return getConfigFromYaml(['security', 'certificateChainLocation']);
     } on ElementNotFoundException {
-      return _certificateChainLocation;
+      return _fullchainLocation;
+    }
+  }
+
+  static String get privateKeyLocationMtls {
+    if (_envVars.containsKey('securityPrivateKeyLocationMtls')) {
+      return _envVars['securityPrivateKeyLocationMtls']!;
+    }
+    try {
+      return getConfigFromYaml(['security', 'privateKeyLocationMtls']);
+    } on ElementNotFoundException {
+      return _privkeyLocationMtls;
+    }
+  }
+
+  static String get certificateChainLocationMtls {
+    if (_envVars.containsKey('securityCertificateChainLocationMtls')) {
+      return _envVars['securityCertificateChainLocationMtls']!;
+    }
+    try {
+      return getConfigFromYaml(['security', 'certificateChainLocationMtls']);
+    } on ElementNotFoundException {
+      return _fullchainLocationMtls;
     }
   }
 
@@ -715,6 +762,22 @@ class AtSecondaryConfig {
     }
   }
 
+  static bool get skipCommitsForExpiredKeys {
+    // read from env var if set
+    bool? result = _getBoolEnvVar('skipCommitsForExpiredKeys');
+    if (result != null) {
+      return result;
+    }
+
+    // read from config file if available
+    try {
+      return getConfigFromYaml(['hive', 'skipCommitsForExpiredKeys']);
+    } on ElementNotFoundException {
+      // if not found, fallback to class variable
+      return _skipCommitsForExpiredKeys;
+    }
+  }
+
   static String get telemetryEventWebHook {
     if (_envVars.containsKey('telemetryEventWebHook')) {
       return _envVars['telemetryEventWebHook']!;
@@ -786,6 +849,18 @@ class AtSecondaryConfig {
 
   static set timeFrameInMills(int timeWindowInMills) {
     _timeFrameInMills = timeWindowInMills;
+  }
+
+  static int get enrollmentResponseDelayIntervalInSeconds {
+    var result = _getIntEnvVar('enrollmentDelayIntervalThreshold');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(['enrollment', 'delayIntervalThreshold']);
+    } on ElementNotFoundException {
+      return _enrollmentResponseDelayIntervalInSeconds;
+    }
   }
 
   //implementation for config:set. This method returns a data stream which subscribers listen to for updates

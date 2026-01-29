@@ -23,7 +23,7 @@ class FromVerbHandler extends AbstractVerbHandler {
   static final bool? clientCertificateRequired =
       AtSecondaryConfig.clientCertificateRequired;
 
-  FromVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  FromVerbHandler(super.keyStore);
 
   late AtConfig atConfigInstance;
 
@@ -47,18 +47,19 @@ class FromVerbHandler extends AbstractVerbHandler {
         currentAtSign);
     atConnection.initiatedBy = currentAtSign;
     var atConnectionMetadata =
-        atConnection.getMetaData() as InboundConnectionMetadata;
-    var fromAtSign = verbParams[AT_SIGN];
+        atConnection.metaData as InboundConnectionMetadata;
+    var fromAtSign = verbParams[AtConstants.atSign];
 
-    if (verbParams[CLIENT_CONFIG] != null &&
-        verbParams[CLIENT_CONFIG]!.isNotEmpty) {
-      var decodedClientConfig = jsonDecode(verbParams[CLIENT_CONFIG]!);
+    if (verbParams[AtConstants.clientConfig] != null &&
+        verbParams[AtConstants.clientConfig]!.isNotEmpty) {
+      var decodedClientConfig =
+          jsonDecode(verbParams[AtConstants.clientConfig]!);
       atConnectionMetadata
-        ..clientVersion = decodedClientConfig[VERSION]
-        ..clientId = decodedClientConfig[CLIENT_ID]
-        ..appName = decodedClientConfig[APP_NAME]
-        ..appVersion = decodedClientConfig[APP_VERSION]
-        ..platform = decodedClientConfig[PLATFORM];
+        ..clientVersion = decodedClientConfig[AtConstants.version]
+        ..clientId = decodedClientConfig[AtConstants.clientId]
+        ..appName = decodedClientConfig[AtConstants.appName]
+        ..appVersion = decodedClientConfig[AtConstants.appVersion]
+        ..platform = decodedClientConfig[AtConstants.platform];
     }
 
     fromAtSign = AtUtils.fixAtSign(fromAtSign!);
@@ -85,9 +86,9 @@ class FromVerbHandler extends AbstractVerbHandler {
     }
 
     //store key with private/public prefix, sessionId and fromAtSign
-    await keyStore.put(
-        '$keyPrefix${atConnectionMetadata.sessionID}$fromAtSign', atData,
-        time_to_live: 60 * 1000); //expire in 1 min
+    atData.metaData = AtMetaData()..ttl = 60 * 1000;
+    await keyStore.put('$keyPrefix${atConnectionMetadata.sessionID}$fromAtSign',
+        atData); //expire in 1 min
     response.data =
         '$responsePrefix${atConnectionMetadata.sessionID}$fromAtSign:$proof';
 
@@ -119,14 +120,13 @@ class FromVerbHandler extends AbstractVerbHandler {
     logger.finer('_verifyFromAtSign secondaryUrl : $secondaryUrl');
     var secondaryInfo = SecondaryUtil.getSecondaryInfo(secondaryUrl);
     var host = secondaryInfo[0];
-    var secSocket = atConnection.getSocket() as SecureSocket;
+    var secSocket = atConnection.underlying as SecureSocket;
     logger.finer('secSocket : $secSocket');
     var cn = secSocket.peerCertificate;
     logger.finer('CN : $cn');
     if (cn == null) {
-      logger.finer(
-          'CN is null.stream flag ${atConnection.getMetaData().isStream}');
-      return atConnection.getMetaData().isStream;
+      logger.finer('CN is null.stream flag ${atConnection.metaData.isStream}');
+      return atConnection.metaData.isStream;
     }
 
     if (clientCertificateRequired!) {
@@ -138,22 +138,26 @@ class FromVerbHandler extends AbstractVerbHandler {
 
   bool _verifyClientCerts(X509Certificate cn, String host) {
     var subject = cn.subject;
-    logger.finer('Connected from: $subject');
+    logger.info(
+        'Connected from: $cn $subject issued by ${cn.issuer} valid from ${cn.startValidity} to ${cn.endValidity}');
     if (subject.contains(host)) {
+      // TODO Dig in to the possible values of subject
       return true;
     }
     // If you would like to see the cert
     var x509Pem = cn.pem;
     // test with an internet available certificate to ensure we are picking out the SAN and not the CN
     var data = X509Utils.x509CertificateFromPem(x509Pem);
-    var subjectAlternativeName = data.subjectAlternativNames!;
-    logger.finer('SAN: $subjectAlternativeName');
-    if (subjectAlternativeName.contains(host)) {
+    List<String> subjectAlternativeNames =
+        data.tbsCertificate?.extensions?.subjectAlternativNames ?? [];
+    logger.info('SAN: $subjectAlternativeNames');
+    if (subjectAlternativeNames.contains(host)) {
       return true;
     }
-    var commonName = data.subject['2.5.4.3']!;
-    logger.finer('CN: $commonName');
+    String commonName = data.tbsCertificate?.subject['2.5.4.3'] ?? '';
+    logger.info('CN: $commonName');
     if (commonName.contains(host)) {
+      // Probably should be an equality test
       return true;
     }
     return false;

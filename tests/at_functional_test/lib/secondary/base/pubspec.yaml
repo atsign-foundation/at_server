@@ -1,1 +1,42 @@
-../../../../../packages/at_secondary_server/pubspec.yaml
+name: at_secondary
+description: Implementation of secondary server.
+version: 3.4.0
+repository: https://github.com/atsign-foundation/at_server
+homepage: https://www.example.com
+publish_to: none
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  args: 2.6.0
+  uuid: 3.0.7
+  convert: 3.1.2
+  cron: 0.5.1
+  crypto: 3.0.6
+  crypton: 2.2.1
+  collection: 1.19.1
+  basic_utils: 5.7.0
+  ecdsa: 0.1.2
+  encrypt: 5.0.3
+  at_commons: 5.3.0
+  at_utils: 3.0.19
+  at_chops: 2.2.0
+  at_lookup: 3.0.49
+  at_server_spec: 5.0.3
+  at_persistence_spec: 3.0.0
+  at_persistence_secondary_server: 4.0.0
+  intl: ^0.20.2
+  json_annotation: ^4.8.0
+  version: 3.0.2
+  meta: 1.16.0
+  mutex: 3.1.0
+  yaml: 3.1.3
+  logging: 1.3.0
+
+dev_dependencies:
+  build_runner: ^2.3.3
+  test: ^1.25.9
+  coverage: ^1.6.1
+  lints: ^5.0.0
+  mocktail: ^1.0.3

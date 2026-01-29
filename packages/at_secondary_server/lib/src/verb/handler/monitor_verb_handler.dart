@@ -4,9 +4,6 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/constants/enroll_constants.dart';
-import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -19,7 +16,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
 
   late String regex;
 
-  MonitorVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  MonitorVerbHandler(super.keyStore);
 
   Notification notification = Notification.empty();
 
@@ -40,60 +37,46 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    if (!atConnection.getMetaData().isAuthenticated) {
+    if (!atConnection.metaData.isAuthenticated) {
       throw UnAuthenticatedException(
           'Failed to execute verb. monitor requires authentication');
     }
     this.atConnection = atConnection;
     // If regex is not provided by user, set regex to ".*" to match all the possibilities
     // else set regex to the value given by the user.
-    (verbParams[AT_REGEX] == null)
+    (verbParams[AtConstants.regex] == null)
         ? regex = '.*'
-        : regex = verbParams[AT_REGEX]!;
-    final selfNotificationsFlag = verbParams[MONITOR_SELF_NOTIFICATIONS];
+        : regex = verbParams[AtConstants.regex]!;
+    final selfNotificationsFlag =
+        verbParams[AtConstants.monitorSelfNotifications];
     AtNotificationCallback.getInstance().registerNotificationCallback(
         NotificationType.received, processAtNotification);
-    if (selfNotificationsFlag == MONITOR_SELF_NOTIFICATIONS) {
+    if (selfNotificationsFlag == AtConstants.monitorSelfNotifications) {
       logger.finer('self notification callback registered');
       AtNotificationCallback.getInstance().registerNotificationCallback(
           NotificationType.self, processAtNotification);
     }
 
-    if (verbParams.containsKey(EPOCH_MILLIS) &&
-        verbParams[EPOCH_MILLIS] != null) {
+    if (verbParams.containsKey(AtConstants.epochMilliseconds) &&
+        verbParams[AtConstants.epochMilliseconds] != null) {
       // Send notifications that are already received after EPOCH_MILLIS first
       List<Notification> receivedNotificationsAfterEpochMills =
           await _getNotificationsAfterEpoch(
-              int.parse(verbParams[EPOCH_MILLIS]!),
-              selfNotificationsFlag == MONITOR_SELF_NOTIFICATIONS);
+              int.parse(verbParams[AtConstants.epochMilliseconds]!),
+              selfNotificationsFlag == AtConstants.monitorSelfNotifications);
       for (Notification receivedNotification
           in receivedNotificationsAfterEpochMills) {
-        await _sendNotificationToClient(receivedNotification);
+        await _checkAndSend(receivedNotification);
       }
     }
     atConnection.isMonitor = true;
   }
 
-  /// Writes [notification] on authenticated connection
-  /// * If connection is authenticate via PKAM
-  ///    - Writes all the notifications on the connection.
-  ///    - Optionally, if regex is supplied, write only the notifications that
-  ///      matches the pattern.
-  ///
-  /// * If connection is authenticated via APKAM
-  ///    - Writes the notifications only if the namespace in the notification key
-  ///      matches the namespace in the enrollment.
-  ///    - Optionally if regex is supplied, write only the notifications that
-  ///      matches the pattern.
-  Future<void> _sendNotificationToClient(Notification notification) async {
-    // If enrollmentId is null, then connection is authenticated via PKAM
-    if ((atConnection.getMetaData() as InboundConnectionMetadata)
-            .enrollmentId ==
-        null) {
-      _sendLegacyNotification(notification);
-    } else {
-      // If enrollmentId is populated, then connection is authenticated via APKAM
-      await _sendNotificationByEnrollmentNamespaceAccess(notification);
+  /// Does an [isAuthorized] check, if OK then calls [_sendNotification]
+  Future<void> _checkAndSend(Notification notification) async {
+    if (await isAuthorized(atConnection.metaData as InboundConnectionMetadata,
+        atKey: notification.notification)) {
+      await _sendNotification(notification);
     }
   }
 
@@ -101,17 +84,19 @@ class MonitorVerbHandler extends AbstractVerbHandler {
   ///    - Writes all the notifications on the connection.
   ///    - Optionally, if regex is supplied, write only the notifications that
   ///      matches the pattern.
-  void _sendLegacyNotification(Notification notification) {
+  Future<void> _sendNotification(Notification notification) async {
     var fromAtSign = notification.fromAtSign;
     if (fromAtSign != null) {
       fromAtSign = fromAtSign.replaceAll('@', '');
     }
     try {
+      logger.finest('Checking $notification against $regex');
       // If the user does not provide regex, defaults to ".*" to match all notifications.
       if (notification.notification!.contains(RegExp(regex)) ||
           (fromAtSign != null && fromAtSign.contains(RegExp(regex)))) {
-        atConnection
-            .write('notification: ${jsonEncode(notification.toJson())}\n');
+        logger.finest('Matched regex - sending');
+        await atConnection.write('notification:'
+            ' ${jsonEncode(notification.toJson())}\n');
       }
     } on FormatException {
       logger.severe('Invalid regular expression : $regex');
@@ -120,72 +105,11 @@ class MonitorVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  /// If connection is authenticated via APKAM
-  ///    - Writes the notifications only if the namespace in the notification key
-  ///      matches the namespace in the enrollment.
-  ///    - Optionally if regex is supplied, write only the notifications that
-  ///      matches the pattern.
-  Future<void> _sendNotificationByEnrollmentNamespaceAccess(
-      Notification notification) async {
-    // Fetch namespaces that are associated with the enrollmentId.
-    var enrollmentKey =
-        '${(atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId}.$newEnrollmentKeyPattern.$enrollManageNamespace${AtSecondaryServerImpl.getInstance().currentAtSign}';
-    EnrollDataStoreValue enrollDataStoreValue =
-        await getEnrollDataStoreValue(enrollmentKey);
-    // When an enrollment is revoked, avoid sending notifications to the
-    // existing monitor connection.
-    if (enrollDataStoreValue.approval!.state != EnrollStatus.approved.name) {
-      logger.finer(
-          'EnrollmentId ${(atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId} is not approved. Failed to send notifications');
-      return;
-    }
-    if (enrollDataStoreValue.namespaces.isEmpty) {
-      logger.finer('No namespaces are enrolled for the enrollmentId:'
-          ' ${(atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId}');
-      return;
-    }
-    // If notification does not contain ".", it indicates namespace is not present.
-    // Do nothing.
-    if (!notification.notification!.contains('.')) {
-      logger.finest(
-          'For enrollmentId: ${(atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId}'
-          'Failed to send notification because the key ${notification.notification} do not contain namespace');
-      return;
-    }
-    // separate namespace from the notification key
-    String namespaceFromKey = notification.notification!
-        .substring(notification.notification!.indexOf('.') + 1);
-
-    try {
-      // - If the namespace in the notification key matches the namespace in the
-      //   enrollment, it indicates that the client has successfully enrolled for
-      //   that namespace, thereby granting authorization to receive notifications.
-      //
-      // - If namespace is enrollManageNamespace (__manage) or allNamespace (.*),
-      //   then all enrollments should be written to client to perform action
-      //   (approve/deny)on an enrollment.
-      //
-      // - Optionally, if regex is provided, send only the notifications which match
-      //   the regex patten by notification key or fromAtSign of the notification.
-      // - If the user does not provide regex, defaults to ".*" to match all notifications.
-      //   match the exact namespace
-      if ((enrollDataStoreValue.namespaces.containsKey(allNamespaces) ||
-              enrollDataStoreValue.namespaces
-                  .containsKey(enrollManageNamespace) ||
-              enrollDataStoreValue.namespaces.containsKey(namespaceFromKey)) &&
-          (notification.notification!.contains(RegExp(regex)) ||
-              (notification.fromAtSign != null &&
-                  notification.fromAtSign!.contains(RegExp(regex))))) {
-        atConnection
-            .write('notification: ${jsonEncode(notification.toJson())}\n');
-      }
-    } on FormatException {
-      logger.severe('Invalid regular expression : $regex');
-      throw InvalidSyntaxException(
-          'Invalid regular expression. $regex is not a valid regex');
-    }
-  }
-
+  /// [processVerb] above registers this callback method with the notification
+  /// manager; all of the registered callbacks are called by the notification
+  /// manager when a notification needs to be handled. Here in the Monitor, we
+  /// transform the data into format which AtClients should understand, then
+  /// call [_checkAndSend]
   Future<void> processAtNotification(AtNotification atNotification) async {
     // If connection is invalid, deregister the notification
     if (atConnection.isInValid()) {
@@ -213,14 +137,21 @@ class MonitorVerbHandler extends AbstractVerbHandler {
           "ivNonce": atNotification.atMetadata?.ivNonce,
           "skeEncKeyName": atNotification.atMetadata?.skeEncKeyName,
           "skeEncAlgo": atNotification.atMetadata?.skeEncAlgo,
+          "sharedKeyEnc": atNotification.atMetadata?.sharedKeyEnc,
+          "pubKeyCS": atNotification.atMetadata?.pubKeyCS,
+          "dataSignature": atNotification.atMetadata?.dataSignature,
         };
-      await _sendNotificationToClient(notification);
+
+      notification.metadata?.putIfAbsent(
+          "pubKeyHash",
+          () => (atNotification.atMetadata?.pubKeyHash != null)
+              ? jsonEncode(atNotification.atMetadata?.pubKeyHash?.toJson())
+              : null);
+
+      await _checkAndSend(notification);
     }
   }
 
-  /// Returns received notifications of the current atSign
-  /// @param responseList : List to add the notifications
-  /// @param Future<List> : Returns a list of received notifications of the current atSign.
   Future<List<Notification>> _getNotificationsAfterEpoch(
       int millisecondsEpoch, bool isSelfNotificationsEnabled) async {
     // Get all notifications
@@ -288,24 +219,36 @@ class Notification {
         ? atNotification.atMetadata!.isEncrypted!
         : false;
     metadata = {
+      "sharedKeyEnc": atNotification.atMetadata?.sharedKeyEnc,
+      "pubKeyCS": atNotification.atMetadata?.pubKeyCS,
+      "dataSignature": atNotification.atMetadata?.dataSignature,
       "encKeyName": atNotification.atMetadata?.encKeyName,
       "encAlgo": atNotification.atMetadata?.encAlgo,
       "ivNonce": atNotification.atMetadata?.ivNonce,
       "skeEncKeyName": atNotification.atMetadata?.skeEncKeyName,
       "skeEncAlgo": atNotification.atMetadata?.skeEncAlgo,
+      "availableAt": atNotification.atMetadata?.availableAt.toString(),
+      "expiresAt":
+          (atNotification.atMetadata?.expiresAt ?? atNotification.expiresAt)
+              .toString()
     };
+    metadata?.putIfAbsent(
+        "pubKeyHash",
+        () => (atNotification.atMetadata?.pubKeyHash != null)
+            ? jsonEncode(atNotification.atMetadata?.pubKeyHash?.toJson())
+            : null);
   }
 
   Map toJson() => {
-        ID: id,
-        FROM: fromAtSign,
-        TO: toAtSign,
-        KEY: notification,
-        VALUE: value,
-        OPERATION: operation,
-        EPOCH_MILLIS: dateTime,
-        MESSAGE_TYPE: messageType,
-        IS_ENCRYPTED: isTextMessageEncrypted,
+        AtConstants.id: id,
+        AtConstants.from: fromAtSign,
+        AtConstants.to: toAtSign,
+        AtConstants.key: notification,
+        AtConstants.value: value,
+        AtConstants.operation: operation,
+        AtConstants.epochMilliseconds: dateTime,
+        AtConstants.messageType: messageType,
+        AtConstants.isEncrypted: isTextMessageEncrypted,
         "metadata": metadata
       };
 

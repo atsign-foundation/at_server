@@ -3,11 +3,13 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
@@ -25,14 +27,17 @@ void main() {
       var command = 'delete:@bob:email@colin';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'email');
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
-      expect(paramsMap[AT_SIGN], 'colin');
+      expect(paramsMap[AtConstants.atKey], 'email');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
+      expect(paramsMap[AtConstants.atSign], 'colin');
     });
 
     test('test delete getVerb', () {
       var handler = DeleteVerbHandler(
-          secondaryKeyStore, StatsNotificationService.getInstance());
+        secondaryKeyStore,
+        StatsNotificationService.getInstance(),
+        notificationManager,
+      );
       var verb = handler.getVerb();
       expect(verb is Delete, true);
     });
@@ -40,9 +45,11 @@ void main() {
     test('test delete command accept test', () {
       var command = 'delete:@bob:email@colin';
       var handler = DeleteVerbHandler(
-          secondaryKeyStore, StatsNotificationService.getInstance());
+        secondaryKeyStore,
+        StatsNotificationService.getInstance(),
+        notificationManager,
+      );
       var result = handler.accept(command);
-      print('result : $result');
       expect(result, true);
     });
 
@@ -50,9 +57,11 @@ void main() {
       var command = 'DEL ETE:@bob:email@colin';
       command = SecondaryUtil.convertCommand(command);
       var handler = DeleteVerbHandler(
-          secondaryKeyStore, StatsNotificationService.getInstance());
+        secondaryKeyStore,
+        StatsNotificationService.getInstance(),
+        notificationManager,
+      );
       var result = handler.accept(command);
-      print('result : $result');
       expect(result, true);
     });
 
@@ -71,9 +80,9 @@ void main() {
       var command = 'delete:@🦄:phone@🎠';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'phone');
-      expect(paramsMap[FOR_AT_SIGN], '🦄');
-      expect(paramsMap[AT_SIGN], '🎠');
+      expect(paramsMap[AtConstants.atKey], 'phone');
+      expect(paramsMap[AtConstants.forAtSign], '🦄');
+      expect(paramsMap[AtConstants.atSign], '🎠');
     });
 
     test('test delete key-with public and emoji', () {
@@ -81,8 +90,8 @@ void main() {
       var command = 'delete:public:phone@🎠';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'phone');
-      expect(paramsMap[AT_SIGN], '🎠');
+      expect(paramsMap[AtConstants.atKey], 'phone');
+      expect(paramsMap[AtConstants.atSign], '🎠');
     });
 
     test('test delete key-with public and emoji', () {
@@ -90,8 +99,8 @@ void main() {
       var command = 'delete:phone@🎠';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'phone');
-      expect(paramsMap[AT_SIGN], '🎠');
+      expect(paramsMap[AtConstants.atKey], 'phone');
+      expect(paramsMap[AtConstants.atSign], '🎠');
     });
 
     test('test delete-key with no atsign', () {
@@ -99,57 +108,170 @@ void main() {
       var command = 'delete:privatekey:at_secret';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'privatekey:at_secret');
+      expect(paramsMap[AtConstants.atKey], 'privatekey:at_secret');
     });
   });
 
-  // The following group of tests are to ensure that the protected keys cannot be deleted
   group('verify deletion of protected keys', () {
     late DeleteVerbHandler handler;
     setUp(() async {
       await verbTestsSetUp();
       handler = DeleteVerbHandler(
-          secondaryKeyStore, StatsNotificationService.getInstance());
+        secondaryKeyStore,
+        StatsNotificationService.getInstance(),
+        notificationManager,
+      );
     });
 
-    test('verify deletion of signing public key', () {
-      var command = 'delete:$AT_SIGNING_PUBLIC_KEY@alice';
-      var paramsMap = getVerbParam(Delete().syntax(), command);
-
+    test('verify deletion of signing public key throws exception', () {
+      inboundConnection.metadata.isAuthenticated = true;
+      var command = 'delete:${AtConstants.atSigningPublicKey}$alice';
       expect(
-          () => handler.processVerb(Response(), paramsMap, inboundConnection),
+          () => handler.processInternal(command, inboundConnection),
           throwsA(
               predicate((exception) => exception is UnAuthorizedException)));
     });
 
-    test('verify deletion of signing private key', () {
-      var command = 'delete:@alice:$AT_SIGNING_PRIVATE_KEY@alice';
-      var paramsMap = getVerbParam(Delete().syntax(), command);
+    test('verify deletion of signing private key throws exception', () {
+      inboundConnection.metadata.isAuthenticated = true;
+      var command = 'delete:$alice:${AtConstants.atSigningPrivateKey}$alice';
       expect(
-          () => handler.processVerb(Response(), paramsMap, inboundConnection),
+          () => handler.processInternal(command, inboundConnection),
           throwsA(
               predicate((exception) => exception is UnAuthorizedException)));
     });
 
-    test('verify deletion of encryption public key', () {
-      var command = 'delete:$AT_ENCRYPTION_PUBLIC_KEY@alice';
-      var paramsMap = getVerbParam(Delete().syntax(), command);
+    test('verify deletion of encryption public key throws exception', () {
+      inboundConnection.metadata.isAuthenticated = true;
+      var command = 'delete:${AtConstants.atEncryptionPublicKey}$alice';
       expect(
-          () => handler.processVerb(Response(), paramsMap, inboundConnection),
+          () async => await handler.processInternal(command, inboundConnection),
           throwsA(
               predicate((exception) => exception is UnAuthorizedException)));
     });
 
     // the following test throws a syntax exception since delete verb handler
     // expects a key to contain its atsign; but at_pkam_publickey does not
-    test('verify deletion of pkam public key', () {
-      var command = 'delete:$AT_PKAM_PUBLIC_KEY';
-      try {
-        var paramsMap = getVerbParam(Delete().syntax(), command);
-        handler.processVerb(Response(), paramsMap, inboundConnection);
-      } on Exception catch (exception) {
-        assert(exception.toString().contains('Syntax Exception'));
-      }
+    test('verify deletion of pkam public key throws exception', () {
+      inboundConnection.metadata.isAuthenticated = true;
+      var command = 'delete:${AtConstants.atPkamPublicKey}';
+      expect(
+          () => handler.processInternal(command, inboundConnection),
+          throwsA(
+              predicate((exception) => exception is InvalidSyntaxException)));
+    });
+
+    test('verify deletion of cached encryption public key', () async {
+      inboundConnection.metadata.isAuthenticated = true;
+      var command = 'delete:cached:${AtConstants.atEncryptionPublicKey}$alice';
+      Response response =
+          await handler.processInternal(command, inboundConnection);
+      // expected response.data is an integer
+      // parsing data without exception should indicate that response is an int
+      expect(int.parse(response.data!).runtimeType, int);
+      expect(response.isError, false);
+    });
+
+    test('verify deletion of cached signing private key', () async {
+      inboundConnection.metadata.isAuthenticated = true;
+      var command =
+          'delete:cached:$alice:${AtConstants.atSigningPrivateKey}$alice';
+      Response response =
+          await handler.processInternal(command, inboundConnection);
+      expect(int.parse(response.data!).runtimeType, int);
+      expect(response.isError, false);
+    });
+
+    test('verify deletion of signing public key', () async {
+      inboundConnection.metadata.isAuthenticated = true;
+      var command = 'delete:cached:${AtConstants.atSigningPublicKey}$alice';
+      Response response =
+          await handler.processInternal(command, inboundConnection);
+      expect(int.parse(response.data!).runtimeType, int);
+      expect(response.isError, false);
+    });
+
+    test('verify other atSigns may not delete data', () async {
+      inboundConnection.metadata.isPolAuthenticated = true;
+      await expectLater(
+          handler.process('delete:phone.wavi$alice', inboundConnection),
+          throwsA(isA<UnAuthenticatedException>()));
+    });
+  });
+
+  group('Tests of immutable data', () {
+    late DeleteVerbHandler deleteHandler;
+    late UpdateVerbHandler updateHandler;
+
+    setUp(() async {
+      await verbTestsSetUp();
+
+      inboundConnection.metaData.isAuthenticated = true;
+      deleteHandler = DeleteVerbHandler(
+        secondaryKeyStore,
+        StatsNotificationService.getInstance(),
+        notificationManager,
+      );
+      updateHandler = UpdateVerbHandler(
+        secondaryKeyStore,
+        StatsNotificationService.getInstance(),
+        notificationManager,
+        alice,
+      );
+    });
+
+    test('delete immutable record without force flag', () async {
+      String key = 'immutable1.wavi$alice';
+      await secondaryKeyStore.remove(key);
+      await updateHandler.process(
+        'update:immutable:true:$key Some data',
+        inboundConnection,
+      );
+      await expectLater(
+        deleteHandler.process('delete:$key', inboundConnection),
+        throwsA(isA<IllegalStateException>()),
+      );
+    });
+    test('delete immutable record with force flag', () async {
+      String key = 'immutable2.wavi$alice';
+      await secondaryKeyStore.remove(key);
+      await updateHandler.process(
+        'update:immutable:true:$key Some data',
+        inboundConnection,
+      );
+      await deleteHandler.process('delete:force:$key', inboundConnection);
+      await expectLater(
+        secondaryKeyStore.get(key),
+        throwsA(isA<KeyNotFoundException>()),
+      );
+    });
+    test('delete immutable cached record without force flag', () async {
+      String key = 'cached:$alice:immutable3.wavi@bob';
+      await secondaryKeyStore.remove(key);
+      await secondaryKeyStore.put(
+          key,
+          AtData()
+            ..data = 'some data'
+            ..metaData = (AtMetaData()..immutable = true));
+      await deleteHandler.process('delete:$key', inboundConnection);
+      await expectLater(
+        secondaryKeyStore.get(key),
+        throwsA(isA<KeyNotFoundException>()),
+      );
+    });
+    test('delete immutable cached record with force flag', () async {
+      String key = 'cached:$alice:immutable3.wavi@bob';
+      await secondaryKeyStore.remove(key);
+      await secondaryKeyStore.put(
+          key,
+          AtData()
+            ..data = 'some data'
+            ..metaData = (AtMetaData()..immutable = true));
+      await deleteHandler.process('delete:force:$key', inboundConnection);
+      await expectLater(
+        secondaryKeyStore.get(key),
+        throwsA(isA<KeyNotFoundException>()),
+      );
     });
   });
 
@@ -188,7 +310,7 @@ void main() {
     });
   });
 
-  group('A group of tests related to APKAM enrollment', () {
+  group('A group of tests related to APKAM enrollment and authorization', () {
     Response response = Response();
     String enrollmentId;
 
@@ -212,23 +334,29 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
       // Delete a key with wavi namespace
       String deleteCommand = 'delete:$alice:phone.wavi$alice';
       HashMap<String, String?> deleteVerbParams =
           getVerbParam(VerbSyntax.delete, deleteCommand);
-      DeleteVerbHandler deleteVerbHandler =
-          DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
+      DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+      );
       await deleteVerbHandler.processVerb(
           response, deleteVerbParams, inboundConnection);
       expect(response.data, isNotNull);
       // Delete a key with buzz namespace
       deleteCommand = 'delete:$alice:phone.buzz$alice';
       deleteVerbParams = getVerbParam(VerbSyntax.delete, deleteCommand);
-      deleteVerbHandler =
-          DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
+      deleteVerbHandler = DeleteVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+      );
       await deleteVerbHandler.processVerb(
           response, deleteVerbParams, inboundConnection);
       expect(response.data, isNotNull);
@@ -250,25 +378,29 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
 
       String deleteCommand = 'delete:dummykey.wavi$alice';
       HashMap<String, String?> deleteVerbParams =
           getVerbParam(VerbSyntax.delete, deleteCommand);
-      DeleteVerbHandler deleteVerbHandler =
-          DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
+      DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+      );
       expect(
           () async => await deleteVerbHandler.processVerb(
               response, deleteVerbParams, inboundConnection),
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Enrollment Id: $enrollmentId is not authorized for delete operation on the key: dummykey.wavi@alice')));
+                  'Connection with enrollment ID $enrollmentId is not authorized to delete key: dummykey.wavi$alice')));
     });
 
-    test('A test to verify keys with unauthorized namespace are not deleted',
+    test(
+        'A test to verify delete verb is not allowed when enrollment does not have write access to namespace',
         () async {
       inboundConnection.metadata.isAuthenticated =
           true; // owner connection, authenticated
@@ -283,15 +415,18 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
 
       String deleteCommand = 'delete:dummykey.wavi$alice';
       HashMap<String, String?> deleteVerbParams =
           getVerbParam(VerbSyntax.delete, deleteCommand);
-      DeleteVerbHandler deleteVerbHandler =
-          DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
+      DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+      );
       await deleteVerbHandler.processVerb(
           response, deleteVerbParams, inboundConnection);
       expect(response.data, isNotNull);
@@ -304,7 +439,124 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Enrollment Id: $enrollmentId is not authorized for delete operation on the key: dummykey.buzz@alice')));
+                  'Connection with enrollment ID $enrollmentId is not authorized to delete key: dummykey.buzz$alice')));
+    });
+
+    test('A test to verify delete verb is allowed if key is a reserved key',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      String deleteCommand = 'delete:$bob:shared_key$alice';
+      HashMap<String, String?> deleteVerbParams =
+          getVerbParam(VerbSyntax.delete, deleteCommand);
+      DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+      );
+      await deleteVerbHandler.processVerb(
+          response, deleteVerbParams, inboundConnection);
+      expect(response.isError, false);
+      expect(response.data, isNotNull);
+    });
+    test(
+        'A test to verify delete is allowed on a reserved key for an enrollment with a specific namespace access',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+      String deleteCommand = 'delete:$bob:shared_key$alice';
+      HashMap<String, String?> deleteVerbParams =
+          getVerbParam(VerbSyntax.delete, deleteCommand);
+      DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+      );
+      await deleteVerbHandler.processVerb(
+          response, deleteVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      expect(response.isError, false);
+    });
+    test(
+        'A test to verify delete is allowed on a key without a namespace for an enrollment with * namespace access',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'*': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+      String deleteCommand = 'delete:$alice:secretdata$alice';
+      HashMap<String, String?> deleteVerbParams =
+          getVerbParam(VerbSyntax.delete, deleteCommand);
+      DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+      );
+      await deleteVerbHandler.processVerb(
+          response, deleteVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      expect(response.isError, false);
+    });
+    test(
+        'A test to verify delete is denied on a key without a namespace for an enrollment with specific namespace access',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+      String deleteCommand = 'delete:$alice:secretdata$alice';
+      HashMap<String, String?> deleteVerbParams =
+          getVerbParam(VerbSyntax.delete, deleteCommand);
+      DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+      );
+      expect(
+          () async => await deleteVerbHandler.processVerb(
+              response, deleteVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $enrollmentId is not authorized to delete key: $alice:secretdata$alice')));
     });
     tearDown(() async => await verbTestsTearDown());
   });
@@ -336,23 +588,74 @@ void main() {
           'approval': {'state': operation}
         };
         await secondaryKeyStore.put(
-            '$enrollmentId.new.enrollments.__manage@alice',
+            '$enrollmentId.new.enrollments.__manage$alice',
             AtData()..data = jsonEncode(enrollJson));
         inboundConnection.metadata.enrollmentId = enrollmentId;
         String deleteCommand = 'delete:$alice:dummykey.wavi$alice';
-        HashMap<String, String?> updateVerbParams =
+        HashMap<String, String?> deleteVerbParams =
             getVerbParam(VerbSyntax.delete, deleteCommand);
-        DeleteVerbHandler deleteVerbHandler =
-            DeleteVerbHandler(secondaryKeyStore, statsNotificationService);
+        DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
+          secondaryKeyStore,
+          statsNotificationService,
+          notificationManager,
+        );
         expect(
             () async => await deleteVerbHandler.processVerb(
-                response, updateVerbParams, inboundConnection),
+                response, deleteVerbParams, inboundConnection),
             throwsA(predicate((dynamic e) =>
                 e is UnAuthorizedException &&
                 e.message ==
-                    'Enrollment Id: $enrollmentId is not authorized for delete operation on the key: @alice:dummykey.wavi@alice')));
+                    'Connection with enrollment ID $enrollmentId is not authorized to delete key: $alice:dummykey.wavi$alice')));
       });
     }
     tearDown(() async => await verbTestsTearDown());
+  });
+
+  group('A group of tests related to apkam keys expiry', () {
+    Response response = Response();
+    late String enrollmentId;
+
+    setUp(() async {
+      await verbTestsSetUp();
+    });
+
+    tearDown(() async => await verbTestsTearDown());
+
+    test('A test to verify delete verb fails when apkam keys are expired',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'dummy-session', 'app-name', 'my-device', 'dummy-public-key');
+      enrollDataStoreValue.namespaces = {'wavi': 'rw'};
+      enrollDataStoreValue.approval =
+          EnrollApproval(EnrollmentStatus.approved.name);
+      enrollDataStoreValue.apkamKeysExpiryDuration = Duration(milliseconds: 1);
+
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
+      await secondaryKeyStore.put(
+          keyName,
+          AtData()
+            ..data = jsonEncode(enrollDataStoreValue.toJson())
+            ..metaData = (AtMetaData()..ttl = 1));
+
+      // wait for the enrollment to expire
+      await Future.delayed(Duration(milliseconds: 1));
+      String deleteCommand = 'delete:$alice:phone.wavi$alice';
+
+      DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+      );
+      response = await deleteVerbHandler.processInternal(
+          deleteCommand, inboundConnection);
+      expect(response.isError, true);
+      expect(response.errorCode, 'AT0028');
+      expect(response.errorMessage,
+          'The enrollment id: $enrollmentId is expired. Closing the connection');
+    });
   });
 }

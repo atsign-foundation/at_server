@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_utils/at_logger.dart';
@@ -55,13 +55,8 @@ class StatsNotificationService {
   final _logger = AtSignLogger('StatsNotificationService');
   late String currentAtSign;
   AtCommitLog? atCommitLog;
-  InboundConnectionPool inboundConnectionPool =
-      InboundConnectionPool.getInstance();
 
   static final Duration zeroDuration = Duration(microseconds: 0);
-
-  // Counter for number of active monitor connections. Used for logging purpose.
-  int numOfMonitorConn = 0;
 
   Notification notification = Notification.empty();
 
@@ -110,16 +105,13 @@ class StatsNotificationService {
         await AtCommitLogManagerImpl.getInstance().getCommitLog(currentAtSign);
 
     // Runs the _schedule method as long as server is up and running.
-    timer = Timer.periodic(interval, (timer) {
+    timer = Timer.periodic(interval, (timer) async {
       try {
         _logger.finer('Stats Notification Job triggered');
-        writeStatsToMonitor();
+        await writeStatsToMonitor();
         _logger.finer('Stats Notification Job completed');
-      } on Exception catch (exception) {
-        _logger.severe(
-            'Exception occurred when writing stats ${exception.toString()}');
-      } on Error catch (error) {
-        _logger.severe('Error occurred when writing stats ${error.toString()}');
+      } catch (e) {
+        _logger.severe('Exception while writing stats: $e');
       }
     });
     state = StatsNotificationServiceState.scheduled;
@@ -133,39 +125,50 @@ class StatsNotificationService {
   }
 
   /// Writes the lastCommitID to all Monitor connections
-  void writeStatsToMonitor({String? latestCommitID, String? operationType}) {
-    try {
-      latestCommitID ??= atCommitLog!.lastCommittedSequenceNumber().toString();
-      // Gets the list of active connections.
-      var connectionsList = inboundConnectionPool.getConnections();
-      // Iterates on the list of active connections.
-      for (var connection in connectionsList) {
-        if (connection.isMonitor != null && connection.isMonitor!) {
-          numOfMonitorConn = numOfMonitorConn + 1;
-          // Set notification fields
-          notification
-            ..id = '-1'
-            ..fromAtSign = currentAtSign
-            ..notification = 'statsNotification.$currentAtSign'
-            ..toAtSign = currentAtSign
-            ..dateTime = DateTime.now().toUtc().millisecondsSinceEpoch
-            ..operation = SecondaryUtil.getOperationType(operationType)
-                .toString()
-                .replaceAll('OperationType.', '')
-            ..value = latestCommitID
-            ..messageType = MessageType.key.toString()
-            ..isTextMessageEncrypted = false;
+  Future<void> writeStatsToMonitor(
+      {String? latestCommitID, String? operationType}) async {
+    latestCommitID ??= atCommitLog!.lastCommittedSequenceNumber().toString();
+    // Gets the list of active connections.
+    var connectionsList = AtSecondaryServerImpl.getInstance()
+        .inboundConnectionManager
+        .pool
+        .getConnections();
+    if (connectionsList.isEmpty) {
+      _logger.finer('No stats written. (No connections.)');
+      return;
+    }
+    // For each inbound connection: if it is a monitor, write stats
+    int numOfMonitorConn = 0;
+    notification
+      ..id = '-1'
+      ..fromAtSign = currentAtSign
+      ..notification = 'statsNotification.$currentAtSign'
+      ..toAtSign = currentAtSign
+      ..dateTime = DateTime.now().toUtc().millisecondsSinceEpoch
+      ..operation = SecondaryUtil.getOperationType(operationType)
+          .toString()
+          .replaceAll('OperationType.', '')
+      ..value = latestCommitID
+      ..messageType = MessageType.key.toString()
+      ..isTextMessageEncrypted = false;
+    for (var connection in connectionsList) {
+      if (connection.isMonitor ?? false) {
+        numOfMonitorConn++;
+        try {
           // Convert notification object to JSON and write to connection
-          connection
-              .write('notification: ${jsonEncode(notification.toJson())}\n');
+          await connection.write('notification:'
+              ' ${jsonEncode(notification.toJson())}\n');
+        } catch (e) {
+          _logger.severe('Exception occurred when writing stats to'
+              ' inbound connection session ${connection.metaData.sessionID}'
+              ' : ${e.toString()}');
         }
       }
-      if (numOfMonitorConn == 0) {
-        _logger.finer(
-            'No monitor connections found. Skipping writing stats to monitor connection');
-      }
-    } finally {
-      numOfMonitorConn = 0;
+    }
+    if (numOfMonitorConn == 0) {
+      _logger.finer('No stats written. (No monitor connections.)');
+    } else {
+      _logger.info('Wrote stats to $numOfMonitorConn monitor connections');
     }
   }
 }

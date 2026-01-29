@@ -87,7 +87,7 @@ class AccessLogKeyStore
 
   /// Returns the list of expired keys.
   /// @param expiryInDays - The count of days after which the keys expires
-  /// @return List<dynamic> - The list of expired keys.
+  /// @return `List<dynamic>` - The list of expired keys.
   @override
   Future<List<dynamic>> getExpired(int expiryInDays) async {
     var expiredKeys = <dynamic>[];

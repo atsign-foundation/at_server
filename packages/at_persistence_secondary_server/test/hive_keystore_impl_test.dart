@@ -9,6 +9,8 @@ import 'package:crypto/crypto.dart';
 import 'package:hive/hive.dart';
 import 'package:test/test.dart';
 
+import 'test_utils.dart';
+
 void main() async {
   var storageDir = '${Directory.current.path}/test/hive';
   group('A group of hive keystore impl tests', () {
@@ -82,14 +84,18 @@ void main() async {
           ..encAlgo = 'AES/CTR/PKCS7Padding'
           ..ivNonce = 'someIvNonce'
           ..skeEncKeyName = 'someSkeEncKeyName'
-          ..skeEncAlgo = 'someSkeEncAlgo';
-        var atMetaData = AtMetaData.fromCommonsMetadata(commonsMetadata);
+          ..skeEncAlgo = 'someSkeEncAlgo'
+          ..pubKeyHash = PublicKeyHash('someHashValue', 'sha512');
+        var atMetaData =
+            AtMetaData.fromCommonsMetadata(commonsMetadata, '@test_user_1');
         atData.metaData = atMetaData;
         await keyStore.create(key, atData);
 
         var dataFromHive = await (keyStore.get(key));
         expect(dataFromHive?.data, 'india');
         expect(dataFromHive?.metaData, atMetaData);
+        expect(dataFromHive?.metaData?.pubKeyHash?.hash, 'someHashValue');
+        expect(dataFromHive?.metaData?.pubKeyHash?.hashingAlgo, 'sha512');
 
         var updateData = AtData();
         var updateMetaData =
@@ -209,8 +215,8 @@ void main() async {
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
-      await keyStore.create('phone.wavi@test_user_1', atData,
-          time_to_live: 6000);
+      atData.metaData = AtMetaData()..ttl = 6000;
+      await keyStore.create('phone.wavi@test_user_1', atData);
       var dataFromHive = await (keyStore.get('phone.wavi@test_user_1'));
       expect(dataFromHive?.data, '123');
       expect(dataFromHive?.metaData, isNotNull);
@@ -223,8 +229,10 @@ void main() async {
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
-      await keyStore.create('phone.wavi@test_user_1', atData,
-          sharedKeyEncrypted: 'abc', publicKeyChecksum: 'xyz');
+      atData.metaData = AtMetaData()
+        ..sharedKeyEnc = 'abc'
+        ..pubKeyCS = 'xyz';
+      await keyStore.create('phone.wavi@test_user_1', atData);
       var dataFromHive = await (keyStore.get('phone.wavi@test_user_1'));
       expect(dataFromHive?.data, '123');
       expect(dataFromHive?.metaData, isNotNull);
@@ -290,6 +298,106 @@ void main() async {
       atData.data = '123';
       await expectLater(keyStore.put('hello@', atData),
           throwsA(predicate((dynamic e) => e is InvalidAtKeyException)));
+    });
+
+    test('test put max key length exceeded', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      var key = '${TestUtils.generateRandomString(245)}@test_user_1';
+      await expectLater(
+          keyStore.put(key, atData),
+          throwsA(predicate((dynamic e) =>
+              e is DataStoreException &&
+              e.message ==
+                  "key length ${key.length} is greater than max allowed ${HiveKeystore.maxKeyLengthWithoutCached} chars")));
+      var cachedKey =
+          'cached:public:${TestUtils.generateRandomString(245)}@test_user_1';
+      await expectLater(
+          keyStore.put(cachedKey, atData),
+          throwsA(predicate((dynamic e) =>
+              e is DataStoreException &&
+              e.message ==
+                  "key length ${cachedKey.length} is greater than max allowed ${HiveKeystore.maxKeyLength} chars")));
+    });
+    test('test put key length 248 chars should pass', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      var key = '${TestUtils.generateRandomString(236)}@test_user_1';
+      var result = await keyStore.put(key, atData);
+      expect(result >= 0, true);
+    });
+    tearDown(() async => await tearDownFunc(atSign));
+
+    test('test create max key length exceeded', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      var key = '${TestUtils.generateRandomString(245)}@test_user_1';
+      await expectLater(
+          keyStore.create(key, atData),
+          throwsA(predicate((dynamic e) =>
+              e is DataStoreException &&
+              e.message ==
+                  "key length ${key.length} is greater than max allowed ${HiveKeystore.maxKeyLengthWithoutCached} chars")));
+      var cachedKey =
+          'cached:public:${TestUtils.generateRandomString(250)}@test_user_1';
+      await expectLater(
+          keyStore.create(cachedKey, atData),
+          throwsA(predicate((dynamic e) =>
+              e is DataStoreException &&
+              e.message ==
+                  "key length ${cachedKey.length} is greater than max allowed ${HiveKeystore.maxKeyLength} chars")));
+    });
+    test('test create key length 248 chars should pass', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      var key = '${TestUtils.generateRandomString(236)}@test_user_1';
+      var result = await keyStore.create(key, atData);
+      expect(result >= 0, true);
+    });
+    test('test putAll max key length exceeded', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      var key = '${TestUtils.generateRandomString(250)}@test_user_1';
+      await expectLater(
+          keyStore.putAll(key, atData, AtMetaData()),
+          throwsA(predicate((dynamic e) =>
+              e is DataStoreException &&
+              e.message ==
+                  "key length ${key.length} is greater than max allowed ${HiveKeystore.maxKeyLengthWithoutCached} chars")));
+      var cachedKey =
+          'cached:public:${TestUtils.generateRandomString(270)}@test_user_1';
+      await expectLater(
+          keyStore.putAll(cachedKey, atData, AtMetaData()),
+          throwsA(predicate((dynamic e) =>
+              e is DataStoreException &&
+              e.message ==
+                  "key length ${cachedKey.length} is greater than max allowed ${HiveKeystore.maxKeyLength} chars")));
+    });
+    test('test putAll key length 248 chars should pass', () async {
+      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var atData = AtData();
+      atData.data = '123';
+      var key = '${TestUtils.generateRandomString(236)}@test_user_1';
+      var result = await keyStore.putAll(key, atData, AtMetaData());
+      expect(result, isNotNull);
+      expect(result! >= 0, true);
     });
     tearDown(() async => await tearDownFunc(atSign));
   });
@@ -599,9 +707,12 @@ void main() async {
         ..data = 'updated_value'
         ..metaData = (AtMetaData()
           ..ttl = 0
-          ..ttr = -1);
-      await keystore?.put('dummykey.wavi@test_user_1', updatedAtData,
-          time_to_born: null);
+          ..ttr = -1
+          ..ttb = null);
+      await keystore?.put(
+        'dummykey.wavi@test_user_1',
+        updatedAtData,
+      );
       AtMetaData? atMetaData =
           await keystore?.getMeta('dummykey.wavi@test_user_1');
       expect(atMetaData?.ttr, -1);
@@ -674,11 +785,12 @@ void main() async {
       for (int i = 0; i < 30; i++) {
         //inserting random metaData to induce variance in data
         metaData = AtMetadataBuilder(
-                ttl: 12000 + i.toInt(),
-                ttb: i,
-                atSign: '@atsign_$i',
-                isBinary: true)
-            .build();
+          newAtMetaData: AtMetaData()
+            ..ttl = 12000 + i.toInt()
+            ..ttb = i
+            ..isBinary = true,
+          atSign: '@atsign_$i',
+        ).build();
 
         atData.data = 'value_test_$i';
         atData.metaData = metaData;

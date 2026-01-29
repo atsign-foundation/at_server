@@ -13,16 +13,23 @@ import 'package:at_secondary/src/verb/handler/from_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
-import 'package:mocktail/mocktail.dart';
 
-class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
+import 'test_utils.dart';
 
 void main() {
-  SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+  late SecondaryKeyStore mockKeyStore;
+  late FakeSocket mockSocket;
+
+  verbTestsSetUpLogging();
 
   var storageDir = '${Directory.current.path}/test/hive';
   late SecondaryKeyStoreManager keyStoreManager;
-  setUp(() async => keyStoreManager = await setUpFunc(storageDir));
+  setUp(() async {
+    mockKeyStore = MockSecondaryKeyStore();
+    mockSocket = FakeSocket();
+    keyStoreManager = await setUpFunc(storageDir);
+  });
+
   group('A group of cram verb regex test', () {
     test('test from correct syntax with digest', () {
       var verb = Cram();
@@ -69,12 +76,12 @@ void main() {
       var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl.getInstance().currentAtSign = '@test_user_1';
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       var fromVerbParams = HashMap<String, String>();
       fromVerbParams.putIfAbsent('atSign', () => 'test_user_1');
       var response = Response();
       await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
-      var fromResponse = response.data!.replaceFirst('data:', '');
+      var fromResponse = response.data!.replaceFirst(RegExp('^data:'), '');
       var cramVerbParams = HashMap<String, String>();
       var combo = '${secretData.data}$fromResponse';
       var bytes = utf8.encode(combo);
@@ -84,7 +91,7 @@ void main() {
       var cramResponse = Response();
       await verbHandler.processVerb(cramResponse, cramVerbParams, atConnection);
       var connectionMetadata =
-          atConnection.getMetaData() as InboundConnectionMetadata;
+          atConnection.metaData as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
     });
@@ -98,7 +105,7 @@ void main() {
       var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl.getInstance().currentAtSign = '@test_user_1';
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       var fromVerbParams = HashMap<String, String>();
       fromVerbParams.putIfAbsent('atSign', () => 'test_user_1');
       var response = Response();
@@ -111,7 +118,7 @@ void main() {
       var verbHandler = CramVerbHandler(keyStoreManager.getKeyStore());
       var cramResponse = Response();
       var connectionMetadata =
-          atConnection.getMetaData() as InboundConnectionMetadata;
+          atConnection.metaData as InboundConnectionMetadata;
       expect(
           () async => await verbHandler.processVerb(
               cramResponse, cramVerbParams, atConnection),
@@ -123,7 +130,7 @@ void main() {
       var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
       AtSecondaryServerImpl.getInstance().currentAtSign = '@test_user_1';
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       var fromVerbParams = HashMap<String, String>();
       fromVerbParams.putIfAbsent('atSign', () => 'test_user_1');
       var response = Response();
@@ -136,7 +143,7 @@ void main() {
       var verbHandler = CramVerbHandler(keyStoreManager.getKeyStore());
       var cramResponse = Response();
       var connectionMetadata =
-          atConnection.getMetaData() as InboundConnectionMetadata;
+          atConnection.metaData as InboundConnectionMetadata;
       expect(
           () async => await verbHandler.processVerb(
               cramResponse, cramVerbParams, atConnection),

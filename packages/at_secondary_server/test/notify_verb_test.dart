@@ -1,39 +1,46 @@
 import 'dart:collection';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/notification/at_notification_map.dart';
+import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/queue_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/from_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/notify_all_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_fetch_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/notify_remove_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/notify_status_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:crypto/crypto.dart';
-import 'package:test/test.dart';
+import 'package:crypton/crypton.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:test/test.dart';
+import 'package:uuid/uuid.dart';
 
-class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
-
-class MockOutboundClientManager extends Mock implements OutboundClientManager {}
+import 'test_utils.dart';
 
 void main() {
   SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
+  FakeSocket mockSocket = FakeSocket();
+  NotificationManager mockNotificationManager = MockNotificationManager();
 
-  var storageDir = '${Directory.current.path}/test/hive';
-  late SecondaryKeyStoreManager keyStoreManager;
+  verbTestsSetUpLogging();
+
+  setUpAll(() async {
+    await verbTestsSetUpAll();
+  });
 
   group('A group of notify verb regex test', () {
     test('test notify for self atsign', () {
@@ -41,9 +48,9 @@ void main() {
       var command = 'notify:notifier:persona:@colin:email@colin';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'email');
-      expect(paramsMap[AT_SIGN], 'colin');
-      expect(paramsMap[FOR_AT_SIGN], 'colin');
+      expect(paramsMap[AtConstants.atKey], 'email');
+      expect(paramsMap[AtConstants.atSign], 'colin');
+      expect(paramsMap[AtConstants.forAtSign], 'colin');
     });
 
     test('test notify for different atsign', () {
@@ -51,44 +58,45 @@ void main() {
       var command = 'notify:notifier:persona:@bob:email@colin';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'email');
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
-      expect(paramsMap[AT_SIGN], 'colin');
+      expect(paramsMap[AtConstants.atKey], 'email');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
+      expect(paramsMap[AtConstants.atSign], 'colin');
     });
   });
 
   group('A group of notify accept tests', () {
+    AtSecondaryServerImpl.getInstance().currentAtSign = alice;
     test('test notify command accept test', () {
       var command = 'notify:@colin:location@colin';
-      var handler = NotifyVerbHandler(mockKeyStore);
+      var handler = NotifyVerbHandler(mockKeyStore, mockNotificationManager);
       var result = handler.accept(command);
       expect(result, true);
     });
 
     test('test notify command accept test for different atsign', () {
       var command = 'notify:@bob:location@colin';
-      var handler = NotifyVerbHandler(mockKeyStore);
+      var handler = NotifyVerbHandler(mockKeyStore, mockNotificationManager);
       var result = handler.accept(command);
       expect(result, true);
     });
 
     test('test notify command accept negative test without WhomToNotify', () {
       var command = 'notify location@colin';
-      var handler = NotifyVerbHandler(mockKeyStore);
+      var handler = NotifyVerbHandler(mockKeyStore, mockNotificationManager);
       var result = handler.accept(command);
       expect(result, false);
     });
 
     test('test notify command accept negative test without from AtSign', () {
       var command = 'notify:@colin:location';
-      var handler = NotifyVerbHandler(mockKeyStore);
+      var handler = NotifyVerbHandler(mockKeyStore, mockNotificationManager);
       var result = handler.accept(command);
       expect(result, true);
     });
 
     test('test notify command accept negative test without what to notify', () {
       var command = 'notify:@bob:@colin';
-      var handler = NotifyVerbHandler(mockKeyStore);
+      var handler = NotifyVerbHandler(mockKeyStore, mockNotificationManager);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -96,16 +104,16 @@ void main() {
     test(
         'test to verify unauthorized exception is thrown when sharedBy atSign is not currentAtSign',
         () {
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
-      var notifyVerb = NotifyVerbHandler(mockKeyStore);
-      var inboundConnection = InboundConnectionImpl(null, '123');
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
+      var notifyVerb = NotifyVerbHandler(mockKeyStore, mockNotificationManager);
+      var inboundConnection = InboundConnectionImpl(mockSocket, '123');
       inboundConnection.metaData = InboundConnectionMetadata()
         ..isAuthenticated = true;
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
-      notifyVerbParams.putIfAbsent(FOR_AT_SIGN, () => '@bob');
-      notifyVerbParams.putIfAbsent(AT_KEY, () => 'phone');
-      notifyVerbParams.putIfAbsent(AT_SIGN, () => '@colin');
+      notifyVerbParams.putIfAbsent(AtConstants.forAtSign, () => '@bob');
+      notifyVerbParams.putIfAbsent(AtConstants.atKey, () => 'phone');
+      notifyVerbParams.putIfAbsent(AtConstants.atSign, () => '@colin');
 
       expect(
           () => notifyVerb.processVerb(
@@ -117,7 +125,7 @@ void main() {
   group('A group of notify verb regex - invalid syntax', () {
     test('test notify without whom to notify', () {
       var verb = Notify();
-      var command = 'notify:location@alice ';
+      var command = 'notify:location$alice ';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -146,7 +154,7 @@ void main() {
 
     test('test notify key- invalid keyword', () {
       var verb = Notify();
-      var command = 'notification:@colin:location@alice';
+      var command = 'notification:@colin:location$alice';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -156,7 +164,7 @@ void main() {
 
     test('test notify verb - no key', () {
       var verb = Notify();
-      var command = 'notify:@colin:@alice';
+      var command = 'notify:@colin:$alice';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -165,17 +173,17 @@ void main() {
     });
 
     test('test notify verb - invalid ttl value', () {
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
-      var notifyVerb = NotifyVerbHandler(mockKeyStore);
-      var inboundConnection = InboundConnectionImpl(null, '123');
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
+      var notifyVerb = NotifyVerbHandler(mockKeyStore, mockNotificationManager);
+      var inboundConnection = InboundConnectionImpl(mockSocket, '123');
       inboundConnection.metaData = InboundConnectionMetadata()
         ..isAuthenticated = true;
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttl', () => '-1');
-      notifyVerbParams.putIfAbsent(FOR_AT_SIGN, () => '@bob');
-      notifyVerbParams.putIfAbsent(AT_KEY, () => 'phone');
-      notifyVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
+      notifyVerbParams.putIfAbsent(AtConstants.forAtSign, () => '@bob');
+      notifyVerbParams.putIfAbsent(AtConstants.atKey, () => 'phone');
+      notifyVerbParams.putIfAbsent(AtConstants.atSign, () => alice);
 
       expect(
           () => notifyVerb.processVerb(
@@ -184,17 +192,17 @@ void main() {
     });
 
     test('test notify verb - invalid ttb value', () {
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
-      var notifyVerb = NotifyVerbHandler(mockKeyStore);
-      var inboundConnection = InboundConnectionImpl(null, '123');
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
+      var notifyVerb = NotifyVerbHandler(mockKeyStore, mockNotificationManager);
+      var inboundConnection = InboundConnectionImpl(mockSocket, '123');
       inboundConnection.metaData = InboundConnectionMetadata()
         ..isAuthenticated = true;
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttb', () => '-1');
-      notifyVerbParams.putIfAbsent(FOR_AT_SIGN, () => '@bob');
-      notifyVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
-      notifyVerbParams.putIfAbsent(AT_KEY, () => 'phone');
+      notifyVerbParams.putIfAbsent(AtConstants.forAtSign, () => '@bob');
+      notifyVerbParams.putIfAbsent(AtConstants.atSign, () => alice);
+      notifyVerbParams.putIfAbsent(AtConstants.atKey, () => 'phone');
       expect(
           () => notifyVerb.processVerb(
               notifyResponse, notifyVerbParams, inboundConnection),
@@ -202,17 +210,17 @@ void main() {
     });
 
     test('test notify verb - ttr = -2 invalid value ', () {
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
-      var notifyVerb = NotifyVerbHandler(mockKeyStore);
-      var inboundConnection = InboundConnectionImpl(null, '123');
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
+      var notifyVerb = NotifyVerbHandler(mockKeyStore, mockNotificationManager);
+      var inboundConnection = InboundConnectionImpl(mockSocket, '123');
       inboundConnection.metaData = InboundConnectionMetadata()
         ..isAuthenticated = true;
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttr', () => '-2');
-      notifyVerbParams.putIfAbsent(FOR_AT_SIGN, () => '@bob');
-      notifyVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
-      notifyVerbParams.putIfAbsent(AT_KEY, () => 'phone');
+      notifyVerbParams.putIfAbsent(AtConstants.forAtSign, () => '@bob');
+      notifyVerbParams.putIfAbsent(AtConstants.atSign, () => alice);
+      notifyVerbParams.putIfAbsent(AtConstants.atKey, () => 'phone');
       expect(
           () => notifyVerb.processVerb(
               notifyResponse, notifyVerbParams, inboundConnection),
@@ -220,15 +228,17 @@ void main() {
     });
 
     test('test notify key- invalid command', () {
-      var command = 'notify:location@alice';
-      AbstractVerbHandler handler = NotifyVerbHandler(mockKeyStore);
+      var command = 'notify:location$alice';
+      AbstractVerbHandler handler =
+          NotifyVerbHandler(mockKeyStore, mockNotificationManager);
       expect(() => handler.parse(command),
           throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
 
     test('test notify key- invalid ccd value', () {
-      var command = 'notify:update:ttr:1000:ccd:test:location@alice';
-      AbstractVerbHandler handler = NotifyVerbHandler(mockKeyStore);
+      var command = 'notify:update:ttr:1000:ccd:test:location$alice';
+      AbstractVerbHandler handler =
+          NotifyVerbHandler(mockKeyStore, mockNotificationManager);
       expect(() => handler.parse(command),
           throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
@@ -237,15 +247,16 @@ void main() {
         'A test to verify unauthenticated exception is thrown when connection is unauthenticated',
         () async {
       var verb = Notify();
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
 
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
 
       var command = 'notify:update:messagetype:text:@bob:hello';
       var regex = verb.syntax();
 
-      var notifyVerbHandler = NotifyVerbHandler(mockKeyStore);
+      var notifyVerbHandler =
+          NotifyVerbHandler(mockKeyStore, mockNotificationManager);
       var notifyResponse = Response();
       var notifyVerbParams = getVerbParam(regex, command);
       expect(
@@ -261,182 +272,141 @@ void main() {
   group('A group of notify verb handler test', () {
     test('notify verb with upper case', () {
       var verb = Notify();
-      var command = 'NOTIFY:notifier:persona:@bob:location@alice';
+      var command = 'NOTIFY:notifier:persona:@bob:location$alice';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
-      expect(paramsMap[AT_SIGN], 'alice');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
+      expect(paramsMap[AtConstants.atSign], 'alice');
     });
 
     test('notify verb and value with mixed case', () {
       var verb = Notify();
-      var command = 'NoTiFy:notifier:persona:@bob:location@alice';
+      var command = 'NoTiFy:notifier:persona:@bob:location$alice';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
-      expect(paramsMap[AT_SIGN], 'alice');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
+      expect(paramsMap[AtConstants.atSign], 'alice');
     });
 
     test('notify verb with cascade delete is true', () {
       var verb = Notify();
       var command =
-          'notify:update:notifier:persona:ttr:10000:ccd:true:@bob:location@alice';
+          'notify:update:notifier:persona:ttr:10000:ccd:true:@bob:location$alice';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[OPERATION], 'update');
-      expect(paramsMap[AT_TTR], '10000');
-      expect(paramsMap[CCD], 'true');
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
-      expect(paramsMap[AT_SIGN], 'alice');
+      expect(paramsMap[AtConstants.operation], 'update');
+      expect(paramsMap[AtConstants.ttr], '10000');
+      expect(paramsMap[AtConstants.ccd], 'true');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
+      expect(paramsMap[AtConstants.atSign], 'alice');
     });
 
     test('notify verb with cascade delete is false', () {
       var verb = Notify();
       var command =
-          'notify:update:notifier:persona:ttr:10000:ccd:false:@bob:location@alice';
+          'notify:update:notifier:persona:ttr:10000:ccd:false:@bob:location$alice';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[OPERATION], 'update');
-      expect(paramsMap[AT_TTR], '10000');
-      expect(paramsMap[CCD], 'false');
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
-      expect(paramsMap[AT_SIGN], 'alice');
+      expect(paramsMap[AtConstants.operation], 'update');
+      expect(paramsMap[AtConstants.ttr], '10000');
+      expect(paramsMap[AtConstants.ccd], 'false');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
+      expect(paramsMap[AtConstants.atSign], 'alice');
     });
   });
 
   group('A group of hive related test cases', () {
-    setUp(() async => keyStoreManager = await setUpFunc(storageDir));
+    setUp(() async => await verbTestsSetUp());
+    tearDown(() async => await verbTestsTearDown());
+
     test('test notify handler with update operation', () async {
-      SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
-      var secretData = AtData();
-      secretData.data =
-          'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
-      await keyStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@test_user_1';
-      var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
-      var fromVerbParams = HashMap<String, String>();
-      fromVerbParams.putIfAbsent('atSign', () => 'test_user_1');
-      var response = Response();
-      await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
-      var fromResponse = response.data!.replaceFirst('data:', '');
-      var cramVerbParams = HashMap<String, String>();
-      var combo = '${secretData.data}$fromResponse';
-      var bytes = utf8.encode(combo);
-      var digest = sha512.convert(bytes);
-      cramVerbParams.putIfAbsent('digest', () => digest.toString());
-      var cramVerbHandler = CramVerbHandler(keyStoreManager.getKeyStore());
-      var cramResponse = Response();
-      await cramVerbHandler.processVerb(
-          cramResponse, cramVerbParams, atConnection);
-      var connectionMetadata =
-          atConnection.getMetaData() as InboundConnectionMetadata;
-      expect(connectionMetadata.isAuthenticated, true);
-      expect(cramResponse.data, 'success');
+      DummyInboundConnection atConnection = DummyInboundConnection();
+      atConnection.metaData.fromAtSign = alice;
+      atConnection.metaData.isAuthenticated = true;
+
       //Notify Verb
-      var notifyVerbHandler = NotifyVerbHandler(keyStore);
+      var notifyVerbHandler =
+          NotifyVerbHandler(secondaryKeyStore, notificationManager);
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('operation', () => 'update');
-      notifyVerbParams.putIfAbsent('forAtSign', () => '@test_user_1');
-      notifyVerbParams.putIfAbsent('atSign', () => '@test_user_1');
+      notifyVerbParams.putIfAbsent('forAtSign', () => alice);
+      notifyVerbParams.putIfAbsent('atSign', () => alice);
       notifyVerbParams.putIfAbsent('atKey', () => 'phone');
       await notifyVerbHandler.processVerb(
           notifyResponse, notifyVerbParams, atConnection);
+
       //Notify list verb handler
       var notifyListVerbHandler =
-          NotifyListVerbHandler(keyStore, mockOutboundClientManager);
+          NotifyListVerbHandler(secondaryKeyStore, mockOutboundClientManager);
       var notifyListResponse = Response();
       var notifyListVerbParams = HashMap<String, String>();
-      connectionMetadata.fromAtSign = '@test_user_1';
       await notifyListVerbHandler.processVerb(
           notifyListResponse, notifyListVerbParams, atConnection);
       var notifyData = jsonDecode(notifyListResponse.data!);
-      assert(notifyData[0][ID] != null);
-      assert(notifyData[0][EPOCH_MILLIS] != null);
-      expect(notifyData[0][TO], '@test_user_1');
-      expect(notifyData[0][KEY], '@test_user_1:phone@test_user_1');
-      expect(notifyData[0][OPERATION], 'update');
+      assert(notifyData[0][AtConstants.id] != null);
+      assert(notifyData[0][AtConstants.epochMilliseconds] != null);
+      expect(notifyData[0][AtConstants.to], alice);
+      expect(notifyData[0][AtConstants.key], '$alice:phone$alice');
+      expect(notifyData[0][AtConstants.operation], 'update');
     });
 
     test('test notify handler with delete operation', () async {
-      SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
-      var secretData = AtData();
-      secretData.data =
-          'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
-      await keyStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@test_user_1';
-      var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
-      var fromVerbParams = HashMap<String, String>();
-      fromVerbParams.putIfAbsent('atSign', () => 'test_user_1');
-      var response = Response();
-      await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
-      var fromResponse = response.data!.replaceFirst('data:', '');
-      var cramVerbParams = HashMap<String, String>();
-      var combo = '${secretData.data}$fromResponse';
-      var bytes = utf8.encode(combo);
-      var digest = sha512.convert(bytes);
-      cramVerbParams.putIfAbsent('digest', () => digest.toString());
-      var cramVerbHandler = CramVerbHandler(keyStoreManager.getKeyStore());
-      var cramResponse = Response();
-      await cramVerbHandler.processVerb(
-          cramResponse, cramVerbParams, atConnection);
-      var connectionMetadata =
-          atConnection.getMetaData() as InboundConnectionMetadata;
-      expect(connectionMetadata.isAuthenticated, true);
-      expect(cramResponse.data, 'success');
+      DummyInboundConnection atConnection = DummyInboundConnection();
+      atConnection.metaData.fromAtSign = alice;
+      atConnection.metaData.isAuthenticated = true;
+
       //Notify Verb
-      var notifyVerbHandler = NotifyVerbHandler(keyStore);
+      var notifyVerbHandler =
+          NotifyVerbHandler(secondaryKeyStore, notificationManager);
       var notifyResponse = Response();
-      var notifyVerbParams = HashMap<String, String>();
-      notifyVerbParams.putIfAbsent('operation', () => 'delete');
-      notifyVerbParams.putIfAbsent('forAtSign', () => '@test_user_1');
-      notifyVerbParams.putIfAbsent('atSign', () => '@test_user_1');
-      connectionMetadata.fromAtSign = '@test_user_1';
-      notifyVerbParams.putIfAbsent('atKey', () => 'phone');
+
+      var notifyVerbParams = HashMap<String, String>.from({
+        'operation': 'delete',
+        'forAtSign': alice,
+        'atSign': alice,
+        'atKey': 'phone',
+      });
       await notifyVerbHandler.processVerb(
           notifyResponse, notifyVerbParams, atConnection);
       //Notify list verb handler
       var notifyListVerbHandler =
-          NotifyListVerbHandler(keyStore, mockOutboundClientManager);
+          NotifyListVerbHandler(secondaryKeyStore, mockOutboundClientManager);
       var notifyListResponse = Response();
       var notifyListVerbParams = HashMap<String, String>();
       await notifyListVerbHandler.processVerb(
           notifyListResponse, notifyListVerbParams, atConnection);
       var notifyData = jsonDecode(notifyListResponse.data!);
-      assert(notifyData[0][ID] != null);
-      assert(notifyData[0][EPOCH_MILLIS] != null);
-      expect(notifyData[0][TO], '@test_user_1');
-      expect(notifyData[0][KEY], '@test_user_1:phone@test_user_1');
-      expect(notifyData[0][OPERATION], 'delete');
+      assert(notifyData[0][AtConstants.id] != null);
+      assert(notifyData[0][AtConstants.epochMilliseconds] != null);
+      expect(notifyData[0][AtConstants.to], alice);
+      expect(notifyData[0][AtConstants.key], '$alice:phone$alice');
+      expect(notifyData[0][AtConstants.operation], 'delete');
     });
 
     test(
         'A test to verify notify verb params are populated when message type is text',
         () async {
       var verb = Notify();
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
-      SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
 
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       atConnection.metaData.isAuthenticated = true;
 
       var command = 'notify:update:messagetype:text:@bob:hello';
       var regex = verb.syntax();
 
-      var notifyVerbHandler = NotifyVerbHandler(keyStore);
+      var notifyVerbHandler =
+          NotifyVerbHandler(secondaryKeyStore, notificationManager);
       var notifyResponse = Response();
       var notifyVerbParams = getVerbParam(regex, command);
       await notifyVerbHandler.processVerb(
@@ -445,23 +415,48 @@ void main() {
       AtNotification? atNotification =
           await AtNotificationKeystore.getInstance().get(notifyResponse.data);
       expect(atNotification?.toAtSign, '@bob');
-      expect(atNotification?.fromAtSign, '@alice');
+      expect(atNotification?.fromAtSign, alice);
       expect(atNotification?.notification, '@bob:hello');
       expect(atNotification?.type, NotificationType.sent);
     });
-    tearDown(() async => await tearDownFunc());
+    test('test for max key length check for cached key', () async {
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
+      var notifyVerb =
+          NotifyVerbHandler(secondaryKeyStore, notificationManager);
+      var inboundConnection = InboundConnectionImpl(mockSocket, '123');
+      inboundConnection.metaData = InboundConnectionMetadata()
+        ..isPolAuthenticated = true
+        ..fromAtSign = '@bob';
+      var notifyResponse = Response();
+      var notifyVerbParams = HashMap<String, String>();
+      notifyVerbParams.putIfAbsent(AtConstants.forAtSign, () => alice);
+      var key = createRandomString(250);
+      notifyVerbParams.putIfAbsent(AtConstants.atKey, () => key);
+      notifyVerbParams.putIfAbsent(AtConstants.atSign, () => '@bob');
+      notifyVerbParams.putIfAbsent(AtConstants.ttr, () => '100');
+      expect(
+          () async => await notifyVerb.processVerb(
+              notifyResponse, notifyVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is InvalidAtKeyException &&
+              e.message ==
+                  'notification key length ${'cached:'.length + '@bob:'.length + key.length + alice.length} is greater than 255 chars')));
+    });
   });
 
+  Atsign testUser1 = '@test_user_1'.toAtsign();
+
   group('A group of notify verb test', () {
-    setUp(() async => await setUpFunc(storageDir));
+    setUp(() async => await verbTestsSetUp());
+    tearDown(() async => await verbTestsTearDown());
     test(
         'A test case to verify enqueuing error notifications increments retry count',
         () async {
       var atNotification1 = (AtNotificationBuilder()
             ..id = 'abc'
-            ..fromAtSign = '@test_user_1'
+            ..fromAtSign = alice
             ..notificationDateTime = DateTime.now()
-            ..toAtSign = '@alice'
+            ..toAtSign = testUser1
             ..notification = 'key-1'
             ..type = NotificationType.sent
             ..opType = OperationType.update
@@ -473,19 +468,18 @@ void main() {
           .build();
       var queueManager = QueueManager.getInstance();
       queueManager.enqueue(atNotification1);
-      var response = queueManager.dequeue('@alice');
+      var response = queueManager.dequeue(testUser1);
       late AtNotification atNotification;
       if (response.moveNext()) {
         atNotification = response.current;
       }
       expect(atNotification.id, 'abc');
-      expect(atNotification.fromAtSign, '@test_user_1');
-      expect(atNotification.toAtSign, '@alice');
+      expect(atNotification.fromAtSign, alice);
+      expect(atNotification.toAtSign, testUser1);
       expect(atNotification.priority, NotificationPriority.low);
       expect(atNotification.notification, 'key-1');
       expect(atNotification.retryCount, 1);
     });
-    tearDown(() async => await tearDownFunc());
   });
 
   group('A group of tests to compute notifications wait time', () {
@@ -494,10 +488,10 @@ void main() {
         () {
       var atNotification1 = (AtNotificationBuilder()
             ..id = '123'
-            ..fromAtSign = '@test_user_1'
+            ..fromAtSign = alice
             ..notificationDateTime =
                 DateTime.now().subtract(Duration(minutes: 4))
-            ..toAtSign = '@bob'
+            ..toAtSign = bob
             ..notification = 'key-1'
             ..type = NotificationType.sent
             ..opType = OperationType.update
@@ -513,10 +507,10 @@ void main() {
 
       var atNotification2 = (AtNotificationBuilder()
             ..id = '124'
-            ..fromAtSign = '@test_user_1'
+            ..fromAtSign = alice
             ..notificationDateTime =
                 DateTime.now().subtract(Duration(minutes: 4))
-            ..toAtSign = '@alice'
+            ..toAtSign = testUser1
             ..notification = 'key-2'
             ..type = NotificationType.sent
             ..opType = OperationType.update
@@ -535,7 +529,7 @@ void main() {
       notificationMap.add(atNotification2);
       var atsignIterator = AtNotificationMap.getInstance().getAtSignToNotify(1);
       while (atsignIterator.moveNext()) {
-        expect(atsignIterator.current, '@alice');
+        expect(atsignIterator.current, testUser1);
       }
       AtNotificationMap.getInstance().clear();
     });
@@ -545,7 +539,7 @@ void main() {
         () {
       var atNotification1 = (AtNotificationBuilder()
             ..id = '123'
-            ..fromAtSign = '@test_user_1'
+            ..fromAtSign = alice
             ..notificationDateTime =
                 DateTime.now().subtract(Duration(minutes: 10))
             ..toAtSign = '@bob'
@@ -564,10 +558,10 @@ void main() {
 
       var atNotification2 = (AtNotificationBuilder()
             ..id = '123'
-            ..fromAtSign = '@test_user_1'
+            ..fromAtSign = alice
             ..notificationDateTime =
                 DateTime.now().subtract(Duration(minutes: 1))
-            ..toAtSign = '@alice'
+            ..toAtSign = testUser1
             ..notification = 'key-2'
             ..type = NotificationType.sent
             ..opType = OperationType.update
@@ -597,7 +591,7 @@ void main() {
         () {
       var atNotification1 = (AtNotificationBuilder()
             ..id = '123'
-            ..fromAtSign = '@test_user_1'
+            ..fromAtSign = alice
             ..notificationDateTime =
                 DateTime.now().subtract(Duration(minutes: 1))
             ..toAtSign = '@bob'
@@ -616,7 +610,7 @@ void main() {
 
       var atNotification2 = (AtNotificationBuilder()
             ..id = '124'
-            ..fromAtSign = '@test_user_1'
+            ..fromAtSign = alice
             ..notificationDateTime =
                 DateTime.now().subtract(Duration(minutes: 2))
             ..toAtSign = '@bob'
@@ -655,7 +649,7 @@ void main() {
     test('A test case to verify only the latest notification is stored', () {
       var atNotification1 = (AtNotificationBuilder()
             ..id = '123'
-            ..fromAtSign = '@test_user_1'
+            ..fromAtSign = alice
             ..notificationDateTime = DateTime.now()
             ..toAtSign = '@bob'
             ..notification = 'key-1'
@@ -673,7 +667,7 @@ void main() {
 
       var atNotification2 = (AtNotificationBuilder()
             ..id = '124'
-            ..fromAtSign = '@test_user_1'
+            ..fromAtSign = alice
             ..notificationDateTime = DateTime.now()
             ..toAtSign = '@bob'
             ..notification = 'key-2'
@@ -709,7 +703,7 @@ void main() {
     test('When latest N, when N = 2', () {
       var atNotification1 = (AtNotificationBuilder()
             ..id = '123'
-            ..fromAtSign = '@test_user_1'
+            ..fromAtSign = alice
             ..notificationDateTime =
                 DateTime.now().subtract(Duration(seconds: 3))
             ..toAtSign = '@bob'
@@ -728,7 +722,7 @@ void main() {
 
       var atNotification2 = (AtNotificationBuilder()
             ..id = '124'
-            ..fromAtSign = '@test_user_1'
+            ..fromAtSign = alice
             ..notificationDateTime =
                 DateTime.now().subtract(Duration(seconds: 2))
             ..toAtSign = '@bob'
@@ -747,7 +741,7 @@ void main() {
 
       var atNotification3 = (AtNotificationBuilder()
             ..id = '125'
-            ..fromAtSign = '@test_user_1'
+            ..fromAtSign = alice
             ..notificationDateTime =
                 DateTime.now().subtract(Duration(seconds: 1))
             ..toAtSign = '@bob'
@@ -788,7 +782,7 @@ void main() {
         () {
       var atNotification1 = (AtNotificationBuilder()
             ..id = '123'
-            ..fromAtSign = '@test_user_1'
+            ..fromAtSign = alice
             ..notificationDateTime =
                 DateTime.now().subtract(Duration(seconds: 3))
             ..toAtSign = '@bob'
@@ -807,7 +801,7 @@ void main() {
 
       var atNotification2 = (AtNotificationBuilder()
             ..id = '124'
-            ..fromAtSign = '@test_user_1'
+            ..fromAtSign = alice
             ..notificationDateTime =
                 DateTime.now().subtract(Duration(seconds: 2))
             ..toAtSign = '@bob'
@@ -826,7 +820,7 @@ void main() {
 
       var atNotification3 = (AtNotificationBuilder()
             ..id = '125'
-            ..fromAtSign = '@test_user_1'
+            ..fromAtSign = alice
             ..notificationDateTime =
                 DateTime.now().subtract(Duration(seconds: 1))
             ..toAtSign = '@bob'
@@ -867,7 +861,7 @@ void main() {
       () {
     test('notify command accept test for pubKeyCS and sharedKeyEnc', () {
       var command = 'notify:sharedKeyEnc:abc:pubKeyCS:123@bob:location@colin';
-      var handler = NotifyVerbHandler(mockKeyStore);
+      var handler = NotifyVerbHandler(mockKeyStore, notificationManager);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -877,9 +871,9 @@ void main() {
         ..sharedKeyEnc = 'abc';
       var atNotification1 = (AtNotificationBuilder()
             ..id = 'abc'
-            ..fromAtSign = '@test_user_1'
+            ..fromAtSign = alice
             ..notificationDateTime = DateTime.now()
-            ..toAtSign = '@alice'
+            ..toAtSign = bob
             ..notification = 'key-1'
             ..type = NotificationType.sent
             ..opType = OperationType.update
@@ -890,7 +884,7 @@ void main() {
           .build();
       var queueManager = QueueManager.getInstance();
       queueManager.enqueue(atNotification1);
-      var response = queueManager.dequeue('@alice');
+      var response = queueManager.dequeue(bob);
       late AtNotification atNotification;
       if (response.moveNext()) {
         atNotification = response.current;
@@ -898,11 +892,11 @@ void main() {
       expect(atNotification.id, 'abc');
       expect(
         atNotification.fromAtSign,
-        '@test_user_1',
+        alice,
       );
       expect(
         atNotification.toAtSign,
-        '@alice',
+        bob,
       );
       expect(atNotification.notification, 'key-1');
       expect(atNotification.atMetadata, isNotNull);
@@ -922,43 +916,42 @@ void main() {
         HashMap<String, String>();
 
     setUp(() async {
-      keyStoreManager = await setUpFunc(storageDir);
-      SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
-      notifyVerbHandler = NotifyVerbHandler(keyStore);
+      await verbTestsSetUp();
+      notifyVerbHandler =
+          NotifyVerbHandler(secondaryKeyStore, notificationManager);
       notifyResponse = Response();
-      notifyFetch = NotifyFetchVerbHandler(keyStore);
+      notifyFetch = NotifyFetchVerbHandler(secondaryKeyStore);
 
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-      atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
 
       // first notification
       firstNotificationVerbParams.putIfAbsent('id', () => 'abc-123');
       firstNotificationVerbParams.putIfAbsent('operation', () => 'update');
-      firstNotificationVerbParams.putIfAbsent('atSign', () => '@test_user_1');
+      firstNotificationVerbParams.putIfAbsent('atSign', () => alice);
       firstNotificationVerbParams.putIfAbsent('atKey', () => 'phone');
       firstNotificationVerbParams.putIfAbsent(
-          FOR_AT_SIGN, () => '@test_user_2');
+          AtConstants.forAtSign, () => '@test_user_2');
 
       // second notification
       secondNotificationVerbParams.putIfAbsent('id', () => 'xyz-123');
       secondNotificationVerbParams.putIfAbsent('operation', () => 'update');
-      secondNotificationVerbParams.putIfAbsent('atSign', () => '@test_user_1');
+      secondNotificationVerbParams.putIfAbsent('atSign', () => alice);
       secondNotificationVerbParams.putIfAbsent('atKey', () => 'otp');
     });
+    tearDown(() async => await verbTestsTearDown());
 
     test('test to verify notification date time stored for self', () async {
       atConnection.metaData.isAuthenticated = true;
       // process first notification
-      firstNotificationVerbParams.putIfAbsent(
-          'forAtSign', () => '@test_user_1');
+      firstNotificationVerbParams.putIfAbsent('forAtSign', () => alice);
       await notifyVerbHandler.processVerb(
           notifyResponse, firstNotificationVerbParams, atConnection);
       // store current date time to capture the difference
       var currentDateTime = DateTime.now();
       await Future.delayed(Duration(milliseconds: 50));
       // process second notification
-      secondNotificationVerbParams.putIfAbsent(
-          'forAtSign', () => '@test_user_1');
+      secondNotificationVerbParams.putIfAbsent('forAtSign', () => alice);
       await notifyVerbHandler.processVerb(
           notifyResponse, secondNotificationVerbParams, atConnection);
       // fetch second notification
@@ -977,8 +970,7 @@ void main() {
 
     test('test to verify notification date time on receiver side', () async {
       atConnection.metaData.isPolAuthenticated = true;
-      (atConnection.metaData as InboundConnectionMetadata).fromAtSign =
-          '@test_user1';
+      (atConnection.metaData as InboundConnectionMetadata).fromAtSign = alice;
       // process first notification
       await notifyVerbHandler.processVerb(
           notifyResponse, firstNotificationVerbParams, atConnection);
@@ -986,8 +978,7 @@ void main() {
       var currentDateTime = DateTime.now().millisecondsSinceEpoch;
       await Future.delayed(Duration(milliseconds: 50));
       // process second notification
-      secondNotificationVerbParams.putIfAbsent(
-          'forAtSign', () => '@test_user_1');
+      secondNotificationVerbParams.putIfAbsent('forAtSign', () => alice);
       await notifyVerbHandler.processVerb(
           notifyResponse, secondNotificationVerbParams, atConnection);
       // fetch second notification
@@ -1003,128 +994,941 @@ void main() {
               currentDateTime,
           true);
     });
-
-    group('A group of test to validate notification verb params', () {
-      late NotifyVerbHandler notifyVerbHandler;
-      setUp(() async {
-        keyStoreManager = await setUpFunc(storageDir);
-        SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
-        notifyVerbHandler = NotifyVerbHandler(keyStore);
-      });
-      // tests to validate message type
-      test(
-          'A test to validate messageType.key is returned when key string is passed',
-          () {
-        expect(notifyVerbHandler.getMessageType('key'), MessageType.key);
-        expect(notifyVerbHandler.getMessageType('KEY'), MessageType.key);
-      });
-
-      test(
-          'A test to validate messageType.text is returned when text string is passed',
-          () {
-        expect(notifyVerbHandler.getMessageType('text'), MessageType.text);
-        expect(notifyVerbHandler.getMessageType('TEXT'), MessageType.text);
-      });
-
-      test(
-          'A test to validate default messageType is returned when null is passed',
-          () {
-        expect(notifyVerbHandler.getMessageType(null), MessageType.key);
-        expect(notifyVerbHandler.getMessageType(''), MessageType.key);
-      });
-
-      // tests to validate operation type
-      test(
-          'A test to validate operationType.update is returned when update string is passed',
-          () {
-        expect(
-            notifyVerbHandler.getOperationType('update'), OperationType.update);
-        expect(
-            notifyVerbHandler.getOperationType('UPDATE'), OperationType.update);
-      });
-
-      test(
-          'A test to validate operationType.delete is returned when delete string is passed',
-          () {
-        expect(
-            notifyVerbHandler.getOperationType('delete'), OperationType.delete);
-        expect(
-            notifyVerbHandler.getOperationType('DELETE'), OperationType.delete);
-      });
-
-      test(
-          'A test to validate default operationType is returned when null or empty string is passed',
-          () {
-        expect(notifyVerbHandler.getOperationType(null), OperationType.update);
-        expect(notifyVerbHandler.getOperationType(''), OperationType.update);
-      });
-
-      // test to validate notification expiry duration
-      test(
-          'A test to validate default notification expiry duration is returned when null or 0 is passed',
-          () {
-        expect(
-            notifyVerbHandler.getNotificationExpiryInMillis(null),
-            Duration(minutes: AtSecondaryConfig.notificationExpiryInMins)
-                .inMilliseconds);
-        expect(
-            notifyVerbHandler.getNotificationExpiryInMillis('0'),
-            Duration(minutes: AtSecondaryConfig.notificationExpiryInMins)
-                .inMilliseconds);
-      });
-
-      test(
-          'A test to validate notification expiry duration positive integer is passed',
-          () {
-        expect(notifyVerbHandler.getNotificationExpiryInMillis('30'), 30);
-      });
-
-      test(
-          'A test to assert exception when negative integer is passed to notification expiry duration ',
-          () {
-        expect(() => notifyVerbHandler.getNotificationExpiryInMillis('-30'),
-            throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
-      });
-
-      test(
-          'A test to assert exception when character is passed to notification expiry duration ',
-          () {
-        expect(() => notifyVerbHandler.getNotificationExpiryInMillis('abc'),
-            throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
-      });
-    });
-    tearDown(() async => await tearDownFunc());
   });
-}
+  group('A group of test to validate notification verb params', () {
+    late NotifyVerbHandler notifyVerbHandler;
+    setUp(() async {
+      await verbTestsSetUp();
+      notifyVerbHandler = NotifyVerbHandler(
+        secondaryKeyStore,
+        notificationManager,
+      );
+    });
+    tearDown(() async => await verbTestsTearDown());
+    // tests to validate message type
+    test(
+        'A test to validate messageType.key is returned when key string is passed',
+        () {
+      expect(notifyVerbHandler.getMessageType('key'), MessageType.key);
+      expect(notifyVerbHandler.getMessageType('KEY'), MessageType.key);
+    });
 
-Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {
-  AtSecondaryServerImpl.getInstance().currentAtSign = atsign ?? '@test_user_1';
-  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore(
-          AtSecondaryServerImpl.getInstance().currentAtSign)!;
-  var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init(storageDir);
-//  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
-  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
-  var keyStoreManager =
-      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
-  keyStoreManager.keyStore = hiveKeyStore;
-  hiveKeyStore.commitLog = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog(atsign ?? '@test_user_1', commitLogPath: storageDir);
-  await AtAccessLogManagerImpl.getInstance()
-      .getAccessLog(atsign ?? '@test_user_1', accessLogPath: storageDir);
-  var notificationInstance = AtNotificationKeystore.getInstance();
-  notificationInstance.currentAtSign = atsign ?? '@test_user_1';
-  await notificationInstance.init(storageDir);
-  return keyStoreManager;
-}
+    test(
+        'A test to validate messageType.text is returned when text string is passed',
+        () {
+      expect(notifyVerbHandler.getMessageType('text'), MessageType.text);
+      expect(notifyVerbHandler.getMessageType('TEXT'), MessageType.text);
+    });
 
-Future<void> tearDownFunc() async {
-  var isExists = await Directory('test/hive').exists();
-  AtNotificationMap.getInstance().clear();
-  await AtNotificationKeystore.getInstance().close();
-  if (isExists) {
-    await Directory('test/hive').delete(recursive: true);
-  }
+    test(
+        'A test to validate default messageType is returned when null is passed',
+        () {
+      expect(notifyVerbHandler.getMessageType(null), MessageType.key);
+      expect(notifyVerbHandler.getMessageType(''), MessageType.key);
+    });
+
+    // tests to validate operation type
+    test(
+        'A test to validate operationType.update is returned when update string is passed',
+        () {
+      expect(
+          notifyVerbHandler.getOperationType('update'), OperationType.update);
+      expect(
+          notifyVerbHandler.getOperationType('UPDATE'), OperationType.update);
+    });
+
+    test(
+        'A test to validate operationType.delete is returned when delete string is passed',
+        () {
+      expect(
+          notifyVerbHandler.getOperationType('delete'), OperationType.delete);
+      expect(
+          notifyVerbHandler.getOperationType('DELETE'), OperationType.delete);
+    });
+
+    test(
+        'A test to validate default operationType is returned when null or empty string is passed',
+        () {
+      expect(notifyVerbHandler.getOperationType(null), OperationType.update);
+      expect(notifyVerbHandler.getOperationType(''), OperationType.update);
+    });
+
+    // test to validate notification expiry duration
+    test(
+        'A test to validate default notification expiry duration is returned when null or 0 is passed',
+        () {
+      expect(
+          notifyVerbHandler.getNotificationExpiryInMillis(null),
+          Duration(minutes: AtSecondaryConfig.notificationExpiryInMins)
+              .inMilliseconds);
+      expect(
+          notifyVerbHandler.getNotificationExpiryInMillis('0'),
+          Duration(minutes: AtSecondaryConfig.notificationExpiryInMins)
+              .inMilliseconds);
+    });
+
+    test(
+        'A test to validate notification expiry duration positive integer is passed',
+        () {
+      expect(notifyVerbHandler.getNotificationExpiryInMillis('30'), 30);
+    });
+
+    test(
+        'A test to assert exception when negative integer is passed to notification expiry duration ',
+        () {
+      expect(() => notifyVerbHandler.getNotificationExpiryInMillis('-30'),
+          throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
+    });
+
+    test(
+        'A test to assert exception when character is passed to notification expiry duration ',
+        () {
+      expect(() => notifyVerbHandler.getNotificationExpiryInMillis('abc'),
+          throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
+    });
+  });
+
+  group(
+      'A group of test to verify authorization check for notify and notify all verbs',
+      () {
+    late NotifyVerbHandler notifyVerbHandler;
+    late NotifyAllVerbHandler notifyAllVerbHandler;
+    setUp(() async {
+      await verbTestsSetUp();
+      notifyVerbHandler = NotifyVerbHandler(
+        secondaryKeyStore,
+        notificationManager,
+      );
+      notifyAllVerbHandler = NotifyAllVerbHandler(
+        secondaryKeyStore,
+        notificationManager,
+      );
+      inboundConnection = DummyInboundConnection();
+      AtSecondaryServerImpl.getInstance().enrollmentManager =
+          EnrollmentManager(secondaryKeyStore, alice);
+      registerFallbackValue(inboundConnection);
+    });
+    tearDown(() async => await verbTestsTearDown());
+    test(
+        'A test to verify notification is allowed on a reserved key with authenticated connection and no apkam enrollment ',
+        () async {
+      Response response = Response();
+      String notifyCommand = 'notify:$bob:shared_key$alice';
+      HashMap<String, String?> notifyVerbParams =
+          getVerbParam(VerbSyntax.notify, notifyCommand);
+      inboundConnection.metadata.isAuthenticated = true;
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.isError, false);
+      expect(response.data, isNotNull);
+    });
+    test(
+        'A test to verify notification is allowed on a reserved key with authenticated connection and apkam enrollment ',
+        () async {
+      Response response = Response();
+      String notifyCommand = 'notify:$bob:shared_key$alice';
+      HashMap<String, String?> notifyVerbParams =
+          getVerbParam(VerbSyntax.notify, notifyCommand);
+      inboundConnection.metadata.isAuthenticated = true;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
+      await secondaryKeyStore.put(
+        keyName,
+        AtData()..data = jsonEncode(enrollJson),
+      );
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.isError, false);
+      expect(response.data, isNotNull);
+    });
+
+    test(
+        'A test to verify notification on a key with no access to namespace throws exception',
+        () async {
+      Response response = Response();
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      var enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
+      await secondaryKeyStore.put(
+        keyName,
+        AtData()..data = jsonEncode(enrollJson),
+      );
+      // notify a key on buzz namespace
+      String notifyCommand = 'notify:$bob:phone.buzz$alice';
+      HashMap<String, String?> notifyVerbParams =
+          getVerbParam(VerbSyntax.notify, notifyCommand);
+      expect(
+          () async => await notifyVerbHandler.processVerb(
+              response, notifyVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $enrollmentId is not authorized to notify key: @bob:phone.buzz$alice')));
+    });
+
+    test(
+        'A test to verify notification is allowed on a key without a namespace for an enrollment with * namespace access',
+        () async {
+      var response = Response();
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      var enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'*': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
+      await secondaryKeyStore.put(
+        keyName,
+        AtData()..data = jsonEncode(enrollJson),
+      );
+      String notifyCommand = 'notify:$bob:somekey$alice';
+      HashMap<String, String?> notifyVerbParams =
+          getVerbParam(VerbSyntax.notify, notifyCommand);
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.isError, false);
+      expect(response.data, isNotNull);
+    });
+    test(
+        'A test to verify notification is denied on a key without a namespace for an enrollment with specific namespace access',
+        () async {
+      var response = Response();
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      var enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
+      await secondaryKeyStore.put(
+        keyName,
+        AtData()..data = jsonEncode(enrollJson),
+      );
+      String notifyCommand = 'notify:$bob:somekey$alice';
+      HashMap<String, String?> notifyVerbParams =
+          getVerbParam(VerbSyntax.notify, notifyCommand);
+      expect(
+          () async => await notifyVerbHandler.processVerb(
+              response, notifyVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $enrollmentId is not authorized to notify key: @bob:somekey$alice')));
+    });
+    test(
+        'A test to verify notify all is allowed on a key with apkam enrollment with write access',
+        () async {
+      Response response = Response();
+      String notifyAllCommand = 'notify:all:[@bob,@colin]:phone.wavi$alice';
+      HashMap<String, String?> notifyAllVerbParams =
+          getVerbParam(VerbSyntax.notifyAll, notifyAllCommand);
+      inboundConnection.metadata.isAuthenticated = true;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
+      await secondaryKeyStore.put(
+        keyName,
+        AtData()..data = jsonEncode(enrollJson),
+      );
+      var keyPair = RSAKeypair.fromRandom();
+      AtSecondaryServerImpl.getInstance().signingKey =
+          keyPair.privateKey.toString();
+      await notifyAllVerbHandler.processVerb(
+          response, notifyAllVerbParams, inboundConnection);
+      expect(response.isError, false);
+      expect(response.data, isNotNull);
+    });
+    test(
+        'A test to verify notify all is denied on a key with apkam enrollment with read access',
+        () async {
+      Response response = Response();
+      String notifyAllCommand = 'notify:all:[@bob,@colin]:phone.wavi$alice';
+      HashMap<String, String?> notifyAllVerbParams =
+          getVerbParam(VerbSyntax.notifyAll, notifyAllCommand);
+      inboundConnection.metadata.isAuthenticated = true;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'r'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
+      await secondaryKeyStore.put(
+        keyName,
+        AtData()..data = jsonEncode(enrollJson),
+      );
+      var keyPair = RSAKeypair.fromRandom();
+      AtSecondaryServerImpl.getInstance().signingKey =
+          keyPair.privateKey.toString();
+      expect(
+          () async => await notifyAllVerbHandler.processVerb(
+              response, notifyAllVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $enrollmentId is not authorized to notify key: phone.wavi$alice')));
+    });
+    test(
+        'A test to verify notify all is denied on a key with apkam enrollment with no namespace access',
+        () async {
+      Response response = Response();
+      String notifyAllCommand = 'notify:all:[@bob,@colin]:phone.wavi$alice';
+      HashMap<String, String?> notifyAllVerbParams =
+          getVerbParam(VerbSyntax.notifyAll, notifyAllCommand);
+      inboundConnection.metadata.isAuthenticated = true;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'buzz': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
+      await secondaryKeyStore.put(
+        keyName,
+        AtData()..data = jsonEncode(enrollJson),
+      );
+      var keyPair = RSAKeypair.fromRandom();
+      AtSecondaryServerImpl.getInstance().signingKey =
+          keyPair.privateKey.toString();
+      expect(
+          () async => await notifyAllVerbHandler.processVerb(
+              response, notifyAllVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $enrollmentId is not authorized to notify key: phone.wavi$alice')));
+    });
+  });
+  group(
+      'A group of test to verify authorization check for notify fetch, notify status and notify remove verbs',
+      () {
+    late NotifyFetchVerbHandler notifyFetchVerbHandler;
+    late NotifyStatusVerbHandler notifyStatusVerbHandler;
+    late NotifyVerbHandler notifyVerbHandler;
+    late NotifyRemoveVerbHandler notifyRemoveVerbHandler;
+    setUp(() async {
+      await verbTestsSetUp();
+      notifyVerbHandler = NotifyVerbHandler(
+        secondaryKeyStore,
+        notificationManager,
+      );
+      notifyFetchVerbHandler = NotifyFetchVerbHandler(secondaryKeyStore);
+      notifyStatusVerbHandler = NotifyStatusVerbHandler(secondaryKeyStore);
+      notifyRemoveVerbHandler = NotifyRemoveVerbHandler(
+        secondaryKeyStore,
+        notificationManager,
+      );
+      inboundConnection = DummyInboundConnection();
+      registerFallbackValue(inboundConnection);
+    });
+    tearDown(() async => await verbTestsTearDown());
+    test(
+        'A test to verify notification fetch/status is allowed on a reserved key with authenticated connection and no apkam enrollment',
+        () async {
+      Response response = Response();
+      String notifyCommand = 'notify:$bob:shared_key$alice';
+      HashMap<String, String?> notifyVerbParams =
+          getVerbParam(VerbSyntax.notify, notifyCommand);
+      inboundConnection.metadata.isAuthenticated = true;
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.isError, false);
+      expect(response.data, isNotNull);
+      var notificationId = response.data;
+
+      String notifyFetchCommand = 'notify:fetch:$notificationId';
+      HashMap<String, String?> notifyFetchVerbParams =
+          getVerbParam(VerbSyntax.notifyFetch, notifyFetchCommand);
+      var notifyFetchResponse = Response();
+      await notifyFetchVerbHandler.processVerb(
+          notifyFetchResponse, notifyFetchVerbParams, inboundConnection);
+      expect(notifyFetchResponse.data, isNotNull);
+      var notifyFetchJson = jsonDecode(notifyFetchResponse.data!);
+      expect(notifyFetchJson['id'], notificationId);
+
+      String notifyStatusCommand = 'notify:status:$notificationId';
+      HashMap<String, String?> notifyStatusVerbParams =
+          getVerbParam(VerbSyntax.notifyStatus, notifyStatusCommand);
+      var notifyStatusResponse = Response();
+      await notifyStatusVerbHandler.processVerb(
+          notifyStatusResponse, notifyStatusVerbParams, inboundConnection);
+      expect(notifyStatusResponse.data, isNotNull);
+    });
+    test(
+        'A test to verify notification fetch/status is allowed on a reserved key with apkam enrollment',
+        () async {
+      Response response = Response();
+      String notifyCommand = 'notify:$bob:shared_key$alice';
+      HashMap<String, String?> notifyVerbParams =
+          getVerbParam(VerbSyntax.notify, notifyCommand);
+      inboundConnection.metadata.isAuthenticated = true;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
+      await secondaryKeyStore.put(
+        keyName,
+        AtData()..data = jsonEncode(enrollJson),
+      );
+
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.isError, false);
+      expect(response.data, isNotNull);
+      var notificationId = response.data;
+
+      String notifyFetchCommand = 'notify:fetch:$notificationId';
+      HashMap<String, String?> notifyFetchVerbParams =
+          getVerbParam(VerbSyntax.notifyFetch, notifyFetchCommand);
+      var notifyFetchResponse = Response();
+      await notifyFetchVerbHandler.processVerb(
+          notifyFetchResponse, notifyFetchVerbParams, inboundConnection);
+      expect(notifyFetchResponse.data, isNotNull);
+      var notifyFetchJson = jsonDecode(notifyFetchResponse.data!);
+      expect(notifyFetchJson['id'], notificationId);
+
+      String notifyStatusCommand = 'notify:status:$notificationId';
+      HashMap<String, String?> notifyStatusVerbParams =
+          getVerbParam(VerbSyntax.notifyStatus, notifyStatusCommand);
+      var notifyStatusResponse = Response();
+      await notifyStatusVerbHandler.processVerb(
+          notifyStatusResponse, notifyStatusVerbParams, inboundConnection);
+      expect(notifyStatusResponse.data, isNotNull);
+    });
+
+    test(
+        'A test to verify notify fetch/status on a different notification keys',
+        () async {
+      // create a set of notifications on a connection with * namespace access.
+      Response response = Response();
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      var enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'*': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
+      await secondaryKeyStore.put(
+        keyName,
+        AtData()..data = jsonEncode(enrollJson),
+      );
+      //1. notify wavi key
+      String notifyCommand = 'notify:$bob:phone.wavi$alice';
+      HashMap<String, String?> notifyVerbParams =
+          getVerbParam(VerbSyntax.notify, notifyCommand);
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      var notificationIdWaviKey = response.data;
+
+      //2. Notify buzz key
+      notifyCommand = 'notify:$bob:email.buzz$alice';
+      notifyVerbParams = getVerbParam(VerbSyntax.notify, notifyCommand);
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      var notificationIdBuzzKey = response.data;
+
+      //3. Notify key without namespace
+      notifyCommand = 'notify:$bob:location$alice';
+      notifyVerbParams = getVerbParam(VerbSyntax.notify, notifyCommand);
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      var notificationIdKeyNoNamespace = response.data;
+
+      var newInboundConnection = DummyInboundConnection();
+      newInboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      var newEnrollmentId = Uuid().v4();
+      newInboundConnection.metadata.enrollmentId = newEnrollmentId;
+      final newEnrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var newEnrollmentKeyName =
+          '$newEnrollmentId.new.enrollments.__manage$alice';
+      await secondaryKeyStore.put(
+        newEnrollmentKeyName,
+        AtData()..data = jsonEncode(newEnrollJson),
+      );
+
+      //1. fetching wavi key notification should pass
+      String notifyFetchCommand = 'notify:fetch:$notificationIdWaviKey';
+      HashMap<String, String?> notifyFetchVerbParams =
+          getVerbParam(VerbSyntax.notifyFetch, notifyFetchCommand);
+      var notifyFetchResponse = Response();
+      await notifyFetchVerbHandler.processVerb(
+          notifyFetchResponse, notifyFetchVerbParams, newInboundConnection);
+      expect(notifyFetchResponse.data, isNotNull);
+      var notifyFetchJson = jsonDecode(notifyFetchResponse.data!);
+      expect(notifyFetchJson['id'], notificationIdWaviKey);
+
+      //2. fetching buzz key notification should throw exception
+      notifyFetchCommand = 'notify:fetch:$notificationIdBuzzKey';
+      notifyFetchVerbParams =
+          getVerbParam(VerbSyntax.notifyFetch, notifyFetchCommand);
+      notifyFetchResponse = Response();
+      expect(
+          () async => await notifyFetchVerbHandler.processVerb(
+              notifyFetchResponse, notifyFetchVerbParams, newInboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $newEnrollmentId is not authorized to fetch notify key: @bob:email.buzz$alice')));
+
+      //3. fetching  notification key with no namespace should throw exception
+      notifyFetchCommand = 'notify:fetch:$notificationIdKeyNoNamespace';
+      notifyFetchVerbParams =
+          getVerbParam(VerbSyntax.notifyFetch, notifyFetchCommand);
+      notifyFetchResponse = Response();
+      expect(
+          () async => await notifyFetchVerbHandler.processVerb(
+              notifyFetchResponse, notifyFetchVerbParams, newInboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $newEnrollmentId is not authorized to fetch notify key: @bob:location$alice')));
+
+      //1. notify status on wavi notification key should pass
+      String notifyStatusCommand = 'notify:status:$notificationIdWaviKey';
+      HashMap<String, String?> notifyStatusVerbParams =
+          getVerbParam(VerbSyntax.notifyStatus, notifyStatusCommand);
+      var notifyStatusResponse = Response();
+      await notifyStatusVerbHandler.processVerb(
+          notifyStatusResponse, notifyStatusVerbParams, newInboundConnection);
+      expect(notifyStatusResponse.data, isNotNull);
+      expect(notifyStatusResponse.data, 'queued');
+
+      //2. notify status on buzz notification key should throw exception
+      notifyStatusCommand = 'notify:status:$notificationIdBuzzKey';
+      notifyStatusVerbParams =
+          getVerbParam(VerbSyntax.notifyStatus, notifyStatusCommand);
+      notifyStatusResponse = Response();
+      expect(
+          () async => await notifyStatusVerbHandler.processVerb(
+              notifyStatusResponse,
+              notifyStatusVerbParams,
+              newInboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $newEnrollmentId is not authorized to fetch notify key: @bob:email.buzz$alice')));
+
+      //2. notify status on notification key with no namespace should throw exception
+      notifyStatusCommand = 'notify:status:$notificationIdKeyNoNamespace';
+      notifyStatusVerbParams =
+          getVerbParam(VerbSyntax.notifyStatus, notifyStatusCommand);
+      notifyStatusResponse = Response();
+      expect(
+          () async => await notifyStatusVerbHandler.processVerb(
+              notifyStatusResponse,
+              notifyStatusVerbParams,
+              newInboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $newEnrollmentId is not authorized to fetch notify key: @bob:location$alice')));
+    });
+    test('A test to verify notify remove on a different notification keys',
+        () async {
+      // create a set of notifications on a connection with * namespace access.
+      Response response = Response();
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      var enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'*': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
+      await secondaryKeyStore.put(
+        keyName,
+        AtData()..data = jsonEncode(enrollJson),
+      );
+      //1. notify wavi key
+      String notifyCommand = 'notify:$bob:phone.wavi$alice';
+      HashMap<String, String?> notifyVerbParams =
+          getVerbParam(VerbSyntax.notify, notifyCommand);
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      var notificationIdWaviKey = response.data;
+
+      //2. Notify buzz key
+      notifyCommand = 'notify:$bob:email.buzz$alice';
+      notifyVerbParams = getVerbParam(VerbSyntax.notify, notifyCommand);
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      var notificationIdBuzzKey = response.data;
+
+      //3. Notify key without namespace
+      notifyCommand = 'notify:$bob:location$alice';
+      notifyVerbParams = getVerbParam(VerbSyntax.notify, notifyCommand);
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      var notificationIdKeyNoNamespace = response.data;
+
+      var newInboundConnection = DummyInboundConnection();
+      newInboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      var newEnrollmentId = Uuid().v4();
+      newInboundConnection.metadata.enrollmentId = newEnrollmentId;
+      final newEnrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var newEnrollmentKeyName =
+          '$newEnrollmentId.new.enrollments.__manage$alice';
+      await secondaryKeyStore.put(
+        newEnrollmentKeyName,
+        AtData()..data = jsonEncode(newEnrollJson),
+      );
+
+      //1. removing wavi key notification should pass
+      String notifyRemoveCommand = 'notify:remove:$notificationIdWaviKey';
+      HashMap<String, String?> notifyRemoveVerbParams =
+          getVerbParam(VerbSyntax.notifyRemove, notifyRemoveCommand);
+      var notifyRemoveResponse = Response();
+      await notifyRemoveVerbHandler.processVerb(
+          notifyRemoveResponse, notifyRemoveVerbParams, newInboundConnection);
+      expect(notifyRemoveResponse.data, isNotNull);
+      expect(notifyRemoveResponse.data, 'success');
+
+      //2. removing buzz key notification should throw exception
+      notifyRemoveCommand = 'notify:remove:$notificationIdBuzzKey';
+      notifyRemoveVerbParams =
+          getVerbParam(VerbSyntax.notifyRemove, notifyRemoveCommand);
+      notifyRemoveResponse = Response();
+      expect(
+          () async => await notifyRemoveVerbHandler.processVerb(
+              notifyRemoveResponse,
+              notifyRemoveVerbParams,
+              newInboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $newEnrollmentId is not authorized to remove notify key: @bob:email.buzz$alice')));
+
+      //3. removing  notification key with no namespace should throw exception
+      notifyRemoveCommand = 'notify:remove:$notificationIdKeyNoNamespace';
+      notifyRemoveVerbParams =
+          getVerbParam(VerbSyntax.notifyRemove, notifyRemoveCommand);
+      notifyRemoveResponse = Response();
+      expect(
+          () async => await notifyRemoveVerbHandler.processVerb(
+              notifyRemoveResponse,
+              notifyRemoveVerbParams,
+              newInboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $newEnrollmentId is not authorized to remove notify key: @bob:location$alice')));
+
+      //4. removing  notification key with no namespace with enrollment with * namespace access should pass
+      notifyRemoveCommand = 'notify:remove:$notificationIdKeyNoNamespace';
+      notifyRemoveVerbParams =
+          getVerbParam(VerbSyntax.notifyRemove, notifyRemoveCommand);
+      notifyRemoveResponse = Response();
+      await notifyRemoveVerbHandler.processVerb(
+          notifyRemoveResponse, notifyRemoveVerbParams, inboundConnection);
+      expect(notifyRemoveResponse.data, isNotNull);
+      expect(notifyRemoveResponse.data, 'success');
+    });
+  });
+  group(
+      'A group of test to verify authorization check for notify fetch, notify status and notify remove verbs',
+      () {
+    late NotifyVerbHandler notifyVerbHandler;
+    late NotifyListVerbHandler notifyListVerbHandler;
+    setUp(() async {
+      await verbTestsSetUp();
+      notifyVerbHandler = NotifyVerbHandler(
+        secondaryKeyStore,
+        notificationManager,
+      );
+      notifyListVerbHandler =
+          NotifyListVerbHandler(secondaryKeyStore, mockOutboundClientManager);
+      inboundConnection = DummyInboundConnection();
+      AtSecondaryServerImpl.getInstance().enrollmentManager =
+          EnrollmentManager(secondaryKeyStore, alice);
+      registerFallbackValue(inboundConnection);
+    });
+    tearDown(() async => await verbTestsTearDown());
+    test('A test to verify notify:list authorization', () async {
+      // create a set of notifications on a connection with * namespace access.
+      Response response = Response();
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      var enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'*': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
+      await secondaryKeyStore.put(
+        keyName,
+        AtData()..data = jsonEncode(enrollJson),
+      );
+
+      //1. notify wavi key
+      String notifyCommand = 'notify:$alice:phone.wavi$alice';
+      HashMap<String, String?> notifyVerbParams =
+          getVerbParam(VerbSyntax.notify, notifyCommand);
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      var notificationIdWaviKey = response.data;
+
+      //2. Notify buzz key
+      notifyCommand = 'notify:$alice:email.buzz$alice';
+      notifyVerbParams = getVerbParam(VerbSyntax.notify, notifyCommand);
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+
+      //3. Notify key without namespace
+      notifyCommand = 'notify:$alice:location$alice';
+      notifyVerbParams = getVerbParam(VerbSyntax.notify, notifyCommand);
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+
+      //4. Notify reserved key
+      notifyCommand = 'notify:$alice:shared_key$alice';
+      notifyVerbParams = getVerbParam(VerbSyntax.notify, notifyCommand);
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      var notificationIdReservedKey = response.data;
+
+      var newInboundConnection = DummyInboundConnection();
+      newInboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      var newEnrollmentId = Uuid().v4();
+      newInboundConnection.metadata.enrollmentId = newEnrollmentId;
+      final newEnrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var newEnrollmentKeyName =
+          '$newEnrollmentId.new.enrollments.__manage$alice';
+      await secondaryKeyStore.put(
+        newEnrollmentKeyName,
+        AtData()..data = jsonEncode(newEnrollJson),
+      );
+
+      var notifyListCommand = 'notify:list';
+      var notifyListVerbParams =
+          getVerbParam(VerbSyntax.notifyList, notifyListCommand);
+      var notifyListResponse = Response();
+      await notifyListVerbHandler.processVerb(
+          notifyListResponse, notifyListVerbParams, newInboundConnection);
+      expect(notifyListResponse.data, isNotNull);
+      var notifyListJson = jsonDecode(notifyListResponse.data!);
+      expect(notifyListJson.length, 2);
+      for (var notification in notifyListJson) {
+        if (notification['id'] == notificationIdWaviKey) {
+          expect(notification['key'], '$alice:phone.wavi$alice');
+        } else if (notification['id'] == notificationIdReservedKey) {
+          expect(notification['key'], '$alice:shared_key$alice');
+        } else {
+          throw AssertionError(
+              'Notify list should return wavi namespace key and reserved key');
+        }
+      }
+    });
+  });
+
+  group('Notification data correctness tests', () {
+    late NotifyVerbHandler notifyVerbHandler;
+
+    setUp(() async {
+      await verbTestsSetUp();
+      notifyVerbHandler = NotifyVerbHandler(
+        secondaryKeyStore,
+        notificationManager,
+      );
+      inboundConnection = DummyInboundConnection();
+      registerFallbackValue(inboundConnection);
+    });
+
+    tearDown(() async => await verbTestsTearDown());
+
+    test('test getIsEncrypted for MessageType.text', () {
+      expect(notifyVerbHandler.getIsEncrypted(MessageType.text, 'foo', null),
+          false);
+      expect(notifyVerbHandler.getIsEncrypted(MessageType.text, 'foo', 'false'),
+          false);
+      expect(notifyVerbHandler.getIsEncrypted(MessageType.text, 'foo', 'true'),
+          true);
+    });
+
+    test('test getIsEncrypted for public key notifications', () {
+      // TODO Is there any use currently of notifications on 'public' keys?
+      // TODO Are there any functional or e2e tests of the same?
+      // TODO Could be quite useful in some scenarios.
+      expect(
+          notifyVerbHandler.getIsEncrypted(
+              MessageType.key, 'public:foo.bar$alice', null),
+          false);
+      expect(
+          notifyVerbHandler.getIsEncrypted(
+              MessageType.key, 'public:foo.bar$alice', 'false'),
+          false);
+      expect(
+          notifyVerbHandler.getIsEncrypted(
+              MessageType.key, 'public:foo.bar$alice', 'true'),
+          false);
+    });
+
+    test('test getIsEncrypted for key notifications', () {
+      // In order not to break old clients which had faulty assumptions, we
+      // need to return true when isEncrypted is not provided in the notify
+      // request rather than returning false as one would expect.
+      // The reason is that those broken old clients do not set `isEncrypted`
+      // on notifications when they ought to be doing so.
+      expect(
+          notifyVerbHandler.getIsEncrypted(
+              MessageType.key, '@bob:foo.bar$alice', null),
+          true);
+
+      // This used to return 'true' as well, which is definitively wrong.
+      expect(
+          notifyVerbHandler.getIsEncrypted(
+              MessageType.key, '@bob:foo.bar$alice', 'false'),
+          false);
+
+      expect(
+          notifyVerbHandler.getIsEncrypted(
+              MessageType.key, '@bob:foo.bar$alice', 'true'),
+          true);
+    });
+
+    test('test notify:isEncrypted:false is respected', () async {
+      Response response = Response();
+      String notifyCommand =
+          'notify:update:isEncrypted:false:@bob:metadata.notify.test$alice:hello';
+      HashMap<String, String?> notifyVerbParams =
+          getVerbParam(VerbSyntax.notify, notifyCommand);
+
+      // execute the notify verb
+      inboundConnection.metadata.isAuthenticated = true;
+      await notifyVerbHandler.processVerb(
+          response, notifyVerbParams, inboundConnection);
+      expect(response.isError, false);
+      expect(response.data, isNotNull);
+
+      // verify that data in the notification keyStore is as expected
+      var notifId = response.data;
+      var stored = await AtNotificationKeystore.getInstance().get(notifId);
+      expect(stored, isNotNull);
+      expect(stored!.toAtSign, '@bob');
+      expect(stored.notification, '@bob:metadata.notify.test$alice');
+      expect(stored.fromAtSign, alice);
+      expect(stored.opType, OperationType.update);
+      expect(stored.messageType, MessageType.key);
+      expect(stored.atMetadata, isNotNull);
+      expect(stored.atMetadata!.ttr, isNull);
+      expect(stored.atMetadata!.isEncrypted, false);
+    });
+  });
 }

@@ -7,10 +7,10 @@ import 'e2e_test_utils.dart' as e2e;
 
 void main() {
   late String atSign_1;
-  late e2e.SimpleOutboundSocketHandler sh1;
+  late e2e.SimpleOutboundConnection sh1;
 
   late String atSign_2;
-  late e2e.SimpleOutboundSocketHandler sh2;
+  late e2e.SimpleOutboundConnection sh2;
 
   setUpAll(() async {
     List<String> atSigns = e2e.knownAtSigns();
@@ -71,11 +71,17 @@ void main() {
     print('plookup verb response $response');
     var version = await sh1.getVersion();
     print(version);
-    var serverResponse = Version.parse(await sh1.getVersion());
-    if (serverResponse > Version(3, 0, 24)) {
+    var serverVersion = Version.parse(version);
+    if (serverVersion > Version(3, 0, 46)) {
+      //3.0.47 contains fix to properly parse error for non existent key.
       response = response.replaceFirst('error:', '');
       var errorMap = jsonDecode(response);
-      expect(errorMap['errorCode'], 'AT0011');
+      expect(errorMap['errorCode'], 'AT0015');
+      expect(errorMap['errorDescription'],
+          contains('public:no-key$atSign_1 does not exist in keystore'));
+    } else if (serverVersion > Version(3, 0, 24)) {
+      response = response.replaceFirst('error:', '');
+      var errorMap = jsonDecode(response);
       expect(errorMap['errorDescription'],
           contains('public:no-key$atSign_1 does not exist in keystore'));
     } else {

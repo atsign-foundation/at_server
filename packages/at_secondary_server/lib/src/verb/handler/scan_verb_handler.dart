@@ -2,11 +2,10 @@ import 'dart:collection';
 import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
-import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -23,8 +22,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
   final AtCacheManager cacheManager;
 
   ScanVerbHandler(
-      SecondaryKeyStore keyStore, this.outboundClientManager, this.cacheManager)
-      : super(keyStore);
+      super.keyStore, this.outboundClientManager, this.cacheManager);
 
   /// Verifies whether command is accepted or not
   ///
@@ -55,10 +53,11 @@ class ScanVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var atConnectionMetadata =
-        atConnection.getMetaData() as InboundConnectionMetadata;
-    var forAtSign = verbParams[FOR_AT_SIGN];
-    var scanRegex = verbParams[AT_REGEX];
-    var showHiddenKeys = verbParams[showHidden] == 'true' ? true : false;
+        atConnection.metaData as InboundConnectionMetadata;
+    var forAtSign = verbParams[AtConstants.forAtSign];
+    var scanRegex = verbParams[AtConstants.regex];
+    var showHiddenKeys =
+        verbParams[AtConstants.showHidden] == 'true' ? true : false;
 
     try {
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
@@ -100,12 +99,12 @@ class ScanVerbHandler extends AbstractVerbHandler {
   Future<String?> _getExternalKeys(String forAtSign, String? scanRegex,
       InboundConnection atConnection) async {
     //scan has to be performed for another atSign
-    var outBoundClient =
-        outboundClientManager.getClient(forAtSign, atConnection);
+    final OutboundClient outBoundClient = await outboundClientManager
+        .getClient(forAtSign, atConnection, handshakeRequired: true);
     var handShake = false;
     // Performs handshake if not done.
     if (!outBoundClient.isHandShakeDone) {
-      await outBoundClient.connect(handshake: true);
+      await outBoundClient.connect();
       handShake = true;
     }
     var scanResult =
@@ -184,10 +183,13 @@ class ScanVerbHandler extends AbstractVerbHandler {
       InboundConnectionMetadata atConnectionMetadata,
       List<String> localKeysList,
       String currentAtSign) async {
-    var enrollmentKey =
-        '${atConnectionMetadata.enrollmentId}.$newEnrollmentKeyPattern.$enrollManageNamespace$currentAtSign';
-    var enrollNamespaces =
-        (await getEnrollDataStoreValue(enrollmentKey)).namespaces;
+    // NOTE: The atConnectionMetadata.enrollmentId is verified for null check in the caller of this method - getLocalKeys
+    // Therefore, added non-null assertation operator.
+    var enrollNamespaces = (await AtSecondaryServerImpl.getInstance()
+            .enrollmentManager
+            .getEnrollmentById(atConnectionMetadata.enrollmentId!))
+        .namespaces;
+
     // No namespace to filter keys. So, return.
     if (enrollNamespaces.isEmpty) {
       logger.finer(
@@ -195,10 +197,12 @@ class ScanVerbHandler extends AbstractVerbHandler {
       return [];
     }
     // If enrollment namespace contains ".*" return all keys.
-    if (enrollNamespaces.containsKey(allNamespaces)) {
+    if (enrollNamespaces.containsKey(EnrollmentConstants.allNamespaces)) {
       return localKeysList;
     }
-    // Return only keys whose namespace is authorized.
+
+    // We've dealt with no access and with '*' access; now we have to check
+    // access on each key individually.
     int index = 0;
     // Iterates through the list of local keys.
     // Removes the key from the list if any of the below condition is met:
@@ -221,12 +225,9 @@ class ScanVerbHandler extends AbstractVerbHandler {
         localKeysList.remove(key);
         continue;
       }
-      // Extract namespace from the key.
-      String namespaceFromTheKey = key.toString().substring(
-          (key.toString().lastIndexOf('.') + 1),
-          key.toString().lastIndexOf('@'));
-      if (!enrollNamespaces.containsKey(namespaceFromTheKey) ||
-          namespaceFromTheKey == enrollManageNamespace) {
+
+      bool mayRead = await super.isAuthorized(atConnectionMetadata, atKey: key);
+      if (!mayRead) {
         localKeysList.remove(key);
         continue;
       }

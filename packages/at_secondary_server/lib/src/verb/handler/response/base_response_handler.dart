@@ -20,23 +20,23 @@ abstract class BaseResponseHandler implements ResponseHandler {
         return;
       }
       var atConnectionMetadata =
-          connection.getMetaData() as InboundConnectionMetadata;
+          connection.metaData as InboundConnectionMetadata;
       var isAuthenticated = atConnectionMetadata.isAuthenticated;
       var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-      var isPolAuthenticated = connection.getMetaData().isPolAuthenticated;
+      var isPolAuthenticated = connection.metaData.isPolAuthenticated;
       var fromAtSign = atConnectionMetadata.fromAtSign;
       var prompt = isAuthenticated
           ? '$atSign@'
           : (isPolAuthenticated ? '$fromAtSign@' : '@');
       String? responseMessage;
       if (response.isError) {
-        logger.severe(response.errorMessage);
+        logger.info(response.errorMessage);
         responseMessage =
             'error:${response.errorCode}:${response.errorMessage}\n$prompt';
       } else {
         responseMessage = getResponseMessage(result, prompt)!;
       }
-      connection.write(responseMessage);
+      await connection.write(responseMessage);
     } on Exception catch (e, st) {
       logger.severe('exception in writing response to socket:${e.toString()}');
       await GlobalExceptionHandler.getInstance()

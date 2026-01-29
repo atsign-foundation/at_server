@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:at_secondary/src/connection/connection_factory.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_web_socket_connection.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:uuid/uuid.dart';
@@ -9,59 +10,69 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart
 
 /// Factory to create and maintain [InboundConnection] using [InboundConnectionPool]
 class InboundConnectionManager implements AtConnectionFactory {
-  static final InboundConnectionManager _singleton =
-      InboundConnectionManager._internal();
+  final int poolSize;
+  late InboundConnectionPool pool;
+  final String serverAtSign;
+  bool _closed = false;
 
-  InboundConnectionManager._internal();
+  bool get closed => _closed;
 
-  static const int defaultPoolSize = 100;
-
-  bool _isInitialized = false;
-
-  late InboundConnectionPool _pool;
-
-  factory InboundConnectionManager.getInstance() {
-    return _singleton;
+  InboundConnectionManager(
+      {required this.serverAtSign, required this.poolSize}) {
+    pool = InboundConnectionPool(serverAtSign: serverAtSign, size: poolSize);
   }
 
-  /// Creates and adds [InboundConnection] to the pool
-  /// If the pool is not initialized, initializes the pool with [defaultPoolSize]
+  /// Creates and adds an [InboundConnectionImpl] to the pool
   /// @param socket - client socket
   /// @param sessionId - current sessionId
   /// Throws a [InboundConnectionLimitException] if pool doesn't have capacity
   @override
-  InboundConnection createConnection(Socket? socket,
-      {String? sessionId, AtServerTelemetryService? telemetry}) {
-    if (!_isInitialized) {
-      init(defaultPoolSize);
+  InboundConnection createSocketConnection(Socket socket, {String? sessionId}) {
+    if (closed) {
+      throw StateError('InboundConnectionManager is closed');
     }
     if (!hasCapacity()) {
       throw InboundConnectionLimitException(
           'max limit reached on inbound pool');
     }
     sessionId ??= '_${Uuid().v4()}';
-    var atConnection = InboundConnectionImpl(socket, sessionId,
-        owningPool: _pool, telemetry: telemetry);
-    _pool.add(atConnection);
-    true;
+    var atConnection =
+        InboundConnectionImpl(socket, sessionId, owningPool: pool);
+    pool.add(atConnection);
+
+    return atConnection;
+  }
+
+  /// Creates and adds an [InboundWebSocketConnection] to the pool
+  /// If the pool is not initialized, initializes the pool with [defaultPoolSize]
+  /// @param socket - client socket
+  /// @param sessionId - current sessionId
+  /// Throws a [InboundConnectionLimitException] if pool doesn't have capacity
+  @override
+  InboundConnection createWebSocketConnection(WebSocket ws,
+      {String? sessionId,  AtServerTelemetryService? telemetry}) {
+    if (closed) {
+      throw StateError('InboundConnectionManager is closed');
+    }
+    if (!hasCapacity()) {
+      throw InboundConnectionLimitException(
+          'max limit reached on inbound pool');
+    }
+    sessionId ??= '_${Uuid().v4()}';
+    var atConnection = InboundWebSocketConnection(ws, sessionId, pool, telemetry: telemetry);
+    pool.add(atConnection);
+
     return atConnection;
   }
 
   bool hasCapacity() {
-    _pool.clearInvalidConnections();
-    return _pool.hasCapacity();
+    pool.clearInvalidConnections();
+    return pool.hasCapacity();
   }
 
-  /// Initialises inbound client pool with a given size.
-  /// @param - size - Maximum clients the pool can hold
-  void init(int size, {bool isColdInit = true}) {
-    _pool = InboundConnectionPool.getInstance();
-    _pool.init(size, isColdInit: isColdInit);
-    _isInitialized = true;
-  }
-
-  /// Closes all the active connections accepted by the secondary
-  bool removeAllConnections() {
-    return _pool.clearAllConnections();
+  /// Closes all the active inbound connections, prevents new ones.
+  bool close() {
+    _closed = true;
+    return pool.clearAllConnections();
   }
 }

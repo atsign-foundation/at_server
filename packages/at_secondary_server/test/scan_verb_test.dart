@@ -3,13 +3,13 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/executor/default_verb_executor.dart';
+import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/scan_verb_handler.dart';
 import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -20,6 +20,11 @@ import 'package:uuid/uuid.dart';
 import 'test_utils.dart';
 
 void main() {
+  FakeSocket mockSocket = FakeSocket();
+  NotificationManager mockNotificationManager = MockNotificationManager();
+
+  setUpAll(() {});
+
   group('A group of scan verb tests', () {
     setUpAll(() async {
       await verbTestsSetUp();
@@ -71,14 +76,17 @@ void main() {
 
     test('test scan verb - invalid syntax', () {
       var command = 'scann';
-      var inbound = InboundConnectionImpl(null, null);
+      var inbound = InboundConnectionImpl(mockSocket, null);
       var defaultVerbExecutor = DefaultVerbExecutor();
       var defaultVerbHandlerManager = DefaultVerbHandlerManager(
-          secondaryKeyStore,
-          mockOutboundClientManager,
-          cacheManager,
-          StatsNotificationService.getInstance(),
-          NotificationManager.getInstance());
+        secondaryKeyStore,
+        mockOutboundClientManager,
+        cacheManager,
+        StatsNotificationService.getInstance(),
+        mockNotificationManager,
+        enMgr,
+        alice,
+      );
 
       expect(
           () => defaultVerbExecutor.execute(
@@ -91,8 +99,8 @@ void main() {
       var command = 'scan:@bob ^@kevin';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[FOR_AT_SIGN], '@bob');
-      expect(paramsMap[AT_REGEX], '^@kevin');
+      expect(paramsMap[AtConstants.forAtSign], '@bob');
+      expect(paramsMap[AtConstants.regex], '^@kevin');
     });
 
     test('test scan verb with emoji in forAtSign and regular expression', () {
@@ -100,8 +108,8 @@ void main() {
       var command = 'scan:@🐼 ^@kevin';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[FOR_AT_SIGN], '@🐼');
-      expect(paramsMap[AT_REGEX], '^@kevin');
+      expect(paramsMap[AtConstants.forAtSign], '@🐼');
+      expect(paramsMap[AtConstants.regex], '^@kevin');
     });
     tearDownAll(() async {
       await verbTestsTearDown();
@@ -111,85 +119,87 @@ void main() {
   group('A group of mock tests to verify scan verb on authenticated connection',
       () {
     late ScanVerbHandler scanVerbHandler;
+    late LocalLookupVerbHandler llookupVH;
     setUp(() async {
       await verbTestsSetUp();
       scanVerbHandler = ScanVerbHandler(
           secondaryKeyStore, mockOutboundClientManager, cacheManager);
+      llookupVH = LocalLookupVerbHandler(secondaryKeyStore, enMgr);
     });
     test('A test to verify all keys are returned for a simple scan', () async {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       await secondaryKeyStore.put(
-          'public:location.wavi@alice', AtData()..data = 'dummy_value');
+          'public:location.wavi$alice', AtData()..data = 'dummy_value');
       await secondaryKeyStore.put(
-          '@bob:phone.buzz@alice', AtData()..data = 'dummy_value');
+          '@bob:phone.buzz$alice', AtData()..data = 'dummy_value');
       await secondaryKeyStore.put(
-          '@alice:mobile.wavi@alice', AtData()..data = 'dummy_value');
+          '$alice:mobile.wavi$alice', AtData()..data = 'dummy_value');
       await secondaryKeyStore.put(
-          'selfkey.atmosphere@alice', AtData()..data = 'dummy_value');
+          'selfkey.atmosphere$alice', AtData()..data = 'dummy_value');
       await scanVerbHandler.process('scan', inboundConnection);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
           .split('\n')[0]
           .replaceAll('data:', '');
       List scanResponse = jsonDecode(inboundConnection.lastWrittenData!);
       expect(scanResponse.length, 4);
-      expect(scanResponse.contains('@alice:mobile.wavi@alice'), true);
-      expect(scanResponse.contains('@bob:phone.buzz@alice'), true);
-      expect(scanResponse.contains('public:location.wavi@alice'), true);
-      expect(scanResponse.contains('selfkey.atmosphere@alice'), true);
+      expect(scanResponse.contains('$alice:mobile.wavi$alice'), true);
+      expect(scanResponse.contains('@bob:phone.buzz$alice'), true);
+      expect(scanResponse.contains('public:location.wavi$alice'), true);
+      expect(scanResponse.contains('selfkey.atmosphere$alice'), true);
     });
 
     test(
         'A test to verify only keys matching the regex are returned when regex is supplied to scan',
         () async {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       await secondaryKeyStore.put(
-          'public:location.wavi@alice', AtData()..data = 'dummy_value');
+          'public:location.wavi$alice', AtData()..data = 'dummy_value');
       await secondaryKeyStore.put(
-          '@bob:phone.buzz@alice', AtData()..data = 'dummy_value');
+          '@bob:phone.buzz$alice', AtData()..data = 'dummy_value');
       await secondaryKeyStore.put(
-          '@alice:mobile.wavi@alice', AtData()..data = 'dummy_value');
+          '$alice:mobile.wavi$alice', AtData()..data = 'dummy_value');
       await secondaryKeyStore.put(
-          'selfkey.atmosphere@alice', AtData()..data = 'dummy_value');
+          'selfkey.atmosphere$alice', AtData()..data = 'dummy_value');
       await scanVerbHandler.process('scan wavi', inboundConnection);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
           .split('\n')[0]
           .replaceAll('data:', '');
       List scanResponse = jsonDecode(inboundConnection.lastWrittenData!);
       expect(scanResponse.length, 2);
-      expect(scanResponse.contains('@alice:mobile.wavi@alice'), true);
-      expect(scanResponse.contains('public:location.wavi@alice'), true);
+      expect(scanResponse.contains('$alice:mobile.wavi$alice'), true);
+      expect(scanResponse.contains('public:location.wavi$alice'), true);
     });
 
     test(
         'A test to verify public hidden keys are returned when showhidden set to true',
         () async {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       await secondaryKeyStore.put(
-          'public:__phone.wavi@alice', AtData()..data = 'dummy_value');
+          'public:__phone.wavi$alice', AtData()..data = 'dummy_value');
       await secondaryKeyStore.put(
-          '_mobile.wavi@alice', AtData()..data = 'dummy_value');
+          '_mobile.wavi$alice', AtData()..data = 'dummy_value');
       await scanVerbHandler.process('scan:showhidden:true', inboundConnection);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
           .split('\n')[0]
           .replaceAll('data:', '');
       List scanResponse = jsonDecode(inboundConnection.lastWrittenData!);
       expect(scanResponse.length, 2);
-      expect(scanResponse.contains('public:__phone.wavi@alice'), true);
-      expect(scanResponse.contains('_mobile.wavi@alice'), true);
+      expect(scanResponse.contains('public:__phone.wavi$alice'), true);
+      expect(scanResponse.contains('_mobile.wavi$alice'), true);
     });
 
     test(
         'A test to verify public hidden keys are not returned when showhidden set to false',
         () async {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
-      inboundConnection.getMetaData().isAuthenticated = true;
+      inboundConnection.metaData.isAuthenticated = true;
       await secondaryKeyStore.put(
-          'public:__phone.wavi@alice', AtData()..data = 'dummy_value');
+          'public:__phone.wavi$alice', AtData()..data = 'dummy_value');
       await secondaryKeyStore.put(
-          '_mobile.wavi@alice', AtData()..data = 'dummy_value');
+          '_mobile.wavi$alice', AtData()..data = 'dummy_value');
       await scanVerbHandler.process('scan:showhidden:false', inboundConnection);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
           .split('\n')[0]
@@ -197,6 +207,55 @@ void main() {
       List scanResponse = jsonDecode(inboundConnection.lastWrittenData!);
       expect(scanResponse.length, 0);
     });
+
+    /// Set up an enrollment with limited access
+    /// Create an __atserver event
+    /// Verify that scan on this enrollment will return the __atserver event
+    test('Test that __atserver events are returned by scan', () async {
+      String enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'my_app',
+        'deviceName': 'my_device',
+        'namespaces': {'my_app': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      await enMgr.put(
+        enrollmentId,
+        AtData()..data = jsonEncode(enrollJson),
+        EnrollmentStatus.approved,
+      );
+
+      inboundConnection.metaData.isAuthenticated = true;
+
+      final event = AtSignPKChangedEvent(bob);
+      // store the event for retrieval by clients
+      int nowMicros = DateTime.now().microsecondsSinceEpoch;
+      String keyName = '$nowMicros.events'
+          '.${AtConstants.atServerReservedNamespace}'
+          '@${alice.withoutAt()}';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(event.toJson()));
+
+      await llookupVH.process('llookup:$keyName', inboundConnection);
+      inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
+          .split('\n')[0]
+          .replaceAll('data:', '');
+      final fetchedEvent = AtSignPKChangedEvent.fromJson(
+          jsonDecode(inboundConnection.lastWrittenData!));
+      expect(fetchedEvent.toJson(), event.toJson());
+
+      await scanVerbHandler.process('scan __atserver', inboundConnection);
+      inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
+          .split('\n')[0]
+          .replaceAll('data:', '');
+      List scanResponse = jsonDecode(inboundConnection.lastWrittenData!);
+      expect(scanResponse.length, 1);
+    });
+
     tearDown(() async {
       await verbTestsTearDown();
     });
@@ -213,57 +272,49 @@ void main() {
     test(
         'A test to verify keys specific to forAtSign are returned on pol authenticated connection',
         () async {
-      inboundConnection.getMetaData().isPolAuthenticated = true;
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .fromAtSign = '@bob';
+      inboundConnection.metaData.isPolAuthenticated = true;
+      inboundConnection.metaData.fromAtSign = '@bob';
 
       await secondaryKeyStore.put(
-          '@bob:phone.wavi@alice', AtData()..data = 'dummy-value');
+          '@bob:phone.wavi$alice', AtData()..data = 'dummy-value');
       await secondaryKeyStore.put(
-          '@kevin:location.wavi@alice', AtData()..data = 'dummy-value');
+          '@kevin:location.wavi$alice', AtData()..data = 'dummy-value');
       await secondaryKeyStore.put(
-          '@random:coutry.wavi@alice', AtData()..data = 'dummy-value');
+          '@random:country.wavi$alice', AtData()..data = 'dummy-value');
       await secondaryKeyStore.put(
-          'public:mobile.wavi@alice', AtData()..data = 'dummy-value');
+          'public:mobile.wavi$alice', AtData()..data = 'dummy-value');
       await secondaryKeyStore.put(
-          'city.wavi@alice', AtData()..data = 'dummy-value');
+          'city.wavi$alice', AtData()..data = 'dummy-value');
 
       List<String> scanResponseKeys = await scanVerbHandler.getLocalKeys(
-          inboundConnection.getMetaData() as InboundConnectionMetadata,
-          '.*',
-          false,
-          alice);
+          inboundConnection.metaData, '.*', false, alice);
       expect(scanResponseKeys.length, 1);
-      expect(scanResponseKeys[0], 'phone.wavi@alice');
+      expect(scanResponseKeys[0], 'phone.wavi$alice');
     });
 
     test(
         'A test to verify regex applied on pol authenticated connection returns only keys specific to forAtSign that matches the regex',
         () async {
-      inboundConnection.getMetaData().isPolAuthenticated = true;
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .fromAtSign = '@bob';
+      inboundConnection.metaData.isPolAuthenticated = true;
+      inboundConnection.metaData.fromAtSign = '@bob';
 
       await secondaryKeyStore.put(
-          '@bob:phone.wavi@alice', AtData()..data = 'dummy-value');
+          '@bob:phone.wavi$alice', AtData()..data = 'dummy-value');
       await secondaryKeyStore.put(
-          '@bob:firstname.buzz@alice', AtData()..data = 'dummy-value');
+          '@bob:firstname.buzz$alice', AtData()..data = 'dummy-value');
       await secondaryKeyStore.put(
-          '@kevin:location.wavi@alice', AtData()..data = 'dummy-value');
+          '@kevin:location.wavi$alice', AtData()..data = 'dummy-value');
       await secondaryKeyStore.put(
-          '@random:coutry.wavi@alice', AtData()..data = 'dummy-value');
+          '@random:country.wavi$alice', AtData()..data = 'dummy-value');
       await secondaryKeyStore.put(
-          'public:mobile.wavi@alice', AtData()..data = 'dummy-value');
+          'public:mobile.wavi$alice', AtData()..data = 'dummy-value');
       await secondaryKeyStore.put(
-          'city.wavi@alice', AtData()..data = 'dummy-value');
+          'city.wavi$alice', AtData()..data = 'dummy-value');
 
       List<String> scanResponseKeys = await scanVerbHandler.getLocalKeys(
-          inboundConnection.getMetaData() as InboundConnectionMetadata,
-          'wavi',
-          false,
-          alice);
+          inboundConnection.metaData, 'wavi', false, alice);
       expect(scanResponseKeys.length, 1);
-      expect(scanResponseKeys[0], 'phone.wavi@alice');
+      expect(scanResponseKeys[0], 'phone.wavi$alice');
     });
     tearDown(() async {
       await verbTestsTearDown();
@@ -291,11 +342,11 @@ void main() {
         'A test to verify scan on unauthenticated connection returns only public keys',
         () async {
       await secondaryKeyStore.put(
-          '@bob:phone.wavi@alice', AtData()..data = 'dummy-value');
+          '@bob:phone.wavi$alice', AtData()..data = 'dummy-value');
       await secondaryKeyStore.put(
-          'public:firstname.buzz@alice', AtData()..data = 'dummy-value');
+          'public:firstname.buzz$alice', AtData()..data = 'dummy-value');
       await secondaryKeyStore.put(
-          'city.wavi@alice', AtData()..data = 'dummy-value');
+          'city.wavi$alice', AtData()..data = 'dummy-value');
       await scanVerbHandler.process('scan', inboundConnection);
 
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
@@ -303,7 +354,7 @@ void main() {
           .replaceAll('data:', '');
       List scanResponseKeys = jsonDecode(inboundConnection.lastWrittenData!);
       expect(scanResponseKeys.length, 1);
-      expect(scanResponseKeys[0], 'firstname.buzz@alice');
+      expect(scanResponseKeys[0], 'firstname.buzz$alice');
     });
     tearDown(() async {
       await verbTestsTearDown();
@@ -319,8 +370,8 @@ void main() {
     test(
         'A test to verify scan does not return the enrollment keys when enrollment namespace has __manage',
         () async {
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
       var enrollmentId = Uuid().v4();
       final enrollJson = {
         'sessionId': '123',
@@ -331,7 +382,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
       await secondaryKeyStore.put(
@@ -340,8 +391,7 @@ void main() {
       scanVerbHandler = ScanVerbHandler(
           secondaryKeyStore, mockOutboundClientManager, cacheManager);
       // Set enrollmentId to the inboundConnection to mimic the APKAM auth
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollmentId = enrollmentId;
+      inboundConnection.metaData.enrollmentId = enrollmentId;
       await scanVerbHandler.process('scan', inboundConnection);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
           .split('\n')[0]
@@ -350,15 +400,15 @@ void main() {
       expect(scanResponseList, isNotEmpty);
       expect(
           scanResponseList
-              .contains('$enrollmentId.new.enrollments.__manage@alice'),
+              .contains('$enrollmentId.new.enrollments.__manage$alice'),
           false);
     });
 
     test(
         'A test to verify scan returns only the keys whose namespaces are authorized in enrollment request',
         () async {
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
       var enrollmentId = Uuid().v4();
       final enrollJson = {
         'sessionId': '123',
@@ -369,7 +419,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
       // Insert key with wavi and buzz namespace
@@ -381,8 +431,7 @@ void main() {
       scanVerbHandler = ScanVerbHandler(
           secondaryKeyStore, mockOutboundClientManager, cacheManager);
       // Set enrollmentId to the inboundConnection to mimic the APKAM auth
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollmentId = enrollmentId;
+      inboundConnection.metaData.enrollmentId = enrollmentId;
       await scanVerbHandler.process('scan', inboundConnection);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
           .split('\n')[0]
@@ -395,9 +444,9 @@ void main() {
     test(
         'A test to verify scan returns enrollment keys on a CRAM authenticated connection',
         () async {
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
-      inboundConnection.getMetaData().authType = AuthType.cram;
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      inboundConnection.metaData.authType = AuthType.cram;
       var enrollmentId = Uuid().v4();
       final enrollJson = {
         'sessionId': '123',
@@ -408,7 +457,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
 
@@ -426,10 +475,9 @@ void main() {
 
     test('A test to verify enrollment has *:rw access', () async {
       var enrollmentId = Uuid().v4();
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollmentId = enrollmentId;
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      inboundConnection.metaData.enrollmentId = enrollmentId;
 
       final enrollJson = {
         'sessionId': '123',
@@ -440,7 +488,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
 
@@ -458,10 +506,9 @@ void main() {
         'A test to verify scan returns all keys when enrollment has *:rw access',
         () async {
       var enrollmentId = Uuid().v4();
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollmentId = enrollmentId;
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      inboundConnection.metaData.enrollmentId = enrollmentId;
 
       final enrollJson = {
         'sessionId': '123',
@@ -472,16 +519,16 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
 
       await secondaryKeyStore.put(
-          'public:phone.wavi@alice', AtData()..data = '+455 675 6765');
+          'public:phone.wavi$alice', AtData()..data = '+455 675 6765');
       await secondaryKeyStore.put(
-          '@bob:firstName.atmosphere@alice', AtData()..data = 'Alice');
+          '@bob:firstName.atmosphere$alice', AtData()..data = 'Alice');
       await secondaryKeyStore.put(
-          'mobile.buzz@alice', AtData()..data = '+878 787 7679');
+          'mobile.buzz$alice', AtData()..data = '+878 787 7679');
 
       scanVerbHandler = ScanVerbHandler(
           secondaryKeyStore, mockOutboundClientManager, cacheManager);
@@ -492,23 +539,22 @@ void main() {
       List scanResponseList = jsonDecode(inboundConnection.lastWrittenData!);
       expect(
           scanResponseList
-              .contains('$enrollmentId.new.enrollments.__manage@alice'),
+              .contains('$enrollmentId.new.enrollments.__manage$alice'),
           true);
       expect(
-          scanResponseList.contains('@bob:firstname.atmosphere@alice'), true);
+          scanResponseList.contains('@bob:firstname.atmosphere$alice'), true);
 
-      expect(scanResponseList.contains('mobile.buzz@alice'), true);
-      expect(scanResponseList.contains('public:phone.wavi@alice'), true);
+      expect(scanResponseList.contains('mobile.buzz$alice'), true);
+      expect(scanResponseList.contains('public:phone.wavi$alice'), true);
     });
 
     test(
         'A test to verify multiple app access in enrollment buzz:r, wavi:rw, atmosphere:rw',
         () async {
       var enrollmentId = Uuid().v4();
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollmentId = enrollmentId;
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      inboundConnection.metaData.enrollmentId = enrollmentId;
 
       final enrollJson = {
         'sessionId': '123',
@@ -519,7 +565,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
       // Inserting wavi
@@ -547,8 +593,8 @@ void main() {
     test(
         'A test to verify keys without namespace are not returned when enrollmentId is supplied',
         () async {
-      inboundConnection.getMetaData().isAuthenticated = true;
-      inboundConnection.getMetaData().sessionID = 'dummy_session';
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
       var enrollmentId = Uuid().v4();
       final enrollJson = {
         'sessionId': '123',
@@ -559,7 +605,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
       // Insert key with wavi and buzz namespace
@@ -573,8 +619,7 @@ void main() {
       scanVerbHandler = ScanVerbHandler(
           secondaryKeyStore, mockOutboundClientManager, cacheManager);
       // Set enrollmentId to the inboundConnection to mimic the APKAM auth
-      (inboundConnection.getMetaData() as InboundConnectionMetadata)
-          .enrollmentId = enrollmentId;
+      inboundConnection.metaData.enrollmentId = enrollmentId;
       await scanVerbHandler.process('scan', inboundConnection);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
           .split('\n')[0]

@@ -6,24 +6,34 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
-import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:at_secondary/src/utils/handler_util.dart';
+import 'package:at_secondary/src/utils/handler_util.dart' as hu;
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/change_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_utils.dart';
+import 'package:mutex/mutex.dart';
 
 abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   static bool _autoNotify = AtSecondaryConfig.autoNotify;
   late final NotificationManager notificationManager;
+  static const int maxKeyLength = 255;
+  static const int maxKeyLengthWithoutCached = 248;
+
+  /// Has to be static because both UpdateVerbHandler and UpdateMetaVerbHandler
+  /// need to use the same mutexes.
+  static final Map<String, (Mutex, int)> _updateMutexes = {};
+
+  Map<String, (Mutex, int)> get updateMutexes => _updateMutexes;
+
+  final String atSign;
 
   AbstractUpdateVerbHandler(
-      SecondaryKeyStore keyStore,
-      StatsNotificationService statsNotificationService,
-      this.notificationManager)
-      : super(keyStore, statsNotificationService);
+    super.keyStore,
+    super.statsNotificationService,
+    this.notificationManager,
+    this.atSign,
+  );
 
   //setter to set autoNotify value from dynamic server config "config:set".
   //only works when testingMode is set to true
@@ -33,31 +43,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     }
   }
 
-  Future<UpdatePreProcessResult> preProcessAndNotify(
-      Response response,
-      HashMap<String, String?> verbParams,
-      InboundConnection atConnection) async {
-    // Sets Response bean to the response bean in ChangeVerbHandler
-    await super.processVerb(response, verbParams, atConnection);
-
-    var updateParams = getUpdateParams(verbParams);
-    if (updateParams.atKey == null || updateParams.atKey!.isEmpty) {
-      throw InvalidSyntaxException('atKey.key not supplied');
-    }
-
-    if (updateParams.sharedBy != null &&
-        updateParams.sharedBy!.isNotEmpty &&
-        updateParams.sharedBy !=
-            AtSecondaryServerImpl.getInstance().currentAtSign) {
-      var message = 'Invalid update command - sharedBy atsign'
-          ' ${AtUtils.fixAtSign(updateParams.sharedBy!)}'
-          ' should be same as current atsign'
-          ' ${AtSecondaryServerImpl.getInstance().currentAtSign}';
-      logger.warning(message);
-      throw InvalidAtKeyException(message);
-    }
-
-    // Get the key and update the value
+  String getDataStoreKey(UpdateParams updateParams) {
     final sharedWith = updateParams.sharedWith;
     final sharedBy = updateParams.sharedBy;
     var atKey = updateParams.atKey!;
@@ -65,16 +51,6 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     final atData = AtData();
     atData.data = value;
 
-    final enrollApprovalId =
-        (atConnection.getMetaData() as InboundConnectionMetadata)
-            .enrollmentId;
-    bool isAuthorized = true; // for legacy clients allow access by default
-    if (enrollApprovalId != null) {
-      if (atKey.contains('.')) {
-        var keyNamespace = atKey.substring(atKey.lastIndexOf('.') + 1);
-        isAuthorized = await super.isAuthorized(enrollApprovalId, keyNamespace);
-      }
-    }
     // Get the key using verbParams (forAtSign, key, atSign)
     if (sharedWith != null && sharedWith.isNotEmpty) {
       atKey = '$sharedWith:$atKey';
@@ -83,13 +59,49 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       atKey = '$atKey$sharedBy';
     }
     // Append public: as prefix if key is public
-    if (updateParams.metadata!.isPublic != null &&
-        updateParams.metadata!.isPublic!) {
+    if (updateParams.metadata!.isPublic) {
       atKey = 'public:$atKey';
     }
+
+    return atKey;
+  }
+
+  String apkamUnauthorizedMsg(String enId, String key) =>
+      'Connection with enrollment ID $enId'
+      ' is not authorized to update key: $key';
+
+  /// - Construct an AtKey and AtData and AtMetaData from the verb params
+  /// - Fetch existing record from data store
+  /// - If existing record,
+  ///   - Merge existing metadata into the new metadata where new metadata field
+  ///   has a null value
+  ///   - Iterate through the verb params again; if there is a metadata param
+  ///   supplied with a value of 'null' then set the AtMetaData field to null
+  Future<UpdatePreProcessResult> preProcessAndNotify(
+      Response response,
+      HashMap<String, String?> verbParams,
+      UpdateParams updateParams,
+      InboundConnection atConnection) async {
+    // Sets Response bean to the response bean in ChangeVerbHandler
+    await super.processVerb(response, verbParams, atConnection);
+
+    // Get the key and update the value
+    final sharedWith = updateParams.sharedWith;
+    final sharedBy = updateParams.sharedBy;
+    final value = updateParams.value;
+    final atData = AtData();
+    atData.data = value;
+
+    // Get the key we're going to update in the data store
+    String atKey = getDataStoreKey(updateParams);
+
+    // check authorization
+    InboundConnectionMetadata md =
+        atConnection.metaData as InboundConnectionMetadata;
+    bool isAuthorized = await super.isAuthorized(md, atKey: atKey);
     if (!isAuthorized) {
       throw UnAuthorizedException(
-          'Enrollment Id: $enrollApprovalId is not authorized for update operation on the key: ${atKey.toString()}');
+          apkamUnauthorizedMsg(md.enrollmentId ?? 'primary', atKey));
     }
 
     var keyType = AtKey.getKeyType(atKey, enforceNameSpace: false);
@@ -108,31 +120,41 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     }
 
     var existingAtMetaData = await keyStore.getMeta(atKey);
-    var cacheRefreshMetaMap = validateCacheMetadata(existingAtMetaData,
+    var cacheRefreshMetaMap = hu.validateCacheMetadata(existingAtMetaData,
         updateParams.metadata!.ttr, updateParams.metadata!.ccd);
-    updateParams.metadata!.ttr = cacheRefreshMetaMap[AT_TTR];
-    updateParams.metadata!.ccd = cacheRefreshMetaMap[CCD];
+    updateParams.metadata!.ttr = cacheRefreshMetaMap[AtConstants.ttr];
+    updateParams.metadata!.ccd = cacheRefreshMetaMap[AtConstants.ccd];
 
     //If ttr is set and atsign is not equal to currentAtSign, the key is
     //cached key.
     if (updateParams.metadata!.ttr != null &&
         updateParams.metadata!.ttr! > 0 &&
         sharedBy != null &&
-        sharedBy != AtSecondaryServerImpl.getInstance().currentAtSign) {
-      atKey = 'cached:$atKey';
+        sharedBy != atSign) {
+      throw IllegalArgumentException(
+          'update verb but sharedBy ($sharedBy) is not current atSign ($atSign)');
     }
 
-    atData.metaData = AtMetaData.fromCommonsMetadata(updateParams.metadata!);
+    _checkMaxLength(atKey);
 
     atData.metaData =
-        _unsetOrRetainMetadata(atData.metaData!, existingAtMetaData);
+        AtMetaData.fromCommonsMetadata(updateParams.metadata!, atSign);
+
+    // Enforce the immutable feature
+    if (existingAtMetaData?.immutable == true) {
+      throw IllegalStateException('Immutable records may not be updated');
+    }
+    atData.metaData = _unsetOrRetainMetadata(
+      atData.metaData!,
+      existingAtMetaData,
+    );
 
     notify(
         sharedBy,
         sharedWith,
-        verbParams[AT_KEY],
+        verbParams[AtConstants.atKey],
         value,
-        SecondaryUtil.getNotificationPriority(verbParams[PRIORITY]),
+        SecondaryUtil.getNotificationPriority(verbParams[AtConstants.priority]),
         atData.metaData!);
 
     return UpdatePreProcessResult(atKey, atData);
@@ -145,46 +167,80 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       return UpdateParams.fromJson(jsonMap);
     }
     var updateParams = UpdateParams();
-    updateParams.sharedBy = AtUtils.formatAtSign(verbParams[AT_SIGN]);
-    updateParams.sharedWith = AtUtils.formatAtSign(verbParams[FOR_AT_SIGN]);
-    updateParams.atKey = verbParams[AT_KEY];
-    updateParams.value = verbParams[AT_VALUE];
+    if (verbParams[AtConstants.atSign] != null) {
+      updateParams.sharedBy =
+          AtUtils.fixAtSign(verbParams[AtConstants.atSign]!);
+    }
+    if (verbParams[AtConstants.forAtSign] != null) {
+      updateParams.sharedWith =
+          AtUtils.fixAtSign(verbParams[AtConstants.forAtSign]!);
+    }
+    updateParams.atKey = verbParams[AtConstants.atKey];
+    updateParams.value = verbParams[AtConstants.atValue];
 
     var metadata = Metadata();
-    metadata.isBinary = null;
-    if (verbParams[AT_TTL] != null) {
-      metadata.ttl = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
+    if (verbParams[AtConstants.ttl] != null) {
+      metadata.ttl = AtMetadataUtil.validateTTL(verbParams[AtConstants.ttl]);
     }
-    if (verbParams[AT_TTB] != null) {
-      metadata.ttb = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
+    if (verbParams[AtConstants.ttb] != null) {
+      metadata.ttb = AtMetadataUtil.validateTTB(verbParams[AtConstants.ttb]);
     }
-    if (verbParams[AT_TTR] != null) {
-      metadata.ttr = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]!));
+    if (verbParams[AtConstants.ttr] != null) {
+      metadata.ttr = hu.validateTTR(int.parse(verbParams[AtConstants.ttr]!));
     }
-    if (verbParams[CCD] != null) {
-      metadata.ccd = AtMetadataUtil.getBoolVerbParams(verbParams[CCD]);
+    if (verbParams[AtConstants.ccd] != null) {
+      metadata.ccd =
+          AtMetadataUtil.getBoolVerbParams(verbParams[AtConstants.ccd]);
     }
-    metadata.dataSignature = verbParams[PUBLIC_DATA_SIGNATURE];
-    if (verbParams[IS_BINARY] != null) {
+    metadata.dataSignature = verbParams[AtConstants.publicDataSignature];
+    if (verbParams[AtConstants.isBinary] != null) {
       metadata.isBinary =
-          AtMetadataUtil.getBoolVerbParams(verbParams[IS_BINARY]);
+          AtMetadataUtil.getBoolVerbParams(verbParams[AtConstants.isBinary]);
     }
-    if (verbParams[IS_ENCRYPTED] != null) {
+    if (verbParams[AtConstants.isEncrypted] != null) {
       metadata.isEncrypted =
-          AtMetadataUtil.getBoolVerbParams(verbParams[IS_ENCRYPTED]);
+          AtMetadataUtil.getBoolVerbParams(verbParams[AtConstants.isEncrypted]);
     }
-    metadata.isPublic = verbParams[PUBLIC_SCOPE_PARAM] == 'public';
-    metadata.sharedKeyEnc = verbParams[SHARED_KEY_ENCRYPTED];
-    metadata.pubKeyCS = verbParams[SHARED_WITH_PUBLIC_KEY_CHECK_SUM];
-    metadata.encoding = verbParams[ENCODING];
-    metadata.encKeyName = verbParams[ENCRYPTING_KEY_NAME];
-    metadata.encAlgo = verbParams[ENCRYPTING_ALGO];
-    metadata.ivNonce = verbParams[IV_OR_NONCE];
+    metadata.isPublic = verbParams[AtConstants.publicScopeParam] == 'public';
+    metadata.sharedKeyEnc = verbParams[AtConstants.sharedKeyEncrypted];
+    metadata.pubKeyCS = verbParams[AtConstants.sharedWithPublicKeyCheckSum];
+    metadata.encoding = verbParams[AtConstants.encoding];
+    metadata.encKeyName = verbParams[AtConstants.encryptingKeyName];
+    metadata.encAlgo = verbParams[AtConstants.encryptingAlgo];
+    metadata.ivNonce = verbParams[AtConstants.ivOrNonce];
     metadata.skeEncKeyName =
-        verbParams[SHARED_KEY_ENCRYPTED_ENCRYPTING_KEY_NAME];
-    metadata.skeEncAlgo = verbParams[SHARED_KEY_ENCRYPTED_ENCRYPTING_ALGO];
+        verbParams[AtConstants.sharedKeyEncryptedEncryptingKeyName];
+    metadata.skeEncAlgo =
+        verbParams[AtConstants.sharedKeyEncryptedEncryptingAlgo];
+    if (verbParams[AtConstants.sharedWithPublicKeyHash].isNotNullOrEmpty &&
+        verbParams[AtConstants.sharedWithPublicKeyHashingAlgo]
+            .isNotNullOrEmpty) {
+      metadata.pubKeyHash = PublicKeyHash(
+          verbParams[AtConstants.sharedWithPublicKeyHash]!,
+          verbParams[AtConstants.sharedWithPublicKeyHashingAlgo]!);
+    }
+    if (verbParams[AtConstants.immutable] != null) {
+      metadata.immutable =
+          AtMetadataUtil.getBoolVerbParams(verbParams[AtConstants.immutable]);
+    }
 
     updateParams.metadata = metadata;
+
+    if (updateParams.atKey == null || updateParams.atKey!.isEmpty) {
+      throw InvalidSyntaxException('atKey.key not supplied');
+    }
+
+    if (updateParams.sharedBy != null &&
+        updateParams.sharedBy!.isNotEmpty &&
+        updateParams.sharedBy != atSign) {
+      var message = 'Invalid update command - sharedBy atsign'
+          ' ${AtUtils.fixAtSign(updateParams.sharedBy!)}'
+          ' should be same as current atsign'
+          ' $atSign';
+      logger.warning(message);
+      throw InvalidAtKeyException(message);
+    }
+
     return updateParams;
   }
 
@@ -222,19 +278,16 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   /// existing metadata value is not null, set it the current AtMetaData obj.
   AtMetaData _unsetOrRetainMetadata(
       AtMetaData newAtMetadata, AtMetaData? existingAtMetadata) {
-    if (existingAtMetadata == null) {
-      return newAtMetadata;
-    }
     var atMetaDataJson = newAtMetadata.toJson();
-    var existingAtMetaDataJson = existingAtMetadata.toJson();
+    var existingAtMetaDataJson = existingAtMetadata?.toJson();
     atMetaDataJson.forEach((key, value) {
       switch (value) {
         // If command does not contains the attributes of a metadata, then regex named
         // group, inserts null. For a key, if an attribute has a value in previously,
         // fetch the value and update it.
         case null:
-          if (existingAtMetaDataJson[key] != null) {
-            atMetaDataJson[key] = existingAtMetaDataJson[key];
+          if (existingAtMetaDataJson?[key] != null) {
+            atMetaDataJson[key] = existingAtMetaDataJson![key];
           }
           break;
         // In the command, if an attribute is explicitly set to null, then verbParams
@@ -245,6 +298,18 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       }
     });
     return AtMetaData.fromJson(atMetaDataJson);
+  }
+
+  /// Certain keys created on one atsign server may be cached in another atsign server.
+  /// Restrict key length to [_maxKeyLengthWithoutCached] if is not a cached key
+  void _checkMaxLength(String key) {
+    int maxLength =
+        key.startsWith('cached:') ? maxKeyLength : maxKeyLengthWithoutCached;
+    if (key.length > maxLength) {
+      throw InvalidAtKeyException(
+        'key length ${key.length} is greater than max allowed $maxLength chars',
+      );
+    }
   }
 }
 

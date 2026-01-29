@@ -14,6 +14,14 @@ HashMap<String, String?> getVerbParam(String regex, String command) {
   return verbParams;
 }
 
+int validateTTR(int ttrMs) {
+  if (ttrMs <= -2) {
+    throw InvalidSyntaxException(
+        'Valid values for TTR are -1 and greater than or equal to 0');
+  }
+  return ttrMs;
+}
+
 /// Validates the TTR and CCD metadata.
 Map<String, dynamic> validateCacheMetadata(
     AtMetaData? metadata, int? ttrMillis, bool? ccd) {
@@ -40,9 +48,9 @@ Map<String, dynamic> validateCacheMetadata(
     if (ccd == null && ttrMillis != null) {
       ccd = metadata.isCascade;
       ccd ??= false;
-      ttrMillis = AtMetadataUtil.validateTTR(ttrMillis);
+      ttrMillis = validateTTR(ttrMillis);
     }
   }
-  var valueMap = {AT_TTR: ttrMillis, CCD: ccd};
+  var valueMap = {AtConstants.ttr: ttrMillis, AtConstants.ccd: ccd};
   return valueMap;
 }

@@ -1,11 +1,12 @@
-FROM dart:3.2.3@sha256:6f115649ce95f0df25195fc463a39d4ba74450907e1e93cb1a0d657bbbd8ce94 AS buildimage
+FROM dart:3.10.8@sha256:538a59844eff5c6f6b8c761a974f1f035bb115f68710f6a90c32430af01c2241 AS buildimage
 ENV USER_ID=1024
 ENV GROUP_ID=1024
 WORKDIR /app
 # Context for this Dockerfile needs to be at_server repo root
 # If building manually then (from the repo root):
-## sudo docker build -t atsigncompany/virtualenv:vip \
-## -f tools/build_virtual_environment/ve/Dockerfile.vip .
+## sudo docker buildx build --platform linux/arm64/v8,linux/amd64 \
+## -t atsigncompany/virtualenv:vip \
+## -f tools/build_virtual_environment/ve/Dockerfile.vip -o type=registry .
 COPY . .
 RUN \
   cd /app/packages/at_persistence_secondary_server ; \
@@ -25,7 +26,7 @@ COPY --from=buildimage --chown=atsign:atsign \
 COPY --from=buildimage --chown=atsign:atsign \
   /app/packages/at_secondary_server/pubspec.yaml /atsign/secondary/
 
-EXPOSE 64 6379 9001
+EXPOSE 64 443 6379 9001
 
 # Run supervisor configuration file on container startup
 CMD ["supervisord", "-n"]

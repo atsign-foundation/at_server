@@ -1,9 +1,10 @@
 import 'dart:collection';
 import 'dart:convert';
-import 'dart:typed_data';
+
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
+import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
@@ -20,11 +21,9 @@ class PolVerbHandler extends AbstractVerbHandler {
   static Pol pol = Pol();
   final OutboundClientManager outboundClientManager;
   final AtCacheManager cacheManager;
-  OutboundClient? _outboundClient;
+  final _dummyInboundConnection = DummyInboundConnection();
 
-  PolVerbHandler(
-      SecondaryKeyStore keyStore, this.outboundClientManager, this.cacheManager)
-      : super(keyStore);
+  PolVerbHandler(super.keyStore, this.outboundClientManager, this.cacheManager);
 
   // Method to verify whether command is accepted or not
   // Input: command
@@ -52,20 +51,32 @@ class PolVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     InboundConnectionMetadata atConnectionMetadata =
-        atConnection.getMetaData() as InboundConnectionMetadata;
+        atConnection.metaData as InboundConnectionMetadata;
     var fromAtSign = atConnectionMetadata.fromAtSign;
     var sessionID = atConnectionMetadata.sessionID;
 
-    logger.info('from : ${atConnectionMetadata.from.toString()}');
     // Check if from: verb is executed
     if (atConnectionMetadata.from != true) {
       throw InvalidRequestException('You must execute a '
           '\'from:\' command before you may run the pol command');
     }
+    logger.info('pol from $fromAtSign');
 
-    await _createOutboundConnection(fromAtSign, atConnection);
+    final OutboundClient oc = await outboundClientManager.getClient(
+        fromAtSign!, _dummyInboundConnection,
+        handshakeRequired: false);
+    if (!oc.isConnectionCreated) {
+      try {
+        await oc.connect();
+      } on Exception catch (e) {
+        logger.finer(
+            'Exception connecting to $fromAtSign\'s outbound client | $e');
+        rethrow;
+      }
+    }
+
     HashMap<String, String> fetchSecretResult =
-        await _fetchSecret(fromAtSign!, sessionID!);
+        await _fetchSecret(fromAtSign, sessionID!, oc);
     // pass the result from _fetchSecret() to validateChallenge()
     // validateChallenge() requires the params fetched through _fetchSecret()
     _validateChallenge(fetchSecretResult);
@@ -75,24 +86,6 @@ class PolVerbHandler extends AbstractVerbHandler {
     await _insertIntoAccessLog(fromAtSign, pol.name());
     logger.info('response : $fromAtSign@');
 
-    _outboundClient?.close();
-    return;
-  }
-
-  Future<void> _createOutboundConnection(
-      String? fromAtsign, var atConnection) async {
-    // Connect to the other secondary server
-    _outboundClient =
-        outboundClientManager.getClient(fromAtsign!, atConnection);
-    if (!_outboundClient!.isConnectionCreated) {
-      try {
-        await _outboundClient!.connect(handshake: false);
-      } on Exception catch (e) {
-        logger.finer(
-            'Exception connecting to $fromAtsign\'s outbound client | $e');
-        rethrow;
-      }
-    }
     return;
   }
 
@@ -100,21 +93,20 @@ class PolVerbHandler extends AbstractVerbHandler {
   /// and secret from this secondary
   /// throws an exception if any of these could not be fetched
   Future<HashMap<String, String>> _fetchSecret(
-      String fromAtSign, String sessionID) async {
+      String fromAtSign, String sessionID, OutboundClient oc) async {
     String? signedChallenge, fromPublicKey, message;
     HashMap<String, String> response = HashMap();
     try {
       // construct the key that needs to be looked up
       var lookUpKey = '$sessionID$fromAtSign';
       // fetch the challenge from the other secondary
-      signedChallenge =
-          await (_outboundClient?.lookUp(lookUpKey, handshake: false));
-      signedChallenge = signedChallenge?.replaceFirst('data:', '');
+      signedChallenge = await (oc.lookUp(lookUpKey, handshake: false));
+      signedChallenge = signedChallenge?.replaceFirst(RegExp('^data:'), '');
 
       // look for the public key on the other secondary
       var plookupCommand = 'signing_publickey$fromAtSign';
-      fromPublicKey = await (_outboundClient?.plookUp(plookupCommand));
-      fromPublicKey = fromPublicKey?.replaceFirst('data:', '');
+      fromPublicKey = await (oc.plookUp(plookupCommand));
+      fromPublicKey = fromPublicKey?.replaceFirst(RegExp('^data:'), '');
 
       // Getting stored secret from this secondary server
       var secret = await keyStore.get('public:$sessionID$fromAtSign');
@@ -126,8 +118,7 @@ class PolVerbHandler extends AbstractVerbHandler {
     }
 
     if (fromPublicKey == null || signedChallenge == null || message == null) {
-      logger.finer(
-          'Invalid OutboundClient status: ${_outboundClient.toString()}');
+      logger.finer('Invalid OutboundClient status: ${oc.toString()}');
       logger
           .severe('Unable to verify signature. fromPublicKey is $fromPublicKey'
               ' | signedChallenge is $signedChallenge | message is $message');
@@ -143,7 +134,7 @@ class PolVerbHandler extends AbstractVerbHandler {
   void _validateChallenge(HashMap<String, String> inputs) {
     // Comparing secretLookup form other secondary and stored secret are same or not
     bool isValidChallenge = RSAPublicKey.fromString(inputs['fromPublicKey']!)
-        .verifySHA256Signature(utf8.encode(inputs['message']!) as Uint8List,
+        .verifySHA256Signature(utf8.encode(inputs['message']!),
             base64Decode(inputs['signedChallenge']!));
     logger.finer('isValidChallenge: $isValidChallenge');
     if (!isValidChallenge) {

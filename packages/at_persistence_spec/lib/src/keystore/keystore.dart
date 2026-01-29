@@ -1,7 +1,5 @@
 /// Keystore represents a data store like a database which can store mapping between keys and values.
-// ignore_for_file: non_constant_identifier_names, constant_identifier_names
-
-abstract class Keystore<K, V> {
+abstract interface class Keystore<K, V> {
   /// Retrieves a Future value for the key passed from the key store.
   ///
   /// @param key Key associated with a value.
@@ -10,7 +8,7 @@ abstract class Keystore<K, V> {
 }
 
 /// WritableKeystore represents a data store like a database that allows CRUD operations on the values belonging to the keys
-abstract class WritableKeystore<K, V> implements Keystore<K, V> {
+abstract interface class WritableKeystore<K, V> implements Keystore<K, V> {
   /// Subclasses should put any necessary post-construction async initialization
   /// in this method
   Future<void> initialize() async {}
@@ -20,55 +18,19 @@ abstract class WritableKeystore<K, V> implements Keystore<K, V> {
   ///
   /// @param key - Key associated with a value.
   /// @param value - Value to be associated with the specified key.
-  /// @param time_to_live - Duration in milliseconds after which the key should expire automatically.
-  /// @param time_to_born - Duration in milliseconds after which the key will become active.
   /// @param skipCommit - if set to true, will skip adding entry to commit log for this update. Set to false by default.
   /// @returns sequence number from commit log if put is success. null otherwise
   /// Throws a [DataStoreException] if the the operation fails due to some issue with the data store.
-  Future<dynamic> put(K key, V value,
-      {int? time_to_live,
-      int? time_to_born,
-      int? time_to_refresh,
-      bool? isCascade,
-      bool? isBinary,
-      bool? isEncrypted,
-      String? dataSignature,
-      String? sharedKeyEncrypted,
-      String? publicKeyChecksum,
-      String? encoding,
-      String? encKeyName,
-      String? encAlgo,
-      String? ivNonce,
-      String? skeEncKeyName,
-      String? skeEncAlgo,
-      bool skipCommit = false});
+  Future<dynamic> put(K key, V value, {bool skipCommit = false});
 
   /// If the specified key is not already associated with a value (or is mapped to null) associates it with the given value and returns null, else returns the current value.
   ///
   /// @param key - Key with which the specified value is to be associated
   /// @param value - Value to be associated with the specified key
-  /// @param time_to_live - Duration in milliseconds after which the key should expire automatically.
-  /// @param time_to_born - Duration in milliseconds after which the key will become active.
   /// @param skipCommit - if set to true, will skip adding entry to commit log for this create operation. Set to false by default.
   /// @return - sequence number from commit log if put is success. null otherwise
   /// Throws a [DataStoreException] if the the operation fails due to some issue with the data store.
-  Future<dynamic> create(K key, V value,
-      {int? time_to_live,
-      int? time_to_born,
-      int? time_to_refresh,
-      bool? isCascade,
-      bool? isBinary,
-      bool? isEncrypted,
-      String? dataSignature,
-      String? sharedKeyEncrypted,
-      String? publicKeyChecksum,
-      String? encoding,
-      String? encKeyName,
-      String? encAlgo,
-      String? ivNonce,
-      String? skeEncKeyName,
-      String? skeEncAlgo,
-      bool skipCommit = false});
+  Future<dynamic> create(K key, V value, {bool skipCommit = false});
 
   /// Removes the mapping for a key from this key store if it is present
   ///
@@ -77,9 +39,14 @@ abstract class WritableKeystore<K, V> implements Keystore<K, V> {
   /// @return - sequence number from commit log if remove is success. null otherwise
   /// Throws a [DataStoreException] if the operation fails due to some issue with the data store.
   Future<dynamic> remove(K key, {bool skipCommit = false});
+
+  List<Future<dynamic> Function(String key, {required bool skipCommit})>
+      get preRemoveHooks;
+  List<Future<dynamic> Function(String key, {required bool skipCommit})>
+      get postRemoveHooks;
 }
 
-abstract class SynchronizableKeyStore<K, V, T> {
+abstract interface class SynchronizableKeyStore<K, V, T> {
   Future<dynamic> putMeta(K key, T metadata);
 
   Future<dynamic> putAll(K key, V value, T metadata);
@@ -88,4 +55,5 @@ abstract class SynchronizableKeyStore<K, V, T> {
 }
 
 /// Enumeration indicating the store type.
+// ignore: constant_identifier_names
 enum StoreType { ROOT, SECONDARY }

@@ -6,13 +6,8 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_commons/at_commons.dart';
-import 'package:mocktail/mocktail.dart';
 
-class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
-
-class MockOutboundClientManager extends Mock implements OutboundClientManager {}
-
-class MockAtCacheManager extends Mock implements AtCacheManager {}
+import 'test_utils.dart';
 
 void main() {
   SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
@@ -25,9 +20,9 @@ void main() {
       var command = 'plookup:meta:email@colin';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'email');
-      expect(paramsMap[AT_SIGN], 'colin');
-      expect(paramsMap[OPERATION], 'meta');
+      expect(paramsMap[AtConstants.atKey], 'email');
+      expect(paramsMap[AtConstants.atSign], 'colin');
+      expect(paramsMap[AtConstants.operation], 'meta');
     });
 
     test('test plookup all', () {
@@ -35,9 +30,9 @@ void main() {
       var command = 'plookup:all:public:email@colin';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'public:email');
-      expect(paramsMap[AT_SIGN], 'colin');
-      expect(paramsMap[OPERATION], 'all');
+      expect(paramsMap[AtConstants.atKey], 'public:email');
+      expect(paramsMap[AtConstants.atSign], 'colin');
+      expect(paramsMap[AtConstants.operation], 'all');
     });
 
     test('test plookup data', () {
@@ -45,35 +40,32 @@ void main() {
       var command = 'plookup:email@colin';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'email');
-      expect(paramsMap[AT_SIGN], 'colin');
-      expect(paramsMap[OPERATION], null);
+      expect(paramsMap[AtConstants.atKey], 'email');
+      expect(paramsMap[AtConstants.atSign], 'colin');
+      expect(paramsMap[AtConstants.operation], null);
     });
 
     test('test plookup meta command accept test without operation', () {
-      var command = 'plookup:location@alice';
+      var command = 'plookup:location$alice';
       var handler = ProxyLookupVerbHandler(
           mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       var result = handler.accept(command);
-      print('result : $result');
       expect(result, true);
     });
 
     test('test plookup meta command accept test for meta', () {
-      var command = 'plookup:meta:location@alice';
+      var command = 'plookup:meta:location$alice';
       var handler = ProxyLookupVerbHandler(
           mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       var result = handler.accept(command);
-      print('result : $result');
       expect(result, true);
     });
 
     test('test plookup meta command accept test for all', () {
-      var command = 'plookup:all:location@alice';
+      var command = 'plookup:all:location$alice';
       var handler = ProxyLookupVerbHandler(
           mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
       var result = handler.accept(command);
-      print('result : $result');
       expect(result, true);
     });
 
@@ -119,7 +111,7 @@ void main() {
 
     test('test plookup key- invalid keyword', () {
       var verb = ProxyLookup();
-      var command = 'lokup:location@alice';
+      var command = 'lokup:location$alice';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),

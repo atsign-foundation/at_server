@@ -3,15 +3,14 @@ import 'dart:math';
 
 import 'package:test/test.dart';
 
-import 'commons.dart';
 import 'e2e_test_utils.dart' as e2e;
 
 void main() {
   late String atSign_1;
-  late e2e.SimpleOutboundSocketHandler sh1;
+  late e2e.SimpleOutboundConnection sh1;
 
   late String atSign_2;
-  late e2e.SimpleOutboundSocketHandler sh2;
+  late e2e.SimpleOutboundConnection sh2;
 
   var lastValue = Random().nextInt(20);
 
@@ -77,6 +76,8 @@ void main() {
     expect(response, contains('data:$value'));
 
     //LOOKUP VERB in the other secondary
+    var maxRetryCount = 10;
+    var retryCount = 1;
     while (true) {
       await sh2.writeCommand('llookup:cached:$atSign_2:youtube_id$atSign_1');
       response = await sh2.read();

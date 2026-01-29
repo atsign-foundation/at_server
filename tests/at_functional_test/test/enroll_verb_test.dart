@@ -1,91 +1,88 @@
-// ignore_for_file: prefer_typing_uninitialized_variables
-
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:at_chops/at_chops.dart';
+import 'package:at_commons/at_commons.dart';
 import 'package:at_demo_data/at_demo_data.dart' as at_demos;
+import 'package:at_demo_data/at_demo_data.dart';
 import 'package:at_functional_test/conf/config_util.dart';
+import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
+import 'package:at_functional_test/utils/auth_utils.dart';
+import 'package:at_functional_test/utils/encryption_util.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
-import 'at_demo_data.dart';
-import 'encryption_util.dart';
-import 'functional_test_commons.dart';
-import 'pkam_utils.dart';
-
-Socket? socketConnection1;
-Socket? socketConnection2;
-
-var aliceDefaultEncKey;
-var aliceSelfEncKey;
-var aliceApkamSymmetricKey;
-var encryptedDefaultEncPrivateKey;
-var encryptedSelfEncKey;
-
-var firstAtsignServer =
-    ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_url'];
-var firstAtsignPort =
-    ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_port'];
-
-Future<void> _connect() async {
-  // socket connection for first atsign
-  socketConnection1 =
-      await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-  socket_listener(socketConnection1!);
-}
-
-Future<void> encryptKeys() async {
-  aliceDefaultEncKey = at_demos.encryptionPrivateKeyMap[firstAtsign];
-  aliceSelfEncKey = at_demos.aesKeyMap[firstAtsign];
-  aliceApkamSymmetricKey = at_demos.apkamSymmetricKeyMap[firstAtsign];
-  encryptedDefaultEncPrivateKey =
-      EncryptionUtil.encryptValue(aliceDefaultEncKey!, aliceApkamSymmetricKey!);
-  encryptedSelfEncKey =
-      EncryptionUtil.encryptValue(aliceSelfEncKey!, aliceApkamSymmetricKey);
-}
-
-var firstAtsign =
-    ConfigUtil.getYaml()!['first_atsign_server']['first_atsign_name'];
-var secondAtSign =
-    ConfigUtil.getYaml()!['second_atsign_server']['second_atsign_name'];
-
 void main() {
-  //Establish the client socket connection
+  OutboundConnectionFactory firstAtSignConnection = OutboundConnectionFactory();
+  String firstAtSign =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignName'];
+  String firstAtSignHost =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignUrl'];
+  int firstAtSignPort =
+      ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignPort'];
+
+  String secondAtSign =
+      ConfigUtil.getYaml()!['secondAtSignServer']['secondAtSignName'];
+
+  Map<String, String> apkamEncryptedKeysMap = <String, String>{
+    'encryptedDefaultEncPrivateKey': EncryptionUtil.encryptValue(
+        at_demos.encryptionPrivateKeyMap[firstAtSign]!,
+        at_demos.apkamSymmetricKeyMap[firstAtSign]!),
+    'encryptedSelfEncKey': EncryptionUtil.encryptValue(
+        at_demos.aesKeyMap[firstAtSign]!,
+        at_demos.apkamSymmetricKeyMap[firstAtSign]!),
+    'encryptedAPKAMSymmetricKey': EncryptionUtil.encryptKey(
+        at_demos.apkamSymmetricKeyMap[firstAtSign]!,
+        at_demos.encryptionPublicKeyMap[firstAtSign]!)
+  };
+
   setUp(() async {
-    await _connect();
-    await encryptKeys();
+    await firstAtSignConnection.initiateConnectionWithListener(
+        firstAtSign, firstAtSignHost, firstAtSignPort);
+  });
+
+  tearDown(() async {
+    await firstAtSignConnection.close();
   });
 
   group('A group of tests to verify apkam enroll requests', () {
-    test('enroll request on CRAM authenticated connection', () async {
-      await socket_writer(socketConnection1!, 'from:$firstAtsign');
-      var fromResponse = await read();
-      fromResponse = fromResponse.replaceAll('data:', '');
-      var cramResponse = getDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'cram:$cramResponse');
-      var cramResult = await read();
-      expect(cramResult, 'data:success\n');
-
+    test(
+        'A test to verify enroll request on CRAM authenticated connection is auto approved',
+        () async {
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      String deviceName = "pixel-${Uuid().v4().hashCode}";
       // send an enroll request with the keys from the setEncryptionKeys method
-      var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"$encryptedDefaultEncPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfEncKey","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-
-      await socket_writer(socketConnection1!, enrollRequest);
-      var enrollResponse = await read();
-      enrollResponse = enrollResponse.replaceFirst('data:', '');
+      String enrollRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"$deviceName","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${at_demos.pkamPublicKeyMap[firstAtSign]!}"}\n';
+      String enrollResponse =
+          (await firstAtSignConnection.sendRequestToServer(enrollRequest))
+              .replaceAll('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
       expect(enrollJsonMap['status'], 'approved');
+      // Fetch the enrollment request details
+      String enrollFetch =
+          'enroll:fetch:{"enrollmentId":"${enrollJsonMap['enrollmentId']}"}';
+      String enrollFetchResponse =
+          (await firstAtSignConnection.sendRequestToServer(enrollFetch))
+              .replaceAll('data:', '');
+      Map<dynamic, dynamic> enrollMap = jsonDecode(enrollFetchResponse);
+      print(enrollMap);
+      expect(enrollMap['appName'], 'wavi');
+      expect(enrollMap['deviceName'], deviceName);
+      expect(
+          enrollMap['namespace'], {'wavi': 'rw', '__manage': 'rw', '*': 'rw'});
     });
 
     test(
-        'denial of enroll request on an unauthenticated connection should throw an error',
+        'A test to verify denying of enroll request on an unauthenticated connection throws error',
         () async {
       var denyEnrollCommand =
-          'enroll:deny:{"enrollmentId":"fa8e3cbf-b7d0-4674-a66d-d889914e2d02"}\n';
-      await socket_writer(socketConnection1!, denyEnrollCommand);
-      var denyEnrollResponse = await read();
-      denyEnrollResponse = denyEnrollResponse.replaceFirst('error:', '');
+          'enroll:deny:{"enrollmentId":"fa8e3cbf-b7d0-4674-a66d-d889914e2d02"}';
+      String denyEnrollResponse =
+          (await firstAtSignConnection.sendRequestToServer(denyEnrollCommand))
+              .replaceAll('error:', '');
       expect(
           denyEnrollResponse
               .contains('Cannot deny enrollment without authentication'),
@@ -93,13 +90,13 @@ void main() {
     });
 
     test(
-        'approval of an enroll request on an unauthenticated connection should throw an error',
+        'A test to verify approving an enroll request on an unauthenticated connection throws error',
         () async {
-      var approveEnrollCommand =
-          'enroll:approve:{"enrollmentId":"fa8e3cbf-b7d0-4674-a66d-d889914e2d02"}\n';
-      await socket_writer(socketConnection1!, approveEnrollCommand);
-      var approveEnrollResponse = await read();
-      approveEnrollResponse = approveEnrollResponse.replaceFirst('error:', '');
+      String approveEnrollCommand =
+          'enroll:approve:{"enrollmentId":"fa8e3cbf-b7d0-4674-a66d-d889914e2d02"}';
+      String approveEnrollResponse = (await firstAtSignConnection
+              .sendRequestToServer(approveEnrollCommand))
+          .replaceAll('error:', '');
       expect(
           approveEnrollResponse
               .contains('Cannot approve enrollment without authentication'),
@@ -107,62 +104,54 @@ void main() {
     });
 
     test(
-        'Approval of an invalid enrollmentId on an authenticated connection should throw an error',
+        'A test to verify approving of an invalid enrollmentId on an authenticated connection throws error',
         () async {
-      await socket_writer(socketConnection1!, 'from:$firstAtsign');
-      var fromResponse = await read();
-      fromResponse = fromResponse.replaceAll('data:', '');
-      var cramResponse = getDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'cram:$cramResponse');
-      var cramResult = await read();
-      expect(cramResult, 'data:success\n');
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
       var dummyEnrollmentId = 'feay891281821899090eye';
       var approveEnrollCommand =
-          'enroll:approve:{"enrollmentId":"$dummyEnrollmentId"}\n';
-      await socket_writer(socketConnection1!, approveEnrollCommand);
-      var approveEnrollResponse = await read();
-      approveEnrollResponse = approveEnrollResponse.replaceFirst('error:', '');
+          'enroll:approve:{"enrollmentId":"$dummyEnrollmentId","encryptedDefaultEncryptionPrivateKey": "dummy_encrypted_default_encryption_private_key","encryptedDefaultSelfEncryptionKey":"dummy_encrypted_default_self_encryption_key"}';
+      var approveEnrollResponse = (await firstAtSignConnection
+              .sendRequestToServer(approveEnrollCommand))
+          .replaceAll('error:', '');
       expect(approveEnrollResponse,
-          'AT0028:enrollment_id: $dummyEnrollmentId is expired or invalid\n');
+          'AT0028:enrollment_id: $dummyEnrollmentId is expired or invalid');
     });
 
     test(
-        'Denial of an invalid enrollmentId on an authenticated connection should throw an error',
+        'A test to verify denial of an invalid enrollmentId on an authenticated connection should throw an error',
         () async {
-      await socket_writer(socketConnection1!, 'from:$firstAtsign');
-      var fromResponse = await read();
-      fromResponse = fromResponse.replaceAll('data:', '');
-      var cramResponse = getDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'cram:$cramResponse');
-      var cramResult = await read();
-      expect(cramResult, 'data:success\n');
-      var dummyEnrollmentId = 'feay891281821899090eye';
-      var denyEnrollCommand =
-          'enroll:deny:{"enrollmentId":"$dummyEnrollmentId"}\n';
-      await socket_writer(socketConnection1!, denyEnrollCommand);
-      var denyEnrollResponse = await read();
-      denyEnrollResponse = denyEnrollResponse.replaceFirst('error:', '');
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      String dummyEnrollmentId = 'feay891281821899090eye';
+      String denyEnrollCommand =
+          'enroll:deny:{"enrollmentId":"$dummyEnrollmentId"}';
+      String denyEnrollResponse =
+          (await firstAtSignConnection.sendRequestToServer(denyEnrollCommand))
+              .replaceFirst('error:', '');
       expect(denyEnrollResponse,
-          'AT0028:enrollment_id: $dummyEnrollmentId is expired or invalid\n');
+          'AT0028:enrollment_id: $dummyEnrollmentId is expired or invalid');
     });
 
     test('enroll request on unauthenticated connection without otp', () async {
       var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-      await socket_writer(socketConnection1!, enrollRequest);
-      var enrollResponse = await read();
-      enrollResponse = enrollResponse.replaceFirst('error:', '');
+          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}\n';
+      String enrollResponse =
+          (await firstAtSignConnection.sendRequestToServer(enrollRequest))
+              .replaceFirst('error:', '');
       expect(
           enrollResponse.contains('invalid otp. Cannot process enroll request'),
           true);
     });
 
-    test('enroll request on unauthenticated connection invalid otp', () async {
+    test(
+        'Submit an enroll request on unauthenticated connection with invalid otp',
+        () async {
       var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"1234","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-      await socket_writer(socketConnection1!, enrollRequest);
-      var enrollResponse = await read();
-      enrollResponse = enrollResponse.replaceFirst('data:', '');
+          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"1234","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}\n';
+      String enrollResponse =
+          (await firstAtSignConnection.sendRequestToServer(enrollRequest))
+              .replaceFirst('data:', '');
       expect(
           enrollResponse.contains('invalid otp. Cannot process enroll request'),
           true);
@@ -177,65 +166,52 @@ void main() {
     // 6. Second client should get an exception as the enroll request is not approved
     test('second enroll request using otp and client denied enrollment request',
         () async {
-      await socket_writer(socketConnection1!, 'from:$firstAtsign');
-      var fromResponse = await read();
-      fromResponse = fromResponse.replaceAll('data:', '');
-      var cramSecret = getDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'cram:$cramSecret');
-      var cramResponse = await read();
-      expect(cramResponse, 'data:success\n');
-
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
       // send an enroll request with the keys from the setEncryptionKeys method
       var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"$encryptedDefaultEncPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfEncKey","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-      await socket_writer(socketConnection1!, enrollRequest);
-      var enrollResponse = await read();
+          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}';
+      String enrollResponse =
+          await firstAtSignConnection.sendRequestToServer(enrollRequest);
       enrollResponse = enrollResponse.replaceFirst('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
       expect(enrollJsonMap['status'], 'approved');
 
-      var otpRequest = 'otp:get\n';
-      await socket_writer(socketConnection1!, otpRequest);
-      var otpResponse = await read();
-      otpResponse = otpResponse.replaceFirst('data:', '');
-      otpResponse = otpResponse.trim();
+      String otpResponse =
+          (await firstAtSignConnection.sendRequestToServer('otp:get'))
+              .replaceAll('data:', '')
+              .trim();
       // connect to the second client
-      socketConnection2 =
-          await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-      socket_listener(socketConnection2!);
+      OutboundConnectionFactory socketConnection2 =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
       //send second enroll request with otp
-      var apkamPublicKey = pkamPublicKeyMap[firstAtsign];
+      var apkamPublicKey = pkamPublicKeyMap[firstAtSign];
       var secondEnrollRequest =
-          'enroll:request:{"appName":"buzz","deviceName":"pixel","namespaces":{"buzz":"rw"},"otp":"$otpResponse","apkamPublicKey":"$apkamPublicKey"}\n';
-      await socket_writer(socketConnection2!, secondEnrollRequest);
-      var secondEnrollResponse = await read();
-      secondEnrollResponse = secondEnrollResponse.replaceFirst('data:', '');
+          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otpResponse","apkamPublicKey":"$apkamPublicKey","encryptedAPKAMSymmetricKey": "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}\n';
+
+      var secondEnrollResponse =
+          (await socketConnection2.sendRequestToServer(secondEnrollRequest))
+              .replaceFirst('data:', '');
       var enrollJson = jsonDecode(secondEnrollResponse);
       expect(enrollJson['enrollmentId'], isNotEmpty);
       expect(enrollJson['status'], 'pending');
 
       var secondEnrollId = enrollJson['enrollmentId'];
       // deny the enroll request from the first client
-      var denyEnrollCommand =
-          'enroll:deny:{"enrollmentId":"$secondEnrollId"}\n';
-      await socket_writer(socketConnection1!, denyEnrollCommand);
-      var denyEnrollResponse = await read();
-      denyEnrollResponse = denyEnrollResponse.replaceFirst('data:', '');
+      var denyEnrollCommand = 'enroll:deny:{"enrollmentId":"$secondEnrollId"}';
+      String denyEnrollResponse =
+          (await firstAtSignConnection.sendRequestToServer(denyEnrollCommand))
+              .replaceFirst('data:', '');
       var approveJson = jsonDecode(denyEnrollResponse);
       expect(approveJson['status'], 'denied');
       expect(approveJson['enrollmentId'], secondEnrollId);
       // now do the apkam using the enrollment id
-      await socket_writer(socketConnection2!, 'from:$firstAtsign');
-      fromResponse = await read();
-      fromResponse = fromResponse.replaceAll('data:', '');
-      var pkamResponse = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollmentId:$secondEnrollId:$pkamResponse\n';
-      await socket_writer(socketConnection2!, apkamEnrollId);
-      var apkamEnrollIdResponse = await read();
-      print(apkamEnrollIdResponse);
-      expect(apkamEnrollIdResponse,
-          'error:AT0025:enrollment_id: $secondEnrollId is denied\n');
+      String apkamAuthResponse = await socketConnection2.authenticateConnection(
+          authType: AuthType.apkam, enrollmentId: secondEnrollId);
+      expect(apkamAuthResponse,
+          'error:AT0025:enrollment_id: $secondEnrollId is denied');
     });
 
     // enroll request with only first client
@@ -257,87 +233,90 @@ void main() {
     // 15. Assert that the keys:get:privateKeyName verb returns the default encryption private key
     test('enroll request on CRAM authenticated connection and encryption keys',
         () async {
-      await socket_writer(socketConnection1!, 'from:$firstAtsign');
-      var fromResponse = await read();
-      fromResponse = fromResponse.replaceAll('data:', '');
-      var cramResponse = getDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'cram:$cramResponse');
-      var cramResult = await read();
-      expect(cramResult, 'data:success\n');
-
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
       // send an enroll request with the keys from the setEncryptionKeys method
-      var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"$encryptedDefaultEncPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfEncKey","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-
-      await socket_writer(socketConnection1!, enrollRequest);
-      var enrollResponse = await read();
-      enrollResponse = enrollResponse.replaceFirst('data:', '');
+      String enrollRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}';
+      String enrollResponse =
+          (await firstAtSignConnection.sendRequestToServer(enrollRequest))
+              .replaceFirst('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
       var enrollmentId = enrollJsonMap['enrollmentId'];
       expect(enrollmentId, isNotEmpty);
       expect(enrollJsonMap['status'], 'approved');
-
       // destroy the first connection
-      socketConnection1!.close();
+      firstAtSignConnection.close();
 
       // connect to the second client with the above enrollment ID
-      socketConnection2 =
-          await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-      socket_listener(socketConnection2!);
-      await socket_writer(socketConnection2!, 'from:$firstAtsign');
-      fromResponse = await read();
-      fromResponse = fromResponse.replaceAll('data:', '');
-      // now do the apkam using the enrollment id
-      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollmentId:$enrollmentId:$pkamDigest\n';
-      await socket_writer(socketConnection2!, apkamEnrollId);
-      var apkamEnrollIdResponse = await read();
-      expect(apkamEnrollIdResponse, 'data:success\n');
+      OutboundConnectionFactory socketConnection2 =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
+      await socketConnection2.authenticateConnection(
+          authType: AuthType.pkam, enrollmentId: enrollmentId);
 
       // check if scan verb returns apkam namespace
-      await socket_writer(socketConnection2!, 'scan\n');
-      var scanResponse = await read();
+      String scanResponse = await socketConnection2.sendRequestToServer('scan');
       // assert that scan doesn't return key with __manage namespace
       expect(scanResponse.contains('__manage'), true);
 
       // enroll:list
-      await socket_writer(socketConnection2!, 'enroll:list\n');
-      var enrollListResponse = await read();
+      String enrollListResponse =
+          await socketConnection2.sendRequestToServer('enroll:list');
       // enrollment key to be checked
-      var enrollmentKey = '$enrollmentId.new.enrollments.__manage$firstAtsign';
+      var enrollmentKey = '$enrollmentId.new.enrollments.__manage$firstAtSign';
       expect(enrollListResponse.contains(enrollmentKey), true);
 
       // llookup of the enrollment key should fail
-      await socket_writer(socketConnection2!, 'llookup:$enrollmentKey\n');
-      var llookupResponse = await read();
+      String llookupResponse = (await socketConnection2
+              .sendRequestToServer('llookup:$enrollmentKey'))
+          .replaceFirst('error:', '');
+      Map llookupResponseMap = jsonDecode(llookupResponse);
+      expect(llookupResponseMap['errorCode'], 'AT0009');
+      expect(llookupResponseMap['errorDescription'],
+          'UnAuthorized client in request : Connection with enrollment ID $enrollmentId is not authorized to llookup key: $enrollmentKey');
+    });
+
+    test(
+        'enroll request on APKAM authenticated connection and verify enroll:list',
+        () async {
+      int randomNumber = Uuid().v4().hashCode;
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.pkam);
+      // send an enroll request with the keys from the setEncryptionKeys method
+      String enrollRequest =
+          'enroll:request:{"appName":"atmosphere-$randomNumber","deviceName":"pixel-$randomNumber","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"dummy_apkam_$randomNumber"}';
+      String enrollResponse =
+          (await firstAtSignConnection.sendRequestToServer(enrollRequest))
+              .replaceFirst('data:', '');
+      var enrollJsonMap = jsonDecode(enrollResponse);
+      var enrollmentId = enrollJsonMap['enrollmentId'];
+      expect(enrollmentId, isNotEmpty);
+      expect(enrollJsonMap['status'], 'pending');
+      // enroll:list
+      String enrollListResponse =
+          await firstAtSignConnection.sendRequestToServer('enroll:list');
+      enrollListResponse = enrollListResponse.replaceAll('data:', '');
+      var enrollListResponseMap = jsonDecode(enrollListResponse);
       expect(
-          llookupResponse.contains(
-              'AT0009-UnAuthorized client in request : Enrollment Id: $enrollmentId is not authorized for local lookup operation on the key: $enrollmentKey'),
-          true);
-
-      // keys:get:self should return default self encryption key
-      var selfKey = '$enrollmentId.default_self_enc_key.__manage$firstAtsign';
-      await socket_writer(socketConnection2!, 'keys:get:self\n');
-      var selfKeyResponse = await read();
-      expect(selfKeyResponse.contains(selfKey), true);
-
-      // keys:get:private should return private encryption key
-      var privateKey =
-          '$enrollmentId.default_enc_private_key.__manage$firstAtsign';
-      await socket_writer(socketConnection2!, 'keys:get:private\n');
-      var privateKeyResponse = await read();
-      expect(privateKeyResponse.contains(privateKey), true);
-
-      // keys:get:keyName should return the enrollment key with __manage namespace
-      await socket_writer(socketConnection2!, 'keys:get:keyName:$selfKey\n');
-      var selfKeyGetResponse = await read();
-      expect(selfKeyGetResponse.contains('$encryptedSelfEncKey'), true);
-
-      // keys:get:keyName should return the enrollment key with __manage namespace
-      await socket_writer(socketConnection2!, 'keys:get:keyName:$privateKey\n');
-      var privateKeyGetResponse = await read();
-      expect(privateKeyGetResponse.contains('$encryptedDefaultEncPrivateKey'),
-          true);
+          enrollListResponseMap[
+              '$enrollmentId.new.enrollments.__manage$firstAtSign']['appName'],
+          'atmosphere-$randomNumber');
+      expect(
+          enrollListResponseMap[
+                  '$enrollmentId.new.enrollments.__manage$firstAtSign']
+              ['deviceName'],
+          'pixel-$randomNumber');
+      expect(
+          enrollListResponseMap[
+                  '$enrollmentId.new.enrollments.__manage$firstAtSign']
+              ['namespace']['wavi'],
+          'rw');
+      expect(
+          enrollListResponseMap[
+                  '$enrollmentId.new.enrollments.__manage$firstAtSign']
+              ['encryptedAPKAMSymmetricKey'],
+          'dummy_apkam_$randomNumber');
     });
 
     // Purpose of the tests
@@ -349,117 +328,112 @@ void main() {
     test(
         'second enroll request using otp and client approves enrollment request',
         () async {
-      await socket_writer(socketConnection1!, 'from:$firstAtsign');
-      var fromResponse = await read();
-      fromResponse = fromResponse.replaceAll('data:', '');
-      var cramSecret = getDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'cram:$cramSecret');
-      var cramResult = await read();
-      expect(cramResult, 'data:success\n');
-
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
       var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"$encryptedDefaultEncPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfEncKey","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-      await socket_writer(socketConnection1!, enrollRequest);
-      var enrollResponse = await read();
-      enrollResponse = enrollResponse.replaceFirst('data:', '');
+          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}';
+      String enrollResponse =
+          (await firstAtSignConnection.sendRequestToServer(enrollRequest))
+              .replaceFirst('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
       expect(enrollJsonMap['enrollmentId'], isNotEmpty);
       expect(enrollJsonMap['status'], 'approved');
 
-      var otpRequest = 'otp:get\n';
-      await socket_writer(socketConnection1!, otpRequest);
-      var otpResponse = await read();
-      otpResponse = otpResponse.replaceFirst('data:', '');
-      otpResponse = otpResponse.trim();
-
+      String otpResponse =
+          (await firstAtSignConnection.sendRequestToServer('otp:get'))
+              .replaceFirst('data:', '')
+              .trim();
       // connect to the second client
-      socketConnection2 =
-          await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-      socket_listener(socketConnection2!);
-
+      OutboundConnectionFactory socketConnection2 =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
       //send second enroll request with otp
-      var secondEnrollRequest =
-          'enroll:request:{"appName":"buzz","deviceName":"pixel","namespaces":{"buzz":"rw"},"otp":"$otpResponse","encryptedDefaultEncryptedPrivateKey":"$encryptedDefaultEncPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfEncKey","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-      await socket_writer(socketConnection2!, secondEnrollRequest);
-      var secondEnrollResponse = await read();
-      secondEnrollResponse = secondEnrollResponse.replaceFirst('data:', '');
+      String secondEnrollRequest =
+          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otpResponse","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey": "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+      String secondEnrollResponse =
+          (await socketConnection2.sendRequestToServer(secondEnrollRequest))
+              .replaceFirst('data:', '');
       var enrollJson = jsonDecode(secondEnrollResponse);
       expect(enrollJson['enrollmentId'], isNotEmpty);
       expect(enrollJson['status'], 'pending');
       var secondEnrollId = enrollJson['enrollmentId'];
 
       // connect to the first client to approve the enroll request
-      await socket_writer(socketConnection1!,
-          'enroll:approve:{"enrollmentId":"$secondEnrollId"}\n');
-      var approveResponse = await read();
-      approveResponse = approveResponse.replaceFirst('data:', '');
+      final encryptionPrivateKeyIV =
+          base64Encode(AtChopsUtil.generateRandomIV(16).ivBytes);
+      final selfEncryptionKeyIV =
+          base64Encode(AtChopsUtil.generateRandomIV(16).ivBytes);
+      String approveResponse = (await firstAtSignConnection.sendRequestToServer(
+              'enroll:approve:{"enrollmentId":"$secondEnrollId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encPrivateKeyIV":"$encryptionPrivateKeyIV","encryptedDefaultSelfEncryptionKey": "${apkamEncryptedKeysMap['encryptedSelfEncKey']}","selfEncKeyIV":"$selfEncryptionKeyIV"}'))
+          .replaceFirst('data:', '');
       var approveJson = jsonDecode(approveResponse);
       expect(approveJson['status'], 'approved');
       expect(approveJson['enrollmentId'], secondEnrollId);
 
       // close the first connection
-      socketConnection1!.close();
-
+      await firstAtSignConnection.close();
       // connect to the second client to do an apkam
-      await socket_writer(socketConnection2!, 'from:$firstAtsign');
-      fromResponse = await read();
-      fromResponse = fromResponse.replaceAll('data:', '');
-      // now do the apkam using the enrollment id
-      var pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-      var apkamEnrollId = 'pkam:enrollmentId:$secondEnrollId:$pkamDigest\n';
-      await socket_writer(socketConnection2!, apkamEnrollId);
-      var apkamEnrollIdResponse = await read();
-      expect(apkamEnrollIdResponse, 'data:success\n');
+      await socketConnection2.authenticateConnection(
+          authType: AuthType.apkam, enrollmentId: secondEnrollId);
 
       // keys:get:self should return default self encryption key
-      var selfKey = '$secondEnrollId.default_self_enc_key.__manage$firstAtsign';
-      await socket_writer(socketConnection2!, 'keys:get:self\n');
-      var selfKeyResponse = await read();
+      var selfKey = '$secondEnrollId.default_self_enc_key.__manage$firstAtSign';
+      String selfKeyResponse =
+          await socketConnection2.sendRequestToServer('keys:get:self');
       expect(selfKeyResponse.contains(selfKey), true);
+
+      String selfKeyGetResponse = await socketConnection2
+          .sendRequestToServer('keys:get:keyName:$selfKey');
+      selfKeyGetResponse = selfKeyGetResponse.replaceFirst('data:', '');
+      var selfKeyResponseJson = jsonDecode(selfKeyGetResponse);
+      expect(selfKeyResponseJson['value'],
+          apkamEncryptedKeysMap['encryptedSelfEncKey']);
+      expect(selfKeyResponseJson['iv'], selfEncryptionKeyIV);
 
       // keys:get:private should return private encryption key
       var privateKey =
-          '$secondEnrollId.default_enc_private_key.__manage$firstAtsign';
-      await socket_writer(socketConnection2!, 'keys:get:private\n');
-      var privateKeyResponse = await read();
+          '$secondEnrollId.default_enc_private_key.__manage$firstAtSign';
+      String privateKeyResponse =
+          await socketConnection2.sendRequestToServer('keys:get:private');
       expect(privateKeyResponse.contains(privateKey), true);
+      String privateKeyGetResponse = await socketConnection2
+          .sendRequestToServer('keys:get:keyName:$privateKey');
+      privateKeyGetResponse = privateKeyGetResponse.replaceFirst('data:', '');
+      var privateKeyResponseJson = jsonDecode(privateKeyGetResponse);
+      expect(privateKeyResponseJson['value'],
+          apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']);
+      expect(privateKeyResponseJson['iv'], encryptionPrivateKeyIV);
     });
 
     test(
         'A test to verify pending enrollment is stored and written on to a monitor connection',
         () async {
-      // Fetch notification from this timestamp
+      String deviceName = 'pixel-${Uuid().v4().hashCode}';
       var timeStamp = DateTime.now().toUtc().millisecondsSinceEpoch;
-      await socket_writer(socketConnection1!, 'from:$firstAtsign');
-      var fromResponse = await read();
-      fromResponse = fromResponse.replaceAll('data:', '');
-      var cramSecret = getDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'cram:$cramSecret');
-      var cramResult = await read();
-      expect(cramResult, 'data:success\n');
+      // Fetch notification from this timestamp
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
       // Get a TOTP
-      var otpRequest = 'otp:get\n';
-      await socket_writer(socketConnection1!, otpRequest);
-      var otpResponse = await read();
+      var otpResponse =
+          await firstAtSignConnection.sendRequestToServer('otp:get');
       otpResponse = otpResponse.replaceFirst('data:', '');
       otpResponse = otpResponse.trim();
-      socketConnection1?.close();
+      await firstAtSignConnection.close();
       // Connect to unauthenticated socket to send an enrollment request
-      socketConnection2 =
-          await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-      socket_listener(socketConnection2!);
+      firstAtSignConnection = await OutboundConnectionFactory()
+          .initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
       var secondEnrollRequest =
-          'enroll:request:{"appName":"buzz","deviceName":"pixel","namespaces":{"buzz":"rw"},"otp":"$otpResponse","encryptedDefaultEncryptedPrivateKey":"$encryptedDefaultEncPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfEncKey","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-      await socket_writer(socketConnection2!, secondEnrollRequest);
-      var secondEnrollResponse = await read();
+          'enroll:request:{"appName":"buzz","deviceName": "$deviceName","namespaces":{"buzz":"rw"},"otp":"$otpResponse","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+      var secondEnrollResponse =
+          await firstAtSignConnection.sendRequestToServer(secondEnrollRequest);
       secondEnrollResponse = secondEnrollResponse.replaceFirst('data:', '');
       var enrollJson = jsonDecode(secondEnrollResponse);
       expect(enrollJson['enrollmentId'], isNotEmpty);
       expect(enrollJson['status'], 'pending');
 
-      var monitorSocket =
-          await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-
+      SecureSocket monitorSocket =
+          await SecureSocket.connect(firstAtSignHost, firstAtSignPort);
       monitorSocket.listen(expectAsync1((data) {
         String serverResponse = utf8.decode(data);
         serverResponse = serverResponse.trim();
@@ -468,7 +442,8 @@ void main() {
           serverResponse = serverResponse.replaceAll('data:', '');
           serverResponse =
               serverResponse.substring(0, serverResponse.indexOf('\n'));
-          var cramSecret = getDigest(firstAtsign, serverResponse.trim());
+          var cramSecret = AuthenticationUtils.getCRAMDigest(
+              firstAtSign, serverResponse.trim());
           monitorSocket.write('cram:$cramSecret\n');
         }
         // CRAM Response starts-with "data:success"
@@ -481,6 +456,16 @@ void main() {
               serverResponse.contains(
                   '${enrollJson['enrollmentId']}.new.enrollments.__manage'),
               true);
+          Map notificationValue = jsonDecode(jsonDecode(
+              serverResponse.replaceAll('notification: ', ''))['value']);
+          expect(notificationValue['appName'], 'buzz');
+          expect(notificationValue['deviceName'], deviceName);
+          expect(notificationValue['namespace'], {'buzz': 'rw'});
+          // TODO remove encryptedApkamSymmetricKey and use encryptedAPKAMSymmetricKey constant name in future
+          expect(notificationValue['encryptedApkamSymmetricKey'],
+              apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']);
+          expect(notificationValue['encryptedAPKAMSymmetricKey'],
+              apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']);
           monitorSocket.close();
         }
         /* Setting count to 4 to wait until server returns 4 responses
@@ -490,261 +475,388 @@ void main() {
       4. On sending monitor request, server returns enrollment request
         */
       }, count: 4));
-      monitorSocket.write('from:${firstAtsign.toString().trim()}\n');
+      monitorSocket.write('from:${firstAtSign.toString().trim()}\n');
     });
 
     test('A test to verify enrolled client can do legacy pkam auth', () async {
-      await socket_writer(socketConnection1!, 'from:$firstAtsign');
-      var fromResponse = await read();
-      fromResponse = fromResponse.replaceAll('data:', '');
-      var cramResponse = getDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'cram:$cramResponse');
-      var cramResult = await read();
-      expect(cramResult, 'data:success\n');
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
       // send an enroll request with the keys from the setEncryptionKeys method
-      var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"$encryptedDefaultEncPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfEncKey","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-      await socket_writer(socketConnection1!, enrollRequest);
-      var enrollResponse = await read();
-      enrollResponse = enrollResponse.replaceFirst('data:', '');
+      String enrollRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}';
+      String enrollResponse =
+          (await firstAtSignConnection.sendRequestToServer(enrollRequest))
+              .replaceFirst('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
-      var enrollmentId = enrollJsonMap['enrollmentId'];
+      String enrollmentId = enrollJsonMap['enrollmentId'];
       expect(enrollmentId, isNotEmpty);
       expect(enrollJsonMap['status'], 'approved');
-      socketConnection1?.close();
+      await firstAtSignConnection.close();
       // PKAM Auth
-      socketConnection1 =
-          await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-      socket_listener(socketConnection1!);
-      await socket_writer(socketConnection1!, 'from:$firstAtsign');
-      fromResponse = await read();
-      fromResponse = fromResponse.replaceAll('data:', '');
-      var pkamResponse = generatePKAMDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'pkam:$pkamResponse');
-      var pkamResult = await read();
-      expect(pkamResult, 'data:success\n');
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.pkam);
     });
 
-    test('A test to verify pkam public key is stored in __pkams namespace',
+    test(
+        'A test to verify exception is thrown when an enrollment request with existing appName and deviceName is submitted',
         () async {
-      await socket_writer(socketConnection1!, 'from:$firstAtsign');
-      var fromResponse = await read();
-      fromResponse = fromResponse.replaceAll('data:', '');
-      var cramResponse = getDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'cram:$cramResponse');
-      var cramResult = await read();
-      expect(cramResult, 'data:success\n');
-      // Get otp
-      await socket_writer(socketConnection1!, 'otp:get');
-      var otp = (await read()).replaceAll('data:', '').trim();
-      // send an enroll request
-      socketConnection2 =
-          await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-      socket_listener(socketConnection2!);
+      String deviceName = 'pixel-${Uuid().v4().hashCode}';
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      // send an enroll request with the keys from the setEncryptionKeys method
       var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-      await socket_writer(socketConnection2!, enrollRequest);
-      var enrollResponse = await read();
+          'enroll:request:{"appName":"wavi","deviceName":"$deviceName","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}';
+      String enrollResponse =
+          await firstAtSignConnection.sendRequestToServer(enrollRequest);
       enrollResponse = enrollResponse.replaceFirst('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
-      var enrollmentId = enrollJsonMap['enrollmentId'];
-      expect(enrollmentId, isNotEmpty);
-      expect(enrollJsonMap['status'], 'pending');
-      // Approve enrollment
-      String approveEnrollment =
-          'enroll:approve:{"enrollmentId":"$enrollmentId"}';
-      await socket_writer(socketConnection1!, approveEnrollment);
-      var enrollmentResponse = await read();
-      enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
-      expect(jsonDecode(enrollmentResponse)['status'], 'approved');
-      await socket_writer(socketConnection1!,
-          'llookup:public:wavi.pixel.pkam.__pkams.__public_keys@alice🛠');
-      var llookupResponse = await read();
-      llookupResponse = llookupResponse.replaceAll('data:', '');
-      var apkamPublicKey = jsonDecode(llookupResponse)['apkamPublicKey'];
-      expect(apkamPublicKey, pkamPublicKeyMap[firstAtsign]!);
+      expect(enrollJsonMap['enrollmentId'], isNotEmpty);
+      expect(enrollJsonMap['status'], 'approved');
+
+      await firstAtSignConnection.sendRequestToServer('otp:put:ABC123');
+
+      // connect to the second client
+      OutboundConnectionFactory socketConnection2 =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
+      //send second enroll request with otp
+      var apkamPublicKey = pkamPublicKeyMap[firstAtSign];
+      var secondEnrollRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"$deviceName","namespaces":{"buzz":"rw"},"otp":"ABC123","apkamPublicKey":"$apkamPublicKey","encryptedAPKAMSymmetricKey": "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}\n';
+      var secondEnrollResponse =
+          (await socketConnection2.sendRequestToServer(secondEnrollRequest))
+              .replaceAll('error:', '');
+      expect(secondEnrollResponse,
+          'AT0032-Exception: Another enrollment with id ${enrollJsonMap['enrollmentId']} exists with the app name: wavi and device name: $deviceName in approved state');
+    });
+  });
+
+  group('A group of tests related to APKAM revoke operation', () {
+    test(
+        'A test to verify enrollment revoke operation on own connection results in error',
+        () async {
+      // Send an enrollment request on the authenticated connection
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      String enrollRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}';
+      String enrollmentResponse =
+          await firstAtSignConnection.sendRequestToServer(enrollRequest);
+      String enrollmentId = jsonDecode(
+          enrollmentResponse.replaceAll('data:', ''))['enrollmentId'];
+
+      //Create a new connection to login using the APKAM
+      OutboundConnectionFactory socketConnection2 =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
+      String authResponse = await socketConnection2.authenticateConnection(
+          authType: AuthType.apkam, enrollmentId: enrollmentId);
+      expect(authResponse.trim(), 'data:success');
+      await socketConnection2.close();
+
+      // Revoke the enrollment
+      String revokeEnrollmentCommand =
+          'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
+      String revokeEnrollmentResponse = await firstAtSignConnection
+          .sendRequestToServer(revokeEnrollmentCommand);
+      var revokeEnrollmentMap =
+          jsonDecode(revokeEnrollmentResponse.replaceAll('error:', ''));
+      expect(revokeEnrollmentMap['errorCode'], 'AT0031');
+      expect(revokeEnrollmentMap['errorDescription'],
+          'Cannot revoke self enrollment : Current client cannot revoke its own enrollment');
     });
 
-    group('A group of tests related to APKAM revoke operation', () {
-      test('A test to verify enrollment revoke operation', () async {
-        // Send an enrollment request on the authenticated connection
-        await socket_writer(socketConnection1!, 'from:$firstAtsign');
-        var fromResponse = await read();
-        fromResponse = fromResponse.replaceAll('data:', '');
-        String cramResponse = getDigest(firstAtsign, fromResponse);
-        await socket_writer(socketConnection1!, 'cram:$cramResponse');
-        var pkamResult = await read();
-        expect(pkamResult, 'data:success\n');
-        String enrollRequest =
-            'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}';
-        await socket_writer(socketConnection1!, enrollRequest);
-        var enrollmentResponse = await read();
-        String enrollmentId = jsonDecode(
-            enrollmentResponse.replaceAll('data:', ''))['enrollmentId'];
-        //Create a new connection to login using the APKAM
-        socketConnection2 =
-            await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-        socket_listener(socketConnection2!);
-        await socket_writer(socketConnection2!, 'from:$firstAtsign');
-        fromResponse = await read();
-        fromResponse = fromResponse.replaceAll('data:', '');
-        String pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-        String pkamCommand = 'pkam:enrollmentId:$enrollmentId:$pkamDigest';
-        await socket_writer(socketConnection2!, pkamCommand);
-        pkamResult = await read();
-        expect(pkamResult, 'data:success\n');
-        socketConnection2?.close();
+    test('A test to verify enrollment revoke on own enrollment with force flag',
+        () async {
+      // Send an enrollment request on the authenticated connection
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      String enrollRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}';
+      String enrollmentResponse =
+          await firstAtSignConnection.sendRequestToServer(enrollRequest);
+      String enrollmentId = jsonDecode(
+          enrollmentResponse.replaceAll('data:', ''))['enrollmentId'];
 
-        // Revoke the enrollment
-        String revokeEnrollmentCommand =
-            'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
-        await socket_writer(socketConnection1!, revokeEnrollmentCommand);
-        var revokeEnrollmentResponse = await read();
-        var revokeEnrollmentMap =
-            jsonDecode(revokeEnrollmentResponse.replaceAll('data:', ''));
-        expect(revokeEnrollmentMap['status'], 'revoked');
-        expect(revokeEnrollmentMap['enrollmentId'], enrollmentId);
+      //Create a new connection to login using the APKAM
+      OutboundConnectionFactory socketConnection2 =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
+      String authResponse = await socketConnection2.authenticateConnection(
+          authType: AuthType.apkam, enrollmentId: enrollmentId);
+      expect(authResponse.trim(), 'data:success');
+      await socketConnection2.close();
 
-        socketConnection2 =
-            await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-        socket_listener(socketConnection2!);
-        await socket_writer(socketConnection2!, 'from:$firstAtsign');
-        fromResponse = await read();
-        fromResponse = fromResponse.replaceAll('data:', '');
-        pkamDigest = generatePKAMDigest(firstAtsign, fromResponse);
-        pkamCommand = 'pkam:enrollmentId:$enrollmentId:$pkamDigest';
-        await socket_writer(socketConnection2!, pkamCommand);
-        pkamResult = await read();
-        socketConnection2?.close();
-        print(pkamResult);
-        assert(pkamResult.contains('enrollment_id: $enrollmentId is revoked'));
-      });
+      // Revoke the enrollment
+      String revokeEnrollmentCommand =
+          'enroll:revoke:force:{"enrollmentId":"$enrollmentId"}';
+      String revokeEnrollmentResponse = await firstAtSignConnection
+          .sendRequestToServer(revokeEnrollmentCommand);
+      var revokeEnrollmentMap =
+          jsonDecode(revokeEnrollmentResponse.replaceAll('data:', ''));
+      expect(revokeEnrollmentMap['status'], 'revoked');
+      expect(revokeEnrollmentMap['enrollmentId'], enrollmentId);
+      expect(revokeEnrollmentMap['message'],
+          "Enrollment is revoked. Closing the connection in 10 seconds");
 
-      test(
-          'A test to verify revoke operation cannot be performed on an unauthenticated connection',
-          () async {
-        // Send an enrollment request on the authenticated connection
-        await socket_writer(socketConnection1!, 'from:$firstAtsign');
-        var fromResponse = await read();
-        fromResponse = fromResponse.replaceAll('data:', '');
-        var cramResponse = getDigest(firstAtsign, fromResponse);
-        await socket_writer(socketConnection1!, 'cram:$cramResponse');
-        var pkamResult = await read();
-        expect(pkamResult, 'data:success\n');
-        String enrollRequest =
-            'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}';
-        await socket_writer(socketConnection1!, enrollRequest);
-        var enrollmentResponse = await read();
-        String enrollmentId = jsonDecode(
-            enrollmentResponse.replaceAll('data:', ''))['enrollmentId'];
+      socketConnection2 = await OutboundConnectionFactory()
+          .initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
+      String pkamResult = await socketConnection2.authenticateConnection(
+          authType: AuthType.apkam, enrollmentId: enrollmentId);
+      await socketConnection2.close();
+      assert(pkamResult.contains('enrollment_id: $enrollmentId is revoked'));
+    });
 
-        socketConnection2 =
-            await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-        socket_listener(socketConnection2!);
-        String revokeEnrollmentCommand =
-            'enroll:revoke:enrollmentid:$enrollmentId';
-        await socket_writer(socketConnection2!, revokeEnrollmentCommand);
-        var revokeEnrollmentResponse = await read();
-        expect(revokeEnrollmentResponse.trim(),
-            'error:AT0401-Exception: Cannot revoke enrollment without authentication');
-      });
+    test(
+        'A test to verify revoke operation cannot be performed on an unauthenticated connection',
+        () async {
+      // Send an enrollment request on the authenticated connection
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      String enrollRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}';
+      var enrollmentResponse =
+          await firstAtSignConnection.sendRequestToServer(enrollRequest);
+      String enrollmentId = jsonDecode(
+          enrollmentResponse.replaceAll('data:', ''))['enrollmentId'];
+
+      OutboundConnectionFactory socketConnection2 =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
+      String revokeEnrollmentCommand =
+          'enroll:revoke:{"enrollmentid":"$enrollmentId"}';
+      String revokeEnrollmentResponse =
+          await socketConnection2.sendRequestToServer(revokeEnrollmentCommand);
+      expect(revokeEnrollmentResponse.trim(),
+          'error:AT0401-Exception: Cannot revoke enrollment without authentication');
+    });
+  });
+
+  group('A group of tests related to APKAM unrevoke operation', () {
+    test('A test to verify enrollment unrevoke operation', () async {
+      // Send an enrollment request on the authenticated connection
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      String enrollRequest =
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+      String enrollResponse =
+          (await firstAtSignConnection.sendRequestToServer(enrollRequest))
+              .replaceAll('data:', '');
+      var enrollJsonMap = jsonDecode(enrollResponse);
+      expect(enrollJsonMap['enrollmentId'], isNotEmpty);
+      expect(enrollJsonMap['status'], 'approved');
+
+      String otpResponse =
+          await firstAtSignConnection.sendRequestToServer('otp:get');
+      otpResponse = otpResponse.replaceFirst('data:', '');
+      otpResponse = otpResponse.trim();
+
+      // connect to the second client
+      OutboundConnectionFactory secondConnection =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
+
+      //send second enroll request with otp
+      var secondEnrollRequest =
+          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otpResponse","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}\n';
+      var secondEnrollResponse =
+          (await secondConnection.sendRequestToServer(secondEnrollRequest))
+              .replaceAll('data:', '');
+      var enrollJson = jsonDecode(secondEnrollResponse);
+      expect(enrollJson['enrollmentId'], isNotEmpty);
+      expect(enrollJson['status'], 'pending');
+      String secondEnrollmentId = enrollJson['enrollmentId'];
+
+      // connect to the first client to approve the enroll request
+      var approveResponse = (await firstAtSignConnection.sendRequestToServer(
+              'enroll:approve:{"enrollmentId":"$secondEnrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap["encryptedDefaultEncPrivateKey"]}","encryptedDefaultSelfEncryptionKey": "${apkamEncryptedKeysMap["encryptedSelfEncKey"]}"}'))
+          .replaceAll('data:', '');
+      var approveJson = jsonDecode(approveResponse);
+      expect(approveJson['status'], 'approved');
+      expect(approveJson['enrollmentId'], secondEnrollmentId);
+
+      String revokeCommand =
+          'enroll:revoke:{"enrollmentId":"$secondEnrollmentId"}';
+      String revokeEnrollmentResponse =
+          await firstAtSignConnection.sendRequestToServer(revokeCommand);
+      var revokeEnrollmentMap =
+          jsonDecode(revokeEnrollmentResponse.replaceAll('data:', ''));
+      expect(revokeEnrollmentMap['status'], 'revoked');
+      expect(revokeEnrollmentMap['enrollmentId'], secondEnrollmentId);
+      // unrevoke command
+      String unrevokeCommand =
+          'enroll:unrevoke:{"enrollmentId":"$secondEnrollmentId"}';
+      String unrevokeEnrollmentResponse =
+          await firstAtSignConnection.sendRequestToServer(unrevokeCommand);
+      var unrevokeEnrollmentMap =
+          jsonDecode(unrevokeEnrollmentResponse.replaceAll('data:', ''));
+      expect(unrevokeEnrollmentMap['status'], 'approved');
+      expect(unrevokeEnrollmentMap['enrollmentId'], secondEnrollmentId);
+      firstAtSignConnection.close();
+
+      // Perform APKAM authentication with approved enrollment-id
+      OutboundConnectionFactory enrollmentAuthenticatedConnection =
+          OutboundConnectionFactory();
+      await enrollmentAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      String authResponse =
+          await enrollmentAuthenticatedConnection.authenticateConnection(
+              authType: AuthType.apkam, enrollmentId: secondEnrollmentId);
+      expect(authResponse, 'data:success');
+    });
+
+    test(
+        'A test to verify unrevoke operation cannot be performed without revoke enrollment first',
+        () async {
+      // Send an enrollment request on the authenticated connection
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      String enrollRequest =
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+      String enrollResponse =
+          (await firstAtSignConnection.sendRequestToServer(enrollRequest))
+              .replaceAll('data:', '');
+      var enrollJsonMap = jsonDecode(enrollResponse);
+      expect(enrollJsonMap['enrollmentId'], isNotEmpty);
+      expect(enrollJsonMap['status'], 'approved');
+
+      String otpResponse =
+          await firstAtSignConnection.sendRequestToServer('otp:get');
+      otpResponse = otpResponse.replaceFirst('data:', '');
+      otpResponse = otpResponse.trim();
+
+      // connect to the second client
+      OutboundConnectionFactory secondConnection =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
+
+      //send second enroll request with otp
+      var secondEnrollRequest =
+          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otpResponse","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}\n';
+      var secondEnrollResponse =
+          (await secondConnection.sendRequestToServer(secondEnrollRequest))
+              .replaceAll('data:', '');
+      var enrollJson = jsonDecode(secondEnrollResponse);
+      expect(enrollJson['enrollmentId'], isNotEmpty);
+      expect(enrollJson['status'], 'pending');
+      String secondEnrollmentId = enrollJson['enrollmentId'];
+
+      // connect to the first client to approve the enroll request
+      var approveResponse = (await firstAtSignConnection.sendRequestToServer(
+              'enroll:approve:{"enrollmentId":"$secondEnrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap["encryptedDefaultEncPrivateKey"]}","encryptedDefaultSelfEncryptionKey": "${apkamEncryptedKeysMap["encryptedSelfEncKey"]}"}'))
+          .replaceAll('data:', '');
+      var approveJson = jsonDecode(approveResponse);
+      expect(approveJson['status'], 'approved');
+      expect(approveJson['enrollmentId'], secondEnrollmentId);
+      String unrevokeEnrollmentResponse =
+          (await firstAtSignConnection.sendRequestToServer(
+                  'enroll:unrevoke:{"enrollmentId":"$secondEnrollmentId"}'))
+              .replaceAll('error:', '');
+      expect(jsonDecode(unrevokeEnrollmentResponse)['errorDescription'],
+          'Illegal state exception : Failed to unrevoke enrollment id: $secondEnrollmentId. Cannot un-revoke a approved enrollment. Only revoked enrollments can be un-revoked');
     });
   });
 
   group('A group of negative tests on enroll verb', () {
     late String enrollmentId;
     late String enrollmentResponse;
+
     setUp(() async {
+      await firstAtSignConnection.authenticateConnection();
       // Get TOTP from server
-      String otp = await _getOTPFromServer(firstAtsign);
-      await socketConnection1?.close();
-      // Close the connection and create a new connection and send an enrollment request on an
-      // unauthenticated connection.
-      await _connect();
+      String otp = (await firstAtSignConnection.sendRequestToServer('otp:get'))
+          .replaceFirst('data:', '')
+          .trim();
+      // Close the connection and create a new connection and send an enrollment
+      // request on an unauthenticated connection.
+      OutboundConnectionFactory unauthenticatedConnection =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
       String enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}';
-      await socket_writer(socketConnection1!, enrollRequest);
-      enrollmentResponse = await read();
+          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+      enrollmentResponse =
+          await unauthenticatedConnection.sendRequestToServer(enrollRequest);
       enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
       enrollmentId = jsonDecode(enrollmentResponse)['enrollmentId'];
-      socketConnection1?.close();
+      await unauthenticatedConnection.close();
     });
+
     test(
         'A test to verify error is returned when pending enrollment is revoked',
         () async {
       // Revoke enrollment on an authenticate connection
-      await _connect();
-      await prepare(socketConnection1!, firstAtsign);
-      await socket_writer(
-          socketConnection1!, 'enroll:revoke:{"enrollmentId":"$enrollmentId"}');
-      enrollmentResponse = (await read()).replaceAll('error:', '');
+      enrollmentResponse = (await firstAtSignConnection.sendRequestToServer(
+              'enroll:revoke:{"enrollmentId":"$enrollmentId"}'))
+          .replaceFirst('error:', '');
+      expect(jsonDecode(enrollmentResponse)['errorCode'], 'AT0032');
       expect(jsonDecode(enrollmentResponse)['errorDescription'],
-          'Internal server exception : Cannot revoke a pending enrollment. Only approved enrollments can be revoked');
+          'Illegal state exception : Failed to revoke enrollment id: $enrollmentId. Cannot revoke a pending enrollment. Only approved enrollments can be revoked');
     });
 
     test(
         'A test to verify error is returned when denied enrollment is approved',
         () async {
       // Deny enrollment on an authenticate connection
-      await _connect();
-      await prepare(socketConnection1!, firstAtsign);
-      await socket_writer(
-          socketConnection1!, 'enroll:deny:{"enrollmentId":"$enrollmentId"}');
-      enrollmentResponse = (await read()).replaceAll('data:', '');
+      enrollmentResponse = (await firstAtSignConnection.sendRequestToServer(
+              'enroll:deny:{"enrollmentId":"$enrollmentId"}'))
+          .replaceFirst('data:', '');
+
       expect(jsonDecode(enrollmentResponse)['status'], 'denied');
       expect(jsonDecode(enrollmentResponse)['enrollmentId'], enrollmentId);
       // Approve enrollment
-      await socket_writer(socketConnection1!,
-          'enroll:approve:{"enrollmentId":"$enrollmentId"}');
-      enrollmentResponse = (await read()).replaceAll('error:', '');
+      enrollmentResponse = (await firstAtSignConnection.sendRequestToServer(
+              'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey": "${apkamEncryptedKeysMap['encryptedSelfEncKey']}"}'))
+          .replaceAll('error:', '');
       expect(
           jsonDecode(enrollmentResponse)['errorDescription'],
-          'Internal server exception : Cannot approve a denied enrollment. '
+          'Illegal state exception : Failed to approve enrollment id: $enrollmentId. Cannot approve a denied enrollment. '
           'Only pending enrollments can be approved');
     });
 
     test('A test to verify error is returned when denied enrollment is revoked',
         () async {
       // Deny enrollment on an authenticate connection
-      await _connect();
-      await prepare(socketConnection1!, firstAtsign);
-      await socket_writer(
-          socketConnection1!, 'enroll:deny:{"enrollmentId":"$enrollmentId"}');
-      enrollmentResponse = (await read()).replaceAll('data:', '');
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.pkam);
+      enrollmentResponse = (await firstAtSignConnection.sendRequestToServer(
+              'enroll:deny:{"enrollmentId":"$enrollmentId"}'))
+          .replaceAll('data:', '');
       expect(jsonDecode(enrollmentResponse)['status'], 'denied');
       expect(jsonDecode(enrollmentResponse)['enrollmentId'], enrollmentId);
       // Revoke enrollment
-      await socket_writer(
-          socketConnection1!, 'enroll:revoke:{"enrollmentId":"$enrollmentId"}');
-      enrollmentResponse = (await read()).replaceAll('error:', '');
+      enrollmentResponse = (await firstAtSignConnection.sendRequestToServer(
+              'enroll:revoke:{"enrollmentId":"$enrollmentId"}'))
+          .replaceAll('error:', '');
       expect(
           jsonDecode(enrollmentResponse)['errorDescription'],
-          'Internal server exception : Cannot revoke a denied enrollment. '
+          'Illegal state exception : Failed to revoke enrollment id: $enrollmentId. Cannot revoke a denied enrollment. '
           'Only approved enrollments can be revoked');
     });
 
     test('A test to verify revoked enrollment cannot be approved', () async {
       // Approve enrollment
-      await _connect();
-      await prepare(socketConnection1!, firstAtsign);
-      await socket_writer(socketConnection1!,
-          'enroll:approve:{"enrollmentId":"$enrollmentId"}');
-      enrollmentResponse = (await read()).replaceAll('data:', '');
+      await firstAtSignConnection.authenticateConnection();
+      enrollmentResponse = (await firstAtSignConnection.sendRequestToServer(
+              'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey": "${apkamEncryptedKeysMap['encryptedSelfEncKey']}"}'))
+          .replaceAll('data:', '');
       expect(jsonDecode(enrollmentResponse)['status'], 'approved');
       expect(jsonDecode(enrollmentResponse)['enrollmentId'], enrollmentId);
       // Revoke enrollment
-      await socket_writer(
-          socketConnection1!, 'enroll:revoke:{"enrollmentId":"$enrollmentId"}');
-      enrollmentResponse = (await read()).replaceAll('data:', '');
+      enrollmentResponse = (await firstAtSignConnection.sendRequestToServer(
+              'enroll:revoke:{"enrollmentId":"$enrollmentId"}'))
+          .replaceAll('data:', '');
       expect(jsonDecode(enrollmentResponse)['status'], 'revoked');
       expect(jsonDecode(enrollmentResponse)['enrollmentId'], enrollmentId);
       // Approve a revoked enrollment
-      await socket_writer(socketConnection1!,
-          'enroll:approve:{"enrollmentId":"$enrollmentId"}');
-      enrollmentResponse = (await read()).replaceAll('error:', '');
+      enrollmentResponse = (await firstAtSignConnection.sendRequestToServer(
+              'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey": "${apkamEncryptedKeysMap['encryptedSelfEncKey']}"}'))
+          .replaceAll('error:', '');
       expect(
           jsonDecode(enrollmentResponse)['errorDescription'],
-          'Internal server exception : Cannot approve a revoked enrollment. '
+          'Illegal state exception : Failed to approve enrollment id: $enrollmentId. Cannot approve a revoked enrollment. '
           'Only pending enrollments can be approved');
     });
   });
@@ -752,48 +864,40 @@ void main() {
   group('A group of test related to Rate limiting enrollment requests', () {
     String otp = '';
     setUp(() async {
-      await socket_writer(socketConnection1!, 'from:$firstAtsign');
-      var fromResponse = await read();
-      fromResponse = fromResponse.replaceAll('data:', '');
-      var cramResponse = getDigest(firstAtsign, fromResponse);
-      await socket_writer(socketConnection1!, 'cram:$cramResponse');
-      var cramResult = await read();
-      expect(cramResult, 'data:success\n');
-      await socket_writer(
-          socketConnection1!, 'config:set:maxRequestsPerTimeFrame=1\n');
-      var configResponse = await read();
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      String configResponse = await firstAtSignConnection
+          .sendRequestToServer('config:set:maxRequestsPerTimeFrame=1');
       expect(configResponse.trim(), 'data:ok');
-      await socket_writer(
-          socketConnection1!, 'config:set:timeFrameInMills=100\n');
-      configResponse = await read();
+      configResponse = await firstAtSignConnection
+          .sendRequestToServer('config:set:timeFrameInMills=100');
       expect(configResponse.trim(), 'data:ok');
     });
 
     test(
         'A test to verify exception is thrown when request exceed the configured limit',
         () async {
-      SecureSocket unAuthenticatedConnection =
-          await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-      socket_listener(unAuthenticatedConnection);
-      await socket_writer(socketConnection1!, 'otp:get');
-      otp = await read();
+      OutboundConnectionFactory unAuthenticatedConnection =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
+      otp = await firstAtSignConnection.sendRequestToServer('otp:get');
       otp = otp.replaceAll('data:', '').trim();
       var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-      await socket_writer(unAuthenticatedConnection, enrollRequest);
-      var enrollmentResponse =
-          jsonDecode((await read()).replaceAll('data:', ''));
-      expect(enrollmentResponse['status'], 'pending');
-      expect(enrollmentResponse['enrollmentId'], isNotNull);
+          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+      String enrollmentResponse =
+          await unAuthenticatedConnection.sendRequestToServer(enrollRequest);
+      Map enrollmentResponseMap =
+          jsonDecode(enrollmentResponse.replaceAll('data:', ''));
+      expect(enrollmentResponseMap['status'], 'pending');
+      expect(enrollmentResponseMap['enrollmentId'], isNotNull);
 
-      await socket_writer(socketConnection1!, 'otp:get');
-      otp = await read();
+      otp = await firstAtSignConnection.sendRequestToServer('otp:get');
       otp = otp.replaceAll('data:', '').trim();
       enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-      await socket_writer(unAuthenticatedConnection, enrollRequest);
-      enrollmentResponse = await read()
-        ..replaceAll('error:', '');
+          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}\n';
+      enrollmentResponse =
+          (await unAuthenticatedConnection.sendRequestToServer(enrollRequest))
+              .replaceAll('error:', '');
       expect(
           enrollmentResponse.contains(
               'Enrollment requests have exceeded the limit within the specified time frame'),
@@ -802,88 +906,91 @@ void main() {
 
     test('A test to verify request is successful after the time window',
         () async {
-      SecureSocket unAuthenticatedConnection =
-          await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-      socket_listener(unAuthenticatedConnection);
+      OutboundConnectionFactory unAuthenticatedConnection =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
 
-      await socket_writer(socketConnection1!, 'otp:get');
-      otp = await read();
+      otp = await firstAtSignConnection.sendRequestToServer('otp:get');
       otp = otp.replaceAll('data:', '').trim();
-      var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-      await socket_writer(unAuthenticatedConnection, enrollRequest);
-      var enrollmentResponse =
-          jsonDecode((await read()).replaceAll('data:', ''));
-      expect(enrollmentResponse['status'], 'pending');
-      expect(enrollmentResponse['enrollmentId'], isNotNull);
+      String enrollRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+      String enrollmentResponse =
+          (await unAuthenticatedConnection.sendRequestToServer(enrollRequest))
+              .replaceAll('data:', '');
 
-      await socket_writer(socketConnection1!, 'otp:get');
-      otp = await read();
+      Map enrollmentResponseMap = jsonDecode(enrollmentResponse);
+      expect(enrollmentResponseMap['status'], 'pending');
+      expect(enrollmentResponseMap['enrollmentId'], isNotNull);
+
+      otp = await firstAtSignConnection.sendRequestToServer('otp:get');
       otp = otp.replaceAll('data:', '').trim();
       enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-      await socket_writer(unAuthenticatedConnection, enrollRequest);
-      enrollmentResponse = await read()
-        ..replaceAll('error:', '');
+          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+      enrollmentResponse =
+          (await unAuthenticatedConnection.sendRequestToServer(enrollRequest))
+              .replaceAll('error:', '');
       expect(
           enrollmentResponse.contains(
               'Enrollment requests have exceeded the limit within the specified time frame'),
           true);
       await Future.delayed(Duration(milliseconds: 110));
-      await socket_writer(unAuthenticatedConnection, enrollRequest);
-      enrollmentResponse = jsonDecode((await read()).replaceAll('data:', ''));
-      expect(enrollmentResponse['status'], 'pending');
-      expect(enrollmentResponse['enrollmentId'], isNotNull);
+      enrollmentResponse =
+          (await unAuthenticatedConnection.sendRequestToServer(enrollRequest))
+              .replaceAll('data:', '');
+      enrollmentResponseMap = jsonDecode(enrollmentResponse);
+      expect(enrollmentResponseMap['status'], 'pending');
+      expect(enrollmentResponseMap['enrollmentId'], isNotNull);
     });
 
     test('A test to verify rate limit is per connection', () async {
-      SecureSocket unAuthenticatedConnection =
-          await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-      socket_listener(unAuthenticatedConnection);
+      OutboundConnectionFactory unAuthenticatedConnection =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
 
-      await socket_writer(socketConnection1!, 'otp:get');
-      otp = await read();
+      otp = await firstAtSignConnection.sendRequestToServer('otp:get');
       otp = otp.replaceAll('data:', '').trim();
       var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-      await socket_writer(unAuthenticatedConnection, enrollRequest);
-      var enrollmentResponse =
-          jsonDecode((await read()).replaceAll('data:', ''));
-      expect(enrollmentResponse['status'], 'pending');
-      expect(enrollmentResponse['enrollmentId'], isNotNull);
+          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+      String enrollmentResponse =
+          (await unAuthenticatedConnection.sendRequestToServer(enrollRequest))
+              .replaceAll('data:', '');
 
-      await socket_writer(socketConnection1!, 'otp:get');
-      otp = await read();
+      Map enrollmentResponseMap = jsonDecode(enrollmentResponse);
+      expect(enrollmentResponseMap['status'], 'pending');
+      expect(enrollmentResponseMap['enrollmentId'], isNotNull);
+
+      otp = await firstAtSignConnection.sendRequestToServer('otp:get');
       otp = otp.replaceAll('data:', '').trim();
       enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-      await socket_writer(unAuthenticatedConnection, enrollRequest);
-      enrollmentResponse = await read()
-        ..replaceAll('error:', '');
+          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+      enrollmentResponse =
+          (await unAuthenticatedConnection.sendRequestToServer(enrollRequest))
+              .replaceAll('error:', '');
       expect(
           enrollmentResponse.contains(
               'Enrollment requests have exceeded the limit within the specified time frame'),
           true);
-      SecureSocket secondUnAuthenticatedConnection2 =
-          await secure_socket_connection(firstAtsignServer, firstAtsignPort);
-      socket_listener(secondUnAuthenticatedConnection2);
+      OutboundConnectionFactory secondUnAuthenticatedConnection2 =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
 
-      await socket_writer(socketConnection1!, 'otp:get');
-      otp = await read();
+      otp = await firstAtSignConnection.sendRequestToServer('otp:get');
       otp = otp.replaceAll('data:', '').trim();
       enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}\n';
-      await socket_writer(secondUnAuthenticatedConnection2, enrollRequest);
-      enrollmentResponse = jsonDecode((await read()).replaceAll('data:', ''));
-      expect(enrollmentResponse['status'], 'pending');
-      expect(enrollmentResponse['enrollmentId'], isNotNull);
+          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+      enrollmentResponse = await secondUnAuthenticatedConnection2
+          .sendRequestToServer(enrollRequest);
+      enrollmentResponseMap =
+          jsonDecode(enrollmentResponse.replaceAll('data:', ''));
+      expect(enrollmentResponseMap['status'], 'pending');
+      expect(enrollmentResponseMap['enrollmentId'], isNotNull);
     });
 
     tearDown(() async {
-      socket_writer(socketConnection1!, 'config:reset:maxRequestsAllowed');
-      await read();
-      socket_writer(socketConnection1!, 'config:reset:timeWindowInMills');
-      await read();
+      await firstAtSignConnection
+          .sendRequestToServer('config:reset:maxRequestsAllowed');
+      await firstAtSignConnection
+          .sendRequestToServer('config:reset:timeWindowInMills');
     });
   });
 
@@ -892,19 +999,22 @@ void main() {
     late String enrollmentId;
     setUp(() async {
       // Get TOTP from server
-      String otp = await _getOTPFromServer(firstAtsign);
-      await socketConnection1?.close();
+      await firstAtSignConnection.authenticateConnection();
+      String otp = await firstAtSignConnection.sendRequestToServer('otp:get');
+      otp = otp.replaceFirst('data:', '');
+      await firstAtSignConnection.close();
       // Close the connection and create a new connection and send an enrollment request on an
       // unauthenticated connection.
-      await _connect();
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
       String enrollRequest =
-          'enroll:request:{"appName":"my-first-app","deviceName":"pixel","namespaces":{"wavi":"rw","buzz":"r"},"otp":"$otp","apkamPublicKey":"${pkamPublicKeyMap[firstAtsign]!}"}';
-      await socket_writer(socketConnection1!, enrollRequest);
-      enrollmentResponse = await read();
+          'enroll:request:{"appName":"my-first-app","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw","buzz":"r"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+      enrollmentResponse =
+          await firstAtSignConnection.sendRequestToServer(enrollRequest);
       enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
       enrollmentId = jsonDecode(enrollmentResponse)['enrollmentId'];
       enrollmentId = enrollmentId.trim();
-      socketConnection1?.close();
+      await firstAtSignConnection.close();
     });
 
     /// The purpose of the test is to fetch the latestCommitId among the enrolled namespaces
@@ -917,56 +1027,657 @@ void main() {
         'A test to verify stats verb returns highest commitId among enrolled namespace',
         () async {
       String randomId = Uuid().v4();
-      String enrollRequest = 'enroll:approve:{"enrollmentId":"$enrollmentId"}';
-      await _connect();
-      await prepare(socketConnection1!, firstAtsign);
-      socket_writer(socketConnection1!, enrollRequest);
-      await read();
-      socket_writer(socketConnection1!, 'stats:3');
-      await read();
+      String enrollRequest =
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap["encryptedDefaultEncPrivateKey"]}","encryptedDefaultSelfEncryptionKey": "${apkamEncryptedKeysMap["encryptedSelfEncKey"]}"}';
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.authenticateConnection();
+      await firstAtSignConnection.sendRequestToServer(enrollRequest);
+      await firstAtSignConnection.sendRequestToServer('stats:3');
 
-      socket_writer(socketConnection1!,
-          'update:$secondAtSign:phone-$randomId.wavi$firstAtsign random-value');
-      await read();
-      socket_writer(socketConnection1!,
-          'update:$secondAtSign:mobile-$randomId.buzz$firstAtsign random-value');
+      await firstAtSignConnection.sendRequestToServer(
+          'update:$secondAtSign:phone-$randomId.wavi$firstAtSign random-value');
       String commitIdOfLastEnrolledKey =
-          (await read()).replaceAll('data:', '').trim();
+          await firstAtSignConnection.sendRequestToServer(
+              'update:$secondAtSign:mobile-$randomId.buzz$firstAtSign random-value');
+      commitIdOfLastEnrolledKey =
+          commitIdOfLastEnrolledKey.replaceAll('data:', '').trim();
       // Key which has un-enrolled namespace
-      socket_writer(socketConnection1!,
-          'update:$secondAtSign:contact-$randomId.atmosphere$firstAtsign random-value');
-      await read();
-      socket_writer(socketConnection1!, 'stats:3');
-      await read();
-      socketConnection1?.close();
-      await _connect();
-      await socket_writer(socketConnection1!, 'from:$firstAtsign');
-      String response = (await read()).replaceAll('data:', '').trim();
-      String digest = generatePKAMDigest(firstAtsign, response);
-      await socket_writer(
-          socketConnection1!, 'pkam:enrollmentId:$enrollmentId:$digest');
-      response = (await read()).replaceAll('data:', '');
-      await socket_writer(socketConnection1!, 'stats:3');
+      await firstAtSignConnection.sendRequestToServer(
+          'update:$secondAtSign:contact-$randomId.atmosphere$firstAtSign random-value');
+
+      await firstAtSignConnection.close();
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.apkam, enrollmentId: enrollmentId);
+
       String lastCommitIdAmongEnrolledNamespace =
-          jsonDecode((await read()).replaceAll('data:', ''))[0]['value'];
+          await firstAtSignConnection.sendRequestToServer('stats:3');
+      lastCommitIdAmongEnrolledNamespace = jsonDecode(
+              lastCommitIdAmongEnrolledNamespace.replaceAll('data:', ''))[0]
+          ['value'];
       expect(
           int.parse(lastCommitIdAmongEnrolledNamespace) >=
               int.parse(commitIdOfLastEnrolledKey),
           true);
     });
   });
-}
 
-Future<String> _getOTPFromServer(String atSign) async {
-  await socket_writer(socketConnection1!, 'from:$atSign');
-  var fromResponse = await read();
-  fromResponse = fromResponse.replaceAll('data:', '');
-  var pkamDigest = generatePKAMDigest(atSign, fromResponse);
-  await socket_writer(socketConnection1!, 'pkam:$pkamDigest');
-  // Calling read to remove the PKAM request from the queue
-  await read();
-  await socket_writer(socketConnection1!, 'otp:get');
-  String otp = await read();
-  otp = otp.replaceAll('data:', '').trim();
-  return otp;
+  group('Group of tests to validate listing of enrollments', () {
+    List<String> enrollmentIds = [];
+
+    /// The setUpAll() will create five random enrollment requests and store each
+    /// of the enrollmentId's in [enrollmentIds]
+    ///
+    /// Each of the tests in this group will approve/deny/revoke a certain
+    /// enrollmentId present in [enrollmentIds] and will validate through
+    /// enroll:list using appropriate filter, such that the enrollment requests
+    /// with specified enrollment status are returned
+    setUpAll(() async {
+      // create five enrollment requests
+      for (int i = 0; i < 5; i++) {
+        await firstAtSignConnection.initiateConnectionWithListener(
+            firstAtSign, firstAtSignHost, firstAtSignPort);
+        await firstAtSignConnection.authenticateConnection();
+        String otp = await firstAtSignConnection.sendRequestToServer('otp:get');
+        otp = otp.replaceFirst('data:', '');
+        await firstAtSignConnection.close();
+        // Close the connection and create a new connection and send an
+        // enrollment request on an unauthenticated connection.
+        await firstAtSignConnection.initiateConnectionWithListener(
+            firstAtSign, firstAtSignHost, firstAtSignPort);
+        String enrollRequest =
+            'enroll:request:{"appName":"test_app-${Uuid().v4().hashCode}","deviceName":"test_device","namespaces":{"filter_test":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+        String enrollmentResponse =
+            await firstAtSignConnection.sendRequestToServer(enrollRequest);
+        enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
+        String enrollmentId = jsonDecode(enrollmentResponse)['enrollmentId'];
+        enrollmentIds.add(enrollmentId.trim());
+        await firstAtSignConnection.close();
+      }
+    });
+
+    Map<String, dynamic> readServerResponseAndConvertToMap(String data) {
+      data = data.replaceFirst('data:', '');
+      return jsonDecode(data);
+    }
+
+    test('validate filtering of enrollment requests - case approved', () async {
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.authenticateConnection();
+      String enrollListApprovedCommand =
+          'enroll:list:{"enrollmentStatusFilter":["approved"]}';
+
+      // approve first and second enrollment request in enrollmentIds list
+      await firstAtSignConnection.sendRequestToServer(
+          'enroll:approve:{"enrollmentId":"${enrollmentIds[0]}","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap["encryptedDefaultEncPrivateKey"]}","encryptedDefaultSelfEncryptionKey": "${apkamEncryptedKeysMap["encryptedSelfEncKey"]}"}');
+      await firstAtSignConnection.sendRequestToServer(
+          'enroll:approve:{"enrollmentId":"${enrollmentIds[1]}","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap["encryptedDefaultEncPrivateKey"]}","encryptedDefaultSelfEncryptionKey": "${apkamEncryptedKeysMap["encryptedSelfEncKey"]}"}');
+
+      // again, fetch approved enrollment requests
+      Map<String, dynamic> enrollmentRequestsMap =
+          readServerResponseAndConvertToMap(await firstAtSignConnection
+              .sendRequestToServer(enrollListApprovedCommand));
+
+      assert(enrollmentRequestsMap.toString().contains(enrollmentIds[0]));
+      assert(enrollmentRequestsMap.toString().contains(enrollmentIds[1]));
+      enrollmentRequestsMap.forEach((key, value) {
+        expect(value['status'], 'approved');
+      });
+    });
+
+    test('validate filtering of enrollment requests - case revoked', () async {
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.authenticateConnection();
+      String enrollListRevokedCommand =
+          'enroll:list:{"enrollmentStatusFilter":["revoked"]}';
+
+      // approve and then revoke third enrollment request in enrollmentIds list
+      await firstAtSignConnection.sendRequestToServer(
+          'enroll:approve:{"enrollmentId":"${enrollmentIds[2]}","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap["encryptedDefaultEncPrivateKey"]}","encryptedDefaultSelfEncryptionKey": "${apkamEncryptedKeysMap["encryptedSelfEncKey"]}"}');
+      // authenticate using enrollmentIds[2]
+      OutboundConnectionFactory tempSocketConnection =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
+      String authResponse = await tempSocketConnection.authenticateConnection(
+          authType: AuthType.apkam, enrollmentId: enrollmentIds[2]);
+      expect(authResponse.trim(), 'data:success');
+      // get number of inbound connections before revoke
+      var inboundConnectionResult =
+          await firstAtSignConnection.sendRequestToServer("stats:1");
+      inboundConnectionResult =
+          inboundConnectionResult.replaceFirst('data:', '');
+      int numberOfInboundConnectionsBeforeRevoke =
+          int.parse(jsonDecode(inboundConnectionResult)[0]['value']);
+      await firstAtSignConnection.sendRequestToServer(
+          'enroll:revoke:{"enrollmentId":"${enrollmentIds[2]}"}');
+      // get number of inbound connections after revoke
+      inboundConnectionResult =
+          await firstAtSignConnection.sendRequestToServer("stats:1");
+      inboundConnectionResult =
+          inboundConnectionResult.replaceFirst('data:', '');
+      int numberOfInboundConnectionsAfterRevoke =
+          int.parse(jsonDecode(inboundConnectionResult)[0]['value']);
+      expect(numberOfInboundConnectionsAfterRevoke,
+          numberOfInboundConnectionsBeforeRevoke - 1);
+
+      // again, fetch revoked enrollment requests
+      Map<String, dynamic> enrollmentRequestsMap =
+          readServerResponseAndConvertToMap(await firstAtSignConnection
+              .sendRequestToServer(enrollListRevokedCommand));
+      assert(enrollmentRequestsMap.toString().contains(enrollmentIds[2]));
+      enrollmentRequestsMap.forEach((key, value) {
+        expect(value['status'], 'revoked');
+      });
+    });
+
+    test('validate filtering of enrollment requests - case denied', () async {
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.authenticateConnection();
+      String enrollListDeniedCommand =
+          'enroll:list:{"enrollmentStatusFilter":["denied"]}';
+
+      // deny fourth and fifth enrollment request in enrollmentIds list
+      await firstAtSignConnection.sendRequestToServer(
+          'enroll:deny:{"enrollmentId":"${enrollmentIds[3]}"}');
+      await firstAtSignConnection.sendRequestToServer(
+          'enroll:deny:{"enrollmentId":"${enrollmentIds[4]}"}');
+
+      // again, fetch denied enrollment requests
+      Map<String, dynamic> enrollmentRequestsMap =
+          readServerResponseAndConvertToMap(await firstAtSignConnection
+              .sendRequestToServer(enrollListDeniedCommand));
+      assert(enrollmentRequestsMap.toString().contains(enrollmentIds[3]));
+      assert(enrollmentRequestsMap.toString().contains(enrollmentIds[4]));
+      enrollmentRequestsMap.forEach((key, value) {
+        expect(value['status'], 'denied');
+      });
+    });
+
+    test('validate filtering of enrollment requests - case pending', () async {
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.authenticateConnection();
+      String enrollListDeniedCommand =
+          'enroll:list:{"enrollmentStatusFilter":["pending"]}';
+      // fetch pending enrollment requests
+      Map<String, dynamic> enrollmentRequestsMap =
+          readServerResponseAndConvertToMap(await firstAtSignConnection
+              .sendRequestToServer(enrollListDeniedCommand));
+
+      enrollmentRequestsMap.forEach((key, value) {
+        expect(value['status'], 'pending');
+      });
+    });
+  });
+
+  group(
+      'A group of tests validating client authorizations for enrollment operations',
+      () {
+    test(
+        'A test to assert that an authenticated connection without namespace authorization cannot approve-deny requests for that namespace',
+        () async {
+      // Fetch OTP.
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      String otp = await firstAtSignConnection.sendRequestToServer('otp:get');
+      otp = otp.replaceAll('data:', '');
+
+      // Submit an enrollment request from an un-authenticated connection
+      OutboundConnectionFactory unAuthenticatedConnection =
+          OutboundConnectionFactory();
+      await unAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      String enrollmentResponse =
+          await unAuthenticatedConnection.sendRequestToServer(
+              'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw","__manage":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}');
+      enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
+      String enrollmentId = jsonDecode(enrollmentResponse)['enrollmentId'];
+      expect(jsonDecode(enrollmentResponse)['status'], 'pending');
+
+      // Approve enrollment with a PKAM Authenticated connection
+      String approveEnrollmentResponse =
+          await firstAtSignConnection.sendRequestToServer(
+              'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}"}');
+      approveEnrollmentResponse =
+          approveEnrollmentResponse.replaceAll('data:', '');
+      expect(jsonDecode(approveEnrollmentResponse)['status'], 'approved');
+      firstAtSignConnection.close();
+
+      // Perform APKAM authentication with approved enrollment-id
+      OutboundConnectionFactory enrollmentAuthenticatedConnection =
+          OutboundConnectionFactory();
+      await enrollmentAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      String authResponse =
+          await enrollmentAuthenticatedConnection.authenticateConnection(
+              authType: AuthType.apkam, enrollmentId: enrollmentId);
+      expect(authResponse, 'data:success');
+
+      // Fetch OTP and submit another enrollment request
+      otp = await enrollmentAuthenticatedConnection
+          .sendRequestToServer('otp:get');
+      otp = otp.replaceAll('data:', '');
+
+      await unAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      enrollmentResponse = await unAuthenticatedConnection.sendRequestToServer(
+          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}');
+      enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
+      String secondEnrollmentId =
+          jsonDecode(enrollmentResponse)['enrollmentId'];
+      expect(jsonDecode(enrollmentResponse)['status'], 'pending');
+
+      // Approve enrollment with APKAM authenticated connection
+      var response = await enrollmentAuthenticatedConnection.sendRequestToServer(
+          'enroll:approve:{"enrollmentId":"$secondEnrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}"}');
+      response = response.replaceAll('error:', '');
+      expect(jsonDecode(response)['errorDescription'],
+          'UnAuthorized client in request : Failed to approve enrollment id: $secondEnrollmentId. Client is not authorized for namespaces in the enrollment request');
+
+      // Authenticate the connection again with APKAM
+      await enrollmentAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      authResponse =
+          await enrollmentAuthenticatedConnection.authenticateConnection(
+              authType: AuthType.apkam, enrollmentId: enrollmentId);
+      expect(authResponse, 'data:success');
+      // Deny enrollment with APKAM authenticated connection
+      response = await enrollmentAuthenticatedConnection.sendRequestToServer(
+          'enroll:deny:{"enrollmentId":"$secondEnrollmentId"}');
+      response = response.replaceAll('error:', '');
+      expect(jsonDecode(response)['errorDescription'],
+          'UnAuthorized client in request : Failed to deny enrollment id: $secondEnrollmentId. Client is not authorized for namespaces in the enrollment request');
+    });
+
+    test(
+        'A test to assert that an authenticated connection without namespace authorization cannot revoke request for that namespace',
+        () async {
+      // Fetch OTP.
+      await firstAtSignConnection.authenticateConnection();
+      String otp = await firstAtSignConnection.sendRequestToServer('otp:get');
+      otp = otp.replaceAll('data:', '');
+
+      // Submit an enrollment request from an un-authenticated connection
+      OutboundConnectionFactory unAuthenticatedConnection =
+          OutboundConnectionFactory();
+      await unAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      String enrollmentResponse =
+          await unAuthenticatedConnection.sendRequestToServer(
+              'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw","__manage":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}');
+      enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
+      String enrollmentId = jsonDecode(enrollmentResponse)['enrollmentId'];
+      expect(jsonDecode(enrollmentResponse)['status'], 'pending');
+
+      // Approve enrollment with a PKAM Authenticated connection
+      String approveEnrollmentResponse =
+          await firstAtSignConnection.sendRequestToServer(
+              'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}"}');
+      approveEnrollmentResponse =
+          approveEnrollmentResponse.replaceAll('data:', '');
+      expect(jsonDecode(approveEnrollmentResponse)['status'], 'approved');
+
+      // Perform APKAM authentication with approved enrollment-id
+      OutboundConnectionFactory enrollmentAuthenticatedConnection =
+          OutboundConnectionFactory();
+      await enrollmentAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      String authResponse =
+          await enrollmentAuthenticatedConnection.authenticateConnection(
+              authType: AuthType.apkam, enrollmentId: enrollmentId);
+      expect(authResponse, 'data:success');
+
+      // Fetch OTP and submit another enrollment request
+      otp = await enrollmentAuthenticatedConnection
+          .sendRequestToServer('otp:get');
+      otp = otp.replaceAll('data:', '');
+
+      await unAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      enrollmentResponse = await unAuthenticatedConnection.sendRequestToServer(
+          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}');
+      enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
+      enrollmentId = jsonDecode(enrollmentResponse)['enrollmentId'];
+      expect(jsonDecode(enrollmentResponse)['status'], 'pending');
+
+      // Approve enrollment with PKAM authenticated connection
+      var response = await firstAtSignConnection.sendRequestToServer(
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}"}');
+      response = response.replaceAll('data:', '');
+      expect(jsonDecode(response)['status'], 'approved');
+
+      // Revoke enrollment with APKAM authenticated connection
+      response = await enrollmentAuthenticatedConnection.sendRequestToServer(
+          'enroll:revoke:{"enrollmentId":"$enrollmentId"}');
+      response = response.replaceAll('error:', '');
+      expect(jsonDecode(response)['errorDescription'],
+          'UnAuthorized client in request : Failed to revoke enrollment id: $enrollmentId. Client is not authorized for namespaces in the enrollment request');
+    });
+  });
+
+  group('A group of tests related to APKAM keys auto expiry', () {
+    test('A test to verify apkam authentication fails with expired apkam keys',
+        () async {
+      // Fetch OTP.
+      await firstAtSignConnection.authenticateConnection();
+      String otp = await firstAtSignConnection.sendRequestToServer('otp:get');
+      otp = otp.replaceAll('data:', '');
+
+      // Submit an enrollment request from an un-authenticated connection
+      OutboundConnectionFactory unAuthenticatedConnection =
+          OutboundConnectionFactory();
+      await unAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      String enrollmentResponse =
+          await unAuthenticatedConnection.sendRequestToServer(
+              'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw","__manage":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}","apkamKeysExpiryInMillis":1}');
+      enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
+      String enrollmentId = jsonDecode(enrollmentResponse)['enrollmentId'];
+      expect(jsonDecode(enrollmentResponse)['status'], 'pending');
+
+      // Approve enrollment with a PKAM Authenticated connection
+      String approveEnrollmentResponse =
+          await firstAtSignConnection.sendRequestToServer(
+              'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}"}');
+      approveEnrollmentResponse =
+          approveEnrollmentResponse.replaceAll('data:', '');
+      expect(jsonDecode(approveEnrollmentResponse)['status'], 'approved');
+
+      // Perform APKAM authentication with approved enrollment-id
+      OutboundConnectionFactory enrollmentAuthenticatedConnection =
+          OutboundConnectionFactory();
+      await enrollmentAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      String authResponse =
+          await enrollmentAuthenticatedConnection.authenticateConnection(
+              authType: AuthType.apkam, enrollmentId: enrollmentId);
+      expect(authResponse,
+          'error:AT0028:enrollment_id: $enrollmentId is expired or invalid');
+
+      await unAuthenticatedConnection.close();
+      await enrollmentAuthenticatedConnection.close();
+    });
+
+    test('A test to verify connection closes when apkam keys expire', () async {
+      // Fetch OTP.
+      await firstAtSignConnection.authenticateConnection();
+      String otp = await firstAtSignConnection.sendRequestToServer('otp:get');
+      otp = otp.replaceAll('data:', '');
+
+      // Submit an enrollment request from an un-authenticated connection
+      OutboundConnectionFactory unAuthenticatedConnection =
+          OutboundConnectionFactory();
+      await unAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      String enrollmentResponse =
+          await unAuthenticatedConnection.sendRequestToServer(
+              'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw","__manage":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}","apkamKeysExpiryInMillis":30000}');
+      enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
+      String enrollmentId = jsonDecode(enrollmentResponse)['enrollmentId'];
+      expect(jsonDecode(enrollmentResponse)['status'], 'pending');
+      await unAuthenticatedConnection.close();
+
+      // Approve enrollment with a PKAM Authenticated connection
+      String approveEnrollmentResponse =
+          await firstAtSignConnection.sendRequestToServer(
+              'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}"}');
+      approveEnrollmentResponse =
+          approveEnrollmentResponse.replaceAll('data:', '');
+      expect(jsonDecode(approveEnrollmentResponse)['status'], 'approved');
+
+      // Perform APKAM authentication with approved enrollment-id
+      OutboundConnectionFactory enrollmentAuthenticatedConnection =
+          OutboundConnectionFactory();
+      await enrollmentAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      String authResponse =
+          await enrollmentAuthenticatedConnection.authenticateConnection(
+              authType: AuthType.apkam, enrollmentId: enrollmentId);
+      expect(authResponse, 'data:success');
+
+      await Future.delayed(Duration(seconds: 30), () async {
+        await expectLater(
+            () => enrollmentAuthenticatedConnection.sendRequestToServer('scan'),
+            throwsA(predicate((dynamic e) => e is AtTimeoutException)));
+      });
+
+      await enrollmentAuthenticatedConnection.close();
+      // Waits for 1 minute for the APKAM keys to expire.
+      // A timeout duration of 2 minutes has been added to prevent the test from exiting prematurely.
+    }, timeout: Timeout(Duration(minutes: 2)));
+  });
+
+  group('tests to validate enroll delete', () {
+    test('delete an denied enrollment', () async {
+      // Send an enrollment request on the authenticated connection
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      String otp = await firstAtSignConnection.sendRequestToServer('otp:get');
+      otp = otp.replaceFirst('data:', '');
+      await firstAtSignConnection.close();
+
+      // Submit an enrollment request from an un-authenticated connection
+      OutboundConnectionFactory unAuthenticatedConnection =
+          OutboundConnectionFactory();
+      await unAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      String enrollRequest =
+          'enroll:request:{"appName":"wavi","otp":"$otp","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${at_demos.pkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+      var enrollmentResponse =
+          await unAuthenticatedConnection.sendRequestToServer(enrollRequest);
+      Map jsonDecodedResponse =
+          jsonDecode(enrollmentResponse.replaceAll('data:', ''));
+      String? enrollmentId = jsonDecodedResponse['enrollmentId'];
+      expect(jsonDecodedResponse['status'], 'pending');
+      assert(enrollmentId != null);
+      await unAuthenticatedConnection.close();
+
+      // create a new cram authenticated connection
+      OutboundConnectionFactory secondAuthenticatedConnection =
+          OutboundConnectionFactory();
+      await secondAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await secondAuthenticatedConnection.authenticateConnection(
+          authType: AuthType.cram);
+
+      // deny the above created enrollment
+      String denyCommand = 'enroll:deny:{"enrollmentId":"$enrollmentId"}';
+      enrollmentResponse =
+          await secondAuthenticatedConnection.sendRequestToServer(denyCommand);
+      jsonDecodedResponse =
+          jsonDecode(enrollmentResponse.replaceFirst('data:', ""));
+      expect(jsonDecodedResponse['status'], 'denied');
+
+      // now try to delete the denied enrollment
+      String deleteEnrollmentCommand =
+          'enroll:delete:{"enrollmentId":"$enrollmentId"}';
+      String enrollDenyResponse = await secondAuthenticatedConnection
+          .sendRequestToServer(deleteEnrollmentCommand);
+      print(enrollDenyResponse);
+      jsonDecodedResponse =
+          jsonDecode(enrollDenyResponse.replaceFirst('data:', ''));
+      expect(jsonDecodedResponse['status'], 'deleted');
+      expect(jsonDecodedResponse['enrollmentId'], enrollmentId);
+    });
+
+    test('delete an revoked enrollment', () async {
+      // Send an enrollment request on the authenticated connection
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      String otp = await firstAtSignConnection.sendRequestToServer('otp:get');
+      otp = otp.replaceFirst('data:', '');
+      await firstAtSignConnection.close();
+
+      // Submit an enrollment request from an un-authenticated connection
+      OutboundConnectionFactory unAuthenticatedConnection =
+          OutboundConnectionFactory();
+      await unAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      String enrollRequest =
+          'enroll:request:{"appName":"wavi","otp":"$otp","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${at_demos.pkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+      var enrollmentResponse =
+          await unAuthenticatedConnection.sendRequestToServer(enrollRequest);
+      Map jsonDecodedResponse =
+          jsonDecode(enrollmentResponse.replaceAll('data:', ''));
+      String? enrollmentId = jsonDecodedResponse['enrollmentId'];
+      expect(jsonDecodedResponse['status'], 'pending');
+      assert(enrollmentId != null);
+      await unAuthenticatedConnection.close();
+
+      // create a new cram authenticated connection
+      OutboundConnectionFactory secondAuthenticatedConnection =
+          OutboundConnectionFactory();
+      await secondAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await secondAuthenticatedConnection.authenticateConnection(
+          authType: AuthType.cram);
+
+      // approve the above created enrollment
+      String approveCommand =
+          'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncryptionPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${at_demos.pkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+      enrollmentResponse = await secondAuthenticatedConnection
+          .sendRequestToServer(approveCommand);
+
+      // Scan to verify the enrollment key, default private and self encryption keys are created.
+      String scan = 'scan $enrollmentId';
+      enrollmentResponse =
+          await secondAuthenticatedConnection.sendRequestToServer(scan);
+      enrollmentResponse =
+          await secondAuthenticatedConnection.sendRequestToServer(scan);
+      enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
+      List enrollmentList = jsonDecode(enrollmentResponse);
+      expect(enrollmentList.length, 3);
+      expect(
+          enrollmentList.contains(
+              '$enrollmentId.default_enc_private_key.__manage$firstAtSign'),
+          true);
+      expect(
+          enrollmentList.contains(
+              '$enrollmentId.default_self_enc_key.__manage$firstAtSign'),
+          true);
+      expect(
+          enrollmentList
+              .contains('$enrollmentId.new.enrollments.__manage$firstAtSign'),
+          true);
+
+      // Revoke the enrollment.
+      String revokeCommand = 'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
+      enrollmentResponse = await secondAuthenticatedConnection
+          .sendRequestToServer(revokeCommand);
+      jsonDecodedResponse =
+          jsonDecode(enrollmentResponse.replaceFirst('data:', ""));
+      expect(jsonDecodedResponse['status'], 'revoked');
+
+      // now try to delete the revoked enrollment
+      String deleteEnrollmentCommand =
+          'enroll:delete:{"enrollmentId":"$enrollmentId"}';
+      String revokeEnrollmentResponse = await secondAuthenticatedConnection
+          .sendRequestToServer(deleteEnrollmentCommand);
+      revokeEnrollmentResponse =
+          revokeEnrollmentResponse.replaceFirst('data:', '');
+      jsonDecodedResponse = jsonDecode(revokeEnrollmentResponse);
+      expect(jsonDecodedResponse['enrollmentId'], enrollmentId);
+      expect(jsonDecodedResponse['status'], 'deleted');
+
+      // Scan to verify the enrollment key, default private and self encryption keys are deleted.
+      // Ensure no keys with the deleted enrollment exists.
+      enrollmentResponse =
+          await secondAuthenticatedConnection.sendRequestToServer(scan);
+      enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
+      expect((jsonDecode(enrollmentResponse) as List).isEmpty, true);
+    });
+
+    test('negative test - delete an approved enrollment', () async {
+      // Send an enrollment request on the authenticated connection
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      String enrollRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}';
+      var enrollmentResponse =
+          await firstAtSignConnection.sendRequestToServer(enrollRequest);
+      String enrollmentId = jsonDecode(
+          enrollmentResponse.replaceAll('data:', ''))['enrollmentId'];
+      // try to delete the above enrollment through a cram authenticated connection
+      String deleteEnrollmentCommand =
+          'enroll:delete:{"enrollmentId":"$enrollmentId"}';
+      String revokeEnrollmentResponse = await firstAtSignConnection
+          .sendRequestToServer(deleteEnrollmentCommand);
+      revokeEnrollmentResponse =
+          revokeEnrollmentResponse.replaceFirst('error:', '');
+      Map jsonDecodedResponse = jsonDecode(revokeEnrollmentResponse);
+      expect(jsonDecodedResponse['errorCode'], 'AT0032');
+      expect(
+          jsonDecodedResponse['errorDescription'],
+          'Illegal state exception : Failed to delete enrollment id: '
+          '$enrollmentId | Cause: Cannot delete approved enrollments. '
+          'Only denied and revoked enrollments can be deleted');
+    });
+
+    test('negative test - delete an pending enrollment', () async {
+      // Send an enrollment request on the authenticated connection
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      String otp = await firstAtSignConnection.sendRequestToServer('otp:get');
+      otp = otp.replaceFirst('data:', '');
+      await firstAtSignConnection.close();
+
+      // Submit an enrollment request from an un-authenticated connection
+      OutboundConnectionFactory unAuthenticatedConnection =
+          OutboundConnectionFactory();
+      await unAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      String enrollRequest =
+          'enroll:request:{"appName":"wavi","otp":"$otp","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${at_demos.pkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+      var enrollmentResponse =
+          await unAuthenticatedConnection.sendRequestToServer(enrollRequest);
+      Map jsonDecodedResponse =
+          jsonDecode(enrollmentResponse.replaceAll('data:', ''));
+      String? enrollmentId = jsonDecodedResponse['enrollmentId'];
+      expect(jsonDecodedResponse['status'], 'pending');
+      assert(enrollmentId != null);
+      await unAuthenticatedConnection.close();
+
+      // create a cram  authenticated connection and delete the pending enrollment
+      OutboundConnectionFactory secondAuthenticatedConnection =
+          OutboundConnectionFactory();
+      await secondAuthenticatedConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await secondAuthenticatedConnection.authenticateConnection(
+          authType: AuthType.cram);
+      String deleteEnrollmentCommand =
+          'enroll:delete:{"enrollmentId":"$enrollmentId"}';
+      String revokeEnrollmentResponse = await secondAuthenticatedConnection
+          .sendRequestToServer(deleteEnrollmentCommand);
+      revokeEnrollmentResponse =
+          revokeEnrollmentResponse.replaceFirst('error:', '');
+      jsonDecodedResponse = jsonDecode(revokeEnrollmentResponse);
+      expect(jsonDecodedResponse['errorCode'], 'AT0032');
+      expect(
+          jsonDecodedResponse['errorDescription'],
+          'Illegal state exception : Failed to delete enrollment id: '
+          '$enrollmentId | Cause: Cannot delete pending enrollments. '
+          'Only denied and revoked enrollments can be deleted');
+    });
+
+    test(
+        'A test to verify delete operation cannot be performed on an unauthenticated connection',
+        () async {
+      // using a dummy enrollId as the enrollId will NOT be validated for this test
+      String enrollmentId = '023409340293-2342397-23423984729';
+      OutboundConnectionFactory socketConnection2 =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
+      String deleteEnrollmentCommand =
+          'enroll:delete:{"enrollmentId":"$enrollmentId"}';
+      String revokeEnrollmentResponse =
+          await socketConnection2.sendRequestToServer(deleteEnrollmentCommand);
+      expect(revokeEnrollmentResponse.trim(),
+          'error:AT0401-Exception: Cannot delete enrollment without authentication');
+    });
+  });
 }

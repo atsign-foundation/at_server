@@ -1,89 +1,84 @@
-import 'dart:io';
-
 import 'package:at_commons/at_commons.dart';
-import 'package:at_secondary/src/connection/inbound/connection_util.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:test/test.dart';
 
+import 'test_utils.dart';
+
 void main() {
+  verbTestsSetUpLogging();
+
+  late FakeSocket mockSocket;
+
+  late InboundConnectionManager icm;
+
   setUp(() {
-    var serverContext = AtSecondaryContext();
-    serverContext.unauthenticatedInboundIdleTimeMillis = 10000;
-    AtSecondaryServerImpl.getInstance().serverContext = serverContext;
+    atServer.serverContext = AtSecondaryContext()
+      ..unauthenticatedInboundIdleTimeMillis = 10000;
+    atServer.inboundConnectionManager = icm = InboundConnectionManager(
+        serverAtSign: alice, poolSize: AtSecondaryConfig.inbound_max_limit);
+    mockSocket = FakeSocket();
   });
 
   tearDown(() {
-    InboundConnectionManager.getInstance().removeAllConnections();
+    atServer.inboundConnectionManager.close();
   });
 
   group('A group of inbound connection manager tests', () {
     test('test inbound connection manager - create connection ', () {
-      var connManager = InboundConnectionManager.getInstance();
-      Socket? dummySocket;
-      connManager.init(5);
+      icm.pool.resize(5);
       var createdConnection =
-          connManager.createConnection(dummySocket, sessionId: 'aaa');
-      expect(createdConnection.getMetaData().sessionID, 'aaa');
-      expect(createdConnection.getMetaData().isCreated, true);
+          icm.createSocketConnection(mockSocket, sessionId: 'aaa');
+      expect(createdConnection.metaData.sessionID, 'aaa');
+      expect(createdConnection.metaData.isCreated, true);
     });
 
     test('test inbound connection manager - current pool size', () {
-      var connManager = InboundConnectionManager.getInstance();
-      connManager.init(2);
-      Socket? dummySocket;
-      connManager.createConnection(dummySocket, sessionId: 'aaa');
-      expect(ConnectionUtil.getActiveConnectionSize(), 1);
+      icm.pool.resize(2);
+      icm.createSocketConnection(mockSocket, sessionId: 'aaa');
+      expect(icm.pool.getActiveConnectionSize(), 1);
     });
 
     test('test inbound connection manager - current pool size no connections',
         () {
-      expect(ConnectionUtil.getActiveConnectionSize(), 0);
+      expect(icm.pool.getActiveConnectionSize(), 0);
     });
 
     test('test inbound connection manager - connect limit test', () {
-      var connManager = InboundConnectionManager.getInstance();
-      Socket? dummySocket;
-      connManager.init(2);
-      connManager.createConnection(dummySocket, sessionId: 'aaa');
-      connManager.createConnection(dummySocket, sessionId: 'bbb');
+      icm.pool.resize(2);
+      icm.createSocketConnection(mockSocket, sessionId: 'aaa');
+      icm.createSocketConnection(mockSocket, sessionId: 'bbb');
       expect(
-          () => connManager.createConnection(dummySocket, sessionId: 'ccc'),
+          () => icm.createSocketConnection(mockSocket, sessionId: 'ccc'),
           throwsA(predicate((dynamic e) =>
               e is InboundConnectionLimitException &&
               e.message == 'max limit reached on inbound pool')));
     });
 
     test('test inbound connection manager - has capacity true', () {
-      var connManager = InboundConnectionManager.getInstance();
-      Socket? dummySocket;
-      connManager.init(5);
-      connManager.createConnection(dummySocket, sessionId: 'aaa');
-      connManager.createConnection(dummySocket, sessionId: 'bbb');
-      connManager.createConnection(dummySocket, sessionId: 'ccc');
-      expect(connManager.hasCapacity(), true);
+      icm.pool.resize(5);
+      icm.createSocketConnection(mockSocket, sessionId: 'aaa');
+      icm.createSocketConnection(mockSocket, sessionId: 'bbb');
+      icm.createSocketConnection(mockSocket, sessionId: 'ccc');
+      expect(icm.hasCapacity(), true);
     });
 
     test('test inbound connection manager - has capacity false', () {
-      var connManager = InboundConnectionManager.getInstance();
-      Socket? dummySocket;
-      connManager.init(3);
-      connManager.createConnection(dummySocket, sessionId: 'aaa');
-      connManager.createConnection(dummySocket, sessionId: 'bbb');
-      connManager.createConnection(dummySocket, sessionId: 'ccc');
-      expect(connManager.hasCapacity(), false);
+      icm.pool.resize(3);
+      icm.createSocketConnection(mockSocket, sessionId: 'aaa');
+      icm.createSocketConnection(mockSocket, sessionId: 'bbb');
+      icm.createSocketConnection(mockSocket, sessionId: 'ccc');
+      expect(icm.hasCapacity(), false);
     });
 
     test('test inbound connection manager -clear connections', () {
-      var connManager = InboundConnectionManager.getInstance();
-      Socket? dummySocket;
-      connManager.init(3);
-      connManager.createConnection(dummySocket, sessionId: 'aaa');
-      connManager.createConnection(dummySocket, sessionId: 'bbb');
-      connManager.createConnection(dummySocket, sessionId: 'ccc');
-      connManager.removeAllConnections();
-      expect(ConnectionUtil.getActiveConnectionSize(), 0);
+      icm.pool.resize(3);
+      icm.createSocketConnection(mockSocket, sessionId: 'aaa');
+      icm.createSocketConnection(mockSocket, sessionId: 'bbb');
+      icm.createSocketConnection(mockSocket, sessionId: 'ccc');
+      icm.close();
+      expect(icm.pool.getActiveConnectionSize(), 0);
     });
   });
 }

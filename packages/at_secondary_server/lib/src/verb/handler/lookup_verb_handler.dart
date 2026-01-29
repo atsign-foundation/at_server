@@ -6,6 +6,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
@@ -19,10 +20,14 @@ class LookupVerbHandler extends AbstractVerbHandler {
   static final depthOfResolution = AtSecondaryConfig.lookup_depth_of_resolution;
   final OutboundClientManager outboundClientManager;
   final AtCacheManager cacheManager;
+  final EnrollmentManager enMgr;
 
   LookupVerbHandler(
-      SecondaryKeyStore keyStore, this.outboundClientManager, this.cacheManager)
-      : super(keyStore);
+    super.keyStore,
+    this.outboundClientManager,
+    this.cacheManager,
+    this.enMgr,
+  );
 
   @override
   bool accept(String command) =>
@@ -33,26 +38,40 @@ class LookupVerbHandler extends AbstractVerbHandler {
     return lookup;
   }
 
-  @override
-
   /// Throws an [SecondaryNotFoundException] if unable to establish connection to another secondary
   /// Throws an [UnAuthorizedException] if lookup if invoked with handshake=true and without a successful handshake
   ///  Throws an [LookupException] if there is exception during lookup operation
+  @override
   Future<void> processVerb(
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var atConnectionMetadata =
-        atConnection.getMetaData() as InboundConnectionMetadata;
+        atConnection.metaData as InboundConnectionMetadata;
     var thisServersAtSign = cacheManager.atSign;
     var atAccessLog = await AtAccessLogManagerImpl.getInstance()
         .getAccessLog(thisServersAtSign);
-    String keyOwnersAtSign = verbParams[AT_SIGN]!;
+    String keyOwnersAtSign = verbParams[AtConstants.atSign]!;
     keyOwnersAtSign = AtUtils.fixAtSign(keyOwnersAtSign);
-    var entity = verbParams[AT_KEY];
+    var entity = verbParams[AtConstants.atKey];
     var keyAtAtSign = '$entity$keyOwnersAtSign';
-    var operation = verbParams[OPERATION];
-    String? byPassCacheStr = verbParams[bypassCache];
+    var operation = verbParams[AtConstants.operation];
+    String? byPassCacheStr = verbParams[AtConstants.bypassCache];
+
+    // - If it looks like *.<enrollmentId>.[ard].__e@thisAtsign
+    // - Then fetch the enrollment which forces a check if it's active
+    //
+    // This ensures that expired enrollment keys are in the right place
+    //
+    RegExpMatch? rem = perEnrollmentRegex.firstMatch(keyAtAtSign);
+    if (rem != null) {
+      String enId = rem.namedGroup('EnId')!;
+      try {
+        await enMgr.getEnrollmentById(enId);
+      } on KeyNotFoundException {
+        // We don't need to do anything more
+      }
+    }
 
     logger.finer(
         'fromAtSign : ${atConnectionMetadata.fromAtSign} \n atSign : ${keyOwnersAtSign.toString()} \n key : $keyAtAtSign');
@@ -95,11 +114,19 @@ class LookupVerbHandler extends AbstractVerbHandler {
       String? operation,
       AtAccessLog? atAccessLog,
       String? byPassCacheStr) async {
-    var lookupKey = '$thisServersAtSign:$keyAtAtSign';
+    String lookupKey;
+    // Just a bit of convenience here for those of us who frequently
+    // use lookup instead of llookup
+    if (!keyAtAtSign.contains(':')) {
+      lookupKey = '$thisServersAtSign:$keyAtAtSign';
+    } else {
+      lookupKey = keyAtAtSign;
+    }
     bool isAuthorized = await _isAuthorizedToViewData(atConnection, lookupKey);
     if (!isAuthorized) {
       throw UnAuthorizedException(
-          'Enrollment Id: ${(atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId} is not authorized for lookup operation on the key: $lookupKey');
+          'Connection with enrollment ID ${(atConnection.metaData as InboundConnectionMetadata).enrollmentId}'
+          ' is not authorized to lookup key: $lookupKey');
     }
     if (keyOwnersAtSign == thisServersAtSign) {
       // We're looking up data owned by this server's atSign
@@ -143,7 +170,8 @@ class LookupVerbHandler extends AbstractVerbHandler {
     }
     response.data = SecondaryUtil.prepareResponseData(operation, lookupData);
     //Resolving value references to correct values
-    if (response.data != null && response.data!.contains(AT_VALUE_REFERENCE)) {
+    if (response.data != null &&
+        response.data!.contains(AtConstants.atValueReference)) {
       response.data = await resolveValueReference(
           response.data!, atConnectionMetadata.fromAtSign!);
     }
@@ -182,7 +210,8 @@ class LookupVerbHandler extends AbstractVerbHandler {
     }
     response.data = SecondaryUtil.prepareResponseData(operation, lookupData);
     //Resolving value references to correct values
-    if (response.data != null && response.data!.contains(AT_VALUE_REFERENCE)) {
+    if (response.data != null &&
+        response.data!.contains(AtConstants.atValueReference)) {
       response.data = await resolveValueReference(response.data!, 'public:');
     }
     //Omit all keys starting with '_' to record in access log
@@ -208,7 +237,8 @@ class LookupVerbHandler extends AbstractVerbHandler {
       Response response,
       String? operation,
       String? byPassCacheStr) async {
-    String cachedKeyName = '$CACHED:$thisServersAtSign:$keyAtAtSign';
+    String cachedKeyName =
+        '${AtConstants.cached}:$thisServersAtSign:$keyAtAtSign';
     //Get cached value.
     AtData? cachedValue =
         await cacheManager.get(cachedKeyName, applyMetadataRules: true);
@@ -236,11 +266,19 @@ class LookupVerbHandler extends AbstractVerbHandler {
       String? operation,
       AtAccessLog? atAccessLog,
       String keyOwnersAtSign) async {
-    var lookupKey = '$thisServersAtSign:$keyAtAtSign';
+    String lookupKey;
+    // Just a bit of convenience here for those of us who frequently
+    // use lookup instead of llookup
+    if (!keyAtAtSign.contains(':')) {
+      lookupKey = '$thisServersAtSign:$keyAtAtSign';
+    } else {
+      lookupKey = keyAtAtSign;
+    }
     var lookupValue = await keyStore.get(lookupKey);
     response.data = SecondaryUtil.prepareResponseData(operation, lookupValue);
     //Resolving value references to correct value
-    if (response.data != null && response.data!.contains(AT_VALUE_REFERENCE)) {
+    if (response.data != null &&
+        response.data!.contains(AtConstants.atValueReference)) {
       response.data = await resolveValueReference(
           response.data.toString(), thisServersAtSign);
     }
@@ -259,36 +297,20 @@ class LookupVerbHandler extends AbstractVerbHandler {
   /// otherwise, returns false.
   Future<bool> _isAuthorizedToViewData(
       InboundConnection atConnection, String lookupKey) async {
-    // When a connection is authenticated via APKAM, only keys with namespaces that are authorized
-    // are allowed to fetch the data. However, the keys that do not have namespaces (for example
-    // reserved keys) the client is authorized and are allowed to fetch the data.
-    //
-    // Therefore, absence of "." indicates lack of namespace in the key. Return true.
-    if (!lookupKey.contains('.')) {
-      return true;
-    }
-    final enrollmentId =
-        (atConnection.getMetaData() as InboundConnectionMetadata).enrollmentId;
-    bool isAuthorized = true; // for legacy clients allow access by default
-    if (enrollmentId != null) {
-      // Extract namespace from the key - 'some_key.wavi@alice' where "wavi" is
-      // is the namespace.
-      String keyNamespace = lookupKey.substring(
-          lookupKey.lastIndexOf('.') + 1, lookupKey.lastIndexOf('@'));
-      isAuthorized = await super.isAuthorized(enrollmentId, keyNamespace);
-    }
-    return isAuthorized;
+    return await super.isAuthorized(
+        atConnection.metaData as InboundConnectionMetadata,
+        atKey: lookupKey);
   }
 
   /// Resolves the value references and returns correct value if value is resolved with in depth of resolution.
   /// else null is returned.
   /// @param - value : The reference value to be resolved.
-  /// @param - keyPrefix : The prefix for the key: <atsign> or public.
+  /// @param - keyPrefix : The prefix for the key: `<atsign>` or `public`.
   Future<String?> resolveValueReference(String value, String keyPrefix) async {
     var resolutionCount = 1;
 
     // Iterates for DEPTH_OF_RESOLUTION times to resolve the value reference.If value is still a reference, returns null.
-    while (value.contains(AT_VALUE_REFERENCE) &&
+    while (value.contains(AtConstants.atValueReference) &&
         resolutionCount <= depthOfResolution!) {
       var index = value.indexOf('/');
       var keyToResolve = value.substring(index + 2, value.length);
@@ -304,6 +326,6 @@ class LookupVerbHandler extends AbstractVerbHandler {
       value = lookupValue?.data;
       resolutionCount++;
     }
-    return value.contains(AT_VALUE_REFERENCE) ? null : value;
+    return value.contains(AtConstants.atValueReference) ? null : value;
   }
 }

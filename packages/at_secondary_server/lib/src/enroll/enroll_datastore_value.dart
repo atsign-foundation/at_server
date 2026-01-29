@@ -15,6 +15,8 @@ class EnrollDataStoreValue {
   late String apkamPublicKey;
   EnrollRequestType? requestType;
   EnrollApproval? approval;
+  String? encryptedAPKAMSymmetricKey;
+  Duration apkamKeysExpiryDuration = Duration(milliseconds: 0);
 
   EnrollDataStoreValue(
       this.sessionId, this.appName, this.deviceName, this.apkamPublicKey);
@@ -23,6 +25,13 @@ class EnrollDataStoreValue {
       _$EnrollDataStoreValueFromJson(json);
 
   Map<String, dynamic> toJson() => _$EnrollDataStoreValueToJson(this);
+
+  Map<String, dynamic> toJsonExtended() {
+    final m = toJson();
+    m['status'] = approval?.state;
+    m['namespace'] = m['namespaces'];
+    return m;
+  }
 }
 
 class EnrollApproval {

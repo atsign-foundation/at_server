@@ -7,23 +7,24 @@ import 'package:at_utils/at_logger.dart';
 
 /// Class to maintains the pool of outbound connections for notifying.
 class NotifyConnectionsPool {
-  static final NotifyConnectionsPool _singleton =
-      NotifyConnectionsPool._internal();
   static final logger = AtSignLogger('NotifyConnectionPool');
 
-  static const int defaultPoolSize = 50;
+  static const int defaultPoolSize = 200;
 
-  final OutboundClientPool _outboundClientPool =
-      OutboundClientPool(size: defaultPoolSize);
-  OutboundClientPool get pool => _outboundClientPool;
+  late final OutboundClientPool _outboundClientPool;
+  final OutboundConnectionFactory outboundConnectionFactory;
 
-  NotifyConnectionsPool._internal();
-
-  factory NotifyConnectionsPool.getInstance() {
-    return _singleton;
+  NotifyConnectionsPool(
+    this.outboundConnectionFactory, {
+    int poolSize = defaultPoolSize,
+  }) {
+    _outboundClientPool = OutboundClientPool(size: poolSize);
   }
 
+  OutboundClientPool get outboundClientPool => _outboundClientPool;
+
   int get size => _outboundClientPool.size;
+
   set size(int s) => _outboundClientPool.size = s;
 
   int getCapacity() {
@@ -32,13 +33,17 @@ class NotifyConnectionsPool {
         _outboundClientPool.getCurrentSize();
   }
 
-  OutboundClient get(String toAtSign) {
+  Future<OutboundClient> getOutboundClient(
+    String toAtSign, {
+    bool connect = true,
+  }) async {
     _outboundClientPool.clearInvalidClients();
     var inboundConnection = DummyInboundConnection();
     var client = _outboundClientPool.get(toAtSign, inboundConnection);
 
     if (client != null) {
-      logger.finer('retrieved outbound client from pool to $toAtSign');
+      logger.info(
+          'retrieved outbound client to $toAtSign (handshake: true) from pool');
       return client;
     }
 
@@ -54,8 +59,21 @@ class NotifyConnectionsPool {
 
     // If client is null and pool has capacity, create a new OutboundClient and add it to the pool
     // and return it back
-    var newClient = OutboundClient(inboundConnection, toAtSign, AtSecondaryServerImpl.getInstance().secondaryAddressFinder);
+    var newClient = OutboundClient(
+      inboundConnection,
+      toAtSign,
+      AtSecondaryServerImpl.getInstance().secondaryAddressFinder,
+      true,
+      outboundConnectionFactory,
+    );
+    if (connect) {
+      await newClient.connect();
+    } else {
+      logger.warning('Created new client but not connecting it');
+    }
     _outboundClientPool.add(newClient);
+    logger.info(
+        'Created new outbound client to $toAtSign (handshake: true) and added to pool');
     return newClient;
   }
 }

@@ -1,3 +1,7 @@
+## 3.1.0
+- feat: Add `preRemoveHook` and `postRemoveHook` to WritableKeyStore interface
+## 3.0.0
+- feat!: major version change for simplified keystore interface
 ## 2.0.14
 - feat: add optional param skipCommit to keystore - put,create and remove methods
 ## 2.0.12

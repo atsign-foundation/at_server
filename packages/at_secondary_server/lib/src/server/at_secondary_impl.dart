@@ -4,16 +4,20 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:at_commons/at_commons.dart';
+import 'package:at_commons/at_commons.dart' hide StringBuffer;
 import 'package:at_lookup/at_lookup.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/caching/cache_refresh_job.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
+import 'package:at_secondary/src/caching/cache_refresh_job.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_client.dart'
+    show OutboundConnectionFactory, DefaultOutboundConnectionFactory;
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/stream_manager.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
+import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/queue_manager.dart';
 import 'package:at_secondary/src/notification/resource_manager.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
@@ -27,26 +31,21 @@ import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_update_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
-import 'package:at_secondary/src/verb/metrics/metrics_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:crypton/crypton.dart';
-import 'package:uuid/uuid.dart';
 import 'package:meta/meta.dart';
+import 'package:uuid/uuid.dart';
+
+import 'http_request_handler.dart';
 
 /// [AtSecondaryServerImpl] is a singleton class which implements [AtSecondaryServer]
 class AtSecondaryServerImpl implements AtSecondaryServer {
   static final bool? useTLS = AtSecondaryConfig.useTLS;
   static final AtSecondaryServerImpl _singleton =
       AtSecondaryServerImpl._internal();
-  static final inboundConnectionFactory =
-      InboundConnectionManager.getInstance();
-  static final String? storagePath = AtSecondaryConfig.storagePath;
-  static final String? commitLogPath = AtSecondaryConfig.commitLogPath;
-  static final String? accessLogPath = AtSecondaryConfig.accessLogPath;
-  static final String? notificationStoragePath =
-      AtSecondaryConfig.notificationStoragePath;
+
   static final int? expiringRunFreqMins = AtSecondaryConfig.expiringRunFreqMins;
   static final int? commitLogCompactionFrequencyMins =
       AtSecondaryConfig.commitLogCompactionFrequencyMins;
@@ -64,9 +63,12 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   static final int? accessLogSizeInKB = AtSecondaryConfig.accessLogSizeInKB;
   static final bool? clientCertificateRequired =
       AtSecondaryConfig.clientCertificateRequired;
+  static final skipCommitsForExpiredKeys =
+      AtSecondaryConfig.skipCommitsForExpiredKeys;
 
   late SecondaryAddressFinder secondaryAddressFinder;
   late OutboundClientManager outboundClientManager;
+  late OutboundConnectionFactory outboundConnectionFactory;
 
   late bool _isPaused;
 
@@ -77,15 +79,40 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   AtSecondaryServerImpl._internal() {
+    // TODO There's a whole lifecycle mess here that needs to be cleaned up
+    // at some point. Currently we create this singleton which then has a
+    // lifecycle where it can be started and stopped. When it is started, all
+    // of its relevant state is recreated, since things (e.g. ssl certs) may
+    // have changed. When it is stopped, all relevant state is cleared.
+    // This should not be a singleton, and state management should be
+    // 'stop the current server; create new instance; start new instance'.
+    // Doing this will be a massive chunk of busywork.
+    // NB: These specific instance variables are depended on by unit tests
+    // so they are initialized here, but are also initialized as part of the
+    // `start()` function
+    final socketConfig = SecureSocketConfig()
+      ..decryptPackets = false
+      ..pathToCerts = AtSecondaryConfig.trustedCertificateLocation
+      ..tlsKeysSavePath = null;
+
     secondaryAddressFinder = CacheableSecondaryAddressFinder(
-        AtSecondaryConfig.rootServerUrl, AtSecondaryConfig.rootServerPort);
-    outboundClientManager = OutboundClientManager(secondaryAddressFinder);
+      AtSecondaryConfig.rootServerUrl,
+      AtSecondaryConfig.rootServerPort,
+      socketConfig: socketConfig,
+    );
+    outboundConnectionFactory = DefaultOutboundConnectionFactory(
+      requireCerts: false, // so unit tests can work
+    );
+    outboundClientManager = OutboundClientManager(
+      secondaryAddressFinder,
+      outboundConnectionFactory,
+    );
   }
 
   dynamic _serverSocket;
   bool _isRunning = false;
-  var currentAtSign;
-  var _commitLog;
+  late String currentAtSign;
+  late AtCommitLog commitLog;
   var _accessLog;
   var signingKey;
   AtSecondaryContext? serverContext;
@@ -100,11 +127,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   AtCertificateValidationJob? certificateReloadJob;
   @visibleForTesting
   late SecondaryPersistenceStore secondaryPersistenceStore;
+  late HivePersistenceManager hivePersistenceManager;
   late SecondaryKeyStore<String, AtData?, AtMetaData?> secondaryKeyStore;
   late ResourceManager notificationResourceManager;
   late var atCommitLogCompactionConfig;
   late var atAccessLogCompactionConfig;
   late var atNotificationCompactionConfig;
+  late EnrollmentManager enrollmentManager;
+  late InboundConnectionManager inboundConnectionManager;
   AtServerTelemetryService? telemetryService;
   WebHookAtTelemetryConsumer? telemetryWebHookConsumer;
 
@@ -170,9 +200,34 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
         .getSecondaryPersistenceStore(currentAtSign)!;
 
+    // Initialize enrollment manager
+    enrollmentManager = EnrollmentManager(secondaryKeyStore, currentAtSign);
+    List<String> deletedKeys =
+        await enrollmentManager.removeLegacyApkamPublicKeys();
+    if (deletedKeys.isNotEmpty) {
+      logger.info('Removed legacy APKAM public keys: $deletedKeys');
+    }
+    deletedKeys = await enrollmentManager.removeOrphanedApkamEncryptionKeys();
+    if (deletedKeys.isNotEmpty) {
+      logger.info('Removed orphaned APKAM encryption keys: $deletedKeys');
+    }
+
+    // Set up removal of expired keys
+    // We add a hook here to handle deletion of enrollments.
+    secondaryKeyStore.preRemoveHooks.add(enrollmentManager.preRemoveHook);
+
+    // expiringRunFreqMins default is 10 mins. Randomly run the task every 8-15 mins.
+    final expiryRunRandomMins =
+        (expiringRunFreqMins! - 2) + Random().nextInt(8);
+    logger.finest('Scheduling key expiry job every $expiryRunRandomMins mins');
+    hivePersistenceManager.scheduleKeyExpireTask(3,
+        skipCommits: skipCommitsForExpiredKeys);
+
+    await secondaryKeyStore.deleteExpiredKeys();
+
     //Commit Log Compaction
     commitLogCompactionJobInstance =
-        AtCompactionJob(_commitLog, secondaryPersistenceStore);
+        AtCompactionJob(commitLog, secondaryPersistenceStore);
     atCommitLogCompactionConfig = AtCompactionConfig()
       ..compactionPercentage = commitLogCompactionPercentage
       ..compactionFrequencyInMins = commitLogCompactionFrequencyMins!;
@@ -199,7 +254,34 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     await notificationKeyStoreCompactionJobInstance
         .scheduleCompactionJob(atNotificationCompactionConfig);
 
-    outboundClientManager.poolSize = serverContext!.outboundConnectionLimit;
+    final socketConfig = SecureSocketConfig()
+      ..decryptPackets = false
+      ..pathToCerts = AtSecondaryConfig.trustedCertificateLocation
+      ..tlsKeysSavePath = null;
+
+    secondaryAddressFinder = CacheableSecondaryAddressFinder(
+      AtSecondaryConfig.rootServerUrl,
+      AtSecondaryConfig.rootServerPort,
+      socketConfig: socketConfig,
+    );
+    outboundConnectionFactory = DefaultOutboundConnectionFactory(
+      requireCerts: true,
+    );
+    outboundClientManager = OutboundClientManager(
+      secondaryAddressFinder,
+      outboundConnectionFactory,
+      poolSize: serverContext!.outboundConnectionLimit,
+    );
+    notificationResourceManager = ResourceManager(NotifyConnectionsPool(
+      outboundConnectionFactory,
+      poolSize: serverContext!.outboundConnectionLimit,
+    ));
+
+    // Start the notification sender
+    notificationResourceManager.start();
+
+    NotificationManager notificationManager =
+        NotificationManager(notificationResourceManager);
 
     // Refresh Cached Keys
     cacheManager = AtCacheManager(serverContext!.currentAtSign!,
@@ -224,11 +306,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // But if not, create a DefaultVerbHandlerManager
     if (verbHandlerManager == null) {
       verbHandlerManager = DefaultVerbHandlerManager(
-          secondaryKeyStore,
-          outboundClientManager,
-          cacheManager,
-          StatsNotificationService.getInstance(),
-          NotificationManager.getInstance());
+        secondaryKeyStore,
+        outboundClientManager,
+        cacheManager,
+        StatsNotificationService.getInstance(),
+        notificationManager,
+        enrollmentManager,
+        currentAtSign,
+      );
     } else {
       // If the server has been stop()'d and re-start()'d then we will get here.
       // We have to make sure that if we used a DefaultVerbHandlerManager then we
@@ -236,11 +321,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       // OutboundClientManager and AtCacheManager
       if (verbHandlerManager is DefaultVerbHandlerManager) {
         verbHandlerManager = DefaultVerbHandlerManager(
-            secondaryKeyStore,
-            outboundClientManager,
-            cacheManager,
-            StatsNotificationService.getInstance(),
-            NotificationManager.getInstance());
+          secondaryKeyStore,
+          outboundClientManager,
+          cacheManager,
+          StatsNotificationService.getInstance(),
+          notificationManager,
+          enrollmentManager,
+          currentAtSign,
+        );
       }
     }
 
@@ -250,7 +338,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     if (certificateReloadJob == null) {
       certificateReloadJob = AtCertificateValidationJob(
           this,
-          AtSecondaryConfig.certificateChainLocation!
+          AtSecondaryConfig.certificateChainLocation
               .replaceAll('fullchain.pem', 'restart'),
           AtSecondaryConfig.isForceRestart!);
       await certificateReloadJob!.start();
@@ -278,14 +366,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // We're currently in process of restarting, so we can delete the file which triggers restarts
     await certificateReloadJob!.deleteRestartFile();
 
-    // Initialize inbound factory and outbound manager
-    inboundConnectionFactory.init(serverContext!.inboundConnectionLimit);
-
-    // Notification job
-    notificationResourceManager = ResourceManager.getInstance();
-    notificationResourceManager.outboundConnectionLimit =
-        serverContext!.outboundConnectionLimit;
-    notificationResourceManager.start();
+    inboundConnectionManager = InboundConnectionManager(
+        serverAtSign: currentAtSign,
+        poolSize: serverContext!.inboundConnectionLimit);
 
     // Starts StatsNotificationService to keep monitor connections alive
     await StatsNotificationService.getInstance().schedule(currentAtSign);
@@ -300,6 +383,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // clean up malformed keys from keystore
     await removeMalformedKeys();
 
+    if (!useTLS!) {
+      throw AtServerException('Only TLS is supported; useTLS must be true');
+    }
     try {
       _isRunning = true;
       if (useTLS!) {
@@ -412,7 +498,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     logger.finest('Subscribing to dynamic changes made to inbound_max_limit');
     AtSecondaryConfig.subscribe(ModifiableConfigs.inboundMaxLimit)
         ?.listen((newSize) {
-      inboundConnectionFactory.init(newSize, isColdInit: false);
+        inboundConnectionManager.pool.resize(newSize);
       logger.finest(
           'inbound_max_limit change received. Modifying inbound_max_limit of server to $newSize');
     });
@@ -447,7 +533,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         ModifiableConfigs.commitLogCompactionFrequencyMins)
         ?.listen((newFrequency) async {
       await restartCompaction(commitLogCompactionJobInstance,
-          atCommitLogCompactionConfig, newFrequency, _commitLog);
+            atCommitLogCompactionConfig, newFrequency, commitLog);
     });
 
     //subscriber for autoNotify state change
@@ -477,13 +563,28 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       QueueManager.getInstance().setMaxRetries(newCount);
     });
 
-    AtSecondaryConfig.subscribe(ModifiableConfigs.maxRequestsPerTimeFrame)?.listen((maxEnrollRequestsAllowed) {
+      AtSecondaryConfig.subscribe(ModifiableConfigs.maxRequestsPerTimeFrame)
+          ?.listen((maxEnrollRequestsAllowed) {
       AtSecondaryConfig.maxEnrollRequestsAllowed = maxEnrollRequestsAllowed;
     });
 
-    AtSecondaryConfig.subscribe(ModifiableConfigs.timeFrameInMills)?.listen((timeWindowInMills) {
+      AtSecondaryConfig.subscribe(ModifiableConfigs.timeFrameInMills)
+          ?.listen((timeWindowInMills) {
       AtSecondaryConfig.timeFrameInMills = timeWindowInMills;
     });
+  }
+
+  webSocketListener(WebSocket ws) async {
+    InboundConnection? connection;
+    try {
+      connection = inboundConnectionManager.createWebSocketConnection(ws,
+          sessionId: '_${Uuid().v4()}');
+      connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
+      await connection.write('@');
+    } on InboundConnectionLimitException catch (e) {
+      await GlobalExceptionHandler.getInstance()
+          .handle(e, atConnection: connection, clientSocket: ws);
+    }
   }
 
   /// Listens on the secondary server socket and creates an inbound connection to server socket from client socket
@@ -491,22 +592,54 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// Throws [SocketException] for exceptions on socket
   /// Throws [Exception] for any other exceptions.
   /// @param - ServerSocket
-  void _listen(var serverSocket) {
+  void _listen(final serverSocket) {
+    // ALPN support.
+    // First, make a PseudoServerSocket to which we will pass sockets which
+    // have a selectedProtocol which is neither null nor 'atProtocol/1.0'.
+    // See later in this method for where we pass sockets received on the real
+    // serverSocket to the pseudoServerSocket.
+    final pseudoServerSocket = PseudoServerSocket(serverSocket);
+    // Second, make an HttpServer which is handling sockets which are passed
+    // to the pseudoServerSocket
+    HttpServer httpServer = HttpServer.listenOn(pseudoServerSocket);
+    final httpReqHandler =
+        AtServerHttpRequestHandler(currentAtSign, secondaryKeyStore);
+    httpServer.listen((HttpRequest req) {
+      if (req.uri.path == '/ws') {
+        // Upgrade an HttpRequest to a WebSocket connection.
+        logger.info('Upgraded to WebSocket connection');
+        WebSocketTransformer.upgrade(req)
+            .then((WebSocket ws) => webSocketListener(ws));
+      } else {
+        httpReqHandler.handle(req);
+      }
+    });
+
     logger.finer('serverSocket _listen : ${serverSocket.runtimeType}');
-    serverSocket.listen(((clientSocket) {
-      var sessionID = '_${Uuid().v4()}';
-      InboundConnection? connection;
-      try {
-        logger.finer(
-            'In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
-        var inBoundConnectionManager = InboundConnectionManager.getInstance();
-        connection = inBoundConnectionManager.createConnection(clientSocket,
-            sessionId: sessionID, telemetry: telemetryService);
-        connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
-        connection.write('@');
-      } on InboundConnectionLimitException catch (e) {
-        GlobalExceptionHandler.getInstance()
-            .handle(e, atConnection: connection, clientSocket: clientSocket);
+    serverSocket.listen(((clientSocket) async {
+      logger.info(
+          'New client socket: selectedProtocol ${clientSocket.selectedProtocol}');
+      if (clientSocket.selectedProtocol == 'atProtocol/1.0' ||
+          clientSocket.selectedProtocol == null) {
+        InboundConnection? connection;
+        try {
+          logger.info(
+              'In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
+          connection = inboundConnectionManager.createSocketConnection(
+              clientSocket,
+              sessionId: '_${Uuid().v4()}');
+          connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
+          await connection.write('@');
+        } on InboundConnectionLimitException catch (e) {
+          await GlobalExceptionHandler.getInstance()
+              .handle(e, atConnection: connection, clientSocket: clientSocket);
+        }
+      } else {
+        // ALPN support
+        // selectedProtocol is neither null nor 'atProtocol/1.0'
+        // TODO check specifically for http/1.1
+        logger.info('Transferring socket to HttpServer for handling');
+        pseudoServerSocket.add(clientSocket);
       }
     }), onError: (error) {
       // We've got no action to take here, let's just log a warning
@@ -516,7 +649,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   /// Starts the secondary server in secure mode and calls the listen method of server socket.
   Future<void> _startSecuredServer() async {
-    var secCon = SecurityContext();
+    var secCon = SecurityContext.defaultContext;
     var retryCount = 0;
     var certsAvailable = false;
     // if certs are unavailable then retry max 10 minutes
@@ -525,12 +658,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         if (certsAvailable || retryCount > 60) {
           break;
         }
-        secCon.useCertificateChain(
-            serverContext!.securityContext!.publicKeyPath());
-        secCon.usePrivateKey(serverContext!.securityContext!.privateKeyPath());
+        secCon
+            .useCertificateChain(serverContext!.securityContext!.publicKeyPath);
+        secCon.usePrivateKey(serverContext!.securityContext!.privateKeyPath);
         secCon.setTrustedCertificates(
-            serverContext!.securityContext!.trustedCertificatePath());
+            serverContext!.securityContext!.trustedCertificatePath);
         certsAvailable = true;
+        // secCon.setAlpnProtocols(['atp/1.0', 'h2', 'http/1.1'], true);
+        secCon.setAlpnProtocols(['atProtocol/1.0', 'http/1.1'], true);
       } on FileSystemException catch (e) {
         retryCount++;
         logger.info('${e.message}:${e.path}');
@@ -567,7 +702,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   void _executeVerbCallBack(
       String command, InboundConnection connection) async {
     logger.finer(logger.getAtConnectionLogMessage(
-        connection.getMetaData(), 'inside _executeVerbCallBack: $command'));
+        connection.metaData, 'inside _executeVerbCallBack: $command'));
     try {
       if (_isPaused) {
         await GlobalExceptionHandler.getInstance().handle(
@@ -600,9 +735,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   void _streamCallBack(List<int> data, InboundConnection sender) {
-    var streamId = sender.getMetaData().streamId;
+    var streamId = sender.metaData.streamId;
     logger.finer(logger.getAtConnectionLogMessage(
-        sender.getMetaData(), 'stream id:$streamId'));
+        sender.metaData, 'stream id:$streamId'));
     if (_isPaused) {
       GlobalExceptionHandler.getInstance().handle(
           ServerIsPausedException(
@@ -611,7 +746,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       return;
     }
     if (streamId != null) {
-      StreamManager.receiverSocketMap[streamId]!.getSocket().add(data);
+      StreamManager.receiverSocketMap[streamId]!.underlying.add(data);
     }
   }
 
@@ -631,10 +766,13 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       await StatsNotificationService.getInstance().cancel();
 
       logger.info("Terminating all inbound connections");
-      inboundConnectionFactory.removeAllConnections();
+      inboundConnectionManager.close();
 
       logger.info("Stopping Notification Resource Manager");
       notificationResourceManager.stop();
+
+      secondaryKeyStore.preRemoveHooks.clear();
+      secondaryKeyStore.postRemoveHooks.clear();
 
       logger.info("Closing CommitLog");
       await AtCommitLogManagerImpl.getInstance().close();
@@ -666,23 +804,22 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// Initializes [SecondaryKeyStore], [AtCommitLog], [AtNotificationKeystore] and [AtAccessLog] instances.
   Future<void> _initializePersistentInstances() async {
     // Initialize commit log
-    _commitLog = await AtCommitLogManagerImpl.getInstance().getCommitLog(
+    commitLog = (await AtCommitLogManagerImpl.getInstance().getCommitLog(
         serverContext!.currentAtSign!,
-        commitLogPath: commitLogPath);
-    LastCommitIDMetricImpl.getInstance().atCommitLog = _commitLog;
-    _commitLog!.addEventListener(
-        CommitLogCompactionService(_commitLog.commitLogKeyStore));
+        commitLogPath: AtSecondaryConfig.commitLogPath))!;
+    commitLog.addEventListener(
+        CommitLogCompactionService(commitLog.commitLogKeyStore));
 
     // Initialize access log
     var atAccessLog = await AtAccessLogManagerImpl.getInstance().getAccessLog(
         serverContext!.currentAtSign!,
-        accessLogPath: accessLogPath);
+        accessLogPath: AtSecondaryConfig.accessLogPath);
     _accessLog = atAccessLog;
 
     // Initialize notification storage
     var notificationKeystore = AtNotificationKeystore.getInstance();
     notificationKeystore.currentAtSign = serverContext!.currentAtSign!;
-    await notificationKeystore.init(notificationStoragePath!);
+    await notificationKeystore.init(AtSecondaryConfig.notificationStoragePath);
     // Loads the notifications into Map.
     await NotificationUtil.loadNotificationMap();
 
@@ -690,13 +827,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     var secondaryPersistenceStore =
         SecondaryPersistenceStoreFactory.getInstance()
             .getSecondaryPersistenceStore(serverContext!.currentAtSign)!;
-    var manager = secondaryPersistenceStore.getHivePersistenceManager()!;
-    await manager.init(storagePath!);
-    // expiringRunFreqMins default is 10 mins. Randomly run the task every 8-15 mins.
-    final expiryRunRandomMins =
-        (expiringRunFreqMins! - 2) + Random().nextInt(8);
-    logger.finest('Scheduling key expiry job every $expiryRunRandomMins mins');
-    manager.scheduleKeyExpireTask(expiryRunRandomMins);
+    hivePersistenceManager =
+        secondaryPersistenceStore.getHivePersistenceManager()!;
+    await hivePersistenceManager.init(AtSecondaryConfig.storagePath);
 
     var atData = AtData();
     atData.data = serverContext!.sharedSecret;
@@ -706,34 +839,37 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     secondaryKeyStore = SecondaryPersistenceStoreFactory.getInstance()
         .getSecondaryPersistenceStore(serverContext!.currentAtSign)!
         .getSecondaryKeyStore()!;
-    secondaryKeyStore.commitLog = _commitLog;
+    secondaryKeyStore.commitLog = commitLog;
 
     keyStoreManager.keyStore = secondaryKeyStore;
     // Initialize the hive store
     await secondaryKeyStore.initialize();
     serverContext!.isKeyStoreInitialized = true;
-    var keyStore = keyStoreManager.getKeyStore();
-    if (!keyStore.isKeyExists(AT_CRAM_SECRET_DELETED)) {
-      await keyStore.put(AT_CRAM_SECRET, atData);
+
+    // Ensure essential data is present in persistence
+    if (!secondaryKeyStore.isKeyExists(AtConstants.atCramSecretDeleted)) {
+      await secondaryKeyStore.put(AtConstants.atCramSecret, atData);
     }
-    if (!keyStore.isKeyExists(AT_SIGNING_KEYPAIR_GENERATED)) {
+    if (!secondaryKeyStore.isKeyExists(AtConstants.atSigningKeypairGenerated)) {
       var rsaKeypair = RSAKeypair.fromRandom();
-      await keyStore.put('$AT_SIGNING_PUBLIC_KEY$currentAtSign',
+      await secondaryKeyStore.put(
+          '${AtConstants.atSigningPublicKey}$currentAtSign',
           AtData()..data = rsaKeypair.publicKey.toString());
-      await keyStore.put('$currentAtSign:$AT_SIGNING_PRIVATE_KEY$currentAtSign',
+      await secondaryKeyStore.put(
+          '$currentAtSign:${AtConstants.atSigningPrivateKey}$currentAtSign',
           AtData()..data = rsaKeypair.privateKey.toString());
-      await keyStore.put(AT_SIGNING_KEYPAIR_GENERATED, AtData()..data = 'true');
+      await secondaryKeyStore.put(
+          AtConstants.atSigningKeypairGenerated, AtData()..data = 'true');
       logger.info('signing keypair generated');
     }
     try {
-      var signingPrivateKey = await keyStore
-          .get('$currentAtSign:$AT_SIGNING_PRIVATE_KEY$currentAtSign');
+      var signingPrivateKey = await secondaryKeyStore.get(
+          '$currentAtSign:${AtConstants.atSigningPrivateKey}$currentAtSign');
       signingKey = signingPrivateKey?.data;
     } on KeyNotFoundException {
       logger.info(
-          'signing key generated? ${keyStore.isKeyExists(AT_SIGNING_KEYPAIR_GENERATED)}');
+          'signing key generated? ${secondaryKeyStore.isKeyExists(AtConstants.atSigningKeypairGenerated)}');
     }
-    await keyStore.deleteExpiredKeys();
   }
 
   Future<void> removeMalformedKeys() async {

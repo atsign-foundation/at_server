@@ -2,8 +2,10 @@ import 'package:at_persistence_spec/at_persistence_spec.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/executor/default_verb_executor.dart';
@@ -12,18 +14,20 @@ import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
-import 'package:mocktail/mocktail.dart';
 
-class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
+import 'test_utils.dart';
 
-class MockOutboundClientManager extends Mock implements OutboundClientManager {}
-
-class MockAtCacheManager extends Mock implements AtCacheManager {}
-
-void main() {
+void main() async {
   SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
   AtCacheManager mockAtCacheManager = MockAtCacheManager();
+  FakeSocket mockSocket = FakeSocket();
+  EnrollmentManager mockEnrollmentManager = MockEnrollmentManager();
+  NotificationManager mockNotificationManager = MockNotificationManager();
+
+  verbTestsSetUpLogging();
+
+  setUpAll(() {});
 
   test('test pol Verb', () {
     var handler = PolVerbHandler(
@@ -37,7 +41,6 @@ void main() {
     var handler = PolVerbHandler(
         mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
     var result = handler.accept(command);
-    print('result : $result');
     expect(result, true);
   });
 
@@ -54,14 +57,18 @@ void main() {
 
   test('test pol verb - invalid syntax', () {
     var command = 'poll';
-    var inbound = InboundConnectionImpl(null, null);
+    var inbound = InboundConnectionImpl(mockSocket, null);
     var defaultVerbExecutor = DefaultVerbExecutor();
+    AtSecondaryServerImpl.getInstance().currentAtSign = alice;
     var defaultVerbHandlerManager = DefaultVerbHandlerManager(
-        mockKeyStore,
-        mockOutboundClientManager,
-        mockAtCacheManager,
-        StatsNotificationService.getInstance(),
-        NotificationManager.getInstance());
+      mockKeyStore,
+      mockOutboundClientManager,
+      mockAtCacheManager,
+      StatsNotificationService.getInstance(),
+      mockNotificationManager,
+      mockEnrollmentManager,
+      alice,
+    );
 
     expect(
         () => defaultVerbExecutor.execute(

@@ -25,7 +25,7 @@ class GlobalExceptionHandler {
   /// params: AtException, AtConnection
   Future<void> handle(Exception exception,
       {AtConnection? atConnection,
-      Socket? clientSocket,
+      dynamic clientSocket,
       StackTrace? stackTrace}) async {
     if (exception is InvalidAtSignException ||
         exception is BufferOverFlowException ||
@@ -49,9 +49,16 @@ class GlobalExceptionHandler {
       await _sendResponseForException(exception, atConnection);
       _closeConnection(atConnection);
     } else if (exception is InboundConnectionLimitException) {
-      // This requires different handling which is in _handleInboundLimit
-      logger.info(exception.toString());
-      await _handleInboundLimit(exception, clientSocket!);
+      if (clientSocket == null) {
+        logger.severe('handling InboundConnectionLimitException,'
+            ' but clientSocket parameter was null');
+      } else {
+        logger.info(exception.toString());
+        var errorCode = getErrorCode(exception);
+        var errorDescription = getErrorDescription(errorCode);
+        clientSocket.add('error:$errorCode-$errorDescription\n'.codeUnits);
+        await clientSocket.close();
+      }
     } else if (exception is ServerIsPausedException) {
       // This is thrown when a new verb request comes in and the server is paused (likely
       // pending restart)
@@ -69,7 +76,8 @@ class GlobalExceptionHandler {
         exception is AtConnectException ||
         exception is SocketException ||
         exception is AtTimeoutException ||
-        exception is AtThrottleLimitExceeded) {
+        exception is AtThrottleLimitExceeded ||
+        exception is IllegalStateException) {
       logger.info(exception.toString());
       await _sendResponseForException(exception, atConnection);
     } else if (exception is InternalServerError) {
@@ -82,14 +90,6 @@ class GlobalExceptionHandler {
           InternalServerException(exception.toString()), atConnection);
       _closeConnection(atConnection);
     }
-  }
-
-  Future<void> _handleInboundLimit(
-      AtException exception, Socket clientSocket) async {
-    var errorCode = getErrorCode(exception);
-    var errorDescription = getErrorDescription(errorCode);
-    clientSocket.write('error:$errorCode-$errorDescription\n');
-    await clientSocket.close();
   }
 
   /// Method to close connection.
@@ -106,7 +106,8 @@ class GlobalExceptionHandler {
 
   /// Method to write response to client
   /// Params: AtException, AtConnection
-  /// We'll get error code based on the exception and write error:<error_code> to the client socket
+  /// We'll get error code based on the exception
+  /// and write `error:<error_code>` to the client socket
   Future<void> _sendResponseForException(
       Exception exception, AtConnection? atConnection) async {
     if (atConnection != null) {
@@ -121,23 +122,22 @@ class GlobalExceptionHandler {
         // For example if @alice performs lookup verb to @bob and @bob returns key not found exception
         // add error description only on @alice (not on @bob)
         // When connecting to other secondaries for lookup verb, a pol authenticated connection
-        // is established. atConnection.getMetaData().isPolAuthenticated is set to true.
+        // is established. atConnection.metaData.isPolAuthenticated is set to true.
         // When a user connects to his own secondary, an authenticate connection is created.
-        // atConnection.getMetaData().isAuthenticated is set to true.
-        if (exception is AtException &&
-            atConnection.getMetaData().isAuthenticated) {
+        // atConnection.metaData.isAuthenticated is set to true.
+        if (exception is AtException && atConnection.metaData.isAuthenticated) {
           errorDescription =
               '${getErrorDescription(errorCode)} : ${exception.message}';
         } else {
           errorDescription = exception.toString();
         }
-        _writeToSocket(atConnection, prompt, errorCode, errorDescription);
+        await _writeToSocket(atConnection, prompt, errorCode, errorDescription);
       }
     }
   }
 
   String _getPrompt(AtConnection atConnection) {
-    var isAuthenticated = atConnection.getMetaData().isAuthenticated;
+    var isAuthenticated = atConnection.metaData.isAuthenticated;
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     var prompt = isAuthenticated ? '$atSign@' : '@';
     return prompt;
@@ -151,15 +151,15 @@ class GlobalExceptionHandler {
     return error_description[errorCode];
   }
 
-  void _writeToSocket(AtConnection atConnection, String prompt,
-      String? errorCode, String errorDescription) {
-    if (atConnection.getMetaData().clientVersion ==
+  Future<void> _writeToSocket(AtConnection atConnection, String prompt,
+      String? errorCode, String errorDescription) async {
+    if (atConnection.metaData.clientVersion ==
         AtConnectionMetaData.clientVersionNotAvailable) {
-      atConnection.write('error:$errorCode-$errorDescription\n$prompt');
+      await atConnection.write('error:$errorCode-$errorDescription\n$prompt');
       return;
     }
     // The JSON encoding of error message is supported by the client versions greater than 3.0.37
-    if (Version.parse(atConnection.getMetaData().clientVersion) >
+    if (Version.parse(atConnection.metaData.clientVersion) >
         Version(3, 0, 37)) {
       logger.info(
           'Client version supports json encoding.. returning Json encoded error message');
@@ -167,10 +167,10 @@ class GlobalExceptionHandler {
         'errorCode': errorCode,
         'errorDescription': errorDescription
       };
-      atConnection.write('error:${jsonEncode(errorJsonMap)}\n$prompt');
+      await atConnection.write('error:${jsonEncode(errorJsonMap)}\n$prompt');
       return;
     }
     // Defaults to return the error message in string format if all the conditions fails
-    atConnection.write('error:$errorCode-$errorDescription\n$prompt');
+    await atConnection.write('error:$errorCode-$errorDescription\n$prompt');
   }
 }

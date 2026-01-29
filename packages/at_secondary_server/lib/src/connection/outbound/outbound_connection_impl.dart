@@ -5,33 +5,59 @@ import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:uuid/uuid.dart';
 
-class OutboundConnectionImpl extends OutboundConnection {
-  static int? outboundIdleTime =
-      AtSecondaryServerImpl.getInstance().serverContext!.outboundIdleTimeMillis;
+class OutboundConnectionImpl<T extends Socket>
+    extends OutboundSocketConnection {
+  @override
+  bool authenticated = false;
 
-  OutboundConnectionImpl(Socket? socket, String? toAtSign) : super(socket) {
+  int get outboundIdleTime {
+    if (authenticated) {
+      return AtSecondaryServerImpl.getInstance()
+          .serverContext!
+          .authenticatedOutboundIdleTimeMillis;
+    } else {
+      return AtSecondaryServerImpl.getInstance()
+          .serverContext!
+          .unauthenticatedOutboundIdleTimeMillis;
+    }
+  }
+
+  OutboundConnectionImpl(T socket, String? toAtSign) : super(socket) {
     var sessionId = '_${Uuid().v4()}';
     metaData = OutboundConnectionMetadata()
       ..sessionID = sessionId
       ..toAtSign = toAtSign
       ..created = DateTime.now().toUtc()
       ..isCreated = true;
+
+    logger.info(logger.getAtConnectionLogMessage(
+        metaData,
+        'New connection ('
+        'this side: ${underlying.address}:${underlying.port}'
+        ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
+        ')'));
+
+    socket.done.onError((error, stackTrace) {
+      logger
+          .info('socket.done.onError called with $error. Calling this.close()');
+      close();
+    });
   }
 
   int _getIdleTimeMillis() {
-    var lastAccessedTime = getMetaData().lastAccessed;
-    lastAccessedTime ??= getMetaData().created;
+    var lastAccessedTime = metaData.lastAccessed;
+    lastAccessedTime ??= metaData.created;
     var currentTime = DateTime.now().toUtc();
     return currentTime.difference(lastAccessedTime!).inMilliseconds;
   }
 
   bool _isIdle() {
-    return _getIdleTimeMillis() > outboundIdleTime!;
+    return _getIdleTimeMillis() > outboundIdleTime;
   }
 
   @override
   bool isInValid() {
-    return _isIdle() || getMetaData().isClosed || getMetaData().isStale;
+    return _isIdle() || metaData.isClosed || metaData.isStale;
   }
 
   @override
@@ -40,30 +66,31 @@ class OutboundConnectionImpl extends OutboundConnection {
     // behaviour for outbound connections for now, not inbound connections
 
     // Some defensive code just in case we accidentally call close multiple times
-    if (getMetaData().isClosed) {
+    if (metaData.isClosed) {
       return;
     }
 
     try {
-      var socket = getSocket();
-      var address = socket.remoteAddress;
-      var port = socket.remotePort;
+      var socket = underlying;
+      logger.info(logger.getAtConnectionLogMessage(
+          metaData,
+          'destroying socket ('
+          'this side: ${underlying.address}:${underlying.port}'
+          ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
+          ')'));
       socket.destroy();
-      logger.finer('$address:$port Disconnected');
-      getMetaData().isClosed = true;
-    } on Exception {
-      getMetaData().isStale = true;
+    } catch (_) {
       // Ignore exception on a connection close
-    } on Error {
-      getMetaData().isStale = true;
-      // Ignore error on a connection close
+      metaData.isStale = true;
+    } finally {
+      metaData.isClosed = true;
     }
   }
 
   @override
-  void write(String data) {
-    super.write(data);
+  Future<void> write(String data) async {
+    await super.write(data);
     logger.info(logger.getAtConnectionLogMessage(
-        getMetaData(), 'SENT: ${BaseConnection.truncateForLogging(data)}'));
+        metaData, 'SENT: ${BaseSocketConnection.truncateForLogging(data)}'));
   }
 }

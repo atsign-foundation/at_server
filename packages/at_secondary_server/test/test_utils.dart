@@ -4,29 +4,48 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:at_commons/at_commons.dart';
+import 'package:at_lookup/at_lookup.dart' as at_lookup;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
+import 'package:at_secondary/src/notification/at_notification_map.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
+import 'package:at_secondary/src/notification/notify_connection_pool.dart';
+import 'package:at_secondary/src/notification/resource_manager.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_utils/at_logger.dart';
 import 'package:crypton/crypton.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:at_lookup/at_lookup.dart' as at_lookup;
+import 'package:uuid/uuid.dart';
 
-class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
+class MockSecondaryKeyStore extends Mock
+    implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
+  @override
+  List<Future Function(String key, {required bool skipCommit})> preRemoveHooks =
+      [];
+  @override
+  List<Future Function(String key, {required bool skipCommit})>
+      postRemoveHooks = [];
+}
 
 class MockOutboundClientManager extends Mock implements OutboundClientManager {}
 
 class MockNotificationManager extends Mock implements NotificationManager {}
 
 class MockStatsNotificationService extends Mock
-    implements StatsNotificationService {}
+    implements StatsNotificationService {
+  @override
+  Future<void> writeStatsToMonitor(
+      {String? latestCommitID, String? operationType}) async {}
+}
 
 class MockAtCacheManager extends Mock implements AtCacheManager {}
 
@@ -36,15 +55,39 @@ class MockSecondaryAddressFinder extends Mock
 class MockOutboundConnectionFactory extends Mock
     implements OutboundConnectionFactory {}
 
-class MockOutboundConnection extends Mock implements OutboundConnection {}
+class MockOutboundConnection extends Mock implements OutboundSocketConnection {}
 
 class MockSecureSocket extends Mock implements SecureSocket {}
 
+class MockEnrollmentManager extends Mock implements EnrollmentManager {}
+
+class FakeSocket extends Fake implements Socket {
+  Completer completer = Completer();
+
+  @override
+  Future get done => completer.future;
+
+  @override
+  InternetAddress get remoteAddress => InternetAddress('127.0.0.1');
+
+  @override
+  int get remotePort => 9999;
+
+  @override
+  InternetAddress get address => InternetAddress('127.0.0.1');
+
+  @override
+  int get port => 5555;
+
+  @override
+  bool setOption(SocketOption option, bool enabled) => true;
+}
+
 class MockStreamSubscription<T> extends Mock implements StreamSubscription<T> {}
 
-String alice = '@alice';
-String aliceEmoji = '@alice🛠';
-String bob = '@bob';
+// String alice = '@alice🛠';
+Atsign alice = '@alice'.toAtsign();
+Atsign bob = '@bob'.toAtsign();
 var bobHost = "domain.testing.bob.bob.bob";
 var bobPort = 12345;
 var bobServerSigningKeypair = RSAKeypair.fromRandom();
@@ -65,37 +108,78 @@ late MockOutboundConnection mockOutboundConnection;
 late MockSecondaryAddressFinder mockSecondaryAddressFinder;
 late MockSecureSocket mockSecureSocket;
 late DummyInboundConnection inboundConnection;
-late MockNotificationManager notificationManager;
+late NotificationManager notificationManager;
 late MockStatsNotificationService statsNotificationService;
+late EnrollmentManager enMgr;
+
 late Function(dynamic data) socketOnDataFn;
 // ignore: unused_local_variable
 late Function() socketOnDoneFn;
 // ignore: unused_local_variable
-late Function(Exception e) socketOnErrorFn;
+late Function(Exception e, StackTrace st) socketOnErrorFn;
 
 String storageDir = '${Directory.current.path}/unit_test_storage';
-SecondaryPersistenceStore? secondaryPersistenceStore;
-AtCommitLog? atCommitLog;
+late SecondaryPersistenceStore secondaryPersistenceStore;
+late AtCommitLog atCommitLog;
+
+/// Creates and persists a new approved enrollment
+/// NB: Does not go through enroll verb handler, so
+/// no other enrollment stuff is happening
+Future<String> createAndPersistAnEnrollment(
+  String app,
+  String device,
+  Map<String, String> namespaces,
+) async {
+  final id = Uuid().v4();
+  final key = enMgr.buildEnrollmentKey(id);
+  final enrollJson = {
+    'sessionId': '123',
+    'appName': app,
+    'deviceName': device,
+    'namespaces': namespaces,
+    'apkamPublicKey': 'testPublicKeyValue',
+    'requestType': 'newEnrollment',
+    'approval': {'state': 'approved'}
+  };
+  await secondaryPersistenceStore.getSecondaryKeyStore()?.put(
+        key,
+        AtData()..data = jsonEncode(enrollJson),
+        skipCommit: true,
+      );
+  return id;
+}
+
+AtSecondaryServerImpl get atServer => AtSecondaryServerImpl.getInstance();
+
+void verbTestsSetUpLogging() {
+  AtSignLogger.root_level = 'shout';
+  AtSignLogger.defaultLoggingHandler = AtSignLogger.stdErrLoggingHandler;
+}
 
 verbTestsSetUpAll() async {
+  verbTestsSetUpLogging();
   await AtAccessLogManagerImpl.getInstance()
       .getAccessLog(alice, accessLogPath: storageDir);
 }
 
 verbTestsSetUp() async {
+  verbTestsSetUpLogging();
   // Initialize secondary persistent store
-  secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore(alice);
+  atServer.secondaryPersistenceStore = secondaryPersistenceStore =
+      SecondaryPersistenceStoreFactory.getInstance()
+          .getSecondaryPersistenceStore(alice)!;
   // Initialize commit log
-  atCommitLog = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog(alice, commitLogPath: storageDir, enableCommitId: true);
-  secondaryPersistenceStore!.getSecondaryKeyStore()?.commitLog = atCommitLog;
+  atServer.commitLog = atCommitLog = (await AtCommitLogManagerImpl.getInstance()
+      .getCommitLog(alice, commitLogPath: storageDir, enableCommitId: true))!;
+  secondaryPersistenceStore.getSecondaryKeyStore()?.commitLog = atCommitLog;
   // Init the hive instances
-  await secondaryPersistenceStore!
-      .getHivePersistenceManager()!
-      .init(storageDir);
+  await secondaryPersistenceStore.getHivePersistenceManager()!.init(storageDir);
 
-  secondaryKeyStore = secondaryPersistenceStore!.getSecondaryKeyStore()!;
+  secondaryKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
+
+  var notificationKeystore = AtNotificationKeystore.getInstance();
+  notificationKeystore.currentAtSign = alice;
+  await notificationKeystore.init(storageDir);
 
   mockSecondaryAddressFinder = MockSecondaryAddressFinder();
   when(() => mockSecondaryAddressFinder.findSecondary(bob))
@@ -112,18 +196,31 @@ verbTestsSetUp() async {
 
   inboundConnection = DummyInboundConnection();
   registerFallbackValue(inboundConnection);
+  atServer.inboundConnectionManager =
+      InboundConnectionManager(serverAtSign: alice, poolSize: 5);
+  // final inboundPool = InboundConnectionPool.getInstance();
+  // inboundPool.init(5);
+  // inboundPool.add(inboundConnection);
 
-  outboundClientWithHandshake = OutboundClient(inboundConnection, bob,
-      mockSecondaryAddressFinder,
-      outboundConnectionFactory: mockOutboundConnectionFactory)
+  outboundClientWithHandshake = OutboundClient(
+    inboundConnection,
+    bob,
+    mockSecondaryAddressFinder,
+    true,
+    mockOutboundConnectionFactory,
+  )
     ..notifyTimeoutMillis = 100
     ..lookupTimeoutMillis = 100
     ..toHost = bobHost
     ..toPort = bobPort.toString()
     ..productionMode = false;
-  outboundClientWithoutHandshake = OutboundClient(inboundConnection, bob,
-      mockSecondaryAddressFinder,
-      outboundConnectionFactory: mockOutboundConnectionFactory)
+  outboundClientWithoutHandshake = OutboundClient(
+    inboundConnection,
+    bob,
+    mockSecondaryAddressFinder,
+    false,
+    mockOutboundConnectionFactory,
+  )
     ..notifyTimeoutMillis = 100
     ..lookupTimeoutMillis = 100
     ..toHost = bobHost
@@ -131,32 +228,35 @@ verbTestsSetUp() async {
     ..productionMode = false;
 
   mockOutboundClientManager = MockOutboundClientManager();
-  when(() => mockOutboundClientManager.getClient(bob, any(), isHandShake: true))
-      .thenAnswer((_) {
+  when(() => mockOutboundClientManager.getClient(bob, any(),
+      handshakeRequired: true)).thenAnswer((_) async {
+    await outboundClientWithHandshake.connect();
     return outboundClientWithHandshake;
   });
-  when(() =>
-          mockOutboundClientManager.getClient(bob, any(), isHandShake: false))
-      .thenAnswer((_) {
+  when(() => mockOutboundClientManager.getClient(bob, any(),
+      handshakeRequired: false)).thenAnswer((_) async {
+    await outboundClientWithoutHandshake.connect();
     return outboundClientWithoutHandshake;
   });
 
   AtConnectionMetaData outboundConnectionMetadata =
       OutboundConnectionMetadata();
   outboundConnectionMetadata.sessionID = 'mock-session-id';
-  when(() => mockOutboundConnection.getMetaData())
+  when(() => mockOutboundConnection.metaData)
       .thenReturn(outboundConnectionMetadata);
   when(() => mockOutboundConnection.metaData)
       .thenReturn(outboundConnectionMetadata);
 
   mockSecureSocket = MockSecureSocket();
-  when(() => mockOutboundConnection.getSocket())
+  when(() => mockOutboundConnection.underlying)
       .thenAnswer((_) => mockSecureSocket);
   when(() => mockOutboundConnection.close()).thenAnswer((_) async => {});
 
-  when(() => mockSecureSocket.listen(any(),
-      onError: any(named: "onError"),
-      onDone: any(named: "onDone"))).thenAnswer((Invocation invocation) {
+  when(() => mockSecureSocket.listen(
+        any(),
+        onDone: any(named: "onDone"),
+        onError: any(named: "onError"),
+      )).thenAnswer((Invocation invocation) {
     socketOnDataFn = invocation.positionalArguments[0];
     socketOnDoneFn = invocation.namedArguments[#onDone];
     socketOnErrorFn = invocation.namedArguments[#onError];
@@ -174,6 +274,11 @@ verbTestsSetUp() async {
   AtSecondaryServerImpl.getInstance().currentAtSign = alice;
   AtSecondaryServerImpl.getInstance().signingKey =
       bobServerSigningKeypair.privateKey.toString();
+
+  AtSecondaryServerImpl.getInstance().enrollmentManager =
+      enMgr = EnrollmentManager(secondaryKeyStore, alice);
+  enMgr.logger.level = 'shout';
+  secondaryKeyStore.preRemoveHooks.add(enMgr.preRemoveHook);
 
   DateTime now = DateTime.now().toUtcMillisecondsPrecision();
   bobOriginalPublicKeyAtData = AtData();
@@ -210,19 +315,23 @@ verbTestsSetUp() async {
     socketOnDataFn("data:$bobOriginalPublicKeyAsJson\n$alice@".codeUnits);
   });
 
-  notificationManager = MockNotificationManager();
+  notificationManager = NotificationManager(ResourceManager(
+      NotifyConnectionsPool(
+          DefaultOutboundConnectionFactory(requireCerts: false))));
   registerFallbackValue(AtNotificationBuilder().build());
-  when(() => notificationManager.notify(any()))
-      .thenAnswer((invocation) async => 'some-notification-id');
+  // when(() => notificationManager.notify(any()))
+  //     .thenAnswer((invocation) async => 'some-notification-id');
 
   statsNotificationService = MockStatsNotificationService();
-  when(() => statsNotificationService.writeStatsToMonitor())
-      .thenAnswer((invocation) {});
 }
 
 Future<void> verbTestsTearDown() async {
+  secondaryKeyStore.preRemoveHooks.clear();
+  secondaryKeyStore.postRemoveHooks.clear();
   await SecondaryPersistenceStoreFactory.getInstance().close();
   await AtCommitLogManagerImpl.getInstance().close();
+  await AtNotificationKeystore.getInstance().close(); // TODO deep
+  AtNotificationMap.getInstance().clear(); // TODO sigh
   var isExists = await Directory(storageDir).exists();
   if (isExists) {
     Directory(storageDir).deleteSync(recursive: true);
@@ -278,6 +387,8 @@ Metadata createRandomCommonsMetadata({bool noNullsPlease = false}) {
   md.ivNonce = createRandomString(5);
   md.skeEncKeyName = createRandomString(6);
   md.skeEncAlgo = createRandomString(3);
+  md.pubKeyHash = PublicKeyHash(createRandomString(6), createRandomString(5));
+  md.immutable = createRandomBoolean();
 
   return md;
 }
@@ -286,8 +397,12 @@ AtMetaData createRandomAtMetaData(String owner,
     {Metadata? commonsMetadata, DateTime? refreshAt}) {
   late AtMetaData md;
 
+  if (!owner.startsWith('@')) {
+    throw IllegalArgumentException('Invalid owner atSign $owner');
+  }
+
   if (commonsMetadata != null) {
-    md = AtMetaData.fromCommonsMetadata(commonsMetadata);
+    md = AtMetaData.fromCommonsMetadata(commonsMetadata, owner);
   } else {
     md = AtMetaData();
     md.isEncrypted = createRandomNullableBoolean();
@@ -295,11 +410,13 @@ AtMetaData createRandomAtMetaData(String owner,
     md.encoding = createRandomString(5);
     md.pubKeyCS = createRandomString(5);
     md.sharedKeyEnc = createRandomString(10);
+    md.encKeyName = createRandomString(10);
     md.dataSignature = createRandomString(7);
     md.isCascade = createRandomNullableBoolean();
     md.ttl = createRandomNullablePositiveInt();
     md.ttb = createRandomNullablePositiveInt();
     md.ttr = createRandomNullablePositiveInt();
+    md.pubKeyHash = PublicKeyHash(createRandomString(6), createRandomString(4));
   }
 
   if (refreshAt != null) {

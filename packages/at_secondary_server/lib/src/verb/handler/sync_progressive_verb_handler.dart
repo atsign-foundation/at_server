@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/constants/enroll_constants.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
@@ -16,7 +15,7 @@ import 'package:meta/meta.dart';
 class SyncProgressiveVerbHandler extends AbstractVerbHandler {
   static SyncFrom syncFrom = SyncFrom();
 
-  SyncProgressiveVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  SyncProgressiveVerbHandler(super.keyStore);
 
   /// Represents the size of the sync buffer
   @visibleForTesting
@@ -25,7 +24,7 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
   @override
   bool accept(String command) =>
       command.startsWith('${getName(VerbEnum.sync)}:') &&
-          command.startsWith('sync:from');
+      command.startsWith('sync:from');
 
   @override
   Verb getVerb() {
@@ -40,15 +39,33 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
     // Get Commit Log Instance.
     var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
         .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
+    int? skipDeletesUntil = verbParams[AtConstants.skipDeletesUntil] != null
+        ? int.parse(verbParams[AtConstants.skipDeletesUntil]!)
+        : null;
+    int? syncLimit = verbParams[AtConstants.syncLimit] != null
+        ? int.parse(verbParams[AtConstants.syncLimit]!)
+        : null;
     // Get entries to sync
-    var commitEntryIterator = atCommitLog!.getEntries(
-        int.parse(verbParams[AT_FROM_COMMIT_SEQUENCE]!) + 1,
-        regex: verbParams['regex']);
+    Iterator<MapEntry<String, CommitEntry>> commitEntryIterator;
+    // if client doesn't pass syncLimit set the default value from server
+    syncLimit ??= AtSecondaryConfig.syncPageLimit;
+    commitEntryIterator = atCommitLog!.getEntries(
+        int.parse(verbParams[AtConstants.fromCommitSequence]!) + 1,
+        regex: verbParams['regex'],
+        skipDeletesUntil: skipDeletesUntil,
+        limit: syncLimit);
 
     List<KeyStoreEntry> syncResponse = [];
-    await prepareResponse(capacity, syncResponse, commitEntryIterator,
-        enrollmentId: (atConnection.getMetaData() as InboundConnectionMetadata)
-            .enrollmentId);
+    InboundConnectionMetadata connectionMetadata =
+        atConnection.metaData as InboundConnectionMetadata;
+    await prepareResponse(
+      capacity,
+      syncLimit,
+      syncResponse,
+      commitEntryIterator,
+      connectionMetadata,
+      enrollmentId: connectionMetadata.enrollmentId,
+    );
 
     response.data = jsonEncode(syncResponse);
   }
@@ -57,21 +74,16 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
   /// 1. there is at least one item in [syncResponse], and the response length is greater than [desiredMaxSyncResponseLength], or
   /// 2. there are [AtSecondaryConfig.syncPageLimit] items in the [syncResponse]
   @visibleForTesting
-  Future<void> prepareResponse(int desiredMaxSyncResponseLength,
-      List<KeyStoreEntry> syncResponse, Iterator<dynamic> commitEntryIterator,
+  Future<void> prepareResponse(
+      int desiredMaxSyncResponseLength,
+      int syncPageLimit,
+      List<KeyStoreEntry> syncResponse,
+      Iterator<dynamic> commitEntryIterator,
+      InboundConnectionMetadata connectionMetadata,
       {String? enrollmentId}) async {
     int currentResponseLength = 0;
-    Map<String, String> enrolledNamespaces = {};
-
-    if (enrollmentId != null && enrollmentId.isNotEmpty) {
-      String enrollmentKey =
-          '$enrollmentId.$newEnrollmentKeyPattern.$enrollManageNamespace${AtSecondaryServerImpl.getInstance().currentAtSign}';
-      enrolledNamespaces =
-          (await getEnrollDataStoreValue(enrollmentKey)).namespaces;
-    }
-
-    while (commitEntryIterator.moveNext() &&
-        syncResponse.length < AtSecondaryConfig.syncPageLimit) {
+    while (
+        commitEntryIterator.moveNext() && syncResponse.length < syncPageLimit) {
       var atKeyType = AtKey.getKeyType(commitEntryIterator.current.key,
           enforceNameSpace: false);
       if (atKeyType == KeyType.invalidKey) {
@@ -79,21 +91,17 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
             'prepareResponse | ${commitEntryIterator.current.key} is an invalid key. Skipping.');
         continue;
       }
-      late AtKey parsedAtKey;
       try {
-        parsedAtKey = AtKey.fromString(commitEntryIterator.current.key!);
+        AtKey.fromString(commitEntryIterator.current.key!);
       } on InvalidSyntaxException catch (_) {
         logger.warning(
             'prepareResponse | found an invalid key "${commitEntryIterator.current.key!}" in the commit log. Skipping.');
         continue;
       }
-      String? keyNamespace =
-          parsedAtKey.namespace;
-      if ((keyNamespace != null && keyNamespace.isNotEmpty) &&
-          enrolledNamespaces.isNotEmpty &&
-          (!enrolledNamespaces.containsKey(allNamespaces) &&
-              !enrolledNamespaces.containsKey(enrollManageNamespace) &&
-              !enrolledNamespaces.containsKey(keyNamespace))) {
+      if (!(await isAuthorized(
+        connectionMetadata,
+        atKey: commitEntryIterator.current.key!,
+      ))) {
         continue;
       }
       var keyStoreEntry = KeyStoreEntry();
@@ -109,7 +117,7 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
           continue;
         }
 
-        var atData = await keyStore.get(commitEntryIterator.current.key);
+        AtData? atData = await keyStore.get(commitEntryIterator.current.key);
         if (atData == null) {
           logger.info('atData is null for ${commitEntryIterator.current.key}');
           continue;
@@ -145,17 +153,30 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  Map _populateMetadata(value) {
+  Map _populateMetadata(AtData value) {
     var metaDataMap = <String, dynamic>{};
-    AtMetaData? metaData = value?.metaData;
+    AtMetaData? metaData = value.metaData;
     if (metaData == null) {
       return metaDataMap;
     }
-    metaData.toJson().forEach((key, value) {
-      if (value != null) {
-        metaDataMap[key] = value.toString();
+    Iterator itr = metaData.toJson().entries.iterator;
+    while (itr.moveNext()) {
+      // The value of [AtConstants.sharedWithPublicKeyHash] stores a Map containing
+      // the hash value and the hashing algorithm used for hashing the data.
+      // For example, {"hash":"dummy_value", "hashingAlgo":"sha512"}.
+      // Using toString() will not allow convert this into a Map, which is necessary
+      // for constructing the PublicKeyHash type on the client side.
+      // Therefore, a JSON-encoded string is used here, and on the client side,
+      // "jsonDecode" will be used to retrieve the Map and build the PublicKeyHash instance.
+      if (itr.current.key == AtConstants.sharedWithPublicKeyHash &&
+          itr.current.value != null) {
+        metaDataMap[itr.current.key] = jsonEncode(itr.current.value);
+        continue;
       }
-    });
+      if (itr.current.value != null) {
+        metaDataMap[itr.current.key] = itr.current.value.toString();
+      }
+    }
     return metaDataMap;
   }
 

@@ -1,10 +1,10 @@
 // ignore_for_file: non_constant_identifier_names
 
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 
 /// Class to initialize, put and get entries into [AtNotificationKeystore]
 class AtNotificationKeystore
@@ -18,7 +18,14 @@ class AtNotificationKeystore
   late String currentAtSign;
   late String _boxName;
   final _notificationExpiryInHours = 72;
+  static const int maxKeyLengthWithoutCached = 248;
   late AtCompactionConfig atCompactionConfig;
+  @override
+  List<Future Function(String key, {required bool skipCommit})> preRemoveHooks =
+      [];
+  @override
+  List<Future Function(String key, {required bool skipCommit})>
+      postRemoveHooks = [];
 
   factory AtNotificationKeystore.getInstance() {
     return _singleton;
@@ -40,6 +47,9 @@ class AtNotificationKeystore
       Hive.registerAdapter(MessageTypeAdapter());
       if (!Hive.isAdapterRegistered(AtMetaDataAdapter().typeId)) {
         Hive.registerAdapter(AtMetaDataAdapter());
+      }
+      if (!Hive.isAdapterRegistered(PublicKeyHashAdapter().typeId)) {
+        Hive.registerAdapter(PublicKeyHashAdapter());
       }
       _register = true;
     }
@@ -66,45 +76,17 @@ class AtNotificationKeystore
   }
 
   @override
-  Future<dynamic> put(key, value,
-      {int? time_to_live,
-      int? time_to_born,
-      int? time_to_refresh,
-      bool? isCascade,
-      bool? isBinary,
-      bool? isEncrypted,
-      String? dataSignature,
-      String? sharedKeyEncrypted,
-      String? publicKeyChecksum,
-      String? encoding,
-      String? encKeyName,
-      String? encAlgo,
-      String? ivNonce,
-      String? skeEncKeyName,
-      String? skeEncAlgo,
-      bool skipCommit = false}) async {
-    AtNotificationCallback.getInstance().invokeCallbacks(value);
+  Future<dynamic> put(key, value, {bool skipCommit = false}) async {
+    if (key.length > maxKeyLengthWithoutCached) {
+      throw DataStoreException(
+          'key length ${key.length} is greater than $maxKeyLengthWithoutCached chars');
+    }
+    await AtNotificationCallback.getInstance().invokeCallbacks(value);
     await _getBox().put(key, value);
   }
 
   @override
-  Future<dynamic> create(key, value,
-      {int? time_to_live,
-      int? time_to_born,
-      int? time_to_refresh,
-      bool? isCascade,
-      bool? isBinary,
-      bool? isEncrypted,
-      String? dataSignature,
-      String? sharedKeyEncrypted,
-      String? publicKeyChecksum,
-      String? encoding,
-      String? encKeyName,
-      String? encAlgo,
-      String? ivNonce,
-      String? skeEncKeyName,
-      String? skeEncAlgo,
-      bool skipCommit = false}) async {
+  Future<dynamic> create(key, value, {bool skipCommit = false}) async {
     throw UnimplementedError();
   }
 
@@ -115,7 +97,8 @@ class AtNotificationKeystore
       var expiredKeys = await getExpiredKeys();
       if (expiredKeys.isNotEmpty) {
         await Future.forEach(expiredKeys, (expiredKey) async {
-          await remove(expiredKey);
+          // Delete entries for expired keys will not be added to commitLog
+          await remove(expiredKey, skipCommit: true);
         });
       } else {
         _logger.finest('notification key store. No expired notifications');
@@ -144,8 +127,8 @@ class AtNotificationKeystore
           expired.add(key);
         }
         //Todo: remove obsolete code
-        //This method was introduced for backwards compatability to accomodate notifications without expiresAt.
-        // If concluded that all notifications have an epiresAt param defined, the below block of code is obsolete and can be removed.
+        //This method was introduced for backwards compatability to accommodate notifications without expiresAt.
+        // If concluded that all notifications have an expiresAt param defined, the below block of code is obsolete and can be removed.
         if (value?.expiresAt == null &&
             DateTime.now()
                     .toUtc()
@@ -172,7 +155,7 @@ class AtNotificationKeystore
                 ..atMetaData = value.atMetadata
                 ..ttl = value.ttl)
               .build();
-          put(key, newNotification);
+          await put(key, newNotification);
         }
       });
 
@@ -211,8 +194,15 @@ class AtNotificationKeystore
 
   @override
   Future remove(key, {bool skipCommit = false}) async {
+    for (final hook in preRemoveHooks) {
+      await hook(key, skipCommit: skipCommit);
+    }
     assert(key != null);
     await _getBox().delete(key);
+
+    for (final hook in postRemoveHooks) {
+      await hook(key, skipCommit: skipCommit);
+    }
   }
 
   Future<Map>? _toMap() async {

@@ -13,8 +13,7 @@ void main() async {
       expect(AtSecondaryConfig.rootServerPort > 0, true);
     });
 
-    test('Config: check AtSecondaryConfig.logLevel defaults to FINEST',
-        () async {
+    test('Config: check AtSecondaryConfig.logLevel defaults to INFO', () async {
       expect(AtSecondaryConfig.logLevel.trim().toUpperCase(),
           equals(logging.Level.INFO.name.trim().toUpperCase()));
     });
@@ -25,6 +24,10 @@ void main() async {
       AtSignLogger.root_level = 'wARNinG';
       AtSignLogger atLogger = AtSignLogger('test');
       expect(atLogger.logger.level, equals(logging.Level.WARNING));
+    });
+
+    test('verify skipCommitsForExpiredKeys is set to TRUE', () {
+      expect(AtSecondaryConfig.skipCommitsForExpiredKeys, true);
     });
   });
 }

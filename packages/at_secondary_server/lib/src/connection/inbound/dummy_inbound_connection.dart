@@ -1,16 +1,14 @@
-import 'dart:io';
-
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 
 /// A dummy implementation of [InboundConnection] class which returns a dummy inbound connection.
 class DummyInboundConnection implements InboundConnection {
-  var metadata = InboundConnectionMetadata();
+  InboundConnectionMetadata metadata = InboundConnectionMetadata();
 
   @override
   int maxRequestsPerTimeFrame = AtSecondaryConfig.maxEnrollRequestsAllowed;
-  
+
   @override
   int timeFrameInMillis = AtSecondaryConfig.timeFrameInMills;
 
@@ -30,12 +28,10 @@ class DummyInboundConnection implements InboundConnection {
   }
 
   @override
-  AtConnectionMetaData getMetaData() {
-    return metadata;
-  }
+  InboundConnectionMetadata get metaData => metadata;
 
   @override
-  Socket getSocket() {
+  dynamic get underlying {
     throw UnimplementedError(
         "DummyInboundConnection.getSocket is not implemented");
   }
@@ -47,7 +43,7 @@ class DummyInboundConnection implements InboundConnection {
 
   String? lastWrittenData;
   @override
-  void write(String data) {
+  Future<void> write(String data) async {
     lastWrittenData = data;
   }
 
@@ -58,9 +54,6 @@ class DummyInboundConnection implements InboundConnection {
   String? initiatedBy;
 
   bool isStream = false;
-
-  @override
-  Socket? receiverSocket;
 
   @override
   bool isRequestAllowed() {

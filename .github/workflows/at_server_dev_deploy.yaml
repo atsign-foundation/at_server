@@ -12,61 +12,93 @@ permissions:  # added using https://github.com/step-security/secure-workflows
 jobs:
   Docker_Build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # for creating OIDC tokens for signing.
     steps:
       - name: Checkout
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
 
       # Extract branch for docker tag
       - name: Get branch name
         run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - name: Login to DockerHub
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        with:
+          tags: |
+            type=raw,value=dev_env
+            type=raw,value=dev_env-gha${{ github.run_number }}
+            type=raw,value=dev_env-${{ env.BRANCH }}-gha${{ github.run_number }}
+          images: |
+            atsigncompany/root
+          labels: |
+            org.opencontainers.image.description=atDirectory dev image
+
       # Build the Docker image for Dev
       - name: Build and push
-        uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
+        id: docker_build
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           file: packages/at_root_server/Dockerfile
           context: packages/at_root_server
           push: true
-          tags: |
-            atsigncompany/root:dev_env
-            atsigncompany/root:dev_env-gha${{ github.run_number }}
-            atsigncompany/root:dev_env-${{ env.BRANCH }}-gha${{ github.run_number }}
+          sbom: true
+          provenance: version=v1,mode=max
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Sign the images with GitHub OIDC Token
+        env:
+          DIGEST: ${{ steps.docker_build.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          images=""
+          for tag in ${TAGS}; do
+            images+="${tag}@${DIGEST} "
+          done
+          cosign sign --yes ${images}
 
   Deploy_On_Dev_K8:
       needs: Docker_Build
-      runs-on: ubuntu-latest
+      runs-on: [self-hosted, linux, x64, K8s]
       steps:
         - name: Checkout
-          uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+          uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         # Extract branch for docker tag
         - name: Get branch name
           run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
         # Setup gcloud CLI
         - id: 'auth'
-          uses: google-github-actions/auth@67e9c72af6e0492df856527b474995862b7b6591 # v2.0.0
+          uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
           with:
             credentials_json: '${{ secrets.GKE_SA_DEV_KEY }}'
 
         - name: 'Set up Cloud SDK'
-          uses: google-github-actions/setup-gcloud@e30db14379863a8c79331b04a9969f4c1e225e0b # v1.1.1
+          uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
         # Get the GKE credentials so we can deploy to the cluster
-        - uses: google-github-actions/get-gke-credentials@35ab0d2b2d48792c19f09325413bd185c8d44394 # v1.0.2
+        - uses: google-github-actions/get-gke-credentials@3da1e46a907576cefaa90c484278bb5b259dd395 # v3.0.0
           with:
             cluster_name: ${{ secrets.GKE_DEV_CLUSTER }}
             location: ${{ secrets.GKE_DEV_ZONE }}
 
-        # Deploy the Docker image to the GKE cluster
+      # Deploy the Docker image to the GKE cluster 
         - name: Deploy
           run: |-
-            kubectl -n root set image statefulset root root=atsigncompany/root:dev_env-gha${{ github.run_number }}
+            kubectl -n root set image deployment/root root=atsigncompany/root:dev_env-gha${{ github.run_number }}
+            kubectl rollout restart deployment root -n root

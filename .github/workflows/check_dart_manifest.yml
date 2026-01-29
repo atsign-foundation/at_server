@@ -1,0 +1,59 @@
+name: Check Docker Dart Image Manifest
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    branches:
+      - trunk
+    paths:
+      - tools/build_secondary/Dockerfile
+    
+jobs:
+  check-dart-image:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - dockerfile_path: tools/build_secondary/Dockerfile
+            name: Dart base image
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - name: Extract Docker Image and Verify Manifest
+        id: check_arch
+        run: |
+          DOCKERFILE_PATH='${{ matrix.dockerfile_path }}'
+          IMAGE_NAME='${{ matrix.name }}'
+          
+          # 1. Extract the image name and tag from the first FROM line,
+          # and remove any build stage alias (e.g., 'AS build-stage').
+          IMAGE_REF=$(grep -E '^FROM' "$DOCKERFILE_PATH" | awk '{print $2}' | head -n 1 | awk -F ' AS ' '{print $1}')
+          
+          if [ -z "$IMAGE_REF" ]; then
+            echo "::error::Could not extract a valid image reference from $DOCKERFILE_PATH 'FROM' instruction."
+            exit 1
+          fi
+          
+          echo "Inspecting manifest for: $IMAGE_REF (from $IMAGE_NAME)"
+
+          # 2. Use 'docker buildx imagetools inspect' and pipe the JSON output to jq.
+          # We use the same 'jq' filter to check for the 'riscv64' platform.
+          # The '2>/dev/null' suppresses warnings from the inspect command.
+          MANIFEST=$(docker buildx imagetools inspect "${IMAGE_REF}" --raw 2>/dev/null)
+          ARCHITECTURES=$(echo ${MANIFEST} | jq -r '.manifests[]?.platform.architecture | select(. != "unknown")')
+          echo ${ARCHITECTURES}
+          ARCH_COUNT=$(echo ${ARCHITECTURES} | wc -w)
+
+          if [ "$ARCH_COUNT" -ge 3 ]; then
+            echo "✅ SUCCESS: Image manifest for ${IMAGE_REF} (from $IMAGE_NAME) has minimum subset of architectures."
+          else
+            echo "::error::FAILURE: Image ${IMAGE_REF} (from $IMAGE_NAME) is incomplete"
+            echo "::error::Supported Architectures found in manifest for ${IMAGE_REF}:"
+            # Prefix '::error::' ensures this output is visible as an error message
+            echo "${ARCHITECTURES}" | sed 's/^/::error::  - /' 
+            exit 1
+          fi

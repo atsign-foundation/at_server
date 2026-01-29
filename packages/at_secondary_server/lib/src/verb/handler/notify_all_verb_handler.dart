@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -17,7 +18,12 @@ import 'abstract_verb_handler.dart';
 class NotifyAllVerbHandler extends AbstractVerbHandler {
   static NotifyAll notifyAll = NotifyAll();
 
-  NotifyAllVerbHandler(SecondaryKeyStore keyStore) : super(keyStore);
+  final NotificationManager notificationManager;
+
+  NotifyAllVerbHandler(
+    super.keyStore,
+    this.notificationManager,
+  );
 
   @override
   bool accept(String command) =>
@@ -37,13 +43,26 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
     int ttbMillis;
     int? ttrMillis;
     bool? isCascade;
-    var forAtSignList = verbParams[FOR_AT_SIGN];
-    var atSign = verbParams[AT_SIGN];
-    atSign = AtUtils.formatAtSign(atSign);
-    var key = verbParams[AT_KEY]!;
-    var messageType = SecondaryUtil.getMessageType(verbParams[MESSAGE_TYPE]);
-    var operation = SecondaryUtil.getOperationType(verbParams[AT_OPERATION]);
-    var value = verbParams[AT_VALUE];
+    var forAtSignList = verbParams[AtConstants.forAtSign];
+    var atSign = verbParams[AtConstants.atSign];
+    if (atSign.isNotNullOrEmpty) {
+      atSign = AtUtils.fixAtSign(atSign!);
+    }
+    var key = verbParams[AtConstants.atKey]!;
+    var inboundConnectionMetadata =
+        atConnection.metaData as InboundConnectionMetadata;
+    var isAuthorized = await super
+        .isAuthorized(inboundConnectionMetadata, atKey: '$key$atSign');
+    if (!isAuthorized) {
+      throw UnAuthorizedException(
+          'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'
+          ' is not authorized to notify key: $key$atSign');
+    }
+    var messageType =
+        SecondaryUtil.getMessageType(verbParams[AtConstants.messageType]);
+    var operation =
+        SecondaryUtil.getOperationType(verbParams[AtConstants.operation]);
+    var value = verbParams[AtConstants.atValue];
 
     // If messageType is key, append the atSign to key. For messageType text,
     // atSign is not appended to the key.
@@ -52,13 +71,14 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
     }
 
     try {
-      ttlMillis = AtMetadataUtil.validateTTL(verbParams[AT_TTL]);
-      ttbMillis = AtMetadataUtil.validateTTB(verbParams[AT_TTB]);
-      if (verbParams[AT_TTR] != null) {
-        ttrMillis = AtMetadataUtil.validateTTR(int.parse(verbParams[AT_TTR]!));
+      ttlMillis = AtMetadataUtil.validateTTL(verbParams[AtConstants.ttl]);
+      ttbMillis = AtMetadataUtil.validateTTB(verbParams[AtConstants.ttb]);
+      if (verbParams[AtConstants.ttr] != null) {
+        ttrMillis =
+            AtMetadataUtil.validateTTR(int.parse(verbParams[AtConstants.ttr]!));
       }
-      isCascade = AtMetadataUtil.validateCascadeDelete(
-          ttrMillis, AtMetadataUtil.getBoolVerbParams(verbParams[CCD]));
+      isCascade = AtMetadataUtil.validateCascadeDelete(ttrMillis,
+          AtMetadataUtil.getBoolVerbParams(verbParams[AtConstants.ccd]));
     } on InvalidSyntaxException {
       rethrow;
     }
@@ -88,8 +108,7 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
               ..atMetaData = atMetadata)
             .build();
 
-        var notificationID =
-            await NotificationManager.getInstance().notify(atNotification);
+        var notificationID = await notificationManager.notify(atNotification);
         resultMap[forAtSign] = notificationID;
       }
     }

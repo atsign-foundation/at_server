@@ -3,11 +3,13 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_utils/at_logger.dart';
 import 'package:test/test.dart';
 import 'package:hive/hive.dart';
 
 void main() async {
   var storageDir = '${Directory.current.path}/test/hive';
+  AtSignLogger.root_level = 'finer';
 
   group('A group of tests on client commit log', () {
     setUp(() async => await setUpFunc(storageDir, enableCommitId: false));
@@ -132,12 +134,12 @@ void main() async {
         //loop to create 10 keys - even keys have commitId null - odd keys have commitId
         for (int i = 0; i < 10; i++) {
           if (i % 2 == 0) {
-            await commitLogKeystore.getBox().add(CommitEntry(
+            await commitLogKeystore.add(CommitEntry(
                 'test_key_false_$i.wavi@alice',
                 CommitOp.UPDATE,
                 DateTime.now()));
           } else {
-            await commitLogKeystore.getBox().add(CommitEntry(
+            await commitLogKeystore.add(CommitEntry(
                 'test_key_false_$i.wavi@alice', CommitOp.UPDATE, DateTime.now())
               ..commitId = i);
           }
@@ -247,6 +249,88 @@ void main() async {
             'public:__location@alice', CommitOp.UPDATE);
         expect(commitId, 0);
         expect(commitLogInstance?.lastCommittedSequenceNumber(), 0);
+      });
+      test('test to verify last committed sequenceNumber with regex', () async {
+        var commitLogInstance =
+            await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+        await commitLogInstance?.commit(
+            'public:location_1.wavi@alice', CommitOp.UPDATE);
+        await commitLogInstance?.commit(
+            'public:phone.buzz@alice', CommitOp.UPDATE);
+        await commitLogInstance?.commit(
+            'public:location_2.wavi@alice', CommitOp.UPDATE);
+        await commitLogInstance?.commit(
+            'public:email.buzz@alice', CommitOp.UPDATE);
+        expect(
+            await commitLogInstance
+                ?.lastCommittedSequenceNumberWithRegex('buzz'),
+            3);
+        expect(
+            await commitLogInstance
+                ?.lastCommittedSequenceNumberWithRegex('wavi'),
+            2);
+        await commitLogInstance?.commit(
+            'public:location_1.wavi@alice', CommitOp.UPDATE);
+        await commitLogInstance?.commit(
+            'public:location_2.wavi@alice', CommitOp.DELETE);
+        await commitLogInstance?.commit(
+            'public:phone.buzz@alice', CommitOp.DELETE);
+        await commitLogInstance?.commit(
+            'public:email.buzz@alice', CommitOp.DELETE);
+        expect(
+            await commitLogInstance
+                ?.lastCommittedSequenceNumberWithRegex('buzz'),
+            7);
+        expect(
+            await commitLogInstance
+                ?.lastCommittedSequenceNumberWithRegex('wavi'),
+            5);
+      });
+      test(
+          'A test to verify lastCommittedSequenceNumber does not  include key which does not match regex',
+          () async {
+        var commitLogInstance =
+            await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+        var commitLogKeystore = commitLogInstance!.commitLogKeyStore;
+        await commitLogKeystore.add(CommitEntry(
+            'public:phone.buzz@alice', CommitOp.UPDATE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'public:email.wavi@alice', CommitOp.UPDATE, DateTime.now()));
+        final lastCommittedSeq = await commitLogKeystore
+            .lastCommittedSequenceNumberWithRegex('.buzz');
+        expect(lastCommittedSeq, 0);
+      });
+      test(
+          'A test to verify lastCommittedSequenceNumber include key which matches regex and enrollednamespace',
+          () async {
+        var commitLogInstance =
+            await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+        var commitLogKeystore = commitLogInstance!.commitLogKeyStore;
+        await commitLogKeystore.add(
+            CommitEntry('phone.buzz@alice', CommitOp.UPDATE, DateTime.now()));
+        await commitLogKeystore.add(
+            CommitEntry('phone.wavi@alice', CommitOp.UPDATE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'location.buzz@alice', CommitOp.UPDATE, DateTime.now()));
+        final lastCommittedSeq = await commitLogKeystore
+            .lastCommittedSequenceNumberWithRegex('.buzz',
+                enrolledNamespace: ['buzz']);
+        expect(lastCommittedSeq, 2);
+      });
+      test(
+          'A test to verify lastCommittedSequenceNumber does not include key which does not match enrollednamespace',
+          () async {
+        var commitLogInstance =
+            await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+        var commitLogKeystore = commitLogInstance!.commitLogKeyStore;
+        await commitLogKeystore.add(
+            CommitEntry('phone.buzz@alice', CommitOp.UPDATE, DateTime.now()));
+        await commitLogKeystore.add(
+            CommitEntry('phone.wavi@alice', CommitOp.UPDATE, DateTime.now()));
+        final lastCommittedSeq = await commitLogKeystore
+            .lastCommittedSequenceNumberWithRegex('.*',
+                enrolledNamespace: ['buzz']);
+        expect(lastCommittedSeq, 0);
       });
     });
     group('A group of commit log compaction tests', () {
@@ -411,19 +495,18 @@ void main() async {
         var commitLogInstance =
             await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
         // Inserting commitEntry with commitId 0
-        await commitLogInstance!.commitLogKeyStore.getBox().add(
+        await commitLogInstance!.commitLogKeyStore.add(
             CommitEntry('location@alice', CommitOp.UPDATE, DateTime.now())
               ..commitId = 0);
         // Inserting commitEntry with null commitId
-        await commitLogInstance.commitLogKeyStore.getBox().add(
+        await commitLogInstance.commitLogKeyStore.add(
             CommitEntry('location@alice', CommitOp.UPDATE, DateTime.now()));
         // Inserting commitEntry with commitId 2
-        await commitLogInstance.commitLogKeyStore.getBox().add(
+        await commitLogInstance.commitLogKeyStore.add(
             CommitEntry('phone@alice', CommitOp.UPDATE, DateTime.now())
               ..commitId = 2);
         // Inserting commitEntry with null commitId
         await commitLogInstance.commitLogKeyStore
-            .getBox()
             .add(CommitEntry('mobile@alice', CommitOp.UPDATE, DateTime.now()));
 
         var commitLogMap = await commitLogInstance.commitLogKeyStore.toMap();
@@ -625,12 +708,12 @@ void main() async {
         //loop to create 10 keys - even keys have commitId null - odd keys have commitId
         for (int i = 0; i < 10; i++) {
           if (i % 2 == 0) {
-            await commitLogKeystore.getBox().add(CommitEntry(
-                'test_key_true_$i', CommitOp.UPDATE, DateTime.now()));
+            await commitLogKeystore.add(CommitEntry(
+                'test_key_true_$i@alice', CommitOp.UPDATE, DateTime.now()));
           } else {
-            await commitLogKeystore.getBox().add(
-                CommitEntry('test_key_true_$i', CommitOp.UPDATE, DateTime.now())
-                  ..commitId = i);
+            await commitLogKeystore.add(CommitEntry(
+                'test_key_true_$i@alice', CommitOp.UPDATE, DateTime.now())
+              ..commitId = i);
           }
         }
         Iterator<MapEntry<String, CommitEntry>>? changes =
@@ -638,15 +721,210 @@ void main() async {
         //run loop to ensure all commit entries have been returned; irrespective of commitId null or not
         int i = 0;
         while (changes.moveNext()) {
-          if (i % 2 == 0) {
-            //while creation of commit entries, even keys have been set with commitId == null
-            expect(changes.current.value.commitId, null);
-          } else {
-            //while creation of commit entries, even keys have been set with commitId equal to iteration count
-            expect(changes.current.value.commitId, i);
-          }
+          expect(changes.current.value.commitId, i);
           i++;
         }
+        expect(i, 10);
+      });
+      test(
+          'verify that CommitEntry with higher commitId is retained in cache for the same key',
+          () async {
+        var commitLogInstance =
+            await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+        String key = 'same_key.test@alice';
+        int? firstCommitId =
+            await commitLogInstance?.commit(key, CommitOp.UPDATE);
+        Future<int?>? secondCommitIdFuture = // no await here is intentional
+            commitLogInstance?.commit(key, CommitOp.UPDATE);
+        int? thirdCommitId =
+            await commitLogInstance?.commit(key, CommitOp.UPDATE);
+
+        CommitEntry? commitEntryInCache =
+            commitLogInstance?.getLatestCommitEntry(key);
+        // This is to create an un-orderly update of commitEntries
+        int? secondCommitId = await secondCommitIdFuture;
+        assert(
+            thirdCommitId! > firstCommitId! && thirdCommitId > secondCommitId!);
+        expect(commitEntryInCache?.commitId, thirdCommitId);
+      });
+      test(
+          'A test to verify only reserved key - shared key is returned in getEntries when namespace is passed',
+          () async {
+        var commitLogInstance =
+            await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+        var commitLogKeystore = commitLogInstance!.commitLogKeyStore;
+        await commitLogKeystore.add(CommitEntry(
+            '@bob:shared_key@alice', CommitOp.UPDATE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'shared_key.bob@alice', CommitOp.UPDATE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'bob:test_shared_key@alice', CommitOp.UPDATE, DateTime.now()));
+        Iterator<MapEntry<String, CommitEntry>>? changes =
+            commitLogInstance.commitLogKeyStore.getEntries(-1, regex: '.buzz');
+        Map<String?, CommitEntry> commitEntriesMap = {};
+        while (changes.moveNext()) {
+          final commitEntry = changes.current.value;
+          commitEntriesMap[commitEntry.atKey] = commitEntry;
+        }
+        expect(commitEntriesMap.containsKey('@bob:shared_key@alice'), true);
+        expect(commitEntriesMap.containsKey('shared_key.bob@alice'), true);
+        expect(
+            commitEntriesMap.containsKey('bob:test_shared_key@alice'), false);
+      });
+
+      test(
+          'A test to verify non reserved key - shared key is returned in getEntries only when namespace is passed and key namespace matches passed namespace',
+          () async {
+        var commitLogInstance =
+            await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+        var commitLogKeystore = commitLogInstance!.commitLogKeyStore;
+        await commitLogKeystore.add(CommitEntry(
+            '@bob:shared_key@alice', CommitOp.UPDATE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'shared_key.bob@alice', CommitOp.UPDATE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'bob:test_shared_key.buzz@alice', CommitOp.UPDATE, DateTime.now()));
+        Iterator<MapEntry<String, CommitEntry>>? changes =
+            commitLogInstance.commitLogKeyStore.getEntries(-1, regex: '.buzz');
+        Map<String?, CommitEntry> commitEntriesMap = {};
+        while (changes.moveNext()) {
+          final commitEntry = changes.current.value;
+          commitEntriesMap[commitEntry.atKey] = commitEntry;
+        }
+        expect(commitEntriesMap.containsKey('@bob:shared_key@alice'), true);
+        expect(commitEntriesMap.containsKey('shared_key.bob@alice'), true);
+        expect(commitEntriesMap.containsKey('bob:test_shared_key.buzz@alice'),
+            true);
+      });
+      test(
+          'A test to verify public key without namespace is returned in getEntries when no regex is passed',
+          () async {
+        var commitLogInstance =
+            await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+        var commitLogKeystore = commitLogInstance!.commitLogKeyStore;
+        await commitLogKeystore.add(
+            CommitEntry('public:phone@alice', CommitOp.UPDATE, DateTime.now()));
+        await commitLogKeystore.add(
+            CommitEntry('public:email@alice', CommitOp.UPDATE, DateTime.now()));
+        Iterator<MapEntry<String, CommitEntry>>? changes =
+            commitLogInstance.commitLogKeyStore.getEntries(-1);
+        Map<String?, CommitEntry> commitEntriesMap = {};
+        while (changes.moveNext()) {
+          final commitEntry = changes.current.value;
+          commitEntriesMap[commitEntry.atKey] = commitEntry;
+        }
+        expect(commitEntriesMap.containsKey('public:phone@alice'), true);
+        expect(commitEntriesMap.containsKey('public:email@alice'), true);
+      });
+
+      test(
+          'A test to verify public keys with matched namespace and no namespace is returned in getEntries when regex is passed',
+          () async {
+        var commitLogInstance =
+            await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+        var commitLogKeystore = commitLogInstance!.commitLogKeyStore;
+        await commitLogKeystore.add(CommitEntry(
+            'public:phone.buzz@alice', CommitOp.UPDATE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'public:email.wavi@alice', CommitOp.UPDATE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'public:location@alice', CommitOp.UPDATE, DateTime.now()));
+        Iterator<MapEntry<String, CommitEntry>>? changes =
+            commitLogInstance.commitLogKeyStore.getEntries(-1, regex: '.buzz');
+        Map<String?, CommitEntry> commitEntriesMap = {};
+        while (changes.moveNext()) {
+          final commitEntry = changes.current.value;
+          commitEntriesMap[commitEntry.atKey] = commitEntry;
+        }
+        expect(commitEntriesMap.containsKey('public:phone.buzz@alice'), true);
+        expect(commitEntriesMap.containsKey('public:phone.wavi@alice'), false);
+        expect(commitEntriesMap.containsKey('public:location@alice'), true);
+      });
+      test(
+          'A test to verify delete commit entries are NOT returned when skipDeletesUntil is set',
+          () async {
+        var commitLogInstance =
+            await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+        var commitLogKeystore = commitLogInstance!.commitLogKeyStore;
+        await commitLogKeystore.add(CommitEntry(
+            'test_key_true_1@alice', CommitOp.UPDATE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'test_key_true_2@alice', CommitOp.DELETE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'test_key_true_3@alice', CommitOp.DELETE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'test_key_true_4@alice', CommitOp.UPDATE, DateTime.now()));
+        Iterator<MapEntry<String, CommitEntry>>? changes = commitLogInstance
+            .commitLogKeyStore
+            .getEntries(-1, skipDeletesUntil: 25);
+        Map<String?, CommitEntry> commitEntriesMap = {};
+        while (changes.moveNext()) {
+          var commitEntry = changes.current.value;
+          commitEntriesMap[commitEntry.atKey] = commitEntry;
+        }
+        expect(commitEntriesMap.containsKey('test_key_true_1@alice'), true);
+        expect(commitEntriesMap.containsKey('test_key_true_2@alice'), false);
+        expect(commitEntriesMap.containsKey('test_key_true_3@alice'), false);
+        expect(commitEntriesMap.containsKey('test_key_true_4@alice'), true);
+      });
+      test(
+          'A test to verify correct commit entries are returned when skipDeletesUntil is set and regex is passed',
+          () async {
+        var commitLogInstance =
+            await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+        var commitLogKeystore = commitLogInstance!.commitLogKeyStore;
+        await commitLogKeystore.add(CommitEntry(
+            'test_key_true_1.wavi@alice', CommitOp.UPDATE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'test_key_true_2.buzz@alice', CommitOp.DELETE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'test_key_true_3.wavi@alice', CommitOp.DELETE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'test_key_true_4.buzz@alice', CommitOp.UPDATE, DateTime.now()));
+        Iterator<MapEntry<String, CommitEntry>>? changes = commitLogInstance
+            .commitLogKeyStore
+            .getEntries(-1, skipDeletesUntil: 25, regex: '.buzz');
+        Map<String?, CommitEntry> commitEntriesMap = {};
+        while (changes.moveNext()) {
+          var commitEntry = changes.current.value;
+          commitEntriesMap[commitEntry.atKey] = commitEntry;
+        }
+        expect(
+            commitEntriesMap.containsKey('test_key_true_1.wavi@alice'), false);
+        expect(
+            commitEntriesMap.containsKey('test_key_true_2.buzz@alice'), false);
+        expect(
+            commitEntriesMap.containsKey('test_key_true_3.wavi@alice'), false);
+        expect(
+            commitEntriesMap.containsKey('test_key_true_4.buzz@alice'), true);
+      });
+      test(
+          'A test to verify last delete commit entry is returned when its commitId is equal to latest commitId',
+          () async {
+        var commitLogInstance =
+            await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
+        var commitLogKeystore = commitLogInstance!.commitLogKeyStore;
+        await commitLogKeystore.add(CommitEntry(
+            'test_key_true_1@alice', CommitOp.UPDATE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'test_key_true_2@alice', CommitOp.DELETE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'test_key_true_3@alice', CommitOp.DELETE, DateTime.now()));
+        await commitLogKeystore.add(CommitEntry(
+            'test_key_true_4@alice', CommitOp.DELETE, DateTime.now()));
+        int? latestCommitId = commitLogInstance.lastCommittedSequenceNumber();
+        Iterator<MapEntry<String, CommitEntry>>? changes = commitLogInstance
+            .commitLogKeyStore
+            .getEntries(-1, skipDeletesUntil: latestCommitId);
+        Map<String?, CommitEntry> commitEntriesMap = {};
+        while (changes.moveNext()) {
+          var commitEntry = changes.current.value;
+          commitEntriesMap[commitEntry.atKey] = commitEntry;
+        }
+        expect(commitEntriesMap.containsKey('test_key_true_1@alice'), true);
+        expect(commitEntriesMap.containsKey('test_key_true_2@alice'), false);
+        expect(commitEntriesMap.containsKey('test_key_true_3@alice'), false);
+        expect(commitEntriesMap.containsKey('test_key_true_4@alice'), true);
       });
     });
     tearDown(() async => await tearDownFunc());

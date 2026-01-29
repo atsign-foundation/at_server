@@ -15,9 +15,9 @@ class SecondaryServerBootStrapper {
   List<String> arguments;
   static final bool? useTLS = AtSecondaryConfig.useTLS;
 
-  SecondaryServerBootStrapper(this.arguments);
-
   var logger = AtSignLogger('SecondaryServerBootStrapper');
+
+  SecondaryServerBootStrapper(this.arguments);
 
   late AtSecondaryServerImpl secondaryServerInstance;
 
@@ -31,16 +31,6 @@ class SecondaryServerBootStrapper {
       secondaryContext.port = int.parse(results['server_port']);
       secondaryContext.currentAtSign = AtUtils.fixAtSign(results['at_sign']);
       secondaryContext.sharedSecret = results['shared_secret'];
-      secondaryContext.inboundConnectionLimit =
-          AtSecondaryConfig.inbound_max_limit;
-      secondaryContext.outboundConnectionLimit =
-          AtSecondaryConfig.outbound_max_limit;
-      secondaryContext.unauthenticatedInboundIdleTimeMillis =
-          AtSecondaryConfig.inbound_idletime_millis;
-      secondaryContext.authenticatedInboundIdleTimeMillis =
-          AtSecondaryConfig.authenticated_inbound_idletime_millis;
-      secondaryContext.outboundIdleTimeMillis =
-          AtSecondaryConfig.outbound_idletime_millis;
       if (useTLS!) {
         secondaryContext.securityContext = AtSecurityContextImpl();
       }
@@ -51,12 +41,17 @@ class SecondaryServerBootStrapper {
       secondaryServerInstance.setExecutor(DefaultVerbExecutor());
 
       //starting secondary in a zone
-      //prevents secondary from terminating due to uncaught non-fatal errors
+      //prevents secondary from terminating with uncaught non-fatal errors
       unawaited(runZonedGuarded(() async {
         await secondaryServerInstance.start();
-      }, (error, stackTrace) {
-        logger.severe('Uncaught error: $error \n StackTrace: $stackTrace');
-        handleTerminateSignal(ProcessSignal.sigstop);
+      }, (error, StackTrace stackTrace) {
+        logger.shout('Uncaught error: $error ;'
+            ' StackTrace follows: $stackTrace');
+        if (error is SocketException) {
+          logger.shout('Will not terminate server for $error');
+        } else {
+          handleTerminateSignal(ProcessSignal.sigstop);
+        }
       }));
       ProcessSignal.sigterm.watch().listen(handleTerminateSignal);
       ProcessSignal.sigint.watch().listen(handleTerminateSignal);

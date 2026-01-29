@@ -1,3 +1,205 @@
+# 3.9.4
+
+ - build(deps): Add pubspec.lock and use ^ in pubspec.yaml
+
+# 3.9.3
+
+- fix: only allow `enroll:deny` to operate on `pending` enrollments
+
+# 3.9.2
+
+- fix: remove call to `flush` from `BaseSocketConnection.write()` thus
+  preventing a race which was triggering a `StreamSink is bound to a stream`
+  StateError
+
+# 3.9.1
+
+- chore: deal with breaking changes introduced by at_commons 5.8.0
+
+# 3.9.0
+
+- feat: Add `info` subcommands `info:mtls` and `info:mtlsbrief`
+
+# 3.8.0
+
+- feat: When available, present mtls client certs to other atServers, rather
+  than presenting the server's server certs, which we can no longer depend
+  on to have the client bit.
+
+# 3.7.2
+
+- fix: improved memory usage and error handling in StatsNotificationService. 
+  Fixes a minor bug in StatsNotificationService which would only occur when 
+  running an atServer on a development machine which is put to "sleep" for a 
+  while.
+- refactor: Removed unnecessary instance variable from StatsNotificationService
+
+# 3.7.1
+- feat : added `stats:16` for a summary of number of inbound connections by 
+  type (self, other, anon) and `stats:17` for a detailed report on all 
+  inbound connections including atSigns, time established, last accessed time.
+- fix: better idle time defaults for inbound and outbound connections, 
+  authenticated and unauthenticated 
+- refactor: removed a bunch of singletons
+
+# 3.7.0
+- fix: better idle time defaults for inbound and outbound connections, 
+  authenticated and unauthenticated 
+
+# 3.6.0
+- feat: Expanded http support
+
+# 3.5.3
+- fix: Set the trusted cacert path for AtSecondaryFinder
+
+# 3.5.2
+- fix: Prevent OutboundClient from creating new socket connections unnecessarily
+
+# 3.5.1
+- build: update version number to 3.5.1
+
+# 3.5.0
+- fix: scan verb now using AbstractVerbHandler.isAuthorized for namespace
+  access checks by @gkc in https://github.com/atsign-foundation/at_server/pull/2276
+- feat: Created Docker ephemeral enviroment for standalone atPlatform by 
+  @cconstab in https://github.com/atsign-foundation/at_server/pull/2288
+- feat: Update Dart version to 3.8.0 for Ephemeral Environment Dockerfile by 
+  @cconstab in https://github.com/atsign-foundation/at_server/pull/2294
+- feat: per-enrollment data by @gkc in https://github.
+  com/atsign-foundation/at_server/pull/22
+
+# 3.4.1
+- fix: potential bugs handling atSigns which end in `data`
+
+# 3.4.0
+- feat: immutable records
+  - When `immutable` is set in metadata, then the record may not
+    subsequently be changed via the `update` verb.
+  - When `immutable` is set in metadata, then the record may not be deleted
+    via the `delete` verb unless the new `force` parameter is set
+    - However, data which has been cached by the recipient is always 
+      deletable by that recipient
+# 3.3.0
+- feat: Add support for "atServer events" - starting with the 
+  `AtSignPKChangedEvent`. atServer events are stored in a newly reserved 
+  namespace called `__atserver` to which all clients will have read access 
+  but not write access - creating new atServer events is solely an atServer 
+  responsibility. Clients will typically fetch events when they initially 
+  connect, and will then handle appropriately (for example: store the event 
+  information locally; handle it; mark as processed locally.) 
+  Clients should keep a marker for the latest event they have 
+  fetched so that when they restart they do not re-process past events. 
+  Newly-created clients should set their initial marker to
+  microsecondsSinceEpoch so that they do not process past events unnecessarily.
+# 3.2.0
+- feat: Added WebSocket support for inbound connections
+# 3.1.1
+- fix: Store "publicKeyHash" value in the keystore
+- fix: add limit param in SyncProgressiveVerbHandler
+- build[deps]: Upgraded the following package:
+  at_commons to v5.1.2
+# 3.1.0
+- feat: sync skip deletes until changes 
+- fix: Enable persistence of the Initialization Vector for "defaultEncryptionPrivateKey" and "selfEncryptionKey" in
+  the APKAM flow.
+- build[deps]: Upgraded the following package:
+  - at_commons to v5.1.0
+  - at_persistence_secondary_server to v3.1.0
+# 3.0.52
+- build[deps]: Upgraded the following package:
+  - at_commons to v5.0.2
+  - at_chops to v2.2.0
+  - meta to v1.16.0
+  - test to v1.25.9
+  - args to v2.6.0
+  - at_persistence_secondary_server to v3.0.66 to consume publicKeyHash changes.
+## 3.0.51
+- feat: Introduce option to unrevoke revoked enrollments
+- feat: Introduce option to delete enrollments that are denied/revoked
+- fix: LatestCommitEntryOfEachKey metric fixed to return commit log entries till last commitID instead of default limit 25.
+- feat: Implement an option to automatically expire APKAM keys after a specified duration
+- build[deps]: Upgraded the following package:
+  - at_commons to v5.0.0
+  - at_utils to v3.0.19
+  - at_chops to v2.0.1
+  - at_lookup to v3.0.49
+  - at_persistence_secondary_server to v3.0.64
+  - at_server_spec to v5.0.2
+## 3.0.50
+- fix: Enhance namespace authorisation check to verify when namespace has a period in it
+- feat: Enable expiration of APKAM keys based on the specified duration.
+
+## 3.0.49
+- feat: Enforce superset access check for approving apps
+- fix: respect isEncrypted:false if supplied in the notify: command, and 
+  ensure that the correct value is always transmitted onwards
+- fix: info verb no longer lists "beta" features which are now live
+- fix: in MonitorVerbHandler, add "sharedKeyEnc" to the metadata to propagate the sharedEncryptedKey in
+  notifications from the server to the client.
+- build[deps]: Upgraded the following package:
+  - at_persistence_secondary_server to v3.0.63
+
+## 3.0.48
+- feat Add expiresAt and availableAt params to notify:list response
+
+## 3.0.47
+- feat: Introduced a dedicated namespace for storing OTPs
+- feat: allow a ttl to be set for a semi-permanent passcode (spp)
+
+## 3.0.46
+- fix: Default OTP expiry value remains unchanged for the subsequent "otp:" requests
+- fix: Fix the handling of enrollment self-notifications
+
+## 3.0.45
+- fix: Update the response format of the "enroll:fetch" to match with "enroll:list" for consistency
+- feat: enroll:revoke now has an optional "force" flag to allow current 
+  connection to revoke its own enrollment
+- fix: Fixed bug in delivery of notifications to APKAM Monitors
+
+## 3.0.44
+- fix: otp authentication check
+- build[deps]: Upgraded the following packages:
+  - at_commons to v4.0.8
+  - at_server_spec to v5.0.1
+  - at_lookup to v3.0.47
+- feat: Add enroll:fetch to fetch the enrollment details.
+- fix: Added validation to ensure a new enrollment request does not contain a duplicate combination of appName and
+  deviceName.
+
+## 3.0.43
+- fix: ensure all connection writes are awaited
+
+## 3.0.42
+- feat: allow filtering of requests in EnrollVerbHandler using enrollment
+  approval status
+- feat: authorization changes for keys with no namespace and for reserved keys
+- build(deps): dependabot changes
+- fix: Improve socket handling for better server resilience
+- fix: Ensure cached keys like 'cached:public:publicKey' are not considered 
+  protected keys and can thus be deleted
+
+## 3.0.41
+- fix: bug in access control for otp put
+## 3.0.40
+- build[deps]: Upgraded the following packages: 
+   - at_chops to 2.0.0
+   - at_server_spec: to 4.0.1
+- feat: at_server_spec: BREAKING: make AtConnection generic; make it more Dart-idiomatic
+- feat: Do NOT add delete entries in commit log when expired keys are deleted
+- feat: Introduce config to trigger skip_commits_for_expired_keys
+- fix: Add enrollment "appName", "deviceName" and "namespace" to notification for apps listening on enrollment requests 
+- fix: Return encryptedAPKAMSymmetricKey in enroll list
+## 3.0.39
+- build[deps]: Upgraded the following packages:
+  - at_commons to v4.0.0
+  - at_utils to v3.0.16
+  - at_lookup to v3.0.44
+  - at_chops to v1.0.7
+  - at_persistence_secondary_server to v3.0.60
+  - at_server_spec to 3.0.16
+- feat: Improve enrollment usability by adding ability to create multi-use 'semi-permanent' enrollment passcodes
+## 3.0.38
+- Introduce a new config key to store an atsign's blocklist
 ## 3.0.37
 - fix: In the `SyncProgressiveVerbHandler.prepareResponse` method, gracefully 
   handle any malformed keys which happen to be in the commit log for

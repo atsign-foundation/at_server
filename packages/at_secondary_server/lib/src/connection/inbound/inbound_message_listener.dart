@@ -1,10 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_commons/at_commons.dart' as at_commons;
 import 'package:at_secondary/src/connection/base_connection.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
@@ -53,20 +52,38 @@ class InboundMessageListener {
   void listen(callback, streamCallBack) {
     onStreamCallBack = streamCallBack;
     onBufferEndCallBack = callback;
-    connection.getSocket().listen(_messageHandler,
-        onDone: _finishedHandler, onError: _errorHandler);
-    connection
-        .getSocket()
-        .done
-        .onError((error, stackTrace) => (_errorHandler(error)));
-    connection.getMetaData().isListening = true;
+    logger.finest(
+        'Calling inbound underlying.listen within runZonedGuarded block');
+
+    runZonedGuarded(() {
+      connection.underlying.listen(_messageHandler,
+          onDone: _finishedHandler, onError: _errorHandler);
+      connection.metaData.isListening = true;
+    }, (Object error, StackTrace st) {
+      logger.warning(
+          'runZonedGuarded received error $error - calling _errorHandler to close connection');
+      _errorHandler(error, st);
+    });
   }
 
   /// Handles messages on the inbound client's connection and calls the verb executor
   /// Closes the inbound connection in case of any error.
-  Future<void> _messageHandler(data) async {
+  Future<void> _messageHandler(streamData) async {
+    connection.metaData.lastAccessed = DateTime.now().toUtc();
+    logger.finest('_messageHandler received ${streamData.runtimeType}'
+        ' : $streamData ');
+    List<int> data;
+    if (streamData is List<int>) {
+      data = streamData;
+    } else if (streamData is String) {
+      data = utf8.encode(streamData);
+    } else {
+      logger.severe('Un-handled data type: ${streamData.runtimeType}');
+      await _finishedHandler();
+      return;
+    }
     //ignore the data read if the connection is stale or closed
-    if (connection.getMetaData().isStale || connection.getMetaData().isClosed) {
+    if (connection.metaData.isStale || connection.metaData.isClosed) {
       //clear buffer as data is redundant
       _buffer.clear();
       return;
@@ -74,14 +91,14 @@ class InboundMessageListener {
     // If connection is invalid, throws ConnectionInvalidException and closes the connection
     if (connection.isInValid()) {
       _buffer.clear();
-      logger.info(logger.getAtConnectionLogMessage(connection.getMetaData(),
+      logger.info(logger.getAtConnectionLogMessage(connection.metaData,
           'Inbound connection is invalid. Closing the connection'));
       await GlobalExceptionHandler.getInstance().handle(
           ConnectionInvalidException('Connection is invalid'),
           atConnection: connection);
       return;
     }
-    if (connection.getMetaData().isStream) {
+    if (connection.metaData.isStream) {
       telemetry?.interaction(
           eventType: AtServerTelemetryEventType.stream,
           from: client,
@@ -109,8 +126,8 @@ class InboundMessageListener {
         //decode only when end of buffer is reached
         var command = utf8.decode(_buffer.getData());
         command = command.trim();
-        logger.info(logger.getAtConnectionLogMessage(connection.getMetaData(),
-            'RCVD: ${BaseConnection.truncateForLogging(command)}'));
+        logger.info(logger.getAtConnectionLogMessage(connection.metaData,
+            'RCVD: ${BaseSocketConnection.truncateForLogging(command)}'));
         // if command is '@exit', close the connection.
         if (command == '@exit') {
           telemetry?.interaction(
@@ -138,22 +155,24 @@ class InboundMessageListener {
   }
 
   /// Logs the error and closes the [InboundConnection]
-  Future<void> _errorHandler(error) async {
+  Future<void> _errorHandler(error, StackTrace st) async {
     logger.severe('_errorHandler: $error');
     await _closeConnection();
   }
 
   /// Closes the [InboundConnection]
   Future<void> _finishedHandler() async {
+    logger.info('_finishedHandler called - closing connection');
     await _closeConnection();
   }
 
   Future<void> _closeConnection() async {
-    if (!connection.isInValid()) {
-      await connection.close();
-    }
+    await connection.close();
     // Removes the connection from the InboundConnectionPool.
-    InboundConnectionPool.getInstance().remove(connection);
+    AtSecondaryServerImpl.getInstance()
+        .inboundConnectionManager
+        .pool
+        .remove(connection);
   }
 
   getVerbFromCommand(String command) {

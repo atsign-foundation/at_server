@@ -73,10 +73,10 @@ set ${atSign:1} vip.ve.atsign.zone:$port
 exit
 EOF
 
-if [ ! -L certs ]; then
-  echo "Linking secondary certs"
-  ln -s "$scriptDir"/../../../../tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs .
-fi
+rm -f certs
+echo "Linking secondary certs"
+ln -s "$scriptDir"/../../../../tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/certs .
+
 
 # Finally, we need to copy the pubspec.yaml file to the working directory, for the version
 cp "$scriptDir"/../../../../packages/at_secondary_server/pubspec.yaml .

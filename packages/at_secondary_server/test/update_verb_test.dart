@@ -3,9 +3,14 @@ import 'dart:convert';
 
 import 'package:at_commons/at_builders.dart';
 import 'package:at_commons/at_commons.dart';
+import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
+import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
+import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_utils/at_utils.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
@@ -18,19 +23,19 @@ import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
 import 'test_utils.dart';
 
-class MockSecondaryKeyStore extends Mock implements SecondaryKeyStore {}
-
 void main() {
-  SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+  late SecondaryKeyStore mockKeyStore;
+  late FakeSocket mockSocket;
 
   setUpAll(() async {
     await verbTestsSetUpAll();
+    mockKeyStore = MockSecondaryKeyStore();
+    mockSocket = FakeSocket();
   });
 
   setUp(() async {
@@ -43,17 +48,25 @@ void main() {
 
   group('A group of update accept tests', () {
     test('test update command accept test', () {
-      var command = 'update:public:location@alice new york';
+      var command = 'update:public:location$alice new york';
       var handler = UpdateVerbHandler(
-          mockKeyStore, statsNotificationService, notificationManager);
+        mockKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       var result = handler.accept(command);
       expect(result, true);
     });
 
     test('test update command accept negative test', () {
-      var command = 'updated:public:location@alice new york';
+      var command = 'updated:public:location$alice new york';
       var handler = UpdateVerbHandler(
-          mockKeyStore, statsNotificationService, notificationManager);
+        mockKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       var result = handler.accept(command);
       expect(result, false);
     });
@@ -61,46 +74,46 @@ void main() {
   group('A group of update verb regex test', () {
     test('test update key-value', () {
       var verb = Update();
-      var command = 'update:location@alice california';
+      var command = 'update:location$alice california';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[FOR_AT_SIGN], isNull);
-      expect(paramsMap[AT_VALUE], 'california');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.forAtSign], isNull);
+      expect(paramsMap[AtConstants.atValue], 'california');
     });
 
     test('test update local key-value with self atsign', () {
       var verb = Update();
-      var command = 'update:@alice:location@alice california';
+      var command = 'update:$alice:location$alice california';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[FOR_AT_SIGN], 'alice');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'california');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.forAtSign], 'alice');
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.atValue], 'california');
     });
 
     test('test update key-value with another user atsign', () {
       var verb = Update();
-      var command = 'update:@bob:location@alice california';
+      var command = 'update:@bob:location$alice california';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'california');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.atValue], 'california');
     });
 
     test('test update local key-value with public', () {
       var verb = Update();
-      var command = 'update:public:location@alice new york';
+      var command = 'update:public:location$alice new york';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[FOR_AT_SIGN], isNull);
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'new york');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.forAtSign], isNull);
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.atValue], 'new york');
     });
 
     test('test update local key-value with private key', () {
@@ -109,8 +122,9 @@ void main() {
           'update:privatekey:at_pkam_publickey MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIB';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'privatekey:at_pkam_publickey');
-      expect(paramsMap[AT_VALUE], 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIB');
+      expect(paramsMap[AtConstants.atKey], 'privatekey:at_pkam_publickey');
+      expect(paramsMap[AtConstants.atValue],
+          'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIB');
     });
 
     test('test update verb with emoji', () {
@@ -118,9 +132,9 @@ void main() {
       var command = 'update:public:phone@🦄 emoji';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'phone');
-      expect(paramsMap[AT_SIGN], '🦄');
-      expect(paramsMap[AT_VALUE], 'emoji');
+      expect(paramsMap[AtConstants.atKey], 'phone');
+      expect(paramsMap[AtConstants.atSign], '🦄');
+      expect(paramsMap[AtConstants.atValue], 'emoji');
     });
 
     test('test update verb with emoji', () {
@@ -128,15 +142,15 @@ void main() {
       var command = 'update:@🦓:phone@🦄 emoji';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[FOR_AT_SIGN], '🦓');
-      expect(paramsMap[AT_KEY], 'phone');
-      expect(paramsMap[AT_SIGN], '🦄');
-      expect(paramsMap[AT_VALUE], 'emoji');
+      expect(paramsMap[AtConstants.forAtSign], '🦓');
+      expect(paramsMap[AtConstants.atKey], 'phone');
+      expect(paramsMap[AtConstants.atSign], '🦄');
+      expect(paramsMap[AtConstants.atValue], 'emoji');
     });
 
     test('test update with multiple : in key - should fail', () {
       var verb = Update();
-      var command = 'update:ttl:1:public:location:city@alice Hyderabad:TG';
+      var command = 'update:ttl:1:public:location:city$alice Hyderabad:TG';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -149,7 +163,7 @@ void main() {
       var command = 'update:location us';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location');
+      expect(paramsMap[AtConstants.atKey], 'location');
     });
 
     test('test update key- key with colon - should fail', () {
@@ -165,64 +179,72 @@ void main() {
 
   group('A group of update verb handler test', () {
     test('test update verb handler- update', () {
-      var command = 'update:location@alice us';
+      var command = 'update:location$alice us';
       AbstractVerbHandler handler = UpdateVerbHandler(
-          mockKeyStore, statsNotificationService, notificationManager);
+        mockKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       var verbParameters = handler.parse(command);
       var verb = handler.getVerb();
       expect(verb is Update, true);
       expect(verbParameters, isNotNull);
-      expect(verbParameters[FOR_AT_SIGN], null);
-      expect(verbParameters[AT_KEY], 'location');
-      expect(verbParameters[AT_SIGN], 'alice');
-      expect(verbParameters[AT_VALUE], 'us');
+      expect(verbParameters[AtConstants.forAtSign], null);
+      expect(verbParameters[AtConstants.atKey], 'location');
+      expect(verbParameters[AtConstants.atSign], 'alice');
+      expect(verbParameters[AtConstants.atValue], 'us');
     });
 
     test('test update verb handler- public update', () {
-      var command = 'update:public:location@alice us';
+      var command = 'update:public:location$alice us';
       AbstractVerbHandler handler = UpdateVerbHandler(
-          mockKeyStore, statsNotificationService, notificationManager);
+        mockKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       var verb = handler.getVerb();
       var verbParameters = handler.parse(command);
 
       expect(verb is Update, true);
       expect(verbParameters, isNotNull);
-      expect(verbParameters[PUBLIC_SCOPE_PARAM], 'public');
-      expect(verbParameters[FOR_AT_SIGN], null);
-      expect(verbParameters[AT_KEY], 'location');
-      expect(verbParameters[AT_SIGN], 'alice');
-      expect(verbParameters[AT_VALUE], 'us');
+      expect(verbParameters[AtConstants.publicScopeParam], 'public');
+      expect(verbParameters[AtConstants.forAtSign], null);
+      expect(verbParameters[AtConstants.atKey], 'location');
+      expect(verbParameters[AtConstants.atSign], 'alice');
+      expect(verbParameters[AtConstants.atValue], 'us');
     });
 
     test('update verb with upper case', () {
       var verb = Update();
-      var command = 'UPDATE:@bob:location@alice US';
+      var command = 'UPDATE:@bob:location$alice US';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'US');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.atValue], 'US');
     });
 
     test('update verb and value with mixed case', () {
       var verb = Update();
-      var command = 'UpDaTe:@bob:location@alice Hyderabad,TG';
+      var command = 'UpDaTe:@bob:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'Hyderabad,TG');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.atValue], 'Hyderabad,TG');
     });
   });
 
   group('A group of update verb regex - invalid syntax', () {
     test('test update with ttl with no value', () {
       var verb = Update();
-      var command = 'update:ttl::public:location:city@alice Hyderabad:TG';
+      var command = 'update:ttl::public:location:city$alice Hyderabad:TG';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -232,7 +254,7 @@ void main() {
 
     test('test update with ttb with no value', () {
       var verb = Update();
-      var command = 'update:ttb::public:location:city@alice Hyderabad:TG';
+      var command = 'update:ttb::public:location:city$alice Hyderabad:TG';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -242,7 +264,7 @@ void main() {
 
     test('test update with two colons beside - invalid syntax', () {
       var verb = Update();
-      var command = 'update::location:city@alice Hyderabad:TG';
+      var command = 'update::location:city$alice Hyderabad:TG';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -252,7 +274,7 @@ void main() {
 
     test('test update with @ suffixed in atsign - invalid syntax', () {
       var verb = Update();
-      var command = 'update:location:city@alice@ Hyderabad:TG';
+      var command = 'update:location:city$alice@ Hyderabad:TG';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -262,7 +284,7 @@ void main() {
 
     test('test update key- no value', () {
       var verb = Update();
-      var command = 'update:location@alice ';
+      var command = 'update:location$alice ';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -272,7 +294,7 @@ void main() {
 
     test('test update key- invalid keyword', () {
       var verb = Update();
-      var command = 'updatee:location@alice us';
+      var command = 'updatee:location$alice us';
       var regex = verb.syntax();
       expect(
           () => getVerbParam(regex, command),
@@ -301,9 +323,13 @@ void main() {
     });
 
     test('test update key no value - invalid command', () {
-      var command = 'update:location@alice';
+      var command = 'update:location$alice';
       AbstractVerbHandler handler = UpdateVerbHandler(
-          mockKeyStore, statsNotificationService, notificationManager);
+        mockKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       expect(
           () => handler.parse(command),
           throwsA(predicate((dynamic e) =>
@@ -316,88 +342,88 @@ void main() {
     test('test update with ttl and ttb with values', () {
       var verb = Update();
       var command =
-          'update:ttl:20000:ttb:20000:public:location.city@alice Hyderabad:TG';
+          'update:ttl:20000:ttb:20000:public:location.city$alice Hyderabad:TG';
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_KEY], 'location.city');
-      expect(paramsMap[AT_TTL], '20000');
-      expect(paramsMap[AT_TTB], '20000');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'Hyderabad:TG');
+      expect(paramsMap[AtConstants.atKey], 'location.city');
+      expect(paramsMap[AtConstants.ttl], '20000');
+      expect(paramsMap[AtConstants.ttb], '20000');
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.atValue], 'Hyderabad:TG');
     });
 
     test('adding ttl to the update verb', () {
       var verb = Update();
-      var command = 'UpDaTe:ttl:100:@bob:location@alice Hyderabad,TG';
+      var command = 'UpDaTe:ttl:100:@bob:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_TTL], '100');
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'Hyderabad,TG');
+      expect(paramsMap[AtConstants.ttl], '100');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.atValue], 'Hyderabad,TG');
     });
 
     test('adding ttb to the update verb', () {
       var verb = Update();
-      var command = 'UpDaTe:ttb:150:@bob:location@alice Hyderabad,TG';
+      var command = 'UpDaTe:ttb:150:@bob:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_TTB], '150');
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'Hyderabad,TG');
+      expect(paramsMap[AtConstants.ttb], '150');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.atValue], 'Hyderabad,TG');
     });
 
     test('adding ttl and ttb to the update verb', () {
       var verb = Update();
-      var command = 'UpDaTe:ttl:300:ttb:150:@bob:location@alice Hyderabad,TG';
+      var command = 'UpDaTe:ttl:300:ttb:150:@bob:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_TTL], '300');
-      expect(paramsMap[AT_TTB], '150');
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[FOR_AT_SIGN], 'bob');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'Hyderabad,TG');
+      expect(paramsMap[AtConstants.ttl], '300');
+      expect(paramsMap[AtConstants.ttb], '150');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.forAtSign], 'bob');
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.atValue], 'Hyderabad,TG');
     });
 
     test('adding ttl and ttb to the update verb with public key', () {
       var verb = Update();
-      var command = 'UpDaTe:ttl:300:ttb:150:public:location@alice Hyderabad,TG';
+      var command = 'UpDaTe:ttl:300:ttb:150:public:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_TTL], '300');
-      expect(paramsMap[AT_TTB], '150');
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'Hyderabad,TG');
+      expect(paramsMap[AtConstants.ttl], '300');
+      expect(paramsMap[AtConstants.ttb], '150');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.atValue], 'Hyderabad,TG');
     });
 
     test('adding 0 ttl and ttb to the update verb with public key', () {
       var verb = Update();
-      var command = 'UpDaTe:ttl:0:ttb:0:public:location@alice Hyderabad,TG';
+      var command = 'UpDaTe:ttl:0:ttb:0:public:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_TTL], '0');
-      expect(paramsMap[AT_TTB], '0');
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'Hyderabad,TG');
+      expect(paramsMap[AtConstants.ttl], '0');
+      expect(paramsMap[AtConstants.ttb], '0');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.atValue], 'Hyderabad,TG');
     });
   });
 
   group('group of negative tests around ttl and ttb', () {
     test('ttl starting with -1', () {
-      var command = 'UpDaTe:ttl:-1:@bob:location@alice Hyderabad,TG';
+      var command = 'UpDaTe:ttl:-1:@bob:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var secondaryPersistenceStore =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore(
@@ -406,15 +432,19 @@ void main() {
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
       AbstractVerbHandler handler = UpdateVerbHandler(
-          keyStore, statsNotificationService, notificationManager);
+        keyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       Map parsed = handler.parse(command);
       expect(parsed['ttl'], '-1');
     });
 
     test('ttb starting with -1', () {
-      var command = 'UpDaTe:ttb:-1:@bob:location@alice Hyderabad,TG';
+      var command = 'UpDaTe:ttb:-1:@bob:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var secondaryPersistenceStore =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore(
@@ -423,27 +453,39 @@ void main() {
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
       AbstractVerbHandler handler = UpdateVerbHandler(
-          keyStore, statsNotificationService, notificationManager);
+        keyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       Map parsed = handler.parse(command);
       expect(parsed['ttb'], '-1');
     });
 
     test('ttl and ttb starting with negative value -1', () {
       var command =
-          'update:ttl:-1:ttb:-1:@bob:location.test@alice Hyderabad,TG';
+          'update:ttl:-1:ttb:-1:@bob:location.test$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(
-          mockKeyStore, statsNotificationService, notificationManager);
+        mockKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       Map parsed = handler.parse(command);
       expect(parsed['ttl'], '-1');
       expect(parsed['ttb'], '-1');
     });
 
     test('ttl with no value - invalid syntax', () {
-      var command = 'UpDaTe:ttl::@bob:location@alice Hyderabad,TG';
+      var command = 'UpDaTe:ttl::@bob:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(
-          mockKeyStore, statsNotificationService, notificationManager);
+        mockKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       expect(
           () => handler.parse(command),
           throwsA(predicate((dynamic e) =>
@@ -452,10 +494,14 @@ void main() {
     });
 
     test('ttb with no value - invalid syntax', () {
-      var command = 'UpDaTe:ttb::@bob:location@alice Hyderabad,TG';
+      var command = 'UpDaTe:ttb::@bob:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(
-          mockKeyStore, statsNotificationService, notificationManager);
+        mockKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       expect(
           () => handler.parse(command),
           throwsA(predicate((dynamic e) =>
@@ -464,10 +510,14 @@ void main() {
     });
 
     test('ttl and ttb with no value - invalid syntax', () {
-      var command = 'UpDaTe:ttl::ttb::@bob:location@alice Hyderabad,TG';
+      var command = 'UpDaTe:ttl::ttb::@bob:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(
-          mockKeyStore, statsNotificationService, notificationManager);
+        mockKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       expect(
           () => handler.parse(command),
           throwsA(predicate((dynamic e) =>
@@ -480,37 +530,37 @@ void main() {
     test('adding ttr and ccd true to the update verb with public key', () {
       var verb = Update();
       var command =
-          'UpDaTe:ttr:1000:ccd:true:public:location@alice Hyderabad,TG';
+          'UpDaTe:ttr:1000:ccd:true:public:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_TTR], '1000');
-      expect(paramsMap[CCD], 'true');
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'Hyderabad,TG');
+      expect(paramsMap[AtConstants.ttr], '1000');
+      expect(paramsMap[AtConstants.ccd], 'true');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.atValue], 'Hyderabad,TG');
     });
 
     test('adding ttr and ccd false to the update verb with public key', () {
       var verb = Update();
       var command =
-          'UpDaTe:ttr:1000:ccd:false:public:location@alice Hyderabad,TG';
+          'UpDaTe:ttr:1000:ccd:false:public:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       var regex = verb.syntax();
       var paramsMap = getVerbParam(regex, command);
-      expect(paramsMap[AT_TTR], '1000');
-      expect(paramsMap[CCD], 'false');
-      expect(paramsMap[AT_KEY], 'location');
-      expect(paramsMap[AT_SIGN], 'alice');
-      expect(paramsMap[AT_VALUE], 'Hyderabad,TG');
+      expect(paramsMap[AtConstants.ttr], '1000');
+      expect(paramsMap[AtConstants.ccd], 'false');
+      expect(paramsMap[AtConstants.atKey], 'location');
+      expect(paramsMap[AtConstants.atSign], 'alice');
+      expect(paramsMap[AtConstants.atValue], 'Hyderabad,TG');
     });
   });
 
   group('A group of negative tests around ttr and ccd', () {
-    test('ttr starting with -2', () {
-      var command = 'UpDaTe:ttr:-2:ccd:true:@bob:location@alice Hyderabad,TG';
+    test('ttr starting with -2', () async {
+      var command = 'UpDaTe:ttr:-2:ccd:true:@bob:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var secondaryPersistenceStore =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore(
@@ -519,23 +569,31 @@ void main() {
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
       AbstractVerbHandler handler = UpdateVerbHandler(
-          keyStore, statsNotificationService, notificationManager);
+        keyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       var response = Response();
       var verbParams = handler.parse(command);
-      var atConnection = InboundConnectionImpl(null, null);
-      expect(
-          () => handler.processVerb(response, verbParams, atConnection),
+      var atConnection = InboundConnectionImpl(mockSocket, null);
+      await expectLater(
+          handler.processVerb(response, verbParams, atConnection),
           throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException &&
               e.message ==
-                  'Valid values for TTR are -1 and greater than or equal to 1')));
+                  'Valid values for TTR are -1 and greater than or equal to 0')));
     });
 
     test('ccd with invalid value', () {
-      var command = 'UpDaTe:ttr:1000:ccd:test:@bob:location@alice Hyderabad,TG';
+      var command = 'UpDaTe:ttr:1000:ccd:test:@bob:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(
-          mockKeyStore, statsNotificationService, notificationManager);
+        mockKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       expect(
           () => handler.parse(command),
           throwsA(predicate((dynamic e) =>
@@ -551,14 +609,14 @@ void main() {
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await secondaryKeyStore.put('privatekey:at_secret', secretData);
       var fromVerbHandler = FromVerbHandler(secondaryKeyStore);
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       var fromVerbParams = HashMap<String, String>();
       fromVerbParams.putIfAbsent('atSign', () => 'alice');
       var response = Response();
       await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
-      var fromResponse = response.data!.replaceFirst('data:', '');
+      var fromResponse = response.data!.replaceFirst(RegExp('^data:'), '');
       var cramVerbParams = HashMap<String, String>();
       var combo = '${secretData.data}$fromResponse';
       var bytes = utf8.encode(combo);
@@ -569,23 +627,28 @@ void main() {
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
       var connectionMetadata =
-          atConnection.getMetaData() as InboundConnectionMetadata;
+          atConnection.metaData as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
       var updateVerbHandler = UpdateVerbHandler(
-          secondaryKeyStore, statsNotificationService, notificationManager);
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       var updateResponse = Response();
       var updateVerbParams = HashMap<String, String>();
-      updateVerbParams.putIfAbsent('atSign', () => '@alice');
+      updateVerbParams.putIfAbsent('atSign', () => alice);
       updateVerbParams.putIfAbsent('atKey', () => 'location');
       updateVerbParams.putIfAbsent('value', () => 'hyderabad');
       await updateVerbHandler.processVerb(
           updateResponse, updateVerbParams, atConnection);
       var localLookUpResponse = Response();
-      var localLookupVerbHandler = LocalLookupVerbHandler(secondaryKeyStore);
+      var localLookupVerbHandler =
+          LocalLookupVerbHandler(secondaryKeyStore, enMgr);
       var localLookVerbParam = HashMap<String, String>();
-      localLookVerbParam.putIfAbsent('atSign', () => '@alice');
+      localLookVerbParam.putIfAbsent('atSign', () => alice);
       localLookVerbParam.putIfAbsent('atKey', () => 'location');
       await localLookupVerbHandler.processVerb(
           localLookUpResponse, localLookVerbParam, atConnection);
@@ -598,14 +661,14 @@ void main() {
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await secondaryKeyStore.put('privatekey:at_secret', secretData);
       var fromVerbHandler = FromVerbHandler(secondaryKeyStore);
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       var fromVerbParams = HashMap<String, String>();
       fromVerbParams.putIfAbsent('atSign', () => 'alice');
       var response = Response();
       await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
-      var fromResponse = response.data!.replaceFirst('data:', '');
+      var fromResponse = response.data!.replaceFirst(RegExp('^data:'), '');
       var cramVerbParams = HashMap<String, String>();
       var combo = '${secretData.data}$fromResponse';
       var bytes = utf8.encode(combo);
@@ -616,33 +679,38 @@ void main() {
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
       var connectionMetadata =
-          atConnection.getMetaData() as InboundConnectionMetadata;
+          atConnection.metaData as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
       var updateVerbHandler = UpdateVerbHandler(
-          secondaryKeyStore, statsNotificationService, notificationManager);
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       var updateResponse = Response();
       var updateVerbParams = HashMap<String, String>();
 
       int ttl = 50; // in milliseconds
       int ttb = 50; // in milliseconds
 
-      updateVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
-      updateVerbParams.putIfAbsent(AT_KEY, () => 'location');
-      updateVerbParams.putIfAbsent(AT_TTL, () => ttl.toString());
-      updateVerbParams.putIfAbsent(AT_TTB, () => ttb.toString());
-      updateVerbParams.putIfAbsent(AT_VALUE, () => 'hyderabad');
+      updateVerbParams.putIfAbsent(AtConstants.atSign, () => alice);
+      updateVerbParams.putIfAbsent(AtConstants.atKey, () => 'location');
+      updateVerbParams.putIfAbsent(AtConstants.ttl, () => ttl.toString());
+      updateVerbParams.putIfAbsent(AtConstants.ttb, () => ttb.toString());
+      updateVerbParams.putIfAbsent(AtConstants.atValue, () => 'hyderabad');
 
       await updateVerbHandler.processVerb(
           updateResponse, updateVerbParams, atConnection);
 
       //LLOOKUP Verb - Before TTB
       var localLookUpResponseBeforeTtb = Response();
-      var localLookupVerbHandler = LocalLookupVerbHandler(secondaryKeyStore);
+      var localLookupVerbHandler =
+          LocalLookupVerbHandler(secondaryKeyStore, enMgr);
       var localLookVerbParam = HashMap<String, String>();
-      localLookVerbParam.putIfAbsent(AT_SIGN, () => '@alice');
-      localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
+      localLookVerbParam.putIfAbsent(AtConstants.atSign, () => alice);
+      localLookVerbParam.putIfAbsent(AtConstants.atKey, () => 'location');
       await localLookupVerbHandler.processVerb(
           localLookUpResponseBeforeTtb, localLookVerbParam, atConnection);
       expect(localLookUpResponseBeforeTtb.data,
@@ -651,8 +719,8 @@ void main() {
       //LLOOKUP Verb - After TTB
       await Future.delayed(Duration(milliseconds: ttb));
       var localLookUpResponseAfterTtb = Response();
-      localLookVerbParam.putIfAbsent(AT_SIGN, () => '@alice');
-      localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
+      localLookVerbParam.putIfAbsent(AtConstants.atSign, () => alice);
+      localLookVerbParam.putIfAbsent(AtConstants.atKey, () => 'location');
       await localLookupVerbHandler.processVerb(
           localLookUpResponseAfterTtb, localLookVerbParam, atConnection);
       expect(localLookUpResponseAfterTtb.data,
@@ -661,8 +729,8 @@ void main() {
       //LLOOKUP Verb - After TTL
       await Future.delayed(Duration(milliseconds: ttl));
       var localLookUpResponseAfterTtl = Response();
-      localLookVerbParam.putIfAbsent(AT_SIGN, () => '@alice');
-      localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
+      localLookVerbParam.putIfAbsent(AtConstants.atSign, () => alice);
+      localLookVerbParam.putIfAbsent(AtConstants.atKey, () => 'location');
       await localLookupVerbHandler.processVerb(
           localLookUpResponseAfterTtl, localLookVerbParam, atConnection);
       expect(localLookUpResponseAfterTtl.data,
@@ -675,14 +743,14 @@ void main() {
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await secondaryKeyStore.put('privatekey:at_secret', secretData);
       var fromVerbHandler = FromVerbHandler(secondaryKeyStore);
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-      var atConnection = InboundConnectionImpl(null, inBoundSessionId);
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       var fromVerbParams = HashMap<String, String>();
       fromVerbParams.putIfAbsent('atSign', () => 'alice');
       var response = Response();
       await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
-      var fromResponse = response.data!.replaceFirst('data:', '');
+      var fromResponse = response.data!.replaceFirst(RegExp('^data:'), '');
       var cramVerbParams = HashMap<String, String>();
       var combo = '${secretData.data}$fromResponse';
       var bytes = utf8.encode(combo);
@@ -693,52 +761,61 @@ void main() {
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
       var connectionMetadata =
-          atConnection.getMetaData() as InboundConnectionMetadata;
+          atConnection.metaData as InboundConnectionMetadata;
       expect(connectionMetadata.isAuthenticated, true);
       expect(cramResponse.data, 'success');
       //Update Verb
       var updateVerbHandler = UpdateVerbHandler(
-          secondaryKeyStore, statsNotificationService, notificationManager);
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       var updateResponse = Response();
       var updateVerbParams = HashMap<String, String>();
-      updateVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
-      updateVerbParams.putIfAbsent(AT_KEY, () => 'location');
-      updateVerbParams.putIfAbsent(AT_TTB, () => '60000');
-      updateVerbParams.putIfAbsent(AT_VALUE, () => 'hyderabad');
+      updateVerbParams.putIfAbsent(AtConstants.atSign, () => alice);
+      updateVerbParams.putIfAbsent(AtConstants.atKey, () => 'location');
+      updateVerbParams.putIfAbsent(AtConstants.ttb, () => '60000');
+      updateVerbParams.putIfAbsent(AtConstants.atValue, () => 'hyderabad');
       await updateVerbHandler.processVerb(
           updateResponse, updateVerbParams, atConnection);
       //LLOOKUP Verb - TTB
       var localLookUpResponse = Response();
-      var localLookupVerbHandler = LocalLookupVerbHandler(secondaryKeyStore);
+      var localLookupVerbHandler =
+          LocalLookupVerbHandler(secondaryKeyStore, enMgr);
       var localLookVerbParam = HashMap<String, String>();
-      localLookVerbParam.putIfAbsent(AT_SIGN, () => '@alice');
-      localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
+      localLookVerbParam.putIfAbsent(AtConstants.atSign, () => alice);
+      localLookVerbParam.putIfAbsent(AtConstants.atKey, () => 'location');
       await localLookupVerbHandler.processVerb(
           localLookUpResponse, localLookVerbParam, atConnection);
       expect(localLookUpResponse.data, null);
       //Reset TTB
       updateVerbParams = HashMap<String, String>();
-      updateVerbParams.putIfAbsent(AT_SIGN, () => '@alice');
-      updateVerbParams.putIfAbsent(AT_KEY, () => 'location');
-      updateVerbParams.putIfAbsent(AT_TTB, () => '0');
-      updateVerbParams.putIfAbsent(AT_VALUE, () => 'hyderabad');
+      updateVerbParams.putIfAbsent(AtConstants.atSign, () => alice);
+      updateVerbParams.putIfAbsent(AtConstants.atKey, () => 'location');
+      updateVerbParams.putIfAbsent(AtConstants.ttb, () => '0');
+      updateVerbParams.putIfAbsent(AtConstants.atValue, () => 'hyderabad');
       await updateVerbHandler.processVerb(
           updateResponse, updateVerbParams, atConnection);
       //LLOOKUP Verb - After TTB
-      localLookVerbParam.putIfAbsent(AT_SIGN, () => '@alice');
-      localLookVerbParam.putIfAbsent(AT_KEY, () => 'location');
+      localLookVerbParam.putIfAbsent(AtConstants.atSign, () => alice);
+      localLookVerbParam.putIfAbsent(AtConstants.atKey, () => 'location');
       await localLookupVerbHandler.processVerb(
           localLookUpResponse, localLookVerbParam, atConnection);
       expect(localLookUpResponse.data, 'hyderabad');
     });
 
     test('test auto_notify notification expiry', () async {
-      SecondaryKeyStore keyStore = secondaryPersistenceStore!
+      SecondaryKeyStore keyStore = secondaryPersistenceStore
           .getSecondaryKeyStoreManager()!
           .getKeyStore();
       AbstractUpdateVerbHandler.setAutoNotify(true);
       UpdateVerbHandler updateHandler = UpdateVerbHandler(
-          keyStore, statsNotificationService, notificationManager);
+        keyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       AtMetaData metaData = AtMetaData()..ttl = 1000;
       AtNotification? autoNotification;
 
@@ -760,10 +837,36 @@ void main() {
       expect(autoNotification.expiresAt!.millisecondsSinceEpoch,
           closeTo(notifExpiresAt.millisecondsSinceEpoch, 3000));
     });
+
+    test('test max key length check', () async {
+      var inBoundSessionId = 'test_session_id';
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+      var updateVerbHandler = UpdateVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
+      atConnection.metaData.isAuthenticated = true;
+      var updateResponse = Response();
+      var updateVerbParams = HashMap<String, String>();
+      updateVerbParams.putIfAbsent('atSign', () => alice);
+      var key = createRandomString(250);
+      updateVerbParams.putIfAbsent('atKey', () => key);
+      updateVerbParams.putIfAbsent('value', () => 'hyderabad');
+      expect(
+          () async => await updateVerbHandler.processVerb(
+              updateResponse, updateVerbParams, atConnection),
+          throwsA(predicate((dynamic e) =>
+              e is InvalidAtKeyException &&
+              e.message ==
+                  'key length ${key.length + alice.length} is greater than max allowed ${AbstractUpdateVerbHandler.maxKeyLengthWithoutCached} chars')));
+    });
   });
 
   group('update verb tests with metadata', () {
     doit() async {
+      var pubKeyHash = PublicKeyHash('hash', 'algo');
       var pubKeyCS =
           'the_checksum_of_the_public_key_used_to_encrypted_the_AES_key';
       var ske =
@@ -774,22 +877,27 @@ void main() {
       var value = 'alice@atsign.com';
       var updateBuilder = UpdateVerbBuilder()
         ..value = value
-        ..atKey = atKey
-        ..sharedBy = alice
-        ..sharedWith = bob
-        ..pubKeyChecksum = pubKeyCS
-        ..sharedKeyEncrypted = ske
-        ..encKeyName = 'some_key'
-        ..encAlgo = 'some_algo'
-        ..ivNonce = 'some_iv'
-        ..skeEncKeyName = skeEncKeyName
-        ..skeEncAlgo = skeEncAlgo;
+        ..atKey = (AtKey()
+          ..key = atKey
+          ..sharedBy = alice
+          ..sharedWith = bob
+          ..metadata = (Metadata()
+            ..pubKeyCS = pubKeyCS
+            ..sharedKeyEnc = ske
+            ..encKeyName = 'some_key'
+            ..encAlgo = 'some_algo'
+            ..ivNonce = 'some_iv'
+            ..skeEncKeyName = skeEncKeyName
+            ..skeEncAlgo = skeEncAlgo
+            ..pubKeyHash = pubKeyHash));
       var updateCommand = updateBuilder.buildCommand().trim();
       expect(
           updateCommand,
           'update'
+          ':isEncrypted:false'
           ':sharedKeyEnc:$ske'
           ':pubKeyCS:$pubKeyCS'
+          ':pubKeyHash:${pubKeyHash.hash}:hashingAlgo:${pubKeyHash.hashingAlgo}'
           ':encKeyName:some_key'
           ':encAlgo:some_algo'
           ':ivNonce:some_iv'
@@ -801,11 +909,15 @@ void main() {
 
       // 1. do an update and verify via llookup
       UpdateVerbHandler updateHandler = UpdateVerbHandler(
-          secondaryKeyStore, statsNotificationService, notificationManager);
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       await updateHandler.process(updateCommand, inboundConnection);
 
       LocalLookupVerbHandler llookupHandler =
-          LocalLookupVerbHandler(secondaryKeyStore);
+          LocalLookupVerbHandler(secondaryKeyStore, enMgr);
       await llookupHandler.process(
           'llookup:all:$bob:$atKey$alice', inboundConnection);
       Map mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
@@ -813,7 +925,7 @@ void main() {
       expect(mapSentToClient['data'], value);
       expect(
           AtMetaData.fromJson(mapSentToClient['metaData']).toCommonsMetadata(),
-          updateBuilder.metadata);
+          updateBuilder.atKey.metadata);
 
       // 2. update just the value and verify
       updateBuilder.value = value = 'alice@wowzer.net';
@@ -826,16 +938,17 @@ void main() {
       expect(mapSentToClient['data'], value);
       expect(
           AtMetaData.fromJson(mapSentToClient['metaData']).toCommonsMetadata(),
-          updateBuilder.metadata);
+          updateBuilder.atKey.metadata);
 
       // 3. update just some of the metadata and verify
       // Setting few metadata to 'null' to reset them
-      updateBuilder.skeEncKeyName = 'null';
-      updateBuilder.skeEncAlgo = 'null';
-      updateBuilder.sharedKeyEncrypted = 'null';
-      updateBuilder.encAlgo = 'WOW/MUCH/ENCRYPTION';
-      updateBuilder.encKeyName = 'such_secret_key';
-      updateBuilder.dataSignature = 'data_signature_to_validate_public_data';
+      updateBuilder.atKey.metadata.skeEncKeyName = 'null';
+      updateBuilder.atKey.metadata.skeEncAlgo = 'null';
+      updateBuilder.atKey.metadata.sharedKeyEnc = 'null';
+      updateBuilder.atKey.metadata.encAlgo = 'WOW/MUCH/ENCRYPTION';
+      updateBuilder.atKey.metadata.encKeyName = 'such_secret_key';
+      updateBuilder.atKey.metadata.dataSignature =
+          'data_signature_to_validate_public_data';
       await updateHandler.process(
           updateBuilder.buildCommand().trim(), inboundConnection);
       await llookupHandler.process(
@@ -853,11 +966,11 @@ void main() {
       expect(receivedMetadata.skeEncKeyName, null);
 
       // 4. let's update the value and a load of random metadata, and verify
-      updateBuilder.atKeyObj.metadata = createRandomCommonsMetadata();
+      updateBuilder.atKey.metadata = createRandomCommonsMetadata();
       // Setting ttb to null to test existing value is fetched and updated.
-      updateBuilder.ttb = null;
-      updateBuilder.dataSignature = null;
-      updateBuilder.ttr = 10;
+      updateBuilder.atKey.metadata.ttb = null;
+      updateBuilder.atKey.metadata.dataSignature = null;
+      updateBuilder.atKey.metadata.ttr = 10;
       updateBuilder.value = value = 'alice@wonder.land';
       await updateHandler.process(
           updateBuilder.buildCommand().trim(), inboundConnection);
@@ -883,31 +996,245 @@ void main() {
       }
     });
 
+    test('Concurrent updates to the same IMMUTABLE record', () async {
+      int concurrency = 10;
+      // Kicks off 10 update verbs concurrently to ensure that the concurrent
+      // update mutex protection is working correctly.
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
+
+      final atKey =
+          '${DateTime.now().millisecondsSinceEpoch}.concurrent.tests$alice';
+      List<InboundConnection> connections = [];
+      List<Future<void>> futures = [];
+      for (int i = 0; i < concurrency; i++) {
+        var c = DummyInboundConnection();
+        c.metaData.isAuthenticated = true;
+        connections.add(c);
+        futures.add(updateHandler.process(
+            'update:immutable:true:$atKey original data', c));
+      }
+      int successes = 0;
+      int failures = 0;
+      for (int i = 0; i < concurrency; i++) {
+        if (i > 0) {
+          expect(updateHandler.updateMutexes.length, 1);
+        }
+        await futures[i]
+            .then((value) => successes++)
+            .catchError((e, st) => failures++);
+      }
+
+      // Because this is an immutable record we expect only 1 success
+      expect(successes, 1);
+      expect(failures, concurrency - 1);
+      expect(updateHandler.updateMutexes.length, 0);
+
+      AtData? data = await secondaryKeyStore.get(atKey);
+      expect(data, isNotNull);
+      expect(data!.metaData, isNotNull);
+      // Because this is an immutable record we expect version to be `0`
+      expect(data.metaData!.version, 0);
+    });
+
+    test('Concurrent updates to the same MUTABLE record', () async {
+      int concurrency = 10;
+      // Kicks off 10 update verbs concurrently to ensure that the concurrent
+      // update mutex protection is working correctly.
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
+
+      final atKey =
+          '${DateTime.now().millisecondsSinceEpoch}.concurrent.tests$alice';
+      List<InboundConnection> connections = [];
+      List<Future<void>> futures = [];
+      for (int i = 0; i < concurrency; i++) {
+        var c = DummyInboundConnection();
+        c.metaData.isAuthenticated = true;
+        connections.add(c);
+        futures.add(updateHandler.process('update:$atKey original data', c));
+      }
+      int successes = 0;
+      int failures = 0;
+      for (int i = 0; i < concurrency; i++) {
+        if (i > 0) {
+          expect(updateHandler.updateMutexes.length, 1);
+        }
+        await futures[i]
+            .then((value) => successes++)
+            .catchError((e, st) => failures++);
+      }
+
+      // Because this is a mutable record, every operation should succeed
+      expect(successes, concurrency);
+      expect(failures, 0);
+      expect(updateHandler.updateMutexes.length, 0);
+
+      AtData? data = await secondaryKeyStore.get(atKey);
+      expect(data, isNotNull);
+      expect(data!.metaData, isNotNull);
+      // Because this is a mutable record we expect version to be 9
+      // (because the version when first created is 0, not 1)
+      expect(data.metaData!.version, 9);
+    });
+
+    test('Create mutable record and verify correctness', () async {
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
+      inboundConnection.metaData.isAuthenticated = true;
+
+      final atKey = AtKey.fromString('mutable1.wavi$alice');
+      await updateHandler.process(
+          'update:$atKey original data', inboundConnection);
+      AtData d = (await secondaryKeyStore.get(atKey.toString()))!;
+      expect(d.metaData?.immutable, false);
+      expect(d.data, 'original data');
+      expect(d.metaData!.version, 0);
+
+      await updateHandler.process(
+          'update:$atKey changed data', inboundConnection);
+      d = (await secondaryKeyStore.get(atKey.toString()))!;
+      expect(d.metaData?.immutable, false);
+      expect(d.data, 'changed data');
+    });
+
+    test('Create immutable record and verify correctness', () async {
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
+      inboundConnection.metaData.isAuthenticated = true;
+
+      final atKey = AtKey.fromString('mutable1.wavi$alice');
+      await updateHandler.process(
+          'update:immutable:true:$atKey original data', inboundConnection);
+      AtData d = (await secondaryKeyStore.get(atKey.toString()))!;
+      expect(d.metaData?.immutable, true);
+      expect(d.data, 'original data');
+
+      await expectLater(
+          updateHandler.process(
+              'update:$atKey changed data', inboundConnection),
+          throwsA(isA<IllegalStateException>()));
+
+      UpdateMetaVerbHandler updateMetaHandler = UpdateMetaVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
+
+      await expectLater(
+          updateMetaHandler.process(
+              'update:meta:$atKey:ttl:54321', inboundConnection),
+          throwsA(isA<IllegalStateException>()));
+    });
+
+    test('Create records with random metadata and verify correctness',
+        () async {
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
+      inboundConnection.metaData.isAuthenticated = true;
+      for (int i = 1; i <= 100; i++) {
+        var randomMd = createRandomCommonsMetadata();
+        randomMd.ccd =
+            AtMetadataUtil.validateCascadeDelete(randomMd.ttr, randomMd.ccd);
+        AtKey atKey =
+            AtKey.fromString('update_verb_test.$i.random_keys.wavi$alice')
+              ..metadata = randomMd;
+        var uvb = UpdateVerbBuilder()
+          ..atKey = atKey
+          ..value = 'some data';
+
+        await updateHandler.process(
+            uvb.buildCommand().trim(), inboundConnection);
+        AtData d = (await secondaryKeyStore.get(atKey.toString()))!;
+        expect(d.metaData?.toCommonsMetadata(), randomMd);
+      }
+    }, timeout: Timeout(Duration(minutes: 5)));
+
+    test('Test that a client can update ttl, ttb and ttr from non-zero to zero',
+        () async {
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
+      inboundConnection.metaData.isAuthenticated = true;
+
+      var key = 'update-ttl-zero.tests$alice';
+
+      // first, create a record with ttl 12345
+      await updateHandler.process(
+        'update:ttl:12345:ttb:100:ttr:10:$key Value',
+        inboundConnection,
+      );
+      AtData? data = await secondaryKeyStore.get(key);
+      expect(data?.metaData?.ttl, 12345);
+      expect(data?.metaData?.ttb, 100);
+      expect(data?.metaData?.ttr, 10);
+
+      // now, update the ttl via the update verb
+      await updateHandler.process(
+        'update:ttl:0:ttb:0:ttr:0:$key Value',
+        inboundConnection,
+      );
+      data = await secondaryKeyStore.get(key);
+      expect(data?.metaData?.ttl, 0);
+      expect(data?.metaData?.ttb, 0);
+      expect(data?.metaData?.ttr, 0);
+    });
+
     test('A test to verify existing metadata is retained after an update',
         () async {
       var atKey = 'email.wavi';
       var value = 'alice@atsign.com';
       var updateBuilder = UpdateVerbBuilder()
         ..value = value
-        ..atKey = atKey
-        ..sharedBy = alice
-        ..sharedWith = bob
-        ..ivNonce = 'some_iv';
+        ..atKey = (AtKey()
+          ..key = atKey
+          ..sharedBy = alice
+          ..sharedWith = bob
+          ..metadata = (Metadata()..ivNonce = 'some_iv'));
       var updateCommand = updateBuilder.buildCommand().trim();
       expect(
           updateCommand,
           'update'
+          ':isEncrypted:false'
           ':ivNonce:some_iv'
           ':$bob:$atKey$alice $value');
 
       inboundConnection.metadata.isAuthenticated = true;
       // 1. Do an update and verify via llookup
       UpdateVerbHandler updateHandler = UpdateVerbHandler(
-          secondaryKeyStore, statsNotificationService, notificationManager);
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       await updateHandler.process(updateCommand, inboundConnection);
 
       LocalLookupVerbHandler llookupHandler =
-          LocalLookupVerbHandler(secondaryKeyStore);
+          LocalLookupVerbHandler(secondaryKeyStore, enMgr);
       await llookupHandler.process(
           'llookup:all:$bob:$atKey$alice', inboundConnection);
       Map mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
@@ -918,14 +1245,20 @@ void main() {
 
       // 2. Update the metadata of a different metadata attribute
       updateBuilder = UpdateVerbBuilder()
-        ..value = value
-        ..atKey = atKey
-        ..sharedBy = alice
-        ..sharedWith = bob
-        ..sharedKeyEncrypted = 'shared_key_encrypted';
+        ..atKey = (AtKey()
+          ..key = atKey
+          ..sharedBy = alice
+          ..sharedWith = bob
+          ..metadata = (Metadata()..sharedKeyEnc = 'shared_key_encrypted'))
+        ..value = value;
+
       updateCommand = updateBuilder.buildCommand().trim();
       updateHandler = UpdateVerbHandler(
-          secondaryKeyStore, statsNotificationService, notificationManager);
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       await updateHandler.process(updateCommand, inboundConnection);
 
       await llookupHandler.process(
@@ -943,55 +1276,179 @@ void main() {
     test('sharedBy atsign is not equal to current atsign', () async {
       var command = 'update:phone@bob +12345';
       command = SecondaryUtil.convertCommand(command);
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
-      var secondaryPersistenceStore =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore(
-                  AtSecondaryServerImpl.getInstance().currentAtSign)!;
-      SecondaryKeyStore keyStore = secondaryPersistenceStore
-          .getSecondaryKeyStoreManager()!
-          .getKeyStore();
       AbstractVerbHandler handler = UpdateVerbHandler(
-          keyStore, statsNotificationService, notificationManager);
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       var response = Response();
       var verbParams = handler.parse(command);
-      var atConnection = InboundConnectionImpl(null, null);
+      var atConnection = InboundConnectionImpl(mockSocket, null);
       await expectLater(
           () async =>
               await handler.processVerb(response, verbParams, atConnection),
           throwsA(predicate((dynamic e) =>
               e is InvalidAtKeyException &&
               e.message ==
-                  'Invalid update command - sharedBy atsign @bob should be same as current atsign @alice')));
+                  'Invalid update command - sharedBy atsign @bob should be same as current atsign $alice')));
     });
     test('sharedBy atsign same as current atsign', () async {
-      var command = 'update:phone@alice +12345';
+      var command = 'update:phone$alice +12345';
       command = SecondaryUtil.convertCommand(command);
-      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice';
-      var secondaryPersistenceStore =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore(
-                  AtSecondaryServerImpl.getInstance().currentAtSign)!;
-      SecondaryKeyStore keyStore = secondaryPersistenceStore
-          .getSecondaryKeyStoreManager()!
-          .getKeyStore();
       AbstractVerbHandler handler = UpdateVerbHandler(
-          keyStore, statsNotificationService, notificationManager);
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       var response = Response();
       var verbParams = handler.parse(command);
-      var atConnection = InboundConnectionImpl(null, null);
+      var atConnection = InboundConnectionImpl(mockSocket, null);
       await handler.processVerb(response, verbParams, atConnection);
       expect(response.isError, false);
     });
   });
 
-  group('A group of tests related to APKAM enrollment', () {
+  group('A group of tests when "*" namespace have only read access', () {
     Response response = Response();
     late String enrollmentId;
     setUp(() async {
-      await verbTestsSetUp();
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'r'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
     });
 
+    test(
+        'A test to verify update verb is not allowed when enrollment is not authorized for write operations',
+        () async {
+      String updateCommand = 'update:$alice:dummykey.wavi$alice dummyValue';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
+      expect(
+          () async => await updateVerbHandler.processVerb(
+              response, updateVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $enrollmentId is not authorized to update key: $alice:dummykey.wavi$alice')));
+    });
+
+    test(
+        'A test to verify update verb is not allowed when enrollment key is not found',
+        () async {
+      // Setting to a new enrollmentId and NOT inserting the enrollment key to
+      // test enrollment key not found scenario
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      String updateCommand = 'update:$alice:dummykey.wavi$alice dummyValue';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
+      expect(
+          () async => await updateVerbHandler.processVerb(
+              response, updateVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $enrollmentId is not authorized to update key: $alice:dummykey.wavi$alice')));
+    });
+  });
+
+  group(
+      'A of tests to verify updating a key when enrollment is pending/revoke/denied state throws exception',
+      () {
+    Response response = Response();
+    late String enrollmentId;
+    List operationList = ['pending', 'revoked', 'denied'];
+
+    for (var operation in operationList) {
+      test(
+          'A test to verify when enrollment is $operation does not update a key',
+          () async {
+        inboundConnection.metadata.isAuthenticated =
+            true; // owner connection, authenticated
+        enrollmentId = Uuid().v4();
+        inboundConnection.metadata.enrollmentId = enrollmentId;
+        final enrollJson = {
+          'sessionId': '123',
+          'appName': 'wavi',
+          'deviceName': 'pixel',
+          'namespaces': {'wavi': 'rw'},
+          'apkamPublicKey': 'testPublicKeyValue',
+          'requestType': 'newEnrollment',
+          'approval': {'state': operation}
+        };
+        var keyName = '$enrollmentId.new.enrollments.__manage$alice';
+        await secondaryKeyStore.put(
+            keyName, AtData()..data = jsonEncode(enrollJson));
+        inboundConnection.metadata.enrollmentId = enrollmentId;
+
+        String updateCommand = 'update:$alice:dummykey.wavi$alice dummyValue';
+        HashMap<String, String?> updateVerbParams =
+            getVerbParam(VerbSyntax.update, updateCommand);
+        UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+          secondaryKeyStore,
+          statsNotificationService,
+          notificationManager,
+          alice,
+        );
+        expect(
+            () async => await updateVerbHandler.processVerb(
+                response, updateVerbParams, inboundConnection),
+            throwsA(predicate((dynamic e) =>
+                e is UnAuthorizedException &&
+                e.message ==
+                    'Connection with enrollment ID $enrollmentId is not authorized to update key: $alice:dummykey.wavi$alice')));
+      });
+    }
+  });
+  group('A group of tests related to access authorization', () {
+    Response response = Response();
+    late String enrollmentId;
+
+    test('A test to verify update verb is allowed if key is a reserved key',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      String updateCommand = 'update:$bob:shared_key$alice shared key value';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
+      await updateVerbHandler.processVerb(
+          response, updateVerbParams, inboundConnection);
+      expect(response.isError, false);
+      expect(response.data, isNotNull);
+    });
     test(
         'A test to verify update verb is allowed in all namespace when access is *:rw',
         () async {
@@ -1008,7 +1465,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
       // Update a key with wavi namespace
@@ -1016,7 +1473,11 @@ void main() {
       HashMap<String, String?> updateVerbParams =
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
-          secondaryKeyStore, statsNotificationService, notificationManager);
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       await updateVerbHandler.processVerb(
           response, updateVerbParams, inboundConnection);
       expect(response.data, isNotNull);
@@ -1024,13 +1485,18 @@ void main() {
       updateCommand = 'update:$alice:phone.buzz$alice 123';
       updateVerbParams = getVerbParam(VerbSyntax.update, updateCommand);
       updateVerbHandler = UpdateVerbHandler(
-          secondaryKeyStore, statsNotificationService, notificationManager);
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       await updateVerbHandler.processVerb(
           response, updateVerbParams, inboundConnection);
       expect(response.data, isNotNull);
+      expect(response.isError, false);
     });
-
-    test('A test to verify key with unauthorized namespace throws exception',
+    test(
+        'A test to verify enrollment with no write access to namespace throws exception',
         () async {
       inboundConnection.metadata.isAuthenticated =
           true; // owner connection, authenticated
@@ -1045,7 +1511,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      var keyName = '$enrollmentId.new.enrollments.__manage@alice';
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await secondaryKeyStore.put(
           keyName, AtData()..data = jsonEncode(enrollJson));
       // Update a key with buzz namespace
@@ -1053,120 +1519,269 @@ void main() {
       HashMap<String, String?> updateVerbParams =
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
-          secondaryKeyStore, statsNotificationService, notificationManager);
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
       expect(
           () async => await updateVerbHandler.processVerb(
               response, updateVerbParams, inboundConnection),
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Enrollment Id: $enrollmentId is not authorized for update operation on the key: @alice:phone.buzz@alice')));
+                  'Connection with enrollment ID $enrollmentId is not authorized to update key: $alice:phone.buzz$alice')));
+    });
+    test(
+        'A test to verify write access is allowed to a reserved key for an enrollment with a specific namespace access',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+      String updateCommand = 'update:$bob:shared_key$alice 123';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
+      await updateVerbHandler.processVerb(
+          response, updateVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      expect(response.isError, false);
+    });
+    test(
+        'A test to verify write access is allowed to a key without a namespace for an enrollment with * namespace access',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'*': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+      String updateCommand = 'update:$alice:secret_data$alice 123';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
+      await updateVerbHandler.processVerb(
+          response, updateVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      expect(response.isError, false);
+    });
+    test(
+        'A test to verify write access is denied to a key without a namespace for an enrollment with specific namespace access',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+      String updateCommand = 'update:$alice:secret_data$alice 123';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
+      expect(
+          () async => await updateVerbHandler.processVerb(
+              response, updateVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $enrollmentId is not authorized to update key: $alice:secret_data$alice')));
     });
 
-    group('A group of tests when "*" namespace have only read access', () {
-      setUp(() async {
-        await verbTestsSetUp();
-
-        inboundConnection.metadata.isAuthenticated =
-            true; // owner connection, authenticated
-        enrollmentId = Uuid().v4();
-        inboundConnection.metadata.enrollmentId = enrollmentId;
-        final enrollJson = {
-          'sessionId': '123',
-          'appName': 'wavi',
-          'deviceName': 'pixel',
-          'namespaces': {'wavi': 'r'},
-          'apkamPublicKey': 'testPublicKeyValue',
-          'requestType': 'newEnrollment',
-          'approval': {'state': 'approved'}
-        };
-        var keyName = '$enrollmentId.new.enrollments.__manage@alice';
-        await secondaryKeyStore.put(
-            keyName, AtData()..data = jsonEncode(enrollJson));
-      });
-
-      test(
-          'A test to verify update verb is not allowed when enrollment is not authorized for write operations',
-          () async {
-        String updateCommand = 'update:$alice:dummykey.wavi$alice dummyValue';
-        HashMap<String, String?> updateVerbParams =
-            getVerbParam(VerbSyntax.update, updateCommand);
-        UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
-            secondaryKeyStore, statsNotificationService, notificationManager);
-        expect(
-            () async => await updateVerbHandler.processVerb(
-                response, updateVerbParams, inboundConnection),
-            throwsA(predicate((dynamic e) =>
-                e is UnAuthorizedException &&
-                e.message ==
-                    'Enrollment Id: $enrollmentId is not authorized for update operation on the key: @alice:dummykey.wavi@alice')));
-      });
-
-      test(
-          'A test to verify update verb is not allowed when enrollment key is not found',
-          () async {
-        // Setting to a new enrollmentId and NOT inserting the enrollment key to
-        // test enrollment key not found scenario
-        enrollmentId = Uuid().v4();
-        inboundConnection.metadata.enrollmentId = enrollmentId;
-        String updateCommand = 'update:$alice:dummykey.wavi$alice dummyValue';
-        HashMap<String, String?> updateVerbParams =
-            getVerbParam(VerbSyntax.update, updateCommand);
-        UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
-            secondaryKeyStore, statsNotificationService, notificationManager);
-        expect(
-            () async => await updateVerbHandler.processVerb(
-                response, updateVerbParams, inboundConnection),
-            throwsA(predicate((dynamic e) =>
-                e is UnAuthorizedException &&
-                e.message ==
-                    'Enrollment Id: $enrollmentId is not authorized for update operation on the key: @alice:dummykey.wavi@alice')));
-      });
-      tearDown(() async => await verbTestsTearDown());
+    test(
+        'A test to verify write access is allowed to a key with a at_contact.buzz namespace for an enrollment with buzz namespace access',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'buzz',
+        'deviceName': 'pixel',
+        'namespaces': {'buzz': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+      String updateCommand =
+          'update:at_connections.bob.alice.at_contact.buzz$alice bob';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
+      await updateVerbHandler.processVerb(
+          response, updateVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      expect(response.isError, false);
     });
 
-    group(
-        'A of tests to verify updating a key when enrollment is pending/revoke/denied state throws exception',
-        () {
-      List operationList = ['pending', 'revoked', 'denied'];
+    test(
+        'A test to verify write access is allowed to a key with a at_contact.buzz namespace for an enrollment with at_contact.buzz namespace access',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'buzz',
+        'deviceName': 'pixel',
+        'namespaces': {'at_contact.buzz': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+      String updateCommand =
+          'update:at_connections.bob.alice.at_contact.buzz$alice bob';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
+      await updateVerbHandler.processVerb(
+          response, updateVerbParams, inboundConnection);
+      expect(response.data, isNotNull);
+      expect(response.isError, false);
+    });
 
-      for (var operation in operationList) {
-        test(
-            'A test to verify when enrollment is $operation does not update a key',
-            () async {
-          inboundConnection.metadata.isAuthenticated =
-              true; // owner connection, authenticated
-          enrollmentId = Uuid().v4();
-          inboundConnection.metadata.enrollmentId = enrollmentId;
-          final enrollJson = {
-            'sessionId': '123',
-            'appName': 'wavi',
-            'deviceName': 'pixel',
-            'namespaces': {'wavi': 'rw'},
-            'apkamPublicKey': 'testPublicKeyValue',
-            'requestType': 'newEnrollment',
-            'approval': {'state': operation}
-          };
-          var keyName = '$enrollmentId.new.enrollments.__manage@alice';
-          await secondaryKeyStore.put(
-              keyName, AtData()..data = jsonEncode(enrollJson));
-          inboundConnection.metadata.enrollmentId = enrollmentId;
+    test(
+        'A test to verify write access is not allowed to a key with only buzz namespace for an enrollment with at_contact.buzz namespace access',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'buzz',
+        'deviceName': 'pixel',
+        'namespaces': {'at_contact.buzz': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
+      await secondaryKeyStore.put(
+          keyName, AtData()..data = jsonEncode(enrollJson));
+      String updateCommand = 'update:at_connections.bob.alice.buzz$alice bob';
+      HashMap<String, String?> updateVerbParams =
+          getVerbParam(VerbSyntax.update, updateCommand);
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
+      expect(
+          () async => await updateVerbHandler.processVerb(
+              response, updateVerbParams, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Connection with enrollment ID $enrollmentId is not authorized to update key: at_connections.bob.alice.buzz$alice')));
+    });
+  });
 
-          String updateCommand = 'update:$alice:dummykey.wavi$alice dummyValue';
-          HashMap<String, String?> updateVerbParams =
-              getVerbParam(VerbSyntax.update, updateCommand);
-          UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
-              secondaryKeyStore, statsNotificationService, notificationManager);
-          expect(
-              () async => await updateVerbHandler.processVerb(
-                  response, updateVerbParams, inboundConnection),
-              throwsA(predicate((dynamic e) =>
-                  e is UnAuthorizedException &&
-                  e.message ==
-                      'Enrollment Id: $enrollmentId is not authorized for update operation on the key: @alice:dummykey.wavi@alice')));
-        });
-      }
-      tearDown(() async => await verbTestsTearDown());
+  group('A group of tests related to apkam keys expiry', () {
+    Response response = Response();
+    late String enrollmentId;
+
+    test('A test to verify update verb fails when apkam keys are expired',
+        () async {
+      inboundConnection.metadata.isAuthenticated =
+          true; // owner connection, authenticated
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'dummy-session', 'app-name', 'my-device', 'dummy-public-key');
+      enrollDataStoreValue.namespaces = {'wavi': 'rw'};
+      enrollDataStoreValue.approval =
+          EnrollApproval(EnrollmentStatus.approved.name);
+      enrollDataStoreValue.apkamKeysExpiryDuration = Duration(milliseconds: 1);
+
+      var keyName = '$enrollmentId.new.enrollments.__manage$alice';
+      await secondaryKeyStore.put(
+          keyName,
+          AtData()
+            ..data = jsonEncode(enrollDataStoreValue.toJson())
+            ..metaData = (AtMetaData()..ttl = 1));
+      await Future.delayed(Duration(milliseconds: 2));
+
+      String updateCommand = 'update:$alice:phone.wavi$alice 123';
+
+      UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
+        secondaryKeyStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
+      response = await updateVerbHandler.processInternal(
+          updateCommand, inboundConnection);
+      expect(response.isError, true);
+      expect(response.errorCode, 'AT0028');
+      expect(response.errorMessage,
+          'The enrollment id: $enrollmentId is expired. Closing the connection');
     });
   });
 }

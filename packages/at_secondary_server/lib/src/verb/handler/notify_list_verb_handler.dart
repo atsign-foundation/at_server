@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -17,8 +18,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   static NotifyList notifyList = NotifyList();
   final OutboundClientManager outboundClientManager;
 
-  NotifyListVerbHandler(SecondaryKeyStore keyStore, this.outboundClientManager)
-      : super(keyStore);
+  NotifyListVerbHandler(super.keyStore, this.outboundClientManager);
 
   @override
   bool accept(String command) =>
@@ -34,7 +34,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    var regex = verbParams[AT_REGEX];
+    var regex = verbParams[AtConstants.regex];
     int? fromDateInEpoch;
     int toDateInEpoch;
     try {
@@ -54,12 +54,28 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
       throw IllegalArgumentException('Invalid date format');
     }
     var atConnectionMetadata =
-        atConnection.getMetaData() as InboundConnectionMetadata;
+        atConnection.metaData as InboundConnectionMetadata;
     var responseList = [];
 
     // If connection is authenticated, gets the received notifications of current atsign
     if (atConnectionMetadata.isAuthenticated) {
       responseList = await (_getReceivedNotification(responseList));
+      var filteredResponseList = [];
+      for (Notification notification in responseList) {
+        var notificationKey = notification.notification;
+        try {
+          if (await super
+              .isAuthorized(atConnectionMetadata, atKey: notificationKey!)) {
+            filteredResponseList.add(notification);
+          }
+        } catch (e) {
+          // This should never happen so we'll log it as severe
+          logger.shout(
+              'isAuthorized failed for $notificationKey: ${e.toString()}');
+        }
+      }
+      responseList.clear();
+      responseList.addAll(filteredResponseList);
     }
     //If connection is pol authenticated, gets the sent notifications to forAtSign
     if (atConnectionMetadata.isPolAuthenticated) {
@@ -77,8 +93,9 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   }
 
   /// Returns received notifications of the current atsign
-  /// @param responseList : List to add the notifications
-  /// @param Future<List> : Returns a list of received notifications of the current atsign.
+  /// @param responseList : List to which to add the notifications
+  /// Returns [responseList] with any matching notifications added.
+  // #TODO do not pass responseList as param. return a list with received notifications
   Future<List> _getReceivedNotification(List responseList) async {
     var notificationKeyStore = AtNotificationKeystore.getInstance();
     var keyList = notificationKeyStore.getKeys();
@@ -100,19 +117,14 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   }
 
   /// when pol verb is performed, returns sent notifications of the another atsign.
-  /// @param responseList : List to add notifications.
+  /// @param responseList : List to which to add the notifications
   /// @param fromAtSign : atsign who look up to the current atsign server
   /// @param atConnection : The inbound connection.
-  /// @return Future<List> : Returns a list of sent notifications of the fromAtSign.
+  /// Returns [responseList] with any matching notifications added.
   Future<List> _getSentNotifications(List responseList, String fromAtSign,
       InboundConnection atConnection) async {
-    var outBoundClient =
-        outboundClientManager.getClient(fromAtSign, atConnection);
-    // Need not connect again if the client's handshake is already done
-    if (!outBoundClient.isHandShakeDone) {
-      var connectResult = await outBoundClient.connect();
-      logger.finer('connect result: $connectResult');
-    }
+    final OutboundClient outBoundClient = await outboundClientManager
+        .getClient(fromAtSign, atConnection, handshakeRequired: true);
     var sentNotifications = await outBoundClient.notifyList(fromAtSign)!;
     for (var element in sentNotifications) {
       responseList.add(Notification(element));

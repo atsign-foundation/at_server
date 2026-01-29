@@ -1,13 +1,14 @@
 import 'package:args/args.dart';
 import 'package:at_secondary/src/arg_utils.dart';
 import 'package:test/test.dart';
+import 'test_utils.dart';
 
 void main() {
   group('Commandline parser tests', () {
     test('parse all the arguments except for optional flags', () {
       var arguments = [
         '--at_sign',
-        '@alice',
+        alice,
         '--server_port',
         '6400',
         '--shared_secret',
@@ -17,7 +18,7 @@ void main() {
       expect(results.wasParsed('at_sign'), true);
       expect(results.wasParsed('server_port'), true);
       expect(results.arguments[0], '--at_sign');
-      expect(results.arguments[1], '@alice');
+      expect(results.arguments[1], alice);
       expect(results.arguments[2], '--server_port');
       expect(results.arguments[3], '6400');
       expect(results.arguments[4], '--shared_secret');
@@ -29,7 +30,7 @@ void main() {
     test('parse all the arguments including optional flags', () {
       var arguments = [
         '--at_sign',
-        '@alice',
+        alice,
         '--server_port',
         '6400',
         '--shared_secret',
@@ -40,7 +41,7 @@ void main() {
       expect(results.wasParsed('at_sign'), true);
       expect(results.wasParsed('server_port'), true);
       expect(results.arguments[0], '--at_sign');
-      expect(results.arguments[1], '@alice');
+      expect(results.arguments[1], alice);
       expect(results.arguments[2], '--server_port');
       expect(results.arguments[3], '6400');
       expect(results.arguments[4], '--shared_secret');
@@ -51,18 +52,18 @@ void main() {
     });
 
     test('parse arguments using abbreviation', () {
-      var arguments = ['-a', '@alice', '-p', '6400', '-s', 'cde445tsfg'];
+      var arguments = ['-a', alice, '-p', '6400', '-s', 'cde445tsfg'];
       var results = CommandLineParser().getParserResults(arguments);
       expect(results.wasParsed('at_sign'), true);
       expect(results.wasParsed('server_port'), true);
       expect(results.arguments[0], '-a');
-      expect(results.arguments[1], '@alice');
+      expect(results.arguments[1], alice);
       expect(results.arguments[2], '-p');
       expect(results.arguments[3], '6400');
     });
 
     test('send null as arguments', () {
-      var args;
+      List<String>? args;
       expect(() => CommandLineParser().getParserResults(args),
           throwsA(predicate((dynamic e) => e is ArgParserException)));
     });

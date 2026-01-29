@@ -4,6 +4,9 @@ import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
 import 'package:meta/meta.dart';
+import 'package:at_persistence_secondary_server/src/log/commitlog/sync/fetch_all_keys_strategy.dart';
+import 'package:at_persistence_secondary_server/src/log/commitlog/sync/skip_deletes_strategy.dart';
+import 'package:at_persistence_secondary_server/src/log/commitlog/sync/sync_keys_fetch_strategy.dart';
 
 @server
 class CommitLogKeyStore extends BaseCommitLogKeyStore {
@@ -12,8 +15,11 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
 
   int get latestCommitId => commitLogCache.latestCommitId;
 
-  CommitLogKeyStore(String currentAtSign) : super(currentAtSign) {
+  late SyncKeysFetchStrategy _syncKeysFetchStrategy;
+
+  CommitLogKeyStore(super.currentAtSign) {
     commitLogCache = CommitLogCache(this);
+    _syncKeysFetchStrategy = FetchAllKeysStrategy();
   }
 
   @override
@@ -61,7 +67,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
   Future<int?> lastCommittedSequenceNumberWithRegex(String regex,
       {List<String>? enrolledNamespace}) async {
     var lastCommittedEntry = (getBox() as Box).values.lastWhere(
-        (entry) => (_acceptKey(entry.atKey, regex,
+        (entry) => (_shouldIncludeKeyInSyncResponse(entry.atKey, regex,
             enrolledNamespace: enrolledNamespace)),
         orElse: () => NullCommitEntry());
     var lastCommittedSequenceNum =
@@ -179,49 +185,13 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     }
   }
 
-  bool _acceptKey(String atKey, String regex,
+  /// match a key to be passed in getEntries/getChanges when these conditions are met
+  /// if enrolledNamespace is passed, key namespace has be in list of enrolled namespace with required authorization
+  /// if regex is passed, key has to match the regex or it has to be a special key.
+  bool _shouldIncludeKeyInSyncResponse(String atKey, String regex,
       {List<String>? enrolledNamespace}) {
-    return _isNamespaceAuthorised(atKey, enrolledNamespace) &&
-        (_isRegexMatches(atKey, regex) || _isSpecialKey(atKey));
-  }
-
-  bool _isNamespaceAuthorised(String atKeyAsString, List<String>? enrolledNamespace) {
-    // This is work-around for : https://github.com/atsign-foundation/at_server/issues/1570
-    if (atKeyAsString.toLowerCase() == 'configkey') {
-      return true;
-    }
-    late AtKey atKey;
-    try {
-      atKey = AtKey.fromString(atKeyAsString);
-    } on InvalidSyntaxException catch (_) {
-      _logger.warning(
-          '_isNamespaceAuthorized found an invalid key "$atKeyAsString" in the commit log. Returning false');
-      return false;
-    }
-    String? keyNamespace = atKey.namespace;
-    // If enrolledNamespace is null or keyNamespace is null, fallback to
-    // existing behaviour - the key is authorized for the client to receive. So return true.
-    if (enrolledNamespace == null ||
-        enrolledNamespace.isEmpty ||
-        (keyNamespace == null || keyNamespace.isEmpty)) {
-      return true;
-    }
-    if (enrolledNamespace.contains('*') ||
-        enrolledNamespace.contains(keyNamespace)) {
-      return true;
-    }
-    return false;
-  }
-
-  bool _isRegexMatches(String atKey, String regex) {
-    return RegExp(regex).hasMatch(atKey);
-  }
-
-  bool _isSpecialKey(String atKey) {
-    return atKey.contains(AtConstants.atEncryptionSharedKey) ||
-        atKey.startsWith('public:') ||
-        atKey.contains(AtConstants.atPkamSignature) ||
-        atKey.contains(AtConstants.atSigningPrivateKey);
+    return _syncKeysFetchStrategy.shouldIncludeKeyInSyncResponse(atKey, regex,
+        enrolledNamespace: enrolledNamespace);
   }
 
   /// Returns the latest commitEntry of the key.
@@ -231,13 +201,16 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
 
   /// Returns the Iterator of entries as Key value pairs after the given the [commitId] for the keys that matches the [regex]
   Iterator<MapEntry<String, CommitEntry>> getEntries(int commitId,
-      {String regex = '.*', int limit = 25}) {
+      {String regex = '.*', int limit = 25, int? skipDeletesUntil}) {
+    SyncKeysFetchStrategy syncKeysFetchStrategy = skipDeletesUntil != null
+        ? SkipDeleteStrategy(skipDeletesUntil, commitLogCache.latestCommitId)
+        : _syncKeysFetchStrategy;
     Iterable<MapEntry<String, CommitEntry>> commitEntriesIterable =
         commitLogCache
             .entriesList()
             .where((element) =>
-                element.value.commitId! >= commitId &&
-                _acceptKey(element.value.atKey!, regex))
+                syncKeysFetchStrategy.shouldIncludeEntryInSyncResponse(
+                    element.value, commitId, regex))
             .take(limit);
     return commitEntriesIterable.iterator;
   }
@@ -286,7 +259,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
       if (commitEntry == null) {
         _logger.warning(
             'CommitLog seqNum $seqNum has a null commitEntry - removing');
-        remove(seqNum);
+        await remove(seqNum);
         return;
       }
       String? atKey = commitEntry.atKey;
@@ -300,7 +273,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
         _logger.warning(
             'CommitLog seqNum $seqNum has an entry with an invalid atKey $atKey - removed');
         removed.add(atKey);
-        remove(seqNum);
+        await remove(seqNum);
         return;
       } else {
         _logger.finer(
@@ -317,7 +290,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     await Future.forEach(commitLogMap.keys, (key) async {
       CommitEntry? commitEntry = commitLogMap[key];
       if (commitEntry?.commitId == null) {
-        commitEntry!.commitId = key as int;
+        commitEntry!.commitId = key;
         await getBox().put(commitEntry.commitId, commitEntry);
       }
     });
@@ -377,7 +350,7 @@ class ClientCommitLogKeyStore extends CommitLogKeyStore {
   /// The key represents the regex and value represents the [CommitEntry]
   final _lastSyncedEntryCacheMap = <String, CommitEntry>{};
 
-  ClientCommitLogKeyStore(String currentAtSign) : super(currentAtSign);
+  ClientCommitLogKeyStore(super.currentAtSign);
 
   /// Initializes the key store and makes it ready for the persistence
   @override
@@ -419,7 +392,7 @@ class ClientCommitLogKeyStore extends CommitLogKeyStore {
       // Iterate through the regex's in the _lastSyncedEntryCacheMap.
       // Updates the commitEntry against the matching regexes.
       for (var regex in _lastSyncedEntryCacheMap.keys) {
-        if (_acceptKey(commitEntry.atKey!, regex)) {
+        if (_shouldIncludeKeyInSyncResponse(commitEntry.atKey!, regex)) {
           _lastSyncedEntryCacheMap[regex] = commitEntry;
         }
       }
@@ -445,7 +418,7 @@ class ClientCommitLogKeyStore extends CommitLogKeyStore {
       limit ??= values.length + 1;
       for (CommitEntry element in values) {
         if (element.key >= startKey &&
-            _acceptKey(element.atKey!, regexString) &&
+            _shouldIncludeKeyInSyncResponse(element.atKey!, regexString) &&
             changes.length <= limit) {
           if (element.commitId == null) {
             changes.add(element);
@@ -482,8 +455,8 @@ class ClientCommitLogKeyStore extends CommitLogKeyStore {
     // Returns the commitEntry with maximum commitId matching the given regex.
     // otherwise returns NullCommitEntry
     lastSyncedEntry = values.lastWhere(
-        (entry) =>
-            (_acceptKey(entry!.atKey!, regex) && (entry.commitId != null)),
+        (entry) => (_shouldIncludeKeyInSyncResponse(entry!.atKey!, regex) &&
+            (entry.commitId != null)),
         orElse: () => NullCommitEntry());
 
     if (lastSyncedEntry == null || lastSyncedEntry is NullCommitEntry) {
@@ -558,6 +531,15 @@ class CommitLogCache {
 
   /// Updates cache when a new [CommitEntry] for the [key] is added
   void update(String key, CommitEntry commitEntry) {
+    int? existingCommitId = getEntry(key)?.commitId;
+    // ignore update, if cache has existing commitEntry for current key with a greater commitId
+    if (existingCommitId != null &&
+        commitEntry.commitId != null &&
+        existingCommitId > commitEntry.commitId!) {
+      _logger.info(
+          'Ignoring commit entry update to cache. existingCommitId: $existingCommitId | toUpdateWithCommitId: ${commitEntry.commitId}');
+      return;
+    }
     _updateCacheLog(key, commitEntry);
 
     if (commitEntry.commitId != null &&
