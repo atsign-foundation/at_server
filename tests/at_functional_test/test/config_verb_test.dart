@@ -87,18 +87,15 @@ void main() {
   });
 
   test('Check that default telemetryEventWebHook is empty string', () async {
-    await socket_writer(socketFirstAtsign!, 'config:reset:telemetryEventWebHook');
-    var response = await read();
+    String response = await firstAtSignConnection.sendRequestToServer('config:reset:telemetryEventWebHook');
     expect(response.trim(), 'data:ok');
 
     // expect empty string
-    await socket_writer(socketFirstAtsign!, 'config:print:telemetryEventWebHook');
-    response = await read();
+    response = await firstAtSignConnection.sendRequestToServer('config:print:telemetryEventWebHook');
     expect(response.trim(), 'data:');
 
     // expect that there is no persisted value for the webhook uri
-    await socket_writer(socketFirstAtsign!, 'llookup:local:telemetryEventWebHook$firstAtsign');
-    response = await read();
+    response = await firstAtSignConnection.sendRequestToServer('llookup:local:telemetryEventWebHook$firstAtSign');
     response = response.replaceFirst('error:', '');
     var errorMap = jsonDecode(response);
     print('config verb response : $response');
@@ -110,27 +107,19 @@ void main() {
     try {
       String uri = 'http://foo';
 
-      await socket_writer(
-          socketFirstAtsign!, 'config:set:telemetryEventWebHook=$uri');
-      response = await read();
+      response = await firstAtSignConnection.sendRequestToServer('config:set:telemetryEventWebHook=$uri');
       expect(response.trim(), 'data:ok');
 
       // Expect it to have been set
-      await socket_writer(
-          socketFirstAtsign!, 'config:print:telemetryEventWebHook');
-      response = await read();
+      response = await firstAtSignConnection.sendRequestToServer('config:print:telemetryEventWebHook');
       expect(response.trim(), 'data:$uri');
 
       // Expect it to have been persisted
-      await socket_writer(socketFirstAtsign!,
-          'llookup:local:telemetryEventWebHook$firstAtsign');
-      response = await read();
+      response = await firstAtSignConnection.sendRequestToServer('llookup:local:telemetryEventWebHook$firstAtSign');
       expect(response.trim(), 'data:$uri');
     } finally {
       // Let's reset it again
-      await socket_writer(
-          socketFirstAtsign!, 'config:reset:telemetryEventWebHook');
-      response = await read();
+      response = await firstAtSignConnection.sendRequestToServer('config:reset:telemetryEventWebHook');
       expect(response.trim(), 'data:ok');
     }
   });
