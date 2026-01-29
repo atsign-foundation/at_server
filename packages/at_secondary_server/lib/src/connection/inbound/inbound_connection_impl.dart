@@ -128,7 +128,7 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
     }
   }
 
-  String get serverAtSign => AtSecondaryServerImpl.getInstance().currentAtSign!;
+  String get serverAtSign => AtSecondaryServerImpl.getInstance().currentAtSign;
 
   InboundConnectionMetadata? get inboundMetadata {
     if (metaData is InboundConnectionMetadata) {
@@ -159,14 +159,6 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
       logger.info(logger.getAtConnectionLogMessage(
           metaData, 'SENT: ${BaseSocketConnection.truncateForLogging(data)}'));
     }
-    if (data == '@') {
-      // response to initial connection
-      return;
-    }
-    AtServerTelemetryEventType eventType = data.startsWith('error:')
-        ? AtServerTelemetryEventType.errorResponse
-        : AtServerTelemetryEventType.response;
-    telemetry?.interaction(eventType: eventType, from: server, to: client);
   }
 
   @override

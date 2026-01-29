@@ -27,6 +27,7 @@ import 'package:at_commons/at_commons.dart';
 ///
 class ConfigVerbHandler extends AbstractVerbHandler {
   static Config config = Config();
+
   ConfigVerbHandler(super.keyStore);
 
   late AtConfig atConfigInstance;
@@ -48,9 +49,9 @@ class ConfigVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     try {
-      var operation = verbParams[AT_OPERATION];
-      var atsigns = verbParams[AT_SIGN];
-      String? setOperation = verbParams[SET_OPERATION];
+      var operation = verbParams[AtConstants.operation];
+      var atsigns = verbParams[AtConstants.atSign];
+      String? setOperation = verbParams[AtConstants.setOperation];
 
       if (operation != null) {
         await handleBlockListOperations(operation, response, atsigns);
@@ -73,7 +74,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
 
     if (setOperation == 'set') {
       //split 'config=value' to array of strings
-      var newConfig = verbParams[CONFIG_NEW]?.split('=');
+      var newConfig = verbParams[AtConstants.configNew]?.split('=');
       //first element of array is config name
       configName = ModifiableConfigs.values.byName(newConfig![0]);
       //second element of array is config value
@@ -83,7 +84,8 @@ class ConfigVerbHandler extends AbstractVerbHandler {
       }
     } else {
       //in other cases reset/print only config name is received
-      configName = ModifiableConfigs.values.byName(verbParams[CONFIG_NEW]!);
+      configName =
+          ModifiableConfigs.values.byName(verbParams[AtConstants.configNew]!);
     }
 
     if (!AtSecondaryConfig.testingMode && configName.requireTestingMode) {
@@ -102,7 +104,8 @@ class ConfigVerbHandler extends AbstractVerbHandler {
         response.data = 'ok';
         break;
       case 'print':
-        response.data = AtSecondaryConfig.getLatestConfigValue(configName)?.toString();
+        response.data =
+            AtSecondaryConfig.getLatestConfigValue(configName)?.toString();
         break;
       default:
         response.data = 'invalid setOperation';

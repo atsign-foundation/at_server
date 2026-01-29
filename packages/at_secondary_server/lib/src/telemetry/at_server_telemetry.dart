@@ -35,12 +35,11 @@ class AtServerInteractionEvent extends AtServerTelemetryEvent {
   String to;
 
   AtServerInteractionEvent(
-      {required AtServerTelemetryEventType eventType,
+      {required super.eventType,
       required this.from,
       required this.to,
-      dynamic value,
-      DateTime? time})
-      : super(eventType: eventType, value: value, time: time);
+      super.value,
+      super.time});
 
   @override
   Map<String, dynamic> toJson() => {

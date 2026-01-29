@@ -50,7 +50,7 @@ class InboundConnectionManager implements AtConnectionFactory {
   /// Throws a [InboundConnectionLimitException] if pool doesn't have capacity
   @override
   InboundConnection createWebSocketConnection(WebSocket ws,
-      {String? sessionId,  AtServerTelemetryService? telemetry}) {
+      {String? sessionId, AtServerTelemetryService? telemetry}) {
     if (closed) {
       throw StateError('InboundConnectionManager is closed');
     }
@@ -59,7 +59,8 @@ class InboundConnectionManager implements AtConnectionFactory {
           'max limit reached on inbound pool');
     }
     sessionId ??= '_${Uuid().v4()}';
-    var atConnection = InboundWebSocketConnection(ws, sessionId, pool, telemetry: telemetry);
+    var atConnection =
+        InboundWebSocketConnection(ws, sessionId, pool, telemetry: telemetry);
     pool.add(atConnection);
 
     return atConnection;

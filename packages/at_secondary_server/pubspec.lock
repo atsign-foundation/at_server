@@ -84,26 +84,23 @@ packages:
   at_persistence_secondary_server:
     dependency: "direct main"
     description:
-      name: at_persistence_secondary_server
-      sha256: "392efb813d9f44dbcadfc36e74699db07cf0b0b96bc4820970be708953c1daac"
-      url: "https://pub.dev"
-    source: hosted
+      path: "../at_persistence_secondary_server"
+      relative: true
+    source: path
     version: "4.2.0"
   at_persistence_spec:
     dependency: "direct main"
     description:
-      name: at_persistence_spec
-      sha256: "2b8a414f53ae2368023862cda0b6c2ccef3a3876acc355ea064654df434aedbd"
-      url: "https://pub.dev"
-    source: hosted
+      path: "../at_persistence_spec"
+      relative: true
+    source: path
     version: "3.1.0"
   at_server_spec:
     dependency: "direct main"
     description:
-      name: at_server_spec
-      sha256: bff44167fa609ec0bcc23d57ea4929f84badf67fad90871d6a9c2972c0403eb9
-      url: "https://pub.dev"
-    source: hosted
+      path: "../at_server_spec"
+      relative: true
+    source: path
     version: "5.0.4"
   at_utf7:
     dependency: transitive

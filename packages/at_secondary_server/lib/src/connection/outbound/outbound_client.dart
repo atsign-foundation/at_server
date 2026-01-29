@@ -93,7 +93,7 @@ class OutboundClient {
       messageListener.listen();
 
       //1. create from request
-      outboundConnection!.write(AtRequestFormatter.createFromRequest(
+      await outboundConnection!.write(AtRequestFormatter.createFromRequest(
           AtSecondaryServerImpl.getInstance().currentAtSign));
 
       //2. Receive proof

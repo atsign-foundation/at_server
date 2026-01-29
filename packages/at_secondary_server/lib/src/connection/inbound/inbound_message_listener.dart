@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_commons/at_commons.dart' as at_commons;
 import 'package:at_secondary/src/connection/base_connection.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
@@ -19,11 +20,11 @@ class InboundMessageListener {
   var logger = AtSignLogger('InboundListener');
   final _buffer = at_commons.ByteBuffer(capacity: 10240000);
 
-  String get serverAtSign => AtSecondaryServerImpl.getInstance().currentAtSign!;
+  String get serverAtSign => AtSecondaryServerImpl.getInstance().currentAtSign;
 
   InboundConnectionMetadata? get inboundMetadata {
-    if (connection.getMetaData() is InboundConnectionMetadata) {
-      return connection.getMetaData() as InboundConnectionMetadata;
+    if (connection.metaData is InboundConnectionMetadata) {
+      return connection.metaData as InboundConnectionMetadata;
     } else {
       return null;
     }
@@ -38,6 +39,7 @@ class InboundMessageListener {
   }
 
   String? _server;
+
   String get server {
     _server ??= '$serverAtSign:server';
     return _server!;

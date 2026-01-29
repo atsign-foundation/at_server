@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:at_secondary/src/connection/base_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_message_listener.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_utils.dart';
@@ -31,8 +33,10 @@ class InboundWebSocketConnection implements InboundConnection {
 
   late InboundRateLimiter rateLimiter;
   late InboundIdleChecker idleChecker;
+  AtServerTelemetryService? telemetry;
 
-  InboundWebSocketConnection(this.ws, String? sessionId, this.owningPool) {
+  InboundWebSocketConnection(this.ws, String? sessionId, this.owningPool,
+      {this.telemetry}) {
     metaData = InboundConnectionMetadata()
       ..sessionID = sessionId
       ..created = DateTime.now().toUtc()
@@ -107,16 +111,46 @@ class InboundWebSocketConnection implements InboundConnection {
       }
       logger.info(logger.getAtConnectionLogMessage(
           metaData, 'Closed WebSocket (readyState ${ws.readyState})'));
+      telemetry?.interaction(
+          eventType: AtServerTelemetryEventType.disconnect,
+          from: client,
+          to: server);
     } catch (_) {
       // Ignore exception on a connection close
       metaData.isStale = true;
     }
   }
 
+  String get serverAtSign => AtSecondaryServerImpl.getInstance().currentAtSign;
+
+  String get client {
+    if (metaData.from == true) {
+      return '${metaData.fromAtSign!}:server';
+    } else {
+      return '$serverAtSign:client:${metaData.sessionID?.hashCode}';
+    }
+  }
+
+  String? _server;
+
+  String get server {
+    _server ??= '$serverAtSign:server';
+    return _server!;
+  }
+
   @override
   Future<void> write(String data) async {
     ws.add(data);
-    logger.info(logger.getAtConnectionLogMessage(metaData, 'SENT: $data'));
+    logger.info(logger.getAtConnectionLogMessage(
+        metaData, 'SENT: ${BaseSocketConnection.truncateForLogging(data)}'));
+    if (data == '@') {
+      // response to initial connection
+      return;
+    }
+    AtServerTelemetryEventType eventType = data.startsWith('error:')
+        ? AtServerTelemetryEventType.errorResponse
+        : AtServerTelemetryEventType.response;
+    telemetry?.interaction(eventType: eventType, from: server, to: client);
   }
 
   @override
