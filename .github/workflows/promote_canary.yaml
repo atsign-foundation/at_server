@@ -56,7 +56,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push secondary image for amd64 and arm64
         id: docker_build_canary_to_prod
-        uses: docker/build-push-action@601a80b39c9405e50806ae38af30926f9d957c47 # v6.19.1
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           push: true
           provenance: false # need right type of image spec for Shepherd
@@ -141,7 +141,7 @@ jobs:
       # Builds and pushes the secondary server image to docker hub.
       - name: Build and push virtualenv image for amd64 and arm64
         id: docker_build_canary_to_vip
-        uses: docker/build-push-action@601a80b39c9405e50806ae38af30926f9d957c47 # v6.19.1
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           push: true
           file: tools/build_virtual_environment/ve/Dockerfile.canary_to_vip
