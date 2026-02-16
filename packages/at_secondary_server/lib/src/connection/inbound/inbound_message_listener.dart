@@ -4,8 +4,10 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_commons/at_commons.dart' as at_commons;
 import 'package:at_secondary/src/connection/base_connection.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
@@ -14,10 +16,36 @@ import 'package:at_utils/at_logger.dart';
 /// For each incoming message [DefaultVerbExecutor()] execute is invoked
 class InboundMessageListener {
   InboundConnection connection;
+  AtServerTelemetryService? telemetry;
   var logger = AtSignLogger('InboundListener');
   final _buffer = at_commons.ByteBuffer(capacity: 10240000);
 
-  InboundMessageListener(this.connection);
+  String get serverAtSign => AtSecondaryServerImpl.getInstance().currentAtSign;
+
+  InboundConnectionMetadata? get inboundMetadata {
+    if (connection.metaData is InboundConnectionMetadata) {
+      return connection.metaData as InboundConnectionMetadata;
+    } else {
+      return null;
+    }
+  }
+
+  String get client {
+    if (inboundMetadata?.from == true) {
+      return '${inboundMetadata!.fromAtSign!}:server';
+    } else {
+      return '$serverAtSign:client:${inboundMetadata?.sessionID?.hashCode}';
+    }
+  }
+
+  String? _server;
+
+  String get server {
+    _server ??= '$serverAtSign:server';
+    return _server!;
+  }
+
+  InboundMessageListener(this.connection, {this.telemetry});
 
   late Function(String, InboundConnection) onBufferEndCallBack;
   late Function(List<int>, InboundConnection) onStreamCallBack;
@@ -73,6 +101,11 @@ class InboundMessageListener {
       return;
     }
     if (connection.metaData.isStream) {
+      telemetry?.interaction(
+          eventType: AtServerTelemetryEventType.stream,
+          from: client,
+          to: server,
+          value: data.length);
       await onStreamCallBack(data, connection);
       return;
     }
@@ -99,21 +132,33 @@ class InboundMessageListener {
             'RCVD: ${BaseSocketConnection.truncateForLogging(command)}'));
         // if command is '@exit', close the connection.
         if (command == '@exit') {
+          telemetry?.interaction(
+              eventType: AtServerTelemetryEventType.request,
+              from: client,
+              to: server,
+              value: '@exit');
           await _finishedHandler();
           return;
         }
         _buffer.clear();
+        if (!command.startsWith('from:')) {
+          telemetry?.interaction(
+              eventType: AtServerTelemetryEventType.request,
+              from: client,
+              to: server,
+              value: getVerbFromCommand(command));
+        }
         await onBufferEndCallBack(command, connection);
       }
     } catch (e, st) {
       _buffer.clear();
-      logger.severe('exception in message handler:$e - stack trace: $st');
+      logger.severe('_messageHandler:$e - stack trace: $st');
     }
   }
 
   /// Logs the error and closes the [InboundConnection]
   Future<void> _errorHandler(error, StackTrace st) async {
-    logger.severe(error.toString());
+    logger.severe('_errorHandler: $error');
     await _closeConnection();
   }
 
@@ -130,5 +175,14 @@ class InboundMessageListener {
         .inboundConnectionManager
         .pool
         .remove(connection);
+  }
+
+  getVerbFromCommand(String command) {
+    int ix = command.indexOf(":");
+    if (ix == -1) {
+      return command;
+    } else {
+      return command.substring(0, ix);
+    }
   }
 }

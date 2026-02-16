@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:at_secondary/src/connection/connection_factory.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_web_socket_connection.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:uuid/uuid.dart';
 import 'package:at_commons/at_commons.dart';
@@ -49,7 +50,7 @@ class InboundConnectionManager implements AtConnectionFactory {
   /// Throws a [InboundConnectionLimitException] if pool doesn't have capacity
   @override
   InboundConnection createWebSocketConnection(WebSocket ws,
-      {String? sessionId}) {
+      {String? sessionId, AtServerTelemetryService? telemetry}) {
     if (closed) {
       throw StateError('InboundConnectionManager is closed');
     }
@@ -58,7 +59,8 @@ class InboundConnectionManager implements AtConnectionFactory {
           'max limit reached on inbound pool');
     }
     sessionId ??= '_${Uuid().v4()}';
-    var atConnection = InboundWebSocketConnection(ws, sessionId, pool);
+    var atConnection =
+        InboundWebSocketConnection(ws, sessionId, pool, telemetry: telemetry);
     pool.add(atConnection);
 
     return atConnection;

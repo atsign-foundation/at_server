@@ -6,6 +6,7 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart
 import 'package:at_secondary/src/connection/inbound/inbound_message_listener.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 
@@ -26,7 +27,9 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
   late InboundRateLimiter rateLimiter;
   late InboundIdleChecker idleChecker;
 
-  InboundConnectionImpl(T socket, String? sessionId, {this.owningPool})
+  AtServerTelemetryService? telemetry;
+
+  InboundConnectionImpl(T socket, String? sessionId, {this.owningPool, this.telemetry})
       : super(socket) {
     metaData = InboundConnectionMetadata()
       ..sessionID = sessionId
@@ -88,7 +91,7 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
   @override
   void acceptRequests(Function(String, InboundConnection) callback,
       Function(List<int>, InboundConnection) streamCallBack) {
-    var listener = InboundMessageListener(this);
+    var listener = InboundMessageListener(this, telemetry: telemetry);
     listener.listen(callback, streamCallBack);
   }
 
@@ -113,12 +116,40 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
           ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
           ')'));
       underlying.destroy();
+      telemetry?.interaction(
+          eventType: AtServerTelemetryEventType.disconnect,
+          from: client,
+          to: server);
     } catch (_) {
       // Ignore exception on a connection close
       metaData.isStale = true;
     } finally {
       metaData.isClosed = true;
     }
+  }
+
+  String get serverAtSign => AtSecondaryServerImpl.getInstance().currentAtSign;
+
+  InboundConnectionMetadata? get inboundMetadata {
+    if (metaData is InboundConnectionMetadata) {
+      return metaData as InboundConnectionMetadata;
+    } else {
+      return null;
+    }
+  }
+
+  String get client {
+    if (inboundMetadata!.from == true) {
+      return '${inboundMetadata!.fromAtSign!}:server';
+    } else {
+      return '$serverAtSign:client:${inboundMetadata?.sessionID?.hashCode}';
+    }
+  }
+
+  String? _server;
+  String get server {
+    _server ??= '$serverAtSign:server';
+    return _server!;
   }
 
   @override

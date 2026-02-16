@@ -86,6 +86,44 @@ void main() {
     assert(errorMap['errorDescription'].contains('Invalid syntax'));
   });
 
+  test('Check that default telemetryEventWebHook is empty string', () async {
+    String response = await firstAtSignConnection.sendRequestToServer('config:reset:telemetryEventWebHook');
+    expect(response.trim(), 'data:ok');
+
+    // expect empty string
+    response = await firstAtSignConnection.sendRequestToServer('config:print:telemetryEventWebHook');
+    expect(response.trim(), 'data:');
+
+    // expect that there is no persisted value for the webhook uri
+    response = await firstAtSignConnection.sendRequestToServer('llookup:local:telemetryEventWebHook$firstAtSign');
+    response = response.replaceFirst('error:', '');
+    var errorMap = jsonDecode(response);
+    print('config verb response : $response');
+    expect(errorMap['errorCode'], 'AT0015'); // KeyNotFound
+  });
+
+  test('Check that setting telemetryEventWebHook works', () async {
+    String response;
+    try {
+      String uri = 'http://foo';
+
+      response = await firstAtSignConnection.sendRequestToServer('config:set:telemetryEventWebHook=$uri');
+      expect(response.trim(), 'data:ok');
+
+      // Expect it to have been set
+      response = await firstAtSignConnection.sendRequestToServer('config:print:telemetryEventWebHook');
+      expect(response.trim(), 'data:$uri');
+
+      // Expect it to have been persisted
+      response = await firstAtSignConnection.sendRequestToServer('llookup:local:telemetryEventWebHook$firstAtSign');
+      expect(response.trim(), 'data:$uri');
+    } finally {
+      // Let's reset it again
+      response = await firstAtSignConnection.sendRequestToServer('config:reset:telemetryEventWebHook');
+      expect(response.trim(), 'data:ok');
+    }
+  });
+
   tearDownAll(() {
     firstAtSignConnection.close();
   });
