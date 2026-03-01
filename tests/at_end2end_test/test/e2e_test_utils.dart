@@ -225,7 +225,7 @@ class SimpleOutboundSocketConnection extends SimpleOutboundConnection {
     await writeCommand('from:$atSign:clientConfig:{"version":"3.0.38"}');
     var response = await read(timeoutMillis: 5000);
     response = response.replaceAll('data:', '');
-    var pkamDigest = generatePKAMDigest(atSign, response);
+    String pkamDigest = await generatePKAMDigest(atSign, response);
 
     await writeCommand('pkam:$pkamDigest', log: false);
     response = await read(timeoutMillis: 5000);
@@ -301,7 +301,7 @@ class SimpleOutboundWebsocketConnection extends SimpleOutboundConnection {
     await writeCommand('from:$atSign:clientConfig:{"version":"3.0.38"}');
     var response = await read(timeoutMillis: 5000);
     response = response.replaceAll('data:', '');
-    var pkamDigest = generatePKAMDigest(atSign, response);
+    String pkamDigest = await generatePKAMDigest(atSign, response);
 
     await writeCommand('pkam:$pkamDigest', log: false);
     response = await read(timeoutMillis: 5000);

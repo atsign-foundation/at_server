@@ -7,6 +7,7 @@ environment:
   sdk: '>=2.15.0 <4.0.0'
 
 dependencies:
+  at_auth: ^3.0.1
   encrypt: 5.0.3
   at_demo_data: ^1.2.0
   at_lookup: ^3.0.52
