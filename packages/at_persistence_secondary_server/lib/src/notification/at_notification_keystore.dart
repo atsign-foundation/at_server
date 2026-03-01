@@ -10,14 +10,8 @@ import 'package:hive/hive.dart';
 class AtNotificationKeystore
     with HiveBase<AtNotification?>
     implements SecondaryKeyStore, AtLogType<String, AtNotification> {
-  static final AtNotificationKeystore _singleton =
-      AtNotificationKeystore._internal();
-
-  AtNotificationKeystore._internal();
-
-  late String currentAtSign;
+  final String currentAtSign;
   late String _boxName;
-  final _notificationExpiryInHours = 72;
   static const int maxKeyLengthWithoutCached = 248;
   late AtCompactionConfig atCompactionConfig;
   @override
@@ -27,18 +21,27 @@ class AtNotificationKeystore
   List<Future Function(String key, {required bool skipCommit})>
       postRemoveHooks = [];
 
+  static final AtNotificationKeystore _singleton =
+      AtNotificationKeystore('@fake_atsign_fake_fake_fake');
+
+  @Deprecated("Obsolete; use standard constructor")
   factory AtNotificationKeystore.getInstance() {
     return _singleton;
   }
 
   final _logger = AtSignLogger('AtNotificationKeystore');
 
-  bool _register = false;
+  static bool _typesRegistered = false;
 
   @override
   Future<void> initialize() async {
     _boxName = 'notifications_${AtUtils.getShaForAtSign(currentAtSign)}';
-    if (!_register) {
+    await super.openBox(_boxName);
+  }
+
+  /// You **must** subsequently call [init]
+  AtNotificationKeystore(this.currentAtSign) {
+    if (!_typesRegistered) {
       Hive.registerAdapter(AtNotificationAdapter());
       Hive.registerAdapter(OperationTypeAdapter());
       Hive.registerAdapter(NotificationTypeAdapter());
@@ -51,9 +54,8 @@ class AtNotificationKeystore
       if (!Hive.isAdapterRegistered(PublicKeyHashAdapter().typeId)) {
         Hive.registerAdapter(PublicKeyHashAdapter());
       }
-      _register = true;
+      _typesRegistered = true;
     }
-    await super.openBox(_boxName);
   }
 
   bool isEmpty() {
@@ -61,6 +63,7 @@ class AtNotificationKeystore
   }
 
   /// Returns a list of atNotification sorted on notification date time.
+  @Deprecated('highly inefficient')
   Future<List> getValues() async {
     var returnList = [];
     var notificationLogMap = await _toMap();
@@ -81,6 +84,7 @@ class AtNotificationKeystore
       throw DataStoreException(
           'key length ${key.length} is greater than $maxKeyLengthWithoutCached chars');
     }
+    // ignore: deprecated_member_use_from_same_package
     await AtNotificationCallback.getInstance().invokeCallbacks(value);
     await _getBox().put(key, value);
   }
@@ -119,46 +123,13 @@ class AtNotificationKeystore
   Future<List<String>> getExpiredKeys() async {
     var expiredKeys = <String>[];
     try {
-      var keys = _getBox().keys;
       var expired = [];
-      await Future.forEach(keys, (key) async {
+      for (final key in _getBox().keys) {
         var value = await get(key);
         if (value != null && value.isExpired()) {
           expired.add(key);
         }
-        //Todo: remove obsolete code
-        //This method was introduced for backwards compatability to accommodate notifications without expiresAt.
-        // If concluded that all notifications have an expiresAt param defined, the below block of code is obsolete and can be removed.
-        if (value?.expiresAt == null &&
-            DateTime.now()
-                    .toUtc()
-                    .difference(value!.notificationDateTime!)
-                    .inHours >=
-                _notificationExpiryInHours) {
-          var newNotification = (AtNotificationBuilder()
-                ..id = value.id
-                ..fromAtSign = value.fromAtSign
-                ..notificationDateTime = value.notificationDateTime
-                ..toAtSign = value.toAtSign
-                ..notification = value.notification
-                ..type = value.type
-                ..opType = value.opType
-                ..messageType = value.messageType
-                ..expiresAt = value.notificationDateTime
-                ..priority = value.priority
-                ..notificationStatus = value.notificationStatus
-                ..retryCount = value.retryCount
-                ..strategy = value.strategy
-                ..notifier = value.notifier
-                ..depth = value.depth
-                ..atValue = value.atValue
-                ..atMetaData = value.atMetadata
-                ..ttl = value.ttl)
-              .build();
-          await put(key, newNotification);
-        }
-      });
-
+      }
       for (var key in expired) {
         expiredKeys.add(Utf7.encode(key));
       }

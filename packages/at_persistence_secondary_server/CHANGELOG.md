@@ -1,3 +1,11 @@
+## 4.3.0
+
+- feat: deprecated AtNotificationCallback class
+- feat: deprecated use of AtNotificationKeystore singleton
+- feat: deprecated NotificationManagerSpec
+- fix: AtNotificationBuilder.build will update a null ttl to the default value
+- fix: AtNotification.isExpired treats null expiry as expired, as the idea of notifications without expiration is a historical antipattern and is no longer possible
+
 ## 4.2.0 
 
 - chore(deps): bump uuid to `^4.0.0`

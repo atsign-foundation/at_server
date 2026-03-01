@@ -142,7 +142,8 @@ class AtNotification {
   }
 
   bool isExpired() {
-    return _expiresAt != null && _expiresAt!.isBefore(DateTime.now().toUtc());
+    // expiresAt == null never made sense and never now happens
+    return _expiresAt == null || _expiresAt!.isBefore(DateTime.now().toUtc());
   }
 }
 
@@ -460,6 +461,7 @@ class AtNotificationBuilder {
   AtMetaData? atMetaData;
 
   AtNotification build() {
+    ttl ??= Duration(minutes: _defaultTTLInMins).inMilliseconds;
     if ((ttl != null && ttl! > 0) && expiresAt == null) {
       expiresAt = DateTime.now()
           .toUtcMillisecondsPrecision()

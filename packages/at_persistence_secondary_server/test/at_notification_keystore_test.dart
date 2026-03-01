@@ -10,11 +10,23 @@ var atSign = '@alice';
 
 void main() async {
   var storageDir = '${Directory.current.path}/test/hive';
-  setUp(() async => await setUpFunc(storageDir));
+
+  late AtNotificationKeystore keyStore;
+  setUp(() async {
+    keyStore = AtNotificationKeystore(atSign);
+    await keyStore.init(storageDir);
+    await keyStore.init('$storageDir/${Uuid().v4()}');
+  });
+  tearDown(() async {
+    await keyStore.close();
+    var isExists = await Directory('test/hive/').exists();
+    if (isExists) {
+      await Directory('test/hive').delete(recursive: true);
+    }
+  });
 
   group('A group of notification keystore impl tests', () {
     test('test put and get', () async {
-      var keyStore = AtNotificationKeystore.getInstance();
       var commonsMetadata = Metadata()
         ..ttl = 100
         ..ttb = 200
@@ -46,7 +58,6 @@ void main() async {
       expect(value.atMetadata?.toCommonsMetadata(), commonsMetadata);
     });
     test('test remove', () async {
-      var keyStore = AtNotificationKeystore.getInstance();
       var atNotification = (AtNotificationBuilder()
             ..toAtSign = '@bob'
             ..fromAtSign = atSign
@@ -58,7 +69,6 @@ void main() async {
       expect(value, isNull);
     });
     test('test delete expired keys - key expired', () async {
-      var keyStore = AtNotificationKeystore.getInstance();
       var atNotification = (AtNotificationBuilder()
             ..toAtSign = '@bob'
             ..fromAtSign = atSign
@@ -72,7 +82,6 @@ void main() async {
       expect(value, isNull);
     });
     test('test delete expired keys - key not expired', () async {
-      var keyStore = AtNotificationKeystore.getInstance();
       var atNotification = (AtNotificationBuilder()
             ..toAtSign = '@bob'
             ..fromAtSign = atSign
@@ -87,7 +96,6 @@ void main() async {
       expect(value!.id, '123');
     });
     test('test get expired keys - multiple keys expired', () async {
-      var keyStore = AtNotificationKeystore.getInstance();
       var atNotification_1 = (AtNotificationBuilder()
             ..toAtSign = '@bob'
             ..fromAtSign = atSign
@@ -116,7 +124,6 @@ void main() async {
       expect('333', expiredKeys.elementAt(1));
     });
     test('test get expired keys - no keys expired', () async {
-      var keyStore = AtNotificationKeystore.getInstance();
       var atNotification_1 = (AtNotificationBuilder()
             ..toAtSign = '@bob'
             ..fromAtSign = atSign
@@ -142,7 +149,6 @@ void main() async {
       expect(0, expiredKeys.length);
     });
     test('test hive key exceeds max allowed chars', () async {
-      var keyStore = AtNotificationKeystore.getInstance();
       var atNotification = (AtNotificationBuilder()
             ..toAtSign = '@bob'
             ..fromAtSign = atSign
@@ -157,25 +163,4 @@ void main() async {
                   "key length ${key.length} is greater than ${AtNotificationKeystore.maxKeyLengthWithoutCached} chars")));
     });
   });
-  try {
-    tearDown(() async => await tearDownFunc());
-  } on Exception catch (e) {
-    print('error in tear down:${e.toString()}');
-  }
-}
-
-Future<AtNotificationKeystore> setUpFunc(storageDir) async {
-  var notificationKeystoreInstance = AtNotificationKeystore.getInstance();
-  notificationKeystoreInstance.currentAtSign = atSign;
-  await notificationKeystoreInstance.init('$storageDir/${Uuid().v4()}');
-  return notificationKeystoreInstance;
-}
-
-Future<void> tearDownFunc() async {
-  print('tear down');
-  await AtNotificationKeystore.getInstance().close();
-  var isExists = await Directory('test/hive/').exists();
-  if (isExists) {
-    Directory('test/hive').deleteSync(recursive: true);
-  }
 }

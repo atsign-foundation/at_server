@@ -25,8 +25,7 @@ Future<void> setUpMethod() async {
       .getAccessLog('@alice', accessLogPath: storageDir);
   secondaryPersistenceStore!.getSecondaryKeyStore()?.commitLog = atCommitLog;
   // AtNotification Keystore
-  atNotificationKeystore = AtNotificationKeystore.getInstance();
-  atNotificationKeystore.currentAtSign = '@alice';
+  atNotificationKeystore = AtNotificationKeystore('@alice');
   await atNotificationKeystore.init('$storageDir/${Uuid().v4()}');
   // Init the hive instances
   await secondaryPersistenceStore!
@@ -47,28 +46,25 @@ Future<void> main() async {
       await atCommitLog?.commit('@alice:phone@alice', CommitOp.UPDATE);
       await atCommitLog?.commit('@alice:phone@alice', CommitOp.UPDATE);
       var atCompactionService = AtCompactionService.getInstance();
-      int dateTimeBeforeCompactionInMilliSeconds =
-          DateTime.now().toUtc().microsecondsSinceEpoch;
+      int beforeMicros = DateTime.now().toUtc().microsecondsSinceEpoch;
       // Run Compaction
       AtCompactionStats atCompactionStats =
           await atCompactionService.executeCompaction(atCommitLog!);
 
-      int dateTimeAfterCompactionInMilliSeconds =
-          DateTime.now().toUtc().microsecondsSinceEpoch;
+      int afterMicros = DateTime.now().toUtc().microsecondsSinceEpoch;
 
       // Assertions
       expect(atCompactionStats.preCompactionEntriesCount, 1);
       expect(atCompactionStats.postCompactionEntriesCount, 1);
       expect(atCompactionStats.compactionDurationInMills > 0, true);
       expect(
-          atCompactionStats.compactionDurationInMills <
-              (dateTimeAfterCompactionInMilliSeconds -
-                  dateTimeBeforeCompactionInMilliSeconds),
+          atCompactionStats.compactionDurationInMills <=
+              (afterMicros - beforeMicros),
           true);
       expect(
-          (atCompactionStats.lastCompactionRun.millisecondsSinceEpoch > 0 &&
-              atCompactionStats.lastCompactionRun.millisecondsSinceEpoch <
-                  DateTime.now().toUtc().millisecondsSinceEpoch),
+          (atCompactionStats.lastCompactionRun.microsecondsSinceEpoch > 0 &&
+              atCompactionStats.lastCompactionRun.microsecondsSinceEpoch <
+                  DateTime.now().toUtc().microsecondsSinceEpoch),
           true);
 
       // Store Compaction Stats
@@ -190,6 +186,7 @@ Future<void> main() async {
 Future<void> tearDownMethod() async {
   await SecondaryPersistenceStoreFactory.getInstance().close();
   await AtCommitLogManagerImpl.getInstance().close();
+  await atNotificationKeystore.close();
   var isExists = await Directory(storageDir).exists();
   if (isExists) {
     Directory(storageDir).deleteSync(recursive: true);
