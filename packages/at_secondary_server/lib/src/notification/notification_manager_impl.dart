@@ -354,16 +354,6 @@ class PerAtSignNotifSender {
       logger.warning('need status queued but got ${n.notificationStatus}');
       return;
     }
-    if (n.isExpired()) {
-      logger.warning('notification ${n.id} has expired');
-      n.notificationStatus = NotificationStatus.expired;
-      try {
-        await notifMgr.put(n.id, n);
-      } catch (e) {
-        logger.warning('Exception $e while setting status expired on ${n.id}');
-      }
-      return;
-    }
 
     // We keep trying until either
     // (1) successful delivery, or
@@ -371,6 +361,18 @@ class PerAtSignNotifSender {
     Duration delay = initialDelay;
     while (true) {
       try {
+        // not much point in sending expired notifications, is there
+        if (n.isExpired()) {
+          logger.warning('notification ${n.id} has expired');
+          n.notificationStatus = NotificationStatus.expired;
+          try {
+            await notifMgr.put(n.id, n);
+          } catch (e) {
+            logger.warning('Exception $e while setting status expired on ${n.id}');
+          }
+          return;
+        }
+
         //   get outbound client and send notify command
         var outBoundClient =
             await notifMgr.notifyConnectionsPool.getOutboundClient(atSign);
@@ -385,7 +387,7 @@ class PerAtSignNotifSender {
             logger.warning(
                 'Exception $e while setting status delivered on ${n.id}');
           }
-          break;
+          return;
         } else {
           throw Exception('Unexpected response $notifyResponse');
         }
@@ -398,7 +400,7 @@ class PerAtSignNotifSender {
           logger.severe('no such atSign $atSign');
           n.notificationStatus = NotificationStatus.errored;
           await notifMgr.put(n.id, n);
-          break;
+          return;
         }
         await Future.delayed(delay);
         delay = Duration(
