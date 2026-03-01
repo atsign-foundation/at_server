@@ -69,9 +69,6 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
   VerbHandler? getVerbHandler(String utf8EncodedCommand) {
     for (var handler in _verbHandlers) {
       if (handler.accept(utf8EncodedCommand)) {
-        if (handler is MonitorVerbHandler) {
-          return handler.clone();
-        }
         return handler;
       }
     }
@@ -124,19 +121,23 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     ));
     _verbHandlers.add(StatsVerbHandler(keyStore));
     _verbHandlers.add(ConfigVerbHandler(keyStore));
-    _verbHandlers.add(MonitorVerbHandler(keyStore));
+    _verbHandlers.add(MonitorVerbHandler(keyStore, notificationManager));
     _verbHandlers.add(StreamVerbHandler(keyStore, notificationManager));
     _verbHandlers.add(NotifyVerbHandler(keyStore, notificationManager));
-    _verbHandlers.add(NotifyListVerbHandler(keyStore, outboundClientManager));
+    _verbHandlers.add(NotifyListVerbHandler(
+      keyStore,
+      notificationManager,
+    ));
     _verbHandlers.add(BatchVerbHandler(keyStore, this));
-    _verbHandlers.add(NotifyStatusVerbHandler(keyStore));
+    _verbHandlers.add(NotifyStatusVerbHandler(keyStore, notificationManager));
     _verbHandlers.add(NotifyAllVerbHandler(keyStore, notificationManager));
     _verbHandlers.add(SyncProgressiveVerbHandler(keyStore));
     _verbHandlers.add(InfoVerbHandler(keyStore));
     _verbHandlers.add(NoOpVerbHandler(keyStore));
     _verbHandlers.add(NotifyRemoveVerbHandler(keyStore, notificationManager));
-    _verbHandlers.add(NotifyFetchVerbHandler(keyStore));
-    _verbHandlers.add(EnrollVerbHandler(keyStore, enrollmentManager));
+    _verbHandlers.add(NotifyFetchVerbHandler(keyStore, notificationManager));
+    _verbHandlers.add(
+        EnrollVerbHandler(keyStore, enrollmentManager, notificationManager));
     _verbHandlers.add(OtpVerbHandler(keyStore));
     _verbHandlers.add(KeysVerbHandler(keyStore, enrollmentManager, atSign));
     return _verbHandlers;

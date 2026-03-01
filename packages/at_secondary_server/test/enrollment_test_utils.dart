@@ -24,7 +24,7 @@ class ETU {
   late String primaryEnId;
 
   Future<void> init() async {
-    evh = EnrollVerbHandler(secondaryKeyStore, enMgr);
+    evh = EnrollVerbHandler(secondaryKeyStore, enMgr, notificationManager);
     ovh = OtpVerbHandler(secondaryKeyStore);
     uvh = UpdateVerbHandler(
       secondaryKeyStore,

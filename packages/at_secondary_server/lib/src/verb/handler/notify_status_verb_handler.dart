@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
@@ -11,7 +12,9 @@ import 'package:at_server_spec/at_server_spec.dart';
 class NotifyStatusVerbHandler extends AbstractVerbHandler {
   static NotifyStatus notifyStatus = NotifyStatus();
 
-  NotifyStatusVerbHandler(super.keyStore);
+  NotifyStatusVerbHandler(super.keyStore, this.notifMgr);
+
+  NotificationManager notifMgr;
 
   @override
   bool accept(String command) =>
@@ -29,8 +32,7 @@ class NotifyStatusVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection) async {
     var notificationId = verbParams['notificationId'];
 
-    var atNotification =
-        await AtNotificationKeystore.getInstance().get(notificationId);
+    var atNotification = await notifMgr.get(notificationId);
     NotificationStatus? status;
     if (atNotification == null) {
       response.data = null;

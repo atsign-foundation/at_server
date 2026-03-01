@@ -4,8 +4,7 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
-import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
+import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -16,9 +15,12 @@ import 'abstract_verb_handler.dart';
 /// class to handle notify:list verb
 class NotifyListVerbHandler extends AbstractVerbHandler {
   static NotifyList notifyList = NotifyList();
-  final OutboundClientManager outboundClientManager;
+  final NotificationManager notifMgr;
 
-  NotifyListVerbHandler(super.keyStore, this.outboundClientManager);
+  NotifyListVerbHandler(
+    super.keyStore,
+    this.notifMgr,
+  );
 
   @override
   bool accept(String command) =>
@@ -59,7 +61,12 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
 
     // If connection is authenticated, gets the received notifications of current atsign
     if (atConnectionMetadata.isAuthenticated) {
-      responseList = await (_getReceivedNotification(responseList));
+      for (final k in await notifMgr.getKeys()) {
+        AtNotification n = (await notifMgr.get(k))!;
+        if (n.type == NotificationType.received && !n.isExpired()) {
+          responseList.add(Notification(n));
+        }
+      }
       var filteredResponseList = [];
       for (Notification notification in responseList) {
         var notificationKey = notification.notification;
@@ -77,12 +84,21 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
       responseList.clear();
       responseList.addAll(filteredResponseList);
     }
-    //If connection is pol authenticated, gets the sent notifications to forAtSign
+    // If authenticated connection from another atSign (polAuthenticated),
+    // gets the notifications which were sent to that atSign
     if (atConnectionMetadata.isPolAuthenticated) {
-      String fromAtSign = atConnectionMetadata.fromAtSign!;
-      responseList =
-          await (_getSentNotifications(responseList, fromAtSign, atConnection));
+      final notifyResult = await notifMgr.getFilteredSorted(
+          retain: (n) {
+            return n.type == NotificationType.sent &&
+                atConnectionMetadata.fromAtSign! == n.toAtSign;
+          },
+          comparator: notifMgr.compareDateTime);
+
+      for (var element in notifyResult) {
+        responseList.add(Notification(element));
+      }
     }
+
     responseList =
         _applyFilter(responseList, fromDateInEpoch, toDateInEpoch, regex);
     String? result;
@@ -90,46 +106,6 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
       result = jsonEncode(responseList);
     }
     response.data = result;
-  }
-
-  /// Returns received notifications of the current atsign
-  /// @param responseList : List to which to add the notifications
-  /// Returns [responseList] with any matching notifications added.
-  // #TODO do not pass responseList as param. return a list with received notifications
-  Future<List> _getReceivedNotification(List responseList) async {
-    var notificationKeyStore = AtNotificationKeystore.getInstance();
-    var keyList = notificationKeyStore.getKeys();
-    await Future.forEach(
-        keyList,
-        (dynamic element) => _fetchNotificationEntries(
-            element, responseList, notificationKeyStore));
-    return responseList;
-  }
-
-  /// Fetches the notification entries for the given atsign.
-  void _fetchNotificationEntries(
-      element, responseList, notificationKeyStore) async {
-    AtNotification notificationEntry = await notificationKeyStore.get(element);
-    if (notificationEntry.type == NotificationType.received &&
-        !notificationEntry.isExpired()) {
-      responseList.add(Notification(notificationEntry));
-    }
-  }
-
-  /// when pol verb is performed, returns sent notifications of the another atsign.
-  /// @param responseList : List to which to add the notifications
-  /// @param fromAtSign : atsign who look up to the current atsign server
-  /// @param atConnection : The inbound connection.
-  /// Returns [responseList] with any matching notifications added.
-  Future<List> _getSentNotifications(List responseList, String fromAtSign,
-      InboundConnection atConnection) async {
-    final OutboundClient outBoundClient = await outboundClientManager
-        .getClient(fromAtSign, atConnection, handshakeRequired: true);
-    var sentNotifications = await outBoundClient.notifyList(fromAtSign)!;
-    for (var element in sentNotifications) {
-      responseList.add(Notification(element));
-    }
-    return responseList;
   }
 
   /// Applies filter criteria on the notifications

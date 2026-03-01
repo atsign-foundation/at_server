@@ -819,8 +819,8 @@ void main() {
       AtMetaData metaData = AtMetaData()..ttl = 1000;
       AtNotification? autoNotification;
 
-      autoNotification = await updateHandler.notify('@from', '@to', 'na',
-          'na-value', NotificationPriority.high, metaData);
+      autoNotification = await updateHandler.notify('@alice', '@bob',
+          'na.na.na', 'na-value', NotificationPriority.high, metaData);
       int ttlInMillis =
           Duration(minutes: AtSecondaryConfig.notificationExpiryInMins)
               .inMilliseconds;

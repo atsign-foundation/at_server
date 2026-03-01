@@ -340,34 +340,6 @@ class OutboundClient {
     lastUsed = DateTime.now();
     return notifyResult;
   }
-
-  Future<List>? notifyList(String? atSign, {bool handshake = true}) async {
-    // ignore: prefer_typing_uninitialized_variables
-    var notifyResult;
-    if (handshake && !isHandShakeDone) {
-      throw UnAuthorizedException(
-          'Handshake did not succeed. Cannot perform a lookup');
-    }
-    try {
-      var notificationKeyStore = AtNotificationKeystore.getInstance();
-      notifyResult = await notificationKeyStore.getValues();
-      if (notifyResult != null) {
-        notifyResult.retainWhere((element) =>
-            element.type == NotificationType.sent &&
-            atSign == element.toAtSign);
-      }
-    } on AtIOException catch (e) {
-      await outboundConnection!.close();
-      throw LookupException(
-          'Exception writing to outbound socket ${e.toString()}');
-    } on ConnectionInvalidException catch (e) {
-      logger.severe('$this | encountered $e');
-      throw OutBoundConnectionInvalidException('Outbound connection invalid');
-    }
-
-    lastUsed = DateTime.now();
-    return notifyResult.sentNotifications;
-  }
 }
 
 abstract class OutboundConnectionFactory {

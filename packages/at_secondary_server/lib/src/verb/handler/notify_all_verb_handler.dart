@@ -43,7 +43,6 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
     int ttbMillis;
     int? ttrMillis;
     bool? isCascade;
-    var forAtSignList = verbParams[AtConstants.forAtSign];
     var atSign = verbParams[AtConstants.atSign];
     if (atSign.isNotNullOrEmpty) {
       atSign = AtUtils.fixAtSign(atSign!);
@@ -86,8 +85,11 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
     var resultMap = <String, String?>{};
     var dataSignature = SecondaryUtil.signChallenge(
         key, AtSecondaryServerImpl.getInstance().signingKey);
+    var forAtSignList = verbParams[AtConstants.forAtSign]
+        ?.replaceAll('[', '')
+        .replaceAll(']', '');
     if (forAtSignList != null && forAtSignList.isNotEmpty) {
-      var forAtSigns = forAtSignList.split(',');
+      List forAtSigns = forAtSignList.split(',');
       var forAtSignsSet = forAtSigns.toSet();
       for (var forAtSign in forAtSignsSet) {
         var updatedKey = '$forAtSign:$key';
@@ -108,8 +110,8 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
               ..atMetaData = atMetadata)
             .build();
 
-        var notificationID = await notificationManager.notify(atNotification);
-        resultMap[forAtSign] = notificationID;
+        await notificationManager.notify(atNotification);
+        resultMap[forAtSign] = atNotification.id;
       }
     }
     response.data = json.encode(resultMap);

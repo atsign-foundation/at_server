@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 
@@ -11,6 +12,7 @@ import 'package:at_secondary/src/verb/handler/enroll_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
@@ -30,7 +32,7 @@ void main() {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       inboundConnection.metaData.isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore);
+          MonitorVerbHandler(secondaryKeyStore, notificationManager);
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
 
@@ -44,7 +46,8 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      await monitorVerbHandler.processAtNotification(atNotification);
+      await monitorVerbHandler.processAtNotification(
+          inboundConnection, atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -65,7 +68,7 @@ void main() {
       verbParams[AtConstants.regex] = 'wavi';
       inboundConnection.metaData.isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore);
+          MonitorVerbHandler(secondaryKeyStore, notificationManager);
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
 
@@ -79,7 +82,8 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      await monitorVerbHandler.processAtNotification(atNotification);
+      await monitorVerbHandler.processAtNotification(
+          inboundConnection, atNotification);
       expect(inboundConnection.lastWrittenData, isNull);
 
       atNotification = (AtNotificationBuilder()
@@ -92,7 +96,8 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      await monitorVerbHandler.processAtNotification(atNotification);
+      await monitorVerbHandler.processAtNotification(
+          inboundConnection, atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -113,7 +118,7 @@ void main() {
       verbParams[AtConstants.regex] = 'wavi';
       inboundConnection.metaData.isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore);
+          MonitorVerbHandler(secondaryKeyStore, notificationManager);
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
 
@@ -130,7 +135,8 @@ void main() {
               ..pubKeyHash =
                   PublicKeyHash('dummy_hash', HashingAlgoType.sha512.name)))
           .build();
-      await monitorVerbHandler.processAtNotification(atNotification);
+      await monitorVerbHandler.processAtNotification(
+          inboundConnection, atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -146,7 +152,7 @@ void main() {
       verbParams[AtConstants.regex] = 'wavi';
       inboundConnection.metaData.isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore);
+          MonitorVerbHandler(secondaryKeyStore, notificationManager);
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
 
@@ -163,7 +169,8 @@ void main() {
               ..encKeyName = 'encKeyName'
               ..sharedKeyEnc = 'shared_key_encrypted'))
           .build();
-      await monitorVerbHandler.processAtNotification(atNotification);
+      await monitorVerbHandler.processAtNotification(
+          inboundConnection, atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -175,7 +182,6 @@ void main() {
     });
     tearDown(() async {
       await verbTestsTearDown();
-      AtNotificationCallback.getInstance().callbackMethods.clear();
     });
   });
 
@@ -196,7 +202,7 @@ void main() {
           await setEnrollmentKey(jsonEncode({"wavi": "r"}));
 
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore);
+          MonitorVerbHandler(secondaryKeyStore, notificationManager);
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
       var atNotification = (AtNotificationBuilder()
@@ -209,7 +215,8 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      await monitorVerbHandler.processAtNotification(atNotification);
+      await monitorVerbHandler.processAtNotification(
+          inboundConnection, atNotification);
       expect(inboundConnection.lastWrittenData, isNull);
 
       atNotification = (AtNotificationBuilder()
@@ -222,7 +229,8 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      await monitorVerbHandler.processAtNotification(atNotification);
+      await monitorVerbHandler.processAtNotification(
+          inboundConnection, atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -245,7 +253,7 @@ void main() {
           await setEnrollmentKey(jsonEncode({"wavi": "r", "buzz": 'rw'}));
 
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore);
+          MonitorVerbHandler(secondaryKeyStore, notificationManager);
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
       var atNotification = (AtNotificationBuilder()
@@ -258,7 +266,8 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      await monitorVerbHandler.processAtNotification(atNotification);
+      await monitorVerbHandler.processAtNotification(
+          inboundConnection, atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -280,7 +289,8 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      await monitorVerbHandler.processAtNotification(atNotification);
+      await monitorVerbHandler.processAtNotification(
+          inboundConnection, atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -304,7 +314,7 @@ void main() {
           await setEnrollmentKey(jsonEncode({"wavi": "r", "buzz": "rw"}));
 
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore);
+          MonitorVerbHandler(secondaryKeyStore, notificationManager);
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
       var atNotification = (AtNotificationBuilder()
@@ -317,7 +327,8 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      await monitorVerbHandler.processAtNotification(atNotification);
+      await monitorVerbHandler.processAtNotification(
+          inboundConnection, atNotification);
       expect(inboundConnection.lastWrittenData, isNull);
 
       atNotification = (AtNotificationBuilder()
@@ -330,7 +341,8 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      await monitorVerbHandler.processAtNotification(atNotification);
+      await monitorVerbHandler.processAtNotification(
+          inboundConnection, atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -356,7 +368,7 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.sessionID = 'dummy_session_id';
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr, notificationManager);
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
       inboundConnection.metaData.enrollmentId =
@@ -364,7 +376,7 @@ void main() {
       expect(jsonDecode(response.data!)['status'], 'approved');
 
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore);
+          MonitorVerbHandler(secondaryKeyStore, notificationManager);
       await monitorVerbHandler.processVerb(
           Response(), monitorVerbParams, inboundConnection);
       // Notification with wavi namespace
@@ -378,7 +390,8 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      await monitorVerbHandler.processAtNotification(atNotification);
+      await monitorVerbHandler.processAtNotification(
+          inboundConnection, atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -400,7 +413,8 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      await monitorVerbHandler.processAtNotification(atNotification);
+      await monitorVerbHandler.processAtNotification(
+          inboundConnection, atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -421,7 +435,7 @@ void main() {
       await otpVH.savePasscode(otp, ttl: 5000, isSpp: false);
 
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enMgr);
+          EnrollVerbHandler(secondaryKeyStore, enMgr, notificationManager);
       String enrollmentRequest = 'enroll:request:'
           '{"otp":"$otp"'
           ',"appName":"$appName"'
@@ -471,7 +485,7 @@ void main() {
       pkamMC.metaData.authType = AuthType.pkamLegacy;
       pkamMC.metaData.isAuthenticated = true;
       pkamMC.metaData.sessionID = 'legacy_pkam_monitor_session';
-      await MonitorVerbHandler(secondaryKeyStore)
+      await MonitorVerbHandler(secondaryKeyStore, notificationManager)
           .processVerb(Response(), mvp, pkamMC);
 
       // Make another enrollment request
@@ -524,7 +538,7 @@ void main() {
       inboundConnection.metaData.authType = AuthType.apkam;
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.sessionID = 'apkam_monitor_session';
-      await MonitorVerbHandler(secondaryKeyStore)
+      await MonitorVerbHandler(secondaryKeyStore, notificationManager)
           .processVerb(Response(), mvp, inboundConnection);
 
       // Make another enrollment request
@@ -535,6 +549,7 @@ void main() {
         autoApprove: false,
       );
 
+      await Future.delayed(Duration(milliseconds: 10));
       // Verify that the APKAM monitor connection receives the
       //    enrollment request notification
       var notificationJson = jsonDecode(inboundConnection.lastWrittenData!
@@ -579,7 +594,7 @@ void main() {
       );
 
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore);
+          MonitorVerbHandler(secondaryKeyStore, notificationManager);
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
       var atNotification = (AtNotificationBuilder()
@@ -592,7 +607,8 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      await monitorVerbHandler.processAtNotification(atNotification);
+      await monitorVerbHandler.processAtNotification(
+          inboundConnection, atNotification);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
           .trim();
@@ -630,12 +646,12 @@ void main() {
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      await monitorVerbHandler.processAtNotification(atNotification);
+      await monitorVerbHandler.processAtNotification(
+          inboundConnection, atNotification);
       expect(inboundConnection.lastWrittenData, isEmpty);
     });
     tearDown(() async {
       await verbTestsTearDown();
-      AtNotificationCallback.getInstance().callbackMethods.clear();
     });
   });
 
@@ -649,7 +665,7 @@ void main() {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       inboundConnection.metaData.isAuthenticated = false;
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore);
+          MonitorVerbHandler(secondaryKeyStore, notificationManager);
       expect(
           () async => await monitorVerbHandler.processVerb(
               Response(), verbParams, inboundConnection),
@@ -666,26 +682,13 @@ void main() {
       verbParams[AtConstants.regex] = '[';
       inboundConnection.metaData.isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore);
-      await monitorVerbHandler.processVerb(
-          Response(), verbParams, inboundConnection);
-      var atNotification = (AtNotificationBuilder()
-            ..id = 'abc'
-            ..fromAtSign = '@bob'
-            ..notificationDateTime = DateTime.now()
-            ..toAtSign = alice
-            ..notification = 'phone.wavi'
-            ..type = NotificationType.received
-            ..opType = OperationType.update
-            ..messageType = MessageType.key)
-          .build();
-      expect(
-          () async =>
-              await monitorVerbHandler.processAtNotification(atNotification),
+          MonitorVerbHandler(secondaryKeyStore, notificationManager);
+      await expectLater(
+          monitorVerbHandler.processVerb(
+              Response(), verbParams, inboundConnection),
           throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException &&
-              e.message ==
-                  'Invalid regular expression. ${verbParams[AtConstants.regex]} is not a valid regex')));
+              e.message == 'Invalid regex: ${verbParams[AtConstants.regex]}')));
     });
 
     test(
@@ -697,30 +700,16 @@ void main() {
       inboundConnection.metaData.enrollmentId =
           await setEnrollmentKey(jsonEncode({"wavi": "r"}));
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore);
-      await monitorVerbHandler.processVerb(
-          Response(), verbParams, inboundConnection);
-      var atNotification = (AtNotificationBuilder()
-            ..id = 'abc'
-            ..fromAtSign = '@bob'
-            ..notificationDateTime = DateTime.now()
-            ..toAtSign = alice
-            ..notification = '$alice:phone.wavi@bob'
-            ..type = NotificationType.received
-            ..opType = OperationType.update
-            ..messageType = MessageType.key)
-          .build();
-      expect(
-          () async =>
-              await monitorVerbHandler.processAtNotification(atNotification),
+          MonitorVerbHandler(secondaryKeyStore, notificationManager);
+      await expectLater(
+          monitorVerbHandler.processVerb(
+              Response(), verbParams, inboundConnection),
           throwsA(predicate((dynamic e) =>
               e is InvalidSyntaxException &&
-              e.message ==
-                  'Invalid regular expression. ${verbParams[AtConstants.regex]} is not a valid regex')));
+              e.message == 'Invalid regex: ${verbParams[AtConstants.regex]}')));
     });
     tearDown(() async {
       await verbTestsTearDown();
-      AtNotificationCallback.getInstance().callbackMethods.clear();
     });
   });
 
@@ -736,7 +725,7 @@ void main() {
       verbParams[AtConstants.monitorSelfNotifications] = 'selfNotifications';
       inboundConnection.metaData.isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore);
+          MonitorVerbHandler(secondaryKeyStore, notificationManager);
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
 
@@ -752,9 +741,10 @@ void main() {
             ..messageType = MessageType.key
             ..atMetaData = randomMetadata)
           .build();
-      // The notification callback method is registered in "MonitorVerbHandler.processVerb"
-      await AtNotificationCallback.getInstance()
-          .invokeCallbacks(atNotification);
+
+      await monitorVerbHandler.processAtNotification(
+          inboundConnection, atNotification);
+      await Future.delayed(Duration(milliseconds: 10));
 
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
@@ -783,7 +773,7 @@ void main() {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       inboundConnection.metaData.isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore);
+          MonitorVerbHandler(secondaryKeyStore, notificationManager);
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
 
@@ -799,9 +789,10 @@ void main() {
             ..messageType = MessageType.key
             ..atMetaData = randomMetadata)
           .build();
-      // The notification callback method is registered in "MonitorVerbHandler.processVerb"
-      await AtNotificationCallback.getInstance()
-          .invokeCallbacks(atNotification);
+
+      await monitorVerbHandler.processAtNotification(
+          inboundConnection, atNotification);
+      await Future.delayed(Duration(milliseconds: 10));
 
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData
           ?.replaceAll('notification:', '')
@@ -830,29 +821,37 @@ void main() {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       inboundConnection.metaData.isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore);
+          MonitorVerbHandler(secondaryKeyStore, notificationManager);
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
 
       var atNotification = (AtNotificationBuilder()
             ..id = 'abc'
-            ..fromAtSign = '@bob'
+            ..fromAtSign = alice
             ..notificationDateTime = DateTime.now()
-            ..toAtSign = alice
-            ..notification = 'phone.wavi'
+            ..toAtSign = '@bob'
+            ..notification = 'sent_should_not_be_received_on_monitor.wavi'
             ..type = NotificationType.sent
             ..opType = OperationType.update
             ..messageType = MessageType.key)
           .build();
-      // The notification callback method is registered in "MonitorVerbHandler.processVerb"
-      await AtNotificationCallback.getInstance()
-          .invokeCallbacks(atNotification);
+
+      await notificationManager.notify(atNotification);
+      Completer sent = Completer();
+      when(() => mockOutboundConnection.write(any(
+              that: contains('sent_should_not_be_received_on_monitor.wavi'))))
+          .thenAnswer((Invocation invocation) async {
+        socketOnDataFn("data:success\n@".codeUnits);
+        if (!sent.isCompleted) {
+          sent.complete();
+        }
+      });
+      await sent.future;
       expect(inboundConnection.lastWrittenData, null);
     });
 
     tearDown(() async {
       await verbTestsTearDown();
-      AtNotificationCallback.getInstance().callbackMethods.clear();
     });
   });
 
@@ -878,13 +877,12 @@ void main() {
             ..messageType = MessageType.key
             ..atMetaData = randomMetadata)
           .build();
-      await AtNotificationKeystore.getInstance()
-          .put(atNotification.id, atNotification);
+      await notificationManager.put(atNotification.id, atNotification);
 
       String monitorCommand = 'monitor:selfNotifications:$epoch';
 
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore);
+          MonitorVerbHandler(secondaryKeyStore, notificationManager);
       HashMap<String, String?> verbParams =
           monitorVerbHandler.parse(monitorCommand);
       inboundConnection.metaData.isAuthenticated = true;
@@ -930,12 +928,11 @@ void main() {
             ..messageType = MessageType.key
             ..atMetaData = randomMetadata)
           .build();
-      await AtNotificationKeystore.getInstance()
-          .put(atNotification.id, atNotification);
+      await notificationManager.put(atNotification.id, atNotification);
 
       String monitorCommand = 'monitor:$epoch';
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore);
+          MonitorVerbHandler(secondaryKeyStore, notificationManager);
       HashMap<String, String?> verbParams =
           monitorVerbHandler.parse(monitorCommand);
       inboundConnection.metaData.isAuthenticated = true;
@@ -965,7 +962,6 @@ void main() {
 
     tearDown(() async {
       await verbTestsTearDown();
-      AtNotificationCallback.getInstance().callbackMethods.clear();
     });
   });
 }
@@ -973,7 +969,7 @@ void main() {
 Future<String> setEnrollmentKey(String namespace) async {
   Response response = Response();
   EnrollVerbHandler enrollVerbHandler =
-      EnrollVerbHandler(secondaryKeyStore, enMgr);
+      EnrollVerbHandler(secondaryKeyStore, enMgr, notificationManager);
   inboundConnection.metaData.isAuthenticated = true;
   inboundConnection.metaData.sessionID = 'dummy_session';
   // OTP Verb
@@ -987,7 +983,8 @@ Future<String> setEnrollmentKey(String namespace) async {
   HashMap<String, String?> enrollmentRequestVerbParams =
       getVerbParam(VerbSyntax.enroll, enrollmentRequest);
   inboundConnection.metaData.isAuthenticated = false;
-  enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enMgr);
+  enrollVerbHandler =
+      EnrollVerbHandler(secondaryKeyStore, enMgr, notificationManager);
   await enrollVerbHandler.processVerb(
       response, enrollmentRequestVerbParams, inboundConnection);
   String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
@@ -997,7 +994,8 @@ Future<String> setEnrollmentKey(String namespace) async {
   HashMap<String, String?> approveEnrollmentVerbParams =
       getVerbParam(VerbSyntax.enroll, approveEnrollmentRequest);
   inboundConnection.metaData.isAuthenticated = true;
-  enrollVerbHandler = EnrollVerbHandler(secondaryKeyStore, enMgr);
+  enrollVerbHandler =
+      EnrollVerbHandler(secondaryKeyStore, enMgr, notificationManager);
   await enrollVerbHandler.processVerb(
       response, approveEnrollmentVerbParams, inboundConnection);
   return enrollmentId;

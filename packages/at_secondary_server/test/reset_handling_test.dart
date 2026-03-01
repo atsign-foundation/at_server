@@ -251,7 +251,7 @@ void main() {
       pkamMC.metaData.authType = AuthType.pkamLegacy;
       pkamMC.metaData.isAuthenticated = true;
       pkamMC.metaData.sessionID = 'legacy_pkam_monitor_session';
-      await MonitorVerbHandler(secondaryKeyStore)
+      await MonitorVerbHandler(secondaryKeyStore, notificationManager)
           .processVerb(Response(), mvp, pkamMC);
 
       // Make a public key change

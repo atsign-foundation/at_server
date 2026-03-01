@@ -36,6 +36,9 @@ dependencies:
   mime: ^2.0.0
   at_base2e15: ^1.0.0
 
+dependency_overrides:
+  at_persistence_secondary_server:
+    path: ../at_persistence_secondary_server
 
 dev_dependencies:
   build_runner: ^2.11.1

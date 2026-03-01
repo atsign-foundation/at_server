@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 
@@ -6,11 +7,8 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
-import 'package:at_secondary/src/notification/at_notification_map.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
-import 'package:at_secondary/src/notification/queue_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
@@ -32,7 +30,6 @@ import 'test_utils.dart';
 
 void main() {
   SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
-  OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
   FakeSocket mockSocket = FakeSocket();
   NotificationManager mockNotificationManager = MockNotificationManager();
 
@@ -346,7 +343,7 @@ void main() {
 
       //Notify list verb handler
       var notifyListVerbHandler =
-          NotifyListVerbHandler(secondaryKeyStore, mockOutboundClientManager);
+          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
       var notifyListResponse = Response();
       var notifyListVerbParams = HashMap<String, String>();
       await notifyListVerbHandler.processVerb(
@@ -379,7 +376,7 @@ void main() {
           notifyResponse, notifyVerbParams, atConnection);
       //Notify list verb handler
       var notifyListVerbHandler =
-          NotifyListVerbHandler(secondaryKeyStore, mockOutboundClientManager);
+          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
       var notifyListResponse = Response();
       var notifyListVerbParams = HashMap<String, String>();
       await notifyListVerbHandler.processVerb(
@@ -413,7 +410,7 @@ void main() {
           notifyResponse, notifyVerbParams, atConnection);
 
       AtNotification? atNotification =
-          await AtNotificationKeystore.getInstance().get(notifyResponse.data);
+          await notifStore.get(notifyResponse.data);
       expect(atNotification?.toAtSign, '@bob');
       expect(atNotification?.fromAtSign, alice);
       expect(atNotification?.notification, '@bob:hello');
@@ -444,421 +441,12 @@ void main() {
     });
   });
 
-  Atsign testUser1 = '@test_user_1'.toAtsign();
-
-  group('A group of notify verb test', () {
-    setUp(() async => await verbTestsSetUp());
-    tearDown(() async => await verbTestsTearDown());
-    test(
-        'A test case to verify enqueuing error notifications increments retry count',
-        () async {
-      var atNotification1 = (AtNotificationBuilder()
-            ..id = 'abc'
-            ..fromAtSign = alice
-            ..notificationDateTime = DateTime.now()
-            ..toAtSign = testUser1
-            ..notification = 'key-1'
-            ..type = NotificationType.sent
-            ..opType = OperationType.update
-            ..messageType = MessageType.key
-            ..expiresAt = null
-            ..priority = NotificationPriority.medium
-            ..notificationStatus = NotificationStatus.errored
-            ..retryCount = 0)
-          .build();
-      var queueManager = QueueManager.getInstance();
-      queueManager.enqueue(atNotification1);
-      var response = queueManager.dequeue(testUser1);
-      late AtNotification atNotification;
-      if (response.moveNext()) {
-        atNotification = response.current;
-      }
-      expect(atNotification.id, 'abc');
-      expect(atNotification.fromAtSign, alice);
-      expect(atNotification.toAtSign, testUser1);
-      expect(atNotification.priority, NotificationPriority.low);
-      expect(atNotification.notification, 'key-1');
-      expect(atNotification.retryCount, 1);
-    });
-  });
-
-  group('A group of tests to compute notifications wait time', () {
-    test(
-        'A test to compute notifications with equal delay, @sign with highest priority is dequeued',
-        () {
-      var atNotification1 = (AtNotificationBuilder()
-            ..id = '123'
-            ..fromAtSign = alice
-            ..notificationDateTime =
-                DateTime.now().subtract(Duration(minutes: 4))
-            ..toAtSign = bob
-            ..notification = 'key-1'
-            ..type = NotificationType.sent
-            ..opType = OperationType.update
-            ..messageType = MessageType.key
-            ..expiresAt = null
-            ..priority = NotificationPriority.medium
-            ..notificationStatus = NotificationStatus.queued
-            ..retryCount = 0
-            ..strategy = 'all'
-            ..notifier = 'persona'
-            ..depth = 1)
-          .build();
-
-      var atNotification2 = (AtNotificationBuilder()
-            ..id = '124'
-            ..fromAtSign = alice
-            ..notificationDateTime =
-                DateTime.now().subtract(Duration(minutes: 4))
-            ..toAtSign = testUser1
-            ..notification = 'key-2'
-            ..type = NotificationType.sent
-            ..opType = OperationType.update
-            ..messageType = MessageType.key
-            ..expiresAt = null
-            ..priority = NotificationPriority.high
-            ..notificationStatus = NotificationStatus.queued
-            ..retryCount = 0
-            ..strategy = 'all'
-            ..notifier = 'location'
-            ..depth = 2)
-          .build();
-
-      var notificationMap = AtNotificationMap.getInstance();
-      notificationMap.add(atNotification1);
-      notificationMap.add(atNotification2);
-      var atsignIterator = AtNotificationMap.getInstance().getAtSignToNotify(1);
-      while (atsignIterator.moveNext()) {
-        expect(atsignIterator.current, testUser1);
-      }
-      AtNotificationMap.getInstance().clear();
-    });
-
-    test(
-        'A test to verify lowest atsign with highest waiting time gets out than highest priority',
-        () {
-      var atNotification1 = (AtNotificationBuilder()
-            ..id = '123'
-            ..fromAtSign = alice
-            ..notificationDateTime =
-                DateTime.now().subtract(Duration(minutes: 10))
-            ..toAtSign = '@bob'
-            ..notification = 'key-1'
-            ..type = NotificationType.sent
-            ..opType = OperationType.update
-            ..messageType = MessageType.key
-            ..expiresAt = null
-            ..priority = NotificationPriority.low
-            ..notificationStatus = NotificationStatus.queued
-            ..retryCount = 0
-            ..strategy = 'all'
-            ..notifier = 'persona'
-            ..depth = 1)
-          .build();
-
-      var atNotification2 = (AtNotificationBuilder()
-            ..id = '123'
-            ..fromAtSign = alice
-            ..notificationDateTime =
-                DateTime.now().subtract(Duration(minutes: 1))
-            ..toAtSign = testUser1
-            ..notification = 'key-2'
-            ..type = NotificationType.sent
-            ..opType = OperationType.update
-            ..messageType = MessageType.key
-            ..expiresAt = null
-            ..priority = NotificationPriority.high
-            ..notificationStatus = NotificationStatus.queued
-            ..retryCount = 0
-            ..strategy = 'all'
-            ..notifier = 'persona'
-            ..depth = 1)
-          .build();
-
-      var notificationMap = AtNotificationMap.getInstance();
-      notificationMap.add(atNotification1);
-      notificationMap.add(atNotification2);
-      var atsignIterator = AtNotificationMap.getInstance().getAtSignToNotify(1);
-      while (atsignIterator.moveNext()) {
-        expect(atsignIterator.current, '@bob');
-      }
-      AtNotificationMap.getInstance().clear();
-    });
-  });
-  group('A group of tests on notification strategy - all', () {
-    test(
-        'A test case to verify notifications with strategy all with equal priorities are stored as per the wait time',
-        () {
-      var atNotification1 = (AtNotificationBuilder()
-            ..id = '123'
-            ..fromAtSign = alice
-            ..notificationDateTime =
-                DateTime.now().subtract(Duration(minutes: 1))
-            ..toAtSign = '@bob'
-            ..notification = 'key-1'
-            ..type = NotificationType.sent
-            ..opType = OperationType.update
-            ..messageType = MessageType.key
-            ..expiresAt = null
-            ..priority = NotificationPriority.low
-            ..notificationStatus = NotificationStatus.queued
-            ..retryCount = 0
-            ..strategy = 'all'
-            ..notifier = 'persona'
-            ..depth = 1)
-          .build();
-
-      var atNotification2 = (AtNotificationBuilder()
-            ..id = '124'
-            ..fromAtSign = alice
-            ..notificationDateTime =
-                DateTime.now().subtract(Duration(minutes: 2))
-            ..toAtSign = '@bob'
-            ..notification = 'key-2'
-            ..type = NotificationType.sent
-            ..opType = OperationType.update
-            ..messageType = MessageType.key
-            ..expiresAt = null
-            ..priority = NotificationPriority.low
-            ..notificationStatus = NotificationStatus.queued
-            ..retryCount = 0
-            ..strategy = 'all'
-            ..notifier = 'persona'
-            ..depth = 1)
-          .build();
-
-      var notificationMap = AtNotificationMap.getInstance();
-      notificationMap.add(atNotification1);
-      notificationMap.add(atNotification2);
-      var atsignIterator = notificationMap.getAtSignToNotify(1);
-      var atNotificationList = [];
-      String? atsign;
-      while (atsignIterator.moveNext()) {
-        atsign = atsignIterator.current;
-      }
-      var itr = QueueManager.getInstance().dequeue(atsign);
-      while (itr.moveNext()) {
-        atNotificationList.add(itr.current);
-      }
-      expect(atNotificationList[0].id, '124');
-      expect(atNotificationList[1].id, '123');
-      AtNotificationMap.getInstance().clear();
-    });
-  });
-  group('A group of test cases on notification strategy - latest', () {
-    test('A test case to verify only the latest notification is stored', () {
-      var atNotification1 = (AtNotificationBuilder()
-            ..id = '123'
-            ..fromAtSign = alice
-            ..notificationDateTime = DateTime.now()
-            ..toAtSign = '@bob'
-            ..notification = 'key-1'
-            ..type = NotificationType.sent
-            ..opType = OperationType.update
-            ..messageType = MessageType.key
-            ..expiresAt = null
-            ..priority = NotificationPriority.low
-            ..notificationStatus = NotificationStatus.queued
-            ..retryCount = 0
-            ..strategy = 'latest'
-            ..notifier = 'persona'
-            ..depth = 1)
-          .build();
-
-      var atNotification2 = (AtNotificationBuilder()
-            ..id = '124'
-            ..fromAtSign = alice
-            ..notificationDateTime = DateTime.now()
-            ..toAtSign = '@bob'
-            ..notification = 'key-2'
-            ..type = NotificationType.sent
-            ..opType = OperationType.update
-            ..messageType = MessageType.key
-            ..expiresAt = null
-            ..priority = NotificationPriority.low
-            ..notificationStatus = NotificationStatus.queued
-            ..retryCount = 0
-            ..strategy = 'latest'
-            ..notifier = 'persona'
-            ..depth = 1)
-          .build();
-
-      var notificationMap = AtNotificationMap.getInstance();
-      notificationMap.add(atNotification1);
-      notificationMap.add(atNotification2);
-      var atsignIterator = notificationMap.getAtSignToNotify(1);
-      var atNotificationList = [];
-      String? atsign;
-      while (atsignIterator.moveNext()) {
-        atsign = atsignIterator.current;
-      }
-      var itr = QueueManager.getInstance().dequeue(atsign);
-      while (itr.moveNext()) {
-        atNotificationList.add(itr.current);
-      }
-      expect(atNotificationList[0].id, '124');
-      AtNotificationMap.getInstance().clear();
-    });
-
-    test('When latest N, when N = 2', () {
-      var atNotification1 = (AtNotificationBuilder()
-            ..id = '123'
-            ..fromAtSign = alice
-            ..notificationDateTime =
-                DateTime.now().subtract(Duration(seconds: 3))
-            ..toAtSign = '@bob'
-            ..notification = 'key-1'
-            ..type = NotificationType.sent
-            ..opType = OperationType.update
-            ..messageType = MessageType.key
-            ..expiresAt = null
-            ..priority = NotificationPriority.low
-            ..notificationStatus = NotificationStatus.queued
-            ..retryCount = 0
-            ..strategy = 'latest'
-            ..notifier = 'persona'
-            ..depth = 2)
-          .build();
-
-      var atNotification2 = (AtNotificationBuilder()
-            ..id = '124'
-            ..fromAtSign = alice
-            ..notificationDateTime =
-                DateTime.now().subtract(Duration(seconds: 2))
-            ..toAtSign = '@bob'
-            ..notification = 'key-2'
-            ..type = NotificationType.sent
-            ..opType = OperationType.update
-            ..messageType = MessageType.key
-            ..expiresAt = null
-            ..priority = NotificationPriority.low
-            ..notificationStatus = NotificationStatus.queued
-            ..retryCount = 0
-            ..strategy = 'latest'
-            ..notifier = 'persona'
-            ..depth = 2)
-          .build();
-
-      var atNotification3 = (AtNotificationBuilder()
-            ..id = '125'
-            ..fromAtSign = alice
-            ..notificationDateTime =
-                DateTime.now().subtract(Duration(seconds: 1))
-            ..toAtSign = '@bob'
-            ..notification = 'key-3'
-            ..type = NotificationType.sent
-            ..opType = OperationType.update
-            ..messageType = MessageType.key
-            ..expiresAt = null
-            ..priority = NotificationPriority.low
-            ..notificationStatus = NotificationStatus.queued
-            ..retryCount = 0
-            ..strategy = 'latest'
-            ..notifier = 'persona'
-            ..depth = 2)
-          .build();
-      var notificationMap = AtNotificationMap.getInstance();
-
-      notificationMap.add(atNotification1);
-      notificationMap.add(atNotification2);
-      notificationMap.add(atNotification3);
-      var atsignIterator = notificationMap.getAtSignToNotify(1);
-      var atNotificationList = [];
-      String? atsign;
-      while (atsignIterator.moveNext()) {
-        atsign = atsignIterator.current;
-      }
-      var itr = QueueManager.getInstance().dequeue(atsign);
-      while (itr.moveNext()) {
-        atNotificationList.add(itr.current);
-      }
-      expect(atNotificationList[0].id, '124');
-      expect(atNotificationList[1].id, '125');
-      AtNotificationMap.getInstance().clear();
-    });
-
-    test(
-        'Change in notifierId should increase the queue size and retain the old notifications as per priority',
-        () {
-      var atNotification1 = (AtNotificationBuilder()
-            ..id = '123'
-            ..fromAtSign = alice
-            ..notificationDateTime =
-                DateTime.now().subtract(Duration(seconds: 3))
-            ..toAtSign = '@bob'
-            ..notification = 'key-1'
-            ..type = NotificationType.sent
-            ..opType = OperationType.update
-            ..messageType = MessageType.key
-            ..expiresAt = null
-            ..priority = NotificationPriority.low
-            ..notificationStatus = NotificationStatus.queued
-            ..retryCount = 0
-            ..strategy = 'latest'
-            ..notifier = 'persona'
-            ..depth = 1)
-          .build();
-
-      var atNotification2 = (AtNotificationBuilder()
-            ..id = '124'
-            ..fromAtSign = alice
-            ..notificationDateTime =
-                DateTime.now().subtract(Duration(seconds: 2))
-            ..toAtSign = '@bob'
-            ..notification = 'key-2'
-            ..type = NotificationType.sent
-            ..opType = OperationType.update
-            ..messageType = MessageType.key
-            ..expiresAt = null
-            ..priority = NotificationPriority.low
-            ..notificationStatus = NotificationStatus.queued
-            ..retryCount = 0
-            ..strategy = 'latest'
-            ..notifier = 'persona'
-            ..depth = 3)
-          .build();
-
-      var atNotification3 = (AtNotificationBuilder()
-            ..id = '125'
-            ..fromAtSign = alice
-            ..notificationDateTime =
-                DateTime.now().subtract(Duration(seconds: 1))
-            ..toAtSign = '@bob'
-            ..notification = 'key-3'
-            ..type = NotificationType.sent
-            ..opType = OperationType.update
-            ..messageType = MessageType.key
-            ..expiresAt = null
-            ..priority = NotificationPriority.low
-            ..notificationStatus = NotificationStatus.queued
-            ..retryCount = 0
-            ..strategy = 'latest'
-            ..notifier = 'persona'
-            ..depth = 3)
-          .build();
-      var notificationMap = AtNotificationMap.getInstance();
-      notificationMap.add(atNotification1);
-      notificationMap.add(atNotification2);
-      notificationMap.add(atNotification3);
-      var atsignIterator = notificationMap.getAtSignToNotify(1);
-      var atNotificationList = [];
-      String? atSign;
-      while (atsignIterator.moveNext()) {
-        atSign = atsignIterator.current;
-      }
-      var itr = QueueManager.getInstance().dequeue(atSign);
-      while (itr.moveNext()) {
-        atNotificationList.add(itr.current);
-      }
-      expect(atNotificationList[0].id, '123');
-      expect(atNotificationList[1].id, '124');
-      expect(atNotificationList[2].id, '125');
-      AtNotificationMap.getInstance().clear();
-    });
-  });
   group(
       'A group of tests to verify public key checksum and shared key on metadata',
       () {
+    setUp(() async => await verbTestsSetUp());
+    tearDown(() async => await verbTestsTearDown());
+
     test('notify command accept test for pubKeyCS and sharedKeyEnc', () {
       var command = 'notify:sharedKeyEnc:abc:pubKeyCS:123@bob:location@colin';
       var handler = NotifyVerbHandler(mockKeyStore, notificationManager);
@@ -882,13 +470,16 @@ void main() {
             ..priority = NotificationPriority.high
             ..atMetaData = atMetaData)
           .build();
-      var queueManager = QueueManager.getInstance();
-      queueManager.enqueue(atNotification1);
-      var response = queueManager.dequeue(bob);
-      late AtNotification atNotification;
-      if (response.moveNext()) {
-        atNotification = response.current;
-      }
+
+      Completer<AtNotification> completer = Completer();
+      notificationManager.sent.stream.listen((n) {
+        if (!completer.isCompleted) {
+          completer.complete(n);
+        }
+      });
+      await notificationManager.notify(atNotification1);
+
+      AtNotification atNotification = await completer.future;
       expect(atNotification.id, 'abc');
       expect(
         atNotification.fromAtSign,
@@ -920,7 +511,8 @@ void main() {
       notifyVerbHandler =
           NotifyVerbHandler(secondaryKeyStore, notificationManager);
       notifyResponse = Response();
-      notifyFetch = NotifyFetchVerbHandler(secondaryKeyStore);
+      notifyFetch =
+          NotifyFetchVerbHandler(secondaryKeyStore, notificationManager);
 
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
       atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -1366,8 +958,10 @@ void main() {
         secondaryKeyStore,
         notificationManager,
       );
-      notifyFetchVerbHandler = NotifyFetchVerbHandler(secondaryKeyStore);
-      notifyStatusVerbHandler = NotifyStatusVerbHandler(secondaryKeyStore);
+      notifyFetchVerbHandler =
+          NotifyFetchVerbHandler(secondaryKeyStore, notificationManager);
+      notifyStatusVerbHandler =
+          NotifyStatusVerbHandler(secondaryKeyStore, notificationManager);
       notifyRemoveVerbHandler = NotifyRemoveVerbHandler(
         secondaryKeyStore,
         notificationManager,
@@ -1735,7 +1329,7 @@ void main() {
         notificationManager,
       );
       notifyListVerbHandler =
-          NotifyListVerbHandler(secondaryKeyStore, mockOutboundClientManager);
+          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
       inboundConnection = DummyInboundConnection();
       AtSecondaryServerImpl.getInstance().enrollmentManager =
           EnrollmentManager(secondaryKeyStore, alice);
@@ -1919,7 +1513,7 @@ void main() {
 
       // verify that data in the notification keyStore is as expected
       var notifId = response.data;
-      var stored = await AtNotificationKeystore.getInstance().get(notifId);
+      var stored = await notifStore.get(notifId);
       expect(stored, isNotNull);
       expect(stored!.toAtSign, '@bob');
       expect(stored.notification, '@bob:metadata.notify.test$alice');

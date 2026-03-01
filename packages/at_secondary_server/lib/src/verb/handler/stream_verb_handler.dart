@@ -108,15 +108,15 @@ class StreamVerbHandler extends AbstractVerbHandler {
     if (forAtSign == null) {
       return;
     }
-    var atNotification = (AtNotificationBuilder()
+    var n = (AtNotificationBuilder()
           ..type = NotificationType.sent
           ..fromAtSign = atSign
           ..toAtSign = forAtSign
           ..notification = key
           ..opType = OperationType.update)
         .build();
-    var notificationId = await notificationManager.notify(atNotification);
-    logger.finer('notification_id : $notificationId');
+    await notificationManager.notify(n);
+    logger.finer('notification_id : ${n.id}');
   }
 
   void _cleanUp(String streamId) {
