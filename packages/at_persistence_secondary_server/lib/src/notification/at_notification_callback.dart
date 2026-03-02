@@ -2,12 +2,14 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 
 /// Class for AtNotification callback method implementations
+@Deprecated("Obsolete")
 class AtNotificationCallback {
   static final AtNotificationCallback _singleton =
       AtNotificationCallback._internal();
 
   AtNotificationCallback._internal();
 
+  @Deprecated("Obsolete")
   factory AtNotificationCallback.getInstance() {
     return _singleton;
   }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 
@@ -9,7 +10,7 @@ Future<void> main(List<String> arguments) async {
   var keyStore = keyStoreManager.getSecondaryKeyStore()!;
   var atData = AtData();
   atData.data = '123';
-  var result = await keyStore.create('phone', atData);
+  var result = await keyStore.create('phone@alice', atData);
   print(result);
 
   //commitLog keystore
@@ -21,7 +22,10 @@ Future<void> main(List<String> arguments) async {
   print(committedEntry);
 
   //Notification keystore
-  var notificationKeyStore = AtNotificationKeystore.getInstance();
+  var storageDir = '${Directory.current.path}/example/hive';
+  var notificationKeyStore = AtNotificationKeystore('@alice');
+  await notificationKeyStore.init(storageDir);
+
   var atNotification = (AtNotificationBuilder()
         ..id = '123'
         ..fromAtSign = '@alice'

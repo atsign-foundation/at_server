@@ -2,6 +2,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
 
 /// Class to represent to the NotificationManager Spec.
+@Deprecated('Obsolete, now unused')
 abstract class NotificationManagerSpec {
   /// Notifies the key to another atsign
   Future<String?> notify(AtNotification atNotification);
