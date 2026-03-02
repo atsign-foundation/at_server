@@ -6,13 +6,9 @@ publish_to: none
 environment:
   sdk: '>=3.6.0'
 
-dependency_overrides:
-  at_persistence_secondary_server:
-    path: ../../packages/at_persistence_secondary_server
-
 dependencies:
   hex: ^0.2.0
-  at_persistence_secondary_server: ^4.2.0
+  at_persistence_secondary_server: ^4.3.0
   at_demo_data: ^1.2.0
   at_chops: ^2.2.0
   at_lookup: ^3.3.0
