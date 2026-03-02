@@ -699,7 +699,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.info("Terminating all inbound connections");
       inboundConnectionManager.close();
 
-      logger.info("Stopping Notification Manager");
+      logger.info("Closing Notification Manager");
       await notificationManager.close();
 
       secondaryKeyStore.preRemoveHooks.clear();
