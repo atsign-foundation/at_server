@@ -321,7 +321,7 @@ class PerAtSignNotifSender {
   @visibleForTesting
   static Duration initialDelay = const Duration(milliseconds: 150);
   @visibleForTesting
-  static Duration maxDelay = const Duration(seconds: 60);
+  static Duration maxDelay = const Duration(seconds: 10);
 
   final Atsign atSign;
   final NotificationManager notifMgr;
