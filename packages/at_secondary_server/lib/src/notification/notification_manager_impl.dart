@@ -58,6 +58,10 @@ class NotificationManager {
   ///
   /// Note that this does not persist the notification
   void enqueue(AtNotification n) {
+    if (closed) {
+      throw StateError('Closed');
+    }
+
     logger.info('enqueue ${n.id} (${n.notification})');
     switch (n.type) {
       case NotificationType.sent:
