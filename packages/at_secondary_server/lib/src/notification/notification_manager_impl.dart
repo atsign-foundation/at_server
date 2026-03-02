@@ -20,7 +20,8 @@ class NotificationManager {
   @visibleForTesting
   NotifyConnectionsPool get notifyConnectionsPool => _notifyConnectionsPool;
 
-  final AtSignLogger logger = AtSignLogger(' NotificationManager ');
+  final AtSignLogger logger = AtSignLogger(' NotificationManager ')
+    ..level = 'info';
 
   bool _closed = false;
 
@@ -57,6 +58,7 @@ class NotificationManager {
   ///
   /// Note that this does not persist the notification
   void enqueue(AtNotification n) {
+    logger.info('enqueue ${n.id} (${n.notification})');
     switch (n.type) {
       case NotificationType.sent:
         if (n.toAtSign?.toAtsign() == atSign) {
@@ -324,7 +326,7 @@ class PerAtSignNotifSender {
   late final StreamSubscription<AtNotification> sub;
 
   PerAtSignNotifSender(this.atSign, this.notifMgr) {
-    logger = AtSignLogger(' PerAtSignNotifSender ($atSign) ');
+    logger = AtSignLogger(' PerAtSignNotifSender ($atSign) ')..level = 'info';
     sub = notifs.stream.listen(onNotif, onDone: () => logger.info('Done'));
     logger.info('Listening');
   }
@@ -335,7 +337,7 @@ class PerAtSignNotifSender {
     try {
       await send(n);
     } catch (e, st) {
-      logger.severe('$e while sending ${n.toJson()}\n$st');
+      logger.severe('send(notif) threw unexpected exception $e\n$st');
     } finally {
       sub.resume();
     }
@@ -343,15 +345,15 @@ class PerAtSignNotifSender {
 
   @visibleForTesting
   Future<void> send(AtNotification n) async {
-    logger.info('Sending ${n.notification}');
+    logger.info('send: ${n.id} (${n.notification})');
 
     if (n.toAtSign?.toAtsign() != atSign) {
-      logger.shout('toAtsign is ${n.toAtSign} but we are for $atSign');
+      logger.severe('toAtsign is ${n.toAtSign} but we are for $atSign');
       return;
     }
 
     if (n.notificationStatus != NotificationStatus.queued) {
-      logger.warning('need status queued but got ${n.notificationStatus}');
+      logger.severe('need status queued but got ${n.notificationStatus}');
       return;
     }
 
@@ -363,12 +365,13 @@ class PerAtSignNotifSender {
       try {
         // not much point in sending expired notifications, is there
         if (n.isExpired()) {
-          logger.warning('notification ${n.id} has expired');
+          logger.info('notification ${n.id} has expired - will not deliver');
           n.notificationStatus = NotificationStatus.expired;
           try {
             await notifMgr.put(n.id, n);
           } catch (e) {
-            logger.warning('Exception $e while setting status expired on ${n.id}');
+            logger.warning(
+                'Exception $e while setting status expired on ${n.id}');
           }
           return;
         }
@@ -381,6 +384,7 @@ class PerAtSignNotifSender {
         // if response was data:success - great, we're done!
         if (notifyResponse == 'data:success') {
           n.notificationStatus = NotificationStatus.delivered;
+          logger.info('Delivered ${n.id} (${n.notification})');
           try {
             await notifMgr.put(n.id, n);
           } catch (e) {
@@ -391,17 +395,18 @@ class PerAtSignNotifSender {
         } else {
           throw Exception('Unexpected response $notifyResponse');
         }
-      } catch (e, st) {
-        logger.warning('Error while sending: ${e.runtimeType} : $e\n$st');
+      } catch (e) {
         try {
           await notifMgr.notifyConnectionsPool.secondaryAddressFinder
               .findSecondary(atSign);
         } on SecondaryNotFoundException catch (_) {
-          logger.severe('no such atSign $atSign');
+          logger.warning('no such atSign $atSign - giving up on ${n.id}');
           n.notificationStatus = NotificationStatus.errored;
           await notifMgr.put(n.id, n);
           return;
         }
+        logger.info('Error while sending ${n.id}: ${e.runtimeType} : $e\n');
+        logger.info('Will retry in $delay');
         await Future.delayed(delay);
         delay = Duration(
             milliseconds:

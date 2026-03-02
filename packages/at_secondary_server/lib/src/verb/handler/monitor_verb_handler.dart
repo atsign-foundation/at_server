@@ -85,7 +85,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
           }
 
           // Filter any before the provided epoch value
-          if ((n.notificationDateTime?.millisecondsSinceEpoch ?? 0) <
+          if ((n.notificationDateTime?.millisecondsSinceEpoch ?? 0) <=
               sinceMillis) {
             return false;
           }
@@ -123,7 +123,8 @@ class MonitorVerbHandler extends AbstractVerbHandler {
     }
 
     if (!configMap.containsKey(atConnection)) {
-      logger.severe('_sendNotification: no connection config available');
+      logger.severe('_sendNotification: no connection config for connection'
+          ' ${atConnection.metaData.toString()}');
       return;
     }
 
@@ -152,19 +153,37 @@ class MonitorVerbHandler extends AbstractVerbHandler {
   /// call [_checkAndSend]
   Future<void> processAtNotification(
       AtConnection atConnection, AtNotification atNotification) async {
-    // If connection is invalid, cancel subscriptions and remove the config
-    if (atConnection.isInValid()) {
-      if (configMap.containsKey(atConnection)) {
-        MonitorConfig mc = configMap[atConnection]!;
-        await mc.received?.cancel();
-        await mc.self?.cancel();
-        configMap.remove(atConnection);
+    try {
+      // If connection is invalid, cancel subscriptions and remove the config
+      if (atConnection.isInValid()) {
+        if (configMap.containsKey(atConnection)) {
+          logger.shout(
+              'Connection sessionID ${atConnection.metaData.sessionID} invalid, cancelling subscriptions');
+          MonitorConfig mc = configMap[atConnection]!;
+          if (mc.received != null) {
+            logger.shout('Cancelling "received" subscription');
+            await mc.received!.cancel();
+            mc.received = null;
+          }
+          if (mc.self != null) {
+            logger.shout('Cancelling "self" subscription');
+            await mc.self!.cancel();
+            mc.self = null;
+          }
+          configMap.remove(atConnection);
+          return;
+        } else {
+          logger.shout(
+              'Connection sessionID ${atConnection.metaData.sessionID} invalid, and no MonitorConfig available');
+        }
       }
+
+      Notification notification = Notification(atNotification);
+
+      await _sendNotification(atConnection, notification);
+    } catch (e, st) {
+      logger.severe('Unexpected exception $e in processAtNotification\n$st');
     }
-
-    Notification notification = Notification(atNotification);
-
-    await _sendNotification(atConnection, notification);
   }
 }
 
