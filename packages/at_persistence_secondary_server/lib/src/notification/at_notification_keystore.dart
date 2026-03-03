@@ -10,7 +10,7 @@ import 'package:hive/hive.dart';
 class AtNotificationKeystore
     with HiveBase<AtNotification?>
     implements SecondaryKeyStore, AtLogType<String, AtNotification> {
-  final String currentAtSign;
+  late String currentAtSign;
   late String _boxName;
   static const int maxKeyLengthWithoutCached = 248;
   late AtCompactionConfig atCompactionConfig;
