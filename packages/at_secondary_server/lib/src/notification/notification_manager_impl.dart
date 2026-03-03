@@ -88,7 +88,7 @@ class NotificationManager {
         break;
       case NotificationType.self:
         if ((n.toAtSign ?? atSign) != atSign) {
-          String s = 'notificationType "sent" but toAtsign ${n.toAtSign}'
+          String s = 'notificationType "self" but toAtsign ${n.toAtSign}'
               ' is not our atSign $atSign';
           logger.severe(s);
           throw StateError(s);
