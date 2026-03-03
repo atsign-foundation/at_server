@@ -1,3 +1,7 @@
+# 3.10.1
+
+- Defensive code to handle bad data in some very old atServers
+
 # 3.10.0
 
 - Overhaul notification handling
