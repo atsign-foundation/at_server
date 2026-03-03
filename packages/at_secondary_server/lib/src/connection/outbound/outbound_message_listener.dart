@@ -124,7 +124,6 @@ class OutboundMessageListener {
           errorMap['errorCode'], errorMap['errorDescription']);
     } on FormatException {
       // Catching the FormatException to preserve backward compatibility - responses without jsonEncoding.
-      // TODO: Can remove the catch block in the next release (once all the existing servers are migrated to new version).
       // get error code and description from error response
       String? errorCode;
       try {

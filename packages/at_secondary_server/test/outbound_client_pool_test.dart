@@ -26,7 +26,7 @@ void main() async {
         outboundIdleTimeMillis;
     AtSecondaryServerImpl.getInstance().serverContext = serverContext;
     outboundClientPool = OutboundClientPool();
-    notifyConnectionsPool = NotifyConnectionsPool(
+    notifyConnectionsPool = NotifyConnectionsPool(MockSecondaryAddressFinder(),
         DefaultOutboundConnectionFactory(requireCerts: false));
 
     notifyConnectionsPool.size = 2;

@@ -106,40 +106,6 @@ void main() {
     expect(response, contains(keyRequired));
   });
 
-  test('stats verb for id 11 - for messageType text ', () async {
-    /// stats:11 verb response
-    var beforeNotify = await notificationStats(sh1);
-    var sentCountBeforeNotify = await beforeNotify['type']['sent'];
-    var statusBeforeNotify = await beforeNotify['status']['delivered'];
-    var textCountBeforeNotify = await beforeNotify['messageType']['text'];
-
-    /// update command
-    var value = 'Hey $lastValue';
-    await sh1.writeCommand('notify:update:messageType:text:$atSign_2:$value');
-    var notifyResponse = await sh1.read();
-    print('notify verb response $notifyResponse');
-    assert((!notifyResponse.contains('Invalid syntax')) &&
-        (!notifyResponse.contains('null')));
-    String notificationId = notifyResponse.replaceAll('data:', '');
-    await notification.getNotifyStatus(sh1, notificationId,
-        returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-    var afterNotify = await notificationStats(sh1);
-    var sentCountAfterNotify = await afterNotify['type']['sent'];
-    var statusAfterNotify = await afterNotify['status']['delivered'];
-    var textCountAfterNotify = await afterNotify['messageType']['text'];
-    expect(sentCountAfterNotify, sentCountBeforeNotify + 1);
-    expect(statusAfterNotify, statusBeforeNotify + 1);
-    expect(textCountAfterNotify, textCountBeforeNotify + 1);
-
-    // notify:list on the other atsign
-    // notify:list on the other atsign
-    String keyRequired =
-        'key":"$atSign_2:$value","value":null,"operation":"update"';
-    String response = await notification.retryCommandUntilMatchOrTimeout(
-        sh2, 'notify:list', keyRequired, 15000);
-    expect(response, contains(keyRequired));
-  });
-
   // this needs to be an e2e test because it tries to send notification to an invalid atsign
   test('stats verb for id 11 - for an invalid atsign ', () async {
     /// stats:11 verb response

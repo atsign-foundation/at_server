@@ -16,7 +16,7 @@ import 'package:mutex/mutex.dart';
 
 abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   static bool _autoNotify = AtSecondaryConfig.autoNotify;
-  late final NotificationManager notificationManager;
+  final NotificationManager notificationManager;
   static const int maxKeyLength = 255;
   static const int maxKeyLengthWithoutCached = 248;
 
@@ -149,7 +149,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       existingAtMetaData,
     );
 
-    notify(
+    await notify(
         sharedBy,
         sharedWith,
         verbParams[AtConstants.atKey],
@@ -244,13 +244,21 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     return updateParams;
   }
 
-  dynamic notify(String? atSign, String? forAtSign, String? key, String? value,
-      NotificationPriority priority, AtMetaData atMetaData) async {
+  Future<AtNotification?> notify(
+      String? atSign,
+      String? forAtSign,
+      String? key,
+      String? value,
+      NotificationPriority priority,
+      AtMetaData atMetaData) async {
     if (!_autoNotify) {
-      return;
+      return null;
     }
     if (forAtSign == null || forAtSign.isEmpty) {
-      return;
+      return null;
+    }
+    if (forAtSign.toAtsign() == atSign) {
+      return null;
     }
     key = '$forAtSign:$key$atSign';
     int ttlInMillis =
@@ -269,7 +277,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
           ..atMetaData = atMetaData)
         .build();
 
-    unawaited(notificationManager.notify(atNotification));
+    await notificationManager.notify(atNotification);
     return atNotification;
   }
 

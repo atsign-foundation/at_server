@@ -157,11 +157,14 @@ void main() {
         'type': <String, int>{
           'sent': 0,
           'received': 0,
+          'self': 0,
         },
         'status': <String, int>{
           'delivered': 0,
           'failed': 0,
+          'errored': 0,
           'queued': 0,
+          'expired': 0,
         },
         'operations': <String, int>{
           'update': 0,
@@ -174,7 +177,7 @@ void main() {
         'createdOn': 0,
       };
       var notifyListVerbHandler =
-          NotifyListVerbHandler(secondaryKeyStore, mockOutboundClientManager);
+          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
       var testNotification = (AtNotificationBuilder()
             ..id = '1031'
             ..fromAtSign = '@bob'
@@ -250,10 +253,10 @@ void main() {
       var metadata = InboundConnectionMetadata()
         ..fromAtSign = '@bob'
         ..isAuthenticated = true;
-      await AtNotificationKeystore.getInstance().put('1031', testNotification);
-      await AtNotificationKeystore.getInstance().put('1032', testNotification2);
-      await AtNotificationKeystore.getInstance().put('1033', testNotification3);
-      await AtNotificationKeystore.getInstance().put('1034', testNotification4);
+      await notifStore.put('1031', testNotification);
+      await notifStore.put('1032', testNotification2);
+      await notifStore.put('1033', testNotification3);
+      await notifStore.put('1034', testNotification4);
       var verb = Notify();
       var command = 'notify:update:ttr:-1:$alice:city@bob:vijayawada';
       var command2 = 'notify:delete:ttr:-1:$alice:city@bob:vijayawada';
@@ -286,6 +289,7 @@ void main() {
       expect(metricsMap['type']['received'], 2);
       expect(metricsMap['status']['delivered'], 1);
       expect(metricsMap['status']['failed'], 1);
+      expect(metricsMap['status']['errored'], 1);
       expect(metricsMap['status']['queued'], 2);
       expect(metricsMap['operations']['update'], 3);
       expect(metricsMap['operations']['delete'], 1);
@@ -401,8 +405,7 @@ void main() {
       atCompactionStats.lastCompactionRun = DateTime.now();
       atCompactionStats.postCompactionEntriesCount = 1;
       atCompactionStats.preCompactionEntriesCount = 1;
-      atCompactionStats.atCompactionType =
-          AtNotificationKeystore.getInstance().toString();
+      atCompactionStats.atCompactionType = notifStore.toString();
       await secondaryKeyStore.put(AtConstants.commitLogCompactionKey,
           AtData()..data = jsonEncode(atCompactionStats));
 

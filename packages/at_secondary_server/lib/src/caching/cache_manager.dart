@@ -5,7 +5,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
-import 'package:at_secondary/src/utils/notification_util.dart';
+import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:meta/meta.dart';
@@ -25,13 +25,18 @@ class AtCacheManager {
   final Atsign atSign;
   final SecondaryKeyStore<String, AtData?, AtMetaData?> keyStore;
   final OutboundClientManager outboundClientManager;
+  final NotificationManager notificationManager;
 
   final logger = AtSignLogger('AtCacheManager');
 
   final _dummyInboundConnection = DummyInboundConnection();
 
-  AtCacheManager(String atSign, this.keyStore, this.outboundClientManager)
-      : atSign = atSign.toAtsign();
+  AtCacheManager(
+    String atSign,
+    this.keyStore,
+    this.outboundClientManager,
+    this.notificationManager,
+  ) : atSign = atSign.toAtsign();
 
   /// Returns a List of keyNames of all cached records due to refresh
   Future<List<String>> getKeyNamesToRefresh() async {
@@ -466,10 +471,10 @@ class AtCacheManager {
           ..opType = OperationType.update
           ..atValue = jsonEncode(event.toJson()))
         .build();
-    final notificationId = await NotificationUtil.storeNotification(notif);
+    await notificationManager.notify(notif);
     logger
         .warning('Sent self notification re $otherAtSign AtSignPKChangedEvent.'
-            ' Notif ID: $notificationId'
+            ' Notif ID: ${notif.id}'
             ' Notification: ${notif.toJson()}');
 
     // Housekeeping for older clients.

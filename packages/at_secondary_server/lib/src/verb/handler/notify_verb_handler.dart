@@ -7,7 +7,6 @@ import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -23,9 +22,9 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   static Notify notify = Notify();
   final int _maxKeyLength = 255;
 
-  final NotificationManager notificationManager;
+  final NotificationManager notifMgr;
 
-  NotifyVerbHandler(super.keyStore, this.notificationManager);
+  NotifyVerbHandler(super.keyStore, this.notifMgr);
 
   AtNotificationBuilder atNotificationBuilder = AtNotificationBuilder();
 
@@ -109,9 +108,11 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnectionMetadata polConnectionMetadata,
       Response response) async {
-    logger.info('Storing the notification ${verbParams[AtConstants.atKey]}');
+    logger.info('Processing notification id ${verbParams[AtConstants.id]}');
+
     var atNotificationBuilder = _populateNotificationBuilder(verbParams,
         fromAtSign: polConnectionMetadata.fromAtSign!);
+
     // If messageType is key, atMetadata is set in "_populateNotificationBuilder"
     // When messageType is text, atNotificationBuilder.atMetadata fields are
     // not applicable except "atMetadata.isEncrypted".
@@ -121,8 +122,32 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       atNotificationBuilder.atMetaData = _atMetadataPool[
           SecondaryUtil.getBoolFromString(verbParams[AtConstants.isEncrypted])];
     }
-    // Store the notification to the notification keystore.
-    await NotificationUtil.storeNotification(atNotificationBuilder.build());
+
+    AtNotification n = atNotificationBuilder.build();
+
+    // If the the notification has expired, do not store it
+    // Instead, log a warning, but return data:success as it is not
+    // definitely an error condition
+    if (n.isExpired()) {
+      logger.warning('Notification ${n.id} from ${n.fromAtSign} has expired');
+      response.data = 'data:success';
+      return;
+    }
+
+    // If we already have a notification with this ID, do not store it
+    // Instead, log a warning, but return data:success for idempotency reasons
+    if (await notifMgr.isKeyExists(n.id!)) {
+      logger.warning('We have already received notification ${n.id}');
+      response.data = 'data:success';
+      return;
+    }
+
+    // Store and send the notification
+    await notifMgr.notify(n);
+
+    // Everything after here is to do with auto-caching based on notifications
+    // First of all, caching is only relevant when ttr is set
+    // So - no ttr? we're done.
     OperationType operationType =
         getOperationType(verbParams[AtConstants.operation]);
     // When Operation is update, cache key only when TTR is set.
@@ -134,7 +159,9 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       response.data = 'data:success';
       return;
     }
-    // form a cached key
+
+    // OK we have a ttr
+    // First of all, form a cached key
     String cachedNotificationKey =
         '${AtConstants.cached}:${atNotificationBuilder.notification}';
     if (cachedNotificationKey.length > _maxKeyLength) {
@@ -215,22 +242,14 @@ class NotifyVerbHandler extends AbstractVerbHandler {
         'currentAtSign : $currentAtSign, forAtSign : ${verbParams[AtConstants.forAtSign]}, atSign : ${verbParams[AtConstants.atSign]}');
     final atNotificationBuilder =
         _populateNotificationBuilder(verbParams, fromAtSign: currentAtSign);
-    // If the currentAtSign and forAtSign are same, store the notification to keystore
-    // and return
+    // If the currentAtSign and forAtSign are same, mark as "delivered"
     if (currentAtSign == verbParams[AtConstants.forAtSign]) {
-      // Since notification is stored to keystore, marking the notification
-      // status as delivered
       atNotificationBuilder.notificationStatus = NotificationStatus.delivered;
-      var notificationId = await NotificationUtil.storeNotification(
-          atNotificationBuilder.build());
-      response.data = notificationId;
-      return;
     }
-    // Send the notification to notification queue manager to notify to the forAtSign
-    // and return the notification Id to the currentAtSign
-    var notificationId =
-        await notificationManager.notify(atNotificationBuilder.build());
-    response.data = notificationId;
+
+    AtNotification n = atNotificationBuilder.build();
+    await notifMgr.notify(n);
+    response.data = n.id;
     return;
   }
 
@@ -253,7 +272,6 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   }
 
   ///Removes the cached key from the keystore.
-  ///key Key to delete.
   Future<int?> _removeCachedKey(String cachedKey) async {
     var metadata = await keyStore.getMeta(cachedKey);
     if (metadata != null && metadata.isCascade) {
@@ -297,6 +315,10 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       // If notification is of messageType "key" fromAtSign is fetched from verbParams
       // If notification is of messageType "text" fromAtSign is fetched from atConnectionMetadata.fromAtSign
       {String fromAtSign = ''}) {
+    if (verbParams[AtConstants.id] != null &&
+        verbParams[AtConstants.id]!.isNotEmpty) {
+      atNotificationBuilder.id = verbParams[AtConstants.id];
+    }
     atNotificationBuilder = atNotificationBuilder
       ..toAtSign = AtUtils.fixAtSign(verbParams[AtConstants.forAtSign] ?? '')
       ..fromAtSign = fromAtSign
@@ -326,10 +348,6 @@ class NotifyVerbHandler extends AbstractVerbHandler {
         (_getIntParam(verbParams[AtConstants.latestN]) != null)
             ? _getIntParam(verbParams[AtConstants.latestN])
             : 1;
-    if (verbParams[AtConstants.id] != null &&
-        verbParams[AtConstants.id]!.isNotEmpty) {
-      atNotificationBuilder.id = verbParams[AtConstants.id];
-    }
     return atNotificationBuilder;
   }
 

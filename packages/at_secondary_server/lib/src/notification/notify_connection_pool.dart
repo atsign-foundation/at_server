@@ -1,8 +1,8 @@
 import 'package:at_commons/at_commons.dart';
+import 'package:at_lookup/at_lookup.dart' show SecondaryAddressFinder;
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_pool.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_utils/at_logger.dart';
 
 /// Class to maintains the pool of outbound connections for notifying.
@@ -13,8 +13,10 @@ class NotifyConnectionsPool {
 
   late final OutboundClientPool _outboundClientPool;
   final OutboundConnectionFactory outboundConnectionFactory;
+  final SecondaryAddressFinder secondaryAddressFinder;
 
   NotifyConnectionsPool(
+    this.secondaryAddressFinder,
     this.outboundConnectionFactory, {
     int poolSize = defaultPoolSize,
   }) {
@@ -62,7 +64,7 @@ class NotifyConnectionsPool {
     var newClient = OutboundClient(
       inboundConnection,
       toAtSign,
-      AtSecondaryServerImpl.getInstance().secondaryAddressFinder,
+      secondaryAddressFinder,
       true,
       outboundConnectionFactory,
     );

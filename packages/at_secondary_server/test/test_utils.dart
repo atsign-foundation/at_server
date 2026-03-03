@@ -13,10 +13,8 @@ import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
-import 'package:at_secondary/src/notification/at_notification_map.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
-import 'package:at_secondary/src/notification/resource_manager.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -35,6 +33,13 @@ class MockSecondaryKeyStore extends Mock
   List<Future Function(String key, {required bool skipCommit})>
       postRemoveHooks = [];
 }
+
+class MockAtNotificationKeystore extends Mock
+    implements AtNotificationKeystore {}
+
+class MockNotifyConnectionsPool extends Mock implements NotifyConnectionsPool {}
+
+class MockOutboundClient extends Mock implements OutboundClient {}
 
 class MockOutboundClientManager extends Mock implements OutboundClientManager {}
 
@@ -108,6 +113,7 @@ late MockOutboundConnection mockOutboundConnection;
 late MockSecondaryAddressFinder mockSecondaryAddressFinder;
 late MockSecureSocket mockSecureSocket;
 late DummyInboundConnection inboundConnection;
+late AtNotificationKeystore notifStore;
 late NotificationManager notificationManager;
 late MockStatsNotificationService statsNotificationService;
 late EnrollmentManager enMgr;
@@ -176,10 +182,6 @@ verbTestsSetUp() async {
   await secondaryPersistenceStore.getHivePersistenceManager()!.init(storageDir);
 
   secondaryKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
-
-  var notificationKeystore = AtNotificationKeystore.getInstance();
-  notificationKeystore.currentAtSign = alice;
-  await notificationKeystore.init(storageDir);
 
   mockSecondaryAddressFinder = MockSecondaryAddressFinder();
   when(() => mockSecondaryAddressFinder.findSecondary(bob))
@@ -250,6 +252,7 @@ verbTestsSetUp() async {
   mockSecureSocket = MockSecureSocket();
   when(() => mockOutboundConnection.underlying)
       .thenAnswer((_) => mockSecureSocket);
+  when(() => mockOutboundConnection.isInValid()).thenReturn(false);
   when(() => mockOutboundConnection.close()).thenAnswer((_) async => {});
 
   when(() => mockSecureSocket.listen(
@@ -264,10 +267,23 @@ verbTestsSetUp() async {
     return MockStreamSubscription();
   });
 
-  cacheManager =
-      AtCacheManager(alice, secondaryKeyStore, mockOutboundClientManager);
+  notifStore = atServer.notificationKeystore = AtNotificationKeystore(alice);
+  await notifStore.init(storageDir);
 
-  AtSecondaryServerImpl.getInstance().cacheManager = cacheManager;
+  notificationManager = atServer.notificationManager = NotificationManager(
+      alice,
+      notifStore,
+      NotifyConnectionsPool(
+          mockSecondaryAddressFinder, mockOutboundConnectionFactory));
+  registerFallbackValue(AtNotificationBuilder().build());
+
+  cacheManager = atServer.cacheManager = AtCacheManager(
+    alice,
+    secondaryKeyStore,
+    mockOutboundClientManager,
+    notificationManager,
+  );
+
   AtSecondaryServerImpl.getInstance().secondaryKeyStore = secondaryKeyStore;
   AtSecondaryServerImpl.getInstance().outboundClientManager =
       mockOutboundClientManager;
@@ -315,13 +331,6 @@ verbTestsSetUp() async {
     socketOnDataFn("data:$bobOriginalPublicKeyAsJson\n$alice@".codeUnits);
   });
 
-  notificationManager = NotificationManager(ResourceManager(
-      NotifyConnectionsPool(
-          DefaultOutboundConnectionFactory(requireCerts: false))));
-  registerFallbackValue(AtNotificationBuilder().build());
-  // when(() => notificationManager.notify(any()))
-  //     .thenAnswer((invocation) async => 'some-notification-id');
-
   statsNotificationService = MockStatsNotificationService();
 }
 
@@ -330,8 +339,7 @@ Future<void> verbTestsTearDown() async {
   secondaryKeyStore.postRemoveHooks.clear();
   await SecondaryPersistenceStoreFactory.getInstance().close();
   await AtCommitLogManagerImpl.getInstance().close();
-  await AtNotificationKeystore.getInstance().close(); // TODO deep
-  AtNotificationMap.getInstance().clear(); // TODO sigh
+  await notifStore.close();
   var isExists = await Directory(storageDir).exists();
   if (isExists) {
     Directory(storageDir).deleteSync(recursive: true);

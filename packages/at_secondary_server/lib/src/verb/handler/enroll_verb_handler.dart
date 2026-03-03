@@ -7,9 +7,9 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
+import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:meta/meta.dart';
@@ -37,8 +37,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       .inMilliseconds;
 
   final EnrollmentManager enMgr;
+  final NotificationManager notifManager;
 
-  EnrollVerbHandler(super.keyStore, this.enMgr);
+  EnrollVerbHandler(super.keyStore, this.enMgr, this.notifManager);
 
   @override
   bool accept(String command) => command.startsWith('enroll:');
@@ -522,6 +523,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// encrypted APKAM symmetric key
   Future<void> _storeNotification(
       String key, EnrollParams enrollParams, String atSign) async {
+    AtNotification? atNotification;
     try {
       var notificationValue = {};
       notificationValue[AtConstants.apkamEncryptedSymmetricKey] =
@@ -534,7 +536,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       notificationValue[AtConstants.deviceName] = enrollParams.deviceName;
       notificationValue[AtConstants.namespace] = enrollParams.namespaces;
       logger.finer('notificationValue:$notificationValue');
-      final atNotification = (AtNotificationBuilder()
+      atNotification = (AtNotificationBuilder()
             ..notification = key
             ..fromAtSign = atSign
             ..toAtSign = atSign
@@ -543,12 +545,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
             ..opType = OperationType.update
             ..atValue = jsonEncode(notificationValue))
           .build();
-      final notificationId =
-          await NotificationUtil.storeNotification(atNotification);
-      logger.finer('notification generated: $notificationId');
+      await notifManager.notify(atNotification);
+      logger.finer('notification generated with id: ${atNotification.id}');
     } catch (e, trace) {
       logger.severe(
-          'Exception while storing notification key ${AtConstants.enrollmentId}. Exception $e. Trace $trace');
+          'Exception while storing notification (id: ${atNotification?.id}). Exception $e. Trace $trace');
       rethrow;
     }
   }

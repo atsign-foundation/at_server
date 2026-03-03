@@ -34,7 +34,7 @@ void main() {
             ..notification = 'key1'
             ..type = NotificationType.received)
           .build();
-      await AtNotificationKeystore.getInstance().put('122', notificationObj);
+      await notifStore.put('122', notificationObj);
 
       // Dummy Inbound connection
       var atConnection = InboundConnectionImpl(FakeSocket(), '123')
@@ -44,7 +44,7 @@ void main() {
       var response = Response();
       // Verify Notification is inserted into keystore
       var notifyListVerbHandler =
-          NotifyListVerbHandler(secondaryKeyStore, mockOutboundClientManager);
+          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
       var notifyListParams = getVerbParam(NotifyList().syntax(), 'notify:list');
       await notifyListVerbHandler.processVerb(
           response, notifyListParams, atConnection);

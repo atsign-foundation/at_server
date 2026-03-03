@@ -26,4 +26,9 @@ class InboundConnectionMetadata extends AtConnectionMetaData {
 
   /// A unique identifier generated for a client's APKAM enroll request
   String? enrollmentId;
+
+  @override
+  String toString() {
+    return 'InboundConnectionMetadata{self: $self, from: $from, fromAtSign: $fromAtSign, clientId: $clientId, appName: $appName, appVersion: $appVersion, platform: $platform, enrollmentId: $enrollmentId}';
+  }
 }

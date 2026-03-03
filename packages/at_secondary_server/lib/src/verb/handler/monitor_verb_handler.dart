@@ -1,24 +1,29 @@
+import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
+import 'package:meta/meta.dart';
+
+class MonitorConfig {
+  RegExp regex = RegExp('.*');
+  StreamSubscription<AtNotification>? received;
+  StreamSubscription<AtNotification>? self;
+}
 
 class MonitorVerbHandler extends AbstractVerbHandler {
   static Monitor monitor = Monitor();
 
-  late InboundConnection atConnection;
+  MonitorVerbHandler(super.keyStore, this.notifMgr);
 
-  late String regex;
-
-  MonitorVerbHandler(super.keyStore);
-
-  Notification notification = Notification.empty();
+  NotificationManager notifMgr;
 
   @override
   bool accept(String command) => command.startsWith(getName(VerbEnum.monitor));
@@ -28,9 +33,8 @@ class MonitorVerbHandler extends AbstractVerbHandler {
     return monitor;
   }
 
-  MonitorVerbHandler clone() {
-    return MonitorVerbHandler(super.keyStore);
-  }
+  @visibleForTesting
+  Map<InboundConnection, MonitorConfig> configMap = {};
 
   @override
   Future<void> processVerb(
@@ -41,67 +45,104 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       throw UnAuthenticatedException(
           'Failed to execute verb. monitor requires authentication');
     }
-    this.atConnection = atConnection;
+    if (!configMap.containsKey(atConnection)) {
+      configMap[atConnection] = MonitorConfig();
+    }
+
+    MonitorConfig mc = configMap[atConnection]!;
     // If regex is not provided by user, set regex to ".*" to match all the possibilities
     // else set regex to the value given by the user.
-    (verbParams[AtConstants.regex] == null)
-        ? regex = '.*'
-        : regex = verbParams[AtConstants.regex]!;
-    final selfNotificationsFlag =
+    try {
+      mc.regex = RegExp(verbParams[AtConstants.regex] ?? '.*');
+    } catch (e) {
+      throw InvalidSyntaxException(
+          'Invalid regex: ${verbParams[AtConstants.regex]}');
+    }
+    final selfNotificationsParam =
         verbParams[AtConstants.monitorSelfNotifications];
-    AtNotificationCallback.getInstance().registerNotificationCallback(
-        NotificationType.received, processAtNotification);
-    if (selfNotificationsFlag == AtConstants.monitorSelfNotifications) {
-      logger.finer('self notification callback registered');
-      AtNotificationCallback.getInstance().registerNotificationCallback(
-          NotificationType.self, processAtNotification);
+    mc.received = notifMgr.received.stream
+        .listen((n) => processAtNotification(atConnection, n));
+    if (selfNotificationsParam == AtConstants.monitorSelfNotifications) {
+      mc.self = notifMgr.self.stream
+          .listen((n) => processAtNotification(atConnection, n));
     }
 
     if (verbParams.containsKey(AtConstants.epochMilliseconds) &&
         verbParams[AtConstants.epochMilliseconds] != null) {
-      // Send notifications that are already received after EPOCH_MILLIS first
-      List<Notification> receivedNotificationsAfterEpochMills =
-          await _getNotificationsAfterEpoch(
-              int.parse(verbParams[AtConstants.epochMilliseconds]!),
-              selfNotificationsFlag == AtConstants.monitorSelfNotifications);
-      for (Notification receivedNotification
-          in receivedNotificationsAfterEpochMills) {
-        await _checkAndSend(receivedNotification);
+      // Send notifications already in the data store
+
+      // set up values for the retain closure below
+      int sinceMillis = int.parse(verbParams[AtConstants.epochMilliseconds]!);
+      List<NotificationType> notifTypes = [NotificationType.received];
+      if (selfNotificationsParam == AtConstants.monitorSelfNotifications) {
+        notifTypes.add(NotificationType.self);
+      }
+      List<AtNotification> notifs = await notifMgr.getFilteredSorted(
+        retain: (n) {
+          // Filter expired
+          if (n.isExpired()) {
+            return false;
+          }
+
+          // Filter any before the provided epoch value
+          if ((n.notificationDateTime?.millisecondsSinceEpoch ?? 0) <=
+              sinceMillis) {
+            return false;
+          }
+
+          // Filter by notification type
+          // Must be either received or self (if the self flag was set)
+          if (!notifTypes.contains(n.type)) {
+            return false;
+          }
+
+          // Must match the regex
+          if (n.notification?.contains(mc.regex) != true) {
+            return false;
+          }
+
+          return true;
+        },
+        comparator: notifMgr.compareDateTime,
+      );
+      for (AtNotification n in notifs) {
+        await processAtNotification(atConnection, n);
       }
     }
     atConnection.isMonitor = true;
   }
 
-  /// Does an [isAuthorized] check, if OK then calls [_sendNotification]
-  Future<void> _checkAndSend(Notification notification) async {
-    if (await isAuthorized(atConnection.metaData as InboundConnectionMetadata,
-        atKey: notification.notification)) {
-      await _sendNotification(notification);
+  /// - Checks if connection is authorized for this notif's key's namespace
+  /// - Checks if the notif's key matches the regex
+  /// - Writes the notification to the connection
+  Future<void> _sendNotification(
+      AtConnection atConnection, Notification notification) async {
+    if (!(await isAuthorized(atConnection.metaData as InboundConnectionMetadata,
+        atKey: notification.notification))) {
+      return;
     }
-  }
 
-  /// If connection is authenticate via PKAM
-  ///    - Writes all the notifications on the connection.
-  ///    - Optionally, if regex is supplied, write only the notifications that
-  ///      matches the pattern.
-  Future<void> _sendNotification(Notification notification) async {
+    if (!configMap.containsKey(atConnection)) {
+      logger.severe('_sendNotification: no connection config for connection'
+          ' ${atConnection.metaData.toString()}');
+      return;
+    }
+
+    MonitorConfig mc = configMap[atConnection]!;
     var fromAtSign = notification.fromAtSign;
     if (fromAtSign != null) {
       fromAtSign = fromAtSign.replaceAll('@', '');
     }
     try {
-      logger.finest('Checking $notification against $regex');
-      // If the user does not provide regex, defaults to ".*" to match all notifications.
-      if (notification.notification!.contains(RegExp(regex)) ||
-          (fromAtSign != null && fromAtSign.contains(RegExp(regex)))) {
+      logger.finest('Checking $notification against ${mc.regex}');
+      if (notification.notification!.contains(mc.regex) ||
+          (fromAtSign != null && fromAtSign.contains(mc.regex))) {
         logger.finest('Matched regex - sending');
         await atConnection.write('notification:'
             ' ${jsonEncode(notification.toJson())}\n');
       }
-    } on FormatException {
-      logger.severe('Invalid regular expression : $regex');
-      throw InvalidSyntaxException(
-          'Invalid regular expression. $regex is not a valid regex');
+    } catch (e) {
+      logger.severe('$e while attempting to deliver $notification');
     }
   }
 
@@ -110,82 +151,38 @@ class MonitorVerbHandler extends AbstractVerbHandler {
   /// manager when a notification needs to be handled. Here in the Monitor, we
   /// transform the data into format which AtClients should understand, then
   /// call [_checkAndSend]
-  Future<void> processAtNotification(AtNotification atNotification) async {
-    // If connection is invalid, deregister the notification
-    if (atConnection.isInValid()) {
-      var atNotificationCallback = AtNotificationCallback.getInstance();
-      atNotificationCallback.unregisterNotificationCallback(
-          NotificationType.received, processAtNotification);
-    } else {
-      notification
-        ..id = atNotification.id
-        ..fromAtSign = atNotification.fromAtSign
-        ..dateTime = atNotification.notificationDateTime!.millisecondsSinceEpoch
-        ..toAtSign = atNotification.toAtSign
-        ..notification = atNotification.notification
-        ..operation =
-            atNotification.opType.toString().replaceAll('OperationType.', '')
-        ..value = atNotification.atValue
-        ..messageType = atNotification.messageType!.toString()
-        ..isTextMessageEncrypted =
-            atNotification.atMetadata?.isEncrypted != null
-                ? atNotification.atMetadata!.isEncrypted!
-                : false
-        ..metadata = {
-          "encKeyName": atNotification.atMetadata?.encKeyName,
-          "encAlgo": atNotification.atMetadata?.encAlgo,
-          "ivNonce": atNotification.atMetadata?.ivNonce,
-          "skeEncKeyName": atNotification.atMetadata?.skeEncKeyName,
-          "skeEncAlgo": atNotification.atMetadata?.skeEncAlgo,
-          "sharedKeyEnc": atNotification.atMetadata?.sharedKeyEnc,
-          "pubKeyCS": atNotification.atMetadata?.pubKeyCS,
-          "dataSignature": atNotification.atMetadata?.dataSignature,
-        };
-
-      notification.metadata?.putIfAbsent(
-          "pubKeyHash",
-          () => (atNotification.atMetadata?.pubKeyHash != null)
-              ? jsonEncode(atNotification.atMetadata?.pubKeyHash?.toJson())
-              : null);
-
-      await _checkAndSend(notification);
-    }
-  }
-
-  Future<List<Notification>> _getNotificationsAfterEpoch(
-      int millisecondsEpoch, bool isSelfNotificationsEnabled) async {
-    // Get all notifications
-    var allNotifications = <Notification>[];
-    var notificationKeyStore = AtNotificationKeystore.getInstance();
-    var keyList = await notificationKeyStore.getValues();
-    await Future.forEach(
-        keyList,
-        (element) => _fetchNotificationEntry(element, allNotifications,
-            notificationKeyStore, isSelfNotificationsEnabled));
-
-    // Filter previous notifications than millisecondsEpoch
-    var responseList = <Notification>[];
-    for (var notification in allNotifications) {
-      if (notification.dateTime! > millisecondsEpoch) {
-        responseList.add(notification);
+  Future<void> processAtNotification(
+      AtConnection atConnection, AtNotification atNotification) async {
+    try {
+      // If connection is invalid, cancel subscriptions and remove the config
+      if (atConnection.isInValid()) {
+        if (configMap.containsKey(atConnection)) {
+          logger.shout(
+              'Connection sessionID ${atConnection.metaData.sessionID} invalid, cancelling subscriptions');
+          MonitorConfig mc = configMap[atConnection]!;
+          if (mc.received != null) {
+            logger.shout('Cancelling "received" subscription');
+            await mc.received!.cancel();
+            mc.received = null;
+          }
+          if (mc.self != null) {
+            logger.shout('Cancelling "self" subscription');
+            await mc.self!.cancel();
+            mc.self = null;
+          }
+          configMap.remove(atConnection);
+          return;
+        } else {
+          logger.shout(
+              'Connection sessionID ${atConnection.metaData.sessionID} invalid, and no MonitorConfig available');
+        }
       }
-    }
-    return responseList;
-  }
 
-  /// Fetches a notification from the notificationKeyStore and adds it to responseList
-  void _fetchNotificationEntry(
-      dynamic element,
-      List<Notification> responseList,
-      AtNotificationKeystore notificationKeyStore,
-      bool isSelfNotificationsEnabled) async {
-    var notificationEntry = await notificationKeyStore.get(element.id);
-    if (notificationEntry != null &&
-        (notificationEntry.type == NotificationType.received ||
-            (isSelfNotificationsEnabled &&
-                notificationEntry.type == NotificationType.self)) &&
-        !notificationEntry.isExpired()) {
-      responseList.add(Notification(element));
+      Notification notification = Notification(atNotification);
+
+      await _sendNotification(atConnection, notification);
+    } catch (e, st) {
+      logger.severe('Unexpected exception $e in processAtNotification\n$st');
     }
   }
 }

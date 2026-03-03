@@ -242,10 +242,6 @@ class LastPkamMetricImpl extends MetricProvider {
 class NotificationsMetricImpl extends MetricProvider {
   NotificationsMetricImpl(super.atServer);
 
-  String _asString(dynamic enumData) {
-    return enumData == null ? 'null' : enumData.toString().split('.')[1];
-  }
-
   @override
   Future<String?> getMetrics({String? regex}) async {
     Map<String, dynamic> metricsMap = <String, dynamic>{
@@ -253,11 +249,14 @@ class NotificationsMetricImpl extends MetricProvider {
       "type": <String, int>{
         "sent": 0,
         "received": 0,
+        "self": 0,
       },
       "status": <String, int>{
         "delivered": 0,
         "failed": 0,
+        "errored": 0,
         "queued": 0,
+        "expired": 0,
       },
       "operations": <String, int>{
         "update": 0,
@@ -273,41 +272,53 @@ class NotificationsMetricImpl extends MetricProvider {
     return jsonEncode(metricsMap);
   }
 
-  bool _check(var notifications, String key, String? value) {
-    return _asString(notifications.toJson()[key]) == value;
-  }
-
   Future<Map<String, dynamic>> getNotificationStats(
       Map<String, dynamic> metrics) async {
-    AtNotificationKeystore notificationKeystore =
-        AtNotificationKeystore.getInstance();
-    List notificationsList = await notificationKeystore.getValues();
-    metrics['total'] = notificationsList.length;
-    for (var notifications in notificationsList) {
-      if (_check(notifications, 'type', 'sent')) {
-        metrics['type']['sent']++;
-      } else if (_check(notifications, 'type', 'received')) {
-        metrics['type']['received']++;
+    int total = 0;
+    for (final k in await atServer.notificationManager.getKeys()) {
+      final n = await atServer.notificationManager.get(k);
+      if (n == null) {
+        continue;
       }
-      if (_check(notifications, 'notificationStatus', 'delivered')) {
-        metrics['status']['delivered']++;
-      } else if (_check(notifications, 'notificationStatus', 'errored')) {
-        metrics['status']['failed']++;
-      } else if (_check(notifications, 'notificationStatus', 'queued') ||
-          _check(notifications, 'status', null)) {
-        metrics['status']['queued']++;
+      total++;
+      switch (n.type) {
+        case null:
+          break;
+        case NotificationType.self:
+        case NotificationType.received:
+        case NotificationType.sent:
+          metrics['type'][n.type!.name]++;
+          break;
       }
-      if (_check(notifications, 'opType', 'update')) {
-        metrics['operations']['update']++;
-      } else if (_check(notifications, 'opType', 'delete')) {
-        metrics['operations']['delete']++;
+      switch (n.notificationStatus) {
+        case null:
+          break;
+        case NotificationStatus.queued:
+        case NotificationStatus.delivered:
+        case NotificationStatus.expired:
+          metrics['status'][n.notificationStatus!.name]++;
+          break;
+        case NotificationStatus.errored:
+          metrics['status'][n.notificationStatus!.name]++;
+          metrics['status']['failed']++;
+          break;
       }
-      if (_check(notifications, 'messageType', 'key')) {
-        metrics['messageType']['key']++;
-      } else if (_check(notifications, 'messageType', 'text')) {
-        metrics['messageType']['text']++;
+      switch (n.opType) {
+        case null:
+          break;
+        case OperationType.delete:
+        case OperationType.update:
+          metrics['operations'][n.opType!.name]++;
+      }
+      switch (n.messageType) {
+        case null:
+          break;
+        case MessageType.key:
+        case MessageType.text:
+          metrics['messageType'][n.messageType!.name]++;
       }
     }
+    metrics['total'] = total;
     metrics['createdOn'] = DateTime.now().millisecondsSinceEpoch;
     return metrics;
   }

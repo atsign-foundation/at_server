@@ -5,8 +5,6 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
-import 'package:at_secondary/src/notification/at_notification_map.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/notify_fetch_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
@@ -17,20 +15,20 @@ import 'package:test/test.dart';
 import 'test_utils.dart';
 
 void main() async {
-  SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
-  OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
   FakeSocket mockSocket = FakeSocket();
 
-  verbTestsSetUpLogging();
+  setUp(() async {
+    await verbTestsSetUp();
+  });
 
-  setUpAll(() {});
+  tearDown(() async {
+    await verbTestsTearDown();
+  });
 
-  var storageDir = '${Directory.current.path}/test/hive';
-  late SecondaryKeyStoreManager keyStoreManager;
   group('A group of notify list verb tests', () {
     test('test notify getVerb', () {
       var handler =
-          NotifyListVerbHandler(mockKeyStore, mockOutboundClientManager);
+          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
       var verb = handler.getVerb();
       expect(verb is NotifyList, true);
     });
@@ -38,7 +36,7 @@ void main() async {
     test('test notify command accept test', () {
       var command = 'notify:list .me:2021-01-01:2021-01-12';
       var handler =
-          NotifyListVerbHandler(mockKeyStore, mockOutboundClientManager);
+          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -84,11 +82,9 @@ void main() async {
   });
 
   group('A group of tests on date time', () {
-    setUp(() async => keyStoreManager = await setUpFunc(storageDir));
-
     test('A test to verify from date', () async {
-      var notifyListVerbHandler = NotifyListVerbHandler(
-          keyStoreManager.getKeyStore(), mockOutboundClientManager);
+      var notifyListVerbHandler =
+          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
       var notification1 = (AtNotificationBuilder()
             ..id = '122'
             ..fromAtSign = '@test_user_1'
@@ -125,8 +121,8 @@ void main() async {
             ..depth = 3)
           .build();
 
-      await AtNotificationKeystore.getInstance().put('122', notification1);
-      await AtNotificationKeystore.getInstance().put('125', notification2);
+      await notifStore.put('122', notification1);
+      await notifStore.put('125', notification2);
       var verb = NotifyList();
       var date = DateTime.now().toString().split(' ')[0];
       var command = 'notify:list:$date';
@@ -146,13 +142,13 @@ void main() async {
       expect('@test_user_1', result[0]['from']);
       expect('@bob', result[0]['to']);
       expect('key-3', result[0]['key']);
-      await AtNotificationKeystore.getInstance().remove('122');
-      await AtNotificationKeystore.getInstance().remove('125');
+      await notifStore.remove('122');
+      await notifStore.remove('125');
     });
 
     test('A test to verify from and to date', () async {
-      var notifyListVerbHandler = NotifyListVerbHandler(
-          keyStoreManager.getKeyStore(), mockOutboundClientManager);
+      var notifyListVerbHandler =
+          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
       var notification1 = (AtNotificationBuilder()
             ..id = '121'
             ..fromAtSign = '@test_user_1'
@@ -208,9 +204,9 @@ void main() async {
             ..depth = 3)
           .build();
 
-      await AtNotificationKeystore.getInstance().put('121', notification1);
-      await AtNotificationKeystore.getInstance().put('122', notification2);
-      await AtNotificationKeystore.getInstance().put('123', notification3);
+      await notifStore.put('121', notification1);
+      await notifStore.put('122', notification2);
+      await notifStore.put('123', notification3);
       var verb = NotifyList();
       var fromDate =
           DateTime.now().subtract(Duration(days: 2)).toString().split(' ')[0];
@@ -237,9 +233,9 @@ void main() async {
       expect('@test_user_1', result[1]['from']);
       expect('@bob', result[1]['to']);
       expect('key-2', result[1]['key']);
-      await AtNotificationKeystore.getInstance().remove('121');
-      await AtNotificationKeystore.getInstance().remove('122');
-      await AtNotificationKeystore.getInstance().remove('123');
+      await notifStore.remove('121');
+      await notifStore.remove('122');
+      await notifStore.remove('123');
     });
 
     test('validate presence of availableAt in notify:list response', () async {
@@ -256,7 +252,7 @@ void main() async {
             ..notificationDateTime =
                 DateTime.now().subtract(Duration(seconds: 1))
             ..toAtSign = '@bob'
-            ..notification = 'availableat.firsttest'
+            ..notification = 'available_at.first_test'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key
@@ -270,10 +266,9 @@ void main() async {
             ..atMetaData = testMetaData)
           .build();
 
-      await AtNotificationKeystore.getInstance()
-          .put(testNotificationId, notification);
-      NotifyListVerbHandler notifyListVerbHandler = NotifyListVerbHandler(
-          keyStoreManager.getKeyStore(), mockOutboundClientManager);
+      await notifStore.put(testNotificationId, notification);
+      NotifyListVerbHandler notifyListVerbHandler =
+          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
       InboundConnectionMetadata inboundConnectionMetadata =
           InboundConnectionMetadata()
             ..fromAtSign = testFromAtsign
@@ -295,20 +290,17 @@ void main() async {
           DateTime.parse(notificationOfInterest['metadata']['availableAt']);
       expect(availableAtTestValue.compareTo(parsedAvailableAtFromResponse), 0);
 
-      await AtNotificationKeystore.getInstance().remove(testNotificationId);
+      await notifStore.remove(testNotificationId);
     });
-
-    tearDown(() async => await tearDownFunc());
   });
 
   group('A group of tests on expiry ', () {
-    setUp(() async => keyStoreManager = await setUpFunc(storageDir));
     test(
         'A test to verify notify list does not return expired entries - 1 expired entry',
         () async {
       var ttl = 100;
-      var notifyListVerbHandler = NotifyListVerbHandler(
-          keyStoreManager.getKeyStore(), mockOutboundClientManager);
+      var notifyListVerbHandler =
+          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
       var notification1 = (AtNotificationBuilder()
             ..id = '122'
             ..fromAtSign = '@test_user_1'
@@ -346,8 +338,8 @@ void main() async {
             ..depth = 3)
           .build();
 
-      await AtNotificationKeystore.getInstance().put('122', notification1);
-      await AtNotificationKeystore.getInstance().put('125', notification2);
+      await notifStore.put('122', notification1);
+      await notifStore.put('125', notification2);
 
       // We set a ttl on notification1 (id 122) - let's wait until that ttl has passed
       // When we then list the notifications we should only see notification2 (id 125)
@@ -369,14 +361,14 @@ void main() async {
       var result = jsonDecode(response.data!);
       expect(result.length, 1);
       expect(result[0]['id'], '125');
-      await AtNotificationKeystore.getInstance().remove('122');
-      await AtNotificationKeystore.getInstance().remove('125');
+      await notifStore.remove('122');
+      await notifStore.remove('125');
     });
 
     test('A test to verify notify list expired entries - No expired entry',
         () async {
-      var notifyListVerbHandler = NotifyListVerbHandler(
-          keyStoreManager.getKeyStore(), mockOutboundClientManager);
+      var notifyListVerbHandler =
+          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
       var notification1 = (AtNotificationBuilder()
             ..id = '122'
             ..fromAtSign = '@test_user_1'
@@ -415,8 +407,8 @@ void main() async {
             ..ttl = 70)
           .build();
 
-      await AtNotificationKeystore.getInstance().put('122', notification1);
-      await AtNotificationKeystore.getInstance().put('125', notification2);
+      await notifStore.put('122', notification1);
+      await notifStore.put('125', notification2);
 
       // We set ttls of 60 and 70 milliseconds respectively on notifications 1 and 2
       // Let's sleep for 20 milliseconds and then verify neither have yet expired
@@ -439,8 +431,8 @@ void main() async {
       expect(result.length, 2);
       expect(result[0]['id'], '122');
       expect(result[1]['id'], '125');
-      await AtNotificationKeystore.getInstance().remove('122');
-      await AtNotificationKeystore.getInstance().remove('125');
+      await notifStore.remove('122');
+      await notifStore.remove('125');
     });
 
     test('validate presence of expiresAt in notify:list response', () async {
@@ -468,11 +460,10 @@ void main() async {
             ..depth = 3)
           .build();
 
-      await AtNotificationKeystore.getInstance()
-          .put(testNotificationId, notification);
+      await notifStore.put(testNotificationId, notification);
 
-      NotifyListVerbHandler notifyListVerbHandler = NotifyListVerbHandler(
-          keyStoreManager.getKeyStore(), mockOutboundClientManager);
+      NotifyListVerbHandler notifyListVerbHandler =
+          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
       InboundConnectionMetadata inboundConnectionMetadata =
           InboundConnectionMetadata()
             ..fromAtSign = testFromAtsign
@@ -494,7 +485,7 @@ void main() async {
           DateTime.parse(notificationOfInterest['metadata']['expiresAt']);
       expect(expiresAtTestValue.compareTo(parsedExpiresAtFromResponse), 0);
 
-      await AtNotificationKeystore.getInstance().remove(testNotificationId);
+      await notifStore.remove(testNotificationId);
     });
 
     test(
@@ -512,7 +503,7 @@ void main() async {
             ..notificationDateTime =
                 DateTime.now().subtract(Duration(seconds: 1))
             ..toAtSign = '@bob'
-            ..notification = 'expiry.secondtest'
+            ..notification = 'expiry.second_test'
             ..type = NotificationType.received
             ..opType = OperationType.update
             ..messageType = MessageType.key
@@ -526,11 +517,10 @@ void main() async {
             ..atMetaData = testMetaData)
           .build();
 
-      await AtNotificationKeystore.getInstance()
-          .put(testNotificationId, notification);
+      await notifStore.put(testNotificationId, notification);
 
-      NotifyListVerbHandler notifyListVerbHandler = NotifyListVerbHandler(
-          keyStoreManager.getKeyStore(), mockOutboundClientManager);
+      NotifyListVerbHandler notifyListVerbHandler =
+          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
       InboundConnectionMetadata inboundConnectionMetadata =
           InboundConnectionMetadata()
             ..fromAtSign = testFromAtsign
@@ -552,17 +542,14 @@ void main() async {
           DateTime.parse(notificationOfInterest['metadata']['expiresAt']);
       expect(expiresAtTestValue.compareTo(parsedExpiresAtFromResponse), 0);
 
-      await AtNotificationKeystore.getInstance().remove(testNotificationId);
+      await notifStore.remove(testNotificationId);
     });
-
-    tearDown(() async => await tearDownFunc());
   });
 
   group('A group of test to verify notify fetch', () {
-    setUp(() async => keyStoreManager = await setUpFunc(storageDir));
     test('test to fetch notification using notification-id', () async {
       var notifyFetchVerbHandler =
-          NotifyFetchVerbHandler(keyStoreManager.getKeyStore());
+          NotifyFetchVerbHandler(secondaryKeyStore, notificationManager);
       var dateTimeNow = DateTime.now();
       var notification1 = (AtNotificationBuilder()
             ..id = '122'
@@ -582,7 +569,7 @@ void main() async {
             ..depth = 3
             ..ttl = 100)
           .build();
-      await AtNotificationKeystore.getInstance().put('122', notification1);
+      await notifStore.put('122', notification1);
       var verbParams = getVerbParam(NotifyFetch().syntax(), 'notify:fetch:122');
       var inBoundSessionId = '123';
       var metadata = InboundConnectionMetadata()
@@ -609,7 +596,7 @@ void main() async {
     test('test to fetch a non existent notification using notification-id',
         () async {
       var notifyFetchVerbHandler =
-          NotifyFetchVerbHandler(keyStoreManager.getKeyStore());
+          NotifyFetchVerbHandler(secondaryKeyStore, notificationManager);
       var verbParams = getVerbParam(NotifyFetch().syntax(), 'notify:fetch:123');
       var inBoundSessionId = '123';
       var metadata = InboundConnectionMetadata()
@@ -625,35 +612,5 @@ void main() async {
       expect(atNotification['notificationStatus'],
           NotificationStatus.expired.toString());
     });
-    tearDown(() async => await tearDownFunc());
   });
-}
-
-Future<SecondaryKeyStoreManager> setUpFunc(storageDir, {String? atsign}) async {
-  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore(atsign ?? '@test_user_1')!;
-  var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init(storageDir);
-//  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
-  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
-  var keyStoreManager =
-      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
-  keyStoreManager.keyStore = hiveKeyStore;
-  hiveKeyStore.commitLog = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog(atsign ?? '@test_user_1', commitLogPath: storageDir);
-  await AtAccessLogManagerImpl.getInstance()
-      .getAccessLog(atsign ?? '@test_user_1', accessLogPath: storageDir);
-  var notificationInstance = AtNotificationKeystore.getInstance();
-  notificationInstance.currentAtSign = atsign ?? '@test_user_1';
-  await notificationInstance.init(storageDir);
-  return keyStoreManager;
-}
-
-Future<void> tearDownFunc() async {
-  var isExists = await Directory('test/hive').exists();
-  AtNotificationMap.getInstance().clear();
-  if (isExists) {
-    Directory('test/hive').deleteSync(recursive: true);
-  }
 }

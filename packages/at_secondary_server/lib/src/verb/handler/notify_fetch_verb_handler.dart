@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -13,7 +14,9 @@ import 'package:at_server_spec/at_verb_spec.dart';
 class NotifyFetchVerbHandler extends AbstractVerbHandler {
   static NotifyFetch notifyFetch = NotifyFetch();
 
-  NotifyFetchVerbHandler(super.keyStore);
+  NotifyFetchVerbHandler(super.keyStore, this.notifMgr);
+
+  NotificationManager notifMgr;
 
   @override
   bool accept(String command) =>
@@ -30,8 +33,7 @@ class NotifyFetchVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var notificationId = verbParams['notificationId'];
-    var atNotification =
-        await AtNotificationKeystore.getInstance().get(notificationId);
+    var atNotification = await notifMgr.get(notificationId);
     if (atNotification == null) {
       response.data = jsonEncode({
         'id': notificationId,

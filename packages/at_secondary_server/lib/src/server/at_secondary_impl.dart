@@ -18,14 +18,11 @@ import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
-import 'package:at_secondary/src/notification/queue_manager.dart';
-import 'package:at_secondary/src/notification/resource_manager.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_certificate_validation.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
-import 'package:at_secondary/src/utils/notification_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_update_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
@@ -110,7 +107,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   dynamic _serverSocket;
   bool _isRunning = false;
-  late String currentAtSign;
+  late Atsign currentAtSign;
   late AtCommitLog commitLog;
   var _accessLog;
   var signingKey;
@@ -128,7 +125,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late SecondaryPersistenceStore secondaryPersistenceStore;
   late HivePersistenceManager hivePersistenceManager;
   late SecondaryKeyStore<String, AtData?, AtMetaData?> secondaryKeyStore;
-  late ResourceManager notificationResourceManager;
+  late AtNotificationKeystore notificationKeystore;
+  late NotificationManager notificationManager;
   late var atCommitLogCompactionConfig;
   late var atAccessLogCompactionConfig;
   late var atNotificationCompactionConfig;
@@ -184,7 +182,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw AtServerException('User atSign is not set');
     }
 
-    currentAtSign = AtUtils.fixAtSign(serverContext!.currentAtSign!);
+    currentAtSign = serverContext!.currentAtSign!.toAtsign();
     logger.info('currentAtSign : $currentAtSign');
 
     // Initialize persistent storage
@@ -241,8 +239,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         .scheduleCompactionJob(atAccessLogCompactionConfig);
 
     // Notification keystore compaction
-    notificationKeyStoreCompactionJobInstance = AtCompactionJob(
-        AtNotificationKeystore.getInstance(), secondaryPersistenceStore);
+    notificationKeyStoreCompactionJobInstance =
+        AtCompactionJob(notificationKeystore, secondaryPersistenceStore);
     atNotificationCompactionConfig = AtCompactionConfig()
       ..compactionPercentage =
           AtSecondaryConfig.notificationKeyStoreCompactionPercentage!
@@ -269,20 +267,22 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       outboundConnectionFactory,
       poolSize: serverContext!.outboundConnectionLimit,
     );
-    notificationResourceManager = ResourceManager(NotifyConnectionsPool(
-      outboundConnectionFactory,
-      poolSize: serverContext!.outboundConnectionLimit,
-    ));
 
-    // Start the notification sender
-    notificationResourceManager.start();
+    notificationManager = NotificationManager(
+        currentAtSign,
+        notificationKeystore,
+        NotifyConnectionsPool(
+          secondaryAddressFinder,
+          outboundConnectionFactory,
+          poolSize: serverContext!.outboundConnectionLimit,
+        ));
 
-    NotificationManager notificationManager =
-        NotificationManager(notificationResourceManager);
+    // Scan and re-enqueue the notifications undelivered to other atSigns
+    await notificationManager.reEnqueueUndelivered();
 
     // Refresh Cached Keys
     cacheManager = AtCacheManager(serverContext!.currentAtSign!,
-        secondaryKeyStore, outboundClientManager);
+        secondaryKeyStore, outboundClientManager, notificationManager);
 
     var random = Random();
     var runRefreshJobHour = random.nextInt(23);
@@ -454,11 +454,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       AtSecondaryConfig.subscribe(
               ModifiableConfigs.notificationKeyStoreCompactionFrequencyMins)
           ?.listen((newFrequency) async {
-        await restartCompaction(
-            notificationKeyStoreCompactionJobInstance,
-            atNotificationCompactionConfig,
-            newFrequency,
-            AtNotificationKeystore.getInstance());
+        await restartCompaction(notificationKeyStoreCompactionJobInstance,
+            atNotificationCompactionConfig, newFrequency, notificationKeystore);
       });
 
       //subscriber for access log compaction frequency change
@@ -496,16 +493,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
             'Received new value for config \'autoNotify\': $autoNotifyState');
         AbstractUpdateVerbHandler.setAutoNotify(autoNotifyState);
         DeleteVerbHandler.setAutoNotify(autoNotifyState);
-      });
-
-      //subscriber for maxNotificationRetries count change
-      logger.finest('Subscribing to dynamic changes made to max_retries');
-      AtSecondaryConfig.subscribe(ModifiableConfigs.maxNotificationRetries)
-          ?.listen((newCount) {
-        logger.finest(
-            'Received new value for config \'maxNotificationRetries\': $newCount');
-        notificationResourceManager.setMaxRetries(newCount);
-        QueueManager.getInstance().setMaxRetries(newCount);
       });
 
       AtSecondaryConfig.subscribe(ModifiableConfigs.maxRequestsPerTimeFrame)
@@ -712,8 +699,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.info("Terminating all inbound connections");
       inboundConnectionManager.close();
 
-      logger.info("Stopping Notification Resource Manager");
-      notificationResourceManager.stop();
+      logger.info("Closing Notification Manager");
+      await notificationManager.close();
 
       secondaryKeyStore.preRemoveHooks.clear();
       secondaryKeyStore.postRemoveHooks.clear();
@@ -723,7 +710,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.info("Closing AccessLog");
       await AtAccessLogManagerImpl.getInstance().close();
       logger.info("Closing NotificationKeyStore");
-      await AtNotificationKeystore.getInstance().close();
+      await notificationKeystore.close();
       logger.info("Closing SecondaryKeyStore");
       await SecondaryPersistenceStoreFactory.getInstance().close();
 
@@ -761,18 +748,18 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     _accessLog = atAccessLog;
 
     // Initialize notification storage
-    var notificationKeystore = AtNotificationKeystore.getInstance();
-    notificationKeystore.currentAtSign = serverContext!.currentAtSign!;
+    notificationKeystore =
+        AtNotificationKeystore(serverContext!.currentAtSign!);
     await notificationKeystore.init(AtSecondaryConfig.notificationStoragePath);
-    // Loads the notifications into Map.
-    await NotificationUtil.loadNotificationMap();
 
     // Initialize Secondary Storage
     var secondaryPersistenceStore =
         SecondaryPersistenceStoreFactory.getInstance()
             .getSecondaryPersistenceStore(serverContext!.currentAtSign)!;
+
     hivePersistenceManager =
         secondaryPersistenceStore.getHivePersistenceManager()!;
+
     await hivePersistenceManager.init(AtSecondaryConfig.storagePath);
 
     var atData = AtData();
