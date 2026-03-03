@@ -1,3 +1,21 @@
+# 3.10.0
+
+- Overhaul notification handling
+  - Bug-fixes
+    - Check if notification has expired before sending to remote atServer
+    - Ignore notifications from another atServer if we've already got them
+      stored
+    - Ignore notifications from another atServer if they have already expired
+  - Enhancements
+    - Removed complicated old internal machinery, replaced with streams-based
+      approach
+    - Made MonitorVerbHandler consistent with other verb handlers by ensuring
+      that only one is needed, and the connection-to-monitor-config state is
+      held in a map
+    - Did various refactoring and cleanup of other code encountered
+    - Improved performance in various places, mostly related to fetching
+      notifications
+
 # 3.9.4
 
  - build(deps): Add pubspec.lock and use ^ in pubspec.yaml
