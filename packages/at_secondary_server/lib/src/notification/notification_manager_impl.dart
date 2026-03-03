@@ -132,7 +132,12 @@ class NotificationManager {
 
   Future<void> reEnqueueUndelivered() async {
     for (final n in await getUndelivered()) {
-      enqueue(n);
+      try {
+        enqueue(n);
+      } catch (e) {
+        logger.severe('Unable to enqueue notification: $e');
+        logger.severe('Notification details: ${n.toJson().toString()}');
+      }
     }
   }
 
