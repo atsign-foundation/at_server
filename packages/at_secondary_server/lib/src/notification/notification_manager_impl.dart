@@ -319,9 +319,10 @@ class NotificationManager {
 
 class PerAtSignNotifSender {
   @visibleForTesting
-  static Duration initialDelay = const Duration(milliseconds: 150);
+  static Duration initialDelay = const Duration(milliseconds: 200);
   @visibleForTesting
   static Duration maxDelay = const Duration(seconds: 10);
+  static final phi = 1.618034;
 
   final Atsign atSign;
   final NotificationManager notifMgr;
@@ -412,9 +413,11 @@ class PerAtSignNotifSender {
         logger.info('Error while sending ${n.id}: ${e.runtimeType} : $e\n');
         logger.info('Will retry in $delay');
         await Future.delayed(delay);
-        delay = Duration(
-            milliseconds:
-                min(delay.inMilliseconds * 2, maxDelay.inMilliseconds));
+        if (delay < maxDelay) {
+          delay = Duration(
+              milliseconds: min((delay.inMilliseconds * phi).floor(),
+                  maxDelay.inMilliseconds));
+        }
       }
     }
   }
