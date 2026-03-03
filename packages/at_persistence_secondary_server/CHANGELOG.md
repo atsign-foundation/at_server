@@ -1,3 +1,8 @@
+## 4.3.1
+
+- fix: backwards compatibility: revert AtNotificationKeystore.currentAtSign to 
+  a non-final instance variable
+
 ## 4.3.0
 
 - feat: deprecated AtNotificationCallback class
