@@ -273,7 +273,7 @@ void main() {
         'A test to verify keys specific to forAtSign are returned on pol authenticated connection',
         () async {
       inboundConnection.metaData.isPolAuthenticated = true;
-      inboundConnection.metaData.fromAtSign = '@bob';
+      inboundConnection.metaData.fromAtSign = '@bob'.toAtsign();
 
       await secondaryKeyStore.put(
           '@bob:phone.wavi$alice', AtData()..data = 'dummy-value');
@@ -296,7 +296,7 @@ void main() {
         'A test to verify regex applied on pol authenticated connection returns only keys specific to forAtSign that matches the regex',
         () async {
       inboundConnection.metaData.isPolAuthenticated = true;
-      inboundConnection.metaData.fromAtSign = '@bob';
+      inboundConnection.metaData.fromAtSign = '@bob'.toAtsign();
 
       await secondaryKeyStore.put(
           '@bob:phone.wavi$alice', AtData()..data = 'dummy-value');

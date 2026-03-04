@@ -12,7 +12,6 @@ import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:at_utils/at_utils.dart';
 import 'package:basic_utils/basic_utils.dart';
 import 'package:uuid/uuid.dart';
 
@@ -48,7 +47,7 @@ class FromVerbHandler extends AbstractVerbHandler {
     atConnection.initiatedBy = currentAtSign;
     var atConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
-    var fromAtSign = verbParams[AtConstants.atSign];
+    Atsign fromAtSign = verbParams[AtConstants.atSign]!.toAtsign();
 
     if (verbParams[AtConstants.clientConfig] != null &&
         verbParams[AtConstants.clientConfig]!.isNotEmpty) {
@@ -62,7 +61,6 @@ class FromVerbHandler extends AbstractVerbHandler {
         ..platform = decodedClientConfig[AtConstants.platform];
     }
 
-    fromAtSign = AtUtils.fixAtSign(fromAtSign!);
     var atData = AtData();
     var keyPrefix = (fromAtSign == currentAtSign) ? 'private:' : 'public:';
     var responsePrefix = (fromAtSign == currentAtSign) ? 'data:' : 'proof:';
