@@ -69,26 +69,28 @@ void main() async {
       expect(value, isNull);
     });
     test('test delete expired keys - key expired', () async {
+      int ttl = 10;
       var atNotification = (AtNotificationBuilder()
             ..toAtSign = '@bob'
             ..fromAtSign = atSign
-            ..ttl = 100
+            ..ttl = ttl
             ..id = '123')
           .build();
-      sleep(Duration(milliseconds: 150));
       await keyStore.put(atNotification.id, atNotification);
       await keyStore.deleteExpiredKeys();
-      final value = await keyStore.get(atNotification.id);
-      expect(value, isNull);
+      expect((await keyStore.get(atNotification.id))?.toAtSign, '@bob');
+
+      sleep(Duration(milliseconds: ttl+1));
+      await keyStore.deleteExpiredKeys();
+      expect(await keyStore.get(atNotification.id), isNull);
     });
     test('test delete expired keys - key not expired', () async {
       var atNotification = (AtNotificationBuilder()
             ..toAtSign = '@bob'
             ..fromAtSign = atSign
-            ..ttl = 1000
+            ..ttl = 10
             ..id = '123')
           .build();
-      sleep(Duration(milliseconds: 150));
       await keyStore.put(atNotification.id, atNotification);
       await keyStore.deleteExpiredKeys();
       final value = await keyStore.get(atNotification.id);
@@ -99,29 +101,35 @@ void main() async {
       var atNotification_1 = (AtNotificationBuilder()
             ..toAtSign = '@bob'
             ..fromAtSign = atSign
-            ..ttl = 100
+            ..ttl = 5
             ..id = '111')
           .build();
       var atNotification_2 = (AtNotificationBuilder()
             ..toAtSign = '@charlie'
             ..fromAtSign = atSign
-            ..ttl = 1000
+            ..ttl = 20
             ..id = '222')
           .build();
       var atNotification_3 = (AtNotificationBuilder()
             ..toAtSign = '@dave'
             ..fromAtSign = atSign
-            ..ttl = 75
+            ..ttl = 10
             ..id = '333')
           .build();
-      sleep(Duration(milliseconds: 150));
       await keyStore.put(atNotification_1.id, atNotification_1);
       await keyStore.put(atNotification_2.id, atNotification_2);
       await keyStore.put(atNotification_3.id, atNotification_3);
+      sleep(Duration(milliseconds: 11));
       var expiredKeys = await keyStore.getExpiredKeys();
-      expect(2, expiredKeys.length);
+      expect(expiredKeys.length, 2);
       expect('111', expiredKeys.elementAt(0));
       expect('333', expiredKeys.elementAt(1));
+      sleep(Duration(milliseconds: 11));
+      expiredKeys = await keyStore.getExpiredKeys();
+      expect(expiredKeys.length, 3);
+      expect('111', expiredKeys.elementAt(0));
+      expect('222', expiredKeys.elementAt(1));
+      expect('333', expiredKeys.elementAt(2));
     });
     test('test get expired keys - no keys expired', () async {
       var atNotification_1 = (AtNotificationBuilder()

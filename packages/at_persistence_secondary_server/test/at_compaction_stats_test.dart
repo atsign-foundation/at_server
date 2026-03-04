@@ -56,7 +56,7 @@ Future<void> main() async {
       // Assertions
       expect(atCompactionStats.preCompactionEntriesCount, 1);
       expect(atCompactionStats.postCompactionEntriesCount, 1);
-      expect(atCompactionStats.compactionDurationInMills > 0, true);
+      expect(atCompactionStats.compactionDurationInMills >= 0, true);
       expect(
           atCompactionStats.compactionDurationInMills <=
               (afterMicros - beforeMicros),

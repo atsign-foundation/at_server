@@ -1,3 +1,8 @@
+## 4.3.2
+
+- fix: fixes to `AtNotification.isExpired`
+- fix: fixed use of defaulTTLInMins in `AtNotificationBuilder.reset` 
+
 ## 4.3.1
 
 - fix: backwards compatibility: revert AtNotificationKeystore.currentAtSign to 

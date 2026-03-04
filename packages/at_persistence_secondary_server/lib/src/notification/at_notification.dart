@@ -141,9 +141,27 @@ class AtNotification {
         'atValue:$atValue';
   }
 
+  /// If notificationDateTime is before now minus this duration,
+  /// then the notification is considered to be expired.
+  static Duration notificationDateTimeExpiryTimeout = Duration(days: 8);
+
+  /// true if
+  /// - [notificationStatus] is [NotificationStatus.expired]
+  /// - or [expiresAt] is null, or before now
+  /// - or [notificationDateTime] is null, or more than
+  ///   [notificationDateTimeExpiryTimeout] ago
+  ///
+  /// The reason for the check on [notificationDateTime] is to help with
+  /// cleaning out old bad data from a time when there were no guards on [ttl]
+  /// or [expiresAt]
   bool isExpired() {
     // expiresAt == null never made sense and never now happens
-    return _expiresAt == null || _expiresAt!.isBefore(DateTime.now().toUtc());
+    return notificationStatus == NotificationStatus.expired ||
+        expiresAt == null ||
+        expiresAt!.isBefore(DateTime.now().toUtc()) ||
+        notificationDateTime == null ||
+        notificationDateTime!.isBefore(
+            DateTime.now().subtract(notificationDateTimeExpiryTimeout));
   }
 }
 
@@ -422,7 +440,7 @@ class MessageTypeAdapter extends TypeAdapter<MessageType?> {
 
 /// AtNotificationBuilder class to build [AtNotification] object
 class AtNotificationBuilder {
-  static const int _defaultTTLInMins = 15;
+  static int defaultTTLInMins = 15;
 
   String? id = Uuid().v4();
 
@@ -456,12 +474,12 @@ class AtNotificationBuilder {
 
   String? atValue;
 
-  int? ttl = Duration(minutes: _defaultTTLInMins).inMilliseconds;
+  int? ttl = Duration(minutes: defaultTTLInMins).inMilliseconds;
 
   AtMetaData? atMetaData;
 
   AtNotification build() {
-    ttl ??= Duration(minutes: _defaultTTLInMins).inMilliseconds;
+    ttl ??= Duration(minutes: defaultTTLInMins).inMilliseconds;
     if ((ttl != null && ttl! > 0) && expiresAt == null) {
       expiresAt = DateTime.now()
           .toUtcMillisecondsPrecision()
@@ -488,7 +506,7 @@ class AtNotificationBuilder {
       ..notifier = 'system'
       ..depth = 1
       ..atValue = null
-      ..ttl = Duration(hours: _defaultTTLInMins).inMilliseconds
+      ..ttl = Duration(minutes: defaultTTLInMins).inMilliseconds
       ..atMetaData = null;
   }
 }
