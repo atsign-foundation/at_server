@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart';
 import 'package:hive/hive.dart';
@@ -141,15 +143,20 @@ class AtNotification {
         'atValue:$atValue';
   }
 
-  /// If notificationDateTime is before now minus this duration,
+  /// 1. A notification may have an expiration no more than this duration into
+  /// the future.
+  /// 2. If notificationDateTime is before now minus this duration,
   /// then the notification is considered to be expired.
-  static Duration notificationDateTimeExpiryTimeout = Duration(days: 8);
+  static Duration maxTtl = Duration(days: 8);
+
+  /// The default used by [AtNotificationBuilder.build] to calculate expiresAt
+  static Duration defaultTtl = Duration(minutes: 15);
 
   /// true if
   /// - [notificationStatus] is [NotificationStatus.expired]
   /// - or [expiresAt] is null, or before now
   /// - or [notificationDateTime] is null, or more than
-  ///   [notificationDateTimeExpiryTimeout] ago
+  ///   [maxTtl] ago
   ///
   /// The reason for the check on [notificationDateTime] is to help with
   /// cleaning out old bad data from a time when there were no guards on [ttl]
@@ -160,8 +167,7 @@ class AtNotification {
         expiresAt == null ||
         expiresAt!.isBefore(DateTime.now().toUtc()) ||
         notificationDateTime == null ||
-        notificationDateTime!.isBefore(
-            DateTime.now().subtract(notificationDateTimeExpiryTimeout));
+        notificationDateTime!.isBefore(DateTime.now().subtract(maxTtl));
   }
 }
 
@@ -440,8 +446,6 @@ class MessageTypeAdapter extends TypeAdapter<MessageType?> {
 
 /// AtNotificationBuilder class to build [AtNotification] object
 class AtNotificationBuilder {
-  static int defaultTTLInMins = 15;
-
   String? id = Uuid().v4();
 
   String? fromAtSign;
@@ -474,17 +478,48 @@ class AtNotificationBuilder {
 
   String? atValue;
 
-  int? ttl = Duration(minutes: defaultTTLInMins).inMilliseconds;
+  int? ttl = AtNotification.defaultTtl.inMilliseconds;
 
   AtMetaData? atMetaData;
 
+  /// Applies the following rules, then builds the [AtNotification]
+  /// 1. if [expiresAt] is null
+  ///   1. If [ttl] is null or non-positive, set to [defaultTtl]
+  ///   2. Ensure that [ttl] is no greater than [AtNotification.maxTtl]
+  ///   3. calculate [expiresAt] by adding [ttl] to [DateTime.now]
+  /// 2. Ensure that [expiresAt] is no more than [AtNotification.maxTtl] in
+  /// the future
+  ///
+  /// Explanation of the above:
+  /// - [ttl] can be supplied by AtClients when sending a notification, and
+  /// [expiresAt] is calculated at that time. (Note: In future, clients will be
+  /// able to specify a precise [expiresAt], and the above rules will work
+  /// unchanged.)
+  /// - expiresAt should be sent as-is from sending atServer to receiving
+  /// - if expiresAt is set, ttl is not relevant
   AtNotification build() {
-    ttl ??= Duration(minutes: defaultTTLInMins).inMilliseconds;
-    if ((ttl != null && ttl! > 0) && expiresAt == null) {
-      expiresAt = DateTime.now()
-          .toUtcMillisecondsPrecision()
-          .add(Duration(milliseconds: ttl!));
+    final now = DateTime.now().toUtcMillisecondsPrecision();
+    final maxExpiresAt = now.add(AtNotification.maxTtl);
+
+    // 1.1 - set ttl to default if null or non-positive
+    if (ttl == null || ttl! <= 0) {
+      ttl = AtNotification.defaultTtl.inMilliseconds;
     }
+    // 1.2 - enforce max ttl value
+    ttl = min(ttl!, AtNotification.maxTtl.inMilliseconds);
+
+    // ignore: prefer_conditional_assignment
+    if (expiresAt == null) {
+      // 1.3 - calculate expiresAt
+      expiresAt ??= now.add(Duration(milliseconds: ttl!));
+    }
+
+    // 2. ensure no later than maxExpiresAt
+    if (expiresAt!.millisecondsSinceEpoch >
+        maxExpiresAt.millisecondsSinceEpoch) {
+      expiresAt = maxExpiresAt;
+    }
+
     return AtNotification._builder(this);
   }
 
@@ -506,7 +541,7 @@ class AtNotificationBuilder {
       ..notifier = 'system'
       ..depth = 1
       ..atValue = null
-      ..ttl = Duration(minutes: defaultTTLInMins).inMilliseconds
+      ..ttl = AtNotification.defaultTtl.inMilliseconds
       ..atMetaData = null;
   }
 }
