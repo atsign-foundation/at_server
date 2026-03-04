@@ -116,9 +116,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   VerbHandlerManager? verbHandlerManager;
   late AtCacheRefreshJob atRefreshJob;
   late AtCacheManager cacheManager;
-  late var commitLogCompactionJobInstance;
-  late var accessLogCompactionJobInstance;
-  late var notificationKeyStoreCompactionJobInstance;
+  late AtCompactionJob commitLogCompactionJobInstance;
+  late AtCompactionJob accessLogCompactionJobInstance;
+  late AtCompactionJob notificationKeyStoreCompactionJobInstance;
   @visibleForTesting
   AtCertificateValidationJob? certificateReloadJob;
   @visibleForTesting
@@ -226,7 +226,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     atCommitLogCompactionConfig = AtCompactionConfig()
       ..compactionPercentage = commitLogCompactionPercentage
       ..compactionFrequencyInMins = commitLogCompactionFrequencyMins!;
-    await commitLogCompactionJobInstance
+    commitLogCompactionJobInstance
         .scheduleCompactionJob(atCommitLogCompactionConfig);
 
     //Access Log Compaction
@@ -235,7 +235,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     atAccessLogCompactionConfig = AtCompactionConfig()
       ..compactionPercentage = accessLogCompactionPercentage!
       ..compactionFrequencyInMins = accessLogCompactionFrequencyMins!;
-    await accessLogCompactionJobInstance
+    accessLogCompactionJobInstance
         .scheduleCompactionJob(atAccessLogCompactionConfig);
 
     // Notification keystore compaction
@@ -246,7 +246,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           AtSecondaryConfig.notificationKeyStoreCompactionPercentage!
       ..compactionFrequencyInMins =
           AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins!;
-    await notificationKeyStoreCompactionJobInstance
+    notificationKeyStoreCompactionJobInstance
         .scheduleCompactionJob(atNotificationCompactionConfig);
 
     final socketConfig = SecureSocketConfig()

@@ -137,6 +137,13 @@ class NotificationManager {
       } catch (e) {
         logger.severe('Unable to enqueue notification: $e');
         logger.severe('Notification details: ${n.toJson().toString()}');
+        logger.severe('Setting status to errored');
+        try {
+          n.notificationStatus = NotificationStatus.errored;
+          await notifStore.put(n.id, n);
+        } catch (e) {
+          logger.severe('*** Error while updating stored notification: $e');
+        }
       }
     }
   }
