@@ -111,7 +111,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     logger.info('Processing notification id ${verbParams[AtConstants.id]}');
 
     var atNotificationBuilder = _populateNotificationBuilder(verbParams,
-        fromAtSign: polConnectionMetadata.fromAtSign!);
+        fromAtSign: polConnectionMetadata.fromAtSign!.toAtsign());
 
     // If messageType is key, atMetadata is set in "_populateNotificationBuilder"
     // When messageType is text, atNotificationBuilder.atMetadata fields are
@@ -310,11 +310,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   /// object from the verbParams
   AtNotificationBuilder _populateNotificationBuilder(
       HashMap<String, String?> verbParams,
-      // fromAtSign represents who sent the notification.
-      // on sender, fromAtSign is same as currentAtSign and on receiver side,
-      // If notification is of messageType "key" fromAtSign is fetched from verbParams
-      // If notification is of messageType "text" fromAtSign is fetched from atConnectionMetadata.fromAtSign
-      {String fromAtSign = ''}) {
+      // fromAtSign represents who sent the notification
+      {required Atsign fromAtSign}) {
     if (verbParams[AtConstants.id] != null &&
         verbParams[AtConstants.id]!.isNotEmpty) {
       atNotificationBuilder.id = verbParams[AtConstants.id];
