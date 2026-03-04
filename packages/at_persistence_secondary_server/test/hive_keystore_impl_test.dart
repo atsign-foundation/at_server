@@ -728,12 +728,12 @@ void main() async {
       HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'dummy_value'
-        ..metaData = (AtMetaData()..ttl = 10);
+        ..metaData = (AtMetaData()..ttl = 20);
       await keystore?.put('keyabouttoexpire.wavi@test_user_1', atData);
       var expiredKeysList = await keystore?.getExpiredKeys();
       expect(expiredKeysList?.contains('keyabouttoexpire.wavi@test_user_1'),
           false);
-      await Future.delayed(Duration(milliseconds: 11));
+      await Future.delayed(Duration(milliseconds: 21));
       expiredKeysList = await keystore?.getExpiredKeys();
       expect(
           expiredKeysList?.contains('keyabouttoexpire.wavi@test_user_1'), true);
