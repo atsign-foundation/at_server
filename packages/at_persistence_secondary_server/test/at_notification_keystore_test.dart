@@ -80,7 +80,7 @@ void main() async {
       await keyStore.deleteExpiredKeys();
       expect((await keyStore.get(atNotification.id))?.toAtSign, '@bob');
 
-      sleep(Duration(milliseconds: ttl+1));
+      sleep(Duration(milliseconds: ttl + 1));
       await keyStore.deleteExpiredKeys();
       expect(await keyStore.get(atNotification.id), isNull);
     });

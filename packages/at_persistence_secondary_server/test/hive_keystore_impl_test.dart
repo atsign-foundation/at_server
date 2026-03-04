@@ -832,7 +832,7 @@ void main() async {
       List<String>? keysList = keystore?.getKeys();
       expect(keysList?.contains('emoji_🛠️.wavi$atSign'), false);
 
-      await Future.delayed(Duration(milliseconds: ttb+1));
+      await Future.delayed(Duration(milliseconds: ttb + 1));
       keysList = keystore?.getKeys();
       expect(keysList?.contains('emoji_🛠️.wavi$atSign'), true);
     });
@@ -840,7 +840,7 @@ void main() async {
     test(
         'A test to verify getKeys does not return key with emoji when TTL is set',
         () async {
-          int ttl = 10;
+      int ttl = 10;
       HiveKeystore? keystore = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore(atSign)
           ?.getSecondaryKeyStore();
@@ -850,7 +850,7 @@ void main() async {
       await keystore?.put('emoji_🛠️.wavi$atSign', atData);
       List<String>? keysList = keystore?.getKeys();
       expect(keysList?.contains('emoji_🛠️.wavi$atSign'), true);
-      await Future.delayed(Duration(milliseconds: ttl+1));
+      await Future.delayed(Duration(milliseconds: ttl + 1));
       keysList = keystore?.getKeys();
       expect(keysList?.contains('emoji_🛠️.wavi$atSign'), false);
     });
