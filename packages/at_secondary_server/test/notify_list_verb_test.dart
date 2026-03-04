@@ -271,7 +271,7 @@ void main() async {
           NotifyListVerbHandler(secondaryKeyStore, notificationManager);
       InboundConnectionMetadata inboundConnectionMetadata =
           InboundConnectionMetadata()
-            ..fromAtSign = testFromAtsign
+            ..fromAtSign = testFromAtsign.toAtsign()
             ..isAuthenticated = true;
       InboundConnection inboundConnection =
           InboundConnectionImpl(mockSocket, 'sessionId9238472934')
@@ -466,7 +466,7 @@ void main() async {
           NotifyListVerbHandler(secondaryKeyStore, notificationManager);
       InboundConnectionMetadata inboundConnectionMetadata =
           InboundConnectionMetadata()
-            ..fromAtSign = testFromAtsign
+            ..fromAtSign = testFromAtsign.toAtsign()
             ..isAuthenticated = true;
       InboundConnection inboundConnection =
           InboundConnectionImpl(mockSocket, 'sessionId9238472934')
@@ -523,7 +523,7 @@ void main() async {
           NotifyListVerbHandler(secondaryKeyStore, notificationManager);
       InboundConnectionMetadata inboundConnectionMetadata =
           InboundConnectionMetadata()
-            ..fromAtSign = testFromAtsign
+            ..fromAtSign = testFromAtsign.toAtsign()
             ..isAuthenticated = true;
       InboundConnection inboundConnection =
           InboundConnectionImpl(mockSocket, 'sessionId9238472934')

@@ -423,7 +423,7 @@ void main() {
       var inboundConnection = InboundConnectionImpl(mockSocket, '123');
       inboundConnection.metaData = InboundConnectionMetadata()
         ..isPolAuthenticated = true
-        ..fromAtSign = '@bob';
+        ..fromAtSign = '@bob'.toAtsign();
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent(AtConstants.forAtSign, () => alice);
