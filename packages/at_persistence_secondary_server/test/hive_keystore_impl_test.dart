@@ -728,12 +728,12 @@ void main() async {
       HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'dummy_value'
-        ..metaData = (AtMetaData()..ttl = 1500);
+        ..metaData = (AtMetaData()..ttl = 20);
       await keystore?.put('keyabouttoexpire.wavi@test_user_1', atData);
       var expiredKeysList = await keystore?.getExpiredKeys();
       expect(expiredKeysList?.contains('keyabouttoexpire.wavi@test_user_1'),
           false);
-      await Future.delayed(Duration(milliseconds: 1700));
+      await Future.delayed(Duration(milliseconds: 21));
       expiredKeysList = await keystore?.getExpiredKeys();
       expect(
           expiredKeysList?.contains('keyabouttoexpire.wavi@test_user_1'), true);
@@ -821,16 +821,18 @@ void main() async {
 
     test('A test to verify getKeys returns key with emoji when TTB is set',
         () async {
+      int ttb = 10;
       HiveKeystore? keystore = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore(atSign)
           ?.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'value_test_3'
-        ..metaData = (AtMetaData()..ttb = 1000);
+        ..metaData = (AtMetaData()..ttb = ttb);
       await keystore?.put('emoji_🛠️.wavi$atSign', atData);
       List<String>? keysList = keystore?.getKeys();
       expect(keysList?.contains('emoji_🛠️.wavi$atSign'), false);
-      await Future.delayed(Duration(milliseconds: 1000));
+
+      await Future.delayed(Duration(milliseconds: ttb+1));
       keysList = keystore?.getKeys();
       expect(keysList?.contains('emoji_🛠️.wavi$atSign'), true);
     });
@@ -838,16 +840,17 @@ void main() async {
     test(
         'A test to verify getKeys does not return key with emoji when TTL is set',
         () async {
+          int ttl = 10;
       HiveKeystore? keystore = SecondaryPersistenceStoreFactory.getInstance()
           .getSecondaryPersistenceStore(atSign)
           ?.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'value_test_3'
-        ..metaData = (AtMetaData()..ttl = 1000);
+        ..metaData = (AtMetaData()..ttl = ttl);
       await keystore?.put('emoji_🛠️.wavi$atSign', atData);
       List<String>? keysList = keystore?.getKeys();
       expect(keysList?.contains('emoji_🛠️.wavi$atSign'), true);
-      await Future.delayed(Duration(milliseconds: 1000));
+      await Future.delayed(Duration(milliseconds: ttl+1));
       keysList = keystore?.getKeys();
       expect(keysList?.contains('emoji_🛠️.wavi$atSign'), false);
     });
