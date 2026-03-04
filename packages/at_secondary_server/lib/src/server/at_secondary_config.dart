@@ -64,8 +64,8 @@ class AtSecondaryConfig {
   // To disable to the feature, set to -1.
   static const int _statsNotificationJobTimeInterval = 15;
 
-  // defines the time after which a notification expires in units of minutes. Notifications expire after 1440 minutes or 24 hours by default.
-  static const int _notificationExpiresAfterMins = 1440;
+  // defines the time after which a notification expires in units of minutes
+  static const int _notificationExpiresAfterMins = 15;
 
   static const int _notificationKeyStoreCompactionFrequencyMins = 5;
   static const int _notificationKeyStoreCompactionPercentage = 30;

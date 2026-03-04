@@ -1,3 +1,7 @@
+# 3.10.2
+
+- fix: enforce consistent handling of notification expirations
+
 # 3.10.1
 
 - Defensive code to handle bad data in some very old atServers
