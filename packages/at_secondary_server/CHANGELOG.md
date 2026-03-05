@@ -1,3 +1,9 @@
+# 3.10.3
+
+- chore: remove obsolete configuration
+- fix: set `AtNotifcation.defaultTtl` to value of config 
+  `notificationExpiryInMins`
+
 # 3.10.2
 
 - fix: enforce consistent handling of notification expirations

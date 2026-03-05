@@ -37,39 +37,25 @@ class AtSecondaryConfig {
   //Commit Log
   static const int _commitLogCompactionFrequencyMins = 18;
   static const int _commitLogCompactionPercentage = 20;
-  static const int _commitLogExpiryInDays = 15;
   static const int _commitLogSizeInKB = 2;
 
   //Access Log
   static const int _accessLogCompactionFrequencyMins = 15;
   static const int _accessLogCompactionPercentage = 30;
-  static const int _accessLogExpiryInDays = 15;
   static const int _accessLogSizeInKB = 2;
 
   //Notification
   static const bool _autoNotify = true;
-
-  // The maximum number of retries for a notification.
-  static const int _maxNotificationRetries = 30;
-
-  // The quarantine duration of an atsign. Notifications will be retried max_retries times, every quarantineDuration seconds approximately.
-  static const int _notificationQuarantineDuration = 10;
-
-  // The notifications queue will be processed every jobFrequency seconds. However, the notifications queue will always be processed
-  // *immediately* when a new notification is queued. When that happens, the queue processing will not run again until jobFrequency
-  // seconds have passed since the last queue-processing run completed.
-  static const int _notificationJobFrequency = 11;
 
   // The time interval(in seconds) to notify latest commitID to monitor connections
   // To disable to the feature, set to -1.
   static const int _statsNotificationJobTimeInterval = 15;
 
   // defines the time after which a notification expires in units of minutes
-  static const int _notificationExpiresAfterMins = 15;
+  static const int _notificationExpiryInMins = 15;
 
   static const int _notificationKeyStoreCompactionFrequencyMins = 5;
   static const int _notificationKeyStoreCompactionPercentage = 30;
-  static const int _notificationKeyStoreExpiryInDays = 1;
   static const int _notificationKeyStoreSizeInKB = -1;
 
   //Refresh Job
@@ -233,18 +219,6 @@ class AtSecondaryConfig {
     }
   }
 
-  static int? get accessLogExpiryInDays {
-    var result = _getIntEnvVar('accessLogExpiryInDays');
-    if (result != null) {
-      return result;
-    }
-    try {
-      return getConfigFromYaml(['access_log_compaction', 'expiryInDays']);
-    } on ElementNotFoundException {
-      return _accessLogExpiryInDays;
-    }
-  }
-
   static int? get accessLogCompactionPercentage {
     var result = _getIntEnvVar('accessLogCompactionPercentage');
     if (result != null) {
@@ -283,18 +257,6 @@ class AtSecondaryConfig {
     }
   }
 
-  static int? get commitLogExpiryInDays {
-    var result = _getIntEnvVar('commitLogExpiryInDays');
-    if (result != null) {
-      return result;
-    }
-    try {
-      return getConfigFromYaml(['commit_log_compaction', 'expiryInDays']);
-    } on ElementNotFoundException {
-      return _commitLogExpiryInDays;
-    }
-  }
-
   static int? get commitLogCompactionPercentage {
     var result = _getIntEnvVar('commitLogCompactionPercentage');
     if (result != null) {
@@ -330,19 +292,6 @@ class AtSecondaryConfig {
       return getConfigFromYaml(['hive', 'expiringRunFrequencyMins']);
     } on ElementNotFoundException {
       return _expiringRunFreqMins;
-    }
-  }
-
-  static int? get notificationKeyStoreExpiryInDays {
-    var result = _getIntEnvVar('notificationKeyStoreExpiryInDays');
-    if (result != null) {
-      return result;
-    }
-    try {
-      return getConfigFromYaml(
-          ['notification_keystore_compaction', 'expiryInDays']);
-    } on ElementNotFoundException {
-      return _notificationKeyStoreExpiryInDays;
     }
   }
 
@@ -638,51 +587,15 @@ class AtSecondaryConfig {
     }
   }
 
-  static bool? get isForceRestart {
-    var result = _getBoolEnvVar('forceRestart');
+  static bool get isForceRestart {
+    bool? result = _getBoolEnvVar('forceRestart');
     if (result != null) {
-      return _getBoolEnvVar('forceRestart');
+      return result;
     }
     try {
       return getConfigFromYaml(['certificate_expiry', 'force_restart']);
     } on ElementNotFoundException {
       return _isForceRestart;
-    }
-  }
-
-  static int? get maxNotificationRetries {
-    var result = _getIntEnvVar('maxNotificationRetries');
-    if (result != null) {
-      return _getIntEnvVar('maxNotificationRetries');
-    }
-    try {
-      return getConfigFromYaml(['notification', 'max_retries']);
-    } on ElementNotFoundException {
-      return _maxNotificationRetries;
-    }
-  }
-
-  static int? get notificationQuarantineDuration {
-    var result = _getIntEnvVar('notificationQuarantineDuration');
-    if (result != null) {
-      return _getIntEnvVar('notificationQuarantineDuration');
-    }
-    try {
-      return getConfigFromYaml(['notification', 'quarantineDuration']);
-    } on ElementNotFoundException {
-      return _notificationQuarantineDuration;
-    }
-  }
-
-  static int get notificationJobFrequency {
-    var result = _getIntEnvVar('notificationJobFrequency');
-    if (result != null) {
-      return result;
-    }
-    try {
-      return getConfigFromYaml(['notification', 'jobFrequency']);
-    } on ElementNotFoundException {
-      return _notificationJobFrequency;
     }
   }
 
@@ -699,6 +612,7 @@ class AtSecondaryConfig {
     }
   }
 
+  /// The default ttl for notification expiration
   static int get notificationExpiryInMins {
     var result = _getIntEnvVar('notificationExpiryInMins');
     if (result != null) {
@@ -707,7 +621,7 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(['notification', 'expiryInMins']);
     } on ElementNotFoundException {
-      return _notificationExpiresAfterMins;
+      return _notificationExpiryInMins;
     }
   }
 
@@ -911,8 +825,6 @@ class AtSecondaryConfig {
         return inbound_max_limit;
       case ModifiableConfigs.autoNotify:
         return autoNotify;
-      case ModifiableConfigs.maxNotificationRetries:
-        return maxNotificationRetries;
       case ModifiableConfigs.checkCertificateReload:
         return false;
       case ModifiableConfigs.shouldReloadCertificates:
@@ -1000,7 +912,6 @@ enum ModifiableConfigs {
   accessLogCompactionFrequencyMins,
   notificationKeyStoreCompactionFrequencyMins,
   autoNotify,
-  maxNotificationRetries,
   checkCertificateReload,
   shouldReloadCertificates,
   doCacheRefreshNow,
