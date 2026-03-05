@@ -114,14 +114,17 @@ void main() async {
   });
 
   test('config verb test set-print', () async {
-    //the block of code below sets max notification retries to 25
+    // set inboundMaxLimit to 999
     String response = await firstAtSignConnection
-        .sendRequestToServer('config:set:maxNotificationRetries=25');
+        .sendRequestToServer('config:set:inboundMaxLimit=999');
     expect(response, contains('data:ok'));
-    //the block of code below verifies that the max notification retries is set to 25
+    // verify the change has taken effect
     response = await firstAtSignConnection
-        .sendRequestToServer('config:print:maxNotificationRetries');
-    expect(response, contains('data:25'));
+        .sendRequestToServer('config:print:inboundMaxLimit');
+    expect(response, contains('data:999'));
+    response = await firstAtSignConnection
+        .sendRequestToServer('config:reset:inboundMaxLimit');
+    expect(response, contains('data:ok'));
   });
 
   tearDownAll(() {
