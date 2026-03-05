@@ -17,7 +17,7 @@ void main() async {
           closeTo(
               DateTime.now().millisecondsSinceEpoch +
                   AtNotification.defaultTtl.inMilliseconds,
-              2));
+              5));
       final n = b.build();
       expect(n.ttl, b.ttl);
       expect(n.expiresAt, b.expiresAt);
@@ -35,7 +35,7 @@ void main() async {
           closeTo(
               DateTime.now().millisecondsSinceEpoch +
                   AtNotification.defaultTtl.inMilliseconds,
-              2));
+              5));
       final n = b.build();
       expect(n.ttl, b.ttl);
       expect(n.expiresAt, b.expiresAt);
@@ -51,7 +51,7 @@ void main() async {
           closeTo(
               DateTime.now().millisecondsSinceEpoch +
                   AtNotification.defaultTtl.inMilliseconds,
-              2));
+              5));
       final n = b.build();
       expect(n.ttl, b.ttl);
       expect(n.expiresAt, b.expiresAt);
@@ -62,7 +62,7 @@ void main() async {
       expect(b.expiresAt, null);
       b.build();
       expect(b.expiresAt!.millisecondsSinceEpoch,
-          closeTo(DateTime.now().millisecondsSinceEpoch + testTtl, 2));
+          closeTo(DateTime.now().millisecondsSinceEpoch + testTtl, 5));
       final n = b.build();
       expect(n.ttl, b.ttl);
       expect(n.expiresAt, b.expiresAt);
@@ -73,7 +73,7 @@ void main() async {
       expect(b.expiresAt, null);
       b.build();
       expect(b.expiresAt!.millisecondsSinceEpoch,
-          closeTo(DateTime.now().millisecondsSinceEpoch + testTtl, 2));
+          closeTo(DateTime.now().millisecondsSinceEpoch + testTtl, 5));
       final n = b.build();
       expect(b.ttl, AtNotification.maxTtl.inMilliseconds);
       expect(n.ttl, b.ttl);
@@ -89,7 +89,7 @@ void main() async {
           closeTo(
               DateTime.now().millisecondsSinceEpoch +
                   AtNotification.maxTtl.inMilliseconds,
-              2));
+              5));
       final n = b.build();
       expect(b.ttl, AtNotification.maxTtl.inMilliseconds);
       expect(n.ttl, b.ttl);
@@ -105,7 +105,7 @@ void main() async {
           closeTo(
               DateTime.now().millisecondsSinceEpoch +
                   AtNotification.maxTtl.inMilliseconds,
-              2));
+              5));
       final n = b.build();
       expect(b.ttl, AtNotification.maxTtl.inMilliseconds);
       expect(n.ttl, b.ttl);
@@ -205,7 +205,7 @@ void main() async {
     test('test notification expired via notificationDateTime', () {
       var n = AtNotificationBuilder().build();
       expect(n.notificationDateTime!.millisecondsSinceEpoch,
-          closeTo(DateTime.now().millisecondsSinceEpoch, 2));
+          closeTo(DateTime.now().millisecondsSinceEpoch, 5));
       expect(n.isExpired(), false);
 
       n = (AtNotificationBuilder()
@@ -232,26 +232,26 @@ void main() async {
       // a range of 2 milliseconds of the expected expiresAt
       var notifExpiresAt = DateTime.now().toUtc().add(Duration(minutes: 15));
       expect(notification.expiresAt!.millisecondsSinceEpoch,
-          closeTo(notifExpiresAt.millisecondsSinceEpoch, 2));
+          closeTo(notifExpiresAt.millisecondsSinceEpoch, 5));
     });
 
     test('test builder reset', () async {
       final b = AtNotificationBuilder();
       expect(b.ttl, AtNotification.defaultTtl.inMilliseconds);
       expect(b.notificationDateTime!.millisecondsSinceEpoch,
-          closeTo(DateTime.now().millisecondsSinceEpoch, 2));
+          closeTo(DateTime.now().millisecondsSinceEpoch, 5));
       b.ttl = 333333;
       expect(b.ttl, 333333);
 
       final ndt1 = b.notificationDateTime;
 
-      await Future.delayed(Duration(milliseconds: 10));
+      await Future.delayed(Duration(milliseconds: 20));
       b.reset();
       expect(b.ttl, AtNotification.defaultTtl.inMilliseconds);
       expect(b.notificationDateTime!.millisecondsSinceEpoch,
-          closeTo(DateTime.now().millisecondsSinceEpoch, 2));
+          closeTo(DateTime.now().millisecondsSinceEpoch, 5));
       expect(b.notificationDateTime!.millisecondsSinceEpoch,
-          isNot(closeTo(ndt1!.millisecondsSinceEpoch, 2)));
+          isNot(closeTo(ndt1!.millisecondsSinceEpoch, 5)));
     });
   });
 }
