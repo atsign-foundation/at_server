@@ -1,3 +1,7 @@
+# 3.10.4
+
+- feat: remove expired notifications on startup
+
 # 3.10.3
 
 - chore: remove obsolete configuration
