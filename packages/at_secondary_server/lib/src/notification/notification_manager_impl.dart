@@ -130,6 +130,23 @@ class NotificationManager {
     );
   }
 
+  Future<(int, int)> removeExpired() async {
+    logger.info('removeExpired: maxTtl is ${AtNotification.maxTtl}'
+        ' defaultTtl is ${AtNotification.defaultTtl}');
+    int removed = 0;
+    int failed = 0;
+    for (final k in await notifStore.getExpiredKeys()) {
+      try {
+        await remove(k);
+        removed++;
+      } catch (e) {
+        logger.severe('removeExpired: Failed to remove $k');
+        failed++;
+      }
+    }
+    return (removed, failed);
+  }
+
   Future<void> reEnqueueUndelivered() async {
     for (final n in await getUndelivered()) {
       try {

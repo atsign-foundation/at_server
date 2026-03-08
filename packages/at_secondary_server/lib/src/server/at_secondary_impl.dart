@@ -64,7 +64,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   late bool _isPaused;
 
-  var logger = AtSignLogger('AtSecondaryServer');
+  var logger = AtSignLogger('AtSecondaryServer')..level='info';
 
   factory AtSecondaryServerImpl.getInstance() {
     return _singleton;
@@ -272,6 +272,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           outboundConnectionFactory,
           poolSize: serverContext!.outboundConnectionLimit,
         ));
+
+    int removed, failed;
+    (removed, failed) = await notificationManager.removeExpired();
+    logger.info('NotificationManager.removeExpired: Removed $removed ; Failed $failed');
 
     // Scan and re-enqueue the notifications undelivered to other atSigns
     await notificationManager.reEnqueueUndelivered();

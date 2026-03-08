@@ -1,3 +1,7 @@
+## 4.3.4
+
+- fix: Make AtNotificationKeystore.getExpiredKeys more memory efficient
+
 ## 4.3.3
 
 - fix: Fix the `expiresAt` and `ttl` rules in `AtNotificationBuilder.build`

@@ -121,17 +121,13 @@ class AtNotificationKeystore
 
   @override
   Future<List<String>> getExpiredKeys() async {
-    var expiredKeys = <String>[];
+    List<String> expiredKeys = <String>[];
     try {
-      var expired = [];
       for (final key in _getBox().keys) {
         var value = await get(key);
         if (value != null && value.isExpired()) {
-          expired.add(key);
+          expiredKeys.add(Utf7.encode(key));
         }
-      }
-      for (var key in expired) {
-        expiredKeys.add(Utf7.encode(key));
       }
     } on Exception catch (e) {
       _logger.severe('exception in hive get expired keys:${e.toString()}');
