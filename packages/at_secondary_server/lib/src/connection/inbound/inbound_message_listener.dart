@@ -76,6 +76,23 @@ class InboundMessageListener {
       await onStreamCallBack(data, connection);
       return;
     }
+    // If connection isn't authenticated and data is larger than 1024 ie: unauthenticated junk
+    // throw BlockedConnectionException and close the connection
+    if (!connection.metaData.isAuthenticated &&
+        !connection.metaData.isPolAuthenticated &&
+        data.length > 1024) {
+      _buffer.clear();
+      logger.info(logger.getAtConnectionLogMessage(
+        connection.metaData,
+        'Received message too large from an unauthenticated client. Closing the connection',
+      ));
+      await GlobalExceptionHandler.getInstance().handle(
+        BlockedConnectionException(
+            'Received message larger than 1024 bytes from unauthenticated client.'),
+        atConnection: connection,
+      );
+      return;
+    }
     var bufferOverflow = false;
     // If buffer has capacity add data to buffer,
     // Else raise bufferOverFlowException and close the connection.
