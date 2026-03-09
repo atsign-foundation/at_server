@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_commons/at_commons.dart' as at_commons;
 import 'package:at_secondary/src/connection/base_connection.dart';
+import 'package:at_secondary/src/connection/inbound/connection_util.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
@@ -30,9 +32,34 @@ class InboundMessageListener {
         'Calling inbound underlying.listen within runZonedGuarded block');
 
     runZonedGuarded(() {
+      //setup underlying connection
       connection.underlying.listen(_messageHandler,
           onDone: _finishedHandler, onError: _errorHandler);
       connection.metaData.isListening = true;
+      _buffer.stream.listen(
+        (Uint8List bytes) async {
+          // parse verb see if it's junk
+          InboundCommandValidator.validate(bytes, connection);
+        },
+        onDone: () async {
+          var command = utf8.decode(_buffer.getData());
+          command = command.trim();
+          logger.info(logger.getAtConnectionLogMessage(connection.metaData,
+              'RCVD: ${BaseSocketConnection.truncateForLogging(command)}'));
+          // if command is '@exit', close the connection.
+          if (command == '@exit') {
+            await _finishedHandler();
+            return;
+          }
+          _buffer.clear();
+          await onBufferEndCallBack(command, connection);
+        },
+        onError: (e, st) {
+          _buffer.clear();
+          logger
+              .severe('exception when handling message: $e - stack trace: $st');
+        },
+      );
     }, (Object error, StackTrace st) {
       logger.warning(
           'runZonedGuarded received error $error - calling _errorHandler to close connection');
@@ -40,7 +67,7 @@ class InboundMessageListener {
     });
   }
 
-  /// Handles messages on the inbound client's connection and calls the verb executor
+  /// Handles messages on the inbound client's connection and adds them to _buffer's stream.
   /// Closes the inbound connection in case of any error.
   Future<void> _messageHandler(streamData) async {
     connection.metaData.lastAccessed = DateTime.now().toUtc();
@@ -93,11 +120,10 @@ class InboundMessageListener {
       );
       return;
     }
-    var bufferOverflow = false;
     // If buffer has capacity add data to buffer,
     // Else raise bufferOverFlowException and close the connection.
     if (!_buffer.isOverFlow(data)) {
-      _buffer.append(data);
+      _buffer.addToStream(data);
     } else {
       _buffer.clear();
       await GlobalExceptionHandler.getInstance().handle(
@@ -105,26 +131,6 @@ class InboundMessageListener {
               ' request which exceeded the buffer size limit.'
               ' Terminating the connection.'),
           atConnection: connection);
-      bufferOverflow = true;
-    }
-    try {
-      if (!bufferOverflow && _buffer.isEnd()) {
-        //decode only when end of buffer is reached
-        var command = utf8.decode(_buffer.getData());
-        command = command.trim();
-        logger.info(logger.getAtConnectionLogMessage(connection.metaData,
-            'RCVD: ${BaseSocketConnection.truncateForLogging(command)}'));
-        // if command is '@exit', close the connection.
-        if (command == '@exit') {
-          await _finishedHandler();
-          return;
-        }
-        _buffer.clear();
-        await onBufferEndCallBack(command, connection);
-      }
-    } catch (e, st) {
-      _buffer.clear();
-      logger.severe('exception in message handler:$e - stack trace: $st');
     }
   }
 
@@ -147,5 +153,21 @@ class InboundMessageListener {
         .inboundConnectionManager
         .pool
         .remove(connection);
+  }
+}
+
+extension StreamableByteBuffer on at_commons.ByteBuffer {
+  StreamController<Uint8List> get _controller => StreamController<Uint8List>();
+  Stream<Uint8List> get stream => _controller.stream;
+
+  void addToStream(List<int> bytes) {
+    append(bytes);
+    _controller.add(Uint8List.fromList(bytes));
+
+    //after appending, check for terminator
+    //which starts the onDone event in the stream.
+    if (isEnd()) {
+      _controller.close();
+    }
   }
 }

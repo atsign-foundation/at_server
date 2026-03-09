@@ -1,6 +1,9 @@
 import 'dart:collection';
+import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 
+import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -183,6 +186,49 @@ class InboundIdleChecker {
       var actualIdleTime = _getIdleTimeMillis();
       var retVal = actualIdleTime > allowableIdleTime;
       return retVal;
+    }
+  }
+}
+
+class InboundCommandValidator {
+  static const Set<String> _authVerbs = {
+    'update',
+    'llookup',
+    'delete',
+    'sync',
+    'notify',
+    'monitor',
+    'enroll',
+    'otp',
+    'keys',
+    'batch',
+    'stats'
+  };
+
+  /// verifies proper syntax for initial packet, which typically is the following:
+  /// 1. should be splittable by :
+  /// 2. initial split shouldn't be more than 32 characters (being generous)
+  /// 3. verifies verb meets connection type ie: unauthenticated client running update fails
+  static void validate(Uint8List bytes, AtConnection connection) {
+    var command = utf8.decode(bytes.toList());
+    command = command.trim();
+    var isAuthenticated = connection.metaData.isAuthenticated ||
+        connection.metaData.isPolAuthenticated;
+    final parts = command.split(':');
+    if (parts.length < 2) {
+      throw InvalidSyntaxException(
+          'Received invalid verb syntax, closing connection.');
+    }
+
+    final verb = parts.first.trim();
+    if (verb.length > 32) {
+      throw InvalidSyntaxException(
+          'Received verb with invalid length, closing connection.');
+    }
+
+    if (_authVerbs.contains(verb) && !isAuthenticated) {
+      throw BlockedConnectionException(
+          'Trying to run a verb that requires an authenticated connection.');
     }
   }
 }
