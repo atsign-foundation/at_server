@@ -42,5 +42,3 @@ dev_dependencies:
   coverage: ^1.6.1
   lints: ^6.1.0
   mocktail: ^1.0.3
-
-resolution: workspace

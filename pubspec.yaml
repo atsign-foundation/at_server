@@ -5,7 +5,3 @@ environment:
 
 dev_dependencies:
   melos: ^3.0.1
-
-workspace:
-  - packages/at_secondary_server
-  - packages/at_server_spec
