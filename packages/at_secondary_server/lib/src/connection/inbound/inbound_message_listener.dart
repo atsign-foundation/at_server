@@ -17,7 +17,7 @@ import 'package:at_utils/at_logger.dart';
 class InboundMessageListener {
   InboundConnection connection;
   var logger = AtSignLogger('InboundListener');
-  final _buffer = at_commons.ByteBuffer(capacity: 10240000);
+  final _buffer = StreamableByteBuffer(capacity: 10240000);
 
   InboundMessageListener(this.connection);
 
@@ -30,29 +30,37 @@ class InboundMessageListener {
     onBufferEndCallBack = callback;
     logger.finest(
         'Calling inbound underlying.listen within runZonedGuarded block');
-
     runZonedGuarded(() {
       //setup underlying connection
       connection.underlying.listen(_messageHandler,
           onDone: _finishedHandler, onError: _errorHandler);
-      connection.metaData.isListening = true;
       _buffer.stream.listen(
-        (Uint8List bytes) async {
-          // parse verb see if it's junk
-          InboundCommandValidator.validate(bytes, connection);
-        },
-        onDone: () async {
-          var command = utf8.decode(_buffer.getData());
-          command = command.trim();
-          logger.info(logger.getAtConnectionLogMessage(connection.metaData,
-              'RCVD: ${BaseSocketConnection.truncateForLogging(command)}'));
-          // if command is '@exit', close the connection.
-          if (command == '@exit') {
-            await _finishedHandler();
+        (Uint8List _) async {
+          try {
+            _buffer.validate(connection);
+          } on Exception catch (e) {
+            logger.warning(logger.getAtConnectionLogMessage(
+              connection.metaData,
+              e.toString(),
+            ));
+            await GlobalExceptionHandler.getInstance()
+                .handle(e, atConnection: connection);
+            _buffer.clear();
             return;
           }
-          _buffer.clear();
-          await onBufferEndCallBack(command, connection);
+          if (_buffer.isEnd()) {
+            var command = utf8.decode(_buffer.getData());
+            command = command.trim();
+            logger.info(logger.getAtConnectionLogMessage(connection.metaData,
+                'RCVD: ${BaseSocketConnection.truncateForLogging(command)}'));
+            // if command is '@exit', close the connection.
+            if (command == '@exit') {
+              await _finishedHandler();
+              return;
+            }
+            _buffer.clear();
+            await onBufferEndCallBack(command, connection);
+          }
         },
         onError: (e, st) {
           _buffer.clear();
@@ -60,6 +68,7 @@ class InboundMessageListener {
               .severe('exception when handling message: $e - stack trace: $st');
         },
       );
+      connection.metaData.isListening = true;
     }, (Object error, StackTrace st) {
       logger.warning(
           'runZonedGuarded received error $error - calling _errorHandler to close connection');
@@ -89,41 +98,14 @@ class InboundMessageListener {
       _buffer.clear();
       return;
     }
-    // If connection is invalid, throws ConnectionInvalidException and closes the connection
-    if (connection.isInValid()) {
-      _buffer.clear();
-      logger.info(logger.getAtConnectionLogMessage(connection.metaData,
-          'Inbound connection is invalid. Closing the connection'));
-      await GlobalExceptionHandler.getInstance().handle(
-          ConnectionInvalidException('Connection is invalid'),
-          atConnection: connection);
-      return;
-    }
     if (connection.metaData.isStream) {
       await onStreamCallBack(data, connection);
-      return;
-    }
-    // If connection isn't authenticated and data is larger than 1024 ie: unauthenticated junk
-    // throw BlockedConnectionException and close the connection
-    if (!connection.metaData.isAuthenticated &&
-        !connection.metaData.isPolAuthenticated &&
-        data.length > 1024) {
-      _buffer.clear();
-      logger.info(logger.getAtConnectionLogMessage(
-        connection.metaData,
-        'Received message too large from an unauthenticated client. Closing the connection',
-      ));
-      await GlobalExceptionHandler.getInstance().handle(
-        BlockedConnectionException(
-            'Received message larger than 1024 bytes from unauthenticated client.'),
-        atConnection: connection,
-      );
       return;
     }
     // If buffer has capacity add data to buffer,
     // Else raise bufferOverFlowException and close the connection.
     if (!_buffer.isOverFlow(data)) {
-      _buffer.addToStream(data);
+      _buffer.append(data);
     } else {
       _buffer.clear();
       await GlobalExceptionHandler.getInstance().handle(
@@ -156,18 +138,29 @@ class InboundMessageListener {
   }
 }
 
-extension StreamableByteBuffer on at_commons.ByteBuffer {
-  StreamController<Uint8List> get _controller => StreamController<Uint8List>();
+class StreamableByteBuffer extends at_commons.ByteBuffer {
+  final StreamController<Uint8List> _controller = StreamController<Uint8List>();
   Stream<Uint8List> get stream => _controller.stream;
+  bool validated = false;
 
-  void addToStream(List<int> bytes) {
-    append(bytes);
+  StreamableByteBuffer({super.capacity});
+
+  @override
+  void append(dynamic data) {
+    List<int> bytes = data as List<int>;
     _controller.add(Uint8List.fromList(bytes));
+    super.append(bytes);
+  }
 
-    //after appending, check for terminator
-    //which starts the onDone event in the stream.
-    if (isEnd()) {
-      _controller.close();
-    }
+  @override
+  void clear() {
+    validated = false;
+    super.clear();
+  }
+
+  void validate(AtConnection connection) {
+    if (validated) return;
+    InboundCommandValidator.validate(getData(), connection);
+    validated = true;
   }
 }

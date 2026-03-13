@@ -1,7 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
@@ -205,22 +204,20 @@ class InboundCommandValidator {
     'stats'
   };
 
-  /// verifies proper syntax for initial packet, which typically is the following:
-  /// 1. should be splittable by :
-  /// 2. initial split shouldn't be more than 32 characters (being generous)
-  /// 3. verifies verb meets connection type ie: unauthenticated client running update fails
-  static void validate(Uint8List bytes, AtConnection connection) {
-    var command = utf8.decode(bytes.toList());
+  /// This function validates a command on a connection. The criteria is the following:
+  /// 1. verifies verb meets connection type ie: unauthenticated client running update fails
+  /// 2. checks if connection is invalid, closing the connection if requires
+  /// 3. if verb length is > 32, which doesn't exist, we'll close the conncection
+  /// 4. unauthenticated data larger than 1024, which again, which is junk, closes the connection
+  static void validate(List<int> bytes, AtConnection connection) {
+    // allowMalformed so we can always decode something
+    String command = utf8.decode(bytes, allowMalformed: true);
     command = command.trim();
     var isAuthenticated = connection.metaData.isAuthenticated ||
         connection.metaData.isPolAuthenticated;
-    final parts = command.split(':');
-    if (parts.length < 2) {
-      throw InvalidSyntaxException(
-          'Received invalid verb syntax, closing connection.');
-    }
 
-    final verb = parts.first.trim();
+    String verb = command.split(":").firstOrNull?.trim() ?? command;
+
     if (verb.length > 32) {
       throw InvalidSyntaxException(
           'Received verb with invalid length, closing connection.');
@@ -229,6 +226,19 @@ class InboundCommandValidator {
     if (_authVerbs.contains(verb) && !isAuthenticated) {
       throw BlockedConnectionException(
           'Trying to run a verb that requires an authenticated connection.');
+    }
+
+    // If connection is invalid, throws ConnectionInvalidException and closes the connection
+    if (connection.isInValid()) {
+      throw ConnectionInvalidException(
+          'Connection is invalid, closing connection');
+    }
+
+    // If connection isn't authenticated and data is larger than 1024 ie: unauthenticated junk
+    // throw BlockedConnectionException and close the connection
+    if (!isAuthenticated && command.length > 1024) {
+      throw BlockedConnectionException(
+          'Received message larger than 1024 bytes from unauthenticated client.');
     }
   }
 }
