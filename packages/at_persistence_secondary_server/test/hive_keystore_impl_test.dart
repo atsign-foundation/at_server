@@ -728,12 +728,12 @@ void main() async {
       HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'dummy_value'
-        ..metaData = (AtMetaData()..ttl = 1500);
+        ..metaData = (AtMetaData()..ttl = 30);
       await keystore?.put('keyabouttoexpire.wavi@test_user_1', atData);
       var expiredKeysList = await keystore?.getExpiredKeys();
       expect(expiredKeysList?.contains('keyabouttoexpire.wavi@test_user_1'),
           false);
-      await Future.delayed(Duration(milliseconds: 1700));
+      await Future.delayed(Duration(milliseconds: 31));
       expiredKeysList = await keystore?.getExpiredKeys();
       expect(
           expiredKeysList?.contains('keyabouttoexpire.wavi@test_user_1'), true);
@@ -743,42 +743,40 @@ void main() async {
 
   group('A group of test related to getKeys method', () {
     String atSign = '@emoji🛠️';
-    setUp(() async => await setUpFunc(storageDir, atSign));
-    test('A test to verify getKeys does not return expired keys', () async {
+    late HiveKeystore keystore;
+
+    setUp(() async {
+      await setUpFunc(storageDir, atSign);
       SecondaryPersistenceStore? keyStoreManager =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore(atSign);
-      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      keystore = (keyStoreManager?.getSecondaryKeyStore())!;
+    });
+    tearDown(() async => await tearDownFunc(atSign));
+
+    test('A test to verify getKeys does not return expired keys', () async {
       AtData atData = AtData()
         ..data = 'value_test_4'
         // Adding TTL of 10 milliseconds
-        ..metaData = (AtMetaData()..ttl = 10);
-      await keystore?.put('expired_key.wavi$atSign', atData);
+        ..metaData = (AtMetaData()..ttl = 30);
+      await keystore.put('expired_key.wavi$atSign', atData);
       // Adding delay for the key to expire.
-      await Future.delayed(Duration(milliseconds: 20));
-      List<String>? keysList = keystore?.getKeys();
-      expect(keysList!.contains('expired_key.wavi$atSign'), false);
+      await Future.delayed(Duration(milliseconds: 31));
+      List<String>? keysList = keystore.getKeys();
+      expect(keysList.contains('expired_key.wavi$atSign'), false);
     });
 
     test('A test to verify getKeys does not return keys whose TTB is met',
         () async {
-      SecondaryPersistenceStore? keyStoreManager =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore(atSign);
-      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'value_test_3'
         ..metaData = (AtMetaData()..ttb = 300000);
-      await keystore?.put('key_test_3.wavi$atSign', atData);
-      List<String>? keysList = keystore?.getKeys();
-      expect(keysList!.contains('key_test_3.wavi$atSign'), false);
+      await keystore.put('key_test_3.wavi$atSign', atData);
+      List<String>? keysList = keystore.getKeys();
+      expect(keysList.contains('key_test_3.wavi$atSign'), false);
     });
 
     test('test to verify metadata of all keys is cached', () async {
-      SecondaryPersistenceStore? keystoreManager =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore(atSign);
-      HiveKeystore? keystore = keystoreManager?.getSecondaryKeyStore();
       AtData? atData = AtData();
       AtMetaData? metaData;
       //inserting sample keys
@@ -794,65 +792,70 @@ void main() async {
 
         atData.data = 'value_test_$i';
         atData.metaData = metaData;
-        await keystore?.put('key_test_$i.wavi$atSign', atData);
+        await keystore.put('key_test_$i.wavi$atSign', atData);
       }
 
-      List<String>? keys = keystore?.getKeys();
+      List<String> keys = keystore.getKeys();
 
-      for (var key in keys!) {
-        atData = await keystore?.get(key);
+      for (var key in keys) {
+        atData = await keystore.get(key);
         metaData = atData?.metaData;
-        expect((await keystore?.getMeta(key)).toString(), metaData.toString());
+        expect((await keystore.getMeta(key)).toString(), metaData.toString());
       }
     });
 
     test('A test to verify getKeys return key with emoji', () async {
-      HiveKeystore? keystore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(atSign)
-          ?.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'value_test_3'
         ..metaData = (AtMetaData());
-      await keystore?.put('emoji_🛠️.wavi$atSign', atData);
-      List<String>? keysList = keystore?.getKeys();
+      await keystore.put('emoji_🛠️.wavi$atSign', atData);
+      List<String> keysList = keystore.getKeys();
       print(keysList);
-      expect(keysList?.contains('emoji_🛠️.wavi$atSign'), true);
+      expect(keysList.contains('emoji_🛠️.wavi$atSign'), true);
     });
 
     test('A test to verify getKeys returns key with emoji when TTB is set',
         () async {
-      HiveKeystore? keystore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(atSign)
-          ?.getSecondaryKeyStore();
+      int i = 0;
+      int ttb = 30;
       AtData atData = AtData()
         ..data = 'value_test_3'
-        ..metaData = (AtMetaData()..ttb = 1000);
-      await keystore?.put('emoji_🛠️.wavi$atSign', atData);
-      List<String>? keysList = keystore?.getKeys();
-      expect(keysList?.contains('emoji_🛠️.wavi$atSign'), false);
-      await Future.delayed(Duration(milliseconds: 1000));
-      keysList = keystore?.getKeys();
-      expect(keysList?.contains('emoji_🛠️.wavi$atSign'), true);
+        ..metaData = (AtMetaData()..ttb = ttb);
+      final k = 'emoji_🛠️.${i + 1}.wavi$atSign';
+
+      await keystore.put(k, atData, skipCommit: true);
+      List<String> keysList = keystore.getKeys();
+      expect(keysList.contains(k), false);
+
+      await Future.delayed(Duration(milliseconds: ttb + 1));
+
+      keysList = keystore.getKeys();
+      expect(keysList.contains(k), true);
+
+      await keystore.remove(k, skipCommit: true);
     });
 
     test(
         'A test to verify getKeys does not return key with emoji when TTL is set',
         () async {
-      HiveKeystore? keystore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(atSign)
-          ?.getSecondaryKeyStore();
+      int i = 0;
+      int ttl = 30;
       AtData atData = AtData()
         ..data = 'value_test_3'
-        ..metaData = (AtMetaData()..ttl = 1000);
-      await keystore?.put('emoji_🛠️.wavi$atSign', atData);
-      List<String>? keysList = keystore?.getKeys();
-      expect(keysList?.contains('emoji_🛠️.wavi$atSign'), true);
-      await Future.delayed(Duration(milliseconds: 1000));
-      keysList = keystore?.getKeys();
-      expect(keysList?.contains('emoji_🛠️.wavi$atSign'), false);
-    });
+        ..metaData = (AtMetaData()..ttl = ttl);
+      final k = 'emoji_🛠️.${i + 1}.wavi$atSign';
 
-    tearDown(() async => await tearDownFunc(atSign));
+      await keystore.put(k, atData);
+      List<String> keysList = keystore.getKeys();
+      expect(keysList.contains(k), true);
+
+      await Future.delayed(Duration(milliseconds: ttl + 1));
+
+      keysList = keystore.getKeys();
+      expect(keysList.contains(k), false);
+
+      await keystore.remove(k, skipCommit: true);
+    });
   });
 
   group('A group of tests to verify skip commit', () {

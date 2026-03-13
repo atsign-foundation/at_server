@@ -47,15 +47,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       AtSecondaryConfig.commitLogCompactionFrequencyMins;
   static final int? commitLogCompactionPercentage =
       AtSecondaryConfig.commitLogCompactionPercentage;
-  static final int? commitLogExpiryInDays =
-      AtSecondaryConfig.commitLogExpiryInDays;
   static final int? commitLogSizeInKB = AtSecondaryConfig.commitLogSizeInKB;
   static final int? accessLogCompactionFrequencyMins =
       AtSecondaryConfig.accessLogCompactionFrequencyMins;
   static final int? accessLogCompactionPercentage =
       AtSecondaryConfig.accessLogCompactionPercentage;
-  static final int? accessLogExpiryInDays =
-      AtSecondaryConfig.accessLogExpiryInDays;
   static final int? accessLogSizeInKB = AtSecondaryConfig.accessLogSizeInKB;
   static final bool? clientCertificateRequired =
       AtSecondaryConfig.clientCertificateRequired;
@@ -116,9 +112,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   VerbHandlerManager? verbHandlerManager;
   late AtCacheRefreshJob atRefreshJob;
   late AtCacheManager cacheManager;
-  late var commitLogCompactionJobInstance;
-  late var accessLogCompactionJobInstance;
-  late var notificationKeyStoreCompactionJobInstance;
+  late AtCompactionJob commitLogCompactionJobInstance;
+  late AtCompactionJob accessLogCompactionJobInstance;
+  late AtCompactionJob notificationKeyStoreCompactionJobInstance;
   @visibleForTesting
   AtCertificateValidationJob? certificateReloadJob;
   @visibleForTesting
@@ -226,7 +222,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     atCommitLogCompactionConfig = AtCompactionConfig()
       ..compactionPercentage = commitLogCompactionPercentage
       ..compactionFrequencyInMins = commitLogCompactionFrequencyMins!;
-    await commitLogCompactionJobInstance
+    commitLogCompactionJobInstance
         .scheduleCompactionJob(atCommitLogCompactionConfig);
 
     //Access Log Compaction
@@ -235,7 +231,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     atAccessLogCompactionConfig = AtCompactionConfig()
       ..compactionPercentage = accessLogCompactionPercentage!
       ..compactionFrequencyInMins = accessLogCompactionFrequencyMins!;
-    await accessLogCompactionJobInstance
+    accessLogCompactionJobInstance
         .scheduleCompactionJob(atAccessLogCompactionConfig);
 
     // Notification keystore compaction
@@ -246,7 +242,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           AtSecondaryConfig.notificationKeyStoreCompactionPercentage!
       ..compactionFrequencyInMins =
           AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins!;
-    await notificationKeyStoreCompactionJobInstance
+    notificationKeyStoreCompactionJobInstance
         .scheduleCompactionJob(atNotificationCompactionConfig);
 
     final socketConfig = SecureSocketConfig()
@@ -337,7 +333,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           this,
           AtSecondaryConfig.certificateChainLocation
               .replaceAll('fullchain.pem', 'restart'),
-          AtSecondaryConfig.isForceRestart!);
+          AtSecondaryConfig.isForceRestart);
       await certificateReloadJob!.start();
 
       // setting checkCertificateReload to true will trigger a check (and restart if required)
@@ -748,6 +744,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     _accessLog = atAccessLog;
 
     // Initialize notification storage
+    AtNotification.defaultTtl =
+        Duration(minutes: AtSecondaryConfig.notificationExpiryInMins);
     notificationKeystore =
         AtNotificationKeystore(serverContext!.currentAtSign!);
     await notificationKeystore.init(AtSecondaryConfig.notificationStoragePath);

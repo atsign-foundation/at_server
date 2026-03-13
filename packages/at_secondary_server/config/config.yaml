@@ -93,8 +93,6 @@ commit_log_compaction:
   compactionFrequencyMins: 18
   # The percentage of logs to remove through the commit log compaction job service.
   compactionPercentage: 20
-  # The frequent interval (in days) for the records in log persistent store to expire and remove permanently.
-  expiryInDays: 15
   # The size of the log persistent storage (in KiloBytes) when reached, initiates the commit log compaction job service.
   sizeInKB: 10
 
@@ -104,8 +102,6 @@ access_log_compaction:
   compactionFrequencyMins: 15
   # The percentage of logs to remove through the access log compaction job service.
   compactionPercentage: 30
-  # The frequent interval (in days) for the records in log persistent store to expire and remove permanently.
-  expiryInDays: 15
   # The size of the log persistent storage (in KiloBytes) when reached, initiates the access log compaction job service.
   sizeInKB: 2
 
@@ -113,7 +109,6 @@ access_log_compaction:
 notification_keystore_compaction:
   compactionFrequencyMins: 5
   compactionPercentage: 30
-  expiryInDays: 1
   sizeInKB: -1
 
 # The atProtocol key lookup configurations.
@@ -130,18 +125,10 @@ stats:
 
 notification:
   autoNotify: true
-  # The maximum number of retries for a notification.
-  max_retries: 30
-  # The quarantine duration of an atsign. Notifications will be retried max_retries times, every quarantineDuration seconds approximately.
-  quarantineDuration: 10
-  # The notifications queue will be processed every jobFrequency seconds. However, the notifications queue will always be processed
-  # *immediately* when a new notification is queued. When that happens, the queue processing will not run again until jobFrequency
-  # seconds have passed since the last queue-processing run completed.
-  jobFrequency: 5
   # The time interval(in seconds) to notify latest commitID to monitor connections
   # To disable to the feature, set to -1.
   statsNotificationJobTimeInterval: 15
-  # The amount of time after which a notification expires in units of minutes. Defaults to 24 hours or 1440 minutes
+  # The amount of time after which a notification expires in units of minutes
   expiryInMins: 15
 
 # At refresh Job to refresh the cached keys.

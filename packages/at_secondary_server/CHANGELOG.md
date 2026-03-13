@@ -1,3 +1,13 @@
+# 3.10.3
+
+- chore: remove obsolete configuration
+- fix: set `AtNotifcation.defaultTtl` to value of config 
+  `notificationExpiryInMins`
+
+# 3.10.2
+
+- fix: enforce consistent handling of notification expirations
+
 # 3.10.1
 
 - Defensive code to handle bad data in some very old atServers

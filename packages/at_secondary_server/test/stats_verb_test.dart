@@ -251,7 +251,7 @@ void main() {
             ..depth = 3)
           .build();
       var metadata = InboundConnectionMetadata()
-        ..fromAtSign = '@bob'
+        ..fromAtSign = '@bob'.toAtsign()
         ..isAuthenticated = true;
       await notifStore.put('1031', testNotification);
       await notifStore.put('1032', testNotification2);

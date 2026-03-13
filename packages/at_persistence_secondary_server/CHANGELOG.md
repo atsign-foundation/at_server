@@ -1,3 +1,12 @@
+## 4.3.3
+
+- fix: Fix the `expiresAt` and `ttl` rules in `AtNotificationBuilder.build`
+
+## 4.3.2
+
+- fix: fixes to `AtNotification.isExpired`
+- fix: fixed use of `defaulTtl` in `AtNotificationBuilder.reset` 
+
 ## 4.3.1
 
 - fix: backwards compatibility: revert AtNotificationKeystore.currentAtSign to 

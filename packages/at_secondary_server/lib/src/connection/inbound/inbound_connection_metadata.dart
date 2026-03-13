@@ -1,3 +1,4 @@
+import 'package:at_commons/atsign.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 
 /// Metadata information for [InboundConnection]
@@ -9,7 +10,7 @@ class InboundConnectionMetadata extends AtConnectionMetaData {
   bool from = false;
 
   /// fromOtherAtSign will be populated iff 'from' has been executed with an atSign which is NOT the atSign of this atServer
-  String? fromAtSign;
+  Atsign? fromAtSign;
 
   /// A unique identifier to distinguish clients in the server logs.
   String? clientId;
