@@ -189,56 +189,116 @@ class InboundIdleChecker {
   }
 }
 
-class InboundCommandValidator {
-  static const Set<String> _authVerbs = {
-    'update',
-    'llookup',
-    'delete',
-    'sync',
-    'notify',
-    'monitor',
-    'enroll',
-    'otp',
-    'keys',
-    'batch',
-    'stats'
-  };
+enum AtVerb {
+  // Authenticated
+  update(requiresAuth: true),
+  llookup(requiresAuth: true),
+  delete(requiresAuth: true),
+  sync(requiresAuth: true),
+  notify(requiresAuth: true, hasSubcommands: true),
+  monitor(requiresAuth: true),
+  otp(requiresAuth: true),
+  keys(requiresAuth: true, hasSubcommands: true),
+  batch(requiresAuth: true),
+  stats(requiresAuth: true),
 
+  // Unauthenticated
+  from(requiresAuth: false),
+  cram(requiresAuth: false),
+  pkam(requiresAuth: false),
+  pol(requiresAuth: false),
+  scan(requiresAuth: false),
+  lookup(requiresAuth: false),
+  plookup(requiresAuth: false),
+  info(requiresAuth: false),
+  noop(requiresAuth: false),
+
+  // available both ways, must parse subcommands
+  enroll(requiresAuth: false, hasSubcommands: true);
+
+  const AtVerb({required this.requiresAuth, this.hasSubcommands = false});
+  final bool requiresAuth;
+  final bool hasSubcommands;
+
+  static AtVerb? tryParse(String value) =>
+      AtVerb.values.where((v) => v.name == value).firstOrNull;
+}
+
+// all subcommands typically require authentication
+// there is some overlap in subcommands
+enum Subcommand {
+  //enroll
+  request(requiresAuth: false),
+  approve,
+  deny,
+  revoke,
+  unrevoke,
+  delete,
+  list,
+  fetch,
+  //notify
+  remove,
+  status,
+  all,
+  //keys
+  put,
+  get;
+
+  const Subcommand({this.requiresAuth = true});
+  final bool requiresAuth;
+
+  static Subcommand? tryParse(String value) =>
+      Subcommand.values.where((v) => v.name == value).firstOrNull;
+}
+
+class InboundCommandValidator {
   /// This function validates a command on a connection. The criteria is the following:
-  /// 1. verifies verb meets connection type ie: unauthenticated client running update fails
-  /// 2. checks if connection is invalid, closing the connection if requires
+  /// 1. checks if connection is invalid, closing the connection if requires
+  /// 2. unauthenticated data larger than 1024, which again, which is junk, closes the connection
   /// 3. if verb length is > 32, which doesn't exist, we'll close the conncection
-  /// 4. unauthenticated data larger than 1024, which again, which is junk, closes the connection
+  /// 4. verifies verb meets connection type ie: unauthenticated client running update fails
   static void validate(List<int> bytes, AtConnection connection) {
     // allowMalformed so we can always decode something
-    String command = utf8.decode(bytes, allowMalformed: true);
-    command = command.trim();
+    String command = utf8.decode(bytes, allowMalformed: true).trim();
     var isAuthenticated = connection.metaData.isAuthenticated ||
         connection.metaData.isPolAuthenticated;
-
-    String verb = command.split(":").firstOrNull?.trim() ?? command;
-
-    if (verb.length > 32) {
-      throw InvalidSyntaxException(
-          'Received verb with invalid length, closing connection.');
-    }
-
-    if (_authVerbs.contains(verb) && !isAuthenticated) {
-      throw BlockedConnectionException(
-          'Trying to run a verb that requires an authenticated connection.');
-    }
 
     // If connection is invalid, throws ConnectionInvalidException and closes the connection
     if (connection.isInValid()) {
       throw ConnectionInvalidException(
           'Connection is invalid, closing connection');
     }
-
     // If connection isn't authenticated and data is larger than 1024 ie: unauthenticated junk
     // throw BlockedConnectionException and close the connection
     if (!isAuthenticated && command.length > 1024) {
       throw BlockedConnectionException(
           'Received message larger than 1024 bytes from unauthenticated client.');
+    }
+
+    String rawVerb = command.split(":").firstOrNull?.trim() ?? command;
+
+    if (rawVerb.length > 32) {
+      throw InvalidSyntaxException(
+          'Received verb with invalid length, closing connection.');
+    }
+
+    final verb = AtVerb.tryParse(rawVerb) ??
+        (throw InvalidSyntaxException(
+            'Received invalid verb that does not match protocol spec'));
+
+    // determine auth requirement - may be overriden if verb has subcommands
+    bool requiresAuth = verb.requiresAuth;
+    if (verb.hasSubcommands) {
+      String rawSubcommand = command.split(":")[1].trim();
+      final subcommand = Subcommand.tryParse(rawSubcommand) ??
+          (throw InvalidSyntaxException(
+              'Received invalid subcommand that does not match protocol spec'));
+      requiresAuth = subcommand.requiresAuth;
+    }
+
+    if (requiresAuth && !isAuthenticated) {
+      throw BlockedConnectionException(
+          'Trying to run a verb that requires an authenticated connection.');
     }
   }
 }

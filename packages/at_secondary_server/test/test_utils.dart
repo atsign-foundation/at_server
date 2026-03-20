@@ -9,6 +9,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
@@ -57,6 +58,13 @@ class MockAtCacheManager extends Mock implements AtCacheManager {}
 class MockSecondaryAddressFinder extends Mock
     implements at_lookup.SecondaryAddressFinder {}
 
+class MockInboundConnection extends Mock implements InboundConnection {}
+
+class MockInboundConnectionPool extends Mock implements InboundConnectionPool {}
+
+class MockInboundConnectionManager extends Mock
+    implements InboundConnectionManager {}
+
 class MockOutboundConnectionFactory extends Mock
     implements OutboundConnectionFactory {}
 
@@ -68,6 +76,10 @@ class MockEnrollmentManager extends Mock implements EnrollmentManager {}
 
 class FakeSocket extends Fake implements Socket {
   Completer completer = Completer();
+  final _controller = StreamController<String>();
+  bool closeCalled = false;
+
+  Stream<String> get stream => _controller.stream;
 
   @override
   Future get done => completer.future;
@@ -86,6 +98,16 @@ class FakeSocket extends Fake implements Socket {
 
   @override
   bool setOption(SocketOption option, bool enabled) => true;
+
+  @override
+  void add(List<int> data) {
+    _controller.add(utf8.decode(data));
+  }
+
+  @override
+  Future<void> close() async {
+    closeCalled = true;
+  }
 }
 
 class MockStreamSubscription<T> extends Mock implements StreamSubscription<T> {}
