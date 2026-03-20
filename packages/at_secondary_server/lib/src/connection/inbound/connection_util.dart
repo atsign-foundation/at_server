@@ -201,6 +201,7 @@ enum AtVerb {
   keys(requiresAuth: true, hasSubcommands: true),
   batch(requiresAuth: true),
   stats(requiresAuth: true),
+  config(requiresAuth: true),
 
   // Unauthenticated
   from(requiresAuth: false),
@@ -239,6 +240,7 @@ enum Subcommand {
   //notify
   remove,
   status,
+  update,
   all,
   //keys
   put,
@@ -254,9 +256,8 @@ enum Subcommand {
 class InboundCommandValidator {
   /// This function validates a command on a connection. The criteria is the following:
   /// 1. checks if connection is invalid, closing the connection if requires
-  /// 2. unauthenticated data larger than 1024, which again, which is junk, closes the connection
-  /// 3. if verb length is > 32, which doesn't exist, we'll close the conncection
-  /// 4. verifies verb meets connection type ie: unauthenticated client running update fails
+  /// 2. if verb length is > 64, which doesn't exist, we'll close the conncection
+  /// 3. verifies verb meets connection type ie: unauthenticated client running update fails
   static void validate(List<int> bytes, AtConnection connection) {
     // allowMalformed so we can always decode something
     String command = utf8.decode(bytes, allowMalformed: true).trim();
@@ -268,20 +269,20 @@ class InboundCommandValidator {
       throw ConnectionInvalidException(
           'Connection is invalid, closing connection');
     }
-    // If connection isn't authenticated and data is larger than 1024 ie: unauthenticated junk
-    // throw BlockedConnectionException and close the connection
-    if (!isAuthenticated && command.length > 1024) {
-      throw BlockedConnectionException(
-          'Received message larger than 1024 bytes from unauthenticated client.');
-    }
 
     String rawVerb = command.split(":").firstOrNull?.trim() ?? command;
 
-    if (rawVerb.length > 32) {
+    // covers 2 cases:
+    // - any junk with a ':' inside, where we would try to parse the verb
+    // - from the firstOrNull call, any junk that looks nothing like a command is removed.
+    //
+    // this constraint also catches the junk > 64, which we'll catch before trying to parse the verb
+    if (rawVerb.length > 64) {
       throw InvalidSyntaxException(
           'Received verb with invalid length, closing connection.');
     }
 
+    // what verb is this?
     final verb = AtVerb.tryParse(rawVerb) ??
         (throw InvalidSyntaxException(
             'Received invalid verb that does not match protocol spec'));
