@@ -12,7 +12,7 @@ import 'test_utils.dart';
 void main() {
   late FakeSocket mockSocket;
   OutboundConnectionFactory outboundConnectionFactory =
-      DefaultOutboundConnectionFactory(requireCerts: false);
+      DefaultOutboundConnectionFactory(clientCertificateRequired: false);
 
   verbTestsSetUpLogging();
 

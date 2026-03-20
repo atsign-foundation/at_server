@@ -1,3 +1,8 @@
+# 3.11.0
+
+- feat: make presentation of client certificates configurable for 
+  atServer-to-atServer communication
+
 # 3.10.3
 
 - chore: remove obsolete configuration

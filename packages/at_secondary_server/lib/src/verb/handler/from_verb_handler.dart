@@ -19,8 +19,6 @@ class FromVerbHandler extends AbstractVerbHandler {
   static From from = From();
   static final _rootDomain = AtSecondaryConfig.rootServerUrl;
   static final _rootPort = AtSecondaryConfig.rootServerPort;
-  static final bool? clientCertificateRequired =
-      AtSecondaryConfig.clientCertificateRequired;
 
   FromVerbHandler(super.keyStore);
 
@@ -75,7 +73,7 @@ class FromVerbHandler extends AbstractVerbHandler {
     }
 
     if (fromAtSign != AtSecondaryServerImpl.getInstance().currentAtSign &&
-        clientCertificateRequired!) {
+        AtSecondaryConfig.clientCertificateRequired) {
       var result = await _verifyFromAtSign(fromAtSign, atConnection);
       logger.finer('_verifyFromAtSign result : $result');
       if (!result) {
@@ -127,7 +125,7 @@ class FromVerbHandler extends AbstractVerbHandler {
       return atConnection.metaData.isStream;
     }
 
-    if (clientCertificateRequired!) {
+    if (AtSecondaryConfig.clientCertificateRequired) {
       var result = _verifyClientCerts(cn, host);
       return result;
     }
@@ -135,25 +133,26 @@ class FromVerbHandler extends AbstractVerbHandler {
   }
 
   bool _verifyClientCerts(X509Certificate cn, String host) {
-    var subject = cn.subject;
     logger.info(
-        'Connected from: $cn $subject issued by ${cn.issuer} valid from ${cn.startValidity} to ${cn.endValidity}');
-    if (subject.contains(host)) {
+        'Connected from: $cn ${cn.subject} issued by ${cn.issuer} valid from ${cn.startValidity} to ${cn.endValidity}');
+
+    X509CertificateData certData = X509Utils.x509CertificateFromPem(cn.pem);
+    List<String> subjectAlternativeNames =
+        certData.tbsCertificate?.extensions?.subjectAlternativNames ?? [];
+    logger.info('SAN: $subjectAlternativeNames');
+
+    String commonName = certData.tbsCertificate?.subject['2.5.4.3'] ?? '';
+    logger.info('CN: $commonName');
+
+    if (cn.subject.contains(host)) {
       // TODO Dig in to the possible values of subject
       return true;
     }
-    // If you would like to see the cert
-    var x509Pem = cn.pem;
-    // test with an internet available certificate to ensure we are picking out the SAN and not the CN
-    var data = X509Utils.x509CertificateFromPem(x509Pem);
-    List<String> subjectAlternativeNames =
-        data.tbsCertificate?.extensions?.subjectAlternativNames ?? [];
-    logger.info('SAN: $subjectAlternativeNames');
+
     if (subjectAlternativeNames.contains(host)) {
       return true;
     }
-    String commonName = data.tbsCertificate?.subject['2.5.4.3'] ?? '';
-    logger.info('CN: $commonName');
+
     if (commonName.contains(host)) {
       // Probably should be an equality test
       return true;
