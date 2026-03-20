@@ -353,29 +353,38 @@ class DefaultOutboundConnectionFactory implements OutboundConnectionFactory {
   final AtSecurityContextImpl atSecurityContext = AtSecurityContextImpl();
   final SecurityContext securityContext =
       SecurityContext(withTrustedRoots: true);
-  final bool requireCerts;
+  final bool clientCertificateRequired;
 
-  DefaultOutboundConnectionFactory({required this.requireCerts}) {
+  DefaultOutboundConnectionFactory({required this.clientCertificateRequired}) {
+    // always set the trustedCertificatePath, we need to verify the TLS
+    // connection as a client
+    if (File(atSecurityContext.trustedCertificatePath).existsSync()) {
+      securityContext
+          .setTrustedCertificates(atSecurityContext.trustedCertificatePath);
+    } else if (clientCertificateRequired) {
+      throw StateError(
+          '${atSecurityContext.trustedCertificatePath} is required but not found');
+    }
+
+    // If we're not required to present certs, then do nothing further
+    if (!clientCertificateRequired) {
+      return;
+    }
+    // We are required to present certificates
+    // If we have separate mtls certs, use them
     if (File(atSecurityContext.privateKeyPathMtls).existsSync() &&
         File(atSecurityContext.publicKeyPathMtls).existsSync()) {
       logger.info('Using MTLS cert when making outbound client connections');
       securityContext.useCertificateChain(atSecurityContext.publicKeyPathMtls);
       securityContext.usePrivateKey(atSecurityContext.privateKeyPathMtls);
-    } else if (File(atSecurityContext.privateKeyPath).existsSync() &&
+    } else // otherwise, (legacy) present our server cert as a client cert
+    if (File(atSecurityContext.privateKeyPath).existsSync() &&
         File(atSecurityContext.publicKeyPath).existsSync()) {
       logger.info('Using server cert when making outbound client connections');
       securityContext.useCertificateChain(atSecurityContext.publicKeyPath);
       securityContext.usePrivateKey(atSecurityContext.privateKeyPath);
-    } else if (requireCerts) {
+    } else {
       throw StateError('SSL Certificates are required, but none were found');
-    }
-
-    if (File(atSecurityContext.trustedCertificatePath).existsSync()) {
-      securityContext
-          .setTrustedCertificates(atSecurityContext.trustedCertificatePath);
-    } else if (requireCerts) {
-      throw StateError(
-          '${atSecurityContext.trustedCertificatePath} is required but not found');
     }
   }
 

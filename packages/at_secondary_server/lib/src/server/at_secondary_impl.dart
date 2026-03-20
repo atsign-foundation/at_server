@@ -53,8 +53,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   static final int? accessLogCompactionPercentage =
       AtSecondaryConfig.accessLogCompactionPercentage;
   static final int? accessLogSizeInKB = AtSecondaryConfig.accessLogSizeInKB;
-  static final bool? clientCertificateRequired =
-      AtSecondaryConfig.clientCertificateRequired;
   static final skipCommitsForExpiredKeys =
       AtSecondaryConfig.skipCommitsForExpiredKeys;
 
@@ -93,7 +91,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       socketConfig: socketConfig,
     );
     outboundConnectionFactory = DefaultOutboundConnectionFactory(
-      requireCerts: false, // so unit tests can work
+      clientCertificateRequired: false, // so unit tests can work
     );
     outboundClientManager = OutboundClientManager(
       secondaryAddressFinder,
@@ -256,7 +254,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       socketConfig: socketConfig,
     );
     outboundConnectionFactory = DefaultOutboundConnectionFactory(
-      requireCerts: true,
+      clientCertificateRequired: AtSecondaryConfig.clientCertificateRequired,
     );
     outboundClientManager = OutboundClientManager(
       secondaryAddressFinder,
@@ -272,9 +270,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           outboundConnectionFactory,
           poolSize: serverContext!.outboundConnectionLimit,
         ));
-
-    // Scan and re-enqueue the notifications undelivered to other atSigns
-    await notificationManager.reEnqueueUndelivered();
 
     // Refresh Cached Keys
     cacheManager = AtCacheManager(serverContext!.currentAtSign!,
@@ -384,16 +379,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       } else {
         await _startUnSecuredServer();
       }
-    } on Exception catch (e, stacktrace) {
+    } catch (e, stacktrace) {
       _isRunning = false;
-      logger.severe('AtSecondaryServer().start exception: ${e.toString()}');
+      logger.severe('AtSecondaryServer().start : ${e.toString()}');
       logger.severe(stacktrace);
       throw AtServerException(e.toString());
-    } catch (error, stacktrace) {
-      _isRunning = false;
-      logger.severe('AtSecondaryServer().start error: ${error.toString()}');
-      logger.severe(stacktrace);
-      throw AtServerException(error.toString());
     }
 
     if (serverContext!.trainingMode) {
@@ -408,6 +398,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.warning('Training mode set - exiting');
       exit(0);
     }
+
+    // Enqueue any undelivered notifications for delivery to other atServers
+    await notificationManager.reEnqueueUndelivered();
 
     resume();
   }
