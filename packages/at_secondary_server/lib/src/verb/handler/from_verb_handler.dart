@@ -20,7 +20,9 @@ class FromVerbHandler extends AbstractVerbHandler {
   static final _rootDomain = AtSecondaryConfig.rootServerUrl;
   static final _rootPort = AtSecondaryConfig.rootServerPort;
 
-  FromVerbHandler(super.keyStore);
+  FromVerbHandler(super.keyStore) {
+    logger.level = 'info';
+  }
 
   late AtConfig atConfigInstance;
 
@@ -59,11 +61,8 @@ class FromVerbHandler extends AbstractVerbHandler {
         ..platform = decodedClientConfig[AtConstants.platform];
     }
 
-    var atData = AtData();
     var keyPrefix = (fromAtSign == currentAtSign) ? 'private:' : 'public:';
     var responsePrefix = (fromAtSign == currentAtSign) ? 'data:' : 'proof:';
-    var proof = Uuid().v4(); // proof
-    atData.data = proof;
 
     var inBlockList = await atConfigInstance.checkInBlockList(fromAtSign);
 
@@ -82,9 +81,14 @@ class FromVerbHandler extends AbstractVerbHandler {
     }
 
     //store key with private/public prefix, sessionId and fromAtSign
-    atData.metaData = AtMetaData()..ttl = 60 * 1000;
-    await keyStore.put('$keyPrefix${atConnectionMetadata.sessionID}$fromAtSign',
-        atData); //expire in 1 min
+    String storedSecretId =
+        '$keyPrefix${atConnectionMetadata.sessionID}$fromAtSign';
+    final AtData atData = AtData();
+    final String proof = Uuid().v4(); // proof
+    atData.data = proof;
+    atData.metaData = AtMetaData()..ttl = 60 * 1000; //expire in 1 min
+    logger.shout('Storing secret to $storedSecretId');
+    await keyStore.put(storedSecretId, atData);
     response.data =
         '$responsePrefix${atConnectionMetadata.sessionID}$fromAtSign:$proof';
 
@@ -134,7 +138,7 @@ class FromVerbHandler extends AbstractVerbHandler {
 
   bool _verifyClientCerts(X509Certificate cn, String host) {
     logger.info(
-        'Connected from: $cn ${cn.subject} issued by ${cn.issuer} valid from ${cn.startValidity} to ${cn.endValidity}');
+        'Connected from: $cn : ${cn.subject} issued by ${cn.issuer} valid from ${cn.startValidity} to ${cn.endValidity}');
 
     X509CertificateData certData = X509Utils.x509CertificateFromPem(cn.pem);
     List<String> subjectAlternativeNames =
@@ -144,19 +148,25 @@ class FromVerbHandler extends AbstractVerbHandler {
     String commonName = certData.tbsCertificate?.subject['2.5.4.3'] ?? '';
     logger.info('CN: $commonName');
 
-    if (cn.subject.contains(host)) {
-      // TODO Dig in to the possible values of subject
-      return true;
+    bool matched = false;
+
+    if (cn.subject.trim() == host ||
+        cn.subject.replaceFirst('/CN=', '').trim() == host) {
+      logger.info('Matched host "$host" to cn.subject ${cn.subject}');
+      matched = true;
     }
 
     if (subjectAlternativeNames.contains(host)) {
-      return true;
+      logger.info(
+          'Matched host "$host" to subjectAlternativeNames $subjectAlternativeNames');
+      matched = true;
     }
 
-    if (commonName.contains(host)) {
-      // Probably should be an equality test
-      return true;
+    if (commonName == host) {
+      logger.info('Matched host "$host" to commonName $commonName');
+      matched = true;
     }
-    return false;
+
+    return matched;
   }
 }

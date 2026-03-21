@@ -32,7 +32,6 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:crypton/crypton.dart';
 import 'package:meta/meta.dart';
-import 'package:uuid/uuid.dart';
 
 import 'http_request_handler.dart';
 
@@ -500,7 +499,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     InboundConnection? connection;
     try {
       connection = inboundConnectionManager.createWebSocketConnection(ws,
-          sessionId: '_${Uuid().v4()}');
+          sessionId: SecondaryUtil.makeSessionId());
       connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
       await connection.write('@');
     } on InboundConnectionLimitException catch (e) {
@@ -549,7 +548,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
               'In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
           connection = inboundConnectionManager.createSocketConnection(
               clientSocket,
-              sessionId: '_${Uuid().v4()}');
+              sessionId: SecondaryUtil.makeSessionId());
           connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
           await connection.write('@');
         } on InboundConnectionLimitException catch (e) {
