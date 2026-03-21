@@ -1,5 +1,12 @@
-# 3.10.4
+# 3.11.0
 
+- feat: make presentation of client certificates configurable for 
+  atServer-to-atServer communication
+- feat: dart runtime flags for more aggressive heap management
+- fix: tighten FromVerbHandler hostname checking
+- fix: immediately delete challenge-response secrets upon success in cram,
+  pkam & pol handlers
+- refactor: improve readability of cram verb handler digest checking
 - feat: remove expired notifications on startup
 
 # 3.10.3

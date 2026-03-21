@@ -183,7 +183,16 @@ class AtSecondaryConfig {
     }
   }
 
-  static bool? get clientCertificateRequired {
+  /// Whether to require a client certificate when another atServer
+  /// connects to us. This should NEVER be set to false except in
+  /// very specific circumstances, such as a self-contained ephemeral
+  /// environment, or for testing purposes.
+  ///
+  /// This flag also controls whether we present a client certificate
+  /// when connecting to another atServer
+  ///
+  /// - To override from env: `clientCertificateRequired=false`
+  static bool get clientCertificateRequired {
     var result = _getBoolEnvVar('clientCertificateRequired');
     if (result != null) {
       return result;

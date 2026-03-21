@@ -3,7 +3,7 @@ import 'package:at_secondary/src/connection/base_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
-import 'package:uuid/uuid.dart';
+import 'package:at_secondary/src/utils/secondary_util.dart';
 
 class OutboundConnectionImpl<T extends Socket>
     extends OutboundSocketConnection {
@@ -23,7 +23,7 @@ class OutboundConnectionImpl<T extends Socket>
   }
 
   OutboundConnectionImpl(T socket, String? toAtSign) : super(socket) {
-    var sessionId = '_${Uuid().v4()}';
+    var sessionId = SecondaryUtil.makeSessionId();
     metaData = OutboundConnectionMetadata()
       ..sessionID = sessionId
       ..toAtSign = toAtSign

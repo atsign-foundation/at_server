@@ -1,4 +1,4 @@
-FROM dart:3.11.1@sha256:e3ea62cbe54470e5cc4c31cbc85693aa9b0b01723521baf0be634ea3597e1f5d AS buildimage
+FROM dart:3.11.2@sha256:d2a7e07b3e541587415d1281d4865a809149d723cff5b9a5ed6e8a2126b2b2d9 AS buildimage
 ENV USER_ID=1024
 ENV GROUP_ID=1024
 WORKDIR /app
@@ -24,7 +24,7 @@ RUN \
   dart pub update ; \
   dart compile exe bin/at_activate.dart -o at_activate
 
-FROM debian:stable-20260223-slim@sha256:85dfcffff3c1e193877f143d05eaba8ae7f3f95cb0a32e0bc04a448077e1ac69
+FROM debian:stable-20260316-slim@sha256:99fc6d2a0882fcbcdc452948d2d54eab91faafc7db037df82425edcdcf950e1f
 # was debian:stable-20221114-slim
 USER root
 
@@ -54,6 +54,7 @@ COPY --from=buildimage --chown=atsign:atsign \
 COPY --from=buildimage --chown=atsign:atsign \
 /app/packages/at_secondary_server/pubspec.yaml /atsign/secondary/
 
+ENV DART_VM_OPTIONS="--use_compactor,--force_evacuation,--idle_duration_micros=0,--compactor_tasks=5,--marker_tasks=5,--scavenger_tasks=5,--mark_when_idle,--old_gen_growth_time_ratio=50,--old_gen_growth_space_ratio=10"
+
 # Run supervisor configuration file on container startup
 CMD ["/tmp/startup.sh"]
-  

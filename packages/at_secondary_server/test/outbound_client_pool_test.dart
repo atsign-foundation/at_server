@@ -27,7 +27,7 @@ void main() async {
     AtSecondaryServerImpl.getInstance().serverContext = serverContext;
     outboundClientPool = OutboundClientPool();
     notifyConnectionsPool = NotifyConnectionsPool(MockSecondaryAddressFinder(),
-        DefaultOutboundConnectionFactory(requireCerts: false));
+        DefaultOutboundConnectionFactory(clientCertificateRequired: false));
 
     notifyConnectionsPool.size = 2;
   });
@@ -39,7 +39,7 @@ void main() async {
 
   group('A group of outbound client pool test', () {
     OutboundConnectionFactory outboundConnectionFactory =
-        DefaultOutboundConnectionFactory(requireCerts: false);
+        DefaultOutboundConnectionFactory(clientCertificateRequired: false);
     test('test outbound client pool init', () {
       outboundClientPool.size = 5;
       expect(outboundClientPool.getCapacity(), 5);
