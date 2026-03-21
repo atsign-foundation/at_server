@@ -3,9 +3,24 @@ import 'dart:convert';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:crypton/crypton.dart';
+import 'package:uuid/uuid.dart';
 
 class SecondaryUtil {
   static var logger = AtSignLogger('Secondary_Util');
+
+  /// It is very important that this always begin with a *single*
+  /// underscore, otherwise we would fill up the commit log with unnecessary
+  /// entries.
+  ///
+  /// Explanation: The From handler creates records to support the
+  /// challenge-response mechanisms of cram, pkam and pol commands. Those
+  /// record IDs begin with this sessionId, and the records for pol are created
+  /// as `public:<sessionId>`. AtCommitLog **won't** make entries for records
+  /// whose IDs start with `public:_`, but **will** make entries for records
+  /// whose IDs start with `public:__`
+  static String makeSessionId() {
+    return '_${Uuid().v4()}';
+  }
 
   static Future<void> saveCookie(
       String key, String value, String? atSign) async {

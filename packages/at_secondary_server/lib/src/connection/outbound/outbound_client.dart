@@ -368,8 +368,10 @@ class DefaultOutboundConnectionFactory implements OutboundConnectionFactory {
 
     // If we're not required to present certs, then do nothing further
     if (!clientCertificateRequired) {
+      logger.info('Will not present client cert to other atServers');
       return;
     }
+
     // We are required to present certificates
     // If we have separate mtls certs, use them
     if (File(atSecurityContext.privateKeyPathMtls).existsSync() &&

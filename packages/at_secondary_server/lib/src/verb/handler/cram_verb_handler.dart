@@ -29,30 +29,36 @@ class CramVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    var atConnectionMetadata = atConnection.metaData;
-    var sessionID = atConnectionMetadata.sessionID;
-    var digest = verbParams[AtConstants.atDigest];
-    var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-    var secret = await keyStore.get('privatekey:at_secret');
-
-    // If there is no secret in keystore then return error
-    if (secret == null) {
-      logger.finer('privatekey:at_secret is null');
+    var sessionID = atConnection.metaData.sessionID;
+    final digestFromClient = verbParams[AtConstants.atDigest];
+    if (digestFromClient == null) {
       throw UnAuthenticatedException('Authentication Failed');
     }
-    secret = secret.data;
-    secret = secret + '$sessionID$atSign';
+
+    var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+    AtData? internalSecret = await keyStore.get('privatekey:at_secret');
+
+    // If there is no secret in keystore then return error
+    if (internalSecret == null) {
+      logger.severe('privatekey:at_secret is null');
+      throw UnAuthenticatedException('Authentication Failed');
+    }
 
     //retrieve stored secret using sessionid and atsign
-    var storedSecret = await keyStore.get('private:$sessionID$atSign');
-    storedSecret = storedSecret?.data;
-    secret = '$secret:$storedSecret';
-    secret = sha512.convert(utf8.encode(secret));
+    String storedSecretId = 'private:$sessionID$atSign';
+    String? storedSecret = (await keyStore.get(storedSecretId))?.data;
+    String expectedDigest = sha512
+        .convert(utf8
+            .encode('${internalSecret.data}$sessionID$atSign:$storedSecret'))
+        .toString();
 
-    // authenticate if retrieved secret is equal to the cram digest passed
-    if ('$digest' == '$secret') {
-      atConnectionMetadata.isAuthenticated = true;
-      atConnectionMetadata.authType = AuthType.cram;
+    // add a bit of jitter so it's impossible to do any timing-based attacks
+    // to determine the cram secret
+    await Future.delayed(Duration(microseconds: rand.nextInt(1000)));
+    // Verify that the expected digest == cram digest from client
+    if (digestFromClient == expectedDigest) {
+      atConnection.metaData.isAuthenticated = true;
+      atConnection.metaData.authType = AuthType.cram;
       var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
           .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
       try {
@@ -60,9 +66,17 @@ class CramVerbHandler extends AbstractVerbHandler {
       } on DataStoreException catch (e) {
         logger.severe('Hive error adding to access log:${e.toString()}');
       }
+
+      // remove the stored secret
+      try {
+        await keyStore.remove(storedSecretId);
+      } catch (e) {
+        logger.warning('Failed to immediately remove $storedSecretId');
+      }
+
       response.data = 'success';
     } else {
-      atConnectionMetadata.isAuthenticated = false;
+      atConnection.metaData.isAuthenticated = false;
       throw UnAuthenticatedException('Authentication Failed');
     }
   }
