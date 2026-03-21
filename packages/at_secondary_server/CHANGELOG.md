@@ -7,6 +7,7 @@
 - fix: immediately delete challenge-response secrets upon success in cram,
   pkam & pol handlers
 - refactor: improve readability of cram verb handler digest checking
+- feat: remove expired notifications on startup
 
 # 3.10.3
 
