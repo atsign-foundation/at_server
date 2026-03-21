@@ -1,4 +1,5 @@
 import 'dart:collection';
+import 'dart:math';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -29,6 +30,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
   AbstractVerbHandler(this.keyStore) {
     logger = AtSignLogger(runtimeType.toString());
   }
+
+  final rand = Random.secure();
 
   /// Parses a given command against a corresponding verb syntax
   /// @returns  Map containing  key(group name from syntax)-value from the command

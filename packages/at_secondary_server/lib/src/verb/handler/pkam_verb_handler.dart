@@ -66,15 +66,31 @@ class PkamVerbHandler extends AbstractVerbHandler {
     if (publicKey == null || publicKey.isEmpty) {
       throw UnAuthenticatedException('pkam publickey not found');
     }
-    bool isValidSignature =
-        await _validateSignature(verbParams, sessionID, atSign, publicKey);
-    // authenticate if signature is valid
+
+    String storedSecretId = 'private:$sessionID$atSign';
+    bool isValidSignature = await _validateSignature(
+      verbParams,
+      sessionID,
+      atSign,
+      publicKey,
+      storedSecretId,
+    );
+
     if (isValidSignature) {
+      // We're good
+      // remove the stored secret
+      try {
+        await keyStore.remove(storedSecretId);
+      } catch (e) {
+        logger.warning('Failed to immediately remove $storedSecretId');
+      }
+
       atConnectionMetadata.isAuthenticated = true;
       atConnectionMetadata.authType = pkamAuthType;
       atConnectionMetadata.enrollmentId = enrollId;
       response.data = 'success';
     } else {
+      // Nope
       atConnectionMetadata.isAuthenticated = false;
       logger.severe('pkam authentication failed');
       throw UnAuthenticatedException('pkam authentication failed');
@@ -140,12 +156,17 @@ class PkamVerbHandler extends AbstractVerbHandler {
   }
 
   Future<bool> _validateSignature(
-      var verbParams, var sessionId, String atSign, String publicKey) async {
+    var verbParams,
+    var sessionId,
+    String atSign,
+    String publicKey,
+    String storedSecretId,
+  ) async {
     var signature = verbParams[AtConstants.atPkamSignature]!;
     var signingAlgo = verbParams[AtConstants.atPkamSigningAlgo];
     var hashingAlgo = verbParams[AtConstants.atPkamHashingAlgo];
     bool isValidSignature = false;
-    var storedSecret = await keyStore.get('private:$sessionId$atSign');
+    var storedSecret = await keyStore.get(storedSecretId);
     storedSecret = storedSecret?.data;
     if (signature == null || signature.isEmpty) {
       logger.severe('inputSignature is null/empty');

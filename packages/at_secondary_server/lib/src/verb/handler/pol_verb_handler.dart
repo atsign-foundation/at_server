@@ -69,77 +69,69 @@ class PolVerbHandler extends AbstractVerbHandler {
       try {
         await oc.connect();
       } on Exception catch (e) {
-        logger.finer(
+        logger.severe(
             'Exception connecting to $fromAtSign\'s outbound client | $e');
         rethrow;
       }
     }
 
-    HashMap<String, String> fetchSecretResult =
-        await _fetchSecret(fromAtSign, sessionID!, oc);
+    final String storedSecretId = 'public:$sessionID$fromAtSign';
+
+    String? signedChallenge, fromPublicKey, message;
+
+    String doing = '';
+    try {
+      // construct the key that needs to be looked up
+      // fetch the challenge from the other secondary
+      doing = 'fetching signed challenge from $fromAtSign';
+      signedChallenge = (await (oc.lookUp(
+        '$sessionID$fromAtSign',
+        handshake: false,
+      )))
+          ?.replaceFirst(RegExp('^data:'), '');
+
+      // look for the public key on the other secondary
+      doing = 'fetching signing_publickey$fromAtSign';
+      fromPublicKey = (await (oc.plookUp('signing_publickey$fromAtSign')))
+          ?.replaceFirst(RegExp('^data:'), '');
+
+      // Getting stored secret from this secondary server
+      doing = 'fetching stored secret $storedSecretId';
+      message = (await keyStore.get(storedSecretId))?.data;
+    } on Exception catch (e) {
+      logger.severe('Exception while $doing : $e');
+      rethrow;
+    }
+
+    if (fromPublicKey == null || signedChallenge == null || message == null) {
+      logger.severe('Unable to verify signature.'
+          ' fromPublicKey is $fromPublicKey'
+          ' | signedChallenge is $signedChallenge'
+          ' | message is $message');
+      throw AtException('Unable to verify signature');
+    }
+
     // pass the result from _fetchSecret() to validateChallenge()
     // validateChallenge() requires the params fetched through _fetchSecret()
-    _validateChallenge(fetchSecretResult);
+    bool isValidChallenge = RSAPublicKey.fromString(fromPublicKey)
+        .verifySHA256Signature(
+            utf8.encode(message), base64Decode(signedChallenge));
+    if (!isValidChallenge) {
+      throw UnAuthenticatedException('Pol Authentication Failed');
+    }
+
+    // remove the stored secret
+    try {
+      await keyStore.remove(storedSecretId);
+    } catch (e) {
+      logger.warning('Failed to immediately remove $storedSecretId');
+    }
 
     atConnectionMetadata.isPolAuthenticated = true;
     response.data = 'pol:$fromAtSign@';
     await _insertIntoAccessLog(fromAtSign, pol.name());
     logger.info('response : $fromAtSign@');
 
-    return;
-  }
-
-  /// fetches signedChallenge and publicKey from the other secondary
-  /// and secret from this secondary
-  /// throws an exception if any of these could not be fetched
-  Future<HashMap<String, String>> _fetchSecret(
-      String fromAtSign, String sessionID, OutboundClient oc) async {
-    String? signedChallenge, fromPublicKey, message;
-    HashMap<String, String> response = HashMap();
-    try {
-      // construct the key that needs to be looked up
-      var lookUpKey = '$sessionID$fromAtSign';
-      // fetch the challenge from the other secondary
-      signedChallenge = await (oc.lookUp(lookUpKey, handshake: false));
-      signedChallenge = signedChallenge?.replaceFirst(RegExp('^data:'), '');
-
-      // look for the public key on the other secondary
-      var plookupCommand = 'signing_publickey$fromAtSign';
-      fromPublicKey = await (oc.plookUp(plookupCommand));
-      fromPublicKey = fromPublicKey?.replaceFirst(RegExp('^data:'), '');
-
-      // Getting stored secret from this secondary server
-      var secret = await keyStore.get('public:$sessionID$fromAtSign');
-      logger.finer('Secret fetch status : ${secret != null}');
-      message = secret?.data;
-    } on Exception catch (e) {
-      logger.finer('Exception fetching secret: $e');
-      rethrow;
-    }
-
-    if (fromPublicKey == null || signedChallenge == null || message == null) {
-      logger.finer('Invalid OutboundClient status: ${oc.toString()}');
-      logger
-          .severe('Unable to verify signature. fromPublicKey is $fromPublicKey'
-              ' | signedChallenge is $signedChallenge | message is $message');
-      throw AtException('Unable to verify signature');
-    }
-    response['signedChallenge'] = signedChallenge;
-    response['fromPublicKey'] = fromPublicKey;
-    response['message'] = message;
-
-    return response;
-  }
-
-  void _validateChallenge(HashMap<String, String> inputs) {
-    // Comparing secretLookup form other secondary and stored secret are same or not
-    bool isValidChallenge = RSAPublicKey.fromString(inputs['fromPublicKey']!)
-        .verifySHA256Signature(utf8.encode(inputs['message']!),
-            base64Decode(inputs['signedChallenge']!));
-    logger.finer('isValidChallenge: $isValidChallenge');
-    if (!isValidChallenge) {
-      throw UnAuthenticatedException('Pol Authentication Failed');
-    }
     return;
   }
 
