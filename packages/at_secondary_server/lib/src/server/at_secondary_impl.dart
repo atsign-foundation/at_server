@@ -61,7 +61,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   late bool _isPaused;
 
-  var logger = AtSignLogger('AtSecondaryServer')..level='info';
+  var logger = AtSignLogger('AtSecondaryServer')..level = 'info';
 
   factory AtSecondaryServerImpl.getInstance() {
     return _singleton;
@@ -370,7 +370,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     int removed, failed;
     (removed, failed) = await notificationManager.removeExpired();
-    logger.info('NotificationManager.removeExpired: Removed $removed ; Failed $failed');
+    logger.info(
+        'NotificationManager.removeExpired: Removed $removed ; Failed $failed');
 
     if (!useTLS!) {
       throw AtServerException('Only TLS is supported; useTLS must be true');
