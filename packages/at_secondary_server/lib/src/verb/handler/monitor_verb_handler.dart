@@ -157,23 +157,23 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       // If connection is invalid, cancel subscriptions and remove the config
       if (atConnection.isInValid()) {
         if (configMap.containsKey(atConnection)) {
-          logger.shout(
+          logger.info(
               'Connection sessionID ${atConnection.metaData.sessionID} invalid, cancelling subscriptions');
           MonitorConfig mc = configMap[atConnection]!;
           if (mc.received != null) {
-            logger.shout('Cancelling "received" subscription');
+            logger.info('Cancelling "received" subscription');
             await mc.received!.cancel();
             mc.received = null;
           }
           if (mc.self != null) {
-            logger.shout('Cancelling "self" subscription');
+            logger.info('Cancelling "self" subscription');
             await mc.self!.cancel();
             mc.self = null;
           }
           configMap.remove(atConnection);
           return;
         } else {
-          logger.shout(
+          logger.info(
               'Connection sessionID ${atConnection.metaData.sessionID} invalid, and no MonitorConfig available');
         }
       }
