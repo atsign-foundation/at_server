@@ -1,3 +1,8 @@
+# 3.11.1
+
+- feat: http handling tweak for more consistent behaviour for access via proxy 
+  and direct access
+
 # 3.11.0
 
 - feat: make presentation of client certificates configurable for 
