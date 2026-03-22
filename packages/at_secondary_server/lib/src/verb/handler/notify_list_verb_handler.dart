@@ -77,7 +77,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
           }
         } catch (e) {
           // This should never happen so we'll log it as severe
-          logger.shout(
+          logger.severe(
               'isAuthorized failed for $notificationKey: ${e.toString()}');
         }
       }

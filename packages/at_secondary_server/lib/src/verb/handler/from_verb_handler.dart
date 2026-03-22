@@ -87,7 +87,7 @@ class FromVerbHandler extends AbstractVerbHandler {
     final String proof = Uuid().v4(); // proof
     atData.data = proof;
     atData.metaData = AtMetaData()..ttl = 60 * 1000; //expire in 1 min
-    logger.shout('Storing secret to $storedSecretId');
+    logger.finer('Storing secret to $storedSecretId');
     await keyStore.put(storedSecretId, atData);
     response.data =
         '$responsePrefix${atConnectionMetadata.sessionID}$fromAtSign:$proof';
