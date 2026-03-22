@@ -94,6 +94,16 @@ class AtServerHttpRequestHandler {
     while (decodedPath.startsWith('/')) {
       decodedPath = decodedPath.substring(1);
     }
+    // For interoperability across access via proxy and direct access,
+    // we'd like to use the same URL in both cases
+    // i.e. both this URL
+    // https://proxy0001.atsign.org/@garycasey/gary/demo/blog/index.html
+    // and this one
+    // https://85d0d210-2841-59bf-a0c4-3a9a63dd42eb.canary.atsign.zone:11823/@garycasey/gary/demo/blog/index.html
+    // should both work.
+    if (decodedPath.startsWith('$currentAtSign/')) {
+      decodedPath = decodedPath.replaceFirst('$currentAtSign/', '');
+    }
     if (decodedPath.startsWith('public:')) {
       decodedPath = decodedPath.replaceFirst('public:', '');
     }
