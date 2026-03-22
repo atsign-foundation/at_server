@@ -2,6 +2,7 @@
 
 - feat: http handling tweak for more consistent behaviour for access via proxy 
   and direct access
+- feat: log the values of DART_VM_OPTIONS during startup
 
 # 3.11.0
 
