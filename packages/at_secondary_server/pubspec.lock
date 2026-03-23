@@ -85,10 +85,10 @@ packages:
     dependency: "direct main"
     description:
       name: at_persistence_secondary_server
-      sha256: "526555e8fc2002f2d4e42c3d4647b63c1dca614539f16b4d7eddcff0ef75e1a9"
+      sha256: d9e960975b43b9f14e1729d0925e9bc2bda3c173a8e6e465547d053ccc862c82
       url: "https://pub.dev"
     source: hosted
-    version: "4.3.3"
+    version: "4.3.4"
   at_persistence_spec:
     dependency: "direct main"
     description:
