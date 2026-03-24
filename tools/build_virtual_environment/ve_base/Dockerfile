@@ -39,4 +39,4 @@ COPY --from=buildimage --chown=atsign:atsign \
   /app/tools/build_virtual_environment/install_PKAM_Keys/install_PKAM_Keys \
   /usr/local/bin/
 
-ENV DART_VM_OPTIONS="--use_compactor,--force_evacuation,--idle_duration_micros=0,--compactor_tasks=5,--marker_tasks=5,--scavenger_tasks=5,--old_gen_growth_time_ratio=50,--old_gen_growth_space_ratio=10"
+ENV DART_VM_OPTIONS="--use_compactor,--use_compactor,--idle_duration_micros=100000,--force_evacuation,--mark_when_idle,--old_gen_growth_time_ratio=50,--old_gen_growth_space_ratio=10"
