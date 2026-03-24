@@ -1,3 +1,7 @@
+# 3.11.2
+
+- feat: log value of Platform.executableArguments on startup
+
 # 3.11.1
 
 - feat: http handling tweak for more consistent behaviour for access via proxy 

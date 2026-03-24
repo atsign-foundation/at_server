@@ -68,6 +68,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   AtSecondaryServerImpl._internal() {
+    logger.info('executableArguments: ${Platform.executableArguments}');
     logger.info('DART_VM_OPTIONS: ${Platform.environment['DART_VM_OPTIONS']}');
 
     // TODO There's a whole lifecycle mess here that needs to be cleaned up
