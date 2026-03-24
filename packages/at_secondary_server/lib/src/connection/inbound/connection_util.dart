@@ -270,6 +270,11 @@ class InboundCommandValidator {
           'Connection is invalid, closing connection');
     }
 
+    // why does scan delimate with a space....
+    if (command.contains('scan ')) {
+      return;
+    }
+
     String rawVerb = command.split(":").firstOrNull?.trim() ?? command;
 
     // covers 2 cases:
@@ -291,14 +296,12 @@ class InboundCommandValidator {
     bool requiresAuth = verb.requiresAuth;
     if (verb.hasSubcommands) {
       String rawSubcommand = command.split(":")[1].trim();
-      final subcommand = Subcommand.tryParse(rawSubcommand) ??
-          (throw InvalidSyntaxException(
-              'Received invalid subcommand that does not match protocol spec'));
-      requiresAuth = subcommand.requiresAuth;
+      final subcommand = Subcommand.tryParse(rawSubcommand);
+      requiresAuth = subcommand?.requiresAuth ?? verb.requiresAuth;
     }
 
     if (requiresAuth && !isAuthenticated) {
-      throw BlockedConnectionException(
+      throw UnAuthenticatedException(
           'Trying to run a verb that requires an authenticated connection.');
     }
   }

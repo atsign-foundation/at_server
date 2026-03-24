@@ -84,8 +84,8 @@ void main() {
           (await firstAtSignConnection.sendRequestToServer(denyEnrollCommand))
               .replaceAll('error:', '');
       expect(
-          denyEnrollResponse
-              .contains('Cannot deny enrollment without authentication'),
+          denyEnrollResponse.contains(
+              'Trying to run a verb that requires an authenticated connection'),
           true);
     });
 
@@ -98,8 +98,8 @@ void main() {
               .sendRequestToServer(approveEnrollCommand))
           .replaceAll('error:', '');
       expect(
-          approveEnrollResponse
-              .contains('Cannot approve enrollment without authentication'),
+          approveEnrollResponse.contains(
+              'Trying to run a verb that requires an authenticated connection'),
           true);
     });
 
@@ -631,7 +631,7 @@ void main() {
       String revokeEnrollmentResponse =
           await socketConnection2.sendRequestToServer(revokeEnrollmentCommand);
       expect(revokeEnrollmentResponse.trim(),
-          'error:AT0401-Exception: Cannot revoke enrollment without authentication');
+          'error:AT0401-Exception: Trying to run a verb that requires an authenticated connection.');
     });
   });
 
@@ -1677,7 +1677,7 @@ void main() {
       String revokeEnrollmentResponse =
           await socketConnection2.sendRequestToServer(deleteEnrollmentCommand);
       expect(revokeEnrollmentResponse.trim(),
-          'error:AT0401-Exception: Cannot delete enrollment without authentication');
+          'error:AT0401-Exception: Trying to run a verb that requires an authenticated connection.');
     });
   });
 }
