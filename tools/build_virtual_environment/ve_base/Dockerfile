@@ -1,4 +1,4 @@
-FROM dart:3.11.2@sha256:8ba6a6fdd7a82b5a9bda6e14b35cafe449ce58b9a360e7c617a69c32aeb7329d AS buildimage
+FROM dart:3.11.2@sha256:d2a7e07b3e541587415d1281d4865a809149d723cff5b9a5ed6e8a2126b2b2d9 AS buildimage
 ENV USER_ID=1024
 ENV GROUP_ID=1024
 WORKDIR /app
@@ -38,4 +38,5 @@ COPY --from=buildimage --chown=atsign:atsign \
 COPY --from=buildimage --chown=atsign:atsign \
   /app/tools/build_virtual_environment/install_PKAM_Keys/install_PKAM_Keys \
   /usr/local/bin/
-  
+
+ENV DART_VM_OPTIONS="--use_compactor,--force_evacuation,--idle_duration_micros=0,--compactor_tasks=5,--marker_tasks=5,--scavenger_tasks=5,--old_gen_growth_time_ratio=50,--old_gen_growth_space_ratio=10"

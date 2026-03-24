@@ -32,7 +32,6 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:crypton/crypton.dart';
 import 'package:meta/meta.dart';
-import 'package:uuid/uuid.dart';
 
 import 'http_request_handler.dart';
 
@@ -53,8 +52,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   static final int? accessLogCompactionPercentage =
       AtSecondaryConfig.accessLogCompactionPercentage;
   static final int? accessLogSizeInKB = AtSecondaryConfig.accessLogSizeInKB;
-  static final bool? clientCertificateRequired =
-      AtSecondaryConfig.clientCertificateRequired;
   static final skipCommitsForExpiredKeys =
       AtSecondaryConfig.skipCommitsForExpiredKeys;
 
@@ -64,13 +61,16 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   late bool _isPaused;
 
-  var logger = AtSignLogger('AtSecondaryServer');
+  var logger = AtSignLogger('AtSecondaryServer')..level = 'info';
 
   factory AtSecondaryServerImpl.getInstance() {
     return _singleton;
   }
 
   AtSecondaryServerImpl._internal() {
+    logger.info('executableArguments: ${Platform.executableArguments}');
+    logger.info('DART_VM_OPTIONS: ${Platform.environment['DART_VM_OPTIONS']}');
+
     // TODO There's a whole lifecycle mess here that needs to be cleaned up
     // at some point. Currently we create this singleton which then has a
     // lifecycle where it can be started and stopped. When it is started, all
@@ -93,7 +93,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       socketConfig: socketConfig,
     );
     outboundConnectionFactory = DefaultOutboundConnectionFactory(
-      requireCerts: false, // so unit tests can work
+      clientCertificateRequired: false, // so unit tests can work
     );
     outboundClientManager = OutboundClientManager(
       secondaryAddressFinder,
@@ -256,7 +256,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       socketConfig: socketConfig,
     );
     outboundConnectionFactory = DefaultOutboundConnectionFactory(
-      requireCerts: true,
+      clientCertificateRequired: AtSecondaryConfig.clientCertificateRequired,
     );
     outboundClientManager = OutboundClientManager(
       secondaryAddressFinder,
@@ -272,9 +272,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           outboundConnectionFactory,
           poolSize: serverContext!.outboundConnectionLimit,
         ));
-
-    // Scan and re-enqueue the notifications undelivered to other atSigns
-    await notificationManager.reEnqueueUndelivered();
 
     // Refresh Cached Keys
     cacheManager = AtCacheManager(serverContext!.currentAtSign!,
@@ -374,6 +371,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // clean up malformed keys from keystore
     await removeMalformedKeys();
 
+    int removed, failed;
+    (removed, failed) = await notificationManager.removeExpired();
+    logger.info(
+        'NotificationManager.removeExpired: Removed $removed ; Failed $failed');
+
     if (!useTLS!) {
       throw AtServerException('Only TLS is supported; useTLS must be true');
     }
@@ -384,16 +386,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       } else {
         await _startUnSecuredServer();
       }
-    } on Exception catch (e, stacktrace) {
+    } catch (e, stacktrace) {
       _isRunning = false;
-      logger.severe('AtSecondaryServer().start exception: ${e.toString()}');
+      logger.severe('AtSecondaryServer().start : ${e.toString()}');
       logger.severe(stacktrace);
       throw AtServerException(e.toString());
-    } catch (error, stacktrace) {
-      _isRunning = false;
-      logger.severe('AtSecondaryServer().start error: ${error.toString()}');
-      logger.severe(stacktrace);
-      throw AtServerException(error.toString());
     }
 
     if (serverContext!.trainingMode) {
@@ -408,6 +405,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.warning('Training mode set - exiting');
       exit(0);
     }
+
+    // Enqueue any undelivered notifications for delivery to other atServers
+    await notificationManager.reEnqueueUndelivered();
 
     resume();
   }
@@ -507,7 +507,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     InboundConnection? connection;
     try {
       connection = inboundConnectionManager.createWebSocketConnection(ws,
-          sessionId: '_${Uuid().v4()}');
+          sessionId: SecondaryUtil.makeSessionId());
       connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
       await connection.write('@');
     } on InboundConnectionLimitException catch (e) {
@@ -556,7 +556,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
               'In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
           connection = inboundConnectionManager.createSocketConnection(
               clientSocket,
-              sessionId: '_${Uuid().v4()}');
+              sessionId: SecondaryUtil.makeSessionId());
           connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
           await connection.write('@');
         } on InboundConnectionLimitException catch (e) {

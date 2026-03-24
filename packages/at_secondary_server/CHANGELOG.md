@@ -1,3 +1,24 @@
+# 3.11.2
+
+- feat: log value of Platform.executableArguments on startup
+
+# 3.11.1
+
+- feat: http handling tweak for more consistent behaviour for access via proxy 
+  and direct access
+- feat: log the values of DART_VM_OPTIONS during startup
+
+# 3.11.0
+
+- feat: make presentation of client certificates configurable for 
+  atServer-to-atServer communication
+- feat: dart runtime flags for more aggressive heap management
+- fix: tighten FromVerbHandler hostname checking
+- fix: immediately delete challenge-response secrets upon success in cram,
+  pkam & pol handlers
+- refactor: improve readability of cram verb handler digest checking
+- feat: remove expired notifications on startup
+
 # 3.10.3
 
 - chore: remove obsolete configuration

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 function usage {
-  echo "Usage: $scriptName -a <@sign> -p <port> -s <secret> [-r]"
+  echo "Usage: $scriptName -a <@sign> -p <port> -s <secret> [-r] [-o <observePort>]"
   echo "       When '-r' (for 'reset') is provided, we remove existing storage files before starting the atServer"
   exit 1
 }
@@ -14,12 +14,14 @@ unset atSign
 unset port
 unset secret
 unset reset
+unset observePort
 
-while getopts a:p:s:r opt; do
+while getopts a:p:s:o:r opt; do
   case $opt in
     a) atSign=$OPTARG ;;
     p) port=$OPTARG ;;
     s) secret=$OPTARG ;;
+    o) observePort=$OPTARG ;;
     r) reset="true" ;;
     *) usage ;;
   esac
@@ -27,7 +29,7 @@ done
 
 shift "$(( OPTIND - 1 ))"
 
-if [ -z "$atSign" ] || [ -z "$port" ] || [ -z "$secret" ] ; then
+if [ -z "$atSign" ] || [ -z "$port" ] || [ -z "$secret" ]; then
   usage
 fi
 
@@ -62,7 +64,7 @@ export accessLogPath="$storageDir/accessLog"
 export notificationStoragePath="$storageDir/notificationLog.v1"
 export inbound_max_limit=200
 
-export logLevel="WARNING"
+export logLevel="SEVERE"
 
 export testingMode="true"
 
@@ -81,4 +83,11 @@ ln -s "$scriptDir"/../../../../tools/build_virtual_environment/ve_base/contents/
 # Finally, we need to copy the pubspec.yaml file to the working directory, for the version
 cp "$scriptDir"/../../../../packages/at_secondary_server/pubspec.yaml .
 
-dart "$scriptDir"/../../../../packages/at_secondary_server/bin/main.dart -a "$atSign" -p "$port" -s "$secret"
+if [ -z "$observePort" ] ; then
+  observeParams=""
+else
+  observeParams="--observe=$observePort"
+fi
+
+export DART_VM_OPTIONS="--use_compactor,--force_evacuation,--idle_duration_micros=0,--compactor_tasks=5,--marker_tasks=5,--scavenger_tasks=5,--mark_when_idle,--old_gen_growth_time_ratio=50,--old_gen_growth_space_ratio=10"
+dart $observeParams "$scriptDir"/../../../../packages/at_secondary_server/bin/main.dart -a "$atSign" -p "$port" -s "$secret"

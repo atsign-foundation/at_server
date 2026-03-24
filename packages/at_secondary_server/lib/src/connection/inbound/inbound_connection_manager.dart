@@ -2,8 +2,8 @@ import 'dart:io';
 import 'package:at_secondary/src/connection/connection_factory.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_web_socket_connection.dart';
+import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
-import 'package:uuid/uuid.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 
@@ -34,7 +34,7 @@ class InboundConnectionManager implements AtConnectionFactory {
       throw InboundConnectionLimitException(
           'max limit reached on inbound pool');
     }
-    sessionId ??= '_${Uuid().v4()}';
+    sessionId ??= SecondaryUtil.makeSessionId();
     var atConnection =
         InboundConnectionImpl(socket, sessionId, owningPool: pool);
     pool.add(atConnection);
@@ -57,7 +57,7 @@ class InboundConnectionManager implements AtConnectionFactory {
       throw InboundConnectionLimitException(
           'max limit reached on inbound pool');
     }
-    sessionId ??= '_${Uuid().v4()}';
+    sessionId ??= SecondaryUtil.makeSessionId();
     var atConnection = InboundWebSocketConnection(ws, sessionId, pool);
     pool.add(atConnection);
 
