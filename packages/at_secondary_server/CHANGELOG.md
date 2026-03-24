@@ -1,3 +1,7 @@
+# 3.11.3
+
+- feat: tweak the garbage collection runtime flags
+
 # 3.11.2
 
 - feat: log value of Platform.executableArguments on startup
