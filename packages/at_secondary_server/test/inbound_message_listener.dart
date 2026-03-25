@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
@@ -11,12 +12,15 @@ import 'package:test/test.dart';
 
 import 'test_utils.dart';
 
+StreamController<String> sc = StreamController<String>();
+
 void main() async {
   late FakeSocket socket;
   late InboundConnection connection;
+  late FakeInboundConnection fakeConnection;
 
-  late AtConnectionMetaData authenticatedMetadata;
-  late AtConnectionMetaData unAuthenticatedMetadata;
+  late InboundConnectionMetadata authenticatedMetadata;
+  late InboundConnectionMetadata unAuthenticatedMetadata;
 
   setUpAll(() {
     verbTestsSetUpLogging();
@@ -25,15 +29,17 @@ void main() async {
   });
 
   setUp(() async {
+    sc = StreamController<String>();
     socket = FakeSocket();
     connection = MockInboundConnection();
+    fakeConnection = FakeInboundConnection(socket, authenticatedMetadata);
     when(() => connection.close()).thenAnswer((_) async {});
     when(() => connection.isInValid()).thenReturn(false);
 
     final mockManager = MockInboundConnectionManager();
     final mockPool = MockInboundConnectionPool();
     when(() => mockManager.pool).thenReturn(mockPool);
-    when(() => mockPool.remove(connection)).thenReturn(null);
+    when(() => mockPool.remove(fakeConnection)).thenReturn(null);
     AtSecondaryServerImpl.getInstance().inboundConnectionManager = mockManager;
   });
 
@@ -64,7 +70,7 @@ void main() async {
       expect(
         () => InboundCommandValidator.validate(
             utf8.encode('monitor\n').toList(), connection),
-        throwsA(isA<BlockedConnectionException>()),
+        throwsA(isA<UnAuthenticatedException>()),
       );
     });
 
@@ -97,59 +103,78 @@ void main() async {
       'A test to verify that the message listener is properly handling commands in the buffer',
       () {
     test('validate one-word commands -> should pass', () async {
-      when(() => connection.metaData).thenReturn(unAuthenticatedMetadata);
-      var listener = InboundMessageListener(connection);
+      var listener = InboundMessageListener(fakeConnection);
       final streamFuture = expectLater(
-          socket.stream,
+          sc.stream,
           emitsInOrder([
-            equalsIgnoringCase('scan\n'),
-            equalsIgnoringCase('info\n'),
+            equalsIgnoringCase('scan'),
+            equalsIgnoringCase('info'),
           ]));
       listener.listen(callback, streamCallBack);
-      socket.add(utf8.encode('scan\n').toList());
-      socket.add(utf8.encode('info\n').toList());
-
+      fakeConnection.socket.addData('scan\n');
+      fakeConnection.socket.addData('info\n');
       await streamFuture;
     });
 
     test('validate a colon separated command -> should pass', () async {
-      when(() => connection.metaData).thenReturn(unAuthenticatedMetadata);
-      var listener = InboundMessageListener(connection);
+      var listener = InboundMessageListener(fakeConnection);
       var lookup = 'lookup:public:publickey@alice:metadata:ttl:0\n';
       var from = 'from:@mchicken\n';
       var pkam = 'pkam:superadvancedcoolsignature\n';
       final streamFuture = expectLater(
-          socket.stream,
+          sc.stream,
           emitsInOrder([
-            equalsIgnoringCase(lookup),
-            equalsIgnoringCase(from),
-            equalsIgnoringCase(pkam),
+            equalsIgnoringCase(lookup.trim()),
+            equalsIgnoringCase(from.trim()),
+            equalsIgnoringCase(pkam.trim()),
           ]));
       listener.listen(callback, streamCallBack);
-      socket.add(utf8.encode(lookup).toList());
-      socket.add(utf8.encode(from).toList());
-      socket.add(utf8.encode(pkam).toList());
-
+      fakeConnection.socket.addData(lookup);
+      fakeConnection.socket.addData(from);
+      fakeConnection.socket.addData(pkam);
       await streamFuture;
     });
 
     test('validate a colon & json included command -> should pass', () async {
-      when(() => connection.metaData).thenReturn(authenticatedMetadata);
-      var listener = InboundMessageListener(connection);
+      var listener = InboundMessageListener(fakeConnection);
       listener.listen(callback, streamCallBack);
       var enroll =
-          'enroll:request:{"appName":"wavi","deviceName":"iphone","namespaces":{"wavi":"rw"},"otp":"<otp>","apkamPublicKey":"<apkamPublicKey>","encryptedAPKAMSymmetricKey": "<encryptedAPKAMSymmetricKey>"}';
+          'enroll:request:{"appName":"wavi","deviceName":"iphone","namespaces":{"wavi":"rw"},"otp":"<otp>","apkamPublicKey":"<apkamPublicKey>","encryptedAPKAMSymmetricKey": "<encryptedAPKAMSymmetricKey>"}\n';
       final streamFuture = expectLater(
-          socket.stream,
+          sc.stream,
           emitsInOrder([
-            equalsIgnoringCase(enroll),
+            equalsIgnoringCase(enroll.trim()),
           ]));
-      socket.add(utf8.encode(enroll).toList());
+      fakeConnection.socket.addData(enroll);
+      await streamFuture;
+    });
+
+    test('partial command validation -> should pass', () async {
+      // receive command in increments, expect to validate by packet2
+      // shouldn't fail and should emit one command.
+      when(() => connection.metaData).thenReturn(authenticatedMetadata);
+      var listener = InboundMessageListener(fakeConnection);
+      listener.listen(callback, streamCallBack);
+      var enroll =
+          'enroll:request:{"appName":"wavi","deviceName":"iphone","namespaces":{"wavi":"rw"},"otp":"<otp>","apkamPublicKey":"<apkamPublicKey>","encryptedAPKAMSymmetricKey": "<encryptedAPKAMSymmetricKey>"}\n';
+      final packet1 = enroll.substring(0, 5);
+      final packet2 = enroll.substring(5, 40);
+      final packet3 = enroll.substring(40);
+      final streamFuture = expectLater(
+          sc.stream,
+          emitsInOrder([
+            equalsIgnoringCase(enroll.trim()),
+          ]));
+      fakeConnection.socket.addData(packet1);
+      fakeConnection.socket.addData(packet2);
+      fakeConnection.socket.addData(packet3);
       await streamFuture;
     });
   });
 }
 
-void callback(String value, InboundConnection connection) {}
+Future<void> callback(String value, InboundConnection connection) async {
+  sc.add(value);
+}
 
 void streamCallBack(List<int> data, InboundConnection connection) {}

@@ -2,13 +2,16 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart' as at_lookup;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
@@ -60,6 +63,26 @@ class MockSecondaryAddressFinder extends Mock
 
 class MockInboundConnection extends Mock implements InboundConnection {}
 
+class FakeInboundConnection extends Fake implements InboundConnectionImpl {
+  final FakeSocket socket;
+  final InboundConnectionMetadata metadata;
+  FakeInboundConnection(this.socket, this.metadata);
+
+  @override
+  Socket get underlying => socket;
+
+  @override
+  InboundConnectionMetadata get metaData => metadata;
+
+  @override
+  bool isInValid() {
+    return false;
+  }
+
+  @override
+  Future<void> close() async {}
+}
+
 class MockInboundConnectionPool extends Mock implements InboundConnectionPool {}
 
 class MockInboundConnectionManager extends Mock
@@ -76,10 +99,10 @@ class MockEnrollmentManager extends Mock implements EnrollmentManager {}
 
 class FakeSocket extends Fake implements Socket {
   Completer completer = Completer();
-  final _controller = StreamController<String>();
+  final _controller = StreamController<Uint8List>();
   bool closeCalled = false;
 
-  Stream<String> get stream => _controller.stream;
+  void addData(String data) => _controller.add(utf8.encode(data));
 
   @override
   Future get done => completer.future;
@@ -100,8 +123,18 @@ class FakeSocket extends Fake implements Socket {
   bool setOption(SocketOption option, bool enabled) => true;
 
   @override
-  void add(List<int> data) {
-    _controller.add(utf8.decode(data));
+  StreamSubscription<Uint8List> listen(
+    void Function(Uint8List event)? onData, {
+    Function? onError,
+    void Function()? onDone,
+    bool? cancelOnError,
+  }) {
+    return _controller.stream.listen(
+      onData,
+      onError: onError,
+      onDone: onDone,
+      cancelOnError: cancelOnError,
+    );
   }
 
   @override
