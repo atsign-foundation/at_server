@@ -89,4 +89,4 @@ else
   observeParams="--observe=$observePort"
 fi
 
-dart --use_compactor --idle_duration_micros=100000 --use_compactor --force_evacuation --mark_when_idle --old_gen_growth_time_ratio=50 --old_gen_growth_space_ratio=10 $observeParams "$scriptDir"/../../../../packages/at_secondary_server/bin/main.dart -a "$atSign" -p "$port" -s "$secret"
+dart --scavenger_tasks=5 --use_compactor --marker_tasks=5 --compactor_tasks=5 --idle_duration_micros=10000 --old_gen_growth_time_ratio=50 --old_gen_growth_space_ratio=5 --mark_when_idle $observeParams "$scriptDir"/../../../../packages/at_secondary_server/bin/main.dart -a "$atSign" -p "$port" -s "$secret"

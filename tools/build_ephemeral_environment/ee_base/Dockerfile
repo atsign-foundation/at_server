@@ -54,7 +54,7 @@ COPY --from=buildimage --chown=atsign:atsign \
 COPY --from=buildimage --chown=atsign:atsign \
 /app/packages/at_secondary_server/pubspec.yaml /atsign/secondary/
 
-ENV DART_VM_OPTIONS="--use_compactor,--use_compactor,--idle_duration_micros=100000,--force_evacuation,--mark_when_idle,--old_gen_growth_time_ratio=50,--old_gen_growth_space_ratio=10"
+ENV DART_VM_OPTIONS='--scavenger_tasks=5,--use_compactor,--marker_tasks=5,--compactor_tasks=5,--idle_duration_micros=10000,--old_gen_growth_time_ratio=50,--old_gen_growth_space_ratio=5,--mark_when_idle'
 
 # Run supervisor configuration file on container startup
 CMD ["/tmp/startup.sh"]
