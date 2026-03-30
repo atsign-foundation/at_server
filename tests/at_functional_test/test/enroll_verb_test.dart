@@ -870,7 +870,7 @@ void main() {
           .sendRequestToServer('config:set:maxRequestsPerTimeFrame=1');
       expect(configResponse.trim(), 'data:ok');
       configResponse = await firstAtSignConnection
-          .sendRequestToServer('config:set:timeFrameInMills=100');
+          .sendRequestToServer('config:set:timeFrameInMillis=100');
       expect(configResponse.trim(), 'data:ok');
     });
 

@@ -16,7 +16,6 @@ class AtSecondaryConfig {
   //Certs
   static const bool _useTLS = true;
   static const bool _clientCertificateRequired = true;
-  static const bool _testingMode = false;
 
   //Certificate Paths
   static const String _fullchainLocation = 'certs/fullchain.pem';
@@ -120,22 +119,6 @@ class AtSecondaryConfig {
 
   static String? get secondaryServerVersion => _secondaryServerVersion;
 
-  // Enrollment Configurations
-  static const int _enrollmentExpiryInHours = 48;
-  static int _maxEnrollRequestsAllowed = 5;
-
-  static final int _timeFrameInHours = 1;
-
-  static final int _enrollmentResponseDelayIntervalInSeconds = 55;
-
-  // For easy of testing, duration in hours is long. Hence introduced "timeFrameInMills"
-  // to have a shorter time frame. This is defaulted to "_timeFrameInHours", can be modified
-  // via the config verb
-  static int _timeFrameInMills =
-      Duration(hours: _timeFrameInHours).inMilliseconds;
-
-  static int get enrollmentExpiryInHours => _enrollmentExpiryInHours;
-
   // TODO: Medium priority: Most (all?) getters in this class return a default value but the signatures currently
   //  allow for nulls. Should fix this as has been done for logLevel
   // TODO: Low priority: Lots of very similar boilerplate code here. Not necessarily bad in this particular case, but
@@ -168,18 +151,6 @@ class AtSecondaryConfig {
       } on ElementNotFoundException {
         return _useTLS;
       }
-    }
-  }
-
-  static bool get testingMode {
-    var result = _getBoolEnvVar('testingMode');
-    if (result != null) {
-      return result;
-    }
-    try {
-      return getConfigFromYaml(['testing', 'testingMode']);
-    } on ElementNotFoundException {
-      return _testingMode;
     }
   }
 
@@ -241,17 +212,11 @@ class AtSecondaryConfig {
     }
   }
 
-  static int? get accessLogCompactionFrequencyMins {
-    var result = _getIntEnvVar('accessLogCompactionFrequencyMins');
-    if (result != null) {
-      return result;
-    }
-    try {
-      return getConfigFromYaml(
-          ['access_log_compaction', 'compactionFrequencyMins']);
-    } on ElementNotFoundException {
-      return _accessLogCompactionFrequencyMins;
-    }
+  static int get accessLogCompactionFrequencyMins {
+    return _getIntEnvVar('accessLogCompactionFrequencyMins') ??
+        getNullableIntFromYaml(
+            ['access_log_compaction', 'compactionFrequencyMins']) ??
+        _accessLogCompactionFrequencyMins;
   }
 
   static int? get commitLogSizeInKB {
@@ -279,17 +244,11 @@ class AtSecondaryConfig {
     }
   }
 
-  static int? get commitLogCompactionFrequencyMins {
-    var result = _getIntEnvVar('commitLogCompactionFrequencyMins');
-    if (result != null) {
-      return result;
-    }
-    try {
-      return getConfigFromYaml(
-          ['commit_log_compaction', 'compactionFrequencyMins']);
-    } on ElementNotFoundException {
-      return _commitLogCompactionFrequencyMins;
-    }
+  static int get commitLogCompactionFrequencyMins {
+    return _getIntEnvVar('commitLogCompactionFrequencyMins') ??
+        getNullableIntFromYaml(
+            ['commit_log_compaction', 'compactionFrequencyMins']) ??
+        _commitLogCompactionFrequencyMins;
   }
 
   static int? get expiringRunFreqMins {
@@ -304,17 +263,11 @@ class AtSecondaryConfig {
     }
   }
 
-  static int? get notificationKeyStoreCompactionPercentage {
-    var result = _getIntEnvVar('notificationKeyStoreCompactionPercentage');
-    if (result != null) {
-      return result;
-    }
-    try {
-      return getConfigFromYaml(
-          ['notification_keystore_compaction', 'compactionPercentage']);
-    } on ElementNotFoundException {
-      return _notificationKeyStoreCompactionPercentage;
-    }
+  static int get notificationKeyStoreCompactionPercentage {
+    return _getIntEnvVar('notificationKeyStoreCompactionPercentage') ??
+        getNullableIntFromYaml(
+            ['notification_keystore_compaction', 'compactionPercentage']) ??
+        _notificationKeyStoreCompactionPercentage;
   }
 
   static int? get notificationKeyStoreSizeInKB {
@@ -330,17 +283,11 @@ class AtSecondaryConfig {
     }
   }
 
-  static int? get notificationKeyStoreCompactionFrequencyMins {
-    var result = _getIntEnvVar('notificationKeyStoreCompactionFrequencyMins');
-    if (result != null) {
-      return result;
-    }
-    try {
-      return getConfigFromYaml(
-          ['notification_keystore_compaction', 'compactionFrequencyMins']);
-    } on ElementNotFoundException {
-      return _notificationKeyStoreCompactionFrequencyMins;
-    }
+  static int get notificationKeyStoreCompactionFrequencyMins {
+    return _getIntEnvVar('notificationKeyStoreCompactionFrequencyMins') ??
+        getNullableIntFromYaml(
+            ['notification_keystore_compaction', 'compactionFrequencyMins']) ??
+        _notificationKeyStoreCompactionFrequencyMins;
   }
 
   static String get notificationStoragePath {
@@ -712,52 +659,42 @@ class AtSecondaryConfig {
     }
   }
 
-  static int get maxEnrollRequestsAllowed {
-    // For easy of testing purpose, we need to reduce the number of requests.
-    // So, in testing mode, enable to modify the "maxEnrollRequestsAllowed"
-    // can be set via the config verb
-    // Defaults to value in config.yaml
-    if (testingMode) {
-      return _maxEnrollRequestsAllowed;
-    }
-    var result = _getIntEnvVar('maxEnrollRequestsAllowed');
-    if (result != null) {
-      return result;
-    }
-    try {
-      return getConfigFromYaml(['enrollment', 'maxRequestsPerTimeFrame']);
-    } on ElementNotFoundException {
-      return _maxEnrollRequestsAllowed;
-    }
+  static int get enrollmentExpiryInHours {
+    return _getIntEnvVar('enrollmentExpiryInHours') ??
+        getNullableIntFromYaml(['enrollment', 'expiryInHours']) ??
+        48;
   }
+
+  static final int _enrollmentResponseDelayIntervalInSeconds = 55;
+
+  static int? _maxEnrollRequestsAllowed;
 
   static set maxEnrollRequestsAllowed(int value) {
     _maxEnrollRequestsAllowed = value;
   }
 
-  static int get timeFrameInMills {
-    // For easy of testing purpose, we need to reduce the time frame.
-    // So, in testing mode, enable to modify the "timeFrameInMills"
-    // can be set via the config verb
-    // Defaults to value in config.yaml
-    if (testingMode) {
-      return _timeFrameInMills;
-    }
-    var result = _getIntEnvVar('enrollTimeFrameInHours');
-    if (result != null) {
-      return Duration(hours: result).inMilliseconds;
-    }
-    try {
-      return Duration(
-              hours: getConfigFromYaml(['enrollment', 'timeFrameInHours']))
-          .inMilliseconds;
-    } on ElementNotFoundException {
-      return Duration(hours: _timeFrameInHours).inMilliseconds;
-    }
+  static int get maxEnrollRequestsAllowed {
+    return _maxEnrollRequestsAllowed ??
+        _getIntEnvVar('maxEnrollRequestsAllowed') ??
+        getNullableIntFromYaml(['enrollment', 'maxRequestsPerTimeFrame']) ??
+        5;
   }
 
-  static set timeFrameInMills(int timeWindowInMills) {
-    _timeFrameInMills = timeWindowInMills;
+  static final int _timeFrameInHours = 1;
+  static int? _timeFrameInMillis;
+
+  static set timeFrameInMillis(int timeWindowInMills) {
+    _timeFrameInMillis = timeWindowInMills;
+  }
+
+  static int get timeFrameInMillis {
+    return _timeFrameInMillis ??
+        (_getIntEnvVar('enrollTimeFrameInHours') ??
+                getNullableIntFromYaml(['enrollment', 'timeFrameInHours']) ??
+                _timeFrameInHours) *
+            60 *
+            60 *
+            1000;
   }
 
   static int get enrollmentResponseDelayIntervalInSeconds {
@@ -772,46 +709,41 @@ class AtSecondaryConfig {
     }
   }
 
-  //implementation for config:set. This method returns a data stream which subscribers listen to for updates
+  // implementation for config:set. This method returns a data stream which subscribers listen to for updates
   static Stream<dynamic>? subscribe(ModifiableConfigs configName) {
-    if (testingMode) {
-      if (!_streamListeners.containsKey(configName)) {
-        _streamListeners[configName] = ModifiableConfigurationEntry()
-          ..streamController = StreamController<dynamic>.broadcast()
-          ..defaultValue = AtSecondaryConfig.getDefaultValue(configName)!;
-      }
-      return _streamListeners[configName]!.streamController.stream;
+    if (!_streamListeners.containsKey(configName)) {
+      _streamListeners[configName] = ModifiableConfigurationEntry()
+        ..streamController = StreamController<dynamic>.broadcast()
+        ..defaultValue = AtSecondaryConfig.getDefaultValue(configName);
     }
-    return null;
+    return _streamListeners[configName]!.streamController.stream;
   }
 
-  //implementation for config:set. Broadcasts new config value to all the listeners/subscribers
+  // implementation for config:set. Broadcasts new config value to all the listeners/subscribers
   static void broadcastConfigChange(
       ModifiableConfigs configName, var newConfigValue,
       {bool isReset = false}) {
-    if (testingMode) {
-      //if an entry for the config does not exist new entry is created
-      if (!_streamListeners.containsKey(configName)) {
-        _streamListeners[configName] = ModifiableConfigurationEntry()
-          ..streamController = StreamController<dynamic>.broadcast()
-          ..defaultValue = AtSecondaryConfig.getDefaultValue(configName)!;
-      }
-      //in case of reset, the default value of that config is broadcast
-      if (isReset) {
-        _streamListeners[configName]
-            ?.streamController
-            .add(_streamListeners[configName]!.defaultValue);
-        _streamListeners[configName]?.currentValue =
-            _streamListeners[configName]!.defaultValue;
-        // this else case broadcast new config value
-      } else {
-        _streamListeners[configName]?.streamController.add(newConfigValue!);
-        _streamListeners[configName]?.currentValue = newConfigValue;
-      }
+    // if an entry for the config does not exist new entry is created
+    if (!_streamListeners.containsKey(configName)) {
+      _streamListeners[configName] = ModifiableConfigurationEntry()
+        ..streamController = StreamController<dynamic>.broadcast()
+        ..defaultValue = AtSecondaryConfig.getDefaultValue(configName);
+    }
+    // in case of reset, the default value of that config is broadcast
+    if (isReset) {
+      _streamListeners[configName]
+          ?.streamController
+          .add(_streamListeners[configName]!.defaultValue);
+      _streamListeners[configName]?.currentValue =
+          _streamListeners[configName]!.defaultValue;
+      // this else case broadcast new config value
+    } else {
+      _streamListeners[configName]?.streamController.add(newConfigValue!);
+      _streamListeners[configName]?.currentValue = newConfigValue;
     }
   }
 
-  //implementation for config:Set. Returns current value of modifiable configs
+  // implementation for config:Set. Returns current value of modifiable configs
   static dynamic getLatestConfigValue(ModifiableConfigs configName) {
     if (_streamListeners.containsKey(configName)) {
       return _streamListeners[configName]?.currentValue ??
@@ -820,9 +752,9 @@ class AtSecondaryConfig {
     return null;
   }
 
-  //implementation for config:set
-  //switch case that returns default value of modifiable configs
-  static dynamic getDefaultValue(ModifiableConfigs configName) {
+  // implementation for config:set
+  // switch case that returns default value of modifiable configs
+  static Object getDefaultValue(ModifiableConfigs configName) {
     switch (configName) {
       case ModifiableConfigs.accessLogCompactionFrequencyMins:
         return accessLogCompactionFrequencyMins;
@@ -842,7 +774,7 @@ class AtSecondaryConfig {
         return false;
       case ModifiableConfigs.maxRequestsPerTimeFrame:
         return maxEnrollRequestsAllowed;
-      case ModifiableConfigs.timeFrameInMills:
+      case ModifiableConfigs.timeFrameInMillis:
         return Duration(hours: _timeFrameInHours).inMilliseconds;
     }
   }
@@ -867,51 +799,59 @@ class AtSecondaryConfig {
     }
     return null;
   }
-}
 
-dynamic getConfigFromYaml(List<String> args) {
-  var yamlMap = AtSecondaryConfig.configYamlMap;
-  // ignore: prefer_typing_uninitialized_variables
-  var value;
-  if (yamlMap != null) {
-    for (int i = 0; i < args.length; i++) {
-      if (i == 0) {
-        value = yamlMap[args[i]];
-      } else {
-        if (value != null) {
-          value = value[args[i]];
+  static int? getNullableIntFromYaml(List<String> args) {
+    try {
+      return getConfigFromYaml(args);
+    } on ElementNotFoundException catch (_) {
+      return null;
+    }
+  }
+
+  static dynamic getConfigFromYaml(List<String> args) {
+    var yamlMap = AtSecondaryConfig.configYamlMap;
+    // ignore: prefer_typing_uninitialized_variables
+    var value;
+    if (yamlMap != null) {
+      for (int i = 0; i < args.length; i++) {
+        if (i == 0) {
+          value = yamlMap[args[i]];
+        } else {
+          if (value != null) {
+            value = value[args[i]];
+          }
         }
       }
     }
+    // If value not found throw exception
+    if (value == Null || value == null) {
+      throw ElementNotFoundException(
+          'Element ${args.toString()} Not Found in yaml');
+    }
+    return value;
   }
-  // If value not found throw exception
-  if (value == Null || value == null) {
-    throw ElementNotFoundException(
-        'Element ${args.toString()} Not Found in yaml');
-  }
-  return value;
-}
 
-String? getStringValueFromYaml(List<String> keyParts) {
-  var yamlMap = AtSecondaryConfig.configYamlMap;
-  // ignore: prefer_typing_uninitialized_variables
-  var value;
-  if (yamlMap != null) {
-    for (int i = 0; i < keyParts.length; i++) {
-      if (i == 0) {
-        value = yamlMap[keyParts[i]];
-      } else {
-        if (value != null) {
-          value = value[keyParts[i]];
+  static String? getStringValueFromYaml(List<String> keyParts) {
+    var yamlMap = AtSecondaryConfig.configYamlMap;
+    // ignore: prefer_typing_uninitialized_variables
+    var value;
+    if (yamlMap != null) {
+      for (int i = 0; i < keyParts.length; i++) {
+        if (i == 0) {
+          value = yamlMap[keyParts[i]];
+        } else {
+          if (value != null) {
+            value = value[keyParts[i]];
+          }
         }
       }
     }
-  }
-  // If value not found throw exception
-  if (value == Null || value == null) {
-    return null;
-  } else {
-    return value.toString();
+    // If value not found throw exception
+    if (value == Null || value == null) {
+      return null;
+    } else {
+      return value.toString();
+    }
   }
 }
 
@@ -925,7 +865,7 @@ enum ModifiableConfigs {
   shouldReloadCertificates,
   doCacheRefreshNow,
   maxRequestsPerTimeFrame,
-  timeFrameInMills
+  timeFrameInMillis
 }
 
 class ModifiableConfigurationEntry {

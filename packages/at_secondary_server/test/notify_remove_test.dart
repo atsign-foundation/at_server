@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
@@ -64,7 +66,7 @@ void main() {
       // Notify List to verify after deletion
       await notifyListVerbHandler.processVerb(
           response, notifyListParams, atConnection);
-      expect(response.data, null);
+      expect(response.data, jsonEncode([]));
     });
   });
 }

@@ -24,7 +24,7 @@ class InboundRateLimiter implements AtRateLimiter {
 
   InboundRateLimiter() {
     maxRequestsPerTimeFrame = AtSecondaryConfig.maxEnrollRequestsAllowed;
-    timeFrameInMillis = AtSecondaryConfig.timeFrameInMills;
+    timeFrameInMillis = AtSecondaryConfig.timeFrameInMillis;
     requestTimestampQueue = Queue();
   }
 
