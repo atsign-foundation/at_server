@@ -6,7 +6,7 @@ homepage: https://docs.atsign.com
 documentation: https://docs.atsign.com/atplatform/secondaryserver
 
 environment:
-  sdk: '>=2.15.0 <4.0.0'
+  sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
   meta: ^1.11.0
