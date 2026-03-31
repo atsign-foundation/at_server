@@ -537,3 +537,75 @@ String createRandomString(int length) {
       (index) =>
           characters.codeUnitAt(testUtilsRandom.nextInt(characters.length))));
 }
+
+const List<String> unauthenticatedTopLevelCommands = [
+  'from:@alice\n',
+  'cram:proof-value\n',
+  'pkam:proof-value\n',
+  'pol\n',
+  'scan\n',
+  'lookup:public:publickey@alice\n',
+  'plookup:public:publickey@alice\n',
+  'info\n',
+  'noop\n',
+  'enroll:request:{"appName":"wavi"}\n',
+];
+
+const List<String> authenticatedTopLevelCommands = [
+  'update:public:phone@alice value\n',
+  'llookup:phone@alice\n',
+  'delete:phone@alice\n',
+  'sync:1\n',
+  'monitor\n',
+  'otp:get\n',
+  'batch:lookup:public:publickey@alice\n',
+  'stats\n',
+  'config:block:add:@mallory\n',
+];
+
+const List<String> subcommandsAllowedWithoutAuth = [
+  'notify:status:abc123\n',
+  'enroll:request:{"appName":"wavi"}\n',
+];
+
+const List<String> subcommandsRequiringAuth = [
+  'keys:get:public:publickey@alice\n',
+  'keys:put:public:publickey@alice\n',
+  'keys:unknown:anything\n',
+  'enroll:approve:{"enrollmentId":"1"}\n',
+  'enroll:deny:{"enrollmentId":"1"}\n',
+  'enroll:revoke:{"enrollmentId":"1"}\n',
+  'enroll:unrevoke:{"enrollmentId":"1"}\n',
+  'enroll:delete:{"enrollmentId":"1"}\n',
+  'enroll:list\n',
+  'enroll:fetch:1\n',
+];
+
+const List<String> representativeListenerCommands = [
+  'from:@alice\n',
+  'cram:proof-value\n',
+  'pkam:proof-value\n',
+  'pol\n',
+  'scan:showhidden:true:@alice\n',
+  'lookup:public:publickey@alice\n',
+  'plookup:public:publickey@alice\n',
+  'info\n',
+  'noop\n',
+  'enroll:request:{"appName":"wavi","deviceName":"iphone","namespaces":{"wavi":"rw"},"otp":"<otp>","apkamPublicKey":"<apkamPublicKey>"}\n',
+  'update:public:phone@alice +14165551212\n',
+  'llookup:phone@alice\n',
+  'delete:phone@alice\n',
+  'sync:1\n',
+  'notify:@bob:phone@alice\n',
+  'notify:status:1\n',
+  'notify:remove:1\n',
+  'notify:update:1\n',
+  'notify:all:true\n',
+  'monitor\n',
+  'otp:get\n',
+  'keys:get:public:publickey@alice\n',
+  'keys:put:public:publickey@alice:value\n',
+  'batch:lookup:public:publickey@alice\n',
+  'stats\n',
+  'config:block:add:@mallory\n',
+];
