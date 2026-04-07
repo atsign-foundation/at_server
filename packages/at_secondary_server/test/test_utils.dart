@@ -545,7 +545,6 @@ const List<String> unauthenticatedTopLevelCommands = [
   'pol\n',
   'scan\n',
   'lookup:public:publickey@alice\n',
-  'plookup:public:publickey@alice\n',
   'info\n',
   'noop\n',
   'enroll:request:{"appName":"wavi"}\n',
@@ -554,6 +553,7 @@ const List<String> unauthenticatedTopLevelCommands = [
 const List<String> authenticatedTopLevelCommands = [
   'update:public:phone@alice value\n',
   'llookup:phone@alice\n',
+  'plookup:public:publickey@alice\n',
   'delete:phone@alice\n',
   'sync:1\n',
   'monitor\n',

@@ -22,6 +22,7 @@ enum AtVerb {
   // Authenticated
   update(requiresAuth: true),
   llookup(requiresAuth: true),
+  plookup(requiresAuth: true),
   delete(requiresAuth: true),
   sync(requiresAuth: true),
   notify(requiresAuth: true, hasSubcommands: true),
@@ -39,7 +40,6 @@ enum AtVerb {
   pol(requiresAuth: false),
   scan(requiresAuth: false),
   lookup(requiresAuth: false),
-  plookup(requiresAuth: false),
   info(requiresAuth: false),
   noop(requiresAuth: false),
 

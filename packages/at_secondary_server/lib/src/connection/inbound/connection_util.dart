@@ -192,7 +192,7 @@ class InboundIdleChecker {
 class InboundCommandValidator {
   /// This function validates a command on a connection. The criteria is the following:
   /// 1. checks if connection is invalid, closing the connection if requires
-  /// 2. if verb length is > 64, which doesn't exist, we'll close the conncection
+  /// 2. if verb length is > 64, which doesn't exist, we'll close the connection
   /// 3. verifies verb meets connection type ie: unauthenticated client running update fails
   static void validate(List<int> bytes, AtConnection connection) {
     // allowMalformed so we can always decode something
