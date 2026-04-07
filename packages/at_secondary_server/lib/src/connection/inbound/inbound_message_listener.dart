@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_commons/at_commons.dart' as at_commons;
 import 'package:at_secondary/src/connection/base_connection.dart';
+import 'package:at_secondary/src/connection/inbound/connection_util.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
@@ -15,7 +17,7 @@ import 'package:at_utils/at_logger.dart';
 class InboundMessageListener {
   InboundConnection connection;
   var logger = AtSignLogger('InboundListener');
-  final _buffer = at_commons.ByteBuffer(capacity: 10240000);
+  final _buffer = StreamableByteBuffer(capacity: 10240000);
 
   InboundMessageListener(this.connection);
 
@@ -28,10 +30,44 @@ class InboundMessageListener {
     onBufferEndCallBack = callback;
     logger.finest(
         'Calling inbound underlying.listen within runZonedGuarded block');
-
     runZonedGuarded(() {
+      //setup underlying connection
       connection.underlying.listen(_messageHandler,
           onDone: _finishedHandler, onError: _errorHandler);
+      _buffer.stream.listen(
+        (Uint8List _) async {
+          try {
+            _buffer.validate(connection);
+          } on Exception catch (e) {
+            logger.warning(logger.getAtConnectionLogMessage(
+              connection.metaData,
+              e.toString(),
+            ));
+            await GlobalExceptionHandler.getInstance()
+                .handle(e, atConnection: connection);
+            _buffer.clear();
+            return;
+          }
+          if (_buffer.isEnd()) {
+            var command = utf8.decode(_buffer.getData());
+            command = command.trim();
+            logger.info(logger.getAtConnectionLogMessage(connection.metaData,
+                'RCVD: ${BaseSocketConnection.truncateForLogging(command)}'));
+            // if command is '@exit', close the connection.
+            if (command == '@exit') {
+              await _finishedHandler();
+              return;
+            }
+            _buffer.clear();
+            await onBufferEndCallBack(command, connection);
+          }
+        },
+        onError: (e, st) {
+          _buffer.clear();
+          logger
+              .severe('exception when handling message: $e - stack trace: $st');
+        },
+      );
       connection.metaData.isListening = true;
     }, (Object error, StackTrace st) {
       logger.warning(
@@ -40,7 +76,7 @@ class InboundMessageListener {
     });
   }
 
-  /// Handles messages on the inbound client's connection and calls the verb executor
+  /// Handles messages on the inbound client's connection and adds them to _buffer's stream.
   /// Closes the inbound connection in case of any error.
   Future<void> _messageHandler(streamData) async {
     connection.metaData.lastAccessed = DateTime.now().toUtc();
@@ -62,21 +98,10 @@ class InboundMessageListener {
       _buffer.clear();
       return;
     }
-    // If connection is invalid, throws ConnectionInvalidException and closes the connection
-    if (connection.isInValid()) {
-      _buffer.clear();
-      logger.info(logger.getAtConnectionLogMessage(connection.metaData,
-          'Inbound connection is invalid. Closing the connection'));
-      await GlobalExceptionHandler.getInstance().handle(
-          ConnectionInvalidException('Connection is invalid'),
-          atConnection: connection);
-      return;
-    }
     if (connection.metaData.isStream) {
       await onStreamCallBack(data, connection);
       return;
     }
-    var bufferOverflow = false;
     // If buffer has capacity add data to buffer,
     // Else raise bufferOverFlowException and close the connection.
     if (!_buffer.isOverFlow(data)) {
@@ -88,26 +113,6 @@ class InboundMessageListener {
               ' request which exceeded the buffer size limit.'
               ' Terminating the connection.'),
           atConnection: connection);
-      bufferOverflow = true;
-    }
-    try {
-      if (!bufferOverflow && _buffer.isEnd()) {
-        //decode only when end of buffer is reached
-        var command = utf8.decode(_buffer.getData());
-        command = command.trim();
-        logger.info(logger.getAtConnectionLogMessage(connection.metaData,
-            'RCVD: ${BaseSocketConnection.truncateForLogging(command)}'));
-        // if command is '@exit', close the connection.
-        if (command == '@exit') {
-          await _finishedHandler();
-          return;
-        }
-        _buffer.clear();
-        await onBufferEndCallBack(command, connection);
-      }
-    } catch (e, st) {
-      _buffer.clear();
-      logger.severe('exception in message handler:$e - stack trace: $st');
     }
   }
 
@@ -130,5 +135,32 @@ class InboundMessageListener {
         .inboundConnectionManager
         .pool
         .remove(connection);
+  }
+}
+
+class StreamableByteBuffer extends at_commons.ByteBuffer {
+  final StreamController<Uint8List> _controller = StreamController<Uint8List>();
+  Stream<Uint8List> get stream => _controller.stream;
+  bool validated = false;
+
+  StreamableByteBuffer({super.capacity});
+
+  @override
+  void append(dynamic data) {
+    List<int> bytes = data as List<int>;
+    _controller.add(Uint8List.fromList(bytes));
+    super.append(bytes);
+  }
+
+  @override
+  void clear() {
+    validated = false;
+    super.clear();
+  }
+
+  void validate(AtConnection connection) {
+    if (validated) return;
+    InboundCommandValidator.validate(getData(), connection);
+    validated = true;
   }
 }

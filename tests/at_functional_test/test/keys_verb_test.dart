@@ -321,7 +321,7 @@ void main() {
       var getResponse =
           await firstAtSignConnection.sendRequestToServer('keys:get:self');
       expect(getResponse,
-          'error:AT0401-Exception: Command cannot be executed without auth');
+          'error:AT0401-Exception: Trying to run a verb that requires an authenticated connection.');
     });
 
     test('check keys verb put operation - without authentication', () async {
@@ -330,7 +330,7 @@ void main() {
       var putResponse =
           await firstAtSignConnection.sendRequestToServer(putCommand);
       expect(putResponse,
-          'error:AT0401-Exception: Command cannot be executed without auth');
+          'error:AT0401-Exception: Trying to run a verb that requires an authenticated connection.');
     });
   });
 }
