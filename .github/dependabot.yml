@@ -6,6 +6,8 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
+    cooldown:
+      default-days: 7
     groups:
       github-actions:
         patterns:
@@ -19,6 +21,8 @@ updates:
       - "/packages/at_root_server"
     schedule:
       interval: "daily"
+    cooldown:
+      default-days: 7
     groups:
       docker:
         patterns:
@@ -30,6 +34,8 @@ updates:
       - "/tools/build_ephemeral_environment/at_activate"
     schedule:
       interval: "daily"
+    cooldown:
+      default-days: 7
     groups:
       pub:
         patterns:
@@ -38,6 +44,8 @@ updates:
     directory: "/tools" # Location of package manifests
     schedule:
       interval: "daily"
+    cooldown:
+      default-days: 7
     groups:
       pip:
         patterns:
