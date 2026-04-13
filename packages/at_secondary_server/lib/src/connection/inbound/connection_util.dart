@@ -207,7 +207,7 @@ class InboundCommandValidator {
     }
 
     // why does scan delimit with a space....
-    if (command.contains('scan ')) {
+    if (command.contains('scan ') || command.contains('monitor ')) {
       return;
     }
 

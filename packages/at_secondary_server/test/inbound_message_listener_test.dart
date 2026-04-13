@@ -145,6 +145,17 @@ void main() async {
       );
     });
 
+    test('validate monitor with trailing arguments bypasses verb parsing', () {
+      when(() => connection.metaData).thenReturn(unAuthenticatedMetadata);
+      expect(
+            () => InboundCommandValidator.validate(
+          utf8.encode('monitor this-is-accepted\n').toList(),
+          connection,
+        ),
+        returnsNormally,
+      );
+    });
+
     test('invalidate bad connection', () {
       when(() => connection.metaData).thenReturn(unAuthenticatedMetadata);
       when(() => connection.isInValid()).thenReturn(true);
