@@ -51,7 +51,7 @@ jobs:
 
       - name: Build and push new VE base
         id: docker_build_base
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           file: tools/build_virtual_environment/ve_base/Dockerfile
           push: true
@@ -130,7 +130,7 @@ jobs:
 
       - name: Build and push vip
         id: docker_build_vip
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           file: tools/build_virtual_environment/ve/Dockerfile.vip
           context: .
@@ -207,7 +207,7 @@ jobs:
 
       - name: Build and push ephemeral
         id: docker_build_ephemeral
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           file: tools/build_ephemeral_environment/ee_base/Dockerfile
           context: .
