@@ -41,4 +41,4 @@ dev_dependencies:
   test: ^1.31.0
   coverage: ^1.6.1
   lints: ^6.1.0
-  mocktail: ^1.0.3
+  mocktail: ^1.0.5
