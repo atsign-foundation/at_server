@@ -455,7 +455,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         _expiryKeysCache[key]![expiresAt] == null) {
       return false;
     }
-    return _expiryKeysCache[key]![expiresAt]!.isBefore(DateTime.now().toUtc());
+    return _expiryKeysCache[key]![expiresAt]!.isBefore(DateTime.timestamp());
   }
 
   /// Return true if the key is active
@@ -467,7 +467,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       return true;
     }
     return _expiryKeysCache[key]![availableAt]!
-        .isBefore(DateTime.now().toUtc());
+        .isBefore(DateTime.timestamp());
   }
 
   /// Verifies if the given key is active.

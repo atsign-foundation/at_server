@@ -91,7 +91,7 @@ class AccessLogKeyStore
   @override
   Future<List<dynamic>> getExpired(int expiryInDays) async {
     var expiredKeys = <dynamic>[];
-    var now = DateTime.now().toUtc();
+    var now = DateTime.timestamp();
     var accessLogMap = await _toMap();
     accessLogMap!.forEach((key, value) {
       if (value == null) {

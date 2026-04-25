@@ -43,7 +43,7 @@ abstract class BaseSocketConnection<T extends Socket> extends AtConnection {
     }
     try {
       underlying.write(data);
-      metaData.lastAccessed = DateTime.now().toUtc();
+      metaData.lastAccessed = DateTime.timestamp();
     } catch (e) {
       metaData.isStale = true;
       logger.severe('write caught ${e.toString()}');

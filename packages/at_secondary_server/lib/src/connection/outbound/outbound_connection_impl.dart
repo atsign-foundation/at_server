@@ -27,7 +27,7 @@ class OutboundConnectionImpl<T extends Socket>
     metaData = OutboundConnectionMetadata()
       ..sessionID = sessionId
       ..toAtSign = toAtSign
-      ..created = DateTime.now().toUtc()
+      ..created = DateTime.timestamp()
       ..isCreated = true;
 
     if (logger.isLoggable('info')) {
@@ -49,7 +49,7 @@ class OutboundConnectionImpl<T extends Socket>
   int _getIdleTimeMillis() {
     var lastAccessedTime = metaData.lastAccessed;
     lastAccessedTime ??= metaData.created;
-    var currentTime = DateTime.now().toUtc();
+    var currentTime = DateTime.timestamp();
     return currentTime.difference(lastAccessedTime!).inMilliseconds;
   }
 

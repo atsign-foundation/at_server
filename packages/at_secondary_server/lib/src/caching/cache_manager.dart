@@ -43,8 +43,7 @@ class AtCacheManager {
     List<String> keysList = keyStore.getKeys(regex: r'cached\:');
     var cachedKeys = <String>[];
 
-    var now = DateTime.now().toUtc();
-    var nowInEpoch = now.millisecondsSinceEpoch;
+    var nowInEpoch = DateTime.now().millisecondsSinceEpoch;
     var itr = keysList.iterator;
     while (itr.moveNext()) {
       var key = itr.current;
@@ -263,7 +262,7 @@ class AtCacheManager {
     var refreshAt = atData.toJson()['metaData']['refreshAt'];
     if (refreshAt != null) {
       refreshAt = DateTime.parse(refreshAt).toUtc().millisecondsSinceEpoch;
-      var now = DateTime.now().toUtc().millisecondsSinceEpoch;
+      var now = DateTime.now().millisecondsSinceEpoch;
       if (now <= refreshAt) {
         return atData;
       }
@@ -481,7 +480,7 @@ class AtCacheManager {
     // Housekeeping (1): find shared_key.otherAtSign@myAtSign and rename it to
     // shared_key.other.until.now@myAtSign e.g. find shared_key.bob@alice and
     // rename it to shared_key.bob.until.<epochMillis>@alice
-    int now = DateTime.now().toUtc().millisecondsSinceEpoch;
+    int now = DateTime.now().millisecondsSinceEpoch;
     var nameOfMyCopyOfSharedKey =
         'shared_key.${otherAtSign.withoutAt()}$atSign';
     if (keyStore.isKeyExists(nameOfMyCopyOfSharedKey)) {

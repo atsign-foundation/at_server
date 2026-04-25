@@ -144,8 +144,7 @@ class StatsNotificationService {
       AtConstants.key: 'statsNotification.$currentAtSign',
       AtConstants.value: latestCommitID,
       AtConstants.operation: SecondaryUtil.getOperationType(operationType).name,
-      AtConstants.epochMilliseconds:
-          DateTime.now().toUtc().millisecondsSinceEpoch,
+      AtConstants.epochMilliseconds: DateTime.now().millisecondsSinceEpoch,
       AtConstants.messageType: MessageType.key.toString(),
       AtConstants.isEncrypted: false,
       // "metadata": metadata

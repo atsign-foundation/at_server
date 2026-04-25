@@ -82,7 +82,7 @@ class InboundMessageListener {
   /// Handles messages on the inbound client's connection and adds them to _buffer's stream.
   /// Closes the inbound connection in case of any error.
   Future<void> _messageHandler(streamData) async {
-    connection.metaData.lastAccessed = DateTime.now().toUtc();
+    connection.metaData.lastAccessed = DateTime.timestamp();
     if (logger.isLoggable('finest')) {
       logger.finest('_messageHandler received ${streamData.runtimeType}'
           ' : $streamData ');

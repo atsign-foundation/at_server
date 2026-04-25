@@ -35,7 +35,7 @@ class InboundWebSocketConnection implements InboundConnection {
   InboundWebSocketConnection(this.ws, String? sessionId, this.owningPool) {
     metaData = InboundConnectionMetadata()
       ..sessionID = sessionId
-      ..created = DateTime.now().toUtc()
+      ..created = DateTime.timestamp()
       ..isCreated = true;
 
     AtSecondaryContext? secondaryContext =

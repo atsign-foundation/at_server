@@ -82,7 +82,7 @@ class SecondaryUtil {
     if (atData == null) {
       return false;
     }
-    var now = DateTime.now().toUtc().millisecondsSinceEpoch;
+    var now = DateTime.now().millisecondsSinceEpoch;
     if (atData.metaData != null) {
       var birthTime = atData.metaData!.availableAt;
       var endOfLifeTime = atData.metaData!.expiresAt;

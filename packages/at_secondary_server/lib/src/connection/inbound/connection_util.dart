@@ -32,7 +32,7 @@ class InboundRateLimiter implements AtRateLimiter {
 
   @override
   bool isRequestAllowed() {
-    int currentTimeInMills = DateTime.now().toUtc().millisecondsSinceEpoch;
+    int currentTimeInMills = DateTime.now().millisecondsSinceEpoch;
     _checkAndUpdateQueue(currentTimeInMills);
     if (requestTimestampQueue.length < maxRequestsPerTimeFrame) {
       requestTimestampQueue.addLast(currentTimeInMills);
@@ -112,7 +112,7 @@ class InboundIdleChecker {
     var lastAccessedTime = connection.metaData.lastAccessed;
     // if lastAccessedTime is not set, use created time
     lastAccessedTime ??= connection.metaData.created;
-    var currentTime = DateTime.now().toUtc();
+    var currentTime = DateTime.timestamp();
     return currentTime.difference(lastAccessedTime!).inMilliseconds;
   }
 

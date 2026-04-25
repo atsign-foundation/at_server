@@ -30,7 +30,7 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
       : super(socket) {
     metaData = InboundConnectionMetadata()
       ..sessionID = sessionId
-      ..created = DateTime.now().toUtc()
+      ..created = DateTime.timestamp()
       ..isCreated = true;
 
     AtSecondaryContext? secondaryContext =
