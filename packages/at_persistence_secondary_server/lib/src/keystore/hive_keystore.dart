@@ -5,7 +5,6 @@ import 'dart:collection';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
-import 'package:at_persistence_secondary_server/src/utils/object_util.dart';
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
@@ -168,26 +167,27 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     // Default commitOp to Update.
     commitOp = CommitOp.UPDATE;
 
-    // Set CommitOp to UPDATE_ALL if any of the metadata args are not null
-    if (ObjectsUtil.anyNotNull({
-      value.metaData?.ttl,
-      value.metaData?.ttb,
-      value.metaData?.ttr,
-      value.metaData?.isCascade,
-      value.metaData?.isBinary,
-      value.metaData?.isEncrypted,
-      value.metaData?.dataSignature,
-      value.metaData?.sharedKeyEnc,
-      value.metaData?.pubKeyCS,
-      value.metaData?.encoding,
-      value.metaData?.encKeyName,
-      value.metaData?.encAlgo,
-      value.metaData?.ivNonce,
-      value.metaData?.skeEncKeyName,
-      value.metaData?.skeEncAlgo,
-      value.metaData?.pubKeyHash,
-      value.metaData?.immutable,
-    })) {
+    // Set CommitOp to UPDATE_ALL if any of the metadata args are not null.
+    // Direct null-check chain rather than allocating a 17-element Set per call.
+    final m = value.metaData;
+    if (m != null &&
+        (m.ttl != null ||
+            m.ttb != null ||
+            m.ttr != null ||
+            m.isCascade != null ||
+            m.isBinary != null ||
+            m.isEncrypted != null ||
+            m.dataSignature != null ||
+            m.sharedKeyEnc != null ||
+            m.pubKeyCS != null ||
+            m.encoding != null ||
+            m.encKeyName != null ||
+            m.encAlgo != null ||
+            m.ivNonce != null ||
+            m.skeEncKeyName != null ||
+            m.skeEncAlgo != null ||
+            m.pubKeyHash != null ||
+            m.immutable != null)) {
       commitOp = CommitOp.UPDATE_ALL;
     }
 

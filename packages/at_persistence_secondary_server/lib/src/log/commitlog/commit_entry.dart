@@ -130,5 +130,12 @@ class CommitOpAdapter extends TypeAdapter<CommitOp?> {
 /// A NullCommitEntry will be returned when none of CommitEntry matches the given criteria
 /// (in place where a null has to returned when a matching CommitEntry is not found).
 class NullCommitEntry extends CommitEntry {
-  NullCommitEntry() : super('', CommitOp.UPDATE, DateTime.now());
+  // Singleton — callers only read fields off the result and check
+  // `is NullCommitEntry` to detect the no-match case, so there is no need to
+  // allocate (and re-stamp DateTime.now() on) a fresh instance per miss.
+  static final NullCommitEntry _instance = NullCommitEntry._();
+  factory NullCommitEntry() => _instance;
+  NullCommitEntry._()
+      : super('', CommitOp.UPDATE,
+            DateTime.fromMillisecondsSinceEpoch(0, isUtc: true));
 }

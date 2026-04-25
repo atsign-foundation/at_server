@@ -45,9 +45,6 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     final sharedWith = updateParams.sharedWith;
     final sharedBy = updateParams.sharedBy;
     var atKey = updateParams.atKey!;
-    final value = updateParams.value;
-    final atData = AtData();
-    atData.data = value;
 
     // Get the key using verbParams (forAtSign, key, atSign)
     if (sharedWith != null && sharedWith.isNotEmpty) {
