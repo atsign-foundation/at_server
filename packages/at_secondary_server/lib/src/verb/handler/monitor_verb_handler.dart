@@ -131,13 +131,17 @@ class MonitorVerbHandler extends AbstractVerbHandler {
     MonitorConfig mc = configMap[atConnection]!;
     var fromAtSign = notification.fromAtSign?.replaceAll('@', '');
     try {
-      logger
-          .finest('Checking ${notification.notification} against ${mc.regex}');
       if (notification.notification!.contains(mc.regex) ||
           (fromAtSign != null && fromAtSign.contains(mc.regex))) {
-        logger.finest('Matched regex - sending');
+        if (logger.isLoggable('finest')) {
+          logger.finest('${notification.notification} vs ${mc.regex} : true');
+        }
         await atConnection.write('notification:'
             ' ${jsonEncode(notification.mapForClient)}\n');
+      } else {
+        if (logger.isLoggable('finest')) {
+          logger.finest('${notification.notification} vs ${mc.regex} : false');
+        }
       }
     } catch (e) {
       logger.severe('$e while delivering ${notification.notification}'
@@ -197,6 +201,9 @@ extension MapForClient on AtNotification {
         AtConstants.messageType: messageType?.toString(),
         AtConstants.isEncrypted: atMetadata?.isEncrypted ?? false,
         "metadata": {
+          "ttr": atMetadata!.ttr,
+          "ttl": atMetadata!.ttl,
+          "ttb": atMetadata!.ttb,
           "sharedKeyEnc": atMetadata?.sharedKeyEnc,
           "pubKeyCS": atMetadata?.pubKeyCS,
           "dataSignature": atMetadata?.dataSignature,
