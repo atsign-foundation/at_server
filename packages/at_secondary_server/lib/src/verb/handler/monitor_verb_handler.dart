@@ -201,9 +201,9 @@ extension MapForClient on AtNotification {
         AtConstants.messageType: messageType?.toString(),
         AtConstants.isEncrypted: atMetadata?.isEncrypted ?? false,
         "metadata": {
-          "ttr": atMetadata!.ttr,
-          "ttl": atMetadata!.ttl,
-          "ttb": atMetadata!.ttb,
+          "ttr": atMetadata?.ttr,
+          "ttl": atMetadata?.ttl,
+          "ttb": atMetadata?.ttb,
           "sharedKeyEnc": atMetadata?.sharedKeyEnc,
           "pubKeyCS": atMetadata?.pubKeyCS,
           "dataSignature": atMetadata?.dataSignature,
