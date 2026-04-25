@@ -144,6 +144,11 @@ class InboundMessageListener {
 }
 
 class StreamableByteBuffer extends at_commons.ByteBuffer {
+  /// Shared sentinel for the append signal — the stream listener discards
+  /// the payload (it reads getData() instead), so we don't need to copy
+  /// the bytes per chunk.
+  static final Uint8List _appendSignal = Uint8List(0);
+
   final StreamController<Uint8List> _controller = StreamController<Uint8List>();
   Stream<Uint8List> get stream => _controller.stream;
   bool validated = false;
@@ -153,7 +158,7 @@ class StreamableByteBuffer extends at_commons.ByteBuffer {
   @override
   void append(dynamic data) {
     List<int> bytes = data as List<int>;
-    _controller.add(Uint8List.fromList(bytes));
+    _controller.add(_appendSignal);
     super.append(bytes);
   }
 
