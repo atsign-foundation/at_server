@@ -91,6 +91,6 @@ fi
 
 #  --timeline_recorder=file:$atSign.gc.json --timeline_streams=GC \
 dart \
-  --use_compactor --dontneed_on_sweep --old_gen_growth_time_ratio=40 --new_gen_semi_max_size=8 \
+  --use_compactor --dontneed_on_sweep --old_gen_growth_time_ratio=50 --old_gen_growth_space_ratio=10 --new_gen_semi_max_size=8 \
   $observeParams \
   "$scriptDir"/../../../../packages/at_secondary_server/bin/main.dart -a "$atSign" -p "$port" -s "$secret"

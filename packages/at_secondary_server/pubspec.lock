@@ -730,7 +730,7 @@ packages:
     source: hosted
     version: "3.0.2"
   vm_service:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: vm_service
       sha256: "45caa6c5917fa127b5dbcfbd1fa60b14e583afdc08bfc96dda38886ca252eb60"
