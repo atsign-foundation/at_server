@@ -190,28 +190,48 @@ class InboundIdleChecker {
 }
 
 class InboundCommandValidator {
+  /// We only need enough of the buffer to identify the verb name (capped at 64
+  /// chars below) and the optional subcommand, so for very long commands (e.g.
+  /// large `update` values) we cap the decode here to a small prefix instead
+  /// of decoding the entire payload twice (validator + listener).
+  static const int _maxBytesForValidation = 256;
+
+  static final Utf8Decoder _allowMalformedUtf8 =
+      Utf8Decoder(allowMalformed: true);
+
   /// This function validates a command on a connection. The criteria is the following:
   /// 1. checks if connection is invalid, closing the connection if requires
   /// 2. if verb length is > 64, which doesn't exist, we'll close the connection
   /// 3. verifies verb meets connection type ie: unauthenticated client running update fails
   static void validate(List<int> bytes, AtConnection connection) {
-    // allowMalformed so we can always decode something
-    String command = utf8.decode(bytes, allowMalformed: true).trim();
-    var isAuthenticated = connection.metaData.isAuthenticated ||
-        connection.metaData.isPolAuthenticated;
-
     // If connection is invalid, throws ConnectionInvalidException and closes the connection
     if (connection.isInValid()) {
       throw ConnectionInvalidException(
           'Connection is invalid, closing connection');
     }
 
+    // Decode only the prefix we need to identify the verb and (optionally)
+    // its subcommand. This avoids decoding the full buffer when the rest is
+    // a value (the listener will decode the full buffer once when isEnd()).
+    final prefixLen = bytes.length > _maxBytesForValidation
+        ? _maxBytesForValidation
+        : bytes.length;
+    String command = _allowMalformedUtf8.convert(bytes, 0, prefixLen).trim();
+    var isAuthenticated = connection.metaData.isAuthenticated ||
+        connection.metaData.isPolAuthenticated;
+
     // why does scan delimit with a space....
     if (command.contains('scan ') || command.contains('monitor ')) {
       return;
     }
 
-    String rawVerb = command.split(":").firstOrNull?.trim() ?? command;
+    // First colon splits verb from the rest. For "verb:sub:value" we want
+    // "verb" — indexOf + substring avoids allocating the split's List<String>.
+    final firstColon = command.indexOf(':');
+    final String rawVerb = (firstColon == -1
+            ? command
+            : command.substring(0, firstColon))
+        .trim();
 
     // covers 2 cases:
     // - any junk with a ':' inside, where we would try to parse the verb
@@ -231,7 +251,12 @@ class InboundCommandValidator {
     // determine auth requirement - may be overridden if verb has subcommands
     bool requiresAuth = verb.requiresAuth;
     if (verb.hasSubcommands) {
-      String rawSubcommand = command.split(":")[1].trim();
+      // Subcommand sits between the first and second colons.
+      final secondColon = command.indexOf(':', firstColon + 1);
+      final String rawSubcommand = (secondColon == -1
+              ? command.substring(firstColon + 1)
+              : command.substring(firstColon + 1, secondColon))
+          .trim();
       final subcommand = Subcommand.tryParse(rawSubcommand);
       requiresAuth = subcommand?.requiresAuth ?? verb.requiresAuth;
     }
