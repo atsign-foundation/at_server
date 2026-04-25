@@ -281,31 +281,78 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     return atNotification;
   }
 
-  /// If metadata contains "null" string, then reset the metadata. So set it to null
-  /// If metadata contains null (null object), then fetch the existing metadata.If
-  /// existing metadata value is not null, set it the current AtMetaData obj.
+  /// Merges [newAtMetadata] (verb-supplied) with [existingAtMetadata] (what's
+  /// in the keystore today), in place, and returns [newAtMetadata]:
+  ///
+  ///   * For each field, if the new value is `null`, take the existing value
+  ///     (i.e. the verb didn't mention this field, so we keep what was there).
+  ///   * For string-typed fields, the verb parser carries an explicit "unset"
+  ///     intent as the literal string `'null'`. Translate that back to `null`.
+  ///   * Otherwise, leave the new value as-is.
+  ///
+  /// This used to round-trip both metadata objects through `toJson()` and then
+  /// `AtMetaData.fromJson()` to merge them generically, which allocated three
+  /// 26-entry maps per update. The merge here mutates [newAtMetadata] directly
+  /// and is allocation-free.
   AtMetaData _unsetOrRetainMetadata(
       AtMetaData newAtMetadata, AtMetaData? existingAtMetadata) {
-    var atMetaDataJson = newAtMetadata.toJson();
-    var existingAtMetaDataJson = existingAtMetadata?.toJson();
-    atMetaDataJson.forEach((key, value) {
-      switch (value) {
-        // If command does not contains the attributes of a metadata, then regex named
-        // group, inserts null. For a key, if an attribute has a value in previously,
-        // fetch the value and update it.
-        case null:
-          if (existingAtMetaDataJson?[key] != null) {
-            atMetaDataJson[key] = existingAtMetaDataJson![key];
-          }
-          break;
-        // In the command, if an attribute is explicitly set to null, then verbParams
-        // contains String value "null". Then reset the metadata. So, set it to null
-        case 'null':
-          atMetaDataJson[key] = null;
-          break;
-      }
-    });
-    return AtMetaData.fromJson(atMetaDataJson);
+    final existing = existingAtMetadata;
+
+    // String fields. These can carry the 'null' sentinel because the verb
+    // parser stores user-supplied String? values verbatim (so a `:foo:null`
+    // verb param reaches us as the literal string 'null').
+    newAtMetadata.createdBy =
+        _mergeStringField(newAtMetadata.createdBy, existing?.createdBy);
+    newAtMetadata.updatedBy =
+        _mergeStringField(newAtMetadata.updatedBy, existing?.updatedBy);
+    newAtMetadata.status =
+        _mergeStringField(newAtMetadata.status, existing?.status);
+    newAtMetadata.dataSignature =
+        _mergeStringField(newAtMetadata.dataSignature, existing?.dataSignature);
+    newAtMetadata.sharedKeyEnc =
+        _mergeStringField(newAtMetadata.sharedKeyEnc, existing?.sharedKeyEnc);
+    newAtMetadata.pubKeyCS =
+        _mergeStringField(newAtMetadata.pubKeyCS, existing?.pubKeyCS);
+    newAtMetadata.encoding =
+        _mergeStringField(newAtMetadata.encoding, existing?.encoding);
+    newAtMetadata.encKeyName =
+        _mergeStringField(newAtMetadata.encKeyName, existing?.encKeyName);
+    newAtMetadata.encAlgo =
+        _mergeStringField(newAtMetadata.encAlgo, existing?.encAlgo);
+    newAtMetadata.ivNonce =
+        _mergeStringField(newAtMetadata.ivNonce, existing?.ivNonce);
+    newAtMetadata.skeEncKeyName =
+        _mergeStringField(newAtMetadata.skeEncKeyName, existing?.skeEncKeyName);
+    newAtMetadata.skeEncAlgo =
+        _mergeStringField(newAtMetadata.skeEncAlgo, existing?.skeEncAlgo);
+
+    // DateTime / numeric / bool / PublicKeyHash fields are typed, so the
+    // 'null' sentinel can never reach them — only retain-from-existing.
+    newAtMetadata.createdAt ??= existing?.createdAt;
+    newAtMetadata.updatedAt ??= existing?.updatedAt;
+    newAtMetadata.availableAt ??= existing?.availableAt;
+    newAtMetadata.expiresAt ??= existing?.expiresAt;
+    newAtMetadata.refreshAt ??= existing?.refreshAt;
+
+    newAtMetadata.version ??= existing?.version;
+    newAtMetadata.ttl ??= existing?.ttl;
+    newAtMetadata.ttb ??= existing?.ttb;
+    newAtMetadata.ttr ??= existing?.ttr;
+
+    newAtMetadata.isCascade ??= existing?.isCascade;
+    newAtMetadata.isBinary ??= existing?.isBinary;
+    newAtMetadata.isEncrypted ??= existing?.isEncrypted;
+    newAtMetadata.immutable ??= existing?.immutable;
+
+    newAtMetadata.pubKeyHash ??= existing?.pubKeyHash;
+
+    return newAtMetadata;
+  }
+
+  static String? _mergeStringField(String? newValue, String? existingValue) {
+    if (newValue == null) return existingValue;
+    if (newValue == 'null') return null;
+    return newValue;
   }
 
   /// Certain keys created on one atsign server may be cached in another atsign server.
