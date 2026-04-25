@@ -6,6 +6,7 @@ import 'package:at_secondary/src/connection/base_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:logging/logging.dart' show Level;
 import 'package:meta/meta.dart';
 
 ///Listener class for messages received by [OutboundClient]
@@ -71,9 +72,11 @@ class OutboundMessageListener {
       result = utf8.decode(_buffer.getData());
       result = result.trim();
       _buffer.clear();
-      logger.info(logger.getAtConnectionLogMessage(
-          outboundClient.outboundConnection!.metaData,
-          'RCVD: ${BaseSocketConnection.truncateForLogging(result)}'));
+      if (logger.logger.isLoggable(Level.INFO)) {
+        logger.info(logger.getAtConnectionLogMessage(
+            outboundClient.outboundConnection!.metaData,
+            'RCVD: ${BaseSocketConnection.truncateForLogging(result)}'));
+      }
       _queue.add(result);
     }
   }

@@ -181,6 +181,9 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
   }
 
   void logResponse(String response) {
+    if (! logger.isLoggable('finer')) {
+      return;
+    }
     try {
       var parsedResponse = '';
       final responseJson = jsonDecode(response);

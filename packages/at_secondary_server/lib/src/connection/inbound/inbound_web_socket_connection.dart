@@ -116,7 +116,9 @@ class InboundWebSocketConnection implements InboundConnection {
   @override
   Future<void> write(String data) async {
     ws.add(data);
-    logger.info(logger.getAtConnectionLogMessage(metaData, 'SENT: $data'));
+    if (logger.isLoggable('info')) {
+      logger.info(logger.getAtConnectionLogMessage(metaData, 'SENT: $data'));
+    }
   }
 
   @override

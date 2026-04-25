@@ -9,6 +9,7 @@ import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:logging/logging.dart' show Level;
 
 ///Listener class for messages received by [InboundConnection]
 /// For each incoming message [DefaultVerbExecutor()] execute is invoked
@@ -44,8 +45,10 @@ class InboundMessageListener {
   /// Closes the inbound connection in case of any error.
   Future<void> _messageHandler(streamData) async {
     connection.metaData.lastAccessed = DateTime.now().toUtc();
-    logger.finest('_messageHandler received ${streamData.runtimeType}'
-        ' : $streamData ');
+    if (logger.isLoggable('finest')) {
+      logger.finest('_messageHandler received ${streamData.runtimeType}'
+          ' : $streamData ');
+    }
     List<int> data;
     if (streamData is List<int>) {
       data = streamData;
@@ -95,8 +98,10 @@ class InboundMessageListener {
         //decode only when end of buffer is reached
         var command = utf8.decode(_buffer.getData());
         command = command.trim();
-        logger.info(logger.getAtConnectionLogMessage(connection.metaData,
-            'RCVD: ${BaseSocketConnection.truncateForLogging(command)}'));
+        if (logger.logger.isLoggable(Level.INFO)) {
+          logger.info(logger.getAtConnectionLogMessage(connection.metaData,
+              'RCVD: ${BaseSocketConnection.truncateForLogging(command)}'));
+        }
         // if command is '@exit', close the connection.
         if (command == '@exit') {
           await _finishedHandler();

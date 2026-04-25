@@ -20,8 +20,7 @@ class NotificationManager {
   @visibleForTesting
   NotifyConnectionsPool get notifyConnectionsPool => _notifyConnectionsPool;
 
-  final AtSignLogger logger = AtSignLogger(' NotificationManager ')
-    ..level = 'info';
+  final AtSignLogger logger = AtSignLogger(' NotificationManager ');
 
   bool _closed = false;
 
@@ -62,7 +61,9 @@ class NotificationManager {
       throw StateError('Closed');
     }
 
-    logger.info('enqueue ${n.id} (${n.notification})');
+    if (logger.isLoggable('info')) {
+      logger.info('enqueue ${n.id} (${n.notification})');
+    }
     switch (n.type) {
       case NotificationType.sent:
         if (n.toAtSign?.toAtsign() == atSign) {
@@ -360,7 +361,7 @@ class PerAtSignNotifSender {
   late final StreamSubscription<AtNotification> sub;
 
   PerAtSignNotifSender(this.atSign, this.notifMgr) {
-    logger = AtSignLogger(' PerAtSignNotifSender ($atSign) ')..level = 'info';
+    logger = AtSignLogger(' PerAtSignNotifSender ($atSign) ');
     sub = notifs.stream.listen(onNotif, onDone: () => logger.info('Done'));
     logger.info('Listening');
   }
@@ -379,7 +380,9 @@ class PerAtSignNotifSender {
 
   @visibleForTesting
   Future<void> send(AtNotification n) async {
-    logger.info('send: ${n.id} (${n.notification})');
+    if (logger.isLoggable('info')) {
+      logger.info('send: ${n.id} (${n.notification})');
+    }
 
     if (n.toAtSign?.toAtsign() != atSign) {
       logger.severe('toAtsign is ${n.toAtSign} but we are for $atSign');
@@ -418,7 +421,9 @@ class PerAtSignNotifSender {
         // if response was data:success - great, we're done!
         if (notifyResponse == 'data:success') {
           n.notificationStatus = NotificationStatus.delivered;
-          logger.info('Delivered ${n.id} (${n.notification})');
+          if (logger.isLoggable('info')) {
+            logger.info('Delivered ${n.id} (${n.notification})');
+          }
           try {
             await notifMgr.put(n.id, n);
           } catch (e) {

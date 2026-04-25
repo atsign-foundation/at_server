@@ -125,8 +125,10 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
   Future<void> write(String data) async {
     await super.write(data);
     if (metaData is InboundConnectionMetadata) {
-      logger.info(logger.getAtConnectionLogMessage(
-          metaData, 'SENT: ${BaseSocketConnection.truncateForLogging(data)}'));
+      if (logger.isLoggable('info')) {
+        logger.info(logger.getAtConnectionLogMessage(metaData,
+            'SENT: ${BaseSocketConnection.truncateForLogging(data)}'));
+      }
     }
   }
 

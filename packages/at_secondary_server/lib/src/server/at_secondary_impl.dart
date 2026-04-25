@@ -49,15 +49,15 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   late bool _isPaused;
 
-  var logger = AtSignLogger('AtSecondaryServer')..level = 'info';
+  var logger = AtSignLogger('AtSecondaryServer');
 
   factory AtSecondaryServerImpl.getInstance() {
     return _singleton;
   }
 
   AtSecondaryServerImpl._internal() {
-    logger.info('executableArguments: ${Platform.executableArguments}');
-    logger.info('DART_VM_OPTIONS: ${Platform.environment['DART_VM_OPTIONS']}');
+    logger.shout('executableArguments: ${Platform.executableArguments}');
+    logger.shout('DART_VM_OPTIONS: ${Platform.environment['DART_VM_OPTIONS']}');
 
     // TODO There's a whole lifecycle mess here that needs to be cleaned up
     // at some point. Currently we create this singleton which then has a
@@ -167,7 +167,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
 
     currentAtSign = serverContext!.currentAtSign!.toAtsign();
-    logger.info('currentAtSign : $currentAtSign');
+    logger.shout('start(): currentAtSign : $currentAtSign');
 
     // Initialize persistent storage
     await _initializePersistentInstances();
@@ -586,9 +586,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       _serverSocket = await SecureServerSocket.bind(
           InternetAddress.anyIPv4, serverContext!.port, secCon,
           requestClientCertificate: true);
-      logger.info(
+      logger.shout(
           'Secondary server started on version : ${AtSecondaryConfig.secondaryServerVersion} on root server : ${AtSecondaryConfig.rootServerUrl}');
-      logger.info('Secure Socket open for $currentAtSign !');
+      logger.shout('Secure Socket open for $currentAtSign !');
       _listen(_serverSocket);
     } else {
       logger.severe('certs not available');
@@ -599,7 +599,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   Future<void> _startUnSecuredServer() async {
     _serverSocket =
         await ServerSocket.bind(InternetAddress.anyIPv4, serverContext!.port);
-    logger.info('Unsecure Socket open');
+    logger.shout('Unsecure Socket open');
     _listen(_serverSocket);
   }
 
@@ -610,8 +610,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   ///Throws [InternalServerError] if error occurs in server.
   void _executeVerbCallBack(
       String command, InboundConnection connection) async {
-    logger.finer(logger.getAtConnectionLogMessage(
-        connection.metaData, 'inside _executeVerbCallBack: $command'));
+    if (logger.isLoggable('finer')) {
+      logger.finer(logger.getAtConnectionLogMessage(
+          connection.metaData, 'inside _executeVerbCallBack: $command'));
+    }
     try {
       if (_isPaused) {
         await GlobalExceptionHandler.getInstance().handle(
@@ -622,8 +624,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       }
 
       // We're not paused - let's try to execute the command
-      command = SecondaryUtil.convertCommand(command);
-      logger.finer('after conversion : $command');
+      // command = SecondaryUtil.convertCommand(command);
+      // logger.finer('after conversion : $command');
       await executor!.execute(command, connection, verbHandlerManager!);
     } on Exception catch (e, st) {
       await GlobalExceptionHandler.getInstance()
@@ -663,34 +665,34 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   Future<void> stop() async {
     pause();
     try {
-      logger.info("Executing server stop()");
+      logger.shout("Executing server stop()");
 
       //close server socket
-      logger.info("Closing ServerSocket");
+      logger.shout("Closing ServerSocket");
       _serverSocket.close();
 
-      logger.info("Stopping StatsNotificationService");
+      logger.shout("Stopping StatsNotificationService");
       await StatsNotificationService.getInstance().cancel();
 
-      logger.info("Terminating all inbound connections");
+      logger.shout("Terminating all inbound connections");
       inboundConnectionManager.close();
 
-      logger.info("Closing Notification Manager");
+      logger.shout("Closing Notification Manager");
       await notificationManager.close();
 
       secondaryKeyStore.preRemoveHooks.clear();
       secondaryKeyStore.postRemoveHooks.clear();
 
-      logger.info("Closing CommitLog");
+      logger.shout("Closing CommitLog");
       await AtCommitLogManagerImpl.getInstance().close();
-      logger.info("Closing AccessLog");
+      logger.shout("Closing AccessLog");
       await AtAccessLogManagerImpl.getInstance().close();
-      logger.info("Closing NotificationKeyStore");
+      logger.shout("Closing NotificationKeyStore");
       await notificationKeystore.close();
-      logger.info("Closing SecondaryKeyStore");
+      logger.shout("Closing SecondaryKeyStore");
       await SecondaryPersistenceStoreFactory.getInstance().close();
 
-      logger.info("Stopping scheduled tasks");
+      logger.shout("Stopping scheduled tasks");
       atRefreshJob.close();
       commitLogCompactionJobInstance.close();
       accessLogCompactionJobInstance.close();

@@ -35,8 +35,11 @@ class UpdateMetaVerbHandler extends AbstractUpdateVerbHandler {
     try {
       var mutexRecord = updateMutexes[dataStoreKey]!;
       updateMutexes[dataStoreKey] = (mutexRecord.$1, mutexRecord.$2 + 1);
-      logger.finest(
-          'Acquiring mutex for $dataStoreKey - ${mutexRecord.$2 + 1} waiting (including me)');
+      if (logger.isLoggable('finest')) {
+        logger.finest(
+            'Acquiring mutex for $dataStoreKey - ${mutexRecord.$2 +
+                1} waiting (including me)');
+      }
       await mutexRecord.$1.acquire();
 
       var updatePreProcessResult = await super.preProcessAndNotify(
@@ -58,12 +61,17 @@ class UpdateMetaVerbHandler extends AbstractUpdateVerbHandler {
       mutexRecord.$1.release();
       updateMutexes[dataStoreKey] = (mutexRecord.$1, mutexRecord.$2 - 1);
       if (updateMutexes[dataStoreKey]!.$2 == 0) {
-        logger.finest(
-            '$logMsg : 0 now waiting for mutex on $dataStoreKey - removing mutex');
+        if (logger.isLoggable('finest')) {
+          logger.finest(
+              '$logMsg : 0 now waiting for mutex on $dataStoreKey - removing mutex');
+        }
         updateMutexes.remove(dataStoreKey);
       } else {
-        logger.finest(
-            '$logMsg : ${updateMutexes[dataStoreKey]!.$2} still waiting for mutex on $dataStoreKey');
+        if (logger.isLoggable('finest')) {
+          logger.finest(
+              '$logMsg : ${updateMutexes[dataStoreKey]!
+                  .$2} still waiting for mutex on $dataStoreKey');
+        }
       }
     }
   }
