@@ -57,6 +57,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
     }
     var atConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
+    final RegExp? compiledRegex = regex == null ? null : RegExp(regex);
 
     StringBuffer sb = StringBuffer();
 
@@ -74,7 +75,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
               n,
               fromDateInEpoch,
               toDateInEpoch,
-              regex,
+              compiledRegex,
             )) {
           if (first) {
             first = false;
@@ -97,7 +98,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
                   n,
                   fromDateInEpoch,
                   toDateInEpoch,
-                  regex,
+                  compiledRegex,
                 );
           },
           comparator: notifMgr.compareDateTime))) {
@@ -120,8 +121,8 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   /// Returns boolean value.
   /// Returns true if notification matches with the filter criteria
   /// Returns false if notification does not match with filter criteria
-  bool _matchesRequestFilters(
-      AtNotification notification, fromDateInEpoch, toDateInEpoch, regex) {
+  bool _matchesRequestFilters(AtNotification notification,
+      int? fromDateInEpoch, int toDateInEpoch, RegExp? regex) {
     // If fromDateInEpoch and regex are null, filter criteria is not specified, hence
     // return true to retain the notification.
     if (fromDateInEpoch == null && regex == null) {
@@ -148,8 +149,8 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   /// @param notification : list of notifications
   /// @param regex : regular expression
   /// @return list : list of notifications that match the regular expression.
-  bool _applyRegexFilter(AtNotification notification, String regex) {
-    return notification.notification.toString().contains(RegExp(regex)) ||
+  bool _applyRegexFilter(AtNotification notification, RegExp regex) {
+    return notification.notification.toString().contains(regex) ||
         _isAtsignRegex(notification.fromAtSign!, regex);
   }
 
@@ -157,13 +158,8 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   /// @param atSign : atsign user
   /// @param regex : regular expression to match with atsign
   /// @return bool : Returns true if atsign matches the regex, else false.
-  bool _isAtsignRegex(String atSign, String regex) {
-    var isAtsignRegex = false;
-    atSign = atSign.replaceAll('@', '');
-    if (atSign.contains(RegExp(regex))) {
-      isAtsignRegex = true;
-    }
-    return isAtsignRegex;
+  bool _isAtsignRegex(String atSign, RegExp regex) {
+    return atSign.replaceAll('@', '').contains(regex);
   }
 
   /// Filters notification basing on from and to date specified.

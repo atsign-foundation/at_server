@@ -19,6 +19,8 @@ import 'package:crypton/crypton.dart';
 // ex: pol\n
 class PolVerbHandler extends AbstractVerbHandler {
   static Pol pol = Pol();
+  static final RegExp _dataPrefix = RegExp('^data:');
+
   final OutboundClientManager outboundClientManager;
   final AtCacheManager cacheManager;
   final _dummyInboundConnection = DummyInboundConnection();
@@ -88,12 +90,12 @@ class PolVerbHandler extends AbstractVerbHandler {
         '$sessionID$fromAtSign',
         handshake: false,
       )))
-          ?.replaceFirst(RegExp('^data:'), '');
+          ?.replaceFirst(_dataPrefix, '');
 
       // look for the public key on the other secondary
       doing = 'fetching signing_publickey$fromAtSign';
       fromPublicKey = (await (oc.plookUp('signing_publickey$fromAtSign')))
-          ?.replaceFirst(RegExp('^data:'), '');
+          ?.replaceFirst(_dataPrefix, '');
 
       // Getting stored secret from this secondary server
       doing = 'fetching stored secret $storedSecretId';

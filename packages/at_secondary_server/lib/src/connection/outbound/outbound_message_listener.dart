@@ -11,6 +11,8 @@ import 'package:meta/meta.dart';
 
 ///Listener class for messages received by [OutboundClient]
 class OutboundMessageListener {
+  static final RegExp _errorPrefix = RegExp('^error:');
+
   OutboundClient outboundClient;
   var logger = AtSignLogger('OutboundMessageListener');
   final _buffer = ByteBuffer(capacity: 10240000);
@@ -103,7 +105,7 @@ class OutboundMessageListener {
           // Right now, all callers of this method only expect there ever to be a 'data:' response.
           // So right now, the right thing to do here is to throw an exception.
           // We can leave the connection open since an 'error:' response indicates normal functioning on the other end
-          result = result.toString().replaceFirst(RegExp('^error:'), '');
+          result = result.replaceFirst(_errorPrefix, '');
           _throwAtExceptionFromErrorResponse(result);
         } else {
           // any other response is unexpected and bad, so close the connection and throw an exception
