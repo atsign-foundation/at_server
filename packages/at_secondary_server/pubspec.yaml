@@ -23,7 +23,7 @@ dependencies:
   at_utils: ^3.4.0
   at_chops: ^3.0.0
   at_lookup: ^3.5.0
-  at_server_spec: ^5.0.4
+  at_server_spec: ^5.1.0
   at_persistence_spec: ^3.1.0
   at_persistence_secondary_server: ^4.3.4
   intl: ^0.20.2
@@ -41,4 +41,4 @@ dev_dependencies:
   test: ^1.31.0
   coverage: ^1.6.1
   lints: ^6.1.0
-  mocktail: ^1.0.3
+  mocktail: ^1.0.5

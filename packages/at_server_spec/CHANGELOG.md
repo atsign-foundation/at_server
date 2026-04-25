@@ -1,3 +1,6 @@
+## 5.1.0
+- feat: introduce enum AtVerb for better preparsing of verbs
+
 ## 5.0.4
 - chore: remove an `@experimental` annotation
 
