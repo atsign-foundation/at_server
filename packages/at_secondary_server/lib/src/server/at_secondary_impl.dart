@@ -526,14 +526,18 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     logger.finer('serverSocket _listen : ${serverSocket.runtimeType}');
     serverSocket.listen(((clientSocket) async {
-      logger.info(
-          'New client socket: selectedProtocol ${clientSocket.selectedProtocol}');
+      if (logger.isLoggable('finer')) {
+        logger.finer(
+            'New client socket: selectedProtocol ${clientSocket.selectedProtocol}');
+      }
       if (clientSocket.selectedProtocol == 'atProtocol/1.0' ||
           clientSocket.selectedProtocol == null) {
         InboundConnection? connection;
         try {
-          logger.info(
-              'In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
+          if (logger.isLoggable('finer')) {
+            logger.finer(
+                'In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
+          }
           connection = inboundConnectionManager.createSocketConnection(
               clientSocket,
               sessionId: SecondaryUtil.makeSessionId());

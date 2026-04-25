@@ -46,8 +46,10 @@ class InboundWebSocketConnection implements InboundConnection {
     idleChecker = InboundIdleChecker(secondaryContext, this, owningPool);
     rateLimiter = InboundRateLimiter();
 
-    logger.info(
-        logger.getAtConnectionLogMessage(metaData, 'New WebSocket ($this)'));
+    if (logger.isLoggable('info')) {
+      logger.info(
+          logger.getAtConnectionLogMessage(metaData, 'New WebSocket ($this)'));
+    }
 
     ws.done.then((doneValue) {
       logger.info('ws.done called. Calling this.close()');
@@ -98,15 +100,19 @@ class InboundWebSocketConnection implements InboundConnection {
     metaData.isClosed = true;
 
     try {
-      logger.info(logger.getAtConnectionLogMessage(
-          metaData, 'closing WebSocket (readyState ${ws.readyState})'));
+      if (logger.isLoggable('info')) {
+        logger.info(logger.getAtConnectionLogMessage(
+            metaData, 'closing WebSocket (readyState ${ws.readyState})'));
+      }
       try {
         await ws.close();
       } catch (e) {
         logger.severe('ws.close() exception: $e');
       }
-      logger.info(logger.getAtConnectionLogMessage(
-          metaData, 'Closed WebSocket (readyState ${ws.readyState})'));
+      if (logger.isLoggable('info')) {
+        logger.info(logger.getAtConnectionLogMessage(
+            metaData, 'Closed WebSocket (readyState ${ws.readyState})'));
+      }
     } catch (_) {
       // Ignore exception on a connection close
       metaData.isStale = true;

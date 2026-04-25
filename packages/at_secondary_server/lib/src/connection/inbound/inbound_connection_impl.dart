@@ -41,12 +41,14 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
     idleChecker = InboundIdleChecker(secondaryContext, this, owningPool);
     rateLimiter = InboundRateLimiter();
 
-    logger.info(logger.getAtConnectionLogMessage(
-        metaData,
-        'New connection ('
-        'this side: ${underlying.address}:${underlying.port}'
-        ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
-        ')'));
+    if (logger.isLoggable('info')) {
+      logger.info(logger.getAtConnectionLogMessage(
+          metaData,
+          'New connection ('
+          'this side: ${underlying.address}:${underlying.port}'
+          ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
+          ')'));
+    }
 
     socket.done.onError((error, stackTrace) {
       logger
@@ -106,12 +108,14 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
     }
 
     try {
-      logger.info(logger.getAtConnectionLogMessage(
-          metaData,
-          'destroying socket ('
-          'this side: ${underlying.address}:${underlying.port}'
-          ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
-          ')'));
+      if (logger.isLoggable('info')) {
+        logger.info(logger.getAtConnectionLogMessage(
+            metaData,
+            'destroying socket ('
+            'this side: ${underlying.address}:${underlying.port}'
+            ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
+            ')'));
+      }
       underlying.destroy();
     } catch (_) {
       // Ignore exception on a connection close

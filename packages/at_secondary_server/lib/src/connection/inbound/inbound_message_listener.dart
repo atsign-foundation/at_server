@@ -52,8 +52,10 @@ class InboundMessageListener {
           if (_buffer.isEnd()) {
             var command = utf8.decode(_buffer.getData());
             command = command.trim();
-            logger.info(logger.getAtConnectionLogMessage(connection.metaData,
-                'RCVD: ${BaseSocketConnection.truncateForLogging(command)}'));
+            if (logger.logger.isLoggable(Level.INFO)) {
+              logger.info(logger.getAtConnectionLogMessage(connection.metaData,
+                  'RCVD: ${BaseSocketConnection.truncateForLogging(command)}'));
+            }
             // if command is '@exit', close the connection.
             if (command == '@exit') {
               await _finishedHandler();
