@@ -22,9 +22,14 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
 
   /// Has to be static because both UpdateVerbHandler and UpdateMetaVerbHandler
   /// need to use the same mutexes.
-  static final Map<String, (Mutex, int)> _updateMutexes = {};
+  ///
+  /// Mutable holder rather than `(Mutex, int)` records so increments and
+  /// decrements happen in place — Dart records are immutable, so the previous
+  /// `map[k] = (rec.$1, rec.$2 + 1)` form allocated a fresh record on every
+  /// acquire and release.
+  static final Map<String, MutexRef> _updateMutexes = {};
 
-  Map<String, (Mutex, int)> get updateMutexes => _updateMutexes;
+  Map<String, MutexRef> get updateMutexes => _updateMutexes;
 
   final String atSign;
 
@@ -321,4 +326,11 @@ class UpdatePreProcessResult {
   AtData atData;
 
   UpdatePreProcessResult(this.atKey, this.atData);
+}
+
+/// Mutable holder for the per-key update mutex and its waiter count, so that
+/// updating the count does not require allocating a new (Mutex, int) record.
+class MutexRef {
+  final Mutex mutex = Mutex();
+  int waiters = 0;
 }

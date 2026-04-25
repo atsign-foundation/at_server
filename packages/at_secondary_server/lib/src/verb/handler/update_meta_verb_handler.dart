@@ -3,7 +3,6 @@ import 'dart:collection';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/verb/handler/abstract_update_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
-import 'package:mutex/mutex.dart';
 
 class UpdateMetaVerbHandler extends AbstractUpdateVerbHandler {
   static UpdateMeta updateMeta = UpdateMeta();
@@ -30,17 +29,15 @@ class UpdateMetaVerbHandler extends AbstractUpdateVerbHandler {
 
     String dataStoreKey = getDataStoreKey(updateParams);
 
-    updateMutexes.putIfAbsent(dataStoreKey, () => (Mutex(), 0));
+    final mutexRef = updateMutexes.putIfAbsent(dataStoreKey, MutexRef.new);
 
     try {
-      var mutexRecord = updateMutexes[dataStoreKey]!;
-      updateMutexes[dataStoreKey] = (mutexRecord.$1, mutexRecord.$2 + 1);
+      mutexRef.waiters++;
       if (logger.isLoggable('finest')) {
         logger.finest(
-            'Acquiring mutex for $dataStoreKey - ${mutexRecord.$2 +
-                1} waiting (including me)');
+            'Acquiring mutex for $dataStoreKey - ${mutexRef.waiters} waiting (including me)');
       }
-      await mutexRecord.$1.acquire();
+      await mutexRef.mutex.acquire();
 
       var updatePreProcessResult = await super.preProcessAndNotify(
         response,
@@ -56,21 +53,18 @@ class UpdateMetaVerbHandler extends AbstractUpdateVerbHandler {
           updatePreProcessResult.atData.metaData!);
       response.data = result?.toString();
     } finally {
-      String logMsg = 'Releasing mutex on $dataStoreKey';
-      var mutexRecord = updateMutexes[dataStoreKey]!;
-      mutexRecord.$1.release();
-      updateMutexes[dataStoreKey] = (mutexRecord.$1, mutexRecord.$2 - 1);
-      if (updateMutexes[dataStoreKey]!.$2 == 0) {
+      mutexRef.mutex.release();
+      mutexRef.waiters--;
+      if (mutexRef.waiters == 0) {
         if (logger.isLoggable('finest')) {
           logger.finest(
-              '$logMsg : 0 now waiting for mutex on $dataStoreKey - removing mutex');
+              'Releasing mutex on $dataStoreKey : 0 now waiting for mutex on $dataStoreKey - removing mutex');
         }
         updateMutexes.remove(dataStoreKey);
       } else {
         if (logger.isLoggable('finest')) {
           logger.finest(
-              '$logMsg : ${updateMutexes[dataStoreKey]!
-                  .$2} still waiting for mutex on $dataStoreKey');
+              'Releasing mutex on $dataStoreKey : ${mutexRef.waiters} still waiting for mutex on $dataStoreKey');
         }
       }
     }
