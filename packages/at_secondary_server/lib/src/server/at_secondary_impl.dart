@@ -328,7 +328,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           ?.listen((newValue) async {
         //parse bool from string
         if (newValue.toString() == 'true') {
-          unawaited(certificateReloadJob!.checkAndRestartIfRequired());
+          unawaited(certificateReloadJob!
+              .checkAndRestartIfRequired(forceRestartThisTime: true));
         }
       });
 

@@ -228,10 +228,8 @@ class InboundCommandValidator {
     // First colon splits verb from the rest. For "verb:sub:value" we want
     // "verb" — indexOf + substring avoids allocating the split's List<String>.
     final firstColon = command.indexOf(':');
-    final String rawVerb = (firstColon == -1
-            ? command
-            : command.substring(0, firstColon))
-        .trim();
+    final String rawVerb =
+        (firstColon == -1 ? command : command.substring(0, firstColon)).trim();
 
     // covers 2 cases:
     // - any junk with a ':' inside, where we would try to parse the verb
@@ -262,8 +260,7 @@ class InboundCommandValidator {
     }
 
     if (requiresAuth && !isAuthenticated) {
-      throw UnAuthenticatedException(
-          'Trying to run a verb that requires an authenticated connection.');
+      throw UnAuthenticatedException('Command cannot be executed without auth');
     }
   }
 }

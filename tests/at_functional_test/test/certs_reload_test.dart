@@ -3,7 +3,7 @@ import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
 import 'package:test/test.dart';
 
 void log(String prefix, String command, String response) {
-  print('${prefix}SENT ${command.padRight(45)} RCVD $response');
+  print('$prefix SENT ${command.padRight(45)} RCVD $response');
 }
 
 void main() async {
@@ -110,14 +110,23 @@ void main() async {
     /// The server will check every second if it can restart (no active connections).
     /// so let's wait for a few seconds longer, to allow for a slow VM here, and then
     /// we should be able to connect
-    await Future.delayed(Duration(milliseconds: 5500));
-    await firstAtSignConnection.initiateConnectionWithListener(
-        atSign, host, port);
-    command = 'info:brief';
-    response = await firstAtSignConnection.sendRequestToServer(command,
-        maxWaitMilliSeconds: 1000);
-    log('', command, response);
-    expect(response, startsWith('data:{"version":'));
+    await Future.delayed(Duration(seconds: 5));
+    bool connected = false;
+    while (!connected) {
+      try {
+        await firstAtSignConnection.initiateConnectionWithListener(
+            atSign, host, port);
+        command = 'info:brief';
+        response = await firstAtSignConnection.sendRequestToServer(command,
+            maxWaitMilliSeconds: 1000);
+        log('', command, response);
+        expect(response, startsWith('data:{"version":'));
+        connected = true;
+      } catch (e) {
+        log('', command, response);
+        await Future.delayed(Duration(seconds: 2));
+      }
+    }
   });
 
   tearDown(() async {

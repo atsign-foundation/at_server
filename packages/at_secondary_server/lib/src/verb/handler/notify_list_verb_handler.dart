@@ -121,8 +121,8 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   /// Returns boolean value.
   /// Returns true if notification matches with the filter criteria
   /// Returns false if notification does not match with filter criteria
-  bool _matchesRequestFilters(AtNotification notification,
-      int? fromDateInEpoch, int toDateInEpoch, RegExp? regex) {
+  bool _matchesRequestFilters(AtNotification notification, int? fromDateInEpoch,
+      int toDateInEpoch, RegExp? regex) {
     // If fromDateInEpoch and regex are null, filter criteria is not specified, hence
     // return true to retain the notification.
     if (fromDateInEpoch == null && regex == null) {

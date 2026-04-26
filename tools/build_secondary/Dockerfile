@@ -42,5 +42,5 @@ COPY --from=buildimage --chown=atsign:atsign /atsign /atsign/
 COPY --from=buildimage --chown=atsign:atsign /archive /archive/
 WORKDIR /atsign
 USER atsign
-ENV DART_VM_OPTIONS='--use_compactor --dontneed_on_sweep --old_gen_growth_time_ratio=50 --old_gen_growth_space_ratio=10 --new_gen_semi_max_size=8'
+ENV DART_VM_OPTIONS='--use_compactor,--dontneed_on_sweep,--old_gen_growth_time_ratio=50,--old_gen_growth_space_ratio=10,--new_gen_semi_max_size=8'
 ENTRYPOINT ["/usr/local/at/secondary"]

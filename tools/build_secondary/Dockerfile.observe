@@ -49,5 +49,5 @@ COPY --from=buildimage /usr/lib/dart/bin/resources/devtools/ /usr/lib/dart/bin/r
 ENV PATH /usr/lib/dart/bin/
 WORKDIR /atsign
 USER atsign
-ENV DART_VM_OPTIONS='--use_compactor --dontneed_on_sweep --old_gen_growth_time_ratio=50 --old_gen_growth_space_ratio=10 --new_gen_semi_max_size=8'
+ENV DART_VM_OPTIONS='--use_compactor,--dontneed_on_sweep,--old_gen_growth_time_ratio=50,--old_gen_growth_space_ratio=10,--new_gen_semi_max_size=8'
 ENTRYPOINT ["/usr/lib/dart/bin/dart","run","--observe=8181/0.0.0.0","/usr/local/at/secondary.jit"]

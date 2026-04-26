@@ -181,7 +181,7 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
   }
 
   void logResponse(String response) {
-    if (! logger.isLoggable('finer')) {
+    if (!logger.isLoggable('finer')) {
       return;
     }
     try {

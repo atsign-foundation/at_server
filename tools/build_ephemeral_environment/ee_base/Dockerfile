@@ -54,7 +54,7 @@ COPY --from=buildimage --chown=atsign:atsign \
 COPY --from=buildimage --chown=atsign:atsign \
 /app/packages/at_secondary_server/pubspec.yaml /atsign/secondary/
 
-ENV DART_VM_OPTIONS='--use_compactor --dontneed_on_sweep --old_gen_growth_time_ratio=50 --old_gen_growth_space_ratio=10 --new_gen_semi_max_size=8'
+ENV DART_VM_OPTIONS='--use_compactor,--dontneed_on_sweep,--old_gen_growth_time_ratio=50,--old_gen_growth_space_ratio=10,--new_gen_semi_max_size=8'
 
 # Run supervisor configuration file on container startup
 CMD ["/tmp/startup.sh"]

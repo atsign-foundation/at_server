@@ -132,8 +132,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
     }
     if (logger.isLoggable('finest')) {
       logger.finest(
-          "Enrollment id ${atConnectionMetadata
-              .enrollmentId} is active. Returning true from _verifyIfEnrollmentIsActive");
+          "Enrollment id ${atConnectionMetadata.enrollmentId} is active. Returning true from _verifyIfEnrollmentIsActive");
     }
     return (true, response);
   }
