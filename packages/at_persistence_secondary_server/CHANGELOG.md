@@ -1,3 +1,18 @@
+## 4.3.5
+
+- perf: `NullCommitEntry` is now a singleton — no fresh `DateTime.now()`
+  allocation per commit-log miss
+- perf: `HiveKeystore.getKeys` caches compiled `RegExp` patterns in a
+  bounded LRU and captures `DateTime.timestamp()` once per call,
+  threading it into `_isExpired` / `_isBorn` / `_isKeyAvailable` so each
+  key check no longer allocates two DateTime objects
+- perf: `DateTime.now().toUtc()` replaced with `DateTime.timestamp()`
+  (one allocation instead of two) on the keystore expiry, notification
+  expiry, access-log and commit-log hot paths
+- perf: `HiveKeystore.create` no longer builds a 17-element `Set` per
+  put just to ask "any metadata field non-null?" — replaced with a
+  direct null-check chain
+
 ## 4.3.4
 
 - fix: Make AtNotificationKeystore.getExpiredKeys more memory efficient

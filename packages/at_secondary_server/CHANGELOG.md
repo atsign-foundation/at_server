@@ -1,3 +1,29 @@
+# 3.12.0
+
+- perf: substantial reduction in per-request heap allocations on the
+  inbound, verb-dispatch and update paths (regex literals hoisted to
+  `static final`; `logger.info(...)` sites guarded by `isLoggable`;
+  `Uint8List` per-chunk copy replaced with shared sentinel in
+  `StreamableByteBuffer`; `DateTime.now().toUtc()` →
+  `DateTime.timestamp()` / `.millisecondsSinceEpoch`;
+  `InboundCommandValidator` decodes only a 256-byte prefix and uses
+  `indexOf` instead of `split(':')`;
+  `AbstractUpdateVerbHandler._unsetOrRetainMetadata` rewritten as a
+  field-by-field in-place merge — drops three per-update Map
+  allocations; `(Mutex,int)` record replaced with mutable
+  `MutexRef` holder; unused `AtData()` allocation removed)
+- fix: `MonitorVerbHandler.MapForClient` uses `?.` for `ttr`/`ttl`/`ttb`
+  to match its neighbours, so notifications without `atMetadata` no
+  longer blow up
+- fix: auth-error message unified across the validator and
+  `AbstractVerbHandler.processInternal` — both now report
+  `Command cannot be executed without auth`
+- fix: config-driven cert reload (`config:set:checkCertificateReload=true`)
+  now uses a 3-second force-restart fast path instead of waiting up to
+  30 s for graceful drain
+- chore: `DART_VM_OPTIONS` switched to comma-separated form so the Dart
+  AOT runtime parses multiple flags correctly
+
 # 3.11.3
 
 - feat: tweak the garbage collection runtime flags
