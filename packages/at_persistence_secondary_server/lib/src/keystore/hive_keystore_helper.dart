@@ -7,6 +7,10 @@ class HiveKeyStoreHelper {
 
   HiveKeyStoreHelper._internal();
 
+  @Deprecated(
+      'HiveKeyStoreHelper is stateless; call its methods directly on a '
+      'fresh instance, or rely on the prepared keys produced by '
+      'HiveAtPersistenceFactory. Will be removed in the next major release.')
   factory HiveKeyStoreHelper.getInstance() {
     return _singleton;
   }

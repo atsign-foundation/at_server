@@ -7,6 +7,10 @@ class SecondaryPersistenceStoreFactory {
 
   SecondaryPersistenceStoreFactory._internal();
 
+  @Deprecated(
+      'Use HiveAtPersistenceFactory (or any AtPersistenceFactory) and '
+      'inject the resulting bundle instead. Will be removed in the next '
+      'major release.')
   factory SecondaryPersistenceStoreFactory.getInstance() {
     return _singleton;
   }

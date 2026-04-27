@@ -1,3 +1,33 @@
+## 4.4.0
+
+- feat: introduce `AtPersistenceFactory` and `AtPersistenceBundle`
+  abstractions plus a `HiveAtPersistenceFactory` concrete impl as
+  the new way to wire per-atSign persistence stores. Designed to be
+  backend-pluggable (a future RDBMS-backed factory can satisfy the
+  same interface).
+- refactor: `HivePersistenceManager.scheduleKeyExpireTask` no longer
+  reaches back into `SecondaryPersistenceStoreFactory.getInstance()`
+  at each cron tick; uses a `keyStoreForExpireTask` reference set at
+  construction. Falls back to the singleton lookup if not set,
+  preserving backward compatibility for external callers that
+  construct `HivePersistenceManager` outside the factory.
+- refactor: `AtCompactionJob._random` is now an instance field
+  rather than `static final`, so concurrent jobs across atSigns no
+  longer share an RNG.
+- chore: add `clear()` methods to `AtAccessLogManagerImpl` and
+  `SecondaryPersistenceStoreFactory` (mirroring the existing
+  `AtCommitLogManagerImpl.clear()`) so callers can wipe the
+  per-atSign cache without re-closing already-closed Hive boxes.
+- deprecate: `SecondaryPersistenceStoreFactory.getInstance()`,
+  `AtCommitLogManagerImpl.getInstance()`,
+  `AtAccessLogManagerImpl.getInstance()`,
+  `AtCompactionService.getInstance()`,
+  `HiveKeyStoreHelper.getInstance()`. Use `HiveAtPersistenceFactory`
+  (or any `AtPersistenceFactory`) and inject the resulting bundle
+  instead. Will be removed in the next major release.
+- chore: delete the previously-deprecated `AtNotificationCallback`
+  class and its only caller (in `AtNotificationKeystore.put()`).
+
 ## 4.3.5
 
 - perf: `NullCommitEntry` is now a singleton — no fresh `DateTime.now()`

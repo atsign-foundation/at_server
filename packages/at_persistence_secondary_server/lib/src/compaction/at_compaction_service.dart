@@ -13,6 +13,10 @@ class AtCompactionService {
 
   AtCompactionService._internal();
 
+  @Deprecated(
+      'AtCompactionService is per-job state and shouldn\'t be a singleton; '
+      'an AtCompactionJob will construct its own instance. Will be removed '
+      'in the next major release.')
   factory AtCompactionService.getInstance() {
     return _singleton;
   }

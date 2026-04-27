@@ -6,6 +6,10 @@ class AtAccessLogManagerImpl implements AtAccessLogManager {
 
   AtAccessLogManagerImpl._internal();
 
+  @Deprecated(
+      'Use HiveAtPersistenceFactory (or any AtPersistenceFactory) and '
+      'inject `bundle.accessLog` instead. Will be removed in the next '
+      'major release.')
   factory AtAccessLogManagerImpl.getInstance() {
     return _singleton;
   }

@@ -6,6 +6,10 @@ class AtCommitLogManagerImpl implements AtCommitLogManager {
 
   AtCommitLogManagerImpl._internal();
 
+  @Deprecated(
+      'Use HiveAtPersistenceFactory (or any AtPersistenceFactory) and '
+      'inject `bundle.commitLog` instead. Will be removed in the next '
+      'major release.')
   factory AtCommitLogManagerImpl.getInstance() {
     return _singleton;
   }

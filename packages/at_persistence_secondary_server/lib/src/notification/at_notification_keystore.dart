@@ -84,8 +84,6 @@ class AtNotificationKeystore
       throw DataStoreException(
           'key length ${key.length} is greater than $maxKeyLengthWithoutCached chars');
     }
-    // ignore: deprecated_member_use_from_same_package
-    await AtNotificationCallback.getInstance().invokeCallbacks(value);
     await _getBox().put(key, value);
   }
 
