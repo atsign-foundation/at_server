@@ -424,15 +424,8 @@ void main() {
       var command = 'UpDaTe:ttl:-1:@bob:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
-      var secondaryPersistenceStore =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore(
-                  AtSecondaryServerImpl.getInstance().currentAtSign)!;
-      SecondaryKeyStore keyStore = secondaryPersistenceStore
-          .getSecondaryKeyStoreManager()!
-          .getKeyStore();
       AbstractVerbHandler handler = UpdateVerbHandler(
-        keyStore,
+        secondaryKeyStore,
         statsNotificationService,
         notificationManager,
         alice,
@@ -445,15 +438,8 @@ void main() {
       var command = 'UpDaTe:ttb:-1:@bob:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
-      var secondaryPersistenceStore =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore(
-                  AtSecondaryServerImpl.getInstance().currentAtSign)!;
-      SecondaryKeyStore keyStore = secondaryPersistenceStore
-          .getSecondaryKeyStoreManager()!
-          .getKeyStore();
       AbstractVerbHandler handler = UpdateVerbHandler(
-        keyStore,
+        secondaryKeyStore,
         statsNotificationService,
         notificationManager,
         alice,
@@ -561,15 +547,8 @@ void main() {
       var command = 'UpDaTe:ttr:-2:ccd:true:@bob:location$alice Hyderabad,TG';
       command = SecondaryUtil.convertCommand(command);
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
-      var secondaryPersistenceStore =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore(
-                  AtSecondaryServerImpl.getInstance().currentAtSign)!;
-      SecondaryKeyStore keyStore = secondaryPersistenceStore
-          .getSecondaryKeyStoreManager()!
-          .getKeyStore();
       AbstractVerbHandler handler = UpdateVerbHandler(
-        keyStore,
+        secondaryKeyStore,
         statsNotificationService,
         notificationManager,
         alice,

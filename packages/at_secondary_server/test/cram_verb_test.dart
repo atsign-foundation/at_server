@@ -154,31 +154,29 @@ void main() {
       expect(connectionMetadata.isAuthenticated, false);
     });
   });
-  tearDown(() async => await tearDownFunc());
+  tearDownAll(() async => await tearDownFunc());
 }
 
+final HiveAtPersistenceFactory _cramTestFactory = HiveAtPersistenceFactory();
+
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
-  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore('@test_user_1')!;
-  var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@test_user_1', commitLogPath: storageDir);
-  var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init(storageDir);
-//  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
-  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
-  hiveKeyStore.commitLog = commitLogInstance;
-  var keyStoreManager =
-      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
-  keyStoreManager.keyStore = hiveKeyStore;
-  var accessLogInstance = await AtAccessLogManagerImpl.getInstance()
-      .getAccessLog('@test_user_1', accessLogPath: storageDir);
-  AtSecondaryServerImpl.getInstance().commitLog = commitLogInstance!;
-  AtSecondaryServerImpl.getInstance().accessLog = accessLogInstance;
-  return keyStoreManager;
+  final bundle = (await _cramTestFactory.initialize(
+    '@test_user_1',
+    HivePersistenceConfig(
+      storagePath: storageDir,
+      commitLogPath: storageDir,
+      accessLogPath: storageDir,
+      notificationStoragePath: storageDir,
+    ),
+  )) as HiveAtPersistenceBundle;
+
+  AtSecondaryServerImpl.getInstance().commitLog = bundle.commitLog;
+  AtSecondaryServerImpl.getInstance().accessLog = bundle.accessLog;
+  return bundle.secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
 }
 
 Future<void> tearDownFunc() async {
+  await _cramTestFactory.close();
   var isExists = await Directory('test/hive').exists();
   if (isExists) {
     Directory('test/hive').deleteSync(recursive: true);

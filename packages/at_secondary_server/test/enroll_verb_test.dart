@@ -2722,11 +2722,10 @@ void main() {
       expect(enrollmentDataMap['namespaces'], {'buzz': 'r'});
       expect(enrollmentDataMap['apkamPublicKey'], 'lorem_apkam');
 
-      AtCommitLog? atCommitLog =
-          await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
-      var itr = atCommitLog?.getEntries(-1);
+      AtCommitLog atCommitLog = atServer.commitLog;
+      var itr = atCommitLog.getEntries(-1);
       // Since there are no entries in commit log, iterator.moveNext() returns false.
-      expect(itr!.moveNext(), false);
+      expect(itr.moveNext(), false);
 
       // 2. Approve an enrollment and verify enrollmentKey is not stored in the commit log.
       String approveEnrollment =
@@ -2740,11 +2739,10 @@ void main() {
           response, approveEnrollmentVerbParams, inboundConnection);
       expect(jsonDecode(response.data!)['status'], 'approved');
 
-      atCommitLog =
-          await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
-      itr = atCommitLog?.getEntries(-1);
+      atCommitLog = atServer.commitLog;
+      itr = atCommitLog.getEntries(-1);
       // Ensure there are no other keys in the commit log.
-      expect(itr!.moveNext(), false);
+      expect(itr.moveNext(), false);
 
       // 3. Revoke an enrollment and verify the commit log state.
       enrollmentRequest = 'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
@@ -2759,11 +2757,10 @@ void main() {
           response, revokeEnrollmentVerbParams, inboundConnection);
       expect(jsonDecode(response.data!)['status'], 'revoked');
 
-      atCommitLog =
-          await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
-      itr = atCommitLog?.getEntries(-1);
+      atCommitLog = atServer.commitLog;
+      itr = atCommitLog.getEntries(-1);
       // Ensure there are no other keys in the commit log.
-      expect(itr!.moveNext(), false);
+      expect(itr.moveNext(), false);
 
       // 4. Delete an enrollment request.
       enrollmentRequest = 'enroll:delete:{"enrollmentId":"$enrollmentId"}';
@@ -2778,12 +2775,11 @@ void main() {
           response, verbParams, inboundConnection);
       expect(jsonDecode(response.data!)['status'], 'deleted');
 
-      atCommitLog =
-          await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
-      itr = atCommitLog?.getEntries(-1);
+      atCommitLog = atServer.commitLog;
+      itr = atCommitLog.getEntries(-1);
       // Since there are no entries in commit log, iterator.moveNext() returns false.
       // Ensure there are no other keys in the commit log.
-      expect(itr!.moveNext(), false);
+      expect(itr.moveNext(), false);
 
       // Verify key is deleted in the secondary keystore.
       expect(() async => await secondaryKeyStore.get(enrollmentKey),
@@ -2831,11 +2827,10 @@ void main() {
       expect(enrollmentDataMap['namespaces'], {'buzz': 'r'});
       expect(enrollmentDataMap['apkamPublicKey'], 'lorem_apkam');
 
-      AtCommitLog? atCommitLog =
-          await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
-      var itr = atCommitLog?.getEntries(-1);
+      AtCommitLog atCommitLog = atServer.commitLog;
+      var itr = atCommitLog.getEntries(-1);
       // Since there are no entries in commit log, iterator.moveNext() returns false.
-      expect(itr!.moveNext(), false);
+      expect(itr.moveNext(), false);
 
       // 2. Deny an enrollment and verify the commit log state.
       enrollmentRequest = 'enroll:deny:{"enrollmentId":"$enrollmentId"}';
@@ -2850,11 +2845,10 @@ void main() {
           response, denyEnrollmentVerbParams, inboundConnection);
       expect(jsonDecode(response.data!)['status'], 'denied');
 
-      atCommitLog =
-          await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
-      itr = atCommitLog?.getEntries(-1);
+      atCommitLog = atServer.commitLog;
+      itr = atCommitLog.getEntries(-1);
       // Since there are no entries in commit log, iterator.moveNext() returns false.
-      expect(itr!.moveNext(), false);
+      expect(itr.moveNext(), false);
 
       // 3. Delete an enrollment request.
       enrollmentRequest = 'enroll:delete:{"enrollmentId":"$enrollmentId"}';
@@ -2869,11 +2863,10 @@ void main() {
           response, verbParams, inboundConnection);
       expect(jsonDecode(response.data!)['status'], 'deleted');
 
-      atCommitLog =
-          await AtCommitLogManagerImpl.getInstance().getCommitLog(alice);
-      itr = atCommitLog?.getEntries(-1);
+      atCommitLog = atServer.commitLog;
+      itr = atCommitLog.getEntries(-1);
       // Since there are no entries in commit log, iterator.moveNext() returns false.
-      expect(itr!.moveNext(), false);
+      expect(itr.moveNext(), false);
 
       // Verify key is deleted in the secondary keystore.
       expect(() async => await secondaryKeyStore.get(enrollmentKey),

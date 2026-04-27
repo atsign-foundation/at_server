@@ -159,9 +159,7 @@ void main() async {
   group('A group of from verb handler with configuration test', () {
     test('test from verb handler to allow fromAtSign ', () async {
       var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
-      var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-          .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign);
-      await AtConfig(commitLogInstance!,
+      await AtConfig(AtSecondaryServerImpl.getInstance().commitLog,
               AtSecondaryServerImpl.getInstance().currentAtSign)
           .addToBlockList({'@bob'});
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
@@ -180,9 +178,7 @@ void main() async {
 
     test('test from verb handler to block fromAtSign ', () async {
       var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
-      await AtConfig(
-              await AtCommitLogManagerImpl.getInstance().getCommitLog(
-                  AtSecondaryServerImpl.getInstance().currentAtSign),
+      await AtConfig(AtSecondaryServerImpl.getInstance().commitLog,
               AtSecondaryServerImpl.getInstance().currentAtSign)
           .addToBlockList({'@bob'});
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
@@ -245,40 +241,34 @@ void main() async {
     });*/
   });
 
-  tearDown(() async => await tearDownFunc());
+  tearDownAll(() async => await tearDownFunc());
 
   if (Directory(storageDir).existsSync()) {
     Directory(storageDir).deleteSync(recursive: true);
   }
 }
 
+final HiveAtPersistenceFactory _fromTestFactory = HiveAtPersistenceFactory();
+
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
-  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore(alice)!;
-  var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog(alice, commitLogPath: storageDir);
-  var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init(storageDir);
-//  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
-  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
-  hiveKeyStore.commitLog = commitLogInstance;
-  var keyStoreManager =
-      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
-  keyStoreManager.keyStore = hiveKeyStore;
+  final bundle = (await _fromTestFactory.initialize(
+    alice,
+    HivePersistenceConfig(
+      storagePath: storageDir,
+      commitLogPath: storageDir,
+      accessLogPath: storageDir,
+      notificationStoragePath: storageDir,
+    ),
+  )) as HiveAtPersistenceBundle;
+
   AtSecondaryServerImpl.getInstance().currentAtSign = alice;
-  AtConfig(
-      await AtCommitLogManagerImpl.getInstance()
-          .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign),
-      AtSecondaryServerImpl.getInstance().currentAtSign);
-  var accessLogInstance = await AtAccessLogManagerImpl.getInstance()
-      .getAccessLog(alice, accessLogPath: storageDir);
-  AtSecondaryServerImpl.getInstance().commitLog = commitLogInstance!;
-  AtSecondaryServerImpl.getInstance().accessLog = accessLogInstance;
-  return keyStoreManager;
+  AtSecondaryServerImpl.getInstance().commitLog = bundle.commitLog;
+  AtSecondaryServerImpl.getInstance().accessLog = bundle.accessLog;
+  return bundle.secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
 }
 
 Future<void> tearDownFunc() async {
+  await _fromTestFactory.close();
   var isExists = await Directory('test/hive').exists();
   if (isExists) {
     Directory('test/hive').deleteSync(recursive: true);

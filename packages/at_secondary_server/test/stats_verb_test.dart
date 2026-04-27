@@ -320,9 +320,7 @@ void main() {
       atCompactionStats.lastCompactionRun = DateTime.now();
       atCompactionStats.postCompactionEntriesCount = 92;
       atCompactionStats.preCompactionEntriesCount = 96;
-      atCompactionStats.atCompactionType =
-          (await AtAccessLogManagerImpl.getInstance().getAccessLog(alice))!
-              .toString();
+      atCompactionStats.atCompactionType = atServer.accessLog.toString();
       await secondaryKeyStore.put(AtConstants.commitLogCompactionKey,
           AtData()..data = jsonEncode(atCompactionStats));
 
@@ -366,9 +364,7 @@ void main() {
       atCompactionStats.lastCompactionRun = DateTime.now();
       atCompactionStats.postCompactionEntriesCount = 902;
       atCompactionStats.preCompactionEntriesCount = 906;
-      atCompactionStats.atCompactionType =
-          (await AtAccessLogManagerImpl.getInstance().getAccessLog(alice))!
-              .toString();
+      atCompactionStats.atCompactionType = atServer.accessLog.toString();
       await secondaryKeyStore.put(AtConstants.accessLogCompactionKey,
           AtData()..data = jsonEncode(atCompactionStats));
 
