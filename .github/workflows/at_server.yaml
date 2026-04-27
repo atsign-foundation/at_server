@@ -244,6 +244,8 @@ jobs:
           cp packages/at_root_server/root tools/build_virtual_environment/ve/contents/atsign/root/
           cp packages/at_root_server/pubspec.yaml tools/build_virtual_environment/ve/contents/atsign/root/
           chmod 755 tools/build_virtual_environment/ve/contents/atsign/root/root
+          rm -rf tools/build_virtual_environment/ve/contents/atsign/secondary
+          mkdir -p tools/build_virtual_environment/ve/contents/atsign/secondary
           cp packages/at_secondary_server/secondary tools/build_virtual_environment/ve/contents/atsign/secondary/
           cp packages/at_secondary_server/pubspec.yaml tools/build_virtual_environment/ve/contents/atsign/secondary/
           chmod 755 tools/build_virtual_environment/ve/contents/atsign/secondary/secondary
