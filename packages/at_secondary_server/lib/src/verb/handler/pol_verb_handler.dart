@@ -8,6 +8,7 @@ import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dar
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -22,11 +23,15 @@ class PolVerbHandler extends AbstractVerbHandler {
 
   final OutboundClientManager outboundClientManager;
   final AtCacheManager cacheManager;
-  final AtAccessLog accessLog;
+  final AtAccessLog? _accessLogOverride;
+  AtAccessLog get accessLog =>
+      _accessLogOverride ?? AtSecondaryServerImpl.getInstance().accessLog;
   final _dummyInboundConnection = DummyInboundConnection();
 
-  PolVerbHandler(super.keyStore, this.outboundClientManager, this.cacheManager,
-      this.accessLog);
+  PolVerbHandler(
+      super.keyStore, this.outboundClientManager, this.cacheManager,
+      {AtAccessLog? accessLog})
+      : _accessLogOverride = accessLog;
 
   // Method to verify whether command is accepted or not
   // Input: command

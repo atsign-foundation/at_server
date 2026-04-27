@@ -171,8 +171,10 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   var keyStoreManager =
       secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   keyStoreManager.keyStore = hiveKeyStore;
-  await AtAccessLogManagerImpl.getInstance()
+  var accessLogInstance = await AtAccessLogManagerImpl.getInstance()
       .getAccessLog('@test_user_1', accessLogPath: storageDir);
+  AtSecondaryServerImpl.getInstance().commitLog = commitLogInstance!;
+  AtSecondaryServerImpl.getInstance().accessLog = accessLogInstance;
   return keyStoreManager;
 }
 

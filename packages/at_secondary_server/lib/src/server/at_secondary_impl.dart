@@ -305,9 +305,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         StatsNotificationService.getInstance(),
         notificationManager,
         enrollmentManager,
-        commitLog,
-        accessLog,
         currentAtSign,
+        commitLog: commitLog,
+        accessLog: accessLog,
       );
     } else {
       // If the server has been stop()'d and re-start()'d then we will get here.
@@ -322,9 +322,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           StatsNotificationService.getInstance(),
           notificationManager,
           enrollmentManager,
-          commitLog,
-          accessLog,
           currentAtSign,
+          commitLog: commitLog,
+          accessLog: accessLog,
         );
       }
     }

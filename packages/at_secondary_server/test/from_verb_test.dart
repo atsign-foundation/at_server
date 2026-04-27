@@ -271,8 +271,10 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
       await AtCommitLogManagerImpl.getInstance()
           .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign),
       AtSecondaryServerImpl.getInstance().currentAtSign);
-  await AtAccessLogManagerImpl.getInstance()
+  var accessLogInstance = await AtAccessLogManagerImpl.getInstance()
       .getAccessLog(alice, accessLogPath: storageDir);
+  AtSecondaryServerImpl.getInstance().commitLog = commitLogInstance!;
+  AtSecondaryServerImpl.getInstance().accessLog = accessLogInstance;
   return keyStoreManager;
 }
 

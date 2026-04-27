@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
@@ -14,9 +15,12 @@ import 'package:meta/meta.dart';
 class SyncProgressiveVerbHandler extends AbstractVerbHandler {
   static SyncFrom syncFrom = SyncFrom();
 
-  final AtCommitLog commitLog;
+  final AtCommitLog? _commitLogOverride;
+  AtCommitLog get commitLog =>
+      _commitLogOverride ?? AtSecondaryServerImpl.getInstance().commitLog;
 
-  SyncProgressiveVerbHandler(super.keyStore, this.commitLog);
+  SyncProgressiveVerbHandler(super.keyStore, {AtCommitLog? commitLog})
+      : _commitLogOverride = commitLog;
 
   /// Represents the size of the sync buffer
   @visibleForTesting

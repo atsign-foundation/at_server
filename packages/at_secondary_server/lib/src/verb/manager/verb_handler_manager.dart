@@ -5,6 +5,7 @@ import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dar
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/batch_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/config_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
@@ -45,8 +46,12 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
   final NotificationManager notificationManager;
   final StatsNotificationService statsNotificationService;
   final EnrollmentManager enrollmentManager;
-  final AtCommitLog commitLog;
-  final AtAccessLog accessLog;
+  final AtCommitLog? _commitLogOverride;
+  final AtAccessLog? _accessLogOverride;
+  AtCommitLog get commitLog =>
+      _commitLogOverride ?? AtSecondaryServerImpl.getInstance().commitLog;
+  AtAccessLog get accessLog =>
+      _accessLogOverride ?? AtSecondaryServerImpl.getInstance().accessLog;
   late final Atsign atSign;
 
   DefaultVerbHandlerManager(
@@ -56,10 +61,11 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     this.statsNotificationService,
     this.notificationManager,
     this.enrollmentManager,
-    this.commitLog,
-    this.accessLog,
-    String atSign,
-  ) {
+    String atSign, {
+    AtCommitLog? commitLog,
+    AtAccessLog? accessLog,
+  })  : _commitLogOverride = commitLog,
+        _accessLogOverride = accessLog {
     this.atSign = atSign.toAtsign();
     _loadVerbHandlers();
   }
@@ -81,8 +87,10 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
 
   List<VerbHandler> _loadVerbHandlers() {
     _verbHandlers = [];
-    _verbHandlers.add(FromVerbHandler(keyStore, commitLog, accessLog));
-    _verbHandlers.add(CramVerbHandler(keyStore, accessLog));
+    _verbHandlers.add(FromVerbHandler(keyStore,
+        commitLog: _commitLogOverride, accessLog: _accessLogOverride));
+    _verbHandlers.add(
+        CramVerbHandler(keyStore, accessLog: _accessLogOverride));
     _verbHandlers.add(PkamVerbHandler(keyStore));
     _verbHandlers.add(UpdateVerbHandler(
       keyStore,
@@ -101,14 +109,14 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
       keyStore,
       outboundClientManager,
       cacheManager,
-      accessLog,
+      accessLog: _accessLogOverride,
     ));
     _verbHandlers.add(LookupVerbHandler(
       keyStore,
       outboundClientManager,
       cacheManager,
       enrollmentManager,
-      accessLog,
+      accessLog: _accessLogOverride,
     ));
     _verbHandlers.add(ScanVerbHandler(
       keyStore,
@@ -119,7 +127,7 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
       keyStore,
       outboundClientManager,
       cacheManager,
-      accessLog,
+      accessLog: _accessLogOverride,
     ));
     _verbHandlers.add(DeleteVerbHandler(
       keyStore,
@@ -127,7 +135,8 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
       notificationManager,
     ));
     _verbHandlers.add(StatsVerbHandler(keyStore));
-    _verbHandlers.add(ConfigVerbHandler(keyStore, commitLog));
+    _verbHandlers
+        .add(ConfigVerbHandler(keyStore, commitLog: _commitLogOverride));
     _verbHandlers.add(MonitorVerbHandler(keyStore, notificationManager));
     _verbHandlers.add(StreamVerbHandler(keyStore, notificationManager));
     _verbHandlers.add(NotifyVerbHandler(keyStore, notificationManager));
@@ -138,7 +147,8 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     _verbHandlers.add(BatchVerbHandler(keyStore, this));
     _verbHandlers.add(NotifyStatusVerbHandler(keyStore, notificationManager));
     _verbHandlers.add(NotifyAllVerbHandler(keyStore, notificationManager));
-    _verbHandlers.add(SyncProgressiveVerbHandler(keyStore, commitLog));
+    _verbHandlers.add(
+        SyncProgressiveVerbHandler(keyStore, commitLog: _commitLogOverride));
     _verbHandlers.add(InfoVerbHandler(keyStore));
     _verbHandlers.add(NoOpVerbHandler(keyStore));
     _verbHandlers.add(NotifyRemoveVerbHandler(keyStore, notificationManager));
