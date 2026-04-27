@@ -51,6 +51,18 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   var logger = AtSignLogger('AtSecondaryServer');
 
+  /// Builds the per-atSign persistence stores during [start] and tears
+  /// them down during [stop]. Defaults to a [HiveAtPersistenceFactory];
+  /// tests / alternative deployments can replace it before calling
+  /// [start]. Made public so tests can inject a stand-in (e.g.
+  /// `TestAtPersistenceFactory`).
+  AtPersistenceFactory persistenceFactory = HiveAtPersistenceFactory();
+
+  /// The bundle this server is currently running against. Set during
+  /// [_initializePersistentInstances]; used by [start] for
+  /// scheduleKeyExpireTask and by [stop] to close.
+  HiveAtPersistenceBundle? _persistenceBundle;
+
   factory AtSecondaryServerImpl.getInstance() {
     return _singleton;
   }
@@ -176,8 +188,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw AtServerException('Secondary keystore is not initialized');
     }
 
-    secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(currentAtSign)!;
+    // (secondaryPersistenceStore is already set from the persistence
+    //  factory's bundle inside _initializePersistentInstances; no need
+    //  to re-fetch via the legacy singleton here.)
 
     // Initialize enrollment manager
     enrollmentManager = EnrollmentManager(secondaryKeyStore, currentAtSign);
@@ -199,7 +212,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     final expiryRunRandomMins =
         (expiringRunFreqMins! - 2) + Random().nextInt(8);
     logger.finest('Scheduling key expiry job every $expiryRunRandomMins mins');
-    hivePersistenceManager.scheduleKeyExpireTask(3,
+    _persistenceBundle!.scheduleKeyExpireTask(3,
         skipCommits: AtSecondaryConfig.skipCommitsForExpiredKeys);
 
     await secondaryKeyStore.deleteExpiredKeys();
@@ -688,14 +701,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       secondaryKeyStore.preRemoveHooks.clear();
       secondaryKeyStore.postRemoveHooks.clear();
 
-      logger.shout("Closing CommitLog");
-      await AtCommitLogManagerImpl.getInstance().close();
-      logger.shout("Closing AccessLog");
-      await AtAccessLogManagerImpl.getInstance().close();
-      logger.shout("Closing NotificationKeyStore");
-      await notificationKeystore.close();
-      logger.shout("Closing SecondaryKeyStore");
-      await SecondaryPersistenceStoreFactory.getInstance().close();
+      logger.shout('Closing persistence (commit log, access log, '
+          'notification keystore, secondary keystore)');
+      await persistenceFactory.close();
+      _persistenceBundle = null;
 
       logger.shout("Stopping scheduled tasks");
       atRefreshJob.close();
@@ -717,50 +726,44 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   /// Initializes [SecondaryKeyStore], [AtCommitLog], [AtNotificationKeystore] and [AtAccessLog] instances.
   Future<void> _initializePersistentInstances() async {
-    // Initialize commit log
-    commitLog = (await AtCommitLogManagerImpl.getInstance().getCommitLog(
-        serverContext!.currentAtSign!,
-        commitLogPath: AtSecondaryConfig.commitLogPath))!;
+    AtNotification.defaultTtl =
+        Duration(minutes: AtSecondaryConfig.notificationExpiryInMins);
+
+    final config = HivePersistenceConfig(
+      storagePath: AtSecondaryConfig.storagePath,
+      commitLogPath: AtSecondaryConfig.commitLogPath,
+      accessLogPath: AtSecondaryConfig.accessLogPath,
+      notificationStoragePath: AtSecondaryConfig.notificationStoragePath,
+    );
+    final bundle = await persistenceFactory.initialize(
+        serverContext!.currentAtSign!, config);
+
+    // Phase 1 still relies on the Hive-specific bundle for two legacy
+    // fields (secondaryPersistenceStore, hivePersistenceManager) that
+    // the rest of at_secondary_server reads. A follow-up commit will
+    // remove those fields and we can lift this typing.
+    if (bundle is! HiveAtPersistenceBundle) {
+      throw StateError(
+          'AtSecondaryServerImpl currently requires a HiveAtPersistenceBundle '
+          'because legacy fields secondaryPersistenceStore / hivePersistenceManager '
+          'have not yet been migrated. Got ${bundle.runtimeType}.');
+    }
+    _persistenceBundle = bundle;
+
+    commitLog = bundle.commitLog;
     commitLog.addEventListener(
         CommitLogCompactionService(commitLog.commitLogKeyStore));
 
-    // Initialize access log
-    var atAccessLog = await AtAccessLogManagerImpl.getInstance().getAccessLog(
-        serverContext!.currentAtSign!,
-        accessLogPath: AtSecondaryConfig.accessLogPath);
-    _accessLog = atAccessLog;
+    _accessLog = bundle.accessLog;
+    notificationKeystore = bundle.notificationKeystore;
+    secondaryKeyStore = bundle.keyStore;
+    secondaryPersistenceStore = bundle.secondaryPersistenceStore;
+    hivePersistenceManager = bundle.hivePersistenceManager;
 
-    // Initialize notification storage
-    AtNotification.defaultTtl =
-        Duration(minutes: AtSecondaryConfig.notificationExpiryInMins);
-    notificationKeystore =
-        AtNotificationKeystore(serverContext!.currentAtSign!);
-    await notificationKeystore.init(AtSecondaryConfig.notificationStoragePath);
-
-    // Initialize Secondary Storage
-    var secondaryPersistenceStore =
-        SecondaryPersistenceStoreFactory.getInstance()
-            .getSecondaryPersistenceStore(serverContext!.currentAtSign)!;
-
-    hivePersistenceManager =
-        secondaryPersistenceStore.getHivePersistenceManager()!;
-
-    await hivePersistenceManager.init(AtSecondaryConfig.storagePath);
+    serverContext!.isKeyStoreInitialized = true;
 
     var atData = AtData();
     atData.data = serverContext!.sharedSecret;
-    var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(serverContext!.currentAtSign)!
-        .getSecondaryKeyStoreManager()!;
-    secondaryKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(serverContext!.currentAtSign)!
-        .getSecondaryKeyStore()!;
-    secondaryKeyStore.commitLog = commitLog;
-
-    keyStoreManager.keyStore = secondaryKeyStore;
-    // Initialize the hive store
-    await secondaryKeyStore.initialize();
-    serverContext!.isKeyStoreInitialized = true;
 
     // Ensure essential data is present in persistence
     if (!secondaryKeyStore.isKeyExists(AtConstants.atCramSecretDeleted)) {

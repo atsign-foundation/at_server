@@ -25,45 +25,40 @@ class HiveAtPersistenceFactory implements AtPersistenceFactory {
 
     _logger.info('Initialising Hive persistence for $atSign');
 
-    // Bootstrap order mirrors AtSecondaryServerImpl._initializePersistentInstances
-    // (the call site this factory is meant to replace).
+    // Phase 1 implementation: route through the existing singleton-based
+    // managers so the legacy `SecondaryPersistenceStoreFactory.getInstance()`
+    // / `AtCommitLogManagerImpl.getInstance()` / `AtAccessLogManagerImpl.getInstance()`
+    // call sites in `at_secondary_server` and external consumers see the
+    // SAME per-atSign instances as we do. Phase 5 of the plan will reverse
+    // this — the singletons will delegate to a process-default
+    // [HiveAtPersistenceFactory] — at which point the body of this method
+    // can construct the parts directly.
 
-    // 1. Commit log — server-side commit log unless caller asks otherwise.
-    final AtCommitLog commitLog;
-    if (config.enableCommitId) {
-      final ks = CommitLogKeyStore(atSign);
-      await ks.init(config.commitLogPath, isLazy: false);
-      commitLog = AtCommitLog(ks);
-    } else {
-      final ks = ClientCommitLogKeyStore(atSign);
-      await ks.init(config.commitLogPath, isLazy: false);
-      commitLog = ClientAtCommitLog(ks);
-    }
+    // 1. Commit log.
+    final commitLog = (await AtCommitLogManagerImpl.getInstance().getCommitLog(
+        atSign,
+        commitLogPath: config.commitLogPath,
+        enableCommitId: config.enableCommitId))!;
 
     // 2. Access log.
-    final accessLogKeyStore = AccessLogKeyStore(atSign);
-    await accessLogKeyStore.init(config.accessLogPath);
-    final accessLog = AtAccessLog(accessLogKeyStore);
+    final accessLog = (await AtAccessLogManagerImpl.getInstance()
+        .getAccessLog(atSign, accessLogPath: config.accessLogPath))!;
 
-    // 3. Notification keystore.
+    // 3. Notification keystore (no singleton; constructed per atSign).
     final notificationKeystore = AtNotificationKeystore(atSign);
     await notificationKeystore.init(config.notificationStoragePath);
 
     // 4. Hive persistence manager + secondary keystore + manager wrapper.
-    //    The existing SecondaryPersistenceStore wires these three together;
-    //    we use it directly so per-atSign caching by the legacy
-    //    SecondaryPersistenceStoreFactory and us stays consistent
-    //    while Phase 1 migrations are in flight (Phase 5 of the plan
-    //    will route the legacy factory through us).
-    final secondaryPersistenceStore = SecondaryPersistenceStore(atSign);
+    final secondaryPersistenceStore = SecondaryPersistenceStoreFactory
+        .getInstance()
+        .getSecondaryPersistenceStore(atSign)!;
     final hivePm = secondaryPersistenceStore.getHivePersistenceManager()!;
     await hivePm.init(config.storagePath);
 
-    final secondaryKeyStoreManager =
-        secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
     final keyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
     keyStore.commitLog = commitLog;
-    secondaryKeyStoreManager.keyStore = keyStore;
+    secondaryPersistenceStore.getSecondaryKeyStoreManager()!.keyStore =
+        keyStore;
 
     await keyStore.initialize();
 
@@ -94,6 +89,15 @@ class HiveAtPersistenceFactory implements AtPersistenceFactory {
         _logger.warning('Error closing bundle for ${b.atSign}: $e\n$st');
       }
     }
+    // Phase 1 wiring: this factory routes through the legacy
+    // singletons, which still cache the same per-atSign instances we
+    // just closed. Clear their maps (without re-closing) so callers
+    // that still go through `*.getInstance()` see a clean state and
+    // a fresh start can re-populate them. Phase 5 of the plan will
+    // reverse the delegation; this block goes away then.
+    AtCommitLogManagerImpl.getInstance().clear();
+    AtAccessLogManagerImpl.getInstance().clear();
+    SecondaryPersistenceStoreFactory.getInstance().clear();
   }
 }
 

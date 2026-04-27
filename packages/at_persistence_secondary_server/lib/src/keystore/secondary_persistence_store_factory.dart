@@ -29,4 +29,11 @@ class SecondaryPersistenceStoreFactory {
             secondaryPersistenceStore.getHivePersistenceManager()?.close());
     _secondaryPersistenceStoreMap.clear();
   }
+
+  /// Clears the internal per-atSign cache without calling close() on the
+  /// entries. Used by [HiveAtPersistenceFactory] when the entries have
+  /// already been closed via shared references.
+  void clear() {
+    _secondaryPersistenceStoreMap.clear();
+  }
 }

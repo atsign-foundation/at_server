@@ -28,4 +28,11 @@ class AtAccessLogManagerImpl implements AtAccessLogManager {
         _accessLogMap.values, (AtAccessLog atAccessLog) => atAccessLog.close());
     _accessLogMap.clear();
   }
+
+  /// Clears the internal per-atSign cache without calling close() on the
+  /// entries. Used by [HiveAtPersistenceFactory] when the entries have
+  /// already been closed via shared references.
+  void clear() {
+    _accessLogMap.clear();
+  }
 }
