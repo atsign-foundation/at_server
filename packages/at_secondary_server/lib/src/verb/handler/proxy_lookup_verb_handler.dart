@@ -5,7 +5,6 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -18,9 +17,10 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
   static ProxyLookup pLookup = ProxyLookup();
   final OutboundClientManager outboundClientManager;
   final AtCacheManager cacheManager;
+  final AtAccessLog accessLog;
 
-  ProxyLookupVerbHandler(
-      super.keyStore, this.outboundClientManager, this.cacheManager);
+  ProxyLookupVerbHandler(super.keyStore, this.outboundClientManager,
+      this.cacheManager, this.accessLog);
 
   // Method to verify whether command is accepted or not
   // Input: command
@@ -53,11 +53,8 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
     var keyAtAtSign = '$entityName$atSign';
     var cachedKeyName = 'cached:public:$keyAtAtSign';
 
-    var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
-        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     try {
-      await atAccessLog?.insert(atSign!, pLookup.name(),
-          lookupKey: keyAtAtSign);
+      await accessLog.insert(atSign!, pLookup.name(), lookupKey: keyAtAtSign);
     } on DataStoreException catch (e) {
       logger.severe('Hive error adding to access log:${e.toString()}');
     }

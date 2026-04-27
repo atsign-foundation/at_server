@@ -123,9 +123,8 @@ class MostVisitedAtSignMetricImpl extends MetricProvider {
   @override
   Future<String> getMetrics({String? regex}) async {
     final length = AtSecondaryConfig.stats_top_visits!;
-    var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
-        .getAccessLog(atServer.currentAtSign));
-    return jsonEncode(await atAccessLog?.mostVisitedAtSigns(length));
+    final AtAccessLog atAccessLog = atServer.accessLog;
+    return jsonEncode(await atAccessLog.mostVisitedAtSigns(length));
   }
 
   @override
@@ -140,9 +139,8 @@ class MostVisitedAtKeyMetricImpl extends MetricProvider {
   @override
   Future<String> getMetrics({String? regex}) async {
     final length = AtSecondaryConfig.stats_top_keys!;
-    var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
-        .getAccessLog(atServer.currentAtSign));
-    return jsonEncode(await atAccessLog?.mostVisitedKeys(length));
+    final AtAccessLog atAccessLog = atServer.accessLog;
+    return jsonEncode(await atAccessLog.mostVisitedKeys(length));
   }
 
   @override
@@ -170,9 +168,8 @@ class LastLoggedInDatetimeMetricImpl extends MetricProvider {
 
   @override
   Future<String?> getMetrics({String? regex}) async {
-    var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
-        .getAccessLog(atServer.currentAtSign));
-    var entry = await atAccessLog!.getLastAccessLogEntry();
+    final AtAccessLog atAccessLog = atServer.accessLog;
+    var entry = await atAccessLog.getLastAccessLogEntry();
     return entry.requestDateTime!.toUtc().toString();
   }
 
@@ -225,9 +222,8 @@ class LastPkamMetricImpl extends MetricProvider {
 
   @override
   Future<String?> getMetrics({String? regex}) async {
-    var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
-        .getAccessLog(atServer.currentAtSign));
-    var entry = await atAccessLog!.getLastPkamAccessLogEntry();
+    final AtAccessLog atAccessLog = atServer.accessLog;
+    var entry = await atAccessLog.getLastPkamAccessLogEntry();
     return (entry != null)
         ? entry.requestDateTime!.toUtc().toString()
         : 'Not Available';
@@ -348,10 +344,8 @@ class CommitLogCompactionStats extends MetricProvider {
 
   @override
   getMetrics({String? regex}) async {
-    var keyStore = SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(atServer.currentAtSign)
-        ?.getSecondaryKeyStore();
-    if (keyStore!.isKeyExists(AtConstants.commitLogCompactionKey)) {
+    final keyStore = atServer.secondaryKeyStore;
+    if (keyStore.isKeyExists(AtConstants.commitLogCompactionKey)) {
       AtData? atData = await keyStore.get(AtConstants.commitLogCompactionKey);
       if (atData != null && atData.data != null) {
         return atData.data;
@@ -371,10 +365,8 @@ class AccessLogCompactionStats extends MetricProvider {
 
   @override
   getMetrics({String? regex}) async {
-    var keyStore = SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(atServer.currentAtSign)
-        ?.getSecondaryKeyStore();
-    if (keyStore!.isKeyExists(AtConstants.accessLogCompactionKey)) {
+    final keyStore = atServer.secondaryKeyStore;
+    if (keyStore.isKeyExists(AtConstants.accessLogCompactionKey)) {
       AtData? atData = await keyStore.get(AtConstants.accessLogCompactionKey);
       if (atData != null && atData.data != null) {
         return atData.data;
@@ -394,10 +386,8 @@ class NotificationCompactionStats extends MetricProvider {
 
   @override
   getMetrics({String? regex}) async {
-    var keyStore = SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(atServer.currentAtSign)
-        ?.getSecondaryKeyStore();
-    if (keyStore!.isKeyExists(AtConstants.notificationCompactionKey)) {
+    final keyStore = atServer.secondaryKeyStore;
+    if (keyStore.isKeyExists(AtConstants.notificationCompactionKey)) {
       AtData? atData =
           await keyStore.get(AtConstants.notificationCompactionKey);
       if (atData != null && atData.data != null) {
@@ -419,14 +409,13 @@ class LatestCommitEntryOfEachKey extends MetricProvider {
   @override
   getMetrics({String? regex = '.*'}) async {
     var responseMap = <String, List<dynamic>>{};
-    var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
-        .getCommitLog(atServer.currentAtSign));
+    final atCommitLog = atServer.commitLog;
 
-    int? lastCommitId = atCommitLog?.lastCommittedSequenceNumber();
+    int? lastCommitId = atCommitLog.lastCommittedSequenceNumber();
     int lastCommitIdReceived = -1;
     while (lastCommitId != null && lastCommitIdReceived != lastCommitId) {
       Iterator commitEntryIterator =
-          atCommitLog!.getEntries(lastCommitIdReceived, regex: regex);
+          atCommitLog.getEntries(lastCommitIdReceived, regex: regex);
       while (commitEntryIterator.moveNext()) {
         CommitEntry commitEntry = commitEntryIterator.current.value;
         responseMap[commitEntry.atKey!] = [

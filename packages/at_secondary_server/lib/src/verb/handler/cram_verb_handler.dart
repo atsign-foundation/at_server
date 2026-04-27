@@ -13,7 +13,9 @@ import 'package:crypto/crypto.dart';
 class CramVerbHandler extends AbstractVerbHandler {
   static Cram cram = Cram();
 
-  CramVerbHandler(super.keyStore);
+  final AtAccessLog accessLog;
+
+  CramVerbHandler(super.keyStore, this.accessLog);
 
   @override
   bool accept(String command) =>
@@ -59,10 +61,8 @@ class CramVerbHandler extends AbstractVerbHandler {
     if (digestFromClient == expectedDigest) {
       atConnection.metaData.isAuthenticated = true;
       atConnection.metaData.authType = AuthType.cram;
-      var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
-          .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
       try {
-        await atAccessLog?.insert(atSign, cram.name());
+        await accessLog.insert(atSign, cram.name());
       } on DataStoreException catch (e) {
         logger.severe('Hive error adding to access log:${e.toString()}');
       }

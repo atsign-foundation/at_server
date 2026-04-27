@@ -21,12 +21,14 @@ class LookupVerbHandler extends AbstractVerbHandler {
   final OutboundClientManager outboundClientManager;
   final AtCacheManager cacheManager;
   final EnrollmentManager enMgr;
+  final AtAccessLog accessLog;
 
   LookupVerbHandler(
     super.keyStore,
     this.outboundClientManager,
     this.cacheManager,
     this.enMgr,
+    this.accessLog,
   );
 
   @override
@@ -49,8 +51,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     var atConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
     var thisServersAtSign = cacheManager.atSign;
-    var atAccessLog = await AtAccessLogManagerImpl.getInstance()
-        .getAccessLog(thisServersAtSign);
+    final atAccessLog = accessLog;
     String keyOwnersAtSign = verbParams[AtConstants.atSign]!;
     keyOwnersAtSign = AtUtils.fixAtSign(keyOwnersAtSign);
     var entity = verbParams[AtConstants.atKey];

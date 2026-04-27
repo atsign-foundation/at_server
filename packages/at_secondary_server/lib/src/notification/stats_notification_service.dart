@@ -75,7 +75,8 @@ class StatsNotificationService {
   /// Throws a [StateError] If the service is already either [scheduling] or [scheduled].
   /// Creates a periodic Timer which will call the [writeStatsToMonitor] method every [interval]
   /// and sets the [timer] instance variable accordingly.
-  Future<void> schedule(String currentAtSign, {Duration? interval}) async {
+  Future<void> schedule(String currentAtSign, AtCommitLog atCommitLog,
+      {Duration? interval}) async {
     interval ??=
         Duration(seconds: AtSecondaryConfig.statsNotificationJobTimeInterval);
 
@@ -99,8 +100,7 @@ class StatsNotificationService {
 
     _logger.info('StatsNotificationService is enabled. Runs every $interval');
     this.currentAtSign = currentAtSign;
-    atCommitLog ??=
-        await AtCommitLogManagerImpl.getInstance().getCommitLog(currentAtSign);
+    this.atCommitLog = atCommitLog;
 
     // Runs the _schedule method as long as server is up and running.
     timer = Timer.periodic(interval, (timer) async {

@@ -8,7 +8,6 @@ import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dar
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -23,9 +22,11 @@ class PolVerbHandler extends AbstractVerbHandler {
 
   final OutboundClientManager outboundClientManager;
   final AtCacheManager cacheManager;
+  final AtAccessLog accessLog;
   final _dummyInboundConnection = DummyInboundConnection();
 
-  PolVerbHandler(super.keyStore, this.outboundClientManager, this.cacheManager);
+  PolVerbHandler(super.keyStore, this.outboundClientManager, this.cacheManager,
+      this.accessLog);
 
   // Method to verify whether command is accepted or not
   // Input: command
@@ -138,10 +139,7 @@ class PolVerbHandler extends AbstractVerbHandler {
   }
 
   Future<void> _insertIntoAccessLog(String key, String value) async {
-    AtAccessLog? atAccessLog = await AtAccessLogManagerImpl.getInstance()
-        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign);
-
-    await atAccessLog!.insert(key, value);
+    await accessLog.insert(key, value);
     return;
   }
 }

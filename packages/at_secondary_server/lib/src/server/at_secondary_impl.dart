@@ -105,7 +105,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   bool _isRunning = false;
   late Atsign currentAtSign;
   late AtCommitLog commitLog;
-  var _accessLog;
+  var accessLog;
   var signingKey;
   AtSecondaryContext? serverContext;
   VerbExecutor? executor;
@@ -229,7 +229,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     //Access Log Compaction
     accessLogCompactionJobInstance =
-        AtCompactionJob(_accessLog, secondaryPersistenceStore);
+        AtCompactionJob(accessLog, secondaryPersistenceStore);
     atAccessLogCompactionConfig = AtCompactionConfig()
       ..compactionPercentage = AtSecondaryConfig.accessLogCompactionPercentage
       ..compactionFrequencyInMins =
@@ -305,6 +305,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         StatsNotificationService.getInstance(),
         notificationManager,
         enrollmentManager,
+        commitLog,
+        accessLog,
         currentAtSign,
       );
     } else {
@@ -320,6 +322,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           StatsNotificationService.getInstance(),
           notificationManager,
           enrollmentManager,
+          commitLog,
+          accessLog,
           currentAtSign,
         );
       }
@@ -365,7 +369,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         poolSize: serverContext!.inboundConnectionLimit);
 
     // Starts StatsNotificationService to keep monitor connections alive
-    await StatsNotificationService.getInstance().schedule(currentAtSign);
+    await StatsNotificationService.getInstance()
+        .schedule(currentAtSign, commitLog);
 
     //initializes subscribers for dynamic config change 'config:Set'
     await initDynamicConfigListeners();
@@ -456,7 +461,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
             ModifiableConfigs.accessLogCompactionFrequencyMins)
         ?.listen((newFrequency) async {
       await restartCompaction(accessLogCompactionJobInstance,
-          atAccessLogCompactionConfig, newFrequency, _accessLog);
+          atAccessLogCompactionConfig, newFrequency, accessLog);
     });
 
     //subscriber for commit log compaction frequency change
@@ -754,7 +759,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     commitLog.addEventListener(
         CommitLogCompactionService(commitLog.commitLogKeyStore));
 
-    _accessLog = bundle.accessLog;
+    accessLog = bundle.accessLog;
     notificationKeystore = bundle.notificationKeystore;
     secondaryKeyStore = bundle.keyStore;
     secondaryPersistenceStore = bundle.secondaryPersistenceStore;

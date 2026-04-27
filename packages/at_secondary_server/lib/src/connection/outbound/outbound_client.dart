@@ -195,7 +195,7 @@ class OutboundClient {
         var signedChallenge = SecondaryUtil.signChallenge(
             challenge, AtSecondaryServerImpl.getInstance().signingKey);
         await SecondaryUtil.saveCookie(sessionIdWithAtSign, signedChallenge,
-            AtSecondaryServerImpl.getInstance().currentAtSign);
+            AtSecondaryServerImpl.getInstance().secondaryKeyStore);
       }
 
       //4. Create pol request

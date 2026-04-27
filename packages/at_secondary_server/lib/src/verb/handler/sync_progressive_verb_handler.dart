@@ -5,7 +5,6 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -15,7 +14,9 @@ import 'package:meta/meta.dart';
 class SyncProgressiveVerbHandler extends AbstractVerbHandler {
   static SyncFrom syncFrom = SyncFrom();
 
-  SyncProgressiveVerbHandler(super.keyStore);
+  final AtCommitLog commitLog;
+
+  SyncProgressiveVerbHandler(super.keyStore, this.commitLog);
 
   /// Represents the size of the sync buffer
   @visibleForTesting
@@ -36,9 +37,8 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    // Get Commit Log Instance.
-    var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
-        .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
+    // Use the injected commit log.
+    final AtCommitLog atCommitLog = commitLog;
     int? skipDeletesUntil = verbParams[AtConstants.skipDeletesUntil] != null
         ? int.parse(verbParams[AtConstants.skipDeletesUntil]!)
         : null;
@@ -49,7 +49,7 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
     Iterator<MapEntry<String, CommitEntry>> commitEntryIterator;
     // if client doesn't pass syncLimit set the default value from server
     syncLimit ??= AtSecondaryConfig.syncPageLimit;
-    commitEntryIterator = atCommitLog!.getEntries(
+    commitEntryIterator = atCommitLog.getEntries(
         int.parse(verbParams[AtConstants.fromCommitSequence]!) + 1,
         regex: verbParams['regex'],
         skipDeletesUntil: skipDeletesUntil,
