@@ -28,6 +28,10 @@ class SecondaryPersistenceStore {
     _hiveKeystore = HiveKeystore();
     _hivePersistenceManager = HivePersistenceManager(_atSign);
     _hiveKeystore.persistenceManager = _hivePersistenceManager;
+    // Wire the back-reference up-front so HivePersistenceManager.scheduleKeyExpireTask
+    // doesn't have to resolve SecondaryPersistenceStoreFactory.getInstance() at
+    // tick time (cuts the latent cyclic dep through the singleton).
+    _hivePersistenceManager!.keyStoreForExpireTask = _hiveKeystore;
     _secondaryKeyStoreManager = SecondaryKeyStoreManager();
     _secondaryKeyStoreManager!.keyStore = _hiveKeystore;
   }

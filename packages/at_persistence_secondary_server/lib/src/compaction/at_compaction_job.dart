@@ -19,7 +19,9 @@ class AtCompactionJob {
 
   //instance of SecondaryPersistenceStore stored to be passed on to AtCompactionStatsImpl
   late final SecondaryPersistenceStore _secondaryPersistenceStore;
-  static final Random _random = Random();
+  // Per-instance so concurrent jobs across different atSigns / log
+  // types don't share an RNG.
+  final Random _random = Random();
 
   AtCompactionJob(this._atLogType, this._secondaryPersistenceStore);
 

@@ -8,6 +8,7 @@ import 'package:cron/cron.dart';
 import 'package:hive/hive.dart';
 
 import 'hive_base.dart';
+import 'hive_keystore.dart';
 
 class HivePersistenceManager with HiveBase {
   final logger = AtSignLogger('HivePersistenceManager');
@@ -21,6 +22,16 @@ class HivePersistenceManager with HiveBase {
 
   final Cron _cron = Cron();
   final Random _random = Random();
+
+  /// The keystore [scheduleKeyExpireTask] will sweep on each tick.
+  ///
+  /// Set by the wiring code that creates this manager — either
+  /// [SecondaryPersistenceStore._init] (legacy path) or
+  /// [HiveAtPersistenceFactory.initialize] (new path). Replaces the
+  /// previous behaviour where [scheduleKeyExpireTask] reached back into
+  /// `SecondaryPersistenceStoreFactory.getInstance()` from inside a
+  /// unit that the factory had constructed (cyclic dep).
+  HiveKeystore? keyStoreForExpireTask;
 
   @override
   Future<void> initialize() async {
@@ -127,10 +138,11 @@ class HivePersistenceManager with HiveBase {
     }
     _cron.schedule(schedule, () async {
       await Future.delayed(Duration(seconds: _random.nextInt(12)));
-      var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(_atsign)!
-          .getSecondaryKeyStore()!;
-      await hiveKeyStore.deleteExpiredKeys(skipCommit: skipCommits);
+      final ks = keyStoreForExpireTask ??
+          SecondaryPersistenceStoreFactory.getInstance()
+              .getSecondaryPersistenceStore(_atsign)!
+              .getSecondaryKeyStore()!;
+      await ks.deleteExpiredKeys(skipCommit: skipCommits);
     });
   }
 
