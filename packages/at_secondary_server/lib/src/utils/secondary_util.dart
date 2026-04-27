@@ -82,12 +82,14 @@ class SecondaryUtil {
     if (atData == null) {
       return false;
     }
-    var now = DateTime.now().toUtc().millisecondsSinceEpoch;
+    var now = DateTime.now().millisecondsSinceEpoch;
     if (atData.metaData != null) {
       var birthTime = atData.metaData!.availableAt;
       var endOfLifeTime = atData.metaData!.expiresAt;
-      logger.finest(
-          'isActiveKey ${atData.key} found birthTime $birthTime and endOfLifeTime $endOfLifeTime');
+      if (logger.isLoggable('finest')) {
+        logger.finest(
+            'isActiveKey ${atData.key} found birthTime $birthTime and endOfLifeTime $endOfLifeTime');
+      }
       if (birthTime == null && endOfLifeTime == null) return true;
       if (birthTime != null) {
         var ttbMillis = birthTime.toUtc().millisecondsSinceEpoch;
@@ -139,7 +141,9 @@ class SecondaryUtil {
         result = atData.data;
         break;
     }
-    logger.finer('prepareResponseData result : $result');
+    if (logger.isLoggable('finer')) {
+      logger.finer('prepareResponseData result : $result');
+    }
     return result;
   }
 

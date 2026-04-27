@@ -84,8 +84,8 @@ void main() {
           (await firstAtSignConnection.sendRequestToServer(denyEnrollCommand))
               .replaceAll('error:', '');
       expect(
-          denyEnrollResponse.contains(
-              'Trying to run a verb that requires an authenticated connection'),
+          denyEnrollResponse
+              .contains('Command cannot be executed without auth'),
           true);
     });
 
@@ -98,8 +98,8 @@ void main() {
               .sendRequestToServer(approveEnrollCommand))
           .replaceAll('error:', '');
       expect(
-          approveEnrollResponse.contains(
-              'Trying to run a verb that requires an authenticated connection'),
+          approveEnrollResponse
+              .contains('Command cannot be executed without auth'),
           true);
     });
 
@@ -631,7 +631,7 @@ void main() {
       String revokeEnrollmentResponse =
           await socketConnection2.sendRequestToServer(revokeEnrollmentCommand);
       expect(revokeEnrollmentResponse.trim(),
-          'error:AT0401-Exception: Trying to run a verb that requires an authenticated connection.');
+          'error:AT0401-Exception: Command cannot be executed without auth');
     });
   });
 
@@ -870,7 +870,7 @@ void main() {
           .sendRequestToServer('config:set:maxRequestsPerTimeFrame=1');
       expect(configResponse.trim(), 'data:ok');
       configResponse = await firstAtSignConnection
-          .sendRequestToServer('config:set:timeFrameInMills=100');
+          .sendRequestToServer('config:set:timeFrameInMillis=100');
       expect(configResponse.trim(), 'data:ok');
     });
 
@@ -1415,8 +1415,14 @@ void main() {
       await unAuthenticatedConnection.initiateConnectionWithListener(
           firstAtSign, firstAtSignHost, firstAtSignPort);
       String enrollmentResponse =
-          await unAuthenticatedConnection.sendRequestToServer(
-              'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw","__manage":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}","apkamKeysExpiryInMillis":30000}');
+          await unAuthenticatedConnection.sendRequestToServer('enroll:request:{'
+              '"appName":"wavi"'
+              ',"deviceName":"pixel-${Uuid().v4().hashCode}"'
+              ',"namespaces":{"wavi":"rw","__manage":"rw"}'
+              ',"otp":"$otp"'
+              ',"apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"'
+              ',"encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"'
+              ',"apkamKeysExpiryInMillis":2500}');
       enrollmentResponse = enrollmentResponse.replaceAll('data:', '');
       String enrollmentId = jsonDecode(enrollmentResponse)['enrollmentId'];
       expect(jsonDecode(enrollmentResponse)['status'], 'pending');
@@ -1440,7 +1446,7 @@ void main() {
               authType: AuthType.apkam, enrollmentId: enrollmentId);
       expect(authResponse, 'data:success');
 
-      await Future.delayed(Duration(seconds: 30), () async {
+      await Future.delayed(Duration(seconds: 3), () async {
         await expectLater(
             () => enrollmentAuthenticatedConnection.sendRequestToServer('scan'),
             throwsA(predicate((dynamic e) => e is AtTimeoutException)));
@@ -1677,7 +1683,7 @@ void main() {
       String revokeEnrollmentResponse =
           await socketConnection2.sendRequestToServer(deleteEnrollmentCommand);
       expect(revokeEnrollmentResponse.trim(),
-          'error:AT0401-Exception: Trying to run a verb that requires an authenticated connection.');
+          'error:AT0401-Exception: Command cannot be executed without auth');
     });
   });
 }

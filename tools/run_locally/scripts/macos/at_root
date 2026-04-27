@@ -19,6 +19,6 @@ rm -f certs
 echo "Linking root certs"
 ln -s "$scriptDir"/../../../../tools/build_virtual_environment/ve_base/contents/atsign/root/certs .
 
-export httpsEnabled=true
+export httpsEnabled=false
 echo "Starting root server on default port 64"
 dart "$scriptDir"/../../../../packages/at_root_server/bin/main.dart -h vip.ve.atsign.zone -p 6379 -a foobared

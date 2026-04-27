@@ -42,18 +42,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       AtSecondaryServerImpl._internal();
 
   static final int? expiringRunFreqMins = AtSecondaryConfig.expiringRunFreqMins;
-  static final int? commitLogCompactionFrequencyMins =
-      AtSecondaryConfig.commitLogCompactionFrequencyMins;
-  static final int? commitLogCompactionPercentage =
-      AtSecondaryConfig.commitLogCompactionPercentage;
-  static final int? commitLogSizeInKB = AtSecondaryConfig.commitLogSizeInKB;
-  static final int? accessLogCompactionFrequencyMins =
-      AtSecondaryConfig.accessLogCompactionFrequencyMins;
-  static final int? accessLogCompactionPercentage =
-      AtSecondaryConfig.accessLogCompactionPercentage;
-  static final int? accessLogSizeInKB = AtSecondaryConfig.accessLogSizeInKB;
-  static final skipCommitsForExpiredKeys =
-      AtSecondaryConfig.skipCommitsForExpiredKeys;
 
   late SecondaryAddressFinder secondaryAddressFinder;
   late OutboundClientManager outboundClientManager;
@@ -61,15 +49,15 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   late bool _isPaused;
 
-  var logger = AtSignLogger('AtSecondaryServer')..level = 'info';
+  var logger = AtSignLogger('AtSecondaryServer');
 
   factory AtSecondaryServerImpl.getInstance() {
     return _singleton;
   }
 
   AtSecondaryServerImpl._internal() {
-    logger.info('executableArguments: ${Platform.executableArguments}');
-    logger.info('DART_VM_OPTIONS: ${Platform.environment['DART_VM_OPTIONS']}');
+    logger.shout('executableArguments: ${Platform.executableArguments}');
+    logger.shout('DART_VM_OPTIONS: ${Platform.environment['DART_VM_OPTIONS']}');
 
     // TODO There's a whole lifecycle mess here that needs to be cleaned up
     // at some point. Currently we create this singleton which then has a
@@ -179,7 +167,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
 
     currentAtSign = serverContext!.currentAtSign!.toAtsign();
-    logger.info('currentAtSign : $currentAtSign');
+    logger.shout('start(): currentAtSign : $currentAtSign');
 
     // Initialize persistent storage
     await _initializePersistentInstances();
@@ -212,7 +200,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         (expiringRunFreqMins! - 2) + Random().nextInt(8);
     logger.finest('Scheduling key expiry job every $expiryRunRandomMins mins');
     hivePersistenceManager.scheduleKeyExpireTask(3,
-        skipCommits: skipCommitsForExpiredKeys);
+        skipCommits: AtSecondaryConfig.skipCommitsForExpiredKeys);
 
     await secondaryKeyStore.deleteExpiredKeys();
 
@@ -220,8 +208,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     commitLogCompactionJobInstance =
         AtCompactionJob(commitLog, secondaryPersistenceStore);
     atCommitLogCompactionConfig = AtCompactionConfig()
-      ..compactionPercentage = commitLogCompactionPercentage
-      ..compactionFrequencyInMins = commitLogCompactionFrequencyMins!;
+      ..compactionPercentage = AtSecondaryConfig.commitLogCompactionPercentage
+      ..compactionFrequencyInMins =
+          AtSecondaryConfig.commitLogCompactionFrequencyMins;
     commitLogCompactionJobInstance
         .scheduleCompactionJob(atCommitLogCompactionConfig);
 
@@ -229,8 +218,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     accessLogCompactionJobInstance =
         AtCompactionJob(_accessLog, secondaryPersistenceStore);
     atAccessLogCompactionConfig = AtCompactionConfig()
-      ..compactionPercentage = accessLogCompactionPercentage!
-      ..compactionFrequencyInMins = accessLogCompactionFrequencyMins!;
+      ..compactionPercentage = AtSecondaryConfig.accessLogCompactionPercentage
+      ..compactionFrequencyInMins =
+          AtSecondaryConfig.accessLogCompactionFrequencyMins;
     accessLogCompactionJobInstance
         .scheduleCompactionJob(atAccessLogCompactionConfig);
 
@@ -239,9 +229,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         AtCompactionJob(notificationKeystore, secondaryPersistenceStore);
     atNotificationCompactionConfig = AtCompactionConfig()
       ..compactionPercentage =
-          AtSecondaryConfig.notificationKeyStoreCompactionPercentage!
+          AtSecondaryConfig.notificationKeyStoreCompactionPercentage
       ..compactionFrequencyInMins =
-          AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins!;
+          AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins;
     notificationKeyStoreCompactionJobInstance
         .scheduleCompactionJob(atNotificationCompactionConfig);
 
@@ -338,7 +328,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           ?.listen((newValue) async {
         //parse bool from string
         if (newValue.toString() == 'true') {
-          unawaited(certificateReloadJob!.checkAndRestartIfRequired());
+          unawaited(certificateReloadJob!
+              .checkAndRestartIfRequired(forceRestartThisTime: true));
         }
       });
 
@@ -364,9 +355,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     await StatsNotificationService.getInstance().schedule(currentAtSign);
 
     //initializes subscribers for dynamic config change 'config:Set'
-    if (AtSecondaryConfig.testingMode) {
-      await initDynamicConfigListeners();
-    }
+    await initDynamicConfigListeners();
 
     // clean up malformed keys from keystore
     await removeMalformedKeys();
@@ -418,89 +407,81 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       AtCompactionConfig atCompactionConfig,
       int newFrequency,
       AtLogType atLogType) async {
-    if (AtSecondaryConfig.testingMode) {
-      logger.finest(
-          'Received new frequency for $atLogType compaction: $newFrequency');
-      await atCompactionJob.stopCompactionJob();
-      logger.finest('Existing cron job of $atLogType compaction terminated');
-      atCompactionConfig.compactionFrequencyInMins = newFrequency;
-      atCompactionJob.scheduleCompactionJob(atCompactionConfig);
-      logger.finest('New compaction cron job started for $atLogType');
-    }
+    logger.finest(
+        'Received new frequency for $atLogType compaction: $newFrequency');
+    await atCompactionJob.stopCompactionJob();
+    logger.finest('Existing cron job of $atLogType compaction terminated');
+    atCompactionConfig.compactionFrequencyInMins = newFrequency;
+    atCompactionJob.scheduleCompactionJob(atCompactionConfig);
+    logger.finest('New compaction cron job started for $atLogType');
   }
 
   Future<void> initDynamicConfigListeners() async {
-    //only works if testingMode is set to true
-    if (AtSecondaryConfig.testingMode) {
-      logger.warning('testingMode in config.yaml is set to true.'
-          ' Please set to false if not required.');
-
-      //subscriber for inbound_max_limit change
-      logger.finest('Subscribing to dynamic changes made to inbound_max_limit');
-      AtSecondaryConfig.subscribe(ModifiableConfigs.inboundMaxLimit)
-          ?.listen((newSize) {
-        inboundConnectionManager.pool.resize(newSize);
-        logger.finest(
-            'inbound_max_limit change received. Modifying inbound_max_limit of server to $newSize');
-      });
-
-      //subscriber for notification keystore compaction freq change
+    //subscriber for inbound_max_limit change
+    logger.finest('Subscribing to dynamic changes made to inbound_max_limit');
+    AtSecondaryConfig.subscribe(ModifiableConfigs.inboundMaxLimit)
+        ?.listen((newSize) {
+      inboundConnectionManager.pool.resize(newSize);
       logger.finest(
-          'Subscribing to dynamic changes made to notificationKeystoreCompactionFreq');
-      AtSecondaryConfig.subscribe(
-              ModifiableConfigs.notificationKeyStoreCompactionFrequencyMins)
-          ?.listen((newFrequency) async {
-        await restartCompaction(notificationKeyStoreCompactionJobInstance,
-            atNotificationCompactionConfig, newFrequency, notificationKeystore);
-      });
+          'inbound_max_limit change received. Modifying inbound_max_limit of server to $newSize');
+    });
 
-      //subscriber for access log compaction frequency change
+    //subscriber for notification keystore compaction freq change
+    logger.finest(
+        'Subscribing to dynamic changes made to notificationKeystoreCompactionFreq');
+    AtSecondaryConfig.subscribe(
+            ModifiableConfigs.notificationKeyStoreCompactionFrequencyMins)
+        ?.listen((newFrequency) async {
+      await restartCompaction(notificationKeyStoreCompactionJobInstance,
+          atNotificationCompactionConfig, newFrequency, notificationKeystore);
+    });
+
+    //subscriber for access log compaction frequency change
+    logger.finest(
+        'Subscribing to dynamic changes made to accessLogCompactionFreq');
+    AtSecondaryConfig.subscribe(
+            ModifiableConfigs.accessLogCompactionFrequencyMins)
+        ?.listen((newFrequency) async {
+      await restartCompaction(accessLogCompactionJobInstance,
+          atAccessLogCompactionConfig, newFrequency, _accessLog);
+    });
+
+    //subscriber for commit log compaction frequency change
+    logger.finest(
+        'Subscribing to dynamic changes made to commitLogCompactionFreq');
+    AtSecondaryConfig.subscribe(
+            ModifiableConfigs.commitLogCompactionFrequencyMins)
+        ?.listen((newFrequency) async {
+      await restartCompaction(commitLogCompactionJobInstance,
+          atCommitLogCompactionConfig, newFrequency, commitLog);
+    });
+
+    //subscriber for autoNotify state change
+    logger.finest('Subscribing to dynamic changes made to autoNotify');
+    late bool autoNotifyState;
+    AtSecondaryConfig.subscribe(ModifiableConfigs.autoNotify)
+        ?.listen((newValue) {
+      //parse bool from string
+      if (newValue.toString() == 'true') {
+        autoNotifyState = true;
+      } else if (newValue.toString() == 'false') {
+        autoNotifyState = false;
+      }
       logger.finest(
-          'Subscribing to dynamic changes made to accessLogCompactionFreq');
-      AtSecondaryConfig.subscribe(
-              ModifiableConfigs.accessLogCompactionFrequencyMins)
-          ?.listen((newFrequency) async {
-        await restartCompaction(accessLogCompactionJobInstance,
-            atAccessLogCompactionConfig, newFrequency, _accessLog);
-      });
+          'Received new value for config \'autoNotify\': $autoNotifyState');
+      AbstractUpdateVerbHandler.setAutoNotify(autoNotifyState);
+      DeleteVerbHandler.setAutoNotify(autoNotifyState);
+    });
 
-      //subscriber for commit log compaction frequency change
-      logger.finest(
-          'Subscribing to dynamic changes made to commitLogCompactionFreq');
-      AtSecondaryConfig.subscribe(
-              ModifiableConfigs.commitLogCompactionFrequencyMins)
-          ?.listen((newFrequency) async {
-        await restartCompaction(commitLogCompactionJobInstance,
-            atCommitLogCompactionConfig, newFrequency, commitLog);
-      });
+    AtSecondaryConfig.subscribe(ModifiableConfigs.maxRequestsPerTimeFrame)
+        ?.listen((maxEnrollRequestsAllowed) {
+      AtSecondaryConfig.maxEnrollRequestsAllowed = maxEnrollRequestsAllowed;
+    });
 
-      //subscriber for autoNotify state change
-      logger.finest('Subscribing to dynamic changes made to autoNotify');
-      late bool autoNotifyState;
-      AtSecondaryConfig.subscribe(ModifiableConfigs.autoNotify)
-          ?.listen((newValue) {
-        //parse bool from string
-        if (newValue.toString() == 'true') {
-          autoNotifyState = true;
-        } else if (newValue.toString() == 'false') {
-          autoNotifyState = false;
-        }
-        logger.finest(
-            'Received new value for config \'autoNotify\': $autoNotifyState');
-        AbstractUpdateVerbHandler.setAutoNotify(autoNotifyState);
-        DeleteVerbHandler.setAutoNotify(autoNotifyState);
-      });
-
-      AtSecondaryConfig.subscribe(ModifiableConfigs.maxRequestsPerTimeFrame)
-          ?.listen((maxEnrollRequestsAllowed) {
-        AtSecondaryConfig.maxEnrollRequestsAllowed = maxEnrollRequestsAllowed;
-      });
-
-      AtSecondaryConfig.subscribe(ModifiableConfigs.timeFrameInMills)
-          ?.listen((timeWindowInMills) {
-        AtSecondaryConfig.timeFrameInMills = timeWindowInMills;
-      });
-    }
+    AtSecondaryConfig.subscribe(ModifiableConfigs.timeFrameInMillis)
+        ?.listen((timeWindowInMills) {
+      AtSecondaryConfig.timeFrameInMillis = timeWindowInMills;
+    });
   }
 
   webSocketListener(WebSocket ws) async {
@@ -546,14 +527,18 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     logger.finer('serverSocket _listen : ${serverSocket.runtimeType}');
     serverSocket.listen(((clientSocket) async {
-      logger.info(
-          'New client socket: selectedProtocol ${clientSocket.selectedProtocol}');
+      if (logger.isLoggable('finer')) {
+        logger.finer(
+            'New client socket: selectedProtocol ${clientSocket.selectedProtocol}');
+      }
       if (clientSocket.selectedProtocol == 'atProtocol/1.0' ||
           clientSocket.selectedProtocol == null) {
         InboundConnection? connection;
         try {
-          logger.info(
-              'In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
+          if (logger.isLoggable('finer')) {
+            logger.finer(
+                'In _listen - clientSocket.peerCertificate : ${clientSocket.peerCertificate}');
+          }
           connection = inboundConnectionManager.createSocketConnection(
               clientSocket,
               sessionId: SecondaryUtil.makeSessionId());
@@ -606,9 +591,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       _serverSocket = await SecureServerSocket.bind(
           InternetAddress.anyIPv4, serverContext!.port, secCon,
           requestClientCertificate: true);
-      logger.info(
+      logger.shout(
           'Secondary server started on version : ${AtSecondaryConfig.secondaryServerVersion} on root server : ${AtSecondaryConfig.rootServerUrl}');
-      logger.info('Secure Socket open for $currentAtSign !');
+      logger.shout('Secure Socket open for $currentAtSign !');
       _listen(_serverSocket);
     } else {
       logger.severe('certs not available');
@@ -619,7 +604,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   Future<void> _startUnSecuredServer() async {
     _serverSocket =
         await ServerSocket.bind(InternetAddress.anyIPv4, serverContext!.port);
-    logger.info('Unsecure Socket open');
+    logger.shout('Unsecure Socket open');
     _listen(_serverSocket);
   }
 
@@ -630,8 +615,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   ///Throws [InternalServerError] if error occurs in server.
   void _executeVerbCallBack(
       String command, InboundConnection connection) async {
-    logger.finer(logger.getAtConnectionLogMessage(
-        connection.metaData, 'inside _executeVerbCallBack: $command'));
+    if (logger.isLoggable('finer')) {
+      logger.finer(logger.getAtConnectionLogMessage(
+          connection.metaData, 'inside _executeVerbCallBack: $command'));
+    }
     try {
       if (_isPaused) {
         await GlobalExceptionHandler.getInstance().handle(
@@ -642,8 +629,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       }
 
       // We're not paused - let's try to execute the command
-      command = SecondaryUtil.convertCommand(command);
-      logger.finer('after conversion : $command');
+      // command = SecondaryUtil.convertCommand(command);
+      // logger.finer('after conversion : $command');
       await executor!.execute(command, connection, verbHandlerManager!);
     } on Exception catch (e, st) {
       await GlobalExceptionHandler.getInstance()
@@ -683,34 +670,34 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   Future<void> stop() async {
     pause();
     try {
-      logger.info("Executing server stop()");
+      logger.shout("Executing server stop()");
 
       //close server socket
-      logger.info("Closing ServerSocket");
+      logger.shout("Closing ServerSocket");
       _serverSocket.close();
 
-      logger.info("Stopping StatsNotificationService");
+      logger.shout("Stopping StatsNotificationService");
       await StatsNotificationService.getInstance().cancel();
 
-      logger.info("Terminating all inbound connections");
+      logger.shout("Terminating all inbound connections");
       inboundConnectionManager.close();
 
-      logger.info("Closing Notification Manager");
+      logger.shout("Closing Notification Manager");
       await notificationManager.close();
 
       secondaryKeyStore.preRemoveHooks.clear();
       secondaryKeyStore.postRemoveHooks.clear();
 
-      logger.info("Closing CommitLog");
+      logger.shout("Closing CommitLog");
       await AtCommitLogManagerImpl.getInstance().close();
-      logger.info("Closing AccessLog");
+      logger.shout("Closing AccessLog");
       await AtAccessLogManagerImpl.getInstance().close();
-      logger.info("Closing NotificationKeyStore");
+      logger.shout("Closing NotificationKeyStore");
       await notificationKeystore.close();
-      logger.info("Closing SecondaryKeyStore");
+      logger.shout("Closing SecondaryKeyStore");
       await SecondaryPersistenceStoreFactory.getInstance().close();
 
-      logger.info("Stopping scheduled tasks");
+      logger.shout("Stopping scheduled tasks");
       atRefreshJob.close();
       commitLogCompactionJobInstance.close();
       accessLogCompactionJobInstance.close();

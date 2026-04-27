@@ -20,8 +20,7 @@ class EnrollmentManager {
   static int cacheMisses = 0;
   static int cacheInvalidations = 0;
 
-  /// log messages here are important, so hard-coding level to 'info'
-  final AtSignLogger logger = AtSignLogger('EnrollmentManager')..level = 'info';
+  final AtSignLogger logger = AtSignLogger('EnrollmentManager');
 
   /// Keep a cache per enrollment key of both the json Map and the
   /// AtData as stored. We need to cache the AtData because we can only check
@@ -331,7 +330,7 @@ class EnrollmentManager {
     for (final candidateKey in candidates) {
       String candidateId = getIdFromKey(candidateKey);
       if (!enIds.contains(candidateId)) {
-        logger.warning('DELETING orphaned key $candidateKey');
+        logger.info('DELETING orphaned key $candidateKey');
         deletedOrphanedKeys.add(candidateKey);
         await keyStore.remove(candidateKey, skipCommit: true);
       } else {

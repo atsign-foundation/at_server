@@ -52,8 +52,10 @@ class OutboundClientManager {
         _pool.get(toAtSign, inboundConnection, isHandShake: handshakeRequired);
 
     if (client != null) {
-      logger.info(
-          'retrieved outbound client to $toAtSign (handshake: $handshakeRequired) from pool');
+      if (logger.isLoggable('info')) {
+        logger.info(
+            'retrieved outbound client to $toAtSign (handshake: $handshakeRequired) from pool');
+      }
       return client;
     }
 

@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:at_commons/at_commons.dart' show AtConstants;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
-import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:meta/meta.dart';
 
@@ -57,8 +57,6 @@ class StatsNotificationService {
   AtCommitLog? atCommitLog;
 
   static final Duration zeroDuration = Duration(microseconds: 0);
-
-  Notification notification = Notification.empty();
 
   @visibleForTesting
   StatsNotificationServiceState state =
@@ -139,25 +137,25 @@ class StatsNotificationService {
     }
     // For each inbound connection: if it is a monitor, write stats
     int numOfMonitorConn = 0;
-    notification
-      ..id = '-1'
-      ..fromAtSign = currentAtSign
-      ..notification = 'statsNotification.$currentAtSign'
-      ..toAtSign = currentAtSign
-      ..dateTime = DateTime.now().toUtc().millisecondsSinceEpoch
-      ..operation = SecondaryUtil.getOperationType(operationType)
-          .toString()
-          .replaceAll('OperationType.', '')
-      ..value = latestCommitID
-      ..messageType = MessageType.key.toString()
-      ..isTextMessageEncrypted = false;
+    final notifJsonEncoded = jsonEncode({
+      AtConstants.id: '-1',
+      AtConstants.from: currentAtSign,
+      AtConstants.to: currentAtSign,
+      AtConstants.key: 'statsNotification.$currentAtSign',
+      AtConstants.value: latestCommitID,
+      AtConstants.operation: SecondaryUtil.getOperationType(operationType).name,
+      AtConstants.epochMilliseconds: DateTime.now().millisecondsSinceEpoch,
+      AtConstants.messageType: MessageType.key.toString(),
+      AtConstants.isEncrypted: false,
+      // "metadata": metadata
+    });
     for (var connection in connectionsList) {
       if (connection.isMonitor ?? false) {
         numOfMonitorConn++;
         try {
           // Convert notification object to JSON and write to connection
           await connection.write('notification:'
-              ' ${jsonEncode(notification.toJson())}\n');
+              ' $notifJsonEncoded\n');
         } catch (e) {
           _logger.severe('Exception occurred when writing stats to'
               ' inbound connection session ${connection.metaData.sessionID}'

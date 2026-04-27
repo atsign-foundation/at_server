@@ -1,16 +1,16 @@
 import 'dart:collection';
 import 'dart:convert';
 
-import 'package:at_commons/at_commons.dart';
+import 'package:at_commons/at_commons.dart' hide StringBuffer;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
-import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 
 import 'abstract_verb_handler.dart';
+import 'monitor_verb_handler.dart';
 
 /// class to handle notify:list verb
 class NotifyListVerbHandler extends AbstractVerbHandler {
@@ -57,70 +57,72 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
     }
     var atConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
-    var responseList = [];
+    final RegExp? compiledRegex = regex == null ? null : RegExp(regex);
 
+    StringBuffer sb = StringBuffer();
+
+    sb.write('[');
     // If connection is authenticated, gets the received notifications of current atsign
     if (atConnectionMetadata.isAuthenticated) {
+      bool first = true;
       for (final k in await notifMgr.getKeys()) {
         AtNotification n = (await notifMgr.get(k))!;
-        if (n.type == NotificationType.received && !n.isExpired()) {
-          responseList.add(Notification(n));
-        }
-      }
-      var filteredResponseList = [];
-      for (Notification notification in responseList) {
-        var notificationKey = notification.notification;
-        try {
-          if (await super
-              .isAuthorized(atConnectionMetadata, atKey: notificationKey!)) {
-            filteredResponseList.add(notification);
+        if (n.type == NotificationType.received &&
+            !n.isExpired() &&
+            (await super
+                .isAuthorized(atConnectionMetadata, atKey: n.notification!)) &&
+            _matchesRequestFilters(
+              n,
+              fromDateInEpoch,
+              toDateInEpoch,
+              compiledRegex,
+            )) {
+          if (first) {
+            first = false;
+          } else {
+            sb.write(',');
           }
-        } catch (e) {
-          // This should never happen so we'll log it as severe
-          logger.severe(
-              'isAuthorized failed for $notificationKey: ${e.toString()}');
+          sb.write(jsonEncode(n.mapForClient));
         }
       }
-      responseList.clear();
-      responseList.addAll(filteredResponseList);
-    }
+    } else
     // If authenticated connection from another atSign (polAuthenticated),
     // gets the notifications which were sent to that atSign
     if (atConnectionMetadata.isPolAuthenticated) {
-      final notifyResult = await notifMgr.getFilteredSorted(
+      bool first = true;
+      for (var n in (await notifMgr.getFilteredSorted(
           retain: (n) {
             return n.type == NotificationType.sent &&
-                atConnectionMetadata.fromAtSign! == n.toAtSign;
+                atConnectionMetadata.fromAtSign! == n.toAtSign &&
+                _matchesRequestFilters(
+                  n,
+                  fromDateInEpoch,
+                  toDateInEpoch,
+                  compiledRegex,
+                );
           },
-          comparator: notifMgr.compareDateTime);
-
-      for (var element in notifyResult) {
-        responseList.add(Notification(element));
+          comparator: notifMgr.compareDateTime))) {
+        if (first) {
+          first = false;
+        } else {
+          sb.write(',');
+        }
+        sb.write(
+          jsonEncode(n.mapForClient),
+        );
       }
     }
+    sb.write(']');
 
-    responseList =
-        _applyFilter(responseList, fromDateInEpoch, toDateInEpoch, regex);
-    String? result;
-    if (responseList.isNotEmpty) {
-      result = jsonEncode(responseList);
-    }
-    response.data = result;
-  }
-
-  /// Applies filter criteria on the notifications
-  List _applyFilter(List notificationList, int? fromDateInEpoch,
-      int toDateInEpoch, String? regex) {
-    notificationList.retainWhere((notification) => _isNotificationRetained(
-        notification, fromDateInEpoch, toDateInEpoch, regex));
-    return notificationList;
+    response.data = sb.toString();
+    sb.clear();
   }
 
   /// Returns boolean value.
   /// Returns true if notification matches with the filter criteria
   /// Returns false if notification does not match with filter criteria
-  bool _isNotificationRetained(
-      Notification notification, fromDateInEpoch, toDateInEpoch, regex) {
+  bool _matchesRequestFilters(AtNotification notification, int? fromDateInEpoch,
+      int toDateInEpoch, RegExp? regex) {
     // If fromDateInEpoch and regex are null, filter criteria is not specified, hence
     // return true to retain the notification.
     if (fromDateInEpoch == null && regex == null) {
@@ -147,8 +149,8 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   /// @param notification : list of notifications
   /// @param regex : regular expression
   /// @return list : list of notifications that match the regular expression.
-  bool _applyRegexFilter(Notification notification, String regex) {
-    return notification.notification.toString().contains(RegExp(regex)) ||
+  bool _applyRegexFilter(AtNotification notification, RegExp regex) {
+    return notification.notification.toString().contains(regex) ||
         _isAtsignRegex(notification.fromAtSign!, regex);
   }
 
@@ -156,19 +158,16 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
   /// @param atSign : atsign user
   /// @param regex : regular expression to match with atsign
   /// @return bool : Returns true if atsign matches the regex, else false.
-  bool _isAtsignRegex(String atSign, String regex) {
-    var isAtsignRegex = false;
-    atSign = atSign.replaceAll('@', '');
-    if (atSign.contains(RegExp(regex))) {
-      isAtsignRegex = true;
-    }
-    return isAtsignRegex;
+  bool _isAtsignRegex(String atSign, RegExp regex) {
+    return atSign.replaceAll('@', '').contains(regex);
   }
 
   /// Filters notification basing on from and to date specified.
   bool _applyDateFilter(
-      Notification notification, int fromDateInEpoch, int toDateInEpoch) {
-    return notification.dateTime! >= fromDateInEpoch &&
-        notification.dateTime! <= toDateInEpoch;
+      AtNotification notification, int fromDateInEpoch, int toDateInEpoch) {
+    return notification.notificationDateTime!.millisecondsSinceEpoch >=
+            fromDateInEpoch &&
+        notification.notificationDateTime!.millisecondsSinceEpoch <=
+            toDateInEpoch;
   }
 }

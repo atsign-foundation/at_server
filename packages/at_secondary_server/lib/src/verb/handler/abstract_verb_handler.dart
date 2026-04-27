@@ -95,8 +95,10 @@ abstract class AbstractVerbHandler implements VerbHandler {
     // apply to such connections. Therefore, return true.
     if ((atConnectionMetadata as InboundConnectionMetadata).enrollmentId ==
         null) {
-      logger.finest(
-          "Enrollment id is not found. Returning true from _verifyIfEnrollmentIsActive");
+      if (logger.isLoggable('finest')) {
+        logger.finest(
+            "Enrollment id is not found. Returning true from _verifyIfEnrollmentIsActive");
+      }
       return (true, response);
     }
     try {
@@ -128,8 +130,10 @@ abstract class AbstractVerbHandler implements VerbHandler {
             'The enrollment id: ${(atConnectionMetadata).enrollmentId} is expired. Closing the connection';
       return (false, response);
     }
-    logger.finest(
-        "Enrollment id ${atConnectionMetadata.enrollmentId} is active. Returning true from _verifyIfEnrollmentIsActive");
+    if (logger.isLoggable('finest')) {
+      logger.finest(
+          "Enrollment id ${atConnectionMetadata.enrollmentId} is active. Returning true from _verifyIfEnrollmentIsActive");
+    }
     return (true, response);
   }
 

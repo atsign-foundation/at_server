@@ -21,6 +21,9 @@ import 'package:meta/meta.dart';
 class OutboundClient {
   static final logger = AtSignLogger('OutboundClient');
 
+  static final RegExp _dataPrefix = RegExp('^data:');
+  static final RegExp _trailingPrompt = RegExp(r'\n\S+');
+
   final InboundConnection inboundConnection;
   final String toAtSign;
   late OutboundMessageListener messageListener;
@@ -143,7 +146,7 @@ class OutboundClient {
     doing = 'checkRemotePublicKey removing "data:" from the response';
     try {
       if (remoteResponse.startsWith('data:')) {
-        remoteResponse = remoteResponse.replaceFirst(RegExp('^data:'), '');
+        remoteResponse = remoteResponse.replaceFirst(_dataPrefix, '');
       }
       doing =
           'checkRemotePublicKey parsing response from looking up $remotePublicKeyName';
@@ -252,7 +255,7 @@ class OutboundClient {
     // Actually read the response from the remote secondary
     String lookupResult =
         await messageListener.read(maxWaitMilliSeconds: lookupTimeoutMillis);
-    lookupResult = lookupResult.replaceFirst(RegExp(r'\n\S+'), '');
+    lookupResult = lookupResult.replaceFirst(_trailingPrompt, '');
     lastUsed = DateTime.now();
     return lookupResult;
   }
@@ -278,7 +281,7 @@ class OutboundClient {
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
     var scanResult = await messageListener.read();
-    scanResult = scanResult.replaceFirst(RegExp(r'\n\S+'), '');
+    scanResult = scanResult.replaceFirst(_trailingPrompt, '');
     lastUsed = DateTime.now();
     return scanResult;
   }

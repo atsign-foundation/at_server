@@ -27,15 +27,17 @@ class OutboundConnectionImpl<T extends Socket>
     metaData = OutboundConnectionMetadata()
       ..sessionID = sessionId
       ..toAtSign = toAtSign
-      ..created = DateTime.now().toUtc()
+      ..created = DateTime.timestamp()
       ..isCreated = true;
 
-    logger.info(logger.getAtConnectionLogMessage(
-        metaData,
-        'New connection ('
-        'this side: ${underlying.address}:${underlying.port}'
-        ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
-        ')'));
+    if (logger.isLoggable('info')) {
+      logger.info(logger.getAtConnectionLogMessage(
+          metaData,
+          'New connection ('
+          'this side: ${underlying.address}:${underlying.port}'
+          ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
+          ')'));
+    }
 
     socket.done.onError((error, stackTrace) {
       logger
@@ -47,7 +49,7 @@ class OutboundConnectionImpl<T extends Socket>
   int _getIdleTimeMillis() {
     var lastAccessedTime = metaData.lastAccessed;
     lastAccessedTime ??= metaData.created;
-    var currentTime = DateTime.now().toUtc();
+    var currentTime = DateTime.timestamp();
     return currentTime.difference(lastAccessedTime!).inMilliseconds;
   }
 
@@ -72,12 +74,14 @@ class OutboundConnectionImpl<T extends Socket>
 
     try {
       var socket = underlying;
-      logger.info(logger.getAtConnectionLogMessage(
-          metaData,
-          'destroying socket ('
-          'this side: ${underlying.address}:${underlying.port}'
-          ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
-          ')'));
+      if (logger.isLoggable('info')) {
+        logger.info(logger.getAtConnectionLogMessage(
+            metaData,
+            'destroying socket ('
+            'this side: ${underlying.address}:${underlying.port}'
+            ' remote side: ${underlying.remoteAddress}:${underlying.remotePort}'
+            ')'));
+      }
       socket.destroy();
     } catch (_) {
       // Ignore exception on a connection close
@@ -90,7 +94,9 @@ class OutboundConnectionImpl<T extends Socket>
   @override
   Future<void> write(String data) async {
     await super.write(data);
-    logger.info(logger.getAtConnectionLogMessage(
-        metaData, 'SENT: ${BaseSocketConnection.truncateForLogging(data)}'));
+    if (logger.isLoggable('info')) {
+      logger.info(logger.getAtConnectionLogMessage(
+          metaData, 'SENT: ${BaseSocketConnection.truncateForLogging(data)}'));
+    }
   }
 }

@@ -5,7 +5,6 @@ import 'dart:collection';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
-import 'package:at_persistence_secondary_server/src/utils/object_util.dart';
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
@@ -32,6 +31,26 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   /// of keys with TTL or TTB set, to efficiently track the active or expired state
   /// of each key based on their respective TTB or TTL values.
   final HashMap<String, Map<String, DateTime?>> _expiryKeysCache = HashMap();
+
+  /// Bounded LRU of compiled regexes used by [getKeys]. Most callers reuse
+  /// the same handful of patterns (`.*`, namespace selectors, sync filters);
+  /// recompiling them per call is pure churn.
+  static const int _regexCacheCapacity = 64;
+  static final LinkedHashMap<String, RegExp> _regexCache = LinkedHashMap();
+
+  static RegExp _compiledRegex(String pattern) {
+    final cached = _regexCache.remove(pattern);
+    if (cached != null) {
+      _regexCache[pattern] = cached; // bump to most-recently-used
+      return cached;
+    }
+    final compiled = RegExp(pattern);
+    _regexCache[pattern] = compiled;
+    if (_regexCache.length > _regexCacheCapacity) {
+      _regexCache.remove(_regexCache.keys.first);
+    }
+    return compiled;
+  }
 
   HiveKeystore();
 
@@ -168,26 +187,27 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     // Default commitOp to Update.
     commitOp = CommitOp.UPDATE;
 
-    // Set CommitOp to UPDATE_ALL if any of the metadata args are not null
-    if (ObjectsUtil.anyNotNull({
-      value.metaData?.ttl,
-      value.metaData?.ttb,
-      value.metaData?.ttr,
-      value.metaData?.isCascade,
-      value.metaData?.isBinary,
-      value.metaData?.isEncrypted,
-      value.metaData?.dataSignature,
-      value.metaData?.sharedKeyEnc,
-      value.metaData?.pubKeyCS,
-      value.metaData?.encoding,
-      value.metaData?.encKeyName,
-      value.metaData?.encAlgo,
-      value.metaData?.ivNonce,
-      value.metaData?.skeEncKeyName,
-      value.metaData?.skeEncAlgo,
-      value.metaData?.pubKeyHash,
-      value.metaData?.immutable,
-    })) {
+    // Set CommitOp to UPDATE_ALL if any of the metadata args are not null.
+    // Direct null-check chain rather than allocating a 17-element Set per call.
+    final m = value.metaData;
+    if (m != null &&
+        (m.ttl != null ||
+            m.ttb != null ||
+            m.ttr != null ||
+            m.isCascade != null ||
+            m.isBinary != null ||
+            m.isEncrypted != null ||
+            m.dataSignature != null ||
+            m.sharedKeyEnc != null ||
+            m.pubKeyCS != null ||
+            m.encoding != null ||
+            m.encKeyName != null ||
+            m.encAlgo != null ||
+            m.ivNonce != null ||
+            m.skeEncKeyName != null ||
+            m.skeEncAlgo != null ||
+            m.pubKeyHash != null ||
+            m.immutable != null)) {
       commitOp = CommitOp.UPDATE_ALL;
     }
 
@@ -292,8 +312,9 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   @server
   Future<List<String>> getExpiredKeys() async {
     List<String> expiredKeys = <String>[];
+    final now = DateTime.timestamp();
     for (String key in _expiryKeysCache.keys) {
-      if (_isExpired(key)) {
+      if (_isExpired(key, now: now)) {
         expiredKeys.add(key);
       }
     }
@@ -312,22 +333,25 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     }
     List<String> keys = <String>[];
     regex ??= '.*';
-    RegExp regExp = RegExp(regex);
-    String key;
+    final RegExp regExp;
+    try {
+      regExp = _compiledRegex(regex);
+    } on FormatException catch (exception) {
+      logger.severe('Invalid regular expression : $regex');
+      throw InvalidSyntaxException('Invalid syntax ${exception.toString()}');
+    }
 
+    // Capture `now` once outside the loop and pass it into the availability
+    // check so each key doesn't allocate two DateTime objects.
+    final now = DateTime.timestamp();
+    String key;
     try {
       for (int index = 0;
           index < persistenceManager!.getBox().length;
           index++) {
         key = Utf7.decode(persistenceManager!.getBox().keyAt(index));
-        try {
-          if (_isKeyAvailable(key) == true && (regExp.hasMatch(key))) {
-            keys.add(key);
-          }
-        } on FormatException catch (exception) {
-          logger.severe('Invalid regular expression : $regex');
-          throw InvalidSyntaxException(
-              'Invalid syntax ${exception.toString()}');
+        if (_isKeyAvailable(key, now: now) && regExp.hasMatch(key)) {
+          keys.add(key);
         }
       }
     } on Exception catch (exception) {
@@ -448,18 +472,19 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   }
 
   /// If a key is expired, returns true; else returns false.
-  bool _isExpired(key) {
+  bool _isExpired(key, {DateTime? now}) {
     // If key is not present in _expiryKeyCache, it implies that key does not
     // have TTL set. So, the key will never expire. Return false.
     if (!_expiryKeysCache.containsKey(key) ||
         _expiryKeysCache[key]![expiresAt] == null) {
       return false;
     }
-    return _expiryKeysCache[key]![expiresAt]!.isBefore(DateTime.now().toUtc());
+    return _expiryKeysCache[key]![expiresAt]!
+        .isBefore(now ?? DateTime.timestamp());
   }
 
   /// Return true if the key is active
-  bool _isBorn(key) {
+  bool _isBorn(key, {DateTime? now}) {
     // If key is not present in _expiryKeyCache, it implies that key does not
     // have TTB set. So, the key will be active. Return true.
     if (!_expiryKeysCache.containsKey(key) ||
@@ -467,19 +492,20 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       return true;
     }
     return _expiryKeysCache[key]![availableAt]!
-        .isBefore(DateTime.now().toUtc());
+        .isBefore(now ?? DateTime.timestamp());
   }
 
   /// Verifies if the given key is active.
   /// If key is active, returns "true", else returns "false"
-  bool _isKeyAvailable(key) {
+  bool _isKeyAvailable(key, {DateTime? now}) {
     // If _expiryKeyCache does not contain the key, then it implies
     // that key does not have TTL or TTB set.
     // So, the key never expires; return true.
     if (!_expiryKeysCache.containsKey(key)) {
       return true;
     }
-    return !_isExpired(key) && _isBorn(key);
+    final t = now ?? DateTime.timestamp();
+    return !_isExpired(key, now: t) && _isBorn(key, now: t);
   }
 
   /// Adds an entry where key is AtKey and value is Map containing the "expiresAt"

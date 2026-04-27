@@ -11,6 +11,7 @@ import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
+import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
 
 /// ScanVerbHandler class is used to process scan verb
@@ -121,6 +122,12 @@ class ScanVerbHandler extends AbstractVerbHandler {
       String currentAtSign) async {
     List<String> localKeysList =
         keyStore.getKeys(regex: scanRegex) as List<String>;
+    if (logger.logger.isLoggable(Level.INFO)) {
+      logger.info('${localKeysList.length} local keys for regex $scanRegex');
+    } else if (logger.logger.isLoggable(Level.FINER)) {
+      logger.finer('${localKeysList.length} local keys for regex $scanRegex'
+          ' : $localKeysList');
+    }
     if (atConnectionMetadata.isAuthenticated) {
       localKeysList
           .removeWhere((key) => _isPrivateKeyForAtSign(key, showHiddenKeys));

@@ -67,7 +67,8 @@ class AtCertificateValidationJob {
   /// required and if so, it
   /// - waits for [waitUntilReadyToRestart]
   /// - waits for [restartServer]
-  Future<void> checkAndRestartIfRequired() async {
+  Future<void> checkAndRestartIfRequired(
+      {bool forceRestartThisTime = false}) async {
     if (_checkInProgress) {
       logger.info(
           'checkAndRestartIfRequired called - but checkAndRestartIfRequired is already in progress. Returning.');
@@ -81,8 +82,10 @@ class AtCertificateValidationJob {
       bool shouldRestart = await isRestartRequired();
       if (shouldRestart) {
         logger.info('Restart is required');
-        if (forceRestart) {
-          logger.info('forceRestart is true - will restart immediately');
+        if (forceRestart || forceRestartThisTime) {
+          logger.info('forceRestart is true - will restart in 3 seconds');
+          AtSecondaryServerImpl.getInstance().pause();
+          await Future.delayed(Duration(seconds: 3));
         } else {
           logger.info('Waiting until ready to restart');
           await waitUntilReadyToRestart();

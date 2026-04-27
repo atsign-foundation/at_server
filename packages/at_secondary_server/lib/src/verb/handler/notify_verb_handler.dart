@@ -80,8 +80,6 @@ class NotifyVerbHandler extends AbstractVerbHandler {
         verbParams[AtConstants.atSign] =
             AtUtils.fixAtSign(verbParams[AtConstants.atSign]!);
       }
-      logger.finer(
-          'fromAtSign : ${atConnectionMetadata.fromAtSign} \n atSign : ${verbParams[AtConstants.atSign]} \n key : ${verbParams[AtConstants.atKey]}');
       // When connection is authenticated, it indicates the sender side of the
       // the notification
       // If the currentAtSign and forAtSign are same, store the notification and return
@@ -108,7 +106,9 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnectionMetadata polConnectionMetadata,
       Response response) async {
-    logger.info('Processing notification id ${verbParams[AtConstants.id]}');
+    if (logger.isLoggable('info')) {
+      logger.info('Processing notification id ${verbParams[AtConstants.id]}');
+    }
 
     var atNotificationBuilder = _populateNotificationBuilder(verbParams,
         fromAtSign: polConnectionMetadata.fromAtSign!.toAtsign());
@@ -238,8 +238,6 @@ class NotifyVerbHandler extends AbstractVerbHandler {
           'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'
           ' is not authorized to notify key: $keyToNotify');
     }
-    logger.finer(
-        'currentAtSign : $currentAtSign, forAtSign : ${verbParams[AtConstants.forAtSign]}, atSign : ${verbParams[AtConstants.atSign]}');
     final atNotificationBuilder =
         _populateNotificationBuilder(verbParams, fromAtSign: currentAtSign);
     // If the currentAtSign and forAtSign are same, mark as "delivered"
@@ -262,12 +260,16 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     var atData = AtData();
     atData.data = atValue;
     atData.metaData = atMetaData;
-    logger.info('Cached $cachedKey :  $atMetaData');
+    if (logger.isLoggable('info')) {
+      logger.info('Cached $cachedKey :  $atMetaData');
+    }
     return await keyStore.put(cachedKey, atData);
   }
 
   Future<int> _updateMetadata(String cachedKey, AtMetaData? atMetaData) async {
-    logger.info('Updating the metadata of $cachedKey');
+    if (logger.isLoggable('info')) {
+      logger.info('Updating the metadata of $cachedKey');
+    }
     return await keyStore.putMeta(cachedKey, atMetaData);
   }
 
@@ -275,7 +277,9 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   Future<int?> _removeCachedKey(String cachedKey) async {
     var metadata = await keyStore.getMeta(cachedKey);
     if (metadata != null && metadata.isCascade) {
-      logger.info('Removed cached key $cachedKey');
+      if (logger.isLoggable('info')) {
+        logger.info('Removed cached key $cachedKey');
+      }
       return await keyStore.remove(cachedKey);
     } else {
       return null;

@@ -1,5 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
@@ -27,6 +28,7 @@ import 'package:at_commons/at_commons.dart';
 ///
 class ConfigVerbHandler extends AbstractVerbHandler {
   static Config config = Config();
+
   ConfigVerbHandler(super.keyStore);
 
   late AtConfig atConfigInstance;
@@ -95,39 +97,33 @@ class ConfigVerbHandler extends AbstractVerbHandler {
             ModifiableConfigs.values.byName(verbParams[AtConstants.configNew]!);
       }
 
-      //implementation for config:set
+      bool privileged = await isAuthorized(
+          atConnection.metaData as InboundConnectionMetadata,
+          namespace: '__config');
       switch (setOperation) {
         case 'set':
-          if (AtSecondaryConfig.testingMode) {
-            //broadcast new config change
-            try {
-              AtSecondaryConfig.broadcastConfigChange(
-                  setConfigName!, int.parse(setConfigValue!));
-            } catch (e) {
-              AtSecondaryConfig.broadcastConfigChange(
-                  setConfigName!, setConfigValue!);
-            }
-            result = 'ok';
-          } else {
-            result = 'testing mode disabled by default';
+          if (!privileged) {
+            throw UnAuthorizedException('Unauthorized');
           }
+          try {
+            AtSecondaryConfig.broadcastConfigChange(
+                setConfigName!, int.parse(setConfigValue!));
+          } catch (e) {
+            AtSecondaryConfig.broadcastConfigChange(
+                setConfigName!, setConfigValue!);
+          }
+          result = 'ok';
           break;
         case 'reset':
-          if (AtSecondaryConfig.testingMode) {
-            //broadcast reset
-            AtSecondaryConfig.broadcastConfigChange(setConfigName!, null,
-                isReset: true);
-            result = 'ok';
-          } else {
-            result = 'testing mode disabled by default';
+          if (!privileged) {
+            throw UnAuthorizedException('Unauthorized');
           }
+          AtSecondaryConfig.broadcastConfigChange(setConfigName!, null,
+              isReset: true);
+          result = 'ok';
           break;
         case 'print':
-          if (AtSecondaryConfig.testingMode) {
-            result = AtSecondaryConfig.getLatestConfigValue(setConfigName!);
-          } else {
-            result = 'testing mode disabled by default';
-          }
+          result = AtSecondaryConfig.getLatestConfigValue(setConfigName!);
           break;
         default:
           result = 'invalid setOperation';

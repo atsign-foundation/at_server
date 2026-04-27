@@ -161,13 +161,10 @@ class GlobalExceptionHandler {
     // The JSON encoding of error message is supported by the client versions greater than 3.0.37
     if (Version.parse(atConnection.metaData.clientVersion) >
         Version(3, 0, 37)) {
-      logger.info(
-          'Client version supports json encoding.. returning Json encoded error message');
-      var errorJsonMap = {
-        'errorCode': errorCode,
-        'errorDescription': errorDescription
-      };
-      await atConnection.write('error:${jsonEncode(errorJsonMap)}\n$prompt');
+      await atConnection.write('error:${jsonEncode({
+            'errorCode': errorCode,
+            'errorDescription': errorDescription
+          })}\n$prompt');
       return;
     }
     // Defaults to return the error message in string format if all the conditions fails

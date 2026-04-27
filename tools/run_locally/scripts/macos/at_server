@@ -64,7 +64,7 @@ export accessLogPath="$storageDir/accessLog"
 export notificationStoragePath="$storageDir/notificationLog.v1"
 export inbound_max_limit=200
 
-export logLevel="SEVERE"
+export logLevel="INFO"
 
 export testingMode="true"
 
@@ -89,4 +89,8 @@ else
   observeParams="--observe=$observePort"
 fi
 
-dart --use_compactor --idle_duration_micros=100000 --use_compactor --force_evacuation --mark_when_idle --old_gen_growth_time_ratio=50 --old_gen_growth_space_ratio=10 $observeParams "$scriptDir"/../../../../packages/at_secondary_server/bin/main.dart -a "$atSign" -p "$port" -s "$secret"
+#  --timeline_recorder=file:$atSign.gc.json --timeline_streams=GC \
+dart \
+  --use_compactor --dontneed_on_sweep --old_gen_growth_time_ratio=50 --old_gen_growth_space_ratio=10 --new_gen_semi_max_size=8 \
+  $observeParams \
+  "$scriptDir"/../../../../packages/at_secondary_server/bin/main.dart -a "$atSign" -p "$port" -s "$secret"

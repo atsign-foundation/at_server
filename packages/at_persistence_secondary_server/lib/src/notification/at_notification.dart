@@ -163,11 +163,14 @@ class AtNotification {
   /// or [expiresAt]
   bool isExpired() {
     // expiresAt == null never made sense and never now happens
-    return notificationStatus == NotificationStatus.expired ||
+    if (notificationStatus == NotificationStatus.expired ||
         expiresAt == null ||
-        expiresAt!.isBefore(DateTime.now().toUtc()) ||
-        notificationDateTime == null ||
-        notificationDateTime!.isBefore(DateTime.now().subtract(maxTtl));
+        notificationDateTime == null) {
+      return true;
+    }
+    final now = DateTime.timestamp();
+    return expiresAt!.isBefore(now) ||
+        notificationDateTime!.isBefore(now.subtract(maxTtl));
   }
 }
 

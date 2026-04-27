@@ -10,7 +10,7 @@ class DummyInboundConnection implements InboundConnection {
   int maxRequestsPerTimeFrame = AtSecondaryConfig.maxEnrollRequestsAllowed;
 
   @override
-  int timeFrameInMillis = AtSecondaryConfig.timeFrameInMills;
+  int timeFrameInMillis = AtSecondaryConfig.timeFrameInMillis;
 
   @override
   void acceptRequests(Function(String p1, InboundConnection p2) callback,

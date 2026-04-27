@@ -18,7 +18,9 @@ class DefaultVerbExecutor implements VerbExecutor {
   Future<void> execute(String utf8EncodedCommand,
       InboundConnection fromConnection, VerbHandlerManager verbManager) async {
     var handler = verbManager.getVerbHandler(utf8EncodedCommand);
-    logger.finer('verb handler found : ${handler.runtimeType}');
+    if (logger.isLoggable('finer')) {
+      logger.finer('verb handler found : ${handler.runtimeType}');
+    }
     if (handler == null) {
       logger.severe('No handler found for command: $utf8EncodedCommand');
       throw InvalidSyntaxException('invalid command');

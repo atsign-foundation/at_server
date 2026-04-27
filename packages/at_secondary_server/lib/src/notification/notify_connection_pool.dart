@@ -44,8 +44,10 @@ class NotifyConnectionsPool {
     var client = _outboundClientPool.get(toAtSign, inboundConnection);
 
     if (client != null) {
-      logger.info(
-          'retrieved outbound client to $toAtSign (handshake: true) from pool');
+      if (logger.isLoggable('info')) {
+        logger.info(
+            'retrieved outbound client to $toAtSign (handshake: true) from pool');
+      }
       return client;
     }
 

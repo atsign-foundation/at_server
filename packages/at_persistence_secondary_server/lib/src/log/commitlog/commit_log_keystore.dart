@@ -148,7 +148,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
 
   Future<List<int>> getExpired(int expiryInDays) async {
     var expiredKeys = <int>[];
-    var now = DateTime.now().toUtc();
+    var now = DateTime.timestamp();
     var commitLogMap = await toMap();
     commitLogMap.forEach((key, value) {
       if (value.opTime != null &&

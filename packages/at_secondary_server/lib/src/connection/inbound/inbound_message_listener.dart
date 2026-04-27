@@ -11,6 +11,7 @@ import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:logging/logging.dart' show Level;
 
 ///Listener class for messages received by [InboundConnection]
 /// For each incoming message [DefaultVerbExecutor()] execute is invoked
@@ -51,8 +52,10 @@ class InboundMessageListener {
           if (_buffer.isEnd()) {
             var command = utf8.decode(_buffer.getData());
             command = command.trim();
-            logger.info(logger.getAtConnectionLogMessage(connection.metaData,
-                'RCVD: ${BaseSocketConnection.truncateForLogging(command)}'));
+            if (logger.logger.isLoggable(Level.INFO)) {
+              logger.info(logger.getAtConnectionLogMessage(connection.metaData,
+                  'RCVD: ${BaseSocketConnection.truncateForLogging(command)}'));
+            }
             // if command is '@exit', close the connection.
             if (command == '@exit') {
               await _finishedHandler();
@@ -79,9 +82,11 @@ class InboundMessageListener {
   /// Handles messages on the inbound client's connection and adds them to _buffer's stream.
   /// Closes the inbound connection in case of any error.
   Future<void> _messageHandler(streamData) async {
-    connection.metaData.lastAccessed = DateTime.now().toUtc();
-    logger.finest('_messageHandler received ${streamData.runtimeType}'
-        ' : $streamData ');
+    connection.metaData.lastAccessed = DateTime.timestamp();
+    if (logger.isLoggable('finest')) {
+      logger.finest('_messageHandler received ${streamData.runtimeType}'
+          ' : $streamData ');
+    }
     List<int> data;
     if (streamData is List<int>) {
       data = streamData;
@@ -139,6 +144,11 @@ class InboundMessageListener {
 }
 
 class StreamableByteBuffer extends at_commons.ByteBuffer {
+  /// Shared sentinel for the append signal — the stream listener discards
+  /// the payload (it reads getData() instead), so we don't need to copy
+  /// the bytes per chunk.
+  static final Uint8List _appendSignal = Uint8List(0);
+
   final StreamController<Uint8List> _controller = StreamController<Uint8List>();
   Stream<Uint8List> get stream => _controller.stream;
   bool validated = false;
@@ -148,7 +158,7 @@ class StreamableByteBuffer extends at_commons.ByteBuffer {
   @override
   void append(dynamic data) {
     List<int> bytes = data as List<int>;
-    _controller.add(Uint8List.fromList(bytes));
+    _controller.add(_appendSignal);
     super.append(bytes);
   }
 
