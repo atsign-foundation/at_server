@@ -1,3 +1,30 @@
+# 3.13.0
+
+- refactor: the persistence layer is now wired through the new
+  `AtPersistenceFactory` injected into `AtSecondaryServerImpl`,
+  replacing direct `*.getInstance()` calls in the bootstrap path
+  (`_initializePersistentInstances`, `start`, `stop`).
+- refactor: every `getInstance()` call onto the legacy persistence
+  singletons has been removed from `lib/`. Verb handlers
+  (`from`, `cram`, `lookup`, `pol`, `proxy_lookup`, `config`,
+  `sync_progressive`) take their needed `AtCommitLog` and/or
+  `AtAccessLog` via constructor; `DefaultVerbHandlerManager`
+  threads them in. `metrics_impl` reads from `atServer.commitLog`,
+  `atServer.accessLog`, `atServer.secondaryKeyStore`.
+  `StatsNotificationService.schedule()` takes its `AtCommitLog`
+  parameter rather than fetching it lazily.
+  `SecondaryUtil.saveCookie` takes the `SecondaryKeyStore` parameter.
+- chore: `_accessLog` field on `AtSecondaryServerImpl` is now
+  publicly named `accessLog`.
+- chore: `DefaultVerbHandlerManager`'s constructor now takes
+  `commitLog` and `accessLog` parameters (placed before the trailing
+  `atSign` positional). External consumers that construct it
+  directly will need to pass these.
+- test: `test_utils.dart`'s `verbTestsSetUp` / `verbTestsTearDown`
+  now drive a `HiveAtPersistenceFactory` instead of calling the
+  per-singleton `getInstance()` paths. The `atServer.<field> = …`
+  injection seam is preserved.
+
 # 3.12.0
 
 - perf: substantial reduction in per-request heap allocations on the

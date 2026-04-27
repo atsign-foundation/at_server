@@ -219,24 +219,36 @@ void verbTestsSetUpLogging() {
 
 verbTestsSetUpAll() async {
   verbTestsSetUpLogging();
+  // Pre-warm an access log on the singleton so any test that runs before a
+  // setUp can still hit it. Routed through the deprecated singleton on
+  // purpose — this is bootstrap-only and matches the pre-factory shape.
+  // ignore: deprecated_member_use
   await AtAccessLogManagerImpl.getInstance()
       .getAccessLog(alice, accessLogPath: storageDir);
 }
 
 verbTestsSetUp() async {
   verbTestsSetUpLogging();
-  // Initialize secondary persistent store
-  atServer.secondaryPersistenceStore = secondaryPersistenceStore =
-      SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(alice)!;
-  // Initialize commit log
-  atServer.commitLog = atCommitLog = (await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog(alice, commitLogPath: storageDir, enableCommitId: true))!;
-  secondaryPersistenceStore.getSecondaryKeyStore()?.commitLog = atCommitLog;
-  // Init the hive instances
-  await secondaryPersistenceStore.getHivePersistenceManager()!.init(storageDir);
+  // Wire up persistence through the new factory rather than the legacy
+  // singletons. The factory routes through the singletons internally
+  // (Phase 1 wiring) so any test that still calls
+  // *.getInstance() sees the same per-atSign instances.
+  final factory =
+      atServer.persistenceFactory = HiveAtPersistenceFactory();
+  final config = HivePersistenceConfig(
+    storagePath: storageDir,
+    commitLogPath: storageDir,
+    accessLogPath: storageDir,
+    notificationStoragePath: storageDir,
+  );
+  final bundle =
+      (await factory.initialize(alice, config)) as HiveAtPersistenceBundle;
 
-  secondaryKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
+  atServer.secondaryPersistenceStore =
+      secondaryPersistenceStore = bundle.secondaryPersistenceStore;
+  atServer.commitLog = atCommitLog = bundle.commitLog;
+  atServer.accessLog = bundle.accessLog;
+  secondaryKeyStore = bundle.keyStore;
 
   mockSecondaryAddressFinder = MockSecondaryAddressFinder();
   when(() => mockSecondaryAddressFinder.findSecondary(bob))
@@ -322,8 +334,7 @@ verbTestsSetUp() async {
     return MockStreamSubscription();
   });
 
-  notifStore = atServer.notificationKeystore = AtNotificationKeystore(alice);
-  await notifStore.init(storageDir);
+  notifStore = atServer.notificationKeystore = bundle.notificationKeystore;
 
   notificationManager = atServer.notificationManager = NotificationManager(
       alice,
@@ -392,9 +403,10 @@ verbTestsSetUp() async {
 Future<void> verbTestsTearDown() async {
   secondaryKeyStore.preRemoveHooks.clear();
   secondaryKeyStore.postRemoveHooks.clear();
-  await SecondaryPersistenceStoreFactory.getInstance().close();
-  await AtCommitLogManagerImpl.getInstance().close();
-  await notifStore.close();
+  // factory.close() cascades to commit log, access log, notification
+  // keystore and the Hive persistence manager, and clears the legacy
+  // singletons' caches.
+  await atServer.persistenceFactory.close();
   var isExists = await Directory(storageDir).exists();
   if (isExists) {
     Directory(storageDir).deleteSync(recursive: true);
