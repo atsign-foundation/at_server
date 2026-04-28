@@ -1,15 +1,3 @@
-# 3.14.0
-
-- refactor: `AtConfig` (block-list configuration) moves here from
-  `at_persistence_secondary_server` and now lives at
-  `package:at_secondary/src/config/at_config.dart`. The class is
-  fully backend-agnostic — constructor takes a `SecondaryKeyStore`
-  (not an `AtCommitLog`), reads / writes go through the abstract
-  keystore, and writes pass `skipCommit: true` so block-list state
-  no longer bumps the local `commitId`. Callers in
-  `from_verb_handler` and `config_verb_handler` updated; the
-  construction signature is now `AtConfig(keyStore, atSign)`.
-
 # 3.13.0
 
 - refactor: the persistence layer is now wired through the new
@@ -36,6 +24,15 @@
   now drive a `HiveAtPersistenceFactory` instead of calling the
   per-singleton `getInstance()` paths. The `atServer.<field> = …`
   injection seam is preserved.
+- refactor: `AtConfig` (block-list configuration) moves here from
+  `at_persistence_secondary_server` and now lives at
+  `package:at_secondary/src/config/at_config.dart`. The class is
+  fully backend-agnostic — constructor takes a `SecondaryKeyStore`
+  (not an `AtCommitLog`), reads / writes go through the abstract
+  keystore, and writes pass `skipCommit: true` so block-list state
+  no longer bumps the local `commitId`. Callers in
+  `from_verb_handler` and `config_verb_handler` updated; the
+  construction signature is now `AtConfig(keyStore, atSign)`.
 
 # 3.12.0
 
