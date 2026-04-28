@@ -3,7 +3,8 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/config/configuration.dart';
+import 'package:at_secondary/src/config/at_config.dart';
+import 'package:at_secondary/src/config/configuration.dart';
 import 'package:hive/hive.dart';
 import 'package:test/test.dart';
 
@@ -98,36 +99,27 @@ void main() async {
   });
 }
 
-Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
-  // ignore: deprecated_member_use_from_same_package
-  var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@test_user_1', commitLogPath: storageDir);
-  // ignore: deprecated_member_use_from_same_package
-  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore('@test_user_1')!;
-  persistenceManager = secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init(storageDir);
-  // commented this line for coverage test
-  // persistenceManager.scheduleKeyExpireTask(1);
-  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
-  hiveKeyStore.commitLog = commitLogInstance;
-  var keyStoreManager =
-      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
-  keyStoreManager.keyStore = hiveKeyStore;
-  keyStore = hiveKeyStore;
-  return keyStoreManager;
+late HiveAtPersistenceFactory _atConfigTestFactory;
+
+Future<void> setUpFunc(String storageDir) async {
+  _atConfigTestFactory = HiveAtPersistenceFactory();
+  final bundle = (await _atConfigTestFactory.initialize(
+    '@test_user_1',
+    HivePersistenceConfig(
+      storagePath: storageDir,
+      commitLogPath: storageDir,
+      accessLogPath: storageDir,
+      notificationStoragePath: storageDir,
+    ),
+  )) as HiveAtPersistenceBundle;
+  keyStore = bundle.keyStore;
+  persistenceManager = bundle.hivePersistenceManager;
 }
 
 Future<void> tearDownFunc() async {
-  // closes the instance of hive keystore
-  // ignore: deprecated_member_use_from_same_package
-  await SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore('@test_user_1')!
-      .getHivePersistenceManager()
-      ?.close();
-
-  var isExists = await Directory('test/hive/').exists();
-  if (isExists) {
-    await Directory('test/hive/').delete(recursive: true);
+  await _atConfigTestFactory.close();
+  var dir = Directory('test/hive/');
+  if (await dir.exists()) {
+    await dir.delete(recursive: true);
   }
 }

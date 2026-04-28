@@ -1,3 +1,22 @@
+## 4.5.0
+
+- refactor!: `AtConfig` now takes a `SecondaryKeyStore` (not an
+  `AtCommitLog`) by constructor. All reads / writes route through
+  the abstract keystore; writes pass `skipCommit: true` so block-list
+  changes no longer bump the local `commitId`. Drops three deprecated
+  `getInstance()` calls (`SecondaryPersistenceStoreFactory`,
+  `HiveKeyStoreHelper.prepareKey` / `prepareDataForKeystoreOperation`)
+  and all direct `LazyBox` / `HiveError` use. Eliminates the
+  redundant double-fetch in `addToBlockList` / `removeFromBlockList`.
+- breaking: `AtConfig` and `Configuration` have moved to
+  `package:at_secondary/src/config/`. `at_persistence_secondary_server`
+  no longer re-exports `AtConfig` (a deprecated re-export shim is
+  not feasible because `at_secondary` depends on
+  `at_persistence_secondary_server`, not the other way around). No
+  external consumers were found in a sweep of the atsign repos
+  (`at_client_sdk`, `at_services`, `at_tools`); update any local
+  imports to `package:at_secondary/src/config/at_config.dart`.
+
 ## 4.4.0
 
 - feat: introduce `AtPersistenceFactory` and `AtPersistenceBundle`
