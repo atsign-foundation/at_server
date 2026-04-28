@@ -4,11 +4,11 @@ import 'dart:io';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/config/configuration.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
 import 'package:hive/hive.dart';
 import 'package:test/test.dart';
 
 var storageDir = '${Directory.current.path}/test/hive';
+late SecondaryKeyStore keyStore;
 late HivePersistenceManager persistenceManager;
 void main() async {
   group('Verify blocklist configuration behaviour', () {
@@ -16,19 +16,13 @@ void main() async {
 
     test('test for adding data to blocklist', () async {
       var atsignsToBeBlocked = {'@alice', '@bob'};
-      var atConfigInstance = AtConfig(
-          await AtCommitLogManagerImpl.getInstance()
-              .getCommitLog('@test_user_1'),
-          '@test_user_1');
+      var atConfigInstance = AtConfig(keyStore, '@test_user_1');
       var result = await atConfigInstance.addToBlockList(atsignsToBeBlocked);
       expect(result, 'success');
     });
 
     test('test for fetching blocklist', () async {
-      var atConfigInstance = AtConfig(
-          await AtCommitLogManagerImpl.getInstance()
-              .getCommitLog('@test_user_1'),
-          '@test_user_1');
+      var atConfigInstance = AtConfig(keyStore, '@test_user_1');
       var atsignsToBeBlocked = {'@alice', '@bob'};
       await atConfigInstance.addToBlockList(atsignsToBeBlocked);
       var result = await atConfigInstance.getBlockList();
@@ -36,10 +30,7 @@ void main() async {
     });
 
     test('test for removing blocklist data', () async {
-      var atConfigInstance = AtConfig(
-          await AtCommitLogManagerImpl.getInstance()
-              .getCommitLog('@test_user_1'),
-          '@test_user_1');
+      var atConfigInstance = AtConfig(keyStore, '@test_user_1');
       var atsignsToBeBlocked = {'@alice', '@bob', '@charlie'};
       await atConfigInstance.addToBlockList(atsignsToBeBlocked);
       var atsignsToBeUnblocked = {'@alice', '@bob'};
@@ -53,10 +44,7 @@ void main() async {
 
     test('test for removing non existing data from blocklist', () async {
       var data = {'@alice', '@bob'};
-      var atConfigInstance = AtConfig(
-          await AtCommitLogManagerImpl.getInstance()
-              .getCommitLog('@test_user_1'),
-          '@test_user_1');
+      var atConfigInstance = AtConfig(keyStore, '@test_user_1');
       await atConfigInstance.addToBlockList(data);
       var removeData = {'@colin'};
       var result = await atConfigInstance.removeFromBlockList(removeData);
@@ -65,34 +53,25 @@ void main() async {
 
     test('test for removing empty data', () async {
       var removeData = <String>{};
-      var atConfigInstance = AtConfig(
-          await AtCommitLogManagerImpl.getInstance()
-              .getCommitLog('@test_user_1'),
-          '@test_user_1');
+      var atConfigInstance = AtConfig(keyStore, '@test_user_1');
       expect(() async => await atConfigInstance.removeFromBlockList(removeData),
           throwsA(predicate((dynamic e) => e is IllegalArgumentException)));
     });
 
     test('test for removing null data', () async {
-      var atConfigInstance = AtConfig(
-          await AtCommitLogManagerImpl.getInstance()
-              .getCommitLog('@test_user_1'),
-          '@test_user_1');
+      var atConfigInstance = AtConfig(keyStore, '@test_user_1');
       expect(() async => await atConfigInstance.removeFromBlockList({}),
           throwsA(predicate((dynamic e) => e is IllegalArgumentException)));
     });
 
     // Manually insert block-list into keystore under the old config-key
-    // Successfully fetch block-list with new config-key indicating that the code
-    // is backwards compatible
-    // Verify that the old-config key has been deleted
+    // (bypassing keystore validation, which would reject the bare key
+    // 'configKey'). Successfully fetch block-list with the new config-key
+    // indicating that the migration code path is backwards compatible.
+    // Verify that the old-config key has been deleted.
     test('verify backwards compatibility of blocklist with new config-key',
         () async {
-      AtConfig atConfig = AtConfig(
-          await AtCommitLogManagerImpl.getInstance()
-              .getCommitLog('@test_user_1'),
-          '@test_user_1');
-      LazyBox box = atConfig.persistenceManager.getBox() as LazyBox;
+      AtConfig atConfig = AtConfig(keyStore, '@test_user_1');
       List<String> blockedAtsigns = [
         '@blocked_user_1',
         '@blocked_user_2',
@@ -100,17 +79,19 @@ void main() async {
       ];
       var blockedConfig = Configuration(blockedAtsigns);
       AtData atData = AtData()..data = jsonEncode(blockedConfig);
-      atData = HiveKeyStoreHelper.getInstance().prepareDataForKeystoreOperation(
-          atData,
-          atSign: persistenceManager.atsign!);
+      // Seed legacy state by writing under the old (validation-bypassing)
+      // key directly via Hive — that's how this data ended up in the
+      // keystore historically, and it's the scenario the migration path
+      // exists to repair.
+      LazyBox box = persistenceManager.getBox() as LazyBox;
       await box.put(atConfig.oldConfigKey, atData);
       // fetch the data that has been put into the keystore using the new config key
       var blockList = await atConfig.getBlockList();
       expect(blockList.toList(), blockedAtsigns);
       // verify that the new config key has been put into the keystore
-      expect(box.containsKey(atConfig.configKey), true);
+      expect(keyStore.isKeyExists(atConfig.configKey), true);
       // verify that the oldConfigKey has been deleted
-      expect(box.containsKey(atConfig.oldConfigKey), false);
+      expect(keyStore.isKeyExists(atConfig.oldConfigKey), false);
     });
 
     tearDown(() async => await tearDownFunc());
@@ -118,8 +99,10 @@ void main() async {
 }
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
+  // ignore: deprecated_member_use_from_same_package
   var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog('@test_user_1', commitLogPath: storageDir);
+  // ignore: deprecated_member_use_from_same_package
   var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore('@test_user_1')!;
   persistenceManager = secondaryPersistenceStore.getHivePersistenceManager()!;
@@ -131,11 +114,13 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
   var keyStoreManager =
       secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   keyStoreManager.keyStore = hiveKeyStore;
+  keyStore = hiveKeyStore;
   return keyStoreManager;
 }
 
 Future<void> tearDownFunc() async {
   // closes the instance of hive keystore
+  // ignore: deprecated_member_use_from_same_package
   await SecondaryPersistenceStoreFactory.getInstance()
       .getSecondaryPersistenceStore('@test_user_1')!
       .getHivePersistenceManager()

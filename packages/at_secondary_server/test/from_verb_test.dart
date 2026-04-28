@@ -159,7 +159,7 @@ void main() async {
   group('A group of from verb handler with configuration test', () {
     test('test from verb handler to allow fromAtSign ', () async {
       var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
-      await AtConfig(AtSecondaryServerImpl.getInstance().commitLog,
+      await AtConfig(keyStoreManager.getKeyStore(),
               AtSecondaryServerImpl.getInstance().currentAtSign)
           .addToBlockList({'@bob'});
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
@@ -178,7 +178,7 @@ void main() async {
 
     test('test from verb handler to block fromAtSign ', () async {
       var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
-      await AtConfig(AtSecondaryServerImpl.getInstance().commitLog,
+      await AtConfig(keyStoreManager.getKeyStore(),
               AtSecondaryServerImpl.getInstance().currentAtSign)
           .addToBlockList({'@bob'});
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;

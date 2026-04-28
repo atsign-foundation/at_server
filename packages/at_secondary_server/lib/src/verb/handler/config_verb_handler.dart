@@ -55,7 +55,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-    atConfigInstance = AtConfig(commitLog, currentAtSign);
+    atConfigInstance = AtConfig(keyStore, currentAtSign);
     dynamic result;
     var operation = verbParams[AtConstants.operation];
     var atsigns = verbParams[AtConstants.atSign];

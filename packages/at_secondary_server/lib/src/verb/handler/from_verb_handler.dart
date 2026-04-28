@@ -52,7 +52,7 @@ class FromVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-    atConfigInstance = AtConfig(commitLog, currentAtSign);
+    atConfigInstance = AtConfig(keyStore, currentAtSign);
     atConnection.initiatedBy = currentAtSign;
     var atConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
