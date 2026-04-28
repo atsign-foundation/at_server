@@ -372,6 +372,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
   bool _isReadAllowed(Verb verb, String access) {
     return (verb is LocalLookup ||
             verb is Lookup ||
+            verb is Config ||
             verb is NotifyFetch ||
             verb is NotifyStatus ||
             verb is NotifyList ||
@@ -384,6 +385,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
   bool _isWriteAllowed(Verb verb, String access) {
     return (verb is Update ||
             verb is Delete ||
+            verb is Config ||
             verb is Notify ||
             verb is NotifyAll ||
             verb is NotifyRemove ||
