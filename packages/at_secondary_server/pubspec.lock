@@ -87,7 +87,7 @@ packages:
       path: "../at_persistence_secondary_server"
       relative: true
     source: path
-    version: "4.3.4"
+    version: "4.3.5"
   at_persistence_spec:
     dependency: "direct main"
     description:
