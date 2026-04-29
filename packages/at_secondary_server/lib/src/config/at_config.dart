@@ -9,13 +9,6 @@ import 'package:at_utils/at_logger.dart';
 class AtConfig {
   final logger = AtSignLogger('AtConfig');
 
-  /// Backwards-compatibility key from a previous schema. Kept so the
-  /// blocklist can be migrated on first read; deleted from the keystore
-  /// once migrated. Stored lowercase to match the on-disk form (legacy
-  /// writes went through `HiveKeyStoreHelper.prepareKey`, which
-  /// lowercases).
-  final String oldConfigKey = 'configkey';
-
   /// Current key under which the blocklist is stored.
   final String configKey;
 
@@ -33,7 +26,7 @@ class AtConfig {
           'Provided list of atsigns to block is empty');
     }
     try {
-      final existingData = await _getExistingData();
+      final existingData = await _get(configKey);
       final updated = _decodeBlockList(existingData)..addAll(blockList);
       return await _writeConfig(Configuration(updated.toList()));
     } on Exception catch (e) {
@@ -48,7 +41,7 @@ class AtConfig {
           'Provided list of atsigns to unblock is empty');
     }
     try {
-      final existingData = await _getExistingData();
+      final existingData = await _get(configKey);
       final current = _decodeBlockList(existingData);
       if (current.isEmpty) {
         return null;
@@ -63,8 +56,7 @@ class AtConfig {
   /// Returns blocklist by fetching from atsign's secondary.
   Future<Set<String>> getBlockList() async {
     try {
-      final existingData = await _getExistingData();
-      return _decodeBlockList(existingData);
+      return _decodeBlockList(await _get(configKey));
     } on Exception catch (e) {
       throw DataStoreException('Failed to fetch blocklist: $e');
     }
@@ -101,24 +93,5 @@ class AtConfig {
     } on KeyNotFoundException {
       return null;
     }
-  }
-
-  /// Fetches existing config data from the keystore.
-  ///
-  /// Tries the new [configKey] first. For backwards-compatibility, if no
-  /// data is found there, tries [oldConfigKey]; on hit, copies the data
-  /// under the new key and removes the old one.
-  Future<AtData?> _getExistingData() async {
-    var existingData = await _get(configKey);
-    if (existingData != null) return existingData;
-
-    existingData = await _get(oldConfigKey);
-    if (existingData?.data != null) {
-      final newAtData = AtData()..data = existingData!.data;
-      await _keyStore.put(configKey, newAtData, skipCommit: true);
-      logger.info('Successfully migrated configKey data to new key format');
-      await _keyStore.remove(oldConfigKey, skipCommit: true);
-    }
-    return existingData;
   }
 }
