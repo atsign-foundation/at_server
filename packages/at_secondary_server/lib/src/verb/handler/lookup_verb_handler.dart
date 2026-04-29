@@ -22,8 +22,8 @@ class LookupVerbHandler extends AbstractVerbHandler {
   final OutboundClientManager outboundClientManager;
   final AtCacheManager cacheManager;
   final EnrollmentManager enMgr;
-  final HiveAtAccessLog? _accessLogOverride;
-  HiveAtAccessLog get accessLog =>
+  final AtAccessLog? _accessLogOverride;
+  AtAccessLog get accessLog =>
       _accessLogOverride ?? AtSecondaryServerImpl.getInstance().accessLog;
 
   LookupVerbHandler(
@@ -31,7 +31,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     this.outboundClientManager,
     this.cacheManager,
     this.enMgr, {
-    HiveAtAccessLog? accessLog,
+    AtAccessLog? accessLog,
   }) : _accessLogOverride = accessLog;
 
   @override
@@ -116,7 +116,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection,
       Response response,
       String? operation,
-      HiveAtAccessLog? atAccessLog,
+      AtAccessLog? atAccessLog,
       String? byPassCacheStr) async {
     String lookupKey;
     // Just a bit of convenience here for those of us who frequently
@@ -156,7 +156,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
       String keyAtAtSign,
       Response response,
       String? operation,
-      HiveAtAccessLog? atAccessLog,
+      AtAccessLog? atAccessLog,
       String keyOwnersAtSign) async {
     if (atConnectionMetadata.fromAtSign == null ||
         atConnectionMetadata.fromAtSign!.isEmpty) {
@@ -199,7 +199,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
   _handleUnAuthenticatedConnection(
       String keyAtAtSign,
       Response response,
-      HiveAtAccessLog? atAccessLog,
+      AtAccessLog? atAccessLog,
       String keyOwnersAtSign,
       String? operation) async {
     // In the case of an unauthenticated connection, only public keys are accessible.
@@ -268,7 +268,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection,
       Response response,
       String? operation,
-      HiveAtAccessLog? atAccessLog,
+      AtAccessLog? atAccessLog,
       String keyOwnersAtSign) async {
     String lookupKey;
     // Just a bit of convenience here for those of us who frequently

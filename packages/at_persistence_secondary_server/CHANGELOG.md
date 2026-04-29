@@ -67,6 +67,27 @@
   split into server and client tracks (the impact differs
   significantly between consumers that run a full atSecondary
   versus those that only run a local-secondary cache).
+- feat!: introduce abstract `AtCommitLog` / `AtAccessLog` /
+  `AtNotificationKeystore` interfaces under the now-free unprefixed
+  names. The Hive concretes (`HiveAtCommitLog` etc.) implement
+  them; bundle fields type at the abstracts. Replaces the legacy
+  `BaseAtCommitLog` parent class. `SecondaryKeyStore` was already
+  abstract in `at_persistence_spec` and is unaffected.
+- feat: `AtPersistenceBundle` is now a slim core (`keyStore`,
+  `commitLog`, `scheduleKeyExpireTask`, `close`) plus optional
+  capabilities exposed as nullable getters (`accessLog?`,
+  `notificationKeystore?`). `AtPersistenceConfig` gains
+  `enableAccessLog` and `enableNotificationKeystore` toggles.
+  `HivePersistenceConfig.serverDefaults(...)` opts into every
+  capability; `HivePersistenceConfig.clientDefaults(...)` opts into
+  core only — the latter intended for at_client_sdk's local-secondary
+  cache.
+- feat: add `AtCommitLog.replay(CommitEntry)` and
+  `AtCommitLog.iterate({int? fromCommitId})`,
+  `AtAccessLog.iterate()`,
+  `AtNotificationKeystore.iterate()` for use by the Phase 3
+  persistence-backend migrator. `replay` writes an entry under its
+  supplied `commitId` without firing change-event listeners.
 
 ## 4.3.5
 

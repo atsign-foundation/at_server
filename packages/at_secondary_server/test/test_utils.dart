@@ -168,7 +168,7 @@ late MockOutboundConnection mockOutboundConnection;
 late MockSecondaryAddressFinder mockSecondaryAddressFinder;
 late MockSecureSocket mockSecureSocket;
 late DummyInboundConnection inboundConnection;
-late HiveAtNotificationKeystore notifStore;
+late AtNotificationKeystore notifStore;
 late NotificationManager notificationManager;
 late MockStatsNotificationService statsNotificationService;
 late EnrollmentManager enMgr;
@@ -180,7 +180,7 @@ late Function() socketOnDoneFn;
 late Function(Exception e, StackTrace st) socketOnErrorFn;
 
 String storageDir = '${Directory.current.path}/unit_test_storage';
-late HiveAtCommitLog atCommitLog;
+late AtCommitLog atCommitLog;
 
 /// Creates and persists a new approved enrollment
 /// NB: Does not go through enroll verb handler, so
@@ -243,7 +243,7 @@ verbTestsSetUp() async {
   final bundle = await factory.initialize(alice, config);
 
   atServer.commitLog = atCommitLog = bundle.commitLog;
-  atServer.accessLog = bundle.accessLog;
+  atServer.accessLog = bundle.accessLog!;
   secondaryKeyStore = bundle.keyStore;
 
   mockSecondaryAddressFinder = MockSecondaryAddressFinder();
@@ -330,7 +330,7 @@ verbTestsSetUp() async {
     return MockStreamSubscription();
   });
 
-  notifStore = atServer.notificationKeystore = bundle.notificationKeystore;
+  notifStore = atServer.notificationKeystore = bundle.notificationKeystore!;
 
   notificationManager = atServer.notificationManager = NotificationManager(
       alice,

@@ -6,10 +6,12 @@ import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
 
-/// Class to initialize, put and get entries into [HiveAtNotificationKeystore]
+/// Hive-backed implementation of [AtNotificationKeystore]: a
+/// queue of pending atSign-to-atSign notifications, persisted
+/// server-side.
 class HiveAtNotificationKeystore
     with HiveBase<AtNotification?>
-    implements SecondaryKeyStore, AtLogType<String, AtNotification> {
+    implements AtNotificationKeystore {
   late String currentAtSign;
   late String _boxName;
   static const int maxKeyLengthWithoutCached = 248;
@@ -232,4 +234,15 @@ class HiveAtNotificationKeystore
 
   @override
   AtLogType? commitLog;
+
+  @override
+  Stream<AtNotification> iterate() async* {
+    // The notification keystore is backed by a LazyBox, so we can't
+    // synchronously `box.get(key)` — use the Hive base's `getValue`,
+    // which awaits the lazy fetch.
+    for (final key in _getBox().keys) {
+      final entry = await getValue(key);
+      if (entry != null) yield entry;
+    }
+  }
 }

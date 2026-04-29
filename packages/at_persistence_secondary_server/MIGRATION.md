@@ -141,14 +141,140 @@ import via the package URL only need the class-name updates.
 
 ---
 
+## Bundle shape: slim core + optional capabilities
+
+`AtPersistenceBundle` is now split into a *core* (always present)
+plus *optional capabilities* (nullable, populated based on config):
+
+**Core (non-nullable):**
+
+- `String atSign`
+- `AtPersistenceBackendId backendId`
+- `SecondaryKeyStore keyStore`
+- `AtCommitLog commitLog`
+- `void scheduleKeyExpireTask(...)`
+- `Future<void> close()`
+
+**Optional capabilities (nullable):**
+
+- `AtAccessLog? accessLog`
+- `AtNotificationKeystore? notificationKeystore`
+
+The optional capabilities are populated based on `enable*` toggles
+on the config. Two factory constructors cover the common shapes:
+
+```dart
+// Server-shaped: opts into all capabilities (matches 4.3.5 behaviour
+// for any consumer that ran a full atSecondary).
+HivePersistenceConfig.serverDefaults(
+  storagePath: ...,
+  commitLogPath: ...,
+  accessLogPath: ...,
+  notificationStoragePath: ...,
+);
+
+// Client-shaped: opts into core only (keystore + commit log +
+// scheduler). Suitable for at_client_sdk's local-secondary cache.
+HivePersistenceConfig.clientDefaults(
+  storagePath: ...,
+  commitLogPath: ...,
+);
+```
+
+The bundle's `accessLog` and `notificationKeystore` getters are
+nullable. **Server callers that previously read them as non-null
+need to bind via `!`** after asserting the capability is present.
+Recommended pattern, used in this repo's `AtSecondaryServerImpl`:
+
+```dart
+final bundle = await persistenceFactory.initialize(atSign, config);
+
+// Asserts that bundle.accessLog and bundle.notificationKeystore are
+// non-null; throws StateError if the config disabled them.
+_assertServerCapabilities(bundle);
+
+late AtAccessLog accessLog = bundle.accessLog!;
+late AtNotificationKeystore notificationKeystore =
+    bundle.notificationKeystore!;
+```
+
+This keeps `!` litter out of every verb handler — the unwrapping
+happens once at bootstrap.
+
+## New abstract interfaces
+
+The Hive concretes (renamed in Commit 1) now `implements` matching
+abstract interfaces under the unprefixed names:
+
+| Abstract | Hive concrete |
+| --- | --- |
+| `AtCommitLog` | `HiveAtCommitLog` |
+| `AtAccessLog` | `HiveAtAccessLog` |
+| `AtNotificationKeystore` | `HiveAtNotificationKeystore` |
+| `SecondaryKeyStore` (already existed in `at_persistence_spec`) | `HiveSecondaryKeyStore` |
+
+The bundle's fields are typed at the abstracts. Code that holds
+a `HiveAtCommitLog` (or other concrete) typed local variable from
+the bundle needs to relax the type to the abstract. Tests that
+declare `Mock implements AtCommitLog` are unaffected — the abstract
+name is the same as the type they were already mocking against.
+
+The legacy `BaseAtCommitLog` abstract has been replaced by
+`AtCommitLog` (which now lives at
+`src/log/commitlog/at_commit_log.dart`). Direct subclasses of
+`BaseAtCommitLog` (none found in the atsign repos) need to extend
+`AtCommitLog` instead.
+
+## Migration / iteration primitives (additive)
+
+Two new methods land on the abstract surfaces, in preparation for
+Phase 3's persistence-backend migrator:
+
+- `Future<void> AtCommitLog.replay(CommitEntry entry)` — write an
+  existing commit entry under its supplied `commitId` without
+  firing change-event listeners. Idempotent on
+  `(commitId, atKey, op)`. Throws `ArgumentError` if `entry.commitId`
+  is null.
+- `Stream<CommitEntry> AtCommitLog.iterate({int? fromCommitId})` —
+  iterate every commit entry in `commitId` order, optionally
+  starting from `fromCommitId`.
+- `Stream<AccessLogEntry> AtAccessLog.iterate()` — every access-log
+  entry, in insertion order.
+- `Stream<AtNotification> AtNotificationKeystore.iterate()` — every
+  pending notification.
+
+Most consumers won't call these directly; they exist to let a Phase
+3 backend migrator move data between any two backends without
+backend-specific casts.
+
 ## Constructor changes
 
-(To be filled in as later commits land.)
+- `AtCompactionJob(AtLogType logType, SecondaryPersistenceStore store)` →
+  `AtCompactionJob(AtLogType logType, SecondaryKeyStore keyStore)`.
+  (Phase 1c.)
+- `AtCompactionStatsServiceImpl(AtCompaction, SecondaryPersistenceStore)` →
+  `(AtCompaction, SecondaryKeyStore)`. (Phase 1c.)
+- `AtConfig(AtCommitLog, atSign)` →
+  `AtConfig(SecondaryKeyStore, atSign)` AND moved to
+  `package:at_secondary/src/config/at_config.dart`. (Phase 1b;
+  server-track only.)
 
 ## Removed APIs
 
-(To be filled in as later commits land.)
+(To be filled in when Phase 2 Commit 3 removes the deprecated
+`getInstance()` shims.)
 
 ## New APIs
 
-(To be filled in as later commits land.)
+- `AtPersistenceFactory` / `AtPersistenceBundle` — factory-based
+  bootstrap (Phase 1).
+- `HiveAtPersistenceFactory` / `HiveAtPersistenceBundle` — Hive
+  concrete (Phase 1).
+- `HivePersistenceConfig.serverDefaults(...)` /
+  `HivePersistenceConfig.clientDefaults(...)` — opinionated config
+  factories for the two common shapes (this commit).
+- `AtCommitLog.replay(CommitEntry)`,
+  `AtCommitLog.iterate({int? fromCommitId})`,
+  `AtAccessLog.iterate()`,
+  `AtNotificationKeystore.iterate()` — migration / iteration
+  primitives (this commit).

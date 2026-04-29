@@ -5,33 +5,9 @@ import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
 
-abstract class BaseAtCommitLog implements AtLogType<int, CommitEntry> {
-  Future<CommitEntry?> lastSyncedEntry() async {
-    // Implemented by [HiveClientAtCommitLog]
-    throw UnimplementedError();
-  }
-
-  Future<CommitEntry?> lastSyncedEntryWithRegex(String regex) async {
-    // Implemented by [HiveClientAtCommitLog]
-    throw UnimplementedError();
-  }
-
-  /// Returns the commit entry for a given commit sequence number
-  /// throws [DataStoreException] if there is an exception getting the commit entry
-  Future<CommitEntry?> getEntry(int? sequenceNumber) async {
-    // Implemented by [HiveClientAtCommitLog]
-    throw UnimplementedError();
-  }
-
-  Future<void> update(CommitEntry commitEntry, int commitId) async {
-    // Implemented by [HiveClientAtCommitLog]
-    throw UnimplementedError();
-  }
-}
-
-/// Class to maintain commit logs on the secondary server for create, update and remove operations on keys
+/// Hive-backed implementation of [AtCommitLog] for the server side.
 @server
-class HiveAtCommitLog extends BaseAtCommitLog {
+class HiveAtCommitLog extends AtCommitLog {
   var logger = AtSignLogger('HiveAtCommitLog');
 
   late final List<AtChangeEventListener> _atChangeEventListener = [];
@@ -49,6 +25,7 @@ class HiveAtCommitLog extends BaseAtCommitLog {
   /// Creates a new entry with key, operation and adds to the commit log with key - commitId and value - [CommitEntry]
   /// returns the sequence number corresponding to the new commit
   /// throws [DataStoreException] if there is an exception writing to hive box
+  @override
   @server
   Future<int?> commit(String key, CommitOp operation) async {
     // If key starts with "public:__", it is a public hidden key which gets synced
@@ -79,13 +56,42 @@ class HiveAtCommitLog extends BaseAtCommitLog {
     return result;
   }
 
+  @override
+  Future<void> replay(CommitEntry entry) async {
+    if (entry.commitId == null) {
+      throw ArgumentError('replay requires a non-null commitId on the entry');
+    }
+    try {
+      await _commitLogKeyStore.getBox().put(entry.commitId, entry);
+    } on Exception catch (e) {
+      throw DataStoreException(
+          'Exception replaying commit entry: ${e.toString()}');
+    } on HiveError catch (e) {
+      throw DataStoreException(
+          'Hive error replaying commit entry: ${e.toString()}');
+    }
+  }
+
+  @override
+  Stream<CommitEntry> iterate({int? fromCommitId}) async* {
+    final map = await _commitLogKeyStore.toMap();
+    final sortedKeys = map.keys.toList()..sort();
+    for (final commitId in sortedKeys) {
+      if (fromCommitId != null && commitId < fromCommitId) continue;
+      final entry = map[commitId];
+      if (entry != null) yield entry;
+    }
+  }
+
   /// Returns the latest committed sequence number
+  @override
   @server
   int? lastCommittedSequenceNumber() {
     return _commitLogKeyStore.latestCommitId;
   }
 
   /// Returns the latest committed sequence number with regex
+  @override
   @server
   Future<int?> lastCommittedSequenceNumberWithRegex(String regex,
       {List<String>? enrolledNamespace}) async {
@@ -94,6 +100,7 @@ class HiveAtCommitLog extends BaseAtCommitLog {
   }
 
   /// Returns the first committed sequence number
+  @override
   @server
   int? firstCommittedSequenceNumber() {
     return _commitLogKeyStore.firstCommittedSequenceNumber();
@@ -113,18 +120,21 @@ class HiveAtCommitLog extends BaseAtCommitLog {
   }
 
   /// Returns the latest commitEntry of the key.
+  @override
   @server
   CommitEntry? getLatestCommitEntry(String key) {
     return _commitLogKeyStore.getLatestCommitEntry(key);
   }
 
   /// Closes the [CommitLogKeyStore] instance.
+  @override
   @server
   Future<void> close() async {
     await _commitLogKeyStore.close();
   }
 
   /// Returns the Iterator of [_commitLogCacheMap] from the commitId specified.
+  @override
   @server
   Iterator<MapEntry<String, CommitEntry>> getEntries(int commitId,
       {String? regex, int limit = 25, int? skipDeletesUntil}) {
@@ -152,11 +162,13 @@ class HiveAtCommitLog extends BaseAtCommitLog {
   }
 
   /// Adds the class implementing the [AtChangeEventListener] to publish the [AtPersistenceChangeEvent]
+  @override
   void addEventListener(AtChangeEventListener atChangeEventListener) {
     _atChangeEventListener.add(atChangeEventListener);
   }
 
   /// Removes the [AtChangeEventListener]
+  @override
   void removeEventListener(AtChangeEventListener atChangeEventListener) {
     _atChangeEventListener.remove(atChangeEventListener);
   }
@@ -201,6 +213,7 @@ class HiveAtCommitLog extends BaseAtCommitLog {
 
   /// Returns the list of commit entries greater than [sequenceNumber]
   /// throws [DataStoreException] if there is an exception getting the commit entries
+  @override
   Future<List<CommitEntry>> getChanges(int? sequenceNumber, String? regex,
       {int? limit}) async {
     throw UnimplementedError('');

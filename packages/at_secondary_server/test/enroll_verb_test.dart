@@ -2722,7 +2722,7 @@ void main() {
       expect(enrollmentDataMap['namespaces'], {'buzz': 'r'});
       expect(enrollmentDataMap['apkamPublicKey'], 'lorem_apkam');
 
-      HiveAtCommitLog atCommitLog = atServer.commitLog;
+      AtCommitLog atCommitLog = atServer.commitLog;
       var itr = atCommitLog.getEntries(-1);
       // Since there are no entries in commit log, iterator.moveNext() returns false.
       expect(itr.moveNext(), false);
@@ -2827,7 +2827,7 @@ void main() {
       expect(enrollmentDataMap['namespaces'], {'buzz': 'r'});
       expect(enrollmentDataMap['apkamPublicKey'], 'lorem_apkam');
 
-      HiveAtCommitLog atCommitLog = atServer.commitLog;
+      AtCommitLog atCommitLog = atServer.commitLog;
       var itr = atCommitLog.getEntries(-1);
       // Since there are no entries in commit log, iterator.moveNext() returns false.
       expect(itr.moveNext(), false);

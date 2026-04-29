@@ -36,7 +36,16 @@ abstract class AtPersistenceFactory {
 
 /// All the per-atSign persistence resources an at_server needs,
 /// produced by an [AtPersistenceFactory].
+///
+/// The bundle is split into a *core* (always present) and
+/// *optional capabilities* (nullable, populated based on the
+/// [AtPersistenceConfig] passed to the factory). Server-shaped
+/// consumers (full atSecondary) opt into all capabilities; client-
+/// shaped consumers (e.g. at_client_sdk's local cache) opt into
+/// core only.
 abstract class AtPersistenceBundle {
+  // ----- Core (always present) -----
+
   /// The atSign this bundle owns.
   String get atSign;
 
@@ -48,14 +57,10 @@ abstract class AtPersistenceBundle {
   /// The keystore for client data (target of `update` / `lookup`).
   SecondaryKeyStore<String, AtData?, AtMetaData?> get keyStore;
 
-  /// The commit log used by sync.
-  HiveAtCommitLog get commitLog;
-
-  /// The access log used for stats and security audit.
-  HiveAtAccessLog get accessLog;
-
-  /// The notification keystore.
-  HiveAtNotificationKeystore get notificationKeystore;
+  /// The commit log used by sync. Typed at the abstract
+  /// [AtCommitLog]; the concrete is whatever the factory's
+  /// backend produces (e.g. [HiveAtCommitLog]).
+  AtCommitLog get commitLog;
 
   /// Schedule the periodic expired-keys removal task. Generic
   /// across backends — the bundle internally drives whatever the
@@ -65,4 +70,15 @@ abstract class AtPersistenceBundle {
 
   /// Close all underlying resources. Idempotent.
   Future<void> close();
+
+  // ----- Optional capabilities (nullable) -----
+
+  /// The access log used for stats and security audit. `null` when
+  /// [AtPersistenceConfig.enableAccessLog] is `false` (typical for
+  /// client-only consumers).
+  AtAccessLog? get accessLog;
+
+  /// The notification keystore. `null` when
+  /// [AtPersistenceConfig.enableNotificationKeystore] is `false`.
+  AtNotificationKeystore? get notificationKeystore;
 }

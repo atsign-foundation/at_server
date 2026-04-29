@@ -585,7 +585,7 @@ void main() async {
             .persistenceManager
             ?.getBox()
             .put('@invalidkey**.buzz$alice', AtData()..data = alice);
-        HiveAtCommitLog atCommitLog = (secondaryKeyStore.commitLog) as HiveAtCommitLog;
+        AtCommitLog atCommitLog = (secondaryKeyStore.commitLog) as HiveAtCommitLog;
         await atCommitLog.commit('@invalidkey**.buzz$alice', CommitOp.UPDATE);
 
         var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(

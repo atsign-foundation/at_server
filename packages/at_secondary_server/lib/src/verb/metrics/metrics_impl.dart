@@ -123,7 +123,7 @@ class MostVisitedAtSignMetricImpl extends MetricProvider {
   @override
   Future<String> getMetrics({String? regex}) async {
     final length = AtSecondaryConfig.stats_top_visits!;
-    final HiveAtAccessLog atAccessLog = atServer.accessLog;
+    final AtAccessLog atAccessLog = atServer.accessLog;
     return jsonEncode(await atAccessLog.mostVisitedAtSigns(length));
   }
 
@@ -139,7 +139,7 @@ class MostVisitedAtKeyMetricImpl extends MetricProvider {
   @override
   Future<String> getMetrics({String? regex}) async {
     final length = AtSecondaryConfig.stats_top_keys!;
-    final HiveAtAccessLog atAccessLog = atServer.accessLog;
+    final AtAccessLog atAccessLog = atServer.accessLog;
     return jsonEncode(await atAccessLog.mostVisitedKeys(length));
   }
 
@@ -168,7 +168,7 @@ class LastLoggedInDatetimeMetricImpl extends MetricProvider {
 
   @override
   Future<String?> getMetrics({String? regex}) async {
-    final HiveAtAccessLog atAccessLog = atServer.accessLog;
+    final AtAccessLog atAccessLog = atServer.accessLog;
     var entry = await atAccessLog.getLastAccessLogEntry();
     return entry.requestDateTime!.toUtc().toString();
   }
@@ -222,7 +222,7 @@ class LastPkamMetricImpl extends MetricProvider {
 
   @override
   Future<String?> getMetrics({String? regex}) async {
-    final HiveAtAccessLog atAccessLog = atServer.accessLog;
+    final AtAccessLog atAccessLog = atServer.accessLog;
     var entry = await atAccessLog.getLastPkamAccessLogEntry();
     return (entry != null)
         ? entry.requestDateTime!.toUtc().toString()

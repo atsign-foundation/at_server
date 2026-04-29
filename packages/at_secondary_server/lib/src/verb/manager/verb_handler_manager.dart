@@ -46,11 +46,11 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
   final NotificationManager notificationManager;
   final StatsNotificationService statsNotificationService;
   final EnrollmentManager enrollmentManager;
-  final HiveAtCommitLog? _commitLogOverride;
-  final HiveAtAccessLog? _accessLogOverride;
-  HiveAtCommitLog get commitLog =>
+  final AtCommitLog? _commitLogOverride;
+  final AtAccessLog? _accessLogOverride;
+  AtCommitLog get commitLog =>
       _commitLogOverride ?? AtSecondaryServerImpl.getInstance().commitLog;
-  HiveAtAccessLog get accessLog =>
+  AtAccessLog get accessLog =>
       _accessLogOverride ?? AtSecondaryServerImpl.getInstance().accessLog;
   late final Atsign atSign;
 
@@ -62,8 +62,8 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     this.notificationManager,
     this.enrollmentManager,
     String atSign, {
-    HiveAtCommitLog? commitLog,
-    HiveAtAccessLog? accessLog,
+    AtCommitLog? commitLog,
+    AtAccessLog? accessLog,
   })  : _commitLogOverride = commitLog,
         _accessLogOverride = accessLog {
     this.atSign = atSign.toAtsign();

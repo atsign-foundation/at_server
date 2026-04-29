@@ -34,19 +34,25 @@ class HiveAtPersistenceFactory implements AtPersistenceFactory {
     // [HiveAtPersistenceFactory] — at which point the body of this method
     // can construct the parts directly.
 
-    // 1. Commit log.
+    // 1. Commit log (always present — core capability).
     final commitLog = (await AtCommitLogManagerImpl.getInstance().getCommitLog(
         atSign,
         commitLogPath: config.commitLogPath,
         enableCommitId: config.enableCommitId))!;
 
-    // 2. Access log.
-    final accessLog = (await AtAccessLogManagerImpl.getInstance()
-        .getAccessLog(atSign, accessLogPath: config.accessLogPath))!;
+    // 2. Access log (optional capability).
+    HiveAtAccessLog? accessLog;
+    if (config.enableAccessLog) {
+      accessLog = (await AtAccessLogManagerImpl.getInstance()
+          .getAccessLog(atSign, accessLogPath: config.accessLogPath))!;
+    }
 
-    // 3. Notification keystore (no singleton; constructed per atSign).
-    final notificationKeystore = HiveAtNotificationKeystore(atSign);
-    await notificationKeystore.init(config.notificationStoragePath);
+    // 3. Notification keystore (optional capability).
+    HiveAtNotificationKeystore? notificationKeystore;
+    if (config.enableNotificationKeystore) {
+      notificationKeystore = HiveAtNotificationKeystore(atSign);
+      await notificationKeystore.init(config.notificationStoragePath);
+    }
 
     // 4. Hive persistence manager + secondary keystore + manager wrapper.
     final secondaryPersistenceStore = SecondaryPersistenceStoreFactory
@@ -111,11 +117,15 @@ class HiveAtPersistenceBundle implements AtPersistenceBundle {
   @override
   final HiveAtCommitLog commitLog;
 
+  /// Nullable per the slim-bundle design: only populated when the
+  /// config opts in via [HivePersistenceConfig.enableAccessLog].
   @override
-  final HiveAtAccessLog accessLog;
+  final HiveAtAccessLog? accessLog;
 
+  /// Nullable per the slim-bundle design: only populated when the
+  /// config opts in via [HivePersistenceConfig.enableNotificationKeystore].
   @override
-  final HiveAtNotificationKeystore notificationKeystore;
+  final HiveAtNotificationKeystore? notificationKeystore;
 
   // Hive-internal: needed by [scheduleKeyExpireTask] and [close], but
   // intentionally NOT exposed on the bundle's public surface — every
@@ -152,7 +162,7 @@ class HiveAtPersistenceBundle implements AtPersistenceBundle {
     // task observes a closed box), then logs and notifications.
     await _hivePersistenceManager.close();
     await commitLog.close();
-    accessLog.close(); // HiveAtAccessLog.close() returns void, not Future<void>
-    await notificationKeystore.close();
+    accessLog?.close(); // HiveAtAccessLog.close() returns void, not Future<void>
+    await notificationKeystore?.close();
   }
 }

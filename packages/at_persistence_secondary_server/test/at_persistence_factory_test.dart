@@ -225,4 +225,8 @@ class _NotHiveConfig implements AtPersistenceConfig {
   String get notificationStoragePath => '/tmp';
   @override
   String get backendMarkerPath => '/tmp/marker';
+  @override
+  bool get enableAccessLog => true;
+  @override
+  bool get enableNotificationKeystore => true;
 }

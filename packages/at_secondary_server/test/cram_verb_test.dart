@@ -169,7 +169,7 @@ Future<SecondaryKeyStore> setUpFunc(storageDir) async {
   );
 
   AtSecondaryServerImpl.getInstance().commitLog = bundle.commitLog;
-  AtSecondaryServerImpl.getInstance().accessLog = bundle.accessLog;
+  AtSecondaryServerImpl.getInstance().accessLog = bundle.accessLog!;
   return bundle.keyStore;
 }
 

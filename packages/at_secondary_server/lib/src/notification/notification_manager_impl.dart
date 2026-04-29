@@ -10,10 +10,10 @@ import 'package:meta/meta.dart';
 class NotificationManager {
   final Atsign atSign;
 
-  final HiveAtNotificationKeystore _notifStore;
+  final AtNotificationKeystore _notifStore;
 
   @visibleForTesting
-  HiveAtNotificationKeystore get notifStore => _notifStore;
+  AtNotificationKeystore get notifStore => _notifStore;
 
   final NotifyConnectionsPool _notifyConnectionsPool;
 
@@ -186,8 +186,8 @@ class NotificationManager {
     return _notifStore.isKeyExists(key);
   }
 
-  Future<AtNotification?> get(key) {
-    return _notifStore.get(key);
+  Future<AtNotification?> get(key) async {
+    return await _notifStore.get(key) as AtNotification?;
   }
 
   Future<List> getKeys({String? regex}) async {

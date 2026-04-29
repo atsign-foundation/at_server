@@ -1,0 +1,220 @@
+import 'dart:io';
+
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:test/test.dart';
+
+void main() {
+  group('HiveAtCommitLog iterate / replay', () {
+    late Directory tempDir;
+    late HiveAtPersistenceFactory factory;
+    late AtPersistenceBundle bundle;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('iter_replay_');
+      factory = HiveAtPersistenceFactory();
+      bundle = await factory.initialize(
+        '@alice',
+        HivePersistenceConfig.serverDefaults(
+          storagePath: '${tempDir.path}/hive',
+          commitLogPath: '${tempDir.path}/commitLog',
+          accessLogPath: '${tempDir.path}/accessLog',
+          notificationStoragePath: '${tempDir.path}/notification',
+        ),
+      );
+    });
+
+    tearDown(() async {
+      await factory.close();
+      if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+    });
+
+    test('iterate yields every commit entry in commitId order', () async {
+      // Insert three entries via the normal commit() path so they get
+      // monotonically-increasing commitIds.
+      await bundle.commitLog.commit('public:foo@alice', CommitOp.UPDATE);
+      await bundle.commitLog.commit('public:bar@alice', CommitOp.UPDATE);
+      await bundle.commitLog.commit('public:baz@alice', CommitOp.DELETE);
+
+      final entries = await bundle.commitLog.iterate().toList();
+      expect(entries.length, 3);
+      // Commit IDs are monotonic.
+      expect(entries[0].commitId! <= entries[1].commitId!, isTrue);
+      expect(entries[1].commitId! <= entries[2].commitId!, isTrue);
+      // Values round-trip.
+      expect(entries.map((e) => e.atKey).toSet(),
+          {'public:foo@alice', 'public:bar@alice', 'public:baz@alice'});
+    });
+
+    test('iterate honours fromCommitId', () async {
+      await bundle.commitLog.commit('public:a@alice', CommitOp.UPDATE);
+      await bundle.commitLog.commit('public:b@alice', CommitOp.UPDATE);
+      await bundle.commitLog.commit('public:c@alice', CommitOp.UPDATE);
+
+      final all = await bundle.commitLog.iterate().toList();
+      // Skip the first; keep the last two.
+      final cutoff = all[1].commitId!;
+      final partial =
+          await bundle.commitLog.iterate(fromCommitId: cutoff).toList();
+      expect(partial.length, 2);
+      expect(partial.first.commitId, cutoff);
+    });
+
+    test('replay preserves the supplied commitId', () async {
+      // Build an entry that names its own commitId — typical of a
+      // migration source where IDs were already assigned.
+      final entry = CommitEntry('public:replayed@alice', CommitOp.UPDATE,
+          DateTime.now().toUtc())
+        ..commitId = 9001;
+      await bundle.commitLog.replay(entry);
+
+      final fetched = await bundle.commitLog.iterate().toList();
+      expect(fetched.length, 1);
+      expect(fetched.single.commitId, 9001);
+      expect(fetched.single.atKey, 'public:replayed@alice');
+    });
+
+    test('replay is idempotent on the same (commitId, atKey, op)', () async {
+      final entry = CommitEntry(
+          'public:idem@alice', CommitOp.UPDATE, DateTime.now().toUtc())
+        ..commitId = 4242;
+      await bundle.commitLog.replay(entry);
+      await bundle.commitLog.replay(entry); // second call is a no-op overwrite.
+
+      final fetched = await bundle.commitLog.iterate().toList();
+      expect(fetched.length, 1);
+      expect(fetched.single.commitId, 4242);
+    });
+
+    test('replay rejects a CommitEntry without a commitId', () {
+      final entry = CommitEntry('public:nocommitid@alice', CommitOp.UPDATE,
+          DateTime.now().toUtc()); // no commitId set
+      expect(() => bundle.commitLog.replay(entry), throwsA(isA<ArgumentError>()));
+    });
+  });
+
+  group('HiveAtAccessLog iterate', () {
+    late Directory tempDir;
+    late HiveAtPersistenceFactory factory;
+    late AtPersistenceBundle bundle;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('iter_access_');
+      factory = HiveAtPersistenceFactory();
+      bundle = await factory.initialize(
+        '@alice',
+        HivePersistenceConfig.serverDefaults(
+          storagePath: '${tempDir.path}/hive',
+          commitLogPath: '${tempDir.path}/commitLog',
+          accessLogPath: '${tempDir.path}/accessLog',
+          notificationStoragePath: '${tempDir.path}/notification',
+        ),
+      );
+    });
+
+    tearDown(() async {
+      await factory.close();
+      if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+    });
+
+    test('iterate yields every access-log entry in insertion order', () async {
+      final accessLog = bundle.accessLog!;
+      await accessLog.insert('@bob', 'lookup', lookupKey: 'phone@alice');
+      await accessLog.insert('@charlie', 'plookup');
+      await accessLog.insert('@dave', 'pkam');
+
+      final entries = await accessLog.iterate().toList();
+      expect(entries.length, 3);
+      expect(entries.map((e) => e.fromAtSign).toList(),
+          ['@bob', '@charlie', '@dave']);
+    });
+  });
+
+  group('HiveAtNotificationKeystore iterate', () {
+    late Directory tempDir;
+    late HiveAtPersistenceFactory factory;
+    late AtPersistenceBundle bundle;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('iter_notif_');
+      factory = HiveAtPersistenceFactory();
+      bundle = await factory.initialize(
+        '@alice',
+        HivePersistenceConfig.serverDefaults(
+          storagePath: '${tempDir.path}/hive',
+          commitLogPath: '${tempDir.path}/commitLog',
+          accessLogPath: '${tempDir.path}/accessLog',
+          notificationStoragePath: '${tempDir.path}/notification',
+        ),
+      );
+    });
+
+    tearDown(() async {
+      await factory.close();
+      if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+    });
+
+    test('iterate yields every notification entry', () async {
+      final notif = bundle.notificationKeystore!;
+      final n1 = (AtNotificationBuilder()
+            ..fromAtSign = '@alice'
+            ..toAtSign = '@bob'
+            ..notification = 'phone@bob')
+          .build();
+      final n2 = (AtNotificationBuilder()
+            ..fromAtSign = '@alice'
+            ..toAtSign = '@charlie'
+            ..notification = 'email@charlie')
+          .build();
+      await notif.put(n1.id, n1);
+      await notif.put(n2.id, n2);
+
+      final entries = await notif.iterate().toList();
+      expect(entries.length, 2);
+      expect(entries.map((e) => e.toAtSign).toSet(), {'@bob', '@charlie'});
+    });
+  });
+
+  group('Bundle slimming', () {
+    late Directory tempDir;
+    late HiveAtPersistenceFactory factory;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('slim_');
+      factory = HiveAtPersistenceFactory();
+    });
+
+    tearDown(() async {
+      await factory.close();
+      if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+    });
+
+    test('clientDefaults skips access log + notification keystore', () async {
+      final bundle = await factory.initialize(
+        '@alice',
+        HivePersistenceConfig.clientDefaults(
+          storagePath: '${tempDir.path}/hive',
+          commitLogPath: '${tempDir.path}/commitLog',
+        ),
+      );
+      expect(bundle.accessLog, isNull);
+      expect(bundle.notificationKeystore, isNull);
+      // Core capabilities are still populated.
+      expect(bundle.commitLog, isNotNull);
+      expect(bundle.keyStore, isNotNull);
+    });
+
+    test('serverDefaults populates every optional capability', () async {
+      final bundle = await factory.initialize(
+        '@alice',
+        HivePersistenceConfig.serverDefaults(
+          storagePath: '${tempDir.path}/hive',
+          commitLogPath: '${tempDir.path}/commitLog',
+          accessLogPath: '${tempDir.path}/accessLog',
+          notificationStoragePath: '${tempDir.path}/notification',
+        ),
+      );
+      expect(bundle.accessLog, isNotNull);
+      expect(bundle.notificationKeystore, isNotNull);
+    });
+  });
+}

@@ -104,8 +104,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   dynamic _serverSocket;
   bool _isRunning = false;
   late Atsign currentAtSign;
-  late HiveAtCommitLog commitLog;
-  var accessLog;
+  late AtCommitLog commitLog;
+  late AtAccessLog accessLog;
   var signingKey;
   AtSecondaryContext? serverContext;
   VerbExecutor? executor;
@@ -118,7 +118,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   @visibleForTesting
   AtCertificateValidationJob? certificateReloadJob;
   late SecondaryKeyStore<String, AtData?, AtMetaData?> secondaryKeyStore;
-  late HiveAtNotificationKeystore notificationKeystore;
+  late AtNotificationKeystore notificationKeystore;
   late NotificationManager notificationManager;
   late var atCommitLogCompactionConfig;
   late var atAccessLogCompactionConfig;
@@ -722,12 +722,12 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     throw Exception("AtSecondaryServer.getMetrics() is obsolete");
   }
 
-  /// Initializes [SecondaryKeyStore], [HiveAtCommitLog], [HiveAtNotificationKeystore] and [HiveAtAccessLog] instances.
+  /// Initializes [SecondaryKeyStore], [AtCommitLog], [AtNotificationKeystore] and [AtAccessLog] instances.
   Future<void> _initializePersistentInstances() async {
     AtNotification.defaultTtl =
         Duration(minutes: AtSecondaryConfig.notificationExpiryInMins);
 
-    final config = HivePersistenceConfig(
+    final config = HivePersistenceConfig.serverDefaults(
       storagePath: AtSecondaryConfig.storagePath,
       commitLogPath: AtSecondaryConfig.commitLogPath,
       accessLogPath: AtSecondaryConfig.accessLogPath,
@@ -737,12 +737,16 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         serverContext!.currentAtSign!, config);
     _persistenceBundle = bundle;
 
-    commitLog = bundle.commitLog;
-    commitLog.addEventListener(
-        CommitLogCompactionService(commitLog.commitLogKeyStore));
+    _assertServerCapabilities(bundle);
 
-    accessLog = bundle.accessLog;
-    notificationKeystore = bundle.notificationKeystore;
+    commitLog = bundle.commitLog;
+    // Phase 2 Commit 4 will replace this Hive-specific reach-through
+    // with a bundle-level commit-log compactor field.
+    commitLog.addEventListener(CommitLogCompactionService(
+        (commitLog as HiveAtCommitLog).commitLogKeyStore));
+
+    accessLog = bundle.accessLog!;
+    notificationKeystore = bundle.notificationKeystore!;
     secondaryKeyStore = bundle.keyStore;
 
     serverContext!.isKeyStoreInitialized = true;
@@ -773,6 +777,27 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     } on KeyNotFoundException {
       logger.info(
           'signing key generated? ${secondaryKeyStore.isKeyExists(AtConstants.atSigningKeypairGenerated)}');
+    }
+  }
+
+  /// Confirms that the bundle was initialised with the optional
+  /// capabilities a server requires (access log, notification
+  /// keystore). The bundle exposes them as nullable to support
+  /// client-shaped consumers that don't need them; for a server
+  /// they must be present, so missing them is a configuration
+  /// bug, not a runtime condition. After this check, the
+  /// [accessLog] and [notificationKeystore] fields can be assigned
+  /// from the bundle without `!` litter at every call site.
+  void _assertServerCapabilities(AtPersistenceBundle bundle) {
+    if (bundle.accessLog == null) {
+      throw StateError(
+          'Server bundle is missing the access log capability. '
+          'Did the config disable enableAccessLog?');
+    }
+    if (bundle.notificationKeystore == null) {
+      throw StateError(
+          'Server bundle is missing the notification keystore capability. '
+          'Did the config disable enableNotificationKeystore?');
     }
   }
 

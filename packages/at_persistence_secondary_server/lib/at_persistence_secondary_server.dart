@@ -10,8 +10,10 @@ export 'package:at_persistence_secondary_server/src/keystore/secondary_keystore_
 export 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store.dart';
 export 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store_factory.dart';
 export 'package:at_persistence_secondary_server/src/log/accesslog/access_log_keystore.dart';
+export 'package:at_persistence_secondary_server/src/log/accesslog/at_access_log.dart';
 export 'package:at_persistence_secondary_server/src/log/accesslog/hive_at_access_log.dart';
 export 'package:at_persistence_secondary_server/src/log/accesslog/at_access_log_manager_impl.dart';
+export 'package:at_persistence_secondary_server/src/log/commitlog/at_commit_log.dart';
 export 'package:at_persistence_secondary_server/src/log/commitlog/hive_at_commit_log.dart';
 export 'package:at_persistence_secondary_server/src/log/commitlog/at_commit_log_manager_impl.dart';
 export 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
@@ -20,6 +22,7 @@ export 'package:at_persistence_secondary_server/src/model/at_data.dart';
 export 'package:at_persistence_secondary_server/src/model/at_meta_data.dart';
 export 'package:at_persistence_secondary_server/src/model/at_metadata_builder.dart';
 export 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
+export 'package:at_persistence_secondary_server/src/notification/at_notification_keystore.dart';
 export 'package:at_persistence_secondary_server/src/notification/hive_at_notification_keystore.dart';
 export 'package:at_persistence_secondary_server/src/notification/at_notification_manager.dart';
 export 'package:at_persistence_secondary_server/src/notification/at_notification_strategy.dart';

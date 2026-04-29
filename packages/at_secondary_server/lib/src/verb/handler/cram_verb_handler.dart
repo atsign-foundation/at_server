@@ -13,11 +13,11 @@ import 'package:crypto/crypto.dart';
 class CramVerbHandler extends AbstractVerbHandler {
   static Cram cram = Cram();
 
-  final HiveAtAccessLog? _accessLogOverride;
-  HiveAtAccessLog get accessLog =>
+  final AtAccessLog? _accessLogOverride;
+  AtAccessLog get accessLog =>
       _accessLogOverride ?? AtSecondaryServerImpl.getInstance().accessLog;
 
-  CramVerbHandler(super.keyStore, {HiveAtAccessLog? accessLog})
+  CramVerbHandler(super.keyStore, {AtAccessLog? accessLog})
       : _accessLogOverride = accessLog;
 
   @override
