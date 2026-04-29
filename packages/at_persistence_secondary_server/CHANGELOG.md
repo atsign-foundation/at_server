@@ -1,4 +1,4 @@
-## 4.4.0
+## 5.0.0
 
 - feat: introduce `AtPersistenceFactory` and `AtPersistenceBundle`
   abstractions plus a `HiveAtPersistenceFactory` concrete impl as
@@ -43,6 +43,16 @@
   external consumers were found in a sweep of the atsign repos
   (`at_client_sdk`, `at_services`, `at_tools`); update any local
   imports to `package:at_secondary/src/config/at_config.dart`.
+- breaking: `AtCompactionJob` and `AtCompactionStatsServiceImpl`
+  constructors now take a `SecondaryKeyStore` instead of a
+  `SecondaryPersistenceStore`. Callers that construct these directly
+  (none found in the atsign repos sweep) need to pass the keystore
+  in place of the persistence store.
+- refactor: `HiveAtPersistenceBundle` no longer exposes
+  `secondaryPersistenceStore` or `hivePersistenceManager`. Production
+  consumers use only the abstract `AtPersistenceBundle` surface
+  (`keyStore`, `commitLog`, `accessLog`, `notificationKeystore`,
+  `scheduleKeyExpireTask`, `close`).
 
 ## 4.3.5
 
