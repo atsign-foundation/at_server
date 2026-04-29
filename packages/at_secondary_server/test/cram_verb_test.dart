@@ -23,11 +23,11 @@ void main() {
   verbTestsSetUpLogging();
 
   var storageDir = '${Directory.current.path}/test/hive';
-  late SecondaryKeyStoreManager keyStoreManager;
+  late SecondaryKeyStore keyStore;
   setUp(() async {
     mockKeyStore = MockSecondaryKeyStore();
     mockSocket = FakeSocket();
-    keyStoreManager = await setUpFunc(storageDir);
+    keyStore = await setUpFunc(storageDir);
   });
 
   group('A group of cram verb regex test', () {
@@ -62,18 +62,17 @@ void main() {
 
   group('A group of cram verb handler tests', () {
     test('test cram verb handler getVerb', () {
-      var verbHandler = CramVerbHandler(keyStoreManager.getKeyStore());
+      var verbHandler = CramVerbHandler(keyStore);
       var verb = verbHandler.getVerb();
       expect(verb is Cram, true);
     });
 
     test('test cram verb handler processVerb auth success', () async {
-      SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
       var secretData = AtData();
       secretData.data =
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
+      var fromVerbHandler = FromVerbHandler(keyStore);
       AtSecondaryServerImpl.getInstance().currentAtSign =
           '@test_user_1'.toAtsign();
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
@@ -88,7 +87,7 @@ void main() {
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
-      var verbHandler = CramVerbHandler(keyStoreManager.getKeyStore());
+      var verbHandler = CramVerbHandler(keyStore);
       var cramResponse = Response();
       await verbHandler.processVerb(cramResponse, cramVerbParams, atConnection);
       var connectionMetadata =
@@ -98,12 +97,11 @@ void main() {
     });
 
     test('test cram verb handler processVerb auth fail', () async {
-      SecondaryKeyStore keyStore = keyStoreManager.getKeyStore();
       var secretData = AtData();
       secretData.data =
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
+      var fromVerbHandler = FromVerbHandler(keyStore);
       AtSecondaryServerImpl.getInstance().currentAtSign =
           '@test_user_1'.toAtsign();
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
@@ -117,7 +115,7 @@ void main() {
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
-      var verbHandler = CramVerbHandler(keyStoreManager.getKeyStore());
+      var verbHandler = CramVerbHandler(keyStore);
       var cramResponse = Response();
       var connectionMetadata =
           atConnection.metaData as InboundConnectionMetadata;
@@ -129,7 +127,7 @@ void main() {
     });
 
     test('test cram verb handler processVerb no secret in keystore', () async {
-      var fromVerbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
+      var fromVerbHandler = FromVerbHandler(keyStore);
       AtSecondaryServerImpl.getInstance().currentAtSign =
           '@test_user_1'.toAtsign();
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
@@ -143,7 +141,7 @@ void main() {
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
-      var verbHandler = CramVerbHandler(keyStoreManager.getKeyStore());
+      var verbHandler = CramVerbHandler(keyStore);
       var cramResponse = Response();
       var connectionMetadata =
           atConnection.metaData as InboundConnectionMetadata;
@@ -159,8 +157,8 @@ void main() {
 
 final HiveAtPersistenceFactory _cramTestFactory = HiveAtPersistenceFactory();
 
-Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
-  final bundle = (await _cramTestFactory.initialize(
+Future<SecondaryKeyStore> setUpFunc(storageDir) async {
+  final bundle = await _cramTestFactory.initialize(
     '@test_user_1',
     HivePersistenceConfig(
       storagePath: storageDir,
@@ -168,11 +166,11 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
       accessLogPath: storageDir,
       notificationStoragePath: storageDir,
     ),
-  )) as HiveAtPersistenceBundle;
+  );
 
   AtSecondaryServerImpl.getInstance().commitLog = bundle.commitLog;
   AtSecondaryServerImpl.getInstance().accessLog = bundle.accessLog;
-  return bundle.secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
+  return bundle.keyStore;
 }
 
 Future<void> tearDownFunc() async {

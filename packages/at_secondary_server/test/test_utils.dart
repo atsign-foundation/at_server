@@ -180,7 +180,6 @@ late Function() socketOnDoneFn;
 late Function(Exception e, StackTrace st) socketOnErrorFn;
 
 String storageDir = '${Directory.current.path}/unit_test_storage';
-late SecondaryPersistenceStore secondaryPersistenceStore;
 late AtCommitLog atCommitLog;
 
 /// Creates and persists a new approved enrollment
@@ -202,11 +201,11 @@ Future<String> createAndPersistAnEnrollment(
     'requestType': 'newEnrollment',
     'approval': {'state': 'approved'}
   };
-  await secondaryPersistenceStore.getSecondaryKeyStore()?.put(
-        key,
-        AtData()..data = jsonEncode(enrollJson),
-        skipCommit: true,
-      );
+  await secondaryKeyStore.put(
+    key,
+    AtData()..data = jsonEncode(enrollJson),
+    skipCommit: true,
+  );
   return id;
 }
 
@@ -241,11 +240,8 @@ verbTestsSetUp() async {
     accessLogPath: storageDir,
     notificationStoragePath: storageDir,
   );
-  final bundle =
-      (await factory.initialize(alice, config)) as HiveAtPersistenceBundle;
+  final bundle = await factory.initialize(alice, config);
 
-  atServer.secondaryPersistenceStore =
-      secondaryPersistenceStore = bundle.secondaryPersistenceStore;
   atServer.commitLog = atCommitLog = bundle.commitLog;
   atServer.accessLog = bundle.accessLog;
   secondaryKeyStore = bundle.keyStore;

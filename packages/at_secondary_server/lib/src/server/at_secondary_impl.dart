@@ -61,7 +61,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// The bundle this server is currently running against. Set during
   /// [_initializePersistentInstances]; used by [start] for
   /// scheduleKeyExpireTask and by [stop] to close.
-  HiveAtPersistenceBundle? _persistenceBundle;
+  AtPersistenceBundle? _persistenceBundle;
 
   factory AtSecondaryServerImpl.getInstance() {
     return _singleton;
@@ -117,9 +117,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late AtCompactionJob notificationKeyStoreCompactionJobInstance;
   @visibleForTesting
   AtCertificateValidationJob? certificateReloadJob;
-  @visibleForTesting
-  late SecondaryPersistenceStore secondaryPersistenceStore;
-  late HivePersistenceManager hivePersistenceManager;
   late SecondaryKeyStore<String, AtData?, AtMetaData?> secondaryKeyStore;
   late AtNotificationKeystore notificationKeystore;
   late NotificationManager notificationManager;
@@ -188,10 +185,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw AtServerException('Secondary keystore is not initialized');
     }
 
-    // (secondaryPersistenceStore is already set from the persistence
-    //  factory's bundle inside _initializePersistentInstances; no need
-    //  to re-fetch via the legacy singleton here.)
-
     // Initialize enrollment manager
     enrollmentManager = EnrollmentManager(secondaryKeyStore, currentAtSign);
     List<String> deletedKeys =
@@ -219,7 +212,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     //Commit Log Compaction
     commitLogCompactionJobInstance =
-        AtCompactionJob(commitLog, secondaryPersistenceStore);
+        AtCompactionJob(commitLog, secondaryKeyStore);
     atCommitLogCompactionConfig = AtCompactionConfig()
       ..compactionPercentage = AtSecondaryConfig.commitLogCompactionPercentage
       ..compactionFrequencyInMins =
@@ -229,7 +222,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     //Access Log Compaction
     accessLogCompactionJobInstance =
-        AtCompactionJob(accessLog, secondaryPersistenceStore);
+        AtCompactionJob(accessLog, secondaryKeyStore);
     atAccessLogCompactionConfig = AtCompactionConfig()
       ..compactionPercentage = AtSecondaryConfig.accessLogCompactionPercentage
       ..compactionFrequencyInMins =
@@ -239,7 +232,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     // Notification keystore compaction
     notificationKeyStoreCompactionJobInstance =
-        AtCompactionJob(notificationKeystore, secondaryPersistenceStore);
+        AtCompactionJob(notificationKeystore, secondaryKeyStore);
     atNotificationCompactionConfig = AtCompactionConfig()
       ..compactionPercentage =
           AtSecondaryConfig.notificationKeyStoreCompactionPercentage
@@ -742,17 +735,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     );
     final bundle = await persistenceFactory.initialize(
         serverContext!.currentAtSign!, config);
-
-    // Phase 1 still relies on the Hive-specific bundle for two legacy
-    // fields (secondaryPersistenceStore, hivePersistenceManager) that
-    // the rest of at_secondary_server reads. A follow-up commit will
-    // remove those fields and we can lift this typing.
-    if (bundle is! HiveAtPersistenceBundle) {
-      throw StateError(
-          'AtSecondaryServerImpl currently requires a HiveAtPersistenceBundle '
-          'because legacy fields secondaryPersistenceStore / hivePersistenceManager '
-          'have not yet been migrated. Got ${bundle.runtimeType}.');
-    }
     _persistenceBundle = bundle;
 
     commitLog = bundle.commitLog;
@@ -762,8 +744,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     accessLog = bundle.accessLog;
     notificationKeystore = bundle.notificationKeystore;
     secondaryKeyStore = bundle.keyStore;
-    secondaryPersistenceStore = bundle.secondaryPersistenceStore;
-    hivePersistenceManager = bundle.hivePersistenceManager;
 
     serverContext!.isKeyStoreInitialized = true;
 
@@ -805,7 +785,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // To retain the invalid keys on server start-up, set the flag to false.
     if (AtSecondaryConfig.shouldRemoveMalformedKeys) {
       List<String> malformedKeys = AtSecondaryConfig.malformedKeysList;
-      final keyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
+      final keyStore = secondaryKeyStore;
       List<String> keys = keyStore.getKeys();
       logger.finest('malformed keys from config: $malformedKeys');
       for (String key in keys) {

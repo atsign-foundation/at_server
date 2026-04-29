@@ -6,7 +6,7 @@ import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
 String storageDir = '${Directory.current.path}/test/hive';
-SecondaryPersistenceStore? secondaryPersistenceStore;
+SecondaryKeyStore? keyStore;
 AtCommitLog? atCommitLog;
 AtAccessLog? atAccessLog;
 late AtNotificationKeystore atNotificationKeystore;
@@ -15,30 +15,33 @@ late AtCompactionStatsServiceImpl atCompactionStatsServiceImpl;
 
 Future<void> setUpMethod() async {
   // Initialize secondary persistent store
-  secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore('@alice');
+  // ignore: deprecated_member_use_from_same_package
+  final secondaryPersistenceStore = SecondaryPersistenceStoreFactory
+      .getInstance()
+      .getSecondaryPersistenceStore('@alice')!;
   // Initialize commit log
+  // ignore: deprecated_member_use_from_same_package
   atCommitLog = await AtCommitLogManagerImpl.getInstance()
       .getCommitLog('@alice', commitLogPath: storageDir, enableCommitId: true);
   // Initialize access log
+  // ignore: deprecated_member_use_from_same_package
   atAccessLog = await AtAccessLogManagerImpl.getInstance()
       .getAccessLog('@alice', accessLogPath: storageDir);
-  secondaryPersistenceStore!.getSecondaryKeyStore()?.commitLog = atCommitLog;
+  keyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
+  keyStore!.commitLog = atCommitLog;
   // AtNotification Keystore
   atNotificationKeystore = AtNotificationKeystore('@alice');
   await atNotificationKeystore.init('$storageDir/${Uuid().v4()}');
   // Init the hive instances
-  await secondaryPersistenceStore!
-      .getHivePersistenceManager()!
-      .init(storageDir);
+  await secondaryPersistenceStore.getHivePersistenceManager()!.init(storageDir);
 }
 
 Future<void> main() async {
   group('A group of tests related commit log compaction', () {
     setUp(() async {
       await setUpMethod();
-      atCompactionStatsServiceImpl = AtCompactionStatsServiceImpl(
-          atCommitLog!, secondaryPersistenceStore!);
+      atCompactionStatsServiceImpl =
+          AtCompactionStatsServiceImpl(atCommitLog!, keyStore!);
     });
 
     test("verify commitLog stats in keystore", () async {
@@ -70,9 +73,8 @@ Future<void> main() async {
       // Store Compaction Stats
       await atCompactionStatsServiceImpl.handleStats(atCompactionStats);
       // Get Compaction Stats
-      AtData? atData = await secondaryPersistenceStore!
-          .getSecondaryKeyStore()
-          ?.get(at_commons.AtConstants.commitLogCompactionKey);
+      AtData? atData = await keyStore!
+          .get(at_commons.AtConstants.commitLogCompactionKey);
 
       // Assert Compaction Stats
       var decodedData = jsonDecode(atData!.data!) as Map;
@@ -88,8 +90,8 @@ Future<void> main() async {
   group('A group of tests related to access log compaction', () {
     setUp(() async {
       await setUpMethod();
-      atCompactionStatsServiceImpl = AtCompactionStatsServiceImpl(
-          atAccessLog!, secondaryPersistenceStore!);
+      atCompactionStatsServiceImpl =
+          AtCompactionStatsServiceImpl(atAccessLog!, keyStore!);
     });
 
     test("verify accessLog stats in keystore", () async {
@@ -104,9 +106,8 @@ Future<void> main() async {
       var atCompactionStats =
           await atCompactionService.executeCompaction(atAccessLog!);
       await atCompactionStatsServiceImpl.handleStats(atCompactionStats);
-      AtData? atData = await secondaryPersistenceStore!
-          .getSecondaryKeyStore()
-          ?.get(at_commons.AtConstants.accessLogCompactionKey);
+      AtData? atData = await keyStore!
+          .get(at_commons.AtConstants.accessLogCompactionKey);
       var data = (atData?.data);
       var decodedData = jsonDecode(data!) as Map;
       expect(decodedData["deletedKeysCount"], '3');
@@ -119,14 +120,14 @@ Future<void> main() async {
   group('A group of tests for Notification keystore compaction', () {
     setUp(() async {
       await setUpMethod();
-      atCompactionStatsServiceImpl = AtCompactionStatsServiceImpl(
-          atNotificationKeystore, secondaryPersistenceStore!);
+      atCompactionStatsServiceImpl =
+          AtCompactionStatsServiceImpl(atNotificationKeystore, keyStore!);
     });
 
     test("verify notificationKeyStore stats in keystore", () async {
       AtCompactionStats atCompactionStats = AtCompactionStats();
-      atCompactionStatsServiceImpl = AtCompactionStatsServiceImpl(
-          atNotificationKeystore, secondaryPersistenceStore!);
+      atCompactionStatsServiceImpl =
+          AtCompactionStatsServiceImpl(atNotificationKeystore, keyStore!);
       atCompactionStats.compactionDurationInMills = 2000;
       atCompactionStats.deletedKeysCount = 239;
       atCompactionStats.lastCompactionRun = DateTime.now();
@@ -134,9 +135,8 @@ Future<void> main() async {
       atCompactionStats.preCompactionEntriesCount = 404;
       atCompactionStats.atCompactionType = atNotificationKeystore.toString();
       await atCompactionStatsServiceImpl.handleStats(atCompactionStats);
-      AtData? atData = await secondaryPersistenceStore!
-          .getSecondaryKeyStore()
-          ?.get('privatekey:notificationCompactionStats');
+      AtData? atData =
+          await keyStore!.get('privatekey:notificationCompactionStats');
       var data = (atData?.data);
       var decodedData = jsonDecode(data!) as Map;
       expect(decodedData[AtCompactionConstants.deletedKeysCount].toString(),
@@ -160,7 +160,7 @@ Future<void> main() async {
 
   test("check commitLog compactionStats key", () async {
     atCompactionStatsServiceImpl =
-        AtCompactionStatsServiceImpl(atCommitLog!, secondaryPersistenceStore!);
+        AtCompactionStatsServiceImpl(atCommitLog!, keyStore!);
 
     expect(atCompactionStatsServiceImpl.compactionStatsKey,
         "privatekey:commitLogCompactionStats");
@@ -168,15 +168,15 @@ Future<void> main() async {
 
   test("check accessLog compactionStats key", () async {
     atCompactionStatsServiceImpl =
-        AtCompactionStatsServiceImpl(atAccessLog!, secondaryPersistenceStore!);
+        AtCompactionStatsServiceImpl(atAccessLog!, keyStore!);
 
     expect(atCompactionStatsServiceImpl.compactionStatsKey,
         "privatekey:accessLogCompactionStats");
   });
 
   test("check notification compactionStats key", () async {
-    atCompactionStatsServiceImpl = AtCompactionStatsServiceImpl(
-        atNotificationKeystore, secondaryPersistenceStore!);
+    atCompactionStatsServiceImpl =
+        AtCompactionStatsServiceImpl(atNotificationKeystore, keyStore!);
 
     expect(atCompactionStatsServiceImpl.compactionStatsKey,
         "privatekey:notificationCompactionStats");

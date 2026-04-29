@@ -3,24 +3,20 @@ import 'dart:core';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:meta/meta.dart';
 
 /// An implementation class of [AtCompactionStatsService] to write the compaction
 /// metrics to the [SecondaryKeyStore]
 class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
-  late final SecondaryPersistenceStore _secondaryPersistenceStore;
-  late HiveKeystore _keyStore;
-  late final AtCompaction _atCompaction;
+  final SecondaryKeyStore _keyStore;
+  final AtCompaction _atCompaction;
   @visibleForTesting
   late String compactionStatsKey;
   final _logger = AtSignLogger("AtCompactionStats");
 
-  AtCompactionStatsServiceImpl(
-      this._atCompaction, this._secondaryPersistenceStore) {
+  AtCompactionStatsServiceImpl(this._atCompaction, this._keyStore) {
     _getKey();
-    _keyStore = _secondaryPersistenceStore.getSecondaryKeyStore()!;
   }
 
   @override

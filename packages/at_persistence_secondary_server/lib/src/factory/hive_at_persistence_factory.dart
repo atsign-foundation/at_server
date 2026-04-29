@@ -69,7 +69,6 @@ class HiveAtPersistenceFactory implements AtPersistenceFactory {
       accessLog: accessLog,
       notificationKeystore: notificationKeystore,
       hivePersistenceManager: hivePm,
-      secondaryPersistenceStore: secondaryPersistenceStore,
     );
     _bundles[atSign] = bundle;
     return bundle;
@@ -118,18 +117,10 @@ class HiveAtPersistenceBundle implements AtPersistenceBundle {
   @override
   final AtNotificationKeystore notificationKeystore;
 
-  /// The Hive persistence manager that owns the keystore's underlying
-  /// box. Exposed so callers that still need
-  /// [HivePersistenceManager.scheduleKeyExpireTask] semantics in a
-  /// Hive-shaped way can reach it. Phase 2 will hide this once the
-  /// callers move onto [scheduleKeyExpireTask] on the bundle.
-  final HivePersistenceManager hivePersistenceManager;
-
-  /// The legacy [SecondaryPersistenceStore] wrapper. Exposed for
-  /// backward compatibility with existing call sites that take a
-  /// `SecondaryPersistenceStore` argument (e.g. metrics, compaction
-  /// jobs). New code should prefer the explicit fields on the bundle.
-  final SecondaryPersistenceStore secondaryPersistenceStore;
+  // Hive-internal: needed by [scheduleKeyExpireTask] and [close], but
+  // intentionally NOT exposed on the bundle's public surface — every
+  // caller uses the abstract [AtPersistenceBundle] interface.
+  final HivePersistenceManager _hivePersistenceManager;
 
   bool _closed = false;
 
@@ -139,9 +130,8 @@ class HiveAtPersistenceBundle implements AtPersistenceBundle {
     required this.commitLog,
     required this.accessLog,
     required this.notificationKeystore,
-    required this.hivePersistenceManager,
-    required this.secondaryPersistenceStore,
-  });
+    required HivePersistenceManager hivePersistenceManager,
+  }) : _hivePersistenceManager = hivePersistenceManager;
 
   @override
   AtPersistenceBackendId get backendId => AtPersistenceBackendId.hive;
@@ -149,7 +139,7 @@ class HiveAtPersistenceBundle implements AtPersistenceBundle {
   @override
   void scheduleKeyExpireTask(int? runFrequencyMins,
       {Duration? runTimeInterval, bool skipCommits = false}) {
-    hivePersistenceManager.scheduleKeyExpireTask(runFrequencyMins,
+    _hivePersistenceManager.scheduleKeyExpireTask(runFrequencyMins,
         runTimeInterval: runTimeInterval, skipCommits: skipCommits);
   }
 
@@ -160,7 +150,7 @@ class HiveAtPersistenceBundle implements AtPersistenceBundle {
     // Order is the inverse of [HiveAtPersistenceFactory.initialize]:
     // close the keystore-via-manager first (so any in-flight expiry
     // task observes a closed box), then logs and notifications.
-    await hivePersistenceManager.close();
+    await _hivePersistenceManager.close();
     await commitLog.close();
     accessLog.close(); // AtAccessLog.close() returns void, not Future<void>
     await notificationKeystore.close();
