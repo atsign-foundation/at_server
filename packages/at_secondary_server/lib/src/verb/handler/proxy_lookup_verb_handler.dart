@@ -18,13 +18,13 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
   static ProxyLookup pLookup = ProxyLookup();
   final OutboundClientManager outboundClientManager;
   final AtCacheManager cacheManager;
-  final AtAccessLog? _accessLogOverride;
-  AtAccessLog get accessLog =>
+  final HiveAtAccessLog? _accessLogOverride;
+  HiveAtAccessLog get accessLog =>
       _accessLogOverride ?? AtSecondaryServerImpl.getInstance().accessLog;
 
   ProxyLookupVerbHandler(
       super.keyStore, this.outboundClientManager, this.cacheManager,
-      {AtAccessLog? accessLog})
+      {HiveAtAccessLog? accessLog})
       : _accessLogOverride = accessLog;
 
   // Method to verify whether command is accepted or not

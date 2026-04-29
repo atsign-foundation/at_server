@@ -10,10 +10,10 @@ import 'package:meta/meta.dart';
 class NotificationManager {
   final Atsign atSign;
 
-  final AtNotificationKeystore _notifStore;
+  final HiveAtNotificationKeystore _notifStore;
 
   @visibleForTesting
-  AtNotificationKeystore get notifStore => _notifStore;
+  HiveAtNotificationKeystore get notifStore => _notifStore;
 
   final NotifyConnectionsPool _notifyConnectionsPool;
 

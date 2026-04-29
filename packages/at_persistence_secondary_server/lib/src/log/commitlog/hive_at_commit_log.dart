@@ -7,32 +7,32 @@ import 'package:hive/hive.dart';
 
 abstract class BaseAtCommitLog implements AtLogType<int, CommitEntry> {
   Future<CommitEntry?> lastSyncedEntry() async {
-    // Implemented by [ClientAtCommitLog]
+    // Implemented by [HiveClientAtCommitLog]
     throw UnimplementedError();
   }
 
   Future<CommitEntry?> lastSyncedEntryWithRegex(String regex) async {
-    // Implemented by [ClientAtCommitLog]
+    // Implemented by [HiveClientAtCommitLog]
     throw UnimplementedError();
   }
 
   /// Returns the commit entry for a given commit sequence number
   /// throws [DataStoreException] if there is an exception getting the commit entry
   Future<CommitEntry?> getEntry(int? sequenceNumber) async {
-    // Implemented by [ClientAtCommitLog]
+    // Implemented by [HiveClientAtCommitLog]
     throw UnimplementedError();
   }
 
   Future<void> update(CommitEntry commitEntry, int commitId) async {
-    // Implemented by [ClientAtCommitLog]
+    // Implemented by [HiveClientAtCommitLog]
     throw UnimplementedError();
   }
 }
 
 /// Class to maintain commit logs on the secondary server for create, update and remove operations on keys
 @server
-class AtCommitLog extends BaseAtCommitLog {
-  var logger = AtSignLogger('AtCommitLog');
+class HiveAtCommitLog extends BaseAtCommitLog {
+  var logger = AtSignLogger('HiveAtCommitLog');
 
   late final List<AtChangeEventListener> _atChangeEventListener = [];
 
@@ -42,7 +42,7 @@ class AtCommitLog extends BaseAtCommitLog {
 
   CommitLogKeyStore get commitLogKeyStore => _commitLogKeyStore;
 
-  AtCommitLog(CommitLogKeyStore keyStore) {
+  HiveAtCommitLog(CommitLogKeyStore keyStore) {
     _commitLogKeyStore = keyStore;
   }
 
@@ -208,8 +208,8 @@ class AtCommitLog extends BaseAtCommitLog {
 }
 
 @client
-class ClientAtCommitLog extends AtCommitLog {
-  ClientAtCommitLog(super.keyStore);
+class HiveClientAtCommitLog extends HiveAtCommitLog {
+  HiveClientAtCommitLog(super.keyStore);
 
   /// Returns the commit entry for a given commit sequence number
   /// throws [DataStoreException] if there is an exception getting the commit entry

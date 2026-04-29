@@ -10,8 +10,8 @@ import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
 import 'package:meta/meta.dart';
 
-class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
-  final AtSignLogger logger = AtSignLogger('HiveKeystore');
+class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
+  final AtSignLogger logger = AtSignLogger('HiveSecondaryKeyStore');
   final String expiresAt = 'expiresAt';
   final String availableAt = 'availableAt';
   static const int maxKeyLength = 255;
@@ -19,7 +19,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
 
   var keyStoreHelper = HiveKeyStoreHelper.getInstance();
   HivePersistenceManager? persistenceManager;
-  late AtCommitLog _commitLog;
+  late HiveAtCommitLog _commitLog;
   @override
   List<Future Function(String key, {required bool skipCommit})> preRemoveHooks =
       [];
@@ -52,11 +52,11 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     return compiled;
   }
 
-  HiveKeystore();
+  HiveSecondaryKeyStore();
 
   @override
   set commitLog(log) {
-    _commitLog = log as AtCommitLog;
+    _commitLog = log as HiveAtCommitLog;
   }
 
   @override
@@ -100,10 +100,10 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       // compare availableAt with time.now()
       //return only between ttl and ttb
     } on Exception catch (exception) {
-      logger.severe('HiveKeystore get exception: $exception');
+      logger.severe('HiveSecondaryKeyStore get exception: $exception');
       throw DataStoreException('exception in get: ${exception.toString()}');
     } on HiveError catch (error) {
-      logger.severe('HiveKeystore get error: $error');
+      logger.severe('HiveSecondaryKeyStore get error: $error');
       await _restartHiveBox(error);
       throw DataStoreException(error.message);
     }
@@ -154,11 +154,11 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
     } on DataStoreException {
       rethrow;
     } on Exception catch (exception) {
-      logger.severe('HiveKeystore put exception: $exception');
+      logger.severe('HiveSecondaryKeyStore put exception: $exception');
       throw DataStoreException('exception in put: ${exception.toString()}');
     } on HiveError catch (error) {
       await _restartHiveBox(error);
-      logger.severe('HiveKeystore error: $error');
+      logger.severe('HiveSecondaryKeyStore error: $error');
       throw DataStoreException(error.message);
     }
     return result;
@@ -220,11 +220,11 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         return await _commitLog.commit(hive_key, commitOp);
       }
     } on Exception catch (exception) {
-      logger.severe('HiveKeystore create exception: $exception');
+      logger.severe('HiveSecondaryKeyStore create exception: $exception');
       throw DataStoreException('exception in create: ${exception.toString()}');
     } on HiveError catch (error) {
       await _restartHiveBox(error);
-      logger.severe('HiveKeystore error: $error');
+      logger.severe('HiveSecondaryKeyStore error: $error');
       throw DataStoreException(error.message);
     }
   }
@@ -257,11 +257,11 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         retVal = (await _commitLog.commit(key, CommitOp.DELETE))!;
       }
     } on Exception catch (exception) {
-      logger.severe('HiveKeystore delete exception: $exception');
+      logger.severe('HiveSecondaryKeyStore delete exception: $exception');
       throw DataStoreException('exception in remove: ${exception.toString()}');
     } on HiveError catch (error) {
       await _restartHiveBox(error);
-      logger.severe('HiveKeystore delete error: $error');
+      logger.severe('HiveSecondaryKeyStore delete error: $error');
       throw DataStoreException(error.message);
     }
 
@@ -300,7 +300,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       throw DataStoreException(
           'exception in deleteExpiredKeys: ${e.toString()}');
     } on HiveError catch (error) {
-      logger.severe('HiveKeystore get error: $error');
+      logger.severe('HiveSecondaryKeyStore get error: $error');
       await _restartHiveBox(error);
       throw DataStoreException(error.message);
     }
@@ -355,10 +355,10 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
         }
       }
     } on Exception catch (exception) {
-      logger.severe('HiveKeystore getKeys exception: ${exception.toString()}');
+      logger.severe('HiveSecondaryKeyStore getKeys exception: ${exception.toString()}');
       throw DataStoreException('exception in getKeys: ${exception.toString()}');
     } on HiveError catch (error) {
-      logger.severe('HiveKeystore get error: $error');
+      logger.severe('HiveSecondaryKeyStore get error: $error');
       _restartHiveBox(error);
       throw DataStoreException(error.message);
     }
@@ -404,7 +404,7 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       result = await _commitLog.commit(hive_key, CommitOp.UPDATE_ALL);
       return result;
     } on HiveError catch (error) {
-      logger.severe('HiveKeystore get error: $error');
+      logger.severe('HiveSecondaryKeyStore get error: $error');
       await _restartHiveBox(error);
       throw DataStoreException(error.message);
     }
@@ -433,13 +433,13 @@ class HiveKeystore implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
       var result = await _commitLog.commit(hive_key, CommitOp.UPDATE_META);
       return result;
     } on HiveError catch (error) {
-      logger.severe('HiveKeystore get error: $error');
+      logger.severe('HiveSecondaryKeyStore get error: $error');
       await _restartHiveBox(error);
       throw DataStoreException(error.message);
     }
   }
 
-  /// Returns true if key exists in [HiveKeystore]. false otherwise.
+  /// Returns true if key exists in [HiveSecondaryKeyStore]. false otherwise.
   @override
   @server
   bool isKeyExists(String key) {

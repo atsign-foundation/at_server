@@ -4,7 +4,7 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive_secondary_keystore.dart';
 import 'package:crypto/crypto.dart';
 import 'package:hive/hive.dart';
 import 'package:test/test.dart';
@@ -312,7 +312,7 @@ void main() async {
           throwsA(predicate((dynamic e) =>
               e is DataStoreException &&
               e.message ==
-                  "key length ${key.length} is greater than max allowed ${HiveKeystore.maxKeyLengthWithoutCached} chars")));
+                  "key length ${key.length} is greater than max allowed ${HiveSecondaryKeyStore.maxKeyLengthWithoutCached} chars")));
       var cachedKey =
           'cached:public:${TestUtils.generateRandomString(245)}@test_user_1';
       await expectLater(
@@ -320,7 +320,7 @@ void main() async {
           throwsA(predicate((dynamic e) =>
               e is DataStoreException &&
               e.message ==
-                  "key length ${cachedKey.length} is greater than max allowed ${HiveKeystore.maxKeyLength} chars")));
+                  "key length ${cachedKey.length} is greater than max allowed ${HiveSecondaryKeyStore.maxKeyLength} chars")));
     });
     test('test put key length 248 chars should pass', () async {
       var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
@@ -346,7 +346,7 @@ void main() async {
           throwsA(predicate((dynamic e) =>
               e is DataStoreException &&
               e.message ==
-                  "key length ${key.length} is greater than max allowed ${HiveKeystore.maxKeyLengthWithoutCached} chars")));
+                  "key length ${key.length} is greater than max allowed ${HiveSecondaryKeyStore.maxKeyLengthWithoutCached} chars")));
       var cachedKey =
           'cached:public:${TestUtils.generateRandomString(250)}@test_user_1';
       await expectLater(
@@ -354,7 +354,7 @@ void main() async {
           throwsA(predicate((dynamic e) =>
               e is DataStoreException &&
               e.message ==
-                  "key length ${cachedKey.length} is greater than max allowed ${HiveKeystore.maxKeyLength} chars")));
+                  "key length ${cachedKey.length} is greater than max allowed ${HiveSecondaryKeyStore.maxKeyLength} chars")));
     });
     test('test create key length 248 chars should pass', () async {
       var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
@@ -378,7 +378,7 @@ void main() async {
           throwsA(predicate((dynamic e) =>
               e is DataStoreException &&
               e.message ==
-                  "key length ${key.length} is greater than max allowed ${HiveKeystore.maxKeyLengthWithoutCached} chars")));
+                  "key length ${key.length} is greater than max allowed ${HiveSecondaryKeyStore.maxKeyLengthWithoutCached} chars")));
       var cachedKey =
           'cached:public:${TestUtils.generateRandomString(270)}@test_user_1';
       await expectLater(
@@ -386,7 +386,7 @@ void main() async {
           throwsA(predicate((dynamic e) =>
               e is DataStoreException &&
               e.message ==
-                  "key length ${cachedKey.length} is greater than max allowed ${HiveKeystore.maxKeyLength} chars")));
+                  "key length ${cachedKey.length} is greater than max allowed ${HiveSecondaryKeyStore.maxKeyLength} chars")));
     });
     test('test putAll key length 248 chars should pass', () async {
       var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
@@ -437,7 +437,7 @@ void main() async {
       SecondaryPersistenceStore? keyStoreManager =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore('@test_user_1');
-      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'sample_data_create_1'
         ..metaData = (AtMetaData()..isEncrypted = false);
@@ -454,7 +454,7 @@ void main() async {
       SecondaryPersistenceStore? keyStoreManager =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore('@test_user_1');
-      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'sample_data_create_1'
         ..metaData = (AtMetaData()
@@ -474,7 +474,7 @@ void main() async {
       SecondaryPersistenceStore? keyStoreManager =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore('@test_user_1');
-      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'sample_data_create_1'
         ..metaData = (AtMetaData()
@@ -494,7 +494,7 @@ void main() async {
       SecondaryPersistenceStore? keyStoreManager =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore('@test_user_1');
-      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'sample_data_put_1'
         ..metaData = (AtMetaData()..isEncrypted = false);
@@ -511,7 +511,7 @@ void main() async {
       SecondaryPersistenceStore? keyStoreManager =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore('@test_user_1');
-      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'sample_data_put_2'
         ..metaData = (AtMetaData()
@@ -530,7 +530,7 @@ void main() async {
       SecondaryPersistenceStore? keyStoreManager =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore('@test_user_1');
-      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'sample_data_put_2'
         ..metaData = (AtMetaData()
@@ -549,7 +549,7 @@ void main() async {
       SecondaryPersistenceStore? keyStoreManager =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore('@test_user_1');
-      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'sample_data_put_2'
         ..metaData = (AtMetaData()
@@ -568,7 +568,7 @@ void main() async {
       SecondaryPersistenceStore? keyStoreManager =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore('@test_user_1');
-      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'sample_data_remove_2'
         ..metaData = (AtMetaData()
@@ -593,7 +593,7 @@ void main() async {
       SecondaryPersistenceStore? keyStoreManager =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore(atSign);
-      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'sample_data_remove_4'
         ..metaData = (AtMetaData()..isEncrypted = false);
@@ -607,7 +607,7 @@ void main() async {
       SecondaryPersistenceStore? keyStoreManager =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore('@test_user_1');
-      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'value_test_1'
         ..metaData = (AtMetaData()..ttl = 10000);
@@ -626,7 +626,7 @@ void main() async {
       SecondaryPersistenceStore? keyStoreManager =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore('@test_user_1');
-      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'value_test_2'
         ..metaData = (AtMetaData()..ttl = 10000);
@@ -643,7 +643,7 @@ void main() async {
       SecondaryPersistenceStore? keyStoreManager =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore('@test_user_1');
-      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'dummy_data'
         ..metaData = (AtMetaData()
@@ -669,7 +669,7 @@ void main() async {
       SecondaryPersistenceStore? keyStoreManager =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore('@test_user_1');
-      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'sample_data'
         ..metaData = (AtMetaData()..ttl = 10000);
@@ -698,7 +698,7 @@ void main() async {
       SecondaryPersistenceStore? keyStoreManager =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore('@test_user_1');
-      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'dummy_value'
         ..metaData = (AtMetaData()..ttl = 10000);
@@ -725,7 +725,7 @@ void main() async {
       SecondaryPersistenceStore? keyStoreManager =
           SecondaryPersistenceStoreFactory.getInstance()
               .getSecondaryPersistenceStore('@test_user_1');
-      HiveKeystore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'dummy_value'
         ..metaData = (AtMetaData()..ttl = 30);
@@ -743,7 +743,7 @@ void main() async {
 
   group('A group of test related to getKeys method', () {
     String atSign = '@emoji🛠️';
-    late HiveKeystore keystore;
+    late HiveSecondaryKeyStore keystore;
 
     setUp(() async {
       await setUpFunc(storageDir, atSign);

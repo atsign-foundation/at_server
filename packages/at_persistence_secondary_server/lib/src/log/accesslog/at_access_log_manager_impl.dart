@@ -14,22 +14,22 @@ class AtAccessLogManagerImpl implements AtAccessLogManager {
     return _singleton;
   }
 
-  final Map<String, AtAccessLog> _accessLogMap = {};
+  final Map<String, HiveAtAccessLog> _accessLogMap = {};
 
   @override
-  Future<AtAccessLog?> getAccessLog(String atSign,
+  Future<HiveAtAccessLog?> getAccessLog(String atSign,
       {String? accessLogPath}) async {
     if (!_accessLogMap.containsKey(atSign)) {
       var accessLogKeyStore = AccessLogKeyStore(atSign);
       await accessLogKeyStore.init(accessLogPath!);
-      _accessLogMap[atSign] = AtAccessLog(accessLogKeyStore);
+      _accessLogMap[atSign] = HiveAtAccessLog(accessLogKeyStore);
     }
     return _accessLogMap[atSign];
   }
 
   Future<void> close() async {
     await Future.forEach(
-        _accessLogMap.values, (AtAccessLog atAccessLog) => atAccessLog.close());
+        _accessLogMap.values, (HiveAtAccessLog atAccessLog) => atAccessLog.close());
     _accessLogMap.clear();
   }
 

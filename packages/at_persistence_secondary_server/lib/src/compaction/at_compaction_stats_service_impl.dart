@@ -33,13 +33,13 @@ class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
 
   ///changes the value of [compactionStatsKey] to match the AtLogType being processed
   void _getKey() {
-    if (_atCompaction is AtCommitLog) {
+    if (_atCompaction is HiveAtCommitLog) {
       compactionStatsKey = AtConstants.commitLogCompactionKey;
     }
-    if (_atCompaction is AtAccessLog) {
+    if (_atCompaction is HiveAtAccessLog) {
       compactionStatsKey = AtConstants.accessLogCompactionKey;
     }
-    if (_atCompaction is AtNotificationKeystore) {
+    if (_atCompaction is HiveAtNotificationKeystore) {
       compactionStatsKey = AtConstants.notificationCompactionKey;
     }
   }

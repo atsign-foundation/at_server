@@ -23,14 +23,14 @@ class PolVerbHandler extends AbstractVerbHandler {
 
   final OutboundClientManager outboundClientManager;
   final AtCacheManager cacheManager;
-  final AtAccessLog? _accessLogOverride;
-  AtAccessLog get accessLog =>
+  final HiveAtAccessLog? _accessLogOverride;
+  HiveAtAccessLog get accessLog =>
       _accessLogOverride ?? AtSecondaryServerImpl.getInstance().accessLog;
   final _dummyInboundConnection = DummyInboundConnection();
 
   PolVerbHandler(
       super.keyStore, this.outboundClientManager, this.cacheManager,
-      {AtAccessLog? accessLog})
+      {HiveAtAccessLog? accessLog})
       : _accessLogOverride = accessLog;
 
   // Method to verify whether command is accepted or not

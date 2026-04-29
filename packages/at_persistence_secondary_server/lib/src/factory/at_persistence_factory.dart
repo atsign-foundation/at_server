@@ -49,13 +49,13 @@ abstract class AtPersistenceBundle {
   SecondaryKeyStore<String, AtData?, AtMetaData?> get keyStore;
 
   /// The commit log used by sync.
-  AtCommitLog get commitLog;
+  HiveAtCommitLog get commitLog;
 
   /// The access log used for stats and security audit.
-  AtAccessLog get accessLog;
+  HiveAtAccessLog get accessLog;
 
   /// The notification keystore.
-  AtNotificationKeystore get notificationKeystore;
+  HiveAtNotificationKeystore get notificationKeystore;
 
   /// Schedule the periodic expired-keys removal task. Generic
   /// across backends — the bundle internally drives whatever the

@@ -39,7 +39,7 @@ class MockSecondaryKeyStore extends Mock
 }
 
 class MockAtNotificationKeystore extends Mock
-    implements AtNotificationKeystore {}
+    implements HiveAtNotificationKeystore {}
 
 class MockNotifyConnectionsPool extends Mock implements NotifyConnectionsPool {}
 
@@ -168,7 +168,7 @@ late MockOutboundConnection mockOutboundConnection;
 late MockSecondaryAddressFinder mockSecondaryAddressFinder;
 late MockSecureSocket mockSecureSocket;
 late DummyInboundConnection inboundConnection;
-late AtNotificationKeystore notifStore;
+late HiveAtNotificationKeystore notifStore;
 late NotificationManager notificationManager;
 late MockStatsNotificationService statsNotificationService;
 late EnrollmentManager enMgr;
@@ -180,7 +180,7 @@ late Function() socketOnDoneFn;
 late Function(Exception e, StackTrace st) socketOnErrorFn;
 
 String storageDir = '${Directory.current.path}/unit_test_storage';
-late AtCommitLog atCommitLog;
+late HiveAtCommitLog atCommitLog;
 
 /// Creates and persists a new approved enrollment
 /// NB: Does not go through enroll verb handler, so

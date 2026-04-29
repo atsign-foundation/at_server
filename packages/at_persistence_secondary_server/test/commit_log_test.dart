@@ -935,7 +935,7 @@ void main() async {
         'A test to verify CommitLogKeyStore is set when enableCommitId is set to true',
         () async {
       await setUpFunc(storageDir, enableCommitId: true);
-      AtCommitLog? atCommitLog =
+      HiveAtCommitLog? atCommitLog =
           await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
       expect(atCommitLog!.commitLogKeyStore, isA<CommitLogKeyStore>());
     });
@@ -944,7 +944,7 @@ void main() async {
         'A test to verify ClientCommitLogKeyStore is set when enableCommitId is set to false',
         () async {
       await setUpFunc(storageDir, enableCommitId: false);
-      AtCommitLog? atCommitLog =
+      HiveAtCommitLog? atCommitLog =
           await (AtCommitLogManagerImpl.getInstance().getCommitLog('@alice'));
       expect(atCommitLog!.commitLogKeyStore, isA<ClientCommitLogKeyStore>());
     });

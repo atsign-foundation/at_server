@@ -11,9 +11,9 @@ var atSign = '@alice';
 void main() async {
   var storageDir = '${Directory.current.path}/test/hive';
 
-  late AtNotificationKeystore keyStore;
+  late HiveAtNotificationKeystore keyStore;
   setUp(() async {
-    keyStore = AtNotificationKeystore(atSign);
+    keyStore = HiveAtNotificationKeystore(atSign);
     await keyStore.init(storageDir);
     await keyStore.init('$storageDir/${Uuid().v4()}');
   });
@@ -168,7 +168,7 @@ void main() async {
           throwsA(predicate((dynamic e) =>
               e is DataStoreException &&
               e.message ==
-                  "key length ${key.length} is greater than ${AtNotificationKeystore.maxKeyLengthWithoutCached} chars")));
+                  "key length ${key.length} is greater than ${HiveAtNotificationKeystore.maxKeyLengthWithoutCached} chars")));
     });
   });
 }

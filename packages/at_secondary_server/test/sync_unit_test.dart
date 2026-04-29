@@ -3,7 +3,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive_secondary_keystore.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
@@ -581,11 +581,11 @@ void main() async {
         // throw exception for invalid key, calling put method on the hive box.
         // and inserting the entry into the commit log
         // The "**" in the key - @invalidkey**.buzz$alice is added to set key as invalid key
-        await (secondaryKeyStore as HiveKeystore)
+        await (secondaryKeyStore as HiveSecondaryKeyStore)
             .persistenceManager
             ?.getBox()
             .put('@invalidkey**.buzz$alice', AtData()..data = alice);
-        AtCommitLog atCommitLog = (secondaryKeyStore.commitLog) as AtCommitLog;
+        HiveAtCommitLog atCommitLog = (secondaryKeyStore.commitLog) as HiveAtCommitLog;
         await atCommitLog.commit('@invalidkey**.buzz$alice', CommitOp.UPDATE);
 
         var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(

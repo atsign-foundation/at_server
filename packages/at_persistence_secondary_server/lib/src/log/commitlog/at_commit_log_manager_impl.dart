@@ -14,10 +14,10 @@ class AtCommitLogManagerImpl implements AtCommitLogManager {
     return _singleton;
   }
 
-  final Map<String, AtCommitLog> _commitLogMap = {};
+  final Map<String, HiveAtCommitLog> _commitLogMap = {};
 
   @override
-  Future<AtCommitLog?> getCommitLog(String atSign,
+  Future<HiveAtCommitLog?> getCommitLog(String atSign,
       {String? commitLogPath, bool enableCommitId = true}) async {
     //verify if an instance has been already created for the given instance.
     if (!_commitLogMap.containsKey(atSign)) {
@@ -25,10 +25,10 @@ class AtCommitLogManagerImpl implements AtCommitLogManager {
       // Creating commit-log for client
       if (enableCommitId) {
         commitLogKeyStore = CommitLogKeyStore(atSign);
-        _commitLogMap[atSign] = AtCommitLog(commitLogKeyStore);
+        _commitLogMap[atSign] = HiveAtCommitLog(commitLogKeyStore);
       } else {
         commitLogKeyStore = ClientCommitLogKeyStore(atSign);
-        _commitLogMap[atSign] = ClientAtCommitLog(commitLogKeyStore);
+        _commitLogMap[atSign] = HiveClientAtCommitLog(commitLogKeyStore);
       }
       if (commitLogPath != null) {
         await commitLogKeyStore.init(commitLogPath, isLazy: false);
@@ -39,7 +39,7 @@ class AtCommitLogManagerImpl implements AtCommitLogManager {
 
   Future<void> close() async {
     await Future.forEach(
-        _commitLogMap.values, (AtCommitLog atCommitLog) => atCommitLog.close());
+        _commitLogMap.values, (HiveAtCommitLog atCommitLog) => atCommitLog.close());
     _commitLogMap.clear();
   }
 

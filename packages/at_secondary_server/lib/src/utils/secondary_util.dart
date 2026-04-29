@@ -15,7 +15,7 @@ class SecondaryUtil {
   /// Explanation: The From handler creates records to support the
   /// challenge-response mechanisms of cram, pkam and pol commands. Those
   /// record IDs begin with this sessionId, and the records for pol are created
-  /// as `public:<sessionId>`. AtCommitLog **won't** make entries for records
+  /// as `public:<sessionId>`. HiveAtCommitLog **won't** make entries for records
   /// whose IDs start with `public:_`, but **will** make entries for records
   /// whose IDs start with `public:__`
   static String makeSessionId() {

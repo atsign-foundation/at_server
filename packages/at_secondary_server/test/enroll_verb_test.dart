@@ -18,7 +18,7 @@ import 'package:at_server_spec/at_server_spec.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
-import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive_secondary_keystore.dart';
 
 import 'enrollment_test_utils.dart';
 import 'test_utils.dart';
@@ -526,7 +526,7 @@ void main() {
       await Future.delayed(Duration(milliseconds: ttl + 1));
 
       final expiryCache =
-          (secondaryKeyStore as HiveKeystore).getExpiryKeysCache();
+          (secondaryKeyStore as HiveSecondaryKeyStore).getExpiryKeysCache();
       for (final enId in withTtlEnIds) {
         expect(expiryCache.containsKey(enMgr.buildEnrollmentKey(enId)), true);
       }
@@ -546,8 +546,8 @@ void main() {
       //
       // Note that we have to supply the list of enrollment ids
       // because otherwise getEnrollmentsAsJson will do a getKeys
-      // on the HiveKeystore which in turn filters what it finds against
-      // the _expiryCache which HiveKeystore maintains.
+      // on the HiveSecondaryKeyStore which in turn filters what it finds against
+      // the _expiryCache which HiveSecondaryKeyStore maintains.
       Map m = await enMgr.getEnrollmentsAsJson(
           ekList:
               allEnIds.map((enId) => enMgr.buildEnrollmentKey(enId)).toList());
@@ -1158,7 +1158,7 @@ void main() {
       expect(enrollmentResponse['status'], 'approved');
       // Commit log
       Iterator iterator =
-          (secondaryKeyStore.commitLog as AtCommitLog).getEntries(-1);
+          (secondaryKeyStore.commitLog as HiveAtCommitLog).getEntries(-1);
       expect(iterator.moveNext(), false);
     });
 
@@ -1183,7 +1183,7 @@ void main() {
       expect(enrollmentResponse['status'], 'approved');
       // Commit log
       Iterator iterator =
-          (secondaryKeyStore.commitLog as AtCommitLog).getEntries(-1);
+          (secondaryKeyStore.commitLog as HiveAtCommitLog).getEntries(-1);
       expect(iterator.moveNext(), false);
     });
 
@@ -1223,7 +1223,7 @@ void main() {
       expect(approveEnrollmentResponse['status'], 'approved');
       // Verify Commit log does not contain keys with __manage namespace
       Iterator iterator =
-          (secondaryKeyStore.commitLog as AtCommitLog).getEntries(-1);
+          (secondaryKeyStore.commitLog as HiveAtCommitLog).getEntries(-1);
       iterator.moveNext();
       expect(iterator.moveNext(), false);
     });
@@ -2722,7 +2722,7 @@ void main() {
       expect(enrollmentDataMap['namespaces'], {'buzz': 'r'});
       expect(enrollmentDataMap['apkamPublicKey'], 'lorem_apkam');
 
-      AtCommitLog atCommitLog = atServer.commitLog;
+      HiveAtCommitLog atCommitLog = atServer.commitLog;
       var itr = atCommitLog.getEntries(-1);
       // Since there are no entries in commit log, iterator.moveNext() returns false.
       expect(itr.moveNext(), false);
@@ -2827,7 +2827,7 @@ void main() {
       expect(enrollmentDataMap['namespaces'], {'buzz': 'r'});
       expect(enrollmentDataMap['apkamPublicKey'], 'lorem_apkam');
 
-      AtCommitLog atCommitLog = atServer.commitLog;
+      HiveAtCommitLog atCommitLog = atServer.commitLog;
       var itr = atCommitLog.getEntries(-1);
       // Since there are no entries in commit log, iterator.moveNext() returns false.
       expect(itr.moveNext(), false);

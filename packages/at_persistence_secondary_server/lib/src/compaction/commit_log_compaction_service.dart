@@ -3,7 +3,7 @@ import 'package:at_persistence_secondary_server/src/event_listener/at_change_eve
 import 'package:at_persistence_secondary_server/src/event_listener/at_change_event_listener.dart';
 import 'package:at_utils/at_logger.dart';
 
-/// [CommitLogCompactionService] class is responsible for compacting the [AtCommitLog]
+/// [CommitLogCompactionService] class is responsible for compacting the [HiveAtCommitLog]
 /// Listens on the [AtChangeEventListener] and increments [keysToCompactCount] on each insert
 /// into the commit-log. When [keysToCompactCount] reaches threshold (50), compaction triggers
 /// and removes the duplicate [CommitEntry]
@@ -13,7 +13,7 @@ class CommitLogCompactionService implements AtChangeEventListener {
   int keysToCompactCount = 0;
   final _logger = AtSignLogger('CommitLogCompactionService');
 
-  /// Initializes the [CommitLogCompactionService] and loads the keys in [AtCommitLog]
+  /// Initializes the [CommitLogCompactionService] and loads the keys in [HiveAtCommitLog]
   /// into [_commitLogEntriesMap].
   CommitLogCompactionService(CommitLogKeyStore commitLogKeyStore) {
     _commitLogKeyStore = commitLogKeyStore;

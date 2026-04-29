@@ -6,8 +6,8 @@ import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
 
-/// Class to initialize, put and get entries into [AtNotificationKeystore]
-class AtNotificationKeystore
+/// Class to initialize, put and get entries into [HiveAtNotificationKeystore]
+class HiveAtNotificationKeystore
     with HiveBase<AtNotification?>
     implements SecondaryKeyStore, AtLogType<String, AtNotification> {
   late String currentAtSign;
@@ -21,15 +21,15 @@ class AtNotificationKeystore
   List<Future Function(String key, {required bool skipCommit})>
       postRemoveHooks = [];
 
-  static final AtNotificationKeystore _singleton =
-      AtNotificationKeystore('@fake_atsign_fake_fake_fake');
+  static final HiveAtNotificationKeystore _singleton =
+      HiveAtNotificationKeystore('@fake_atsign_fake_fake_fake');
 
   @Deprecated("Obsolete; use standard constructor")
-  factory AtNotificationKeystore.getInstance() {
+  factory HiveAtNotificationKeystore.getInstance() {
     return _singleton;
   }
 
-  final _logger = AtSignLogger('AtNotificationKeystore');
+  final _logger = AtSignLogger('HiveAtNotificationKeystore');
 
   static bool _typesRegistered = false;
 
@@ -40,7 +40,7 @@ class AtNotificationKeystore
   }
 
   /// You **must** subsequently call [init]
-  AtNotificationKeystore(this.currentAtSign) {
+  HiveAtNotificationKeystore(this.currentAtSign) {
     if (!_typesRegistered) {
       Hive.registerAdapter(AtNotificationAdapter());
       Hive.registerAdapter(OperationTypeAdapter());
@@ -131,7 +131,7 @@ class AtNotificationKeystore
       _logger.severe('exception in hive get expired keys:${e.toString()}');
       throw DataStoreException('exception in getExpiredKeys: ${e.toString()}');
     } on HiveError catch (error) {
-      _logger.severe('HiveKeystore get error: $error');
+      _logger.severe('HiveSecondaryKeyStore get error: $error');
       throw DataStoreException(error.message);
     }
     return expiredKeys;

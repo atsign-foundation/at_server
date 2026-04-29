@@ -1,8 +1,8 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive_secondary_keystore.dart';
 
 class SecondaryPersistenceStore {
-  late HiveKeystore _hiveKeystore;
+  late HiveSecondaryKeyStore _hiveKeystore;
   HivePersistenceManager? _hivePersistenceManager;
   SecondaryKeyStoreManager? _secondaryKeyStoreManager;
   String? _atSign;
@@ -12,7 +12,7 @@ class SecondaryPersistenceStore {
     _init();
   }
 
-  HiveKeystore? getSecondaryKeyStore() {
+  HiveSecondaryKeyStore? getSecondaryKeyStore() {
     return _hiveKeystore;
   }
 
@@ -25,7 +25,7 @@ class SecondaryPersistenceStore {
   }
 
   void _init() {
-    _hiveKeystore = HiveKeystore();
+    _hiveKeystore = HiveSecondaryKeyStore();
     _hivePersistenceManager = HivePersistenceManager(_atSign);
     _hiveKeystore.persistenceManager = _hivePersistenceManager;
     // Wire the back-reference up-front so HivePersistenceManager.scheduleKeyExpireTask

@@ -6,7 +6,7 @@ import 'package:test/test.dart';
 
 String storageDir = '${Directory.current.path}/test/hive';
 SecondaryPersistenceStore? secondaryPersistenceStore;
-AtCommitLog? atCommitLog;
+HiveAtCommitLog? atCommitLog;
 
 Future<void> setUpMethod({bool enableCommitId = true}) async {
   String atSign = '@alice';
@@ -86,7 +86,7 @@ void main() {
   });
 
   group('A group of test to verify access log compaction job', () {
-    AtAccessLog? atAccessLog;
+    HiveAtAccessLog? atAccessLog;
     setUp(() async {
       await setUpMethod();
       // Initialize commit log

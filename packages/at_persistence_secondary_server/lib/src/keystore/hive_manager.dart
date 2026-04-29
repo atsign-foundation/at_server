@@ -8,7 +8,7 @@ import 'package:cron/cron.dart';
 import 'package:hive/hive.dart';
 
 import 'hive_base.dart';
-import 'hive_keystore.dart';
+import 'hive_secondary_keystore.dart';
 
 class HivePersistenceManager with HiveBase {
   final logger = AtSignLogger('HivePersistenceManager');
@@ -31,7 +31,7 @@ class HivePersistenceManager with HiveBase {
   /// previous behaviour where [scheduleKeyExpireTask] reached back into
   /// `SecondaryPersistenceStoreFactory.getInstance()` from inside a
   /// unit that the factory had constructed (cyclic dep).
-  HiveKeystore? keyStoreForExpireTask;
+  HiveSecondaryKeyStore? keyStoreForExpireTask;
 
   @override
   Future<void> initialize() async {

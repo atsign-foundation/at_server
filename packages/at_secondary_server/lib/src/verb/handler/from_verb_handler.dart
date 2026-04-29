@@ -21,16 +21,16 @@ class FromVerbHandler extends AbstractVerbHandler {
   static final _rootDomain = AtSecondaryConfig.rootServerUrl;
   static final _rootPort = AtSecondaryConfig.rootServerPort;
 
-  final AtCommitLog? _commitLogOverride;
-  final AtAccessLog? _accessLogOverride;
+  final HiveAtCommitLog? _commitLogOverride;
+  final HiveAtAccessLog? _accessLogOverride;
 
-  AtCommitLog get commitLog =>
+  HiveAtCommitLog get commitLog =>
       _commitLogOverride ?? AtSecondaryServerImpl.getInstance().commitLog;
-  AtAccessLog get accessLog =>
+  HiveAtAccessLog get accessLog =>
       _accessLogOverride ?? AtSecondaryServerImpl.getInstance().accessLog;
 
   FromVerbHandler(super.keyStore,
-      {AtCommitLog? commitLog, AtAccessLog? accessLog})
+      {HiveAtCommitLog? commitLog, HiveAtAccessLog? accessLog})
       : _commitLogOverride = commitLog,
         _accessLogOverride = accessLog {
     logger.level = 'info';

@@ -15,11 +15,11 @@ import 'package:meta/meta.dart';
 class SyncProgressiveVerbHandler extends AbstractVerbHandler {
   static SyncFrom syncFrom = SyncFrom();
 
-  final AtCommitLog? _commitLogOverride;
-  AtCommitLog get commitLog =>
+  final HiveAtCommitLog? _commitLogOverride;
+  HiveAtCommitLog get commitLog =>
       _commitLogOverride ?? AtSecondaryServerImpl.getInstance().commitLog;
 
-  SyncProgressiveVerbHandler(super.keyStore, {AtCommitLog? commitLog})
+  SyncProgressiveVerbHandler(super.keyStore, {HiveAtCommitLog? commitLog})
       : _commitLogOverride = commitLog;
 
   /// Represents the size of the sync buffer
@@ -42,7 +42,7 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     // Use the injected commit log.
-    final AtCommitLog atCommitLog = commitLog;
+    final HiveAtCommitLog atCommitLog = commitLog;
     int? skipDeletesUntil = verbParams[AtConstants.skipDeletesUntil] != null
         ? int.parse(verbParams[AtConstants.skipDeletesUntil]!)
         : null;

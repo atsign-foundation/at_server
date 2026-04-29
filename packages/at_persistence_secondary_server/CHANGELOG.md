@@ -53,6 +53,20 @@
   consumers use only the abstract `AtPersistenceBundle` surface
   (`keyStore`, `commitLog`, `accessLog`, `notificationKeystore`,
   `scheduleKeyExpireTask`, `close`).
+- refactor!: Hive-backed concrete classes renamed so the unprefixed
+  names are free for the abstract interfaces introduced in a
+  follow-up commit. `AtCommitLog` → `HiveAtCommitLog`,
+  `ClientAtCommitLog` → `HiveClientAtCommitLog`, `AtAccessLog` →
+  `HiveAtAccessLog`, `AtNotificationKeystore` →
+  `HiveAtNotificationKeystore`, `HiveKeystore` →
+  `HiveSecondaryKeyStore`. File paths follow the same rename
+  (`at_commit_log.dart` → `hive_at_commit_log.dart`, etc.). No
+  deprecated re-exports under the old names — see `MIGRATION.md`
+  for find-and-replace recipes.
+- docs: add `MIGRATION.md` covering the 4.3.5 → 5.0.0 changes,
+  split into server and client tracks (the impact differs
+  significantly between consumers that run a full atSecondary
+  versus those that only run a local-secondary cache).
 
 ## 4.3.5
 

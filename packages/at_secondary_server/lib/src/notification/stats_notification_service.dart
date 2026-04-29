@@ -54,7 +54,7 @@ class StatsNotificationService {
 
   final _logger = AtSignLogger('StatsNotificationService');
   late String currentAtSign;
-  AtCommitLog? atCommitLog;
+  HiveAtCommitLog? atCommitLog;
 
   static final Duration zeroDuration = Duration(microseconds: 0);
 
@@ -75,7 +75,7 @@ class StatsNotificationService {
   /// Throws a [StateError] If the service is already either [scheduling] or [scheduled].
   /// Creates a periodic Timer which will call the [writeStatsToMonitor] method every [interval]
   /// and sets the [timer] instance variable accordingly.
-  Future<void> schedule(String currentAtSign, AtCommitLog atCommitLog,
+  Future<void> schedule(String currentAtSign, HiveAtCommitLog atCommitLog,
       {Duration? interval}) async {
     interval ??=
         Duration(seconds: AtSecondaryConfig.statsNotificationJobTimeInterval);

@@ -9,7 +9,7 @@ import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'test_utils.dart';
 
-class MockAtCommitLog extends Mock implements AtCommitLog {}
+class MockAtCommitLog extends Mock implements HiveAtCommitLog {}
 
 class MockInboundConnection extends Mock implements InboundConnection {}
 
@@ -29,7 +29,7 @@ void main() {
     await verbTestsSetUp();
   });
 
-  AtCommitLog mockAtCommitLog = MockAtCommitLog();
+  HiveAtCommitLog mockAtCommitLog = MockAtCommitLog();
   InboundConnectionPool mockInboundConnectionPool = MockInboundConnectionPool();
 
   test(

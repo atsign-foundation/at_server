@@ -15,7 +15,7 @@ Future<void> main(List<String> arguments) async {
 
   //commitLog keystore
   var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@alice') as FutureOr<AtCommitLog>);
+      .getCommitLog('@alice') as FutureOr<HiveAtCommitLog>);
   var hiveKey =
       await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
   var committedEntry = await commitLogInstance.getEntry(hiveKey);
@@ -23,7 +23,7 @@ Future<void> main(List<String> arguments) async {
 
   //Notification keystore
   var storageDir = '${Directory.current.path}/example/hive';
-  var notificationKeyStore = AtNotificationKeystore('@alice');
+  var notificationKeyStore = HiveAtNotificationKeystore('@alice');
   await notificationKeyStore.init(storageDir);
 
   var atNotification = (AtNotificationBuilder()

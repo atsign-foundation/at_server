@@ -49,7 +49,7 @@ class AtCompactionService {
 
   /// Gets the keys to delete on compaction and removes from the keystore
   ///
-  /// The [AtLogType] defines the type of Keystore to compaction (e.g. AtCommitLog, AtAccessLog)
+  /// The [AtLogType] defines the type of Keystore to compaction (e.g. HiveAtCommitLog, HiveAtAccessLog)
   @visibleForTesting
   Future<void> executeCompactionInternal(AtLogType atLogType) async {
     final keysToCompact = await atLogType.getKeysToDeleteOnCompaction();

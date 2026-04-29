@@ -7,9 +7,9 @@ import 'package:uuid/uuid.dart';
 
 String storageDir = '${Directory.current.path}/test/hive';
 SecondaryKeyStore? keyStore;
-AtCommitLog? atCommitLog;
-AtAccessLog? atAccessLog;
-late AtNotificationKeystore atNotificationKeystore;
+HiveAtCommitLog? atCommitLog;
+HiveAtAccessLog? atAccessLog;
+late HiveAtNotificationKeystore atNotificationKeystore;
 
 late AtCompactionStatsServiceImpl atCompactionStatsServiceImpl;
 
@@ -30,7 +30,7 @@ Future<void> setUpMethod() async {
   keyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   keyStore!.commitLog = atCommitLog;
   // AtNotification Keystore
-  atNotificationKeystore = AtNotificationKeystore('@alice');
+  atNotificationKeystore = HiveAtNotificationKeystore('@alice');
   await atNotificationKeystore.init('$storageDir/${Uuid().v4()}');
   // Init the hive instances
   await secondaryPersistenceStore.getHivePersistenceManager()!.init(storageDir);
@@ -81,7 +81,7 @@ Future<void> main() async {
       expect(decodedData['deletedKeysCount'], '0');
       expect(decodedData['postCompactionEntriesCount'], '1');
       expect(decodedData['preCompactionEntriesCount'], '1');
-      expect(decodedData['atCompactionType'], 'AtCommitLog');
+      expect(decodedData['atCompactionType'], 'HiveAtCommitLog');
     });
 
     tearDown(() async => await tearDownMethod());

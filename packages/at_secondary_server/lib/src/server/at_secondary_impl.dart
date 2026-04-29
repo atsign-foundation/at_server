@@ -104,7 +104,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   dynamic _serverSocket;
   bool _isRunning = false;
   late Atsign currentAtSign;
-  late AtCommitLog commitLog;
+  late HiveAtCommitLog commitLog;
   var accessLog;
   var signingKey;
   AtSecondaryContext? serverContext;
@@ -118,7 +118,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   @visibleForTesting
   AtCertificateValidationJob? certificateReloadJob;
   late SecondaryKeyStore<String, AtData?, AtMetaData?> secondaryKeyStore;
-  late AtNotificationKeystore notificationKeystore;
+  late HiveAtNotificationKeystore notificationKeystore;
   late NotificationManager notificationManager;
   late var atCommitLogCompactionConfig;
   late var atAccessLogCompactionConfig;
@@ -722,7 +722,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     throw Exception("AtSecondaryServer.getMetrics() is obsolete");
   }
 
-  /// Initializes [SecondaryKeyStore], [AtCommitLog], [AtNotificationKeystore] and [AtAccessLog] instances.
+  /// Initializes [SecondaryKeyStore], [HiveAtCommitLog], [HiveAtNotificationKeystore] and [HiveAtAccessLog] instances.
   Future<void> _initializePersistentInstances() async {
     AtNotification.defaultTtl =
         Duration(minutes: AtSecondaryConfig.notificationExpiryInMins);

@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive_secondary_keystore.dart';
 import 'package:test/expect.dart';
 import 'package:test/scaffolding.dart';
 
@@ -12,15 +12,15 @@ void main() async {
   group('test scenarios for expired keys - CASE: optimizeCommits set to TRUE',
       () {
     String atsign = '@test_user_1';
-    HiveKeystore? keyStore;
-    late AtCommitLog commitLog;
+    HiveSecondaryKeyStore? keyStore;
+    late HiveAtCommitLog commitLog;
 
     setUp(() async {
       var keyStoreManager =
           await getKeystoreManager(storageDir, atsign, optimizeCommits: true);
-      keyStore = keyStoreManager.getKeyStore() as HiveKeystore?;
+      keyStore = keyStoreManager.getKeyStore() as HiveSecondaryKeyStore?;
       assert(keyStore != null);
-      commitLog = keyStore!.commitLog as AtCommitLog;
+      commitLog = keyStore!.commitLog as HiveAtCommitLog;
     });
 
     test('fetch expired key returns throws exception', () async {
@@ -136,15 +136,15 @@ void main() async {
   group('test scenarios for expired keys - CASE: optimizeCommits set to FALSE',
       () {
     String atsign = '@test_user_2';
-    HiveKeystore? keyStore;
-    late AtCommitLog commitLog;
+    HiveSecondaryKeyStore? keyStore;
+    late HiveAtCommitLog commitLog;
 
     setUp(() async {
       var keyStoreManager =
           await getKeystoreManager(storageDir, atsign, optimizeCommits: false);
-      keyStore = keyStoreManager.getKeyStore() as HiveKeystore?;
+      keyStore = keyStoreManager.getKeyStore() as HiveSecondaryKeyStore?;
       assert(keyStore != null);
-      commitLog = keyStore!.commitLog as AtCommitLog;
+      commitLog = keyStore!.commitLog as HiveAtCommitLog;
     });
 
     test('ensure expired keys deletion entry is added to commitLog', () async {
