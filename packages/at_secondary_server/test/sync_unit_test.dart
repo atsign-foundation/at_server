@@ -8,7 +8,6 @@ import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
-import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/verb/handler/batch_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
 import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
@@ -239,7 +238,7 @@ void main() async {
           secondaryKeyStore,
           mockOutboundClientManager,
           mockAtCacheManager,
-          StatsNotificationService.getInstance(),
+          statsNotificationService,
           mockNotificationManager,
           enMgr,
           alice,
@@ -305,7 +304,7 @@ void main() async {
           secondaryKeyStore,
           mockOutboundClientManager,
           mockAtCacheManager,
-          StatsNotificationService.getInstance(),
+          statsNotificationService,
           mockNotificationManager,
           enMgr,
           alice,

@@ -218,12 +218,6 @@ void verbTestsSetUpLogging() {
 
 verbTestsSetUpAll() async {
   verbTestsSetUpLogging();
-  // Pre-warm an access log on the singleton so any test that runs before a
-  // setUp can still hit it. Routed through the deprecated singleton on
-  // purpose — this is bootstrap-only and matches the pre-factory shape.
-  // ignore: deprecated_member_use
-  await AtAccessLogManagerImpl.getInstance()
-      .getAccessLog(alice, accessLogPath: storageDir);
 }
 
 verbTestsSetUp() async {

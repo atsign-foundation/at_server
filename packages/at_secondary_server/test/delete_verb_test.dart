@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
-import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -35,7 +34,7 @@ void main() {
     test('test delete getVerb', () {
       var handler = DeleteVerbHandler(
         secondaryKeyStore,
-        StatsNotificationService.getInstance(),
+        statsNotificationService,
         notificationManager,
       );
       var verb = handler.getVerb();
@@ -46,7 +45,7 @@ void main() {
       var command = 'delete:@bob:email@colin';
       var handler = DeleteVerbHandler(
         secondaryKeyStore,
-        StatsNotificationService.getInstance(),
+        statsNotificationService,
         notificationManager,
       );
       var result = handler.accept(command);
@@ -58,7 +57,7 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       var handler = DeleteVerbHandler(
         secondaryKeyStore,
-        StatsNotificationService.getInstance(),
+        statsNotificationService,
         notificationManager,
       );
       var result = handler.accept(command);
@@ -118,7 +117,7 @@ void main() {
       await verbTestsSetUp();
       handler = DeleteVerbHandler(
         secondaryKeyStore,
-        StatsNotificationService.getInstance(),
+        statsNotificationService,
         notificationManager,
       );
     });
@@ -209,12 +208,12 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       deleteHandler = DeleteVerbHandler(
         secondaryKeyStore,
-        StatsNotificationService.getInstance(),
+        statsNotificationService,
         notificationManager,
       );
       updateHandler = UpdateVerbHandler(
         secondaryKeyStore,
-        StatsNotificationService.getInstance(),
+        statsNotificationService,
         notificationManager,
         alice,
       );

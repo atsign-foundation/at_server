@@ -1,19 +1,10 @@
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store.dart';
 
+/// Per-atSign cache around [SecondaryPersistenceStore]. Construct
+/// directly; callers that want process-wide lifecycle of the
+/// underlying stores should use [HiveAtPersistenceFactory] instead.
 class SecondaryPersistenceStoreFactory {
-  static final SecondaryPersistenceStoreFactory _singleton =
-      SecondaryPersistenceStoreFactory._internal();
-
-  SecondaryPersistenceStoreFactory._internal();
-
-  @Deprecated(
-      'Use HiveAtPersistenceFactory (or any AtPersistenceFactory) and '
-      'inject the resulting bundle instead. Will be removed in the next '
-      'major release.')
-  factory SecondaryPersistenceStoreFactory.getInstance() {
-    return _singleton;
-  }
+  SecondaryPersistenceStoreFactory();
 
   final Map<String?, SecondaryPersistenceStore> _secondaryPersistenceStoreMap =
       {};
@@ -31,13 +22,6 @@ class SecondaryPersistenceStoreFactory {
         _secondaryPersistenceStoreMap.values,
         (SecondaryPersistenceStore secondaryPersistenceStore) =>
             secondaryPersistenceStore.getHivePersistenceManager()?.close());
-    _secondaryPersistenceStoreMap.clear();
-  }
-
-  /// Clears the internal per-atSign cache without calling close() on the
-  /// entries. Used by [HiveAtPersistenceFactory] when the entries have
-  /// already been closed via shared references.
-  void clear() {
     _secondaryPersistenceStoreMap.clear();
   }
 }

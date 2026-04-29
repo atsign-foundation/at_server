@@ -17,8 +17,7 @@ void main() async {
     String atSign = '@test_user_1';
     setUp(() async => await setUpFunc(storageDir, atSign));
     test('test update', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
@@ -27,8 +26,7 @@ void main() async {
     });
 
     test('test create and get', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
@@ -38,8 +36,7 @@ void main() async {
     });
 
     test('test create, update and get', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
 
       var key = 'location.wavi@test_user_1';
@@ -60,8 +57,7 @@ void main() async {
     });
 
     test('test create, update and get with metadata', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
 
       var key = 'location.wavi@test_user_1';
@@ -119,8 +115,7 @@ void main() async {
     });
 
     test('test update and get', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var updateData = AtData();
       updateData.data = 'alice';
@@ -130,8 +125,7 @@ void main() async {
     });
 
     test('test update and remove', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var updateData = AtData();
       updateData.data = 'alice';
@@ -142,8 +136,7 @@ void main() async {
     });
 
     test('get keys', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var data_1 = AtData();
       data_1.data = 'alice';
@@ -156,8 +149,7 @@ void main() async {
     });
 
     test('test get expired keys - no data', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1');
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager!.getSecondaryKeyStore();
       var expiredKeys = await keyStore!.getExpiredKeys();
       expect(expiredKeys.length, 0);
@@ -188,16 +180,14 @@ void main() async {
     // });
 
     test('test delete expired keys - no data', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1');
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager!.getSecondaryKeyStore();
       var result = await keyStore!.deleteExpiredKeys();
       expect(result, true);
     });
 
     test('get keys by regex', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var data_1 = AtData();
       data_1.data = 'alice';
@@ -210,8 +200,7 @@ void main() async {
     });
 
     test('test create and get for metadata-ttl', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
@@ -224,8 +213,7 @@ void main() async {
     });
 
     test('test create and get for metadata-shared key', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
@@ -241,8 +229,7 @@ void main() async {
     });
 
     test('test create reserved key- keystore put', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
@@ -251,8 +238,7 @@ void main() async {
     });
 
     test('test create non reserved key- keystore put', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
@@ -261,8 +247,7 @@ void main() async {
     });
 
     test('test create invalid key', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
@@ -271,8 +256,7 @@ void main() async {
     });
 
     test('test put invalid key', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
@@ -281,8 +265,7 @@ void main() async {
     });
 
     test('test create non reserved key- keystore putAll', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
@@ -291,8 +274,7 @@ void main() async {
     });
 
     test('test putAll invalid key', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
@@ -301,8 +283,7 @@ void main() async {
     });
 
     test('test put max key length exceeded', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
@@ -323,8 +304,7 @@ void main() async {
                   "key length ${cachedKey.length} is greater than max allowed ${HiveSecondaryKeyStore.maxKeyLength} chars")));
     });
     test('test put key length 248 chars should pass', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
@@ -335,8 +315,7 @@ void main() async {
     tearDown(() async => await tearDownFunc(atSign));
 
     test('test create max key length exceeded', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
@@ -357,8 +336,7 @@ void main() async {
                   "key length ${cachedKey.length} is greater than max allowed ${HiveSecondaryKeyStore.maxKeyLength} chars")));
     });
     test('test create key length 248 chars should pass', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
@@ -367,8 +345,7 @@ void main() async {
       expect(result >= 0, true);
     });
     test('test putAll max key length exceeded', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
@@ -389,8 +366,7 @@ void main() async {
                   "key length ${cachedKey.length} is greater than max allowed ${HiveSecondaryKeyStore.maxKeyLength} chars")));
     });
     test('test putAll key length 248 chars should pass', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
@@ -406,11 +382,9 @@ void main() async {
     String atSign = '@test_user_1';
     setUp(() async => await setUpFunc(storageDir, atSign));
     test('test to verify commit log compaction', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
-      var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
-          .getCommitLog('@test_user_1'));
+      var commitLogInstance = (await testCommitLogFor('@test_user_1'));
       var compactionService =
           CommitLogCompactionService(commitLogInstance!.commitLogKeyStore);
       commitLogInstance.addEventListener(compactionService);
@@ -434,10 +408,9 @@ void main() async {
     test(
         'A test to verify key updated via put method without TTL and TTB is not added to metaDataCache',
         () async {
-      SecondaryPersistenceStore? keyStoreManager =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      SecondaryPersistenceStore keyStoreManager =
+          testPersistenceStoreFor('@test_user_1');
+      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'sample_data_create_1'
         ..metaData = (AtMetaData()..isEncrypted = false);
@@ -451,10 +424,9 @@ void main() async {
     test(
         'A test to verify key updated via put method with TTL is added to metaDataCache',
         () async {
-      SecondaryPersistenceStore? keyStoreManager =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      SecondaryPersistenceStore keyStoreManager =
+          testPersistenceStoreFor('@test_user_1');
+      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'sample_data_create_1'
         ..metaData = (AtMetaData()
@@ -471,10 +443,9 @@ void main() async {
     test(
         'A test to verify key updated via put method with TTB is added to metaDataCache',
         () async {
-      SecondaryPersistenceStore? keyStoreManager =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      SecondaryPersistenceStore keyStoreManager =
+          testPersistenceStoreFor('@test_user_1');
+      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'sample_data_create_1'
         ..metaData = (AtMetaData()
@@ -491,10 +462,9 @@ void main() async {
     test(
         'A test to verify key created via create method without TTL and TTB is not added to metaDataCache',
         () async {
-      SecondaryPersistenceStore? keyStoreManager =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      SecondaryPersistenceStore keyStoreManager =
+          testPersistenceStoreFor('@test_user_1');
+      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'sample_data_put_1'
         ..metaData = (AtMetaData()..isEncrypted = false);
@@ -508,10 +478,9 @@ void main() async {
     test(
         'A test to verify key created via create method with TTL is added to metaDataCache',
         () async {
-      SecondaryPersistenceStore? keyStoreManager =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      SecondaryPersistenceStore keyStoreManager =
+          testPersistenceStoreFor('@test_user_1');
+      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'sample_data_put_2'
         ..metaData = (AtMetaData()
@@ -527,10 +496,9 @@ void main() async {
     test(
         'A test to verify key created via create method with TTB is added to metaDataCache',
         () async {
-      SecondaryPersistenceStore? keyStoreManager =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      SecondaryPersistenceStore keyStoreManager =
+          testPersistenceStoreFor('@test_user_1');
+      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'sample_data_put_2'
         ..metaData = (AtMetaData()
@@ -546,10 +514,9 @@ void main() async {
     test(
         'A test to verify key created via create method with TTB and TTL is added to metaDataCache',
         () async {
-      SecondaryPersistenceStore? keyStoreManager =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      SecondaryPersistenceStore keyStoreManager =
+          testPersistenceStoreFor('@test_user_1');
+      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'sample_data_put_2'
         ..metaData = (AtMetaData()
@@ -565,10 +532,9 @@ void main() async {
 
     test('A test to verify deleted key is removed from metaDataCache',
         () async {
-      SecondaryPersistenceStore? keyStoreManager =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      SecondaryPersistenceStore keyStoreManager =
+          testPersistenceStoreFor('@test_user_1');
+      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'sample_data_remove_2'
         ..metaData = (AtMetaData()
@@ -590,10 +556,9 @@ void main() async {
         'A test to verify deleting a key which is not present in metaDataCache does not raise exception',
         () async {
       String atSign = '@test_user_1';
-      SecondaryPersistenceStore? keyStoreManager =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore(atSign);
-      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      SecondaryPersistenceStore keyStoreManager =
+          testPersistenceStoreFor(atSign);
+      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'sample_data_remove_4'
         ..metaData = (AtMetaData()..isEncrypted = false);
@@ -604,10 +569,9 @@ void main() async {
 
     test('A test to verify metaDataCache with put and remove operations',
         () async {
-      SecondaryPersistenceStore? keyStoreManager =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      SecondaryPersistenceStore keyStoreManager =
+          testPersistenceStoreFor('@test_user_1');
+      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'value_test_1'
         ..metaData = (AtMetaData()..ttl = 10000);
@@ -623,10 +587,9 @@ void main() async {
     test(
         'A test to verify key updated via putMeta method is added to metaDataCache',
         () async {
-      SecondaryPersistenceStore? keyStoreManager =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      SecondaryPersistenceStore keyStoreManager =
+          testPersistenceStoreFor('@test_user_1');
+      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'value_test_2'
         ..metaData = (AtMetaData()..ttl = 10000);
@@ -640,10 +603,9 @@ void main() async {
 
     test('A test to verify metaDataCache with sequence of put operation',
         () async {
-      SecondaryPersistenceStore? keyStoreManager =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      SecondaryPersistenceStore keyStoreManager =
+          testPersistenceStoreFor('@test_user_1');
+      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'dummy_data'
         ..metaData = (AtMetaData()
@@ -666,10 +628,9 @@ void main() async {
     test(
         'test random sequence of put operations and delete operation - check cache and keystore entries',
         () async {
-      SecondaryPersistenceStore? keyStoreManager =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      SecondaryPersistenceStore keyStoreManager =
+          testPersistenceStoreFor('@test_user_1');
+      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'sample_data'
         ..metaData = (AtMetaData()..ttl = 10000);
@@ -695,10 +656,9 @@ void main() async {
 
     test('A test to verify new metadata is returned when TTL is unset',
         () async {
-      SecondaryPersistenceStore? keyStoreManager =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      SecondaryPersistenceStore keyStoreManager =
+          testPersistenceStoreFor('@test_user_1');
+      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'dummy_value'
         ..metaData = (AtMetaData()..ttl = 10000);
@@ -722,10 +682,9 @@ void main() async {
     test(
         'A test to verify getExpiredKeys method returns the keys whose TTL is met eventually',
         () async {
-      SecondaryPersistenceStore? keyStoreManager =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager?.getSecondaryKeyStore();
+      SecondaryPersistenceStore keyStoreManager =
+          testPersistenceStoreFor('@test_user_1');
+      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
       AtData atData = AtData()
         ..data = 'dummy_value'
         ..metaData = (AtMetaData()..ttl = 30);
@@ -747,10 +706,9 @@ void main() async {
 
     setUp(() async {
       await setUpFunc(storageDir, atSign);
-      SecondaryPersistenceStore? keyStoreManager =
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore(atSign);
-      keystore = (keyStoreManager?.getSecondaryKeyStore())!;
+      SecondaryPersistenceStore keyStoreManager =
+          testPersistenceStoreFor(atSign);
+      keystore = (keyStoreManager.getSecondaryKeyStore())!;
     });
     tearDown(() async => await tearDownFunc(atSign));
 
@@ -862,44 +820,38 @@ void main() async {
     String atSign = '@test_user_1';
     setUp(() async => await setUpFunc(storageDir, atSign));
     test('skip commit true in put', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
       var result = await keyStore.put('phone.wavi@test_user_1', atData,
           skipCommit: true);
       expect(result, -1);
-      var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
-          .getCommitLog('@test_user_1'));
+      var commitLogInstance = (await testCommitLogFor('@test_user_1'));
       expect(commitLogInstance!.getLatestCommitEntry('phone.wavi@test_user_1'),
           isNull);
     });
     test('skip commit true in create', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
       var result = await keyStore.create('email.wavi@test_user_1', atData,
           skipCommit: true);
       expect(result, -1);
-      var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
-          .getCommitLog('@test_user_1'));
+      var commitLogInstance = (await testCommitLogFor('@test_user_1'));
       expect(commitLogInstance!.getLatestCommitEntry('email.wavi@test_user_1'),
           isNull);
     });
     test('skip commit true in remove', () async {
-      var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore('@test_user_1')!;
+      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var atData = AtData();
       atData.data = '123';
       var result =
           await keyStore.remove('firstname.wavi@test_user_1', skipCommit: true);
       expect(result, -1);
-      var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
-          .getCommitLog('@test_user_1'));
+      var commitLogInstance = (await testCommitLogFor('@test_user_1'));
       expect(
           commitLogInstance!.getLatestCommitEntry('firstname.wavi@test_user_1'),
           isNull);
@@ -911,7 +863,7 @@ void main() async {
 Future<void> tearDownFunc(String atSign) async {
   await Hive.deleteBoxFromDisk('commit_log_$atSign');
   await Hive.deleteBoxFromDisk(_getShaForAtSign(atSign));
-  await AtCommitLogManagerImpl.getInstance().close();
+  await closeTestCommitLogs();
   var isExists = await Directory('test/hive/').exists();
   if (isExists) {
     Directory('test/hive').deleteSync(recursive: true);
@@ -919,10 +871,8 @@ Future<void> tearDownFunc(String atSign) async {
 }
 
 Future<void> setUpFunc(String storageDir, String atSign) async {
-  var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog(atSign, commitLogPath: storageDir);
-  var persistenceManager = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore(atSign)!;
+  var commitLogInstance = await testCommitLogFor(atSign, commitLogPath: storageDir);
+  var persistenceManager = testPersistenceStoreFor(atSign);
   await persistenceManager.getHivePersistenceManager()!.init(storageDir);
   persistenceManager.getSecondaryKeyStore()!.commitLog = commitLogInstance;
 }

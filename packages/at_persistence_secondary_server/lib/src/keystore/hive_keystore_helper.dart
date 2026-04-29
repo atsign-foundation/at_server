@@ -2,25 +2,24 @@ import 'package:at_persistence_secondary_server/src/model/at_data.dart';
 import 'package:at_persistence_secondary_server/src/model/at_metadata_builder.dart';
 import 'package:at_utf7/at_utf7.dart';
 
+/// Pure utility functions used by the Hive-backed keystore. The
+/// class is stateless and exposes its operations as static methods;
+/// it should never be instantiated.
 class HiveKeyStoreHelper {
-  static final HiveKeyStoreHelper _singleton = HiveKeyStoreHelper._internal();
+  // Don't instantiate.
+  HiveKeyStoreHelper._();
 
-  HiveKeyStoreHelper._internal();
-
-  @Deprecated(
-      'HiveKeyStoreHelper is stateless; call its methods directly on a '
-      'fresh instance, or rely on the prepared keys produced by '
-      'HiveAtPersistenceFactory. Will be removed in the next major release.')
-  factory HiveKeyStoreHelper.getInstance() {
-    return _singleton;
-  }
-
-  String prepareKey(String key) {
+  /// Normalises a raw atKey into the form actually stored on disk:
+  /// trimmed, lowercased, whitespace-stripped, then utf7-encoded.
+  static String prepareKey(String key) {
     key = key.trim().toLowerCase().replaceAll(' ', '');
     return Utf7.encode(key);
   }
 
-  AtData prepareDataForKeystoreOperation(AtData newAtData,
+  /// Builds the [AtData] that should land in the keystore for an
+  /// `update`-style operation, merging the new payload with any
+  /// existing metadata.
+  static AtData prepareDataForKeystoreOperation(AtData newAtData,
       {AtData? existingAtData, required String atSign}) {
     var atData = AtData();
     atData.data = newAtData.data;

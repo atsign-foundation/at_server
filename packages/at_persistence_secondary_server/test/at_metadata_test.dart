@@ -6,6 +6,8 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:collection/collection.dart';
 import 'package:test/test.dart';
 
+import 'test_utils.dart';
+
 void main() async {
   var storageDir = '${Directory.current.path}/test/hive';
   var atSign = '@alice';
@@ -25,8 +27,7 @@ void main() async {
     test('A test to default field in metadata is set on a new key creation',
         () async {
       var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(atSign)!
+      var hiveKeyStore = testPersistenceStoreFor(atSign)
           .getSecondaryKeyStore();
       var key = '@bob:phone@alice';
       var value = '9878123321';
@@ -57,8 +58,7 @@ void main() async {
         'A test to verify version field in metadata is set to 1 on updating the existing key',
         () async {
       var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(atSign)!
+      var hiveKeyStore = testPersistenceStoreFor(atSign)
           .getSecondaryKeyStore();
       var key = '@bob:mobile@alice';
       var value = '9878123321';
@@ -84,8 +84,7 @@ void main() async {
         'A test to verify version field in metadata is set to 1 when updating metadata using putMeta method',
         () async {
       var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(atSign)!
+      var hiveKeyStore = testPersistenceStoreFor(atSign)
           .getSecondaryKeyStore();
       var key = '@bob:country@alice';
       var value = '9878123321';
@@ -111,8 +110,7 @@ void main() async {
         'A test to verify version field in metadata is set to 1 when using putAll method',
         () async {
       var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(atSign)!
+      var hiveKeyStore = testPersistenceStoreFor(atSign)
           .getSecondaryKeyStore();
       var key = '@bob:city@alice';
       await hiveKeyStore?.putAll(
@@ -244,11 +242,9 @@ void main() async {
 
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir,
     {bool enableCommitId = true}) async {
-  var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@alice',
+  var commitLogInstance = await testCommitLogFor('@alice',
           commitLogPath: storageDir, enableCommitId: enableCommitId);
-  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore('@alice')!;
+  var secondaryPersistenceStore = testPersistenceStoreFor('@alice');
   var persistenceManager =
       secondaryPersistenceStore.getHivePersistenceManager()!;
   await persistenceManager.init(storageDir);
@@ -261,7 +257,7 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir,
 }
 
 Future<void> tearDownFunc() async {
-  await AtCommitLogManagerImpl.getInstance().close();
+  await closeTestCommitLogs();
   var isExists = await Directory('test/hive/').exists();
   if (isExists) {
     Directory('test/hive').deleteSync(recursive: true);

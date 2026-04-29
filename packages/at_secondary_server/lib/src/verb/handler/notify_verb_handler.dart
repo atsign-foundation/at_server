@@ -4,7 +4,6 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
-import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -296,7 +295,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   ///Sends the latest commitId to the StatsNotificationService
   void _writeStats(int? cachedKeyCommitId, String? operationType) {
     if (cachedKeyCommitId != null) {
-      StatsNotificationService.getInstance().writeStatsToMonitor(
+      AtSecondaryServerImpl.getInstance().statsNotificationService.writeStatsToMonitor(
           latestCommitID: '$cachedKeyCommitId', operationType: operationType);
     }
   }

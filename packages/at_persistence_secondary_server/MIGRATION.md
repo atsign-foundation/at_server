@@ -261,8 +261,106 @@ backend-specific casts.
 
 ## Removed APIs
 
-(To be filled in when Phase 2 Commit 3 removes the deprecated
-`getInstance()` shims.)
+The deprecated `getInstance()` shims that 4.x exposed are gone in
+5.0.0. Bootstrap via the factory pattern instead.
+
+| Removed | Replacement |
+| --- | --- |
+| `SecondaryPersistenceStoreFactory.getInstance()` | `HiveAtPersistenceFactory()` and the resulting `bundle` |
+| `AtCommitLogManagerImpl.getInstance().getCommitLog(atSign)` | `bundle.commitLog` |
+| `AtAccessLogManagerImpl.getInstance().getAccessLog(atSign)` | `bundle.accessLog` (server-track only) |
+| `AtCompactionService.getInstance()` | `AtCompactionService()` (per-job) |
+| `HiveKeyStoreHelper.getInstance().prepareKey(k)` | `HiveKeyStoreHelper.prepareKey(k)` (now static) |
+| `HiveKeyStoreHelper.getInstance().prepareDataForKeystoreOperation(...)` | `HiveKeyStoreHelper.prepareDataForKeystoreOperation(...)` (now static) |
+
+Removed alongside:
+
+- `AtCommitLogManagerImpl` class (its only purpose was the
+  singleton + per-atSign cache, both now provided by
+  `HiveAtPersistenceFactory`).
+- `AtAccessLogManagerImpl` class (same).
+- `AtCommitLogManager` and `AtAccessLogManager` abstract
+  interfaces in `at_persistence_spec` (orphaned by the impl
+  deletion; nothing else implemented them).
+- The `clear()` lifecycle methods that were added in 4.x to
+  let `HiveAtPersistenceFactory` reset the deprecated singletons —
+  no longer needed.
+
+Server-track callers also lose:
+
+- `StatsNotificationService.getInstance()` (in `at_secondary_server`).
+  The class is now constructed and held by `AtSecondaryServerImpl`
+  as `statsNotificationService`. Tests that previously mocked the
+  singleton continue to work via the same `MockStatsNotificationService`
+  pattern; their construction now happens via `MockStatsNotificationService()`
+  directly, no `getInstance` call.
+
+### Bootstrap recipe (server)
+
+Old (4.3.5):
+
+```dart
+final commitLog = (await AtCommitLogManagerImpl.getInstance()
+    .getCommitLog(atSign, commitLogPath: commitLogPath))!;
+final accessLog = (await AtAccessLogManagerImpl.getInstance()
+    .getAccessLog(atSign, accessLogPath: accessLogPath))!;
+final store = SecondaryPersistenceStoreFactory.getInstance()
+    .getSecondaryPersistenceStore(atSign)!;
+await store.getHivePersistenceManager()!.init(storagePath);
+final keyStore = store.getSecondaryKeyStore()!;
+keyStore.commitLog = commitLog;
+await keyStore.initialize();
+```
+
+New (5.0.0):
+
+```dart
+final factory = HiveAtPersistenceFactory();
+final bundle = await factory.initialize(
+  atSign,
+  HivePersistenceConfig.serverDefaults(
+    storagePath: storagePath,
+    commitLogPath: commitLogPath,
+    accessLogPath: accessLogPath,
+    notificationStoragePath: notificationStoragePath,
+  ),
+);
+// Use bundle.keyStore, bundle.commitLog, bundle.accessLog!,
+// bundle.notificationKeystore!, bundle.scheduleKeyExpireTask(...).
+// `factory.close()` tears everything down.
+```
+
+### Bootstrap recipe (client)
+
+Old (4.3.5) — the `at_client_sdk` flavour:
+
+```dart
+final commitLog = (await AtCommitLogManagerImpl.getInstance()
+    .getCommitLog(atSign,
+        commitLogPath: commitLogPath, enableCommitId: false))!;
+final store = SecondaryPersistenceStoreFactory.getInstance()
+    .getSecondaryPersistenceStore(atSign)!;
+await store.getHivePersistenceManager()!.init(storagePath);
+final keyStore = store.getSecondaryKeyStore()!;
+keyStore.commitLog = commitLog;
+await keyStore.initialize();
+```
+
+New (5.0.0):
+
+```dart
+final factory = HiveAtPersistenceFactory();
+final bundle = await factory.initialize(
+  atSign,
+  HivePersistenceConfig.clientDefaults(
+    storagePath: storagePath,
+    commitLogPath: commitLogPath,
+  ),
+);
+// Use bundle.keyStore, bundle.commitLog, bundle.scheduleKeyExpireTask(...).
+// bundle.accessLog and bundle.notificationKeystore are null on
+// the client config — they were never used by the client anyway.
+```
 
 ## New APIs
 

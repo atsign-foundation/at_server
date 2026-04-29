@@ -38,7 +38,7 @@ void main() {
     bool inboundConn1Written = false;
     bool inboundConn2Written = false;
     StatsNotificationService statsNotificationService =
-        StatsNotificationService.getInstance();
+        atServer.statsNotificationService;
 
     expect(statsNotificationService.state,
         StatsNotificationServiceState.notScheduled);

@@ -43,14 +43,7 @@ enum StatsNotificationServiceState {
 ///    "epochMillis":1628512387184
 /// }
 class StatsNotificationService {
-  static final StatsNotificationService _singleton =
-      StatsNotificationService._internal();
-
-  StatsNotificationService._internal();
-
-  factory StatsNotificationService.getInstance() {
-    return _singleton;
-  }
+  StatsNotificationService();
 
   final _logger = AtSignLogger('StatsNotificationService');
   late String currentAtSign;

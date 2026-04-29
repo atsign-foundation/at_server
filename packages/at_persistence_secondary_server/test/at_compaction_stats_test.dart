@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:at_commons/at_commons.dart' as at_commons;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:test/test.dart';
+
+import 'test_utils.dart';
 import 'package:uuid/uuid.dart';
 
 String storageDir = '${Directory.current.path}/test/hive';
@@ -15,18 +17,12 @@ late AtCompactionStatsServiceImpl atCompactionStatsServiceImpl;
 
 Future<void> setUpMethod() async {
   // Initialize secondary persistent store
-  // ignore: deprecated_member_use_from_same_package
-  final secondaryPersistenceStore = SecondaryPersistenceStoreFactory
-      .getInstance()
-      .getSecondaryPersistenceStore('@alice')!;
+  final secondaryPersistenceStore = testPersistenceStoreFor('@alice');
   // Initialize commit log
-  // ignore: deprecated_member_use_from_same_package
-  atCommitLog = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@alice', commitLogPath: storageDir, enableCommitId: true);
+  atCommitLog = await testCommitLogFor('@alice',
+      commitLogPath: storageDir, enableCommitId: true);
   // Initialize access log
-  // ignore: deprecated_member_use_from_same_package
-  atAccessLog = await AtAccessLogManagerImpl.getInstance()
-      .getAccessLog('@alice', accessLogPath: storageDir);
+  atAccessLog = await testAccessLogFor('@alice', accessLogPath: storageDir);
   keyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   keyStore!.commitLog = atCommitLog;
   // AtNotification Keystore
@@ -48,7 +44,7 @@ Future<void> main() async {
       // Add CommitEntries to CommitLog
       await atCommitLog?.commit('@alice:phone@alice', CommitOp.UPDATE);
       await atCommitLog?.commit('@alice:phone@alice', CommitOp.UPDATE);
-      var atCompactionService = AtCompactionService.getInstance();
+      var atCompactionService = AtCompactionService();
       int beforeMicros = DateTime.now().toUtc().microsecondsSinceEpoch;
       // Run Compaction
       AtCompactionStats atCompactionStats =
@@ -102,7 +98,7 @@ Future<void> main() async {
           lookupKey: '@alice:phone@bob');
       atAccessLog?.setCompactionConfig(
           AtCompactionConfig()..compactionPercentage = 99);
-      var atCompactionService = AtCompactionService.getInstance();
+      var atCompactionService = AtCompactionService();
       var atCompactionStats =
           await atCompactionService.executeCompaction(atAccessLog!);
       await atCompactionStatsServiceImpl.handleStats(atCompactionStats);
@@ -184,8 +180,8 @@ Future<void> main() async {
 }
 
 Future<void> tearDownMethod() async {
-  await SecondaryPersistenceStoreFactory.getInstance().close();
-  await AtCommitLogManagerImpl.getInstance().close();
+  await closeTestPersistenceStores();
+  await closeTestCommitLogs();
   await atNotificationKeystore.close();
   var isExists = await Directory(storageDir).exists();
   if (isExists) {

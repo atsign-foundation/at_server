@@ -88,6 +88,28 @@
   `AtNotificationKeystore.iterate()` for use by the Phase 3
   persistence-backend migrator. `replay` writes an entry under its
   supplied `commitId` without firing change-event listeners.
+- breaking: removed the deprecated `getInstance()` shims:
+  `SecondaryPersistenceStoreFactory.getInstance()`,
+  `AtCommitLogManagerImpl.getInstance()`,
+  `AtAccessLogManagerImpl.getInstance()`,
+  `AtCompactionService.getInstance()`,
+  `HiveKeyStoreHelper.getInstance()`. Bootstrap via
+  `HiveAtPersistenceFactory` instead.
+- breaking: `AtCommitLogManagerImpl` and `AtAccessLogManagerImpl`
+  are deleted (their only purpose was the singleton + per-atSign
+  cache; the factory now does both). The orphaned spec interfaces
+  `AtCommitLogManager` and `AtAccessLogManager` are removed from
+  `at_persistence_spec` — nothing else implemented them.
+- refactor: `HiveKeyStoreHelper` is now stateless with static
+  methods (`HiveKeyStoreHelper.prepareKey(k)`,
+  `HiveKeyStoreHelper.prepareDataForKeystoreOperation(...)`).
+  Drop the singleton.
+- refactor: `AtCompactionService` no longer carries a singleton;
+  construct one with `AtCompactionService()` per job.
+- refactor: `HiveAtPersistenceFactory.initialize` no longer routes
+  through the legacy singleton-based managers — it constructs the
+  per-atSign keystore / commit log / access log / notification
+  keystore directly.
 
 ## 4.3.5
 

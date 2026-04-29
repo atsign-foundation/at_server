@@ -17,7 +17,7 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
   static const int maxKeyLength = 255;
   static const int maxKeyLengthWithoutCached = 248;
 
-  var keyStoreHelper = HiveKeyStoreHelper.getInstance();
+  
   HivePersistenceManager? persistenceManager;
   late HiveAtCommitLog _commitLog;
   @override
@@ -94,7 +94,7 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
     key = key.toLowerCase();
     AtData? value;
     try {
-      String hiveKey = keyStoreHelper.prepareKey(key);
+      String hiveKey = HiveKeyStoreHelper.prepareKey(key);
       value = await (persistenceManager!.getBox() as LazyBox).get(hiveKey);
       // load metadata for hive_key
       // compare availableAt with time.now()
@@ -138,8 +138,8 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
         result = await create(key, value, skipCommit: skipCommit);
       } else {
         AtData? existingData = await get(key);
-        String hive_key = keyStoreHelper.prepareKey(key);
-        var hive_value = keyStoreHelper.prepareDataForKeystoreOperation(value!,
+        String hive_key = HiveKeyStoreHelper.prepareKey(key);
+        var hive_value = HiveKeyStoreHelper.prepareDataForKeystoreOperation(value!,
             existingAtData: existingData!, atSign: persistenceManager!.atsign!);
         logger.finest('hive key:$hive_key');
         logger.finest('hive value:$hive_value');
@@ -178,9 +178,9 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
     }
 
     CommitOp commitOp;
-    String hive_key = keyStoreHelper.prepareKey(key);
+    String hive_key = HiveKeyStoreHelper.prepareKey(key);
     _checkMaxLength(hive_key);
-    var hive_data = keyStoreHelper.prepareDataForKeystoreOperation(
+    var hive_data = HiveKeyStoreHelper.prepareDataForKeystoreOperation(
       value!,
       atSign: persistenceManager!.atsign!,
     );
@@ -240,7 +240,7 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
 
     int retVal;
     try {
-      await persistenceManager!.getBox().delete(keyStoreHelper.prepareKey(key));
+      await persistenceManager!.getBox().delete(HiveKeyStoreHelper.prepareKey(key));
       // On deleting the key, remove it from the expiryKeyCache.
       _expiryKeysCache.remove(key);
       if (skipCommit) {
@@ -388,7 +388,7 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
     }
     try {
       int? result;
-      String hive_key = keyStoreHelper.prepareKey(key);
+      String hive_key = HiveKeyStoreHelper.prepareKey(key);
       _checkMaxLength(hive_key);
       AtData? existingData;
       if (isKeyExists(key)) {
@@ -414,7 +414,7 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
   Future<int?> putMeta(String key, AtMetaData? metadata) async {
     key = key.toLowerCase();
     try {
-      String hive_key = keyStoreHelper.prepareKey(key);
+      String hive_key = HiveKeyStoreHelper.prepareKey(key);
       AtData? existingData;
       if (isKeyExists(key)) {
         existingData = await get(key);
@@ -446,7 +446,7 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
     key = key.toLowerCase();
     return persistenceManager!
         .getBox()
-        .containsKey(keyStoreHelper.prepareKey(key));
+        .containsKey(HiveKeyStoreHelper.prepareKey(key));
   }
 
   /// Certain keys created on one atsign server may be cached in another atsign server.

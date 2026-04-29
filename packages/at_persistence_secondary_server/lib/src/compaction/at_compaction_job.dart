@@ -35,7 +35,7 @@ class AtCompactionJob {
     var runFrequencyInMins = atCompactionConfig.compactionFrequencyInMins;
     _schedule = _cron.schedule(Schedule.parse('*/$runFrequencyInMins * * * *'),
         () async {
-      atCompactionService = AtCompactionService.getInstance();
+      atCompactionService = AtCompactionService();
       atCompactionStatsService =
           AtCompactionStatsServiceImpl(_atLogType, _keyStore);
       // adding delay to randomize the cron jobs

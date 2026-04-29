@@ -4,6 +4,8 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_persistence_secondary_server/src/log/accesslog/access_entry.dart';
 import 'package:test/test.dart';
 
+import 'test_utils.dart';
+
 String storageDir = '${Directory.current.path}/test/hive';
 SecondaryPersistenceStore? secondaryPersistenceStore;
 HiveAtCommitLog? atCommitLog;
@@ -11,10 +13,9 @@ HiveAtCommitLog? atCommitLog;
 Future<void> setUpMethod({bool enableCommitId = true}) async {
   String atSign = '@alice';
   // Initialize secondary persistent store
-  secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore(atSign);
+  secondaryPersistenceStore = testPersistenceStoreFor(atSign);
   // Initialize commit log
-  atCommitLog = await AtCommitLogManagerImpl.getInstance().getCommitLog(atSign,
+  atCommitLog = await testCommitLogFor(atSign,
       commitLogPath: storageDir, enableCommitId: enableCommitId);
   secondaryPersistenceStore!.getSecondaryKeyStore()?.commitLog = atCommitLog;
   // Init the hive instances
@@ -34,7 +35,7 @@ void main() {
         () async {
       await atCommitLog!.commit('@alice:phone@alice', CommitOp.UPDATE);
       await atCommitLog!.commit('@alice:phone@alice', CommitOp.UPDATE);
-      var atCompactionService = AtCompactionService.getInstance();
+      var atCompactionService = AtCompactionService();
       await atCompactionService.executeCompactionInternal(atCommitLog!);
       expect(atCommitLog!.entriesCount(), 1);
     });
@@ -44,7 +45,7 @@ void main() {
         () async {
       await atCommitLog!.commit('@alice:phone@alice', CommitOp.UPDATE);
       await atCommitLog!.commit('@bob:mobile@alice', CommitOp.UPDATE);
-      var atCompactionService = AtCompactionService.getInstance();
+      var atCompactionService = AtCompactionService();
       await atCompactionService.executeCompactionInternal(atCommitLog!);
       expect(atCommitLog!.entriesCount(), 2);
     });
@@ -78,7 +79,7 @@ void main() {
             ..commitId = 2);
       await atCommitLog!.commitLogKeyStore.add(
           CommitEntry('@bob:phone@alice', CommitOp.UPDATE, DateTime.now()));
-      var atCompactionService = AtCompactionService.getInstance();
+      var atCompactionService = AtCompactionService();
       await atCompactionService.executeCompactionInternal(atCommitLog!);
       expect(atCommitLog!.entriesCount(), 2);
     });
@@ -90,8 +91,7 @@ void main() {
     setUp(() async {
       await setUpMethod();
       // Initialize commit log
-      atAccessLog = await AtAccessLogManagerImpl.getInstance()
-          .getAccessLog('@alice', accessLogPath: storageDir);
+      atAccessLog = await testAccessLogFor('@alice', accessLogPath: storageDir);
     });
     test('A test to verify access log compaction job', () async {
       await atAccessLog?.insert('@alice', 'from');
@@ -101,7 +101,7 @@ void main() {
           lookupKey: '@alice:phone@bob');
       atAccessLog?.setCompactionConfig(
           AtCompactionConfig()..compactionPercentage = 99);
-      var atCompactionService = AtCompactionService.getInstance();
+      var atCompactionService = AtCompactionService();
       await atCompactionService.executeCompactionInternal(atAccessLog!);
       expect(atAccessLog?.entriesCount(), 1);
       AccessLogEntry? accessLogEntry =
@@ -117,8 +117,8 @@ void main() {
 }
 
 Future<void> tearDownMethod() async {
-  await SecondaryPersistenceStoreFactory.getInstance().close();
-  await AtCommitLogManagerImpl.getInstance().close();
+  await closeTestPersistenceStores();
+  await closeTestCommitLogs();
   var isExists = await Directory(storageDir).exists();
   if (isExists) {
     Directory(storageDir).deleteSync(recursive: true);

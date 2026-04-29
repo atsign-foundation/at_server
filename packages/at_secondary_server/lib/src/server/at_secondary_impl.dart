@@ -112,6 +112,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   VerbHandlerManager? verbHandlerManager;
   late AtCacheRefreshJob atRefreshJob;
   late AtCacheManager cacheManager;
+  final StatsNotificationService statsNotificationService =
+      StatsNotificationService();
   late AtCompactionJob commitLogCompactionJobInstance;
   late AtCompactionJob accessLogCompactionJobInstance;
   late AtCompactionJob notificationKeyStoreCompactionJobInstance;
@@ -295,7 +297,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         secondaryKeyStore,
         outboundClientManager,
         cacheManager,
-        StatsNotificationService.getInstance(),
+        statsNotificationService,
         notificationManager,
         enrollmentManager,
         currentAtSign,
@@ -312,7 +314,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           secondaryKeyStore,
           outboundClientManager,
           cacheManager,
-          StatsNotificationService.getInstance(),
+          statsNotificationService,
           notificationManager,
           enrollmentManager,
           currentAtSign,
@@ -362,7 +364,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         poolSize: serverContext!.inboundConnectionLimit);
 
     // Starts StatsNotificationService to keep monitor connections alive
-    await StatsNotificationService.getInstance()
+    await statsNotificationService
         .schedule(currentAtSign, commitLog);
 
     //initializes subscribers for dynamic config change 'config:Set'
@@ -688,7 +690,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       _serverSocket.close();
 
       logger.shout("Stopping StatsNotificationService");
-      await StatsNotificationService.getInstance().cancel();
+      await statsNotificationService.cancel();
 
       logger.shout("Terminating all inbound connections");
       inboundConnectionManager.close();

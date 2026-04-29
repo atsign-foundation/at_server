@@ -24,13 +24,8 @@ class HivePersistenceManager with HiveBase {
   final Random _random = Random();
 
   /// The keystore [scheduleKeyExpireTask] will sweep on each tick.
-  ///
-  /// Set by the wiring code that creates this manager — either
-  /// [SecondaryPersistenceStore._init] (legacy path) or
-  /// [HiveAtPersistenceFactory.initialize] (new path). Replaces the
-  /// previous behaviour where [scheduleKeyExpireTask] reached back into
-  /// `SecondaryPersistenceStoreFactory.getInstance()` from inside a
-  /// unit that the factory had constructed (cyclic dep).
+  /// Set by [SecondaryPersistenceStore]'s constructor when it wires
+  /// the keystore + manager pair.
   HiveSecondaryKeyStore? keyStoreForExpireTask;
 
   @override
@@ -138,10 +133,12 @@ class HivePersistenceManager with HiveBase {
     }
     _cron.schedule(schedule, () async {
       await Future.delayed(Duration(seconds: _random.nextInt(12)));
-      final ks = keyStoreForExpireTask ??
-          SecondaryPersistenceStoreFactory.getInstance()
-              .getSecondaryPersistenceStore(_atsign)!
-              .getSecondaryKeyStore()!;
+      final ks = keyStoreForExpireTask;
+      if (ks == null) {
+        logger.warning(
+            'scheduleKeyExpireTask: keyStoreForExpireTask is null; skipping');
+        return;
+      }
       await ks.deleteExpiredKeys(skipCommit: skipCommits);
     });
   }

@@ -6,6 +6,8 @@ import 'package:at_persistence_secondary_server/src/keystore/hive_secondary_keys
 import 'package:test/expect.dart';
 import 'package:test/scaffolding.dart';
 
+import 'test_utils.dart';
+
 void main() async {
   var storageDir = '${Directory.current.path}/test/hive/';
 
@@ -204,8 +206,7 @@ Future<String?> getKey(keyStore, key) async {
 
 Future<SecondaryKeyStoreManager> getKeystoreManager(storageDir, atsign,
     {required bool optimizeCommits}) async {
-  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore(atsign)!;
+  var secondaryPersistenceStore = testPersistenceStoreFor(atsign);
   var manager = secondaryPersistenceStore.getHivePersistenceManager()!;
   await manager.init(storageDir);
   manager.scheduleKeyExpireTask(null,
@@ -213,15 +214,14 @@ Future<SecondaryKeyStoreManager> getKeystoreManager(storageDir, atsign,
   var keyStoreManager =
       secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   var keyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
-  var commitLog = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog(atsign, commitLogPath: storageDir, enableCommitId: true);
+  var commitLog = await testCommitLogFor(atsign, commitLogPath: storageDir, enableCommitId: true);
   keyStore.commitLog = commitLog;
   keyStoreManager.keyStore = keyStore;
   return keyStoreManager;
 }
 
 Future<void> tearDownFunc() async {
-  await AtCommitLogManagerImpl.getInstance().close();
+  await closeTestCommitLogs();
   var isExists = await Directory('test/hive/').exists();
   if (isExists) {
     Directory('test/hive').deleteSync(recursive: true);

@@ -8,7 +8,6 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
-import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/executor/default_verb_executor.dart';
@@ -124,7 +123,7 @@ void main() {
         mockKeyStore,
         mockOutboundClientManager,
         mockAtCacheManager,
-        StatsNotificationService.getInstance(),
+        statsNotificationService,
         mockNotificationManager,
         mockEnrollmentManager,
         alice,
