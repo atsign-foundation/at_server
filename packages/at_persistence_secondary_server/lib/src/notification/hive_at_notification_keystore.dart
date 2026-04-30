@@ -245,4 +245,10 @@ class HiveAtNotificationKeystore
       if (entry != null) yield entry;
     }
   }
+
+  /// Drop every entry from the underlying box without closing it.
+  /// Used by [AtPersistenceBundle.clear] for cheap test isolation.
+  Future<void> clear() async {
+    await _getBox().clear();
+  }
 }

@@ -542,4 +542,13 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
   HashMap<String, Map<String, DateTime?>> getExpiryKeysCache() {
     return _expiryKeysCache;
   }
+
+  /// Drop every entry from the underlying box AND from the
+  /// in-memory caches (`_expiryKeysCache`). Used by
+  /// [AtPersistenceBundle.clear] for cheap test isolation —
+  /// production code uses [close] instead.
+  Future<void> clear() async {
+    await persistenceManager?.getBox().clear();
+    _expiryKeysCache.clear();
+  }
 }

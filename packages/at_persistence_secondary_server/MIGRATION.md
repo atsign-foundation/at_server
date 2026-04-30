@@ -429,4 +429,40 @@ final bundle = await factory.initialize(
   `AtCommitLog.iterate({int? fromCommitId})`,
   `AtAccessLog.iterate()`,
   `AtNotificationKeystore.iterate()` — migration / iteration
-  primitives (this commit).
+  primitives.
+- `AtCompactionStrategy` interface +
+  `bundle.commitLogCompactor` / `accessLogCompactor` /
+  `keyStoreCompactor`. `AtCompactionJob` now takes a strategy
+  rather than a log+keystore pair.
+- `AtPersistenceBundle.clear()` — drops every entry from each
+  store while keeping the underlying boxes open. Cheap test
+  isolation primitive; production code uses `close()` instead.
+
+## Test patterns
+
+`bundle.clear()` (Phase 2 Commit 5) lets test files use a
+file-scoped factory + `tearDownAll` close + per-test `clear()` for
+isolation, instead of opening and closing the factory per test
+(which surfaces Hive lifecycle bugs that aren't representative of
+production behaviour).
+
+```dart
+late HiveAtPersistenceFactory factory;
+late AtPersistenceBundle bundle;
+
+setUpAll(() async {
+  factory = HiveAtPersistenceFactory();
+  bundle = await factory.initialize(
+    '@alice',
+    HivePersistenceConfig.serverDefaults(...),
+  );
+});
+
+setUp(() async => await bundle.clear()); // empty store before each test
+
+tearDownAll(() => factory.close());
+```
+
+The `at_secondary_server` test suite documents these conventions
+at the top of `test/test_utils.dart`. Downstream test suites
+(including the at_client_sdk migration) can adopt the same shape.

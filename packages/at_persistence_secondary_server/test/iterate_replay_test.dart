@@ -174,6 +174,63 @@ void main() {
     });
   });
 
+  group('Bundle clear', () {
+    late Directory tempDir;
+    late HiveAtPersistenceFactory factory;
+    late AtPersistenceBundle bundle;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('clear_');
+      factory = HiveAtPersistenceFactory();
+      bundle = await factory.initialize(
+        '@alice',
+        HivePersistenceConfig.serverDefaults(
+          storagePath: '${tempDir.path}/hive',
+          commitLogPath: '${tempDir.path}/commitLog',
+          accessLogPath: '${tempDir.path}/accessLog',
+          notificationStoragePath: '${tempDir.path}/notification',
+        ),
+      );
+    });
+
+    tearDown(() async {
+      await factory.close();
+      if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+    });
+
+    test('clear empties every store but keeps the bundle usable', () async {
+      // Populate every store.
+      await bundle.commitLog.commit('public:before@alice', CommitOp.UPDATE);
+      await bundle.accessLog!.insert('@bob', 'lookup');
+      final n = (AtNotificationBuilder()
+            ..fromAtSign = '@alice'
+            ..toAtSign = '@bob'
+            ..notification = 'phone@bob')
+          .build();
+      await bundle.notificationKeystore!.put(n.id, n);
+
+      expect(bundle.commitLog.entriesCount(), greaterThan(0));
+      expect(bundle.accessLog!.entriesCount(), greaterThan(0));
+      expect(bundle.notificationKeystore!.entriesCount(), greaterThan(0));
+
+      await bundle.clear();
+
+      expect(bundle.commitLog.entriesCount(), 0);
+      expect(bundle.accessLog!.entriesCount(), 0);
+      expect(bundle.notificationKeystore!.entriesCount(), 0);
+
+      // Bundle remains usable: writes still work afterwards.
+      await bundle.commitLog.commit('public:after@alice', CommitOp.UPDATE);
+      expect(bundle.commitLog.entriesCount(), 1);
+    });
+
+    test('clear after close throws StateError', () async {
+      await factory.close();
+      // factory.close() closes the bundle; subsequent clear should throw.
+      expect(() => bundle.clear(), throwsA(isA<StateError>()));
+    });
+  });
+
   group('Bundle slimming', () {
     late Directory tempDir;
     late HiveAtPersistenceFactory factory;

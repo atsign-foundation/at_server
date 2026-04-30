@@ -128,6 +128,12 @@
   `performCompaction(AtLogType)` method, and was unimplemented).
   The new `AtCompactionStrategy` in
   `at_persistence_secondary_server` is the replacement.
+- feat: add `AtPersistenceBundle.clear()` — drops every entry from
+  each store while keeping the underlying boxes open. Idempotent
+  per-bundle. Cheap test isolation primitive: tests using a
+  file-scoped factory can call `bundle.clear()` in `setUp` rather
+  than tearing down the factory per test. `at_secondary_server`'s
+  test/test_utils.dart documents the recommended setup conventions.
 
 ## 4.3.5
 

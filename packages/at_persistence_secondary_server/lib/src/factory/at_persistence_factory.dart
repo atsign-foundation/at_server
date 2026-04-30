@@ -68,6 +68,14 @@ abstract class AtPersistenceBundle {
   void scheduleKeyExpireTask(int? runFrequencyMins,
       {Duration? runTimeInterval, bool skipCommits = false});
 
+  /// Drop all data from this bundle's stores while keeping the
+  /// underlying connections (Hive boxes etc.) open. Idempotent.
+  /// Intended for cheap per-test isolation: cheaper than
+  /// [close] + a fresh [AtPersistenceFactory.initialize], because
+  /// it doesn't tear down and re-open the boxes / DB handles.
+  /// Production code should use [close] instead.
+  Future<void> clear();
+
   /// Close all underlying resources. Idempotent.
   Future<void> close();
 

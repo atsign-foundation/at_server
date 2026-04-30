@@ -121,6 +121,12 @@ class HiveAtAccessLog implements AtAccessLog {
     _accessLogKeyStore.close();
   }
 
+  /// Drop every entry from the underlying box without closing it.
+  /// Used by [AtPersistenceBundle.clear] for cheap test isolation.
+  Future<void> clear() async {
+    await _accessLogKeyStore.getBox().clear();
+  }
+
   @override
   void setCompactionConfig(AtCompactionConfig atCompactionConfig) {
     this.atCompactionConfig = atCompactionConfig;

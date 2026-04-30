@@ -1,4 +1,5 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive_secondary_keystore.dart';
 import 'package:at_utils/at_logger.dart';
 
 /// Hive-backed [AtPersistenceFactory]. Produces
@@ -123,7 +124,12 @@ class HiveAtPersistenceBundle implements AtPersistenceBundle {
   final String atSign;
 
   @override
-  final SecondaryKeyStore<String, AtData?, AtMetaData?> keyStore;
+  // Typed at the concrete on HiveAtPersistenceBundle so [clear]
+  // can reach the Hive-specific in-memory caches. The abstract
+  // [AtPersistenceBundle.keyStore] still surfaces it as
+  // SecondaryKeyStore<...>.
+  @override
+  final HiveSecondaryKeyStore keyStore;
 
   @override
   final HiveAtCommitLog commitLog;
@@ -174,6 +180,21 @@ class HiveAtPersistenceBundle implements AtPersistenceBundle {
       {Duration? runTimeInterval, bool skipCommits = false}) {
     _hivePersistenceManager.scheduleKeyExpireTask(runFrequencyMins,
         runTimeInterval: runTimeInterval, skipCommits: skipCommits);
+  }
+
+  @override
+  Future<void> clear() async {
+    if (_closed) {
+      throw StateError(
+          'Cannot clear a closed HiveAtPersistenceBundle for $atSign');
+    }
+    // Order: keystore, commit log, access log, notification keystore.
+    // Caller-visible state and in-memory caches are reset; underlying
+    // Hive boxes stay open for fast reuse in subsequent tests.
+    await keyStore.clear();
+    await commitLog.commitLogKeyStore.getBox().clear();
+    await accessLog?.clear();
+    await notificationKeystore?.clear();
   }
 
   @override

@@ -1,3 +1,30 @@
+// =====================================================================
+// Test setup conventions
+// =====================================================================
+//
+// Each test file in this package opens persistence stores against a
+// per-process Hive box keyed by `sha-of-atSign`. Two patterns work:
+//
+// 1. **File-scoped factory + per-test isolation via `bundle.clear()`.**
+//    Best when tests overlap on stored data and want a clean slate
+//    between cases. Open the factory once in `setUpAll`, call
+//    `bundle.clear()` in `setUp`, close the factory in `tearDownAll`.
+//    Cheap (no box reopen per test), but requires every test to
+//    expect an empty store.
+//
+// 2. **File-scoped factory + cross-test data leak.**
+//    Best when a setUp seeds shared baseline data and the tests
+//    assume it's still there (cram_verb_test relied on this
+//    pre-Phase-1; converted to pattern 1 in Phase 2 Commit 5).
+//    Same factory shape, no per-test clear.
+//
+// Avoid `tearDown` (per-test) factory close — it forces a box
+// reopen on every test and surfaces Hive lifecycle bugs that aren't
+// representative of production behaviour. Stick to `tearDownAll`
+// (per-file) for the close.
+//
+// =====================================================================
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
