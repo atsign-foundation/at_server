@@ -24,7 +24,7 @@ significantly between server-side consumers (such as
 **If you are migrating a server-side consumer, read:**
 
 1. [TL;DR](#tldr).
-2. [Server-track migration](#server-track).
+2. [Server-track migration](#server-track-migration).
 3. Reference sections as needed.
 4. [Verification](#verification-how-to-know-youre-done).
 
@@ -36,7 +36,7 @@ significantly between server-side consumers (such as
 - [Pubspec dependency bump](#pubspec-dependency-bump)
 - [What NOT to worry about (client track)](#client-track-what-not-to-worry-about)
 - [Step-by-step playbook (at_client_sdk)](#step-by-step-playbook-at_client_sdk)
-- [Server-track migration](#server-track)
+- [Server-track migration](#server-track-migration)
 - [Class renames](#class-renames)
 - [Bundle shape: slim core + optional capabilities](#bundle-shape-slim-core--optional-capabilities)
 - [New abstract interfaces](#new-abstract-interfaces)
@@ -219,13 +219,13 @@ Reference: [Removed APIs](#removed-apis) table.
 
 The four files in `at_client/lib/src/` that hold call sites:
 
-| File | Pattern | Replacement |
-| --- | --- | --- |
-| `client/local_secondary.dart` | `SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore(_atClient.getCurrentAtSign())!.getSecondaryKeyStore()` | `_atClient.persistenceBundle.keyStore` |
-| `client/at_client_impl.dart` | `AtCompactionJob((await AtCommitLogManagerImpl.getInstance().getCommitLog(_atSign))!, SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore(_atSign)!)` | `AtCompactionJob(persistenceBundle.commitLogCompactor!)` |
-| `manager/storage_manager.dart` (4 sites) | `SecondaryPersistenceStoreFactory.getInstance()...` chains | `_atClient.persistenceBundle.<X>` (keystore, commitLog, scheduleKeyExpireTask) |
-| `manager/preference_manager.dart` | Same | Same |
-| `util/sync_util.dart` (7 sites) | `await AtCommitLogManagerImpl.getInstance().getCommitLog(atSign)` | `_atClient.persistenceBundle.commitLog` (helper takes `AtClient` or `AtPersistenceBundle` by parameter) |
+| File                                     | Pattern                                                                                                                                                                       | Replacement                                                                                             |
+|------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------|
+| `client/local_secondary.dart`            | `SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore(_atClient.getCurrentAtSign())!.getSecondaryKeyStore()`                                           | `_atClient.persistenceBundle.keyStore`                                                                  |
+| `client/at_client_impl.dart`             | `AtCompactionJob((await AtCommitLogManagerImpl.getInstance().getCommitLog(_atSign))!, SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore(_atSign)!)` | `AtCompactionJob(persistenceBundle.commitLogCompactor!)`                                                |
+| `manager/storage_manager.dart` (4 sites) | `SecondaryPersistenceStoreFactory.getInstance()...` chains                                                                                                                    | `_atClient.persistenceBundle.<X>` (keystore, commitLog, scheduleKeyExpireTask)                          |
+| `manager/preference_manager.dart`        | Same                                                                                                                                                                          | Same                                                                                                    |
+| `util/sync_util.dart` (7 sites)          | `await AtCommitLogManagerImpl.getInstance().getCommitLog(atSign)`                                                                                                             | `_atClient.persistenceBundle.commitLog` (helper takes `AtClient` or `AtPersistenceBundle` by parameter) |
 
 After this step, `git grep -nE 'getInstance' at_client/lib/`
 should return zero hits for the removed singletons (the only
@@ -313,13 +313,13 @@ Phase 2 Commit 1 renames the Hive-backed concretes so the
 unprefixed names can be reused as the abstract interfaces
 introduced in Commit 2.
 
-| Old name (concrete) | New name (concrete) | Notes |
-| --- | --- | --- |
-| `AtCommitLog` | `HiveAtCommitLog` | Server-flavour Hive impl. The unprefixed `AtCommitLog` becomes the abstract interface in Commit 2. |
-| `ClientAtCommitLog` | `HiveClientAtCommitLog` | Client-flavour Hive impl (extends `HiveAtCommitLog`). |
-| `AtAccessLog` | `HiveAtAccessLog` | Hive impl. Unprefixed name will become abstract in Commit 2. |
-| `AtNotificationKeystore` | `HiveAtNotificationKeystore` | Hive impl of the notification queue. Unprefixed name will become abstract in Commit 2. |
-| `HiveKeystore` | `HiveSecondaryKeyStore` | Hive impl of the abstract `SecondaryKeyStore` (which already existed in `at_persistence_spec`). |
+| Old name (concrete)      | New name (concrete)          | Notes                                                                                              |
+|--------------------------|------------------------------|----------------------------------------------------------------------------------------------------|
+| `AtCommitLog`            | `HiveAtCommitLog`            | Server-flavour Hive impl. The unprefixed `AtCommitLog` becomes the abstract interface in Commit 2. |
+| `ClientAtCommitLog`      | `HiveClientAtCommitLog`      | Client-flavour Hive impl (extends `HiveAtCommitLog`).                                              |
+| `AtAccessLog`            | `HiveAtAccessLog`            | Hive impl. Unprefixed name will become abstract in Commit 2.                                       |
+| `AtNotificationKeystore` | `HiveAtNotificationKeystore` | Hive impl of the notification queue. Unprefixed name will become abstract in Commit 2.             |
+| `HiveKeystore`           | `HiveSecondaryKeyStore`      | Hive impl of the abstract `SecondaryKeyStore` (which already existed in `at_persistence_spec`).    |
 
 The abstract `BaseAtCommitLog` (existing parent of the renamed
 `HiveAtCommitLog`) stays in place for now — Commit 2 will rename
@@ -354,12 +354,12 @@ perl -i -pe 's/\bHiveKeystore\b/HiveSecondaryKeyStore/g' $(find . -name '*.dart'
 
 ### Import path changes
 
-| Old path | New path |
-| --- | --- |
-| `src/log/commitlog/at_commit_log.dart` | `src/log/commitlog/hive_at_commit_log.dart` |
-| `src/log/accesslog/at_access_log.dart` | `src/log/accesslog/hive_at_access_log.dart` |
+| Old path                                         | New path                                              |
+|--------------------------------------------------|-------------------------------------------------------|
+| `src/log/commitlog/at_commit_log.dart`           | `src/log/commitlog/hive_at_commit_log.dart`           |
+| `src/log/accesslog/at_access_log.dart`           | `src/log/accesslog/hive_at_access_log.dart`           |
 | `src/notification/at_notification_keystore.dart` | `src/notification/hive_at_notification_keystore.dart` |
-| `src/keystore/hive_keystore.dart` | `src/keystore/hive_secondary_keystore.dart` |
+| `src/keystore/hive_keystore.dart`                | `src/keystore/hive_secondary_keystore.dart`           |
 
 The library export
 (`package:at_persistence_secondary_server/at_persistence_secondary_server.dart`)
@@ -433,12 +433,12 @@ happens once at bootstrap.
 The Hive concretes (renamed in Commit 1) now `implements` matching
 abstract interfaces under the unprefixed names:
 
-| Abstract | Hive concrete |
-| --- | --- |
-| `AtCommitLog` | `HiveAtCommitLog` |
-| `AtAccessLog` | `HiveAtAccessLog` |
-| `AtNotificationKeystore` | `HiveAtNotificationKeystore` |
-| `SecondaryKeyStore` (already existed in `at_persistence_spec`) | `HiveSecondaryKeyStore` |
+| Abstract                                                       | Hive concrete                |
+|----------------------------------------------------------------|------------------------------|
+| `AtCommitLog`                                                  | `HiveAtCommitLog`            |
+| `AtAccessLog`                                                  | `HiveAtAccessLog`            |
+| `AtNotificationKeystore`                                       | `HiveAtNotificationKeystore` |
+| `SecondaryKeyStore` (already existed in `at_persistence_spec`) | `HiveSecondaryKeyStore`      |
 
 The bundle's fields are typed at the abstracts. Code that holds
 a `HiveAtCommitLog` (or other concrete) typed local variable from
@@ -511,13 +511,13 @@ intermediate forms never shipped to consumers.
 The deprecated `getInstance()` shims that 4.x exposed are gone in
 5.0.0. Bootstrap via the factory pattern instead.
 
-| Removed | Replacement |
-| --- | --- |
-| `SecondaryPersistenceStoreFactory.getInstance()` | `HiveAtPersistenceFactory()` and the resulting `bundle` |
-| `AtCommitLogManagerImpl.getInstance().getCommitLog(atSign)` | `bundle.commitLog` |
-| `AtAccessLogManagerImpl.getInstance().getAccessLog(atSign)` | `bundle.accessLog` (server-track only) |
-| `AtCompactionService.getInstance()` | `AtCompactionService()` (per-job) |
-| `HiveKeyStoreHelper.getInstance().prepareKey(k)` | `HiveKeyStoreHelper.prepareKey(k)` (now static) |
+| Removed                                                                 | Replacement                                                            |
+|-------------------------------------------------------------------------|------------------------------------------------------------------------|
+| `SecondaryPersistenceStoreFactory.getInstance()`                        | `HiveAtPersistenceFactory()` and the resulting `bundle`                |
+| `AtCommitLogManagerImpl.getInstance().getCommitLog(atSign)`             | `bundle.commitLog`                                                     |
+| `AtAccessLogManagerImpl.getInstance().getAccessLog(atSign)`             | `bundle.accessLog` (server-track only)                                 |
+| `AtCompactionService.getInstance()`                                     | `AtCompactionService()` (per-job)                                      |
+| `HiveKeyStoreHelper.getInstance().prepareKey(k)`                        | `HiveKeyStoreHelper.prepareKey(k)` (now static)                        |
 | `HiveKeyStoreHelper.getInstance().prepareDataForKeystoreOperation(...)` | `HiveKeyStoreHelper.prepareDataForKeystoreOperation(...)` (now static) |
 
 Removed alongside:
