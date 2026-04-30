@@ -14,9 +14,16 @@ significantly between server-side consumers (such as
 - [Server track](#server-track)
 - [Client track](#client-track)
 - [Class renames](#class-renames)
+- [Bundle shape: slim core + optional capabilities](#bundle-shape-slim-core--optional-capabilities)
+- [New abstract interfaces](#new-abstract-interfaces)
+- [Migration / iteration primitives (additive)](#migration--iteration-primitives-additive)
 - [Constructor changes](#constructor-changes)
 - [Removed APIs](#removed-apis)
+- [Compaction](#compaction)
 - [New APIs](#new-apis)
+- [Test patterns](#test-patterns)
+- [Worked example: at_client_sdk's `LocalSecondary` and sync engine](#worked-example-at_client_sdks-localsecondary-and-sync-engine)
+- [Canonical example files](#canonical-example-files)
 
 ---
 
@@ -466,3 +473,129 @@ tearDownAll(() => factory.close());
 The `at_secondary_server` test suite documents these conventions
 at the top of `test/test_utils.dart`. Downstream test suites
 (including the at_client_sdk migration) can adopt the same shape.
+
+## Worked example: at_client_sdk's `LocalSecondary` and sync engine
+
+The pre-Phase-2 sweep against `at_client_sdk` (gkc-at-collection-snagging
+branch) found 56 sites across 6 `lib/` files and ~30 test files. All
+patterns map to recipes already documented above. Two are illustrated
+here end-to-end as worked examples for the at_client_sdk migration.
+
+### `LocalSecondary` keystore bootstrap
+
+Before (`at_client/lib/src/client/local_secondary.dart`):
+
+```dart
+class LocalSecondary implements Secondary {
+  final AtClient _atClient;
+  SecondaryKeyStore? keyStore;
+
+  LocalSecondary(this._atClient, {this.keyStore}) {
+    keyStore ??= SecondaryPersistenceStoreFactory.getInstance()
+        .getSecondaryPersistenceStore(_atClient.getCurrentAtSign())!
+        .getSecondaryKeyStore();
+  }
+}
+```
+
+After:
+
+```dart
+class LocalSecondary implements Secondary {
+  final AtClient _atClient;
+  SecondaryKeyStore? keyStore;
+
+  LocalSecondary(this._atClient, {this.keyStore}) {
+    // The bundle is owned by AtClientImpl; LocalSecondary just
+    // reads `bundle.keyStore`.
+    keyStore ??= _atClient.persistenceBundle.keyStore;
+  }
+}
+```
+
+The `AtClient` interface gains a `persistenceBundle` getter that
+exposes the bundle the at_client_sdk's `AtClientImpl` initialised
+at startup against `HivePersistenceConfig.clientDefaults(...)`.
+
+### Compaction job in `AtClientImpl.startCompactionJob`
+
+Before (`at_client/lib/src/client/at_client_impl.dart:364`):
+
+```dart
+AtCompactionJob atCompactionJob = AtCompactionJob(
+    (await AtCommitLogManagerImpl.getInstance().getCommitLog(_atSign))!,
+    SecondaryPersistenceStoreFactory.getInstance()
+        .getSecondaryPersistenceStore(_atSign)!);
+
+_atClientCommitLogCompaction ??=
+    AtClientCommitLogCompaction.create(_atSign, atCompactionJob);
+```
+
+After:
+
+```dart
+AtCompactionJob atCompactionJob =
+    AtCompactionJob(persistenceBundle.commitLogCompactor!);
+
+_atClientCommitLogCompaction ??=
+    AtClientCommitLogCompaction.create(_atSign, atCompactionJob);
+```
+
+(Stats writing was implicit in the old constructor; clients that
+want to record compaction metrics should pass an
+`AtCompactionStatsServiceImpl(commitLog, keyStore)` as the second
+arg, same as the server-track recipe.)
+
+### Sync helpers in `at_client/lib/src/util/sync_util.dart`
+
+The seven `AtCommitLogManagerImpl.getInstance().getCommitLog(atSign)`
+sites all become `_atClient.persistenceBundle.commitLog` once the
+sync helpers take the AtClient (or just the bundle) by parameter.
+
+### Tests
+
+Test files (~30 sites across `local_secondary_test`,
+`sync_new_test`, `at_client_termination_test`,
+`apkam_authorization_test`, `encryption_service_test`,
+`delete_expired_keys_task_test`, `at_onboarding_cli_test`)
+mirror the `at_persistence_secondary_server`'s own test migration:
+top-of-file `late HiveAtPersistenceFactory factory; late
+AtPersistenceBundle bundle;` plus a `setUpFunc` that calls
+`factory.initialize(...)` and assigns. Each `*.getInstance()...`
+call site becomes a reference to `bundle.X`.
+
+The functional-test sites in `tests/at_functional_test/test/`
+(`commit_log_compaction_test`, `sync_multiple_client_test`,
+`atclient_sync_callback_test`) follow the same pattern, with
+`AtCompactionService.getInstance().executeCompaction(...)` →
+`bundle.commitLogCompactor!.compact()`.
+
+## Canonical example files
+
+When a worked example would help — point at concrete sources that
+exercise the new API rather than embed snippets that drift:
+
+- **Server bootstrap end-to-end:**
+  `packages/at_persistence_secondary_server/test/at_persistence_factory_test.dart`
+  — exhaustive tests of factory init / close / two-atSign isolation,
+  using `HivePersistenceConfig.serverDefaults(...)`.
+- **Bundle slimming + serverDefaults / clientDefaults:**
+  `packages/at_persistence_secondary_server/test/iterate_replay_test.dart`
+  ("Bundle slimming" group) — exercises both factory shapes side
+  by side.
+- **`replay` and `iterate` migration primitives:**
+  `packages/at_persistence_secondary_server/test/iterate_replay_test.dart`
+  — yield-order, idempotency, no-listener-fire on replay.
+- **`bundle.clear()` test isolation pattern:**
+  `packages/at_persistence_secondary_server/test/iterate_replay_test.dart`
+  ("Bundle clear" group) — populate every store, clear, verify
+  bundle is reusable.
+- **AtConfig (now in `at_secondary`):**
+  `packages/at_secondary_server/lib/src/config/at_config.dart`
+  — server-side block-list config wired through the new
+  `SecondaryKeyStore` constructor.
+- **Server-side compaction wiring:**
+  `packages/at_secondary_server/lib/src/server/at_secondary_impl.dart`
+  (search for `commitLogCompactionJobInstance`) — three jobs
+  constructed against `bundle.commitLogCompactor` /
+  `accessLogCompactor` / `keyStoreCompactor`.

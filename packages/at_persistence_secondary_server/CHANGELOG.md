@@ -134,6 +134,15 @@
   file-scoped factory can call `bundle.clear()` in `setUp` rather
   than tearing down the factory per test. `at_secondary_server`'s
   test/test_utils.dart documents the recommended setup conventions.
+- docs: finalise MIGRATION.md — added a worked-example appendix
+  covering at_client_sdk's `LocalSecondary` bootstrap, the
+  compaction-job constructor change in `AtClientImpl`, the sync
+  helpers in `sync_util.dart`, and the test-file migration shape.
+  Cross-repo sweep against at_client_sdk / at_services / at_tools
+  found 56 sites — all in at_client_sdk, all covered by the
+  existing recipes. Linked canonical example files for every major
+  surface (factory bootstrap, slim bundle, replay/iterate, clear,
+  AtConfig, compaction wiring).
 
 ## 4.3.5
 
