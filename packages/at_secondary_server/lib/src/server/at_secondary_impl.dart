@@ -213,8 +213,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     await secondaryKeyStore.deleteExpiredKeys();
 
     //Commit Log Compaction
-    commitLogCompactionJobInstance =
-        AtCompactionJob(commitLog, secondaryKeyStore);
+    commitLogCompactionJobInstance = AtCompactionJob(
+        _persistenceBundle!.commitLogCompactor!,
+        AtCompactionStatsServiceImpl(commitLog, secondaryKeyStore));
     atCommitLogCompactionConfig = AtCompactionConfig()
       ..compactionPercentage = AtSecondaryConfig.commitLogCompactionPercentage
       ..compactionFrequencyInMins =
@@ -223,8 +224,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         .scheduleCompactionJob(atCommitLogCompactionConfig);
 
     //Access Log Compaction
-    accessLogCompactionJobInstance =
-        AtCompactionJob(accessLog, secondaryKeyStore);
+    accessLogCompactionJobInstance = AtCompactionJob(
+        _persistenceBundle!.accessLogCompactor!,
+        AtCompactionStatsServiceImpl(accessLog, secondaryKeyStore));
     atAccessLogCompactionConfig = AtCompactionConfig()
       ..compactionPercentage = AtSecondaryConfig.accessLogCompactionPercentage
       ..compactionFrequencyInMins =
@@ -233,8 +235,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         .scheduleCompactionJob(atAccessLogCompactionConfig);
 
     // Notification keystore compaction
-    notificationKeyStoreCompactionJobInstance =
-        AtCompactionJob(notificationKeystore, secondaryKeyStore);
+    notificationKeyStoreCompactionJobInstance = AtCompactionJob(
+        _persistenceBundle!.keyStoreCompactor!,
+        AtCompactionStatsServiceImpl(notificationKeystore, secondaryKeyStore));
     atNotificationCompactionConfig = AtCompactionConfig()
       ..compactionPercentage =
           AtSecondaryConfig.notificationKeyStoreCompactionPercentage
@@ -800,6 +803,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw StateError(
           'Server bundle is missing the notification keystore capability. '
           'Did the config disable enableNotificationKeystore?');
+    }
+    if (bundle.commitLogCompactor == null ||
+        bundle.accessLogCompactor == null ||
+        bundle.keyStoreCompactor == null) {
+      throw StateError(
+          'Server bundle is missing one or more compactors. '
+          'Did the config disable enableCommitLogCompactor / '
+          'enableAccessLogCompactor / enableKeyStoreCompactor?');
     }
   }
 

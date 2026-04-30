@@ -229,4 +229,10 @@ class _NotHiveConfig implements AtPersistenceConfig {
   bool get enableAccessLog => true;
   @override
   bool get enableNotificationKeystore => true;
+  @override
+  bool get enableCommitLogCompactor => true;
+  @override
+  bool get enableAccessLogCompactor => true;
+  @override
+  bool get enableKeyStoreCompactor => true;
 }

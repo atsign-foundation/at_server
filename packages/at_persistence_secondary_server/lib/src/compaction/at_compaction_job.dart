@@ -3,63 +3,61 @@ import 'dart:math';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:cron/cron.dart';
 
-/// The class responsible for the triggering the compaction job.
+/// Schedules periodic compaction by delegating to an
+/// [AtCompactionStrategy]. The strategy decides what "compact"
+/// means for its backend; this class just runs it on a cron and
+/// records the resulting [AtCompactionStats] via an
+/// [AtCompactionStatsService].
 ///
-/// The configurations for the compaction job can be set in [AtCompactionConfig]
-/// The [AtCompactionConfig.compactionFrequencyInMins] defines the time interval of the compaction job
-/// The [AtCompactionConfig.compactionPercentage] defines the amount of keystore to shrink.
-///
-/// The [AtCompactionStats] contains the metrics of the compaction job.
+/// The configurations come from [AtCompactionConfig]:
+/// - [AtCompactionConfig.compactionFrequencyInMins] sets the cron
+///   tick (the scheduler's concern).
+/// - [AtCompactionConfig.compactionPercentage] sets how aggressive
+///   each pass is (the strategy's concern, set via
+///   [AtCompactionStrategy.setConfig]).
 class AtCompactionJob {
   final Cron _cron = Cron();
   ScheduledTask? _schedule;
-  late AtCompactionService atCompactionService;
-  late AtCompactionStatsService atCompactionStatsService;
-  final AtLogType _atLogType;
+  final AtCompactionStrategy _strategy;
+  final AtCompactionStatsService? _statsService;
 
-  /// Keystore where the per-job compaction stats are written.
-  /// Passed through to [AtCompactionStatsServiceImpl].
-  final SecondaryKeyStore _keyStore;
   // Per-instance so concurrent jobs across different atSigns / log
   // types don't share an RNG.
   final Random _random = Random();
 
-  AtCompactionJob(this._atLogType, this._keyStore);
+  /// Construct a scheduler for [_strategy]. If [_statsService] is
+  /// supplied, each pass's stats are written to it; otherwise the
+  /// stats are dropped.
+  AtCompactionJob(this._strategy, [this._statsService]);
 
-  /// Triggers the compaction job.
-  ///
-  /// Accepts [AtCompactionConfig] that contains the configurations required for the compaction job
-  /// The [AtCompactionConfig.compactionFrequencyInMins] defines the time interval of the compaction job
-  /// The [AtCompactionConfig.compactionPercentage] defines the amount of keystore to shrink.
-  void scheduleCompactionJob(AtCompactionConfig atCompactionConfig) {
-    var runFrequencyInMins = atCompactionConfig.compactionFrequencyInMins;
+  /// Triggers the compaction job at [config.compactionFrequencyInMins]
+  /// intervals.
+  void scheduleCompactionJob(AtCompactionConfig config) {
+    _strategy.setConfig(config);
+    var runFrequencyInMins = config.compactionFrequencyInMins;
     _schedule = _cron.schedule(Schedule.parse('*/$runFrequencyInMins * * * *'),
         () async {
-      atCompactionService = AtCompactionService();
-      atCompactionStatsService =
-          AtCompactionStatsServiceImpl(_atLogType, _keyStore);
-      // adding delay to randomize the cron jobs
-      // Generates a random number between 0 and 12 and wait's for that many seconds.
+      // Adding delay to randomize the cron jobs (so per-atSign jobs
+      // don't all fire at the same wall-clock instant).
       await Future.delayed(Duration(seconds: _random.nextInt(12)));
-      _atLogType.setCompactionConfig(atCompactionConfig);
-      AtCompactionStats atCompactionStats =
-          await atCompactionService.executeCompaction(_atLogType);
-      await atCompactionStatsService.handleStats(atCompactionStats);
+      final stats = await _strategy.compact();
+      await _statsService?.handleStats(stats);
     });
   }
 
-  //Method to cancel the current schedule. The Cron instance is not close and can be re-used
+  /// Cancel the current schedule. The Cron instance is not closed
+  /// and can be re-used.
   Future<void> stopCompactionJob() async {
     await _schedule?.cancel();
     _schedule = null;
   }
 
-  //Method to stop compaction and also close the Cron instance.
+  /// Stop compaction and close the Cron instance.
   void close() {
     _cron.close();
   }
 
-  /// Returns true if the compaction job is not running, else returns false.
+  /// Returns true if the compaction job is scheduled, else false.
   bool isScheduled() {
     return _schedule != null;
   }

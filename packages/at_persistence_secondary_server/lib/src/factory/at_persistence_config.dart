@@ -46,6 +46,20 @@ abstract class AtPersistenceConfig {
   /// persistence. Server-only — clients leave this `false` and
   /// handle notifications via the at_lookup connection instead.
   bool get enableNotificationKeystore;
+
+  /// Whether the commit-log compactor should be wired up.
+  /// Both server and client typically opt in (the client compacts
+  /// its sync-side commit log too).
+  bool get enableCommitLogCompactor;
+
+  /// Whether the access-log compactor should be wired up.
+  /// Server-only — depends on [enableAccessLog].
+  bool get enableAccessLogCompactor;
+
+  /// Whether the keystore compactor should be wired up. The Hive
+  /// impl uses this to sweep notification-keystore TTLs. Server-only
+  /// in practice — depends on [enableNotificationKeystore].
+  bool get enableKeyStoreCompactor;
 }
 
 /// Hive-specific persistence configuration.
@@ -74,6 +88,15 @@ class HivePersistenceConfig implements AtPersistenceConfig {
   @override
   final bool enableNotificationKeystore;
 
+  @override
+  final bool enableCommitLogCompactor;
+
+  @override
+  final bool enableAccessLogCompactor;
+
+  @override
+  final bool enableKeyStoreCompactor;
+
   /// Whether commit IDs should be assigned by the commit log. Defaults
   /// to `true` (server side). Set `false` for client-side commit logs.
   final bool enableCommitId;
@@ -87,11 +110,15 @@ class HivePersistenceConfig implements AtPersistenceConfig {
     this.enableCommitId = true,
     this.enableAccessLog = true,
     this.enableNotificationKeystore = true,
+    this.enableCommitLogCompactor = true,
+    this.enableAccessLogCompactor = true,
+    this.enableKeyStoreCompactor = true,
   }) : backendMarkerPath =
             backendMarkerPath ?? '$storagePath/.persistence_backend';
 
   /// Convenience constructor for atSecondary servers: opts into all
-  /// optional capabilities (access log, notification keystore).
+  /// optional capabilities (access log, notification keystore, all
+  /// three compactors).
   factory HivePersistenceConfig.serverDefaults({
     required String storagePath,
     required String commitLogPath,
@@ -108,14 +135,16 @@ class HivePersistenceConfig implements AtPersistenceConfig {
         enableCommitId: true,
         enableAccessLog: true,
         enableNotificationKeystore: true,
+        enableCommitLogCompactor: true,
+        enableAccessLogCompactor: true,
+        enableKeyStoreCompactor: true,
       );
 
   /// Convenience constructor for at_client_sdk-shaped consumers:
-  /// opts in to keystore + commit log only (with `enableCommitId`
-  /// off — the client doesn't auto-assign commitIds, the server
-  /// does). Access log and notification keystore stay disabled;
-  /// their paths are still required on the abstract config but
-  /// the factory will never open boxes at them.
+  /// opts in to keystore + commit log + commit-log compactor only
+  /// (with `enableCommitId` off — the client doesn't auto-assign
+  /// commitIds, the server does). Access log, notification keystore,
+  /// and the access-log / keystore compactors stay disabled.
   factory HivePersistenceConfig.clientDefaults({
     required String storagePath,
     required String commitLogPath,
@@ -130,5 +159,8 @@ class HivePersistenceConfig implements AtPersistenceConfig {
         enableCommitId: false,
         enableAccessLog: false,
         enableNotificationKeystore: false,
+        enableCommitLogCompactor: true,
+        enableAccessLogCompactor: false,
+        enableKeyStoreCompactor: false,
       );
 }

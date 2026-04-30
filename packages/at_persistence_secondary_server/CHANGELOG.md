@@ -110,6 +110,24 @@
   through the legacy singleton-based managers — it constructs the
   per-atSign keystore / commit log / access log / notification
   keystore directly.
+- feat: introduce `AtCompactionStrategy` abstract +
+  `HiveCompactionStrategy` concrete. Bundle gains nullable
+  `commitLogCompactor`, `accessLogCompactor`, `keyStoreCompactor`
+  fields, populated based on the new `enableCommitLogCompactor` /
+  `enableAccessLogCompactor` / `enableKeyStoreCompactor` config
+  toggles. Server defaults all-on; client defaults commit-log-only.
+- breaking: `AtCompactionJob` constructor changed from
+  `(AtLogType, SecondaryKeyStore)` to
+  `(AtCompactionStrategy, [AtCompactionStatsService?])`. The
+  scheduler now delegates to the strategy's `compact()` method
+  rather than reaching into the log type's keys-to-delete
+  primitives directly.
+- breaking: removed the deprecated `AtCompactionStrategy` interface
+  from `at_persistence_spec` (it was annotated
+  `@Deprecated('use CompactionService')`, had a single
+  `performCompaction(AtLogType)` method, and was unimplemented).
+  The new `AtCompactionStrategy` in
+  `at_persistence_secondary_server` is the replacement.
 
 ## 4.3.5
 

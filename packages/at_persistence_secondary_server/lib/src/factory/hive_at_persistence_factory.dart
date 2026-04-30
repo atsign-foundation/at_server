@@ -70,12 +70,30 @@ class HiveAtPersistenceFactory implements AtPersistenceFactory {
 
     await keyStore.initialize();
 
+    // 5. Compactors (optional capabilities). Each wraps the
+    //    underlying log/keystore in a [HiveCompactionStrategy].
+    final AtCompactionStrategy? commitLogCompactor =
+        config.enableCommitLogCompactor
+            ? HiveCompactionStrategy(commitLog)
+            : null;
+    final AtCompactionStrategy? accessLogCompactor =
+        (config.enableAccessLogCompactor && accessLog != null)
+            ? HiveCompactionStrategy(accessLog)
+            : null;
+    final AtCompactionStrategy? keyStoreCompactor =
+        (config.enableKeyStoreCompactor && notificationKeystore != null)
+            ? HiveCompactionStrategy(notificationKeystore)
+            : null;
+
     final bundle = HiveAtPersistenceBundle._(
       atSign: atSign,
       keyStore: keyStore,
       commitLog: commitLog,
       accessLog: accessLog,
       notificationKeystore: notificationKeystore,
+      commitLogCompactor: commitLogCompactor,
+      accessLogCompactor: accessLogCompactor,
+      keyStoreCompactor: keyStoreCompactor,
       hivePersistenceManager: hivePm,
     );
     _bundles[atSign] = bundle;
@@ -120,6 +138,15 @@ class HiveAtPersistenceBundle implements AtPersistenceBundle {
   @override
   final HiveAtNotificationKeystore? notificationKeystore;
 
+  @override
+  final AtCompactionStrategy? commitLogCompactor;
+
+  @override
+  final AtCompactionStrategy? accessLogCompactor;
+
+  @override
+  final AtCompactionStrategy? keyStoreCompactor;
+
   // Hive-internal: needed by [scheduleKeyExpireTask] and [close], but
   // intentionally NOT exposed on the bundle's public surface — every
   // caller uses the abstract [AtPersistenceBundle] interface.
@@ -133,6 +160,9 @@ class HiveAtPersistenceBundle implements AtPersistenceBundle {
     required this.commitLog,
     required this.accessLog,
     required this.notificationKeystore,
+    required this.commitLogCompactor,
+    required this.accessLogCompactor,
+    required this.keyStoreCompactor,
     required HivePersistenceManager hivePersistenceManager,
   }) : _hivePersistenceManager = hivePersistenceManager;
 

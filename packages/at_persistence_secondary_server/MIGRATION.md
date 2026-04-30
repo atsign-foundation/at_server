@@ -330,6 +330,60 @@ final bundle = await factory.initialize(
 // `factory.close()` tears everything down.
 ```
 
+### Compaction
+
+Phase 2 splits the compaction surface into a *strategy* (which
+the bundle owns) and a *scheduler* (`AtCompactionJob`).
+
+- New abstract `AtCompactionStrategy` with `setConfig(AtCompactionConfig)`
+  + `Future<AtCompactionStats> compact()`. Bundle exposes three
+  nullable strategy fields: `commitLogCompactor?`,
+  `accessLogCompactor?`, `keyStoreCompactor?`. Server config opts
+  in to all; client config opts in to commit-log-only.
+- `AtCompactionJob` constructor changed: takes
+  `(AtCompactionStrategy strategy, [AtCompactionStatsService? stats])`
+  rather than `(AtLogType logType, SecondaryKeyStore keyStore)`.
+- The deprecated `AtCompactionStrategy` *interface* in
+  `at_persistence_spec` is gone (it was already
+  `@Deprecated('use CompactionService')` and unimplemented).
+
+**Server-track recipe.** Server consumers (this repo's
+`at_secondary_server`) construct an `AtCompactionStatsServiceImpl`
+explicitly (the old constructor built one internally) and pull
+the strategy off the bundle:
+
+```dart
+commitLogCompactionJobInstance = AtCompactionJob(
+    bundle.commitLogCompactor!,
+    AtCompactionStatsServiceImpl(commitLog, secondaryKeyStore));
+commitLogCompactionJobInstance.scheduleCompactionJob(
+    AtCompactionConfig()
+      ..compactionPercentage = 50
+      ..compactionFrequencyInMins = 30);
+```
+
+Same shape for `accessLogCompactor` and `keyStoreCompactor`.
+
+**Client-track recipe.** `at_client_sdk` previously did:
+
+```dart
+AtCompactionJob atCompactionJob = AtCompactionJob(
+    (await AtCommitLogManagerImpl.getInstance().getCommitLog(_atSign))!,
+    SecondaryPersistenceStoreFactory.getInstance()
+        .getSecondaryPersistenceStore(_atSign)!);
+```
+
+After 5.0.0:
+
+```dart
+AtCompactionJob atCompactionJob =
+    AtCompactionJob(bundle.commitLogCompactor!);
+```
+
+(Stats writing is optional on the client, so the second arg is
+omitted. Pass an `AtCompactionStatsServiceImpl(commitLog, keyStore)`
+if the client wants to record metrics — same shape as server.)
+
 ### Bootstrap recipe (client)
 
 Old (4.3.5) — the `at_client_sdk` flavour:

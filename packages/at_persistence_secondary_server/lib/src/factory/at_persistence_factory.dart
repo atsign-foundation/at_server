@@ -81,4 +81,19 @@ abstract class AtPersistenceBundle {
   /// The notification keystore. `null` when
   /// [AtPersistenceConfig.enableNotificationKeystore] is `false`.
   AtNotificationKeystore? get notificationKeystore;
+
+  /// Strategy for compacting the commit log. `null` when
+  /// [AtPersistenceConfig.enableCommitLogCompactor] is `false`.
+  AtCompactionStrategy? get commitLogCompactor;
+
+  /// Strategy for compacting the access log. `null` when
+  /// [AtPersistenceConfig.enableAccessLogCompactor] is `false`
+  /// (server-track only).
+  AtCompactionStrategy? get accessLogCompactor;
+
+  /// Strategy for compacting the keystore (typically used for
+  /// notification keystore TTL sweeps). `null` when
+  /// [AtPersistenceConfig.enableKeyStoreCompactor] is `false`
+  /// (server-track only).
+  AtCompactionStrategy? get keyStoreCompactor;
 }
