@@ -10,9 +10,33 @@ significantly between server-side consumers (such as
 `at_secondary_server`) and client-side consumers (such as
 `at_client_sdk`).
 
+**If you are migrating `at_client_sdk`, read in this order:**
+
+1. [TL;DR](#tldr) — 1-minute overview of what changed.
+2. [What NOT to worry about (client track)](#client-track-what-not-to-worry-about)
+   — quick wins by elimination.
+3. [Step-by-step playbook (at_client_sdk)](#step-by-step-playbook-at_client_sdk)
+   — opinionated order of operations.
+4. The reference sections below as needed when you hit a specific
+   call site.
+5. [Verification: how to know you're done](#verification-how-to-know-youre-done).
+
+**If you are migrating a server-side consumer, read:**
+
+1. [TL;DR](#tldr).
+2. [Server-track migration](#server-track).
+3. Reference sections as needed.
+4. [Verification](#verification-how-to-know-youre-done).
+
+---
+
+## Table of contents
+
 - [TL;DR](#tldr)
-- [Server track](#server-track)
-- [Client track](#client-track)
+- [Pubspec dependency bump](#pubspec-dependency-bump)
+- [What NOT to worry about (client track)](#client-track-what-not-to-worry-about)
+- [Step-by-step playbook (at_client_sdk)](#step-by-step-playbook-at_client_sdk)
+- [Server-track migration](#server-track)
 - [Class renames](#class-renames)
 - [Bundle shape: slim core + optional capabilities](#bundle-shape-slim-core--optional-capabilities)
 - [New abstract interfaces](#new-abstract-interfaces)
@@ -24,6 +48,7 @@ significantly between server-side consumers (such as
 - [Test patterns](#test-patterns)
 - [Worked example: at_client_sdk's `LocalSecondary` and sync engine](#worked-example-at_client_sdks-localsecondary-and-sync-engine)
 - [Canonical example files](#canonical-example-files)
+- [Verification: how to know you're done](#verification-how-to-know-youre-done)
 
 ---
 
@@ -42,48 +67,243 @@ significantly between server-side consumers (such as
 - **Deprecated `getInstance()` shims removed** outright. Every
   call site moves to the factory.
 - **Constructor signature changes** for `AtCompactionJob`,
-  `AtCompactionStatsServiceImpl`, and `AtConfig` (see below).
+  `AtCompactionStatsServiceImpl`, and `AtConfig` (see
+  [Constructor changes](#constructor-changes) below).
 
 ---
 
-## Server track
+## Pubspec dependency bump
 
-For consumers that run a full atSecondary (this repo's
-`at_secondary_server`, plus any downstream that runs its own
-secondary). These consumers use the **full** persistence surface:
-keystore, commit log, access log, notification keystore as
-storage, all three compactors, key-expire scheduler, and
-`AtConfig` block-list.
+In your downstream package's `pubspec.yaml`:
 
-The bulk of the migration is mechanical — Phase 1 already moved
-this repo onto the factory pattern. External servers follow the
-same recipe.
+```yaml
+dependencies:
+  at_persistence_secondary_server: ^5.0.0
+```
 
-(Detailed server-track recipes will be filled in as Phase 2
-commits land.)
+After bumping, run `dart pub get` (or `flutter pub get`) to
+refresh `pubspec.lock`. The first `dart analyze` after the bump
+will surface every breaking-change call site at once — work
+through them using the playbook and reference sections below.
 
-## Client track
+---
 
-For consumers that run a local-secondary cache (e.g.
-`at_client_sdk` and downstream mobile/desktop apps). These
-consumers use a **subset** of the persistence surface: keystore,
-commit log, key-expire scheduler, and commit-log compactor.
+## Client track: what NOT to worry about
 
-What does **not** affect the client:
+A lot of the 5.0.0 surface area is server-only. As an
+`at_client_sdk` (or downstream client app) maintainer you can
+**ignore** these entirely:
 
-- `AtConfig` — server-only block-list config; client never
-  imported it.
-- `AtAccessLog` — server-only audit trail.
-- `AtNotificationKeystore` (as a storage class) — only the
-  `NotificationStatus` enum is consumed by the client.
-- `AtCompactionStrategy` for access log / keystore — client only
-  compacts the commit log.
-- The bundle escape hatches (`secondaryPersistenceStore`,
-  `hivePersistenceManager` getters) that Phase 1c removed — the
+- **`AtConfig`** — server-only block-list config; client never
+  imported it. The fact that it moved from
+  `at_persistence_secondary_server` to `at_secondary` is invisible
+  to clients.
+- **`AtAccessLog`** — server-only audit trail. No client code
+  ever wrote to it.
+- **`AtNotificationKeystore`** (as a storage class) — server
+  uses it as a queue; client doesn't. The
+  `NotificationStatus` enum (a model type, not the storage class)
+  IS still used by clients and continues to be exported under
+  the same name from
+  `package:at_persistence_secondary_server/at_persistence_secondary_server.dart`.
+  No change needed there.
+- **`AtCompactionStrategy` for access log / keystore** — clients
+  only compact the commit log. The other two compactor fields on
+  the bundle are `null` under `clientDefaults`.
+- **Server-side `StatsNotificationService`** — lives in
+  `at_secondary`, not `at_persistence_secondary_server`. Clients
+  never imported it.
+- **Bundle escape hatches** (`secondaryPersistenceStore`,
+  `hivePersistenceManager` getters) — Phase 1c removed them; the
   client never used them.
+- **`AtCommitLogManager` / `AtAccessLogManager`** abstract
+  interfaces in `at_persistence_spec` — both were removed (they
+  were paired with the deleted impl classes), but `at_client_sdk`
+  used the impl-side getInstance shims, not the spec-side
+  interfaces. So this removal is invisible.
 
-(Detailed client-track recipes will be filled in as Phase 2
-commits land.)
+If you find yourself touching anything on this list during the
+migration, you're probably on the wrong track. Stop and re-read
+the playbook below.
+
+---
+
+## Step-by-step playbook (at_client_sdk)
+
+This is the recommended order. Each step keeps the codebase in a
+buildable state — you can stop and run `dart analyze` after every
+step.
+
+### Step 1 — Bump the dep + run analyze
+
+Update `pubspec.yaml`:
+
+```yaml
+dependencies:
+  at_persistence_secondary_server: ^5.0.0
+```
+
+Run `dart pub get`, then `dart analyze`. Expect a wall of errors;
+that's the migration surface. The errors are the to-do list.
+
+### Step 2 — Class renames (mechanical)
+
+Run the find-and-replace recipes from the [Class renames](#class-renames)
+section against `lib/` and `test/`:
+
+```bash
+perl -i -pe 's/\bClientAtCommitLog\b/HiveClientAtCommitLog/g; s/\bAtCommitLog\b/HiveAtCommitLog/g' \
+    $(find lib test -name '*.dart')
+perl -i -pe 's/\bAtAccessLog\b/HiveAtAccessLog/g' $(find lib test -name '*.dart')
+perl -i -pe 's/\bAtNotificationKeystore\b/HiveAtNotificationKeystore/g' \
+    $(find lib test -name '*.dart')
+perl -i -pe 's/\bHiveKeystore\b/HiveSecondaryKeyStore/g' $(find lib test -name '*.dart')
+```
+
+**Important:** the `\b` boundaries protect siblings —
+`BaseAtCommitLog`, `AtCommitLogManager`, `HiveKeyStoreHelper`
+will NOT be matched. If your codebase has subtypes of
+`BaseAtCommitLog`, those are now `extends AtCommitLog` instead;
+adjust by hand.
+
+After Step 2, mocks like `MockAtCommitLog extends Mock implements
+AtCommitLog` continue to work — the abstract `AtCommitLog` is the
+type they were already mocking against, just abstract now instead
+of concrete.
+
+### Step 3 — Add a `persistenceBundle` getter on `AtClient`
+
+The factory pattern owns the bundle's lifecycle. The natural
+owner on the client side is `AtClientImpl`. Add a field and a
+getter:
+
+```dart
+// In AtClient (interface):
+AtPersistenceBundle get persistenceBundle;
+
+// In AtClientImpl:
+late final HiveAtPersistenceFactory _persistenceFactory;
+late final AtPersistenceBundle _persistenceBundle;
+
+@override
+AtPersistenceBundle get persistenceBundle => _persistenceBundle;
+```
+
+Initialise in `AtClientImpl`'s init/start path (wherever Hive is
+currently being opened):
+
+```dart
+_persistenceFactory = HiveAtPersistenceFactory();
+_persistenceBundle = await _persistenceFactory.initialize(
+  _atSign,
+  HivePersistenceConfig.clientDefaults(
+    storagePath: <existing storage path>,
+    commitLogPath: <existing commit log path>,
+  ),
+);
+```
+
+`clientDefaults` sets `enableCommitId: false` internally — the
+client commit log uses commitIds assigned by the server during
+sync, not auto-incremented locally. **Don't override this.**
+
+Tear down in the matching close path:
+
+```dart
+await _persistenceFactory.close();
+```
+
+### Step 4 — Migrate the lib/ call sites
+
+Reference: [Removed APIs](#removed-apis) table.
+
+The four files in `at_client/lib/src/` that hold call sites:
+
+| File | Pattern | Replacement |
+| --- | --- | --- |
+| `client/local_secondary.dart` | `SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore(_atClient.getCurrentAtSign())!.getSecondaryKeyStore()` | `_atClient.persistenceBundle.keyStore` |
+| `client/at_client_impl.dart` | `AtCompactionJob((await AtCommitLogManagerImpl.getInstance().getCommitLog(_atSign))!, SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore(_atSign)!)` | `AtCompactionJob(persistenceBundle.commitLogCompactor!)` |
+| `manager/storage_manager.dart` (4 sites) | `SecondaryPersistenceStoreFactory.getInstance()...` chains | `_atClient.persistenceBundle.<X>` (keystore, commitLog, scheduleKeyExpireTask) |
+| `manager/preference_manager.dart` | Same | Same |
+| `util/sync_util.dart` (7 sites) | `await AtCommitLogManagerImpl.getInstance().getCommitLog(atSign)` | `_atClient.persistenceBundle.commitLog` (helper takes `AtClient` or `AtPersistenceBundle` by parameter) |
+
+After this step, `git grep -nE 'getInstance' at_client/lib/`
+should return zero hits for the removed singletons (the only
+allowed `getInstance` left is `AtClientImpl.getInstance()` if it
+exists).
+
+### Step 5 — Migrate the test files
+
+The ~30 test sites can be migrated in batches. The recommended
+pattern:
+
+```dart
+// At top of file:
+late HiveAtPersistenceFactory testFactory;
+late AtPersistenceBundle testBundle;
+
+// In the file's setUpFunc (or equivalent):
+testFactory = HiveAtPersistenceFactory();
+testBundle = await testFactory.initialize(
+  atSign,
+  HivePersistenceConfig.clientDefaults(
+    storagePath: storageDir,
+    commitLogPath: storageDir,
+  ),
+);
+
+// Each test then references testBundle.X instead of the singleton chains.
+
+// In tearDownAll (NOT tearDown — see Test patterns below):
+await testFactory.close();
+```
+
+If a test relies on cross-test data leak (cram-style), keep the
+factory file-scoped and only call `bundle.clear()` in `setUp`
+when the test actually needs isolation. See
+[Test patterns](#test-patterns).
+
+### Step 6 — Run the suites
+
+```bash
+# in each package under at_client_sdk:
+dart test --concurrency=1
+```
+
+`--concurrency=1` is required for atsign repos because Hive boxes
+are process-global by atSign sha; parallel test runs collide.
+
+If the at_client_sdk has a functional test suite, run that too.
+
+### Step 7 — Verify
+
+See [Verification](#verification-how-to-know-youre-done).
+
+---
+
+## Server-track migration
+
+For consumers that run a full atSecondary (e.g.
+`at_secondary_server` itself, plus any downstream that runs its
+own secondary). These consumers use the **full** persistence
+surface.
+
+The migration shape is similar to the client playbook above, with
+two differences:
+
+1. Use `HivePersistenceConfig.serverDefaults(...)` (opts into
+   every capability) rather than `clientDefaults`.
+2. After `factory.initialize(...)`, run a single
+   `_assertServerCapabilities(bundle)` helper at bootstrap to
+   confirm the optional capabilities are populated, then bind
+   them to non-nullable `late` fields. This keeps `!` litter out
+   of every verb handler. See
+   [Bundle shape](#bundle-shape-slim-core--optional-capabilities)
+   for the recommended pattern.
+
+The reference implementation lives at
+`packages/at_secondary_server/lib/src/server/at_secondary_impl.dart`
+in this repo (`_initializePersistentInstances`).
 
 ---
 
@@ -256,15 +476,35 @@ backend-specific casts.
 
 ## Constructor changes
 
-- `AtCompactionJob(AtLogType logType, SecondaryPersistenceStore store)` →
-  `AtCompactionJob(AtLogType logType, SecondaryKeyStore keyStore)`.
-  (Phase 1c.)
-- `AtCompactionStatsServiceImpl(AtCompaction, SecondaryPersistenceStore)` →
-  `(AtCompaction, SecondaryKeyStore)`. (Phase 1c.)
-- `AtConfig(AtCommitLog, atSign)` →
-  `AtConfig(SecondaryKeyStore, atSign)` AND moved to
-  `package:at_secondary/src/config/at_config.dart`. (Phase 1b;
-  server-track only.)
+These are the constructor signatures that changed between 4.3.5
+and 5.0.0. Only the **final** 5.0.0 signature is shown — some
+classes (`AtCompactionJob`) changed twice across the arc but the
+intermediate forms never shipped to consumers.
+
+- **`AtCompactionJob`**:
+  - 4.3.5: `AtCompactionJob(AtLogType logType, SecondaryPersistenceStore store)`
+  - 5.0.0: `AtCompactionJob(AtCompactionStrategy strategy, [AtCompactionStatsService? stats])`
+  - Migration: pass `bundle.commitLogCompactor!` (or
+    `accessLogCompactor!` / `keyStoreCompactor!`) as the
+    strategy. Stats writing is optional now — pass an
+    `AtCompactionStatsServiceImpl(<atLogType>, <keyStore>)` as
+    the second argument to keep the 4.3.5 stats-recording
+    behaviour.
+- **`AtCompactionStatsServiceImpl`**:
+  - 4.3.5: `(AtCompaction atCompaction, SecondaryPersistenceStore store)`
+  - 5.0.0: `(AtCompaction atCompaction, SecondaryKeyStore keyStore)`
+  - Migration: pass the keystore directly instead of the
+    persistence-store wrapper.
+- **`AtConfig`** (server-track only — `at_client_sdk` never imported it):
+  - 4.3.5: `AtConfig(AtCommitLog commitLog, String atSign)`
+  - 5.0.0: `AtConfig(SecondaryKeyStore keyStore, String atSign)`
+  - Also moved to `package:at_secondary/src/config/at_config.dart`.
+- **`HiveAtCommitLog`** / **`HiveClientAtCommitLog`** /
+  **`HiveAtAccessLog`** / **`HiveAtNotificationKeystore`**:
+  unchanged constructor signatures (just renamed; the args still
+  take the same `*KeyStore` / atSign as 4.3.5). These exist to
+  let `HiveAtPersistenceFactory.initialize` build them; downstream
+  consumers should construct via the factory, not directly.
 
 ## Removed APIs
 
@@ -422,6 +662,13 @@ final bundle = await factory.initialize(
 // bundle.accessLog and bundle.notificationKeystore are null on
 // the client config — they were never used by the client anyway.
 ```
+
+**Note on `enableCommitId`.** The client commit log uses
+commitIds assigned by the server (during sync), not auto-incremented
+locally. `HivePersistenceConfig.clientDefaults(...)` sets
+`enableCommitId: false` internally; this matches the explicit
+`enableCommitId: false` you'd see in the 4.3.5 bootstrap. You
+do not need to set it (or override it) when using `clientDefaults`.
 
 ## New APIs
 
@@ -599,3 +846,83 @@ exercise the new API rather than embed snippets that drift:
   (search for `commitLogCompactionJobInstance`) — three jobs
   constructed against `bundle.commitLogCompactor` /
   `accessLogCompactor` / `keyStoreCompactor`.
+
+---
+
+## Verification: how to know you're done
+
+After working through the playbook, the migration is complete
+when **all** of these hold:
+
+1. **No deprecated symbols in `lib/` or `test/`.** Run from the
+   downstream package's root:
+
+   ```bash
+   git grep -nE \
+     'SecondaryPersistenceStoreFactory\.getInstance|AtCommitLogManagerImpl\.getInstance|AtAccessLogManagerImpl\.getInstance|AtCompactionService\.getInstance|HiveKeyStoreHelper\.getInstance|StatsNotificationService\.getInstance|BaseAtCommitLog|AtNotificationCallback|getHivePersistenceManager\b' \
+     -- lib test
+   ```
+
+   Expected output: zero hits.
+
+2. **No bare unprefixed concrete-name uses.** Make sure the old
+   concrete names aren't being constructed directly (mocking the
+   abstract is fine — that's the SAME unprefixed name now):
+
+   ```bash
+   git grep -nE '\bAtCommitLog\(|\bClientAtCommitLog\(|\bAtAccessLog\(|\bAtNotificationKeystore\(|\bHiveKeystore\(' \
+     -- lib test
+   ```
+
+   Expected output: zero hits. (The `Hive`-prefixed names are
+   constructor calls of the renamed classes; if any test
+   constructs them directly, that's fine — the names are correct.)
+
+3. **`dart analyze` clean.** From every package's root:
+
+   ```bash
+   dart analyze
+   ```
+
+   Expected: `No issues found!`. If `info`-level hints remain
+   they're cosmetic and OK.
+
+4. **Tests green.** Use the `--concurrency=1` flag — atsign repos
+   share Hive box state by atSign sha across parallel runs:
+
+   ```bash
+   dart test --concurrency=1
+   ```
+
+5. **Functional / integration tests green** (if the package has
+   them — `at_client_sdk` does at `tests/at_functional_test/`).
+
+6. **No imports of removed files.** Confirm:
+
+   ```bash
+   git grep -nE \
+     'src/log/commitlog/at_commit_log\.dart|src/log/accesslog/at_access_log\.dart|src/notification/at_notification_keystore\.dart|src/keystore/hive_keystore\.dart|src/log/at_commit_log_manager\.dart|src/log/at_access_log_manager\.dart' \
+     -- lib test
+   ```
+
+   Expected output: zero hits.
+
+If all six pass, the migration is done. Open a PR; the diff
+should be entirely import / type / call-site updates, no
+behavioural changes.
+
+### Smoke-testing the runtime
+
+If you want to verify behavioural parity beyond passing tests:
+
+- **Sync flow:** create a key on one client, sync to the server,
+  pull from a second client. The commit log on each client
+  should still record the operation.
+- **Compaction:** populate the commit log to past the configured
+  threshold, wait for the cron tick, confirm `bundle.commitLog.entriesCount()`
+  drops.
+- **Local cache reads:** read a previously-synced key without
+  network access — should still come from `bundle.keyStore`.
+
+These exercise the parts of the bundle that unit tests don't
+fully cover.
