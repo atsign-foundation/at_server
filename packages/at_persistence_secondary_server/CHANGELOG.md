@@ -1,3 +1,21 @@
+## 5.5.0
+
+- feat: add `Stream<KeyStoreChange> get changes` to the abstract
+  `SecondaryKeyStore`, plus a sealed `KeyStoreChange` hierarchy
+  in `at_persistence_spec` (`KeyAdded` / `KeyUpdated` /
+  `KeyRemoved`). Broadcast stream of every successful mutation:
+  `create()` emits `KeyAdded`; the update path of `put()` (and
+  `putAll` / `putMeta` when they write) emits `KeyUpdated` (or
+  `KeyAdded` if the key didn't previously exist); `remove()` and
+  `removeMany()` emit `KeyRemoved` per actually-removed key.
+  Failed writes don't emit. Late subscribers don't see prior
+  events (broadcast semantics). HiveSecondaryKeyStore +
+  HiveAtNotificationKeystore both implement. Phase 3 sub-phase
+  3e — pushes the broadcast pattern from at_client_sdk's
+  `LocalSecondary` (commit `7820f99b6` over there) down a layer
+  so `LocalSecondary.dataEvents` simplifies to a filter/transform.
+  See `MIGRATION.md` "What's new in 5.5.0".
+
 ## 5.4.0
 
 - feat: add

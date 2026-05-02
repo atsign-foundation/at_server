@@ -87,6 +87,27 @@ abstract interface class SecondaryKeyStore<K, V, T>
   /// Empty [keys] is a no-op that returns 0.
   Future<int> removeMany(List<K> keys, {bool skipCommit = false});
 
+  /// Broadcast stream of [KeyStoreChange] events — one per
+  /// successful mutation that affects the key set or stored value:
+  /// `create()` emits [KeyAdded]; the update path of `put()` (and
+  /// `putMeta` / `putAll` when they write) emits [KeyUpdated];
+  /// `remove()` and `removeMany()` emit [KeyRemoved] per
+  /// actually-removed key. Failed writes do not emit.
+  ///
+  /// `clear()`-style bulk wipes do NOT emit per-key events
+  /// (avoiding flooding); listeners that need to handle those
+  /// should respond to higher-level lifecycle signals instead.
+  ///
+  /// Broadcast semantics: late subscribers do NOT receive events
+  /// emitted before they subscribed. Each subscriber gets every
+  /// event from subscription onward; multiple subscribers all see
+  /// every event independently.
+  ///
+  /// Hive impl: `StreamController.broadcast()` fired synchronously
+  /// from each mutator. SQL impls (Phase 4): change-log table +
+  /// trigger, polled or pushed depending on backend.
+  Stream<KeyStoreChange> get changes;
+
   /// A SecondaryKeyStore has an associated commit log
   AtLogType? get commitLog => null;
 

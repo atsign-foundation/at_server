@@ -949,6 +949,7 @@ addition is additive — nothing is removed within 5.x.
 - [5.2.0 — `KeyPattern` + `scanKeys` (sub-phase 3b)](#520--keypattern--scankeys-sub-phase-3b)
 - [5.3.0 — `getMany` (sub-phase 3c)](#530--getmany-sub-phase-3c)
 - [5.4.0 — `removeMany` (sub-phase 3d)](#540--removemany-sub-phase-3d)
+- [5.5.0 — `KeyStoreChange` + `changes` stream (sub-phase 3e)](#550--keystorechange--changes-stream-sub-phase-3e)
 
 ### 5.1.0 — `exists(String key)` (sub-phase 3a)
 
@@ -1234,3 +1235,86 @@ and `updateSharedWith`'s "unshare" loop.
 `removeMany` (Hive batches via `deleteAll`, SQL backends use
 single-statement `DELETE WHERE IN`). Performance differs by
 backend; semantics are identical.
+
+### 5.5.0 — `KeyStoreChange` + `changes` stream (sub-phase 3e)
+
+**New types** (in `at_persistence_spec`):
+
+```dart
+sealed class KeyStoreChange { final String key; }
+final class KeyAdded extends KeyStoreChange { ... }
+final class KeyUpdated extends KeyStoreChange { ... }
+final class KeyRemoved extends KeyStoreChange { ... }
+```
+
+**New on `SecondaryKeyStore`:**
+
+```dart
+abstract interface class SecondaryKeyStore<K, V, T> ... {
+  /// Broadcast stream of every successful mutation that changes
+  /// the key set or stored value.
+  Stream<KeyStoreChange> get changes;
+}
+```
+
+The stream is broadcast: late subscribers don't see prior
+events; multiple subscribers each get every event independently.
+
+**Emission rules:**
+
+- `create()` → `KeyAdded(key)`.
+- `put()` update path → `KeyUpdated(key)`.
+- `putAll()` / `putMeta()` → `KeyAdded(key)` if the key didn't
+  previously exist, `KeyUpdated(key)` otherwise.
+- `remove(key)` (when the key was present) → `KeyRemoved(key)`.
+- `removeMany(keys)` → one `KeyRemoved` per actually-removed key.
+- Failed writes (exceptions) do NOT emit.
+- Bulk wipes (`bundle.clear()` etc.) do NOT emit per-key events
+  — they avoid flooding subscribers.
+
+**Hive impl** (`HiveSecondaryKeyStore` and
+`HiveAtNotificationKeystore`): single
+`StreamController<KeyStoreChange>.broadcast()` per keystore;
+emit synchronously after the box mutation succeeds.
+
+**SQL impl (Phase 4):** change-log table written by triggers,
+plus an iterator that yields new rows since the last seen.
+(Or `pragma data_version` for simpler change detection.)
+
+**Backward compat:** purely additive. No prior surface changed.
+
+**Before / after** — the at_client adoption (lands separately in
+the at_client_sdk session) simplifies
+`LocalSecondary.dataEvents` from a self-managed broadcast (with
+counter + drain waiters, added in commit `7820f99b6`) to a
+filter/transform over the keystore's stream:
+
+```dart
+// Before (client-side broadcast managed inside LocalSecondary):
+class LocalSecondary {
+  final _events = StreamController<DataEvent>.broadcast();
+  Stream<DataEvent> get dataEvents => _events.stream;
+  // _emit machinery, counter, drain waiters, putValue silence...
+}
+
+// After (5.5.0+): pure transform over keystore's changes stream.
+class LocalSecondary {
+  Stream<DataEvent> get dataEvents =>
+      keyStore.changes
+          .where(_isUserVisible)
+          .map(_toDataEvent);
+}
+```
+
+Two follow-on consequences for the at_client_sdk session:
+1. The `_emit` counter + drain waiters can be deleted; the
+   stream-level pendingEmissions equivalent moves to the keystore.
+2. `putValue`'s silence (currently load-bearing — see Risk #6
+   of the previously-shipped LocalSecondary plan) becomes a
+   deliberate filter at the LocalSecondary layer, not a
+   write-path branch on the keystore. Callers that need
+   `putValue` writes to be visible can subscribe to
+   `keyStore.changes` upstream of LocalSecondary's filter.
+
+**Capability flag:** none. Every backend in 5.5.0 emits change
+events.

@@ -1,5 +1,7 @@
 // ignore_for_file: non_constant_identifier_names
 
+import 'dart:async';
+
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 import 'package:at_utf7/at_utf7.dart';
@@ -22,6 +24,15 @@ class HiveAtNotificationKeystore
   @override
   List<Future Function(String key, {required bool skipCommit})>
       postRemoveHooks = [];
+
+  /// Broadcast stream of mutations on this notification keystore.
+  /// Emitted from `put`, `remove`, and `removeMany` after the
+  /// underlying box write succeeds.
+  final StreamController<KeyStoreChange> _changesController =
+      StreamController<KeyStoreChange>.broadcast();
+
+  @override
+  Stream<KeyStoreChange> get changes => _changesController.stream;
 
   static final HiveAtNotificationKeystore _singleton =
       HiveAtNotificationKeystore('@fake_atsign_fake_fake_fake');
@@ -86,7 +97,10 @@ class HiveAtNotificationKeystore
       throw DataStoreException(
           'key length ${key.length} is greater than $maxKeyLengthWithoutCached chars');
     }
+    final wasPresent = isKeyExists(key);
     await _getBox().put(key, value);
+    _changesController
+        .add(wasPresent ? KeyUpdated(key as String) : KeyAdded(key as String));
   }
 
   @override
@@ -165,10 +179,14 @@ class HiveAtNotificationKeystore
       await hook(key, skipCommit: skipCommit);
     }
     assert(key != null);
+    final wasPresent = isKeyExists(key);
     await _getBox().delete(key);
 
     for (final hook in postRemoveHooks) {
       await hook(key, skipCommit: skipCommit);
+    }
+    if (wasPresent) {
+      _changesController.add(KeyRemoved(key as String));
     }
   }
 
@@ -217,6 +235,10 @@ class HiveAtNotificationKeystore
       for (final hook in postRemoveHooks) {
         await hook(k, skipCommit: skipCommit);
       }
+    }
+    // Emit a KeyRemoved event per actually-removed key.
+    for (final k in present) {
+      _changesController.add(KeyRemoved(k as String));
     }
     return present.length;
   }

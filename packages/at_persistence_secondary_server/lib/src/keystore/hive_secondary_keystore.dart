@@ -1,5 +1,6 @@
 // ignore_for_file: non_constant_identifier_names
 
+import 'dart:async';
 import 'dart:collection';
 
 import 'package:at_commons/at_commons.dart';
@@ -31,6 +32,15 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
   /// of keys with TTL or TTB set, to efficiently track the active or expired state
   /// of each key based on their respective TTB or TTL values.
   final HashMap<String, Map<String, DateTime?>> _expiryKeysCache = HashMap();
+
+  /// Broadcast stream of mutations on this keystore. Emitted from
+  /// `create`, `put` (update branch), `remove`, and `removeMany`
+  /// after the underlying box write succeeds.
+  final StreamController<KeyStoreChange> _changesController =
+      StreamController<KeyStoreChange>.broadcast();
+
+  @override
+  Stream<KeyStoreChange> get changes => _changesController.stream;
 
   /// Bounded LRU of compiled regexes used by [getKeys]. Most callers reuse
   /// the same handful of patterns (`.*`, namespace selectors, sync filters);
@@ -150,6 +160,7 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
         } else {
           result = await _commitLog.commit(hive_key, commitOp);
         }
+        _changesController.add(KeyUpdated(key));
       }
     } on DataStoreException {
       rethrow;
@@ -214,6 +225,7 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
     try {
       await persistenceManager!.getBox().put(hive_key, hive_data);
       _updateMetadataCache(key, hive_data.metaData);
+      _changesController.add(KeyAdded(key));
       if (skipCommit) {
         return -1;
       } else {
@@ -256,6 +268,7 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
       } else {
         retVal = (await _commitLog.commit(key, CommitOp.DELETE))!;
       }
+      _changesController.add(KeyRemoved(key));
     } on Exception catch (exception) {
       logger.severe('HiveSecondaryKeyStore delete exception: $exception');
       throw DataStoreException('exception in remove: ${exception.toString()}');
@@ -402,6 +415,8 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
       await persistenceManager!.getBox().put(hive_key, value);
       _updateMetadataCache(key, value.metaData);
       result = await _commitLog.commit(hive_key, CommitOp.UPDATE_ALL);
+      _changesController
+          .add(existingData == null ? KeyAdded(key) : KeyUpdated(key));
       return result;
     } on HiveError catch (error) {
       logger.severe('HiveSecondaryKeyStore get error: $error');
@@ -431,6 +446,8 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
       await persistenceManager!.getBox().put(hive_key, newData);
       _updateMetadataCache(key, newData.metaData);
       var result = await _commitLog.commit(hive_key, CommitOp.UPDATE_META);
+      _changesController
+          .add(existingData == null ? KeyAdded(key) : KeyUpdated(key));
       return result;
     } on HiveError catch (error) {
       logger.severe('HiveSecondaryKeyStore get error: $error');
@@ -516,6 +533,11 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
       for (final hook in postRemoveHooks) {
         await hook(lowered, skipCommit: skipCommit);
       }
+    }
+
+    // 6. Emit a KeyRemoved event per actually-removed key.
+    for (final lowered in present) {
+      _changesController.add(KeyRemoved(lowered));
     }
 
     return present.length;
