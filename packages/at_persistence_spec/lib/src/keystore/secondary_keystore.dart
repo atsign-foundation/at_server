@@ -16,7 +16,24 @@ abstract interface class SecondaryKeyStore<K, V, T>
   List<K> getKeys({String? regex});
 
   /// Checks whether the keystore contains the key. Returns a true if key is present, else false.
+  ///
+  /// Synchronous flavour intended for in-process Hive-backed consumers
+  /// where blocking on I/O is fine. Async-only backends (e.g. SQLite,
+  /// Postgres) should use [exists] instead — the async signature is
+  /// the canonical forward-compat shape.
   bool isKeyExists(String key);
+
+  /// Returns `true` if the keystore currently contains [key], else
+  /// `false`. The async flavour of [isKeyExists] — backend-agnostic
+  /// consumers (e.g. at_client) should prefer this so the same call
+  /// site works against Hive, SQLite, and any future backend.
+  ///
+  /// Should be O(1) on every backend that ships with this package
+  /// (Hive uses `Box.containsKey`; SQL backends use an indexed
+  /// `SELECT 1 ... LIMIT 1`). Consumers may rely on it being
+  /// significantly cheaper than `getKeys(regex: '^exact$')` or
+  /// `get(key) != null`.
+  Future<bool> exists(String key);
 
   /// A SecondaryKeyStore has an associated commit log
   AtLogType? get commitLog => null;

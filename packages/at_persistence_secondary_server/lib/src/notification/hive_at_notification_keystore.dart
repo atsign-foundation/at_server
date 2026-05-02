@@ -193,6 +193,9 @@ class HiveAtNotificationKeystore
   }
 
   @override
+  Future<bool> exists(String key) async => isKeyExists(key);
+
+  @override
   int entriesCount() {
     return _getBox().keys.length;
   }

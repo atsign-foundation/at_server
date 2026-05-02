@@ -449,6 +449,9 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
         .containsKey(HiveKeyStoreHelper.prepareKey(key));
   }
 
+  @override
+  Future<bool> exists(String key) async => isKeyExists(key);
+
   /// Certain keys created on one atsign server may be cached in another atsign server.
   /// Restrict key length to [_maxKeyLengthWithoutCached] if is not a cached key
   void _checkMaxLength(String key) {

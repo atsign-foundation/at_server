@@ -1,3 +1,16 @@
+## 5.1.0
+
+- feat: add `Future<bool> exists(String key)` to the abstract
+  `SecondaryKeyStore`. Async flavour of the existing synchronous
+  `bool isKeyExists(String key)`; provides a backend-agnostic
+  forward-compat shape that works against Hive today and async
+  backends (SQLite, Postgres) tomorrow. Hive impls (in
+  `HiveSecondaryKeyStore` and `HiveAtNotificationKeystore`)
+  delegate to `isKeyExists`. Both methods coexist — pick whichever
+  fits the call site. Phase 3 sub-phase 3a of the persistence
+  overhaul (design source: `better-cheaper-faster-at-client.md`).
+  See `MIGRATION.md` "What's new in 5.1.0" for the migration recipe.
+
 ## 5.0.0
 
 - feat: introduce `AtPersistenceFactory` and `AtPersistenceBundle`

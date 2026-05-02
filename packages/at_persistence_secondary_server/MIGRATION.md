@@ -1,5 +1,14 @@
 # Migrating from 4.3.5 to 5.0.0
 
+> ## What's new in 5.1.0 and later (sub-phases of Phase 3)
+>
+> Phase 3 of the persistence overhaul widens the abstract
+> `SecondaryKeyStore` with new primitives that let
+> `at_client_sdk`'s collection layer drop expensive workarounds.
+> Each minor release lands one primitive (additive — no breaks
+> within 5.x). See [What's new in 5.X.0](#whats-new-in-5x0) at
+> the bottom of this file for the per-release index.
+
 `at_persistence_secondary_server` 5.0.0 is a major release that
 overhauls how persistence stores are constructed, named, and
 wired together. There is no overlap-version with deprecation
@@ -926,3 +935,71 @@ If you want to verify behavioural parity beyond passing tests:
 
 These exercise the parts of the bundle that unit tests don't
 fully cover.
+
+---
+
+## What's new in 5.X.0
+
+This index lists the primitives added in each 5.X minor release
+(Phase 3 of the persistence overhaul; design source:
+`~/.claude/plans/better-cheaper-faster-at-client.md`). Every
+addition is additive — nothing is removed within 5.x.
+
+- [5.1.0 — `exists(String key)` (sub-phase 3a)](#510--existsstring-key-sub-phase-3a)
+
+### 5.1.0 — `exists(String key)` (sub-phase 3a)
+
+**New on `SecondaryKeyStore`:**
+
+```dart
+abstract interface class SecondaryKeyStore<K, V, T> ... {
+  /// Returns `true` if the keystore currently contains [key],
+  /// else `false`. Async flavour of [isKeyExists] — backend-
+  /// agnostic consumers (e.g. at_client) should prefer this
+  /// so the same call site works against Hive, SQLite, and any
+  /// future backend.
+  Future<bool> exists(String key);
+}
+```
+
+The existing synchronous `bool isKeyExists(String key)` stays in
+place — it remains useful for in-process Hive-backed callers (the
+~15 sites in `at_secondary_server`'s verb handlers don't need
+`await`). Both methods coexist; pick the one that fits the call
+site.
+
+**Hive impl** (`HiveSecondaryKeyStore` and
+`HiveAtNotificationKeystore`): delegates to `isKeyExists`, which
+wraps `Box.containsKey` after `HiveKeyStoreHelper.prepareKey`
+(the standard utf7-encode + lowercase). O(1).
+
+**SQLite impl (Phase 4):** `SELECT 1 FROM keystore WHERE key = ?
+LIMIT 1`. Indexed.
+
+**Backward compat:** purely additive on the abstract. Existing
+`isKeyExists` callers unchanged. Backends that already extend
+`SecondaryKeyStore` (e.g. third-party impls) need to implement
+the new method — for sync-internal backends, the simplest impl
+is `Future<bool> exists(String key) async => isKeyExists(key);`.
+
+**Before / after** — the at_client adoption (lands separately in
+the at_client_sdk session) replaces existence probes that used to
+iterate the entire keystore:
+
+```dart
+// Before (4.x and 5.0.x): O(box-size) per write — getKeys iterates
+// the whole keystore even for an exact-key regex.
+final keys = await keyStore.getKeys(regex: '^$exactKey\$');
+final exists = keys.isNotEmpty;
+
+// After (5.1.0+): O(1) on every backend.
+final exists = await keyStore.exists(exactKey);
+```
+
+The at_client adoption site is `AtCollection._selfKeyExists` in
+`packages/at_client/lib/src/collections/collections.dart` (called
+from `create()` and `update()`); the same recipe applies to any
+downstream consumer with a similar pattern.
+
+**Capability flag:** none. Every backend in 5.1.0 supports
+`exists` natively (no fallback path; no `supportsX` flag needed).
