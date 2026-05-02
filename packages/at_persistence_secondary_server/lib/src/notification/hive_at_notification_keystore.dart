@@ -196,6 +196,32 @@ class HiveAtNotificationKeystore
   Future<bool> exists(String key) async => isKeyExists(key);
 
   @override
+  Future<int> removeMany(List keys, {bool skipCommit = false}) async {
+    if (keys.isEmpty) return 0;
+    final box = _getBox();
+    final present = <dynamic>{};
+    for (final k in keys) {
+      if (present.contains(k)) continue;
+      if (box.keys.contains(k)) present.add(k);
+    }
+    if (present.isEmpty) return 0;
+    // preRemoveHooks per present key.
+    for (final k in present) {
+      for (final hook in preRemoveHooks) {
+        await hook(k, skipCommit: skipCommit);
+      }
+    }
+    await box.deleteAll(present);
+    // postRemoveHooks per present key.
+    for (final k in present) {
+      for (final hook in postRemoveHooks) {
+        await hook(k, skipCommit: skipCommit);
+      }
+    }
+    return present.length;
+  }
+
+  @override
   Future<Map<dynamic, dynamic>> getMany(List keys) async {
     final result = <dynamic, dynamic>{};
     for (final k in keys) {

@@ -69,6 +69,24 @@ abstract interface class SecondaryKeyStore<K, V, T>
   /// twice produces at most one map entry.
   Future<Map<K, V>> getMany(List<K> keys);
 
+  /// Bulk delete — removes every key in [keys] from the keystore.
+  /// Returns the number of keys actually removed. Some keys may
+  /// already be gone (race-tolerant): the returned count reflects
+  /// the keys that existed at deletion time, not the input length.
+  ///
+  /// On the secondary keystore, each removal still emits its own
+  /// commit-log entry unless [skipCommit] is `true` — so sync
+  /// continues to work as expected. Pass `skipCommit: true` for
+  /// server-local sweeps (e.g. expired-key cleanup) where you
+  /// don't want each delete bumping the local `commitId`.
+  ///
+  /// Hive impl: batched `Box.deleteAll`.
+  /// SQL impl (Phase 4): `DELETE FROM keystore WHERE key IN (?, ?,
+  /// …)` inside a single transaction.
+  ///
+  /// Empty [keys] is a no-op that returns 0.
+  Future<int> removeMany(List<K> keys, {bool skipCommit = false});
+
   /// A SecondaryKeyStore has an associated commit log
   AtLogType? get commitLog => null;
 

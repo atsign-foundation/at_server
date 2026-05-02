@@ -1,3 +1,20 @@
+## 5.4.0
+
+- feat: add
+  `Future<int> removeMany(List<K> keys, {bool skipCommit = false})`
+  to the abstract `SecondaryKeyStore`. Bulk delete — returns the
+  number of keys actually removed (race-tolerant: absent keys
+  don't contribute to the count). On the secondary keystore each
+  removal still emits a commit-log DELETE entry (one per removed
+  key) unless `skipCommit: true` is passed, in which case prior
+  commit entries for the deleted keys are scrubbed and no new
+  ones are written. Hive impl: contains-checks each input,
+  dedupes by lowercased form, runs preRemoveHooks, calls a single
+  batched `Box.deleteAll`, then per-key `_expiryKeysCache.remove`,
+  commit-log bookkeeping, and postRemoveHooks. Empty input is a
+  no-op that returns 0. Phase 3 sub-phase 3d. See `MIGRATION.md`
+  "What's new in 5.4.0" for the migration recipe.
+
 ## 5.3.0
 
 - feat: add `Future<Map<K, V>> getMany(List<K> keys)` to the

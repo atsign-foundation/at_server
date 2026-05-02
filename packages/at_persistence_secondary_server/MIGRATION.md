@@ -948,6 +948,7 @@ addition is additive — nothing is removed within 5.x.
 - [5.1.0 — `exists(String key)` (sub-phase 3a)](#510--existsstring-key-sub-phase-3a)
 - [5.2.0 — `KeyPattern` + `scanKeys` (sub-phase 3b)](#520--keypattern--scankeys-sub-phase-3b)
 - [5.3.0 — `getMany` (sub-phase 3c)](#530--getmany-sub-phase-3c)
+- [5.4.0 — `removeMany` (sub-phase 3d)](#540--removemany-sub-phase-3d)
 
 ### 5.1.0 — `exists(String key)` (sub-phase 3a)
 
@@ -1163,3 +1164,73 @@ on a 1000-item collection drops from "1 scan + 1000 reads" to
 `getMany`. Performance characteristics differ (Hive: O(N) async
 LazyBox awaits; SQLite: single round-trip), but semantics are
 identical.
+
+### 5.4.0 — `removeMany` (sub-phase 3d)
+
+**New on `SecondaryKeyStore`:**
+
+```dart
+abstract interface class SecondaryKeyStore<K, V, T> ... {
+  /// Bulk delete. Returns the number of keys actually removed
+  /// (race-tolerant — absent keys don't contribute to the count).
+  /// `skipCommit: true` suppresses the per-key commit-log entry
+  /// AND scrubs any prior entries for the deleted keys (matches
+  /// `remove(skipCommit:)`'s behaviour) — for server-local
+  /// sweeps where the deletion shouldn't bump the local commitId.
+  /// Empty input is a no-op that returns 0.
+  Future<int> removeMany(List<K> keys, {bool skipCommit = false});
+}
+```
+
+**Hive impl** (`HiveSecondaryKeyStore`):
+
+1. Identifies which input keys are actually present (dedupes by
+   lowercased form along the way).
+2. Runs `preRemoveHooks` per present key.
+3. Single `Box.deleteAll` for all the prepared (utf7-encoded +
+   lowercased) keys.
+4. Per-key bookkeeping: removes from `_expiryKeysCache`; either
+   commits a `CommitOp.DELETE` entry OR (for `skipCommit: true`)
+   scrubs any latest commit entry for the key.
+5. Runs `postRemoveHooks` per present key.
+
+The single batched `Box.deleteAll` is the actual amortisation:
+deleting N keys via N `Box.delete` calls spends per-call dispatch
+overhead N times; `deleteAll` does it once. (Per-key commit-log
+writes still happen — there's no batch commit API.)
+
+**Hive impl on the notification keystore**
+(`HiveAtNotificationKeystore`): same shape minus the commit-log
+step (notification keystore has no commit log).
+
+**SQLite impl (Phase 4):** `DELETE FROM keystore WHERE key IN
+(?, ?, …)` inside a single transaction. Single round-trip.
+
+**Backward compat:** purely additive. `remove(key, skipCommit:)`
+stays — for single-key removal it remains the cleanest expression.
+
+**Before / after** — the at_client adoption (lands separately in
+the at_client_sdk session) replaces per-key delete loops while
+preserving per-key event emission upstream:
+
+```dart
+// Before (4.x and 5.0.x-5.3.x): N round-trips for N deletes,
+// commit log notified N times.
+for (final k in keys) {
+  await keyStore.remove(k);
+}
+
+// After (5.4.0+): one batched delete, still emits one commit-log
+// DELETE entry per key (so sync sees each).
+final removed = await keyStore.removeMany(keys);
+```
+
+The at_client adoption sites are
+`LocalSecondary.deleteExpiredKeys` (mass expiry sweep —
+~500 round-trips → 1 on a heavy sweep), `_cascadeFromParentDelete`,
+and `updateSharedWith`'s "unshare" loop.
+
+**Capability flag:** none. Every backend in 5.4.0 supports
+`removeMany` (Hive batches via `deleteAll`, SQL backends use
+single-statement `DELETE WHERE IN`). Performance differs by
+backend; semantics are identical.

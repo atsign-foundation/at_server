@@ -453,6 +453,75 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
   Future<bool> exists(String key) async => isKeyExists(key);
 
   @override
+  Future<int> removeMany(List<String> keys, {bool skipCommit = false}) async {
+    if (keys.isEmpty) return 0;
+    if (persistenceManager == null ||
+        persistenceManager?.getBox().isOpen == false) {
+      throw DataStoreException(
+          'Failed to bulk-delete. Hive Keystore is not initialized or opened');
+    }
+    final box = persistenceManager!.getBox();
+
+    // 1. Identify which input keys are actually present. We dedup by
+    //    lowercased form so duplicates in [keys] don't double-count.
+    final present = <String>{};
+    final preparedToDelete = <String>[];
+    for (final raw in keys) {
+      final lowered = raw.toLowerCase();
+      if (present.contains(lowered)) continue;
+      final hiveKey = HiveKeyStoreHelper.prepareKey(lowered);
+      if (!box.containsKey(hiveKey)) continue;
+      present.add(lowered);
+      preparedToDelete.add(hiveKey);
+    }
+    if (present.isEmpty) return 0;
+
+    // 2. preRemoveHooks per present key.
+    for (final lowered in present) {
+      for (final hook in preRemoveHooks) {
+        await hook(lowered, skipCommit: skipCommit);
+      }
+    }
+
+    try {
+      // 3. Single batched box delete.
+      await box.deleteAll(preparedToDelete);
+
+      // 4. Per-key cache + commit-log bookkeeping.
+      for (final lowered in present) {
+        _expiryKeysCache.remove(lowered);
+        if (skipCommit) {
+          // Match remove(): purge any existing commit entries for this
+          // key, otherwise sync may consider them valid post-delete.
+          CommitEntry? commitEntry = _commitLog.getLatestCommitEntry(lowered);
+          if (commitEntry != null) {
+            await _commitLog.commitLogKeyStore.remove(commitEntry.commitId!);
+          }
+        } else {
+          await _commitLog.commit(lowered, CommitOp.DELETE);
+        }
+      }
+    } on Exception catch (exception) {
+      logger.severe('HiveSecondaryKeyStore removeMany exception: $exception');
+      throw DataStoreException(
+          'exception in removeMany: ${exception.toString()}');
+    } on HiveError catch (error) {
+      await _restartHiveBox(error);
+      logger.severe('HiveSecondaryKeyStore removeMany error: $error');
+      throw DataStoreException(error.message);
+    }
+
+    // 5. postRemoveHooks per present key.
+    for (final lowered in present) {
+      for (final hook in postRemoveHooks) {
+        await hook(lowered, skipCommit: skipCommit);
+      }
+    }
+
+    return present.length;
+  }
+
+  @override
   Future<Map<String, AtData?>> getMany(List<String> keys) async {
     if (persistenceManager == null ||
         persistenceManager?.getBox().isOpen == false) {
