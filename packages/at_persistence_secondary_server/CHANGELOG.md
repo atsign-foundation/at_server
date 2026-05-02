@@ -1,3 +1,16 @@
+## 5.3.0
+
+- feat: add `Future<Map<K, V>> getMany(List<K> keys)` to the
+  abstract `SecondaryKeyStore`. Bulk fetch — returns the values
+  for every key in the input list that's currently present in
+  the keystore (absent keys are NOT in the result map; callers
+  that need to know which inputs missed compare `result.keys`
+  against `keys.toSet()`). Hive impl iterates the input,
+  `box.containsKey`-checks each, fetches present ones from the
+  underlying LazyBox; map keyed by lowercased input form to
+  match `get()` semantics. Phase 3 sub-phase 3c. See
+  `MIGRATION.md` "What's new in 5.3.0" for the migration recipe.
+
 ## 5.2.0
 
 - feat: add `KeyPattern` (in `at_persistence_spec`) and

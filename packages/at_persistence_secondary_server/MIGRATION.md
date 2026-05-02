@@ -947,6 +947,7 @@ addition is additive — nothing is removed within 5.x.
 
 - [5.1.0 — `exists(String key)` (sub-phase 3a)](#510--existsstring-key-sub-phase-3a)
 - [5.2.0 — `KeyPattern` + `scanKeys` (sub-phase 3b)](#520--keypattern--scankeys-sub-phase-3b)
+- [5.3.0 — `getMany` (sub-phase 3c)](#530--getmany-sub-phase-3c)
 
 ### 5.1.0 — `exists(String key)` (sub-phase 3a)
 
@@ -1095,3 +1096,70 @@ is what `getKeys(regex)` was. If at_client adoption surfaces a
 real bottleneck, a follow-up sub-phase can add the side index
 behind the same API. The decision is reversible because it lives
 entirely inside `HiveSecondaryKeyStore`.
+
+### 5.3.0 — `getMany` (sub-phase 3c)
+
+**New on `SecondaryKeyStore`:**
+
+```dart
+abstract interface class SecondaryKeyStore<K, V, T> ... {
+  /// Bulk fetch — returns the values for every key in [keys] that
+  /// is currently present in the keystore. Keys that are absent
+  /// are NOT included in the returned map.
+  Future<Map<K, V>> getMany(List<K> keys);
+}
+```
+
+The map's keys are the lowercased form of the input strings (the
+canonical form the keystore stores), matching the case-insensitive
+behaviour of [get]. Duplicates in the input list are
+de-duplicated (Map semantics — the same key gets one entry).
+
+**Hive impl** (`HiveSecondaryKeyStore`): iterates the input list,
+calls `box.containsKey(preparedKey)` on each, then `box.get` for
+the present ones. Cost: O(N) where N is the unique input keys —
+each is a LazyBox await. Cheaper than N independent `get()`
+calls because the `KeyNotFoundException`-throwing `get()` does
+extra bookkeeping that `getMany` skips for absent keys.
+
+**Hive impl on the notification keystore**
+(`HiveAtNotificationKeystore`): same pattern — iterate input,
+contains-check, fetch present ones via `getValue`. Map is
+loosely typed (`Map<dynamic, dynamic>`) because the notification
+keystore implements `SecondaryKeyStore` without explicit type
+parameters; callers cast at the use site.
+
+**SQLite impl (Phase 4):** `SELECT key, value, metadata FROM
+keystore WHERE key IN (?, ?, …)` — single round-trip, chunked at
+the parameter limit (~999 on SQLite).
+
+**Backward compat:** purely additive. `get(key)` stays in place
+and isn't deprecated — a single-key fetch is still legitimately
+expressed as `get` (cleaner than `getMany([k])`).
+
+**Before / after** — the at_client adoption (lands separately in
+the at_client_sdk session) replaces per-key get loops:
+
+```dart
+// Before (4.x and 5.0.x-5.2.x): N round-trips for N keys.
+final values = <String, AtData?>{};
+for (final k in keys) {
+  values[k] = await atClient.get(k);
+}
+
+// After (5.3.0+): one bulk fetch, no per-key await.
+final values = await keyStore.getMany(keys);
+```
+
+The at_client adoption sites are
+`AtCollection.getItemsAsStream` (in `collections.dart` ~line 927
+— the 1000-read problem),
+`_cleanupOrphansFromRoot`/`_cleanupOrphansFromSub` ancestor walks,
+and `_cascadeFromParentDelete` envelope reads. Watch-setup cost
+on a 1000-item collection drops from "1 scan + 1000 reads" to
+"1 scan + 1 bulk-read".
+
+**Capability flag:** none. Every backend in 5.3.0 supports
+`getMany`. Performance characteristics differ (Hive: O(N) async
+LazyBox awaits; SQLite: single round-trip), but semantics are
+identical.

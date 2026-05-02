@@ -196,6 +196,16 @@ class HiveAtNotificationKeystore
   Future<bool> exists(String key) async => isKeyExists(key);
 
   @override
+  Future<Map<dynamic, dynamic>> getMany(List keys) async {
+    final result = <dynamic, dynamic>{};
+    for (final k in keys) {
+      if (!_getBox().keys.contains(k)) continue;
+      result[k] = await getValue(k);
+    }
+    return result;
+  }
+
+  @override
   Stream<String> scanKeys(
     KeyPattern pattern, {
     bool includeExpired = false,

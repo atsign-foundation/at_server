@@ -453,6 +453,33 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
   Future<bool> exists(String key) async => isKeyExists(key);
 
   @override
+  Future<Map<String, AtData?>> getMany(List<String> keys) async {
+    if (persistenceManager == null ||
+        persistenceManager?.getBox().isOpen == false) {
+      throw DataStoreException(
+          'Failed to bulk-fetch keys. Hive Keystore is not initialized or opened');
+    }
+    final box = persistenceManager!.getBox() as LazyBox;
+    final result = <String, AtData?>{};
+    for (final raw in keys) {
+      final lowered = raw.toLowerCase();
+      final hiveKey = HiveKeyStoreHelper.prepareKey(lowered);
+      if (!box.containsKey(hiveKey)) continue;
+      try {
+        result[lowered] = await box.get(hiveKey);
+      } on Exception catch (e) {
+        logger.severe('HiveSecondaryKeyStore getMany exception for "$raw": $e');
+        throw DataStoreException('exception in getMany: ${e.toString()}');
+      } on HiveError catch (error) {
+        logger.severe('HiveSecondaryKeyStore getMany error: $error');
+        await _restartHiveBox(error);
+        throw DataStoreException(error.message);
+      }
+    }
+    return result;
+  }
+
+  @override
   Stream<String> scanKeys(
     KeyPattern pattern, {
     bool includeExpired = false,

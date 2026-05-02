@@ -49,6 +49,26 @@ abstract interface class SecondaryKeyStore<K, V, T>
   /// order; SQL backends: indexed scan order).
   Stream<String> scanKeys(KeyPattern pattern, {bool includeExpired = false});
 
+  /// Bulk fetch — returns the values for every key in [keys] that is
+  /// currently present in the keystore. Keys that are absent are
+  /// **not** included in the returned map; callers that need to know
+  /// which inputs missed should compare `result.keys` against
+  /// `keys.toSet()`.
+  ///
+  /// Cheaper than N individual [get] calls when [keys] is large
+  /// because the implementation amortises whatever per-call overhead
+  /// the underlying backend has (Hive: box-open cost; SQL backends:
+  /// network round-trip + statement preparation).
+  ///
+  /// Hive impl: O(box-size) — iterates the box once, picks out the
+  /// requested keys.
+  /// SQL impl (Phase 4): `SELECT … WHERE key IN (?, ?, …)`, chunked
+  /// at the parameter limit (~999 on SQLite).
+  ///
+  /// Duplicates in [keys] are de-duplicated; passing the same key
+  /// twice produces at most one map entry.
+  Future<Map<K, V>> getMany(List<K> keys);
+
   /// A SecondaryKeyStore has an associated commit log
   AtLogType? get commitLog => null;
 
