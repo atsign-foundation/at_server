@@ -1,3 +1,21 @@
+## 5.2.0
+
+- feat: add `KeyPattern` (in `at_persistence_spec`) and
+  `Stream<String> scanKeys(KeyPattern pattern, {bool includeExpired = false})`
+  on the abstract `SecondaryKeyStore`. Backend-portable structured
+  successor to `getKeys(regex: ...)`: filter by `sharedBy`,
+  `sharedWith`, `namespace`, and/or `idPrefix` (each independently
+  optional; AND-combined). Hive impl iterates and filters with
+  `AtKey.fromString` parsing per-key (O(box-size) — same as
+  `getKeys(regex)`); future SQL backends translate the pattern into
+  composite-index `WHERE` clauses (O(matching)). The notification
+  keystore implements `scanKeys` too — only `idPrefix` and the
+  unrestricted-pattern path are meaningful for notification ids
+  (which aren't atKey-shaped); atKey-only fields return empty.
+  `getKeys(regex: ...)` stays in place — nothing is deprecated in
+  5.2.0. Phase 3 sub-phase 3b. See `MIGRATION.md` "What's new in
+  5.2.0" for the migration recipe.
+
 ## 5.1.0
 
 - feat: add `Future<bool> exists(String key)` to the abstract

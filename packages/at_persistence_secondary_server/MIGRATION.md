@@ -946,6 +946,7 @@ This index lists the primitives added in each 5.X minor release
 addition is additive — nothing is removed within 5.x.
 
 - [5.1.0 — `exists(String key)` (sub-phase 3a)](#510--existsstring-key-sub-phase-3a)
+- [5.2.0 — `KeyPattern` + `scanKeys` (sub-phase 3b)](#520--keypattern--scankeys-sub-phase-3b)
 
 ### 5.1.0 — `exists(String key)` (sub-phase 3a)
 
@@ -1003,3 +1004,94 @@ downstream consumer with a similar pattern.
 
 **Capability flag:** none. Every backend in 5.1.0 supports
 `exists` natively (no fallback path; no `supportsX` flag needed).
+
+### 5.2.0 — `KeyPattern` + `scanKeys` (sub-phase 3b)
+
+**New types** (in `at_persistence_spec`):
+
+```dart
+class KeyPattern {
+  final String? sharedBy;     // owner, e.g. '@alice'
+  final String? sharedWith;   // recipient, e.g. '@bob'
+  final String? namespace;    // dot-suffix, e.g. 'wavi'
+  final String? idPrefix;     // leading id segment, e.g. 'phone'
+  const KeyPattern({this.sharedBy, this.sharedWith, this.namespace, this.idPrefix});
+  bool get isUnrestricted;
+}
+```
+
+**New on `SecondaryKeyStore`:**
+
+```dart
+abstract interface class SecondaryKeyStore<K, V, T> ... {
+  /// Stream the keys that match [pattern]. Backend-portable
+  /// successor to [getKeys] for callers that want structured
+  /// filtering rather than building regular expressions.
+  Stream<String> scanKeys(KeyPattern pattern, {bool includeExpired = false});
+}
+```
+
+Each non-null field on `KeyPattern` is an AND-combined filter; a
+`null` field means "any". An empty pattern (`KeyPattern()`) matches
+every available key — equivalent to `getKeys(regex: '.*')`.
+
+**Hive impl** (`HiveSecondaryKeyStore`): iterates the box once,
+`AtKey.fromString`-parses each key, filters by every non-null
+field on the pattern. Malformed keys (no `@`, contains a space)
+are skipped. Performance: O(box-size) — same as today's
+`getKeys(regex)`. The Hive perf characteristic is
+forward-compat-only; consumers that need O(matching) on Hive
+should keep using bespoke caches until SQLite ships.
+
+**Hive impl on the notification keystore**
+(`HiveAtNotificationKeystore`): notification keys are random ids,
+not atKey-shaped, so the structured fields don't apply. The impl
+honours an unrestricted pattern (yields every notification id)
+and `idPrefix` (leading-substring match on the id); `sharedBy`,
+`sharedWith`, and `namespace` filters return empty.
+
+**SQLite impl (Phase 4):** translates the pattern into
+`WHERE shared_by = ? AND shared_with = ? AND namespace = ? AND
+key LIKE ?` against composite indexes. O(matching).
+
+**Backward compat:** purely additive on the abstract.
+`getKeys(regex: ...)` stays in place and isn't deprecated in 5.2.0
+— that step waits until at_client_sdk's adoption of `scanKeys`
+removes the legacy callers (later sub-phase / separate session).
+
+**Before / after** — the at_client adoption (lands separately in
+the at_client_sdk session) replaces every regex-`getKeys` site:
+
+```dart
+// Before (4.x and 5.0.x-5.1.x): build a regex describing the
+// shape, run it across the whole keystore, parse results.
+final regex = '^@bob:.*\\.tasks@alice\$';
+final keys = await keyStore.getKeys(regex: regex);
+
+// After (5.2.0+): structured filter; backend can push it down
+// to its native query plan.
+final keys = await keyStore
+    .scanKeys(KeyPattern(sharedWith: '@bob', namespace: 'tasks'))
+    .toList();
+```
+
+The at_client adoption sites are documented inline in
+`packages/at_client/lib/src/collections/collections.dart` —
+`_getKeysInternal`, `_cascadeFromParentDelete`,
+`_cleanupOrphansFromRoot`, `_cleanupOrphansFromSub`,
+`_uniqueItemId`'s collision check, and every per-event scan in
+`Query.watch().onUpdate`.
+
+**Capability flag:** none. Every backend in 5.2.0 supports
+`scanKeys` (Hive scans-and-filters, SQL backends index-and-select);
+the absence of a flag reflects that semantics are identical
+across backends — only performance differs.
+
+**Departure from source plan:** the source plan called for
+in-memory secondary indexes on the Hive side (sticking-plaster
+to make Hive O(matching)). 5.2.0 ships iterate-and-filter
+instead — simpler, no drift risk, no memory cost. Hive performance
+is what `getKeys(regex)` was. If at_client adoption surfaces a
+real bottleneck, a follow-up sub-phase can add the side index
+behind the same API. The decision is reversible because it lives
+entirely inside `HiveSecondaryKeyStore`.

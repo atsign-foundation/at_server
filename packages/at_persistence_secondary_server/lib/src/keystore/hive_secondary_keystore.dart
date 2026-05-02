@@ -452,6 +452,77 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
   @override
   Future<bool> exists(String key) async => isKeyExists(key);
 
+  @override
+  Stream<String> scanKeys(
+    KeyPattern pattern, {
+    bool includeExpired = false,
+  }) async* {
+    if (persistenceManager == null ||
+        persistenceManager?.getBox().isOpen == false) {
+      throw DataStoreException(
+          'Failed to scan keys. Hive Keystore is not initialized or opened');
+    }
+    final now = DateTime.timestamp();
+    final box = persistenceManager!.getBox();
+    final length = box.length;
+    for (int index = 0; index < length; index++) {
+      final raw = box.keyAt(index);
+      final String key;
+      try {
+        key = Utf7.decode(raw);
+      } on Exception {
+        continue; // skip garbled keys defensively
+      }
+      if (!includeExpired && !_isKeyAvailable(key, now: now)) {
+        continue;
+      }
+      if (_matchesPattern(key, pattern)) {
+        yield key;
+      }
+    }
+  }
+
+  /// Returns `true` iff [keyString] matches every non-null field on
+  /// [pattern]. A pattern with no non-null fields matches every key.
+  /// Malformed atKeys (no `@`, contains a space) match only when the
+  /// pattern is unrestricted — they have no parseable structure.
+  bool _matchesPattern(String keyString, KeyPattern pattern) {
+    if (pattern.isUnrestricted) return true;
+    final AtKey atKey;
+    try {
+      atKey = AtKey.fromString(keyString);
+    } on Exception {
+      // Malformed key — has no structured fields to filter on.
+      // Skip rather than throw so a single bad row doesn't break a
+      // whole scan.
+      return false;
+    }
+    if (pattern.sharedBy != null &&
+        !_atSignEquals(atKey.sharedBy, pattern.sharedBy!)) {
+      return false;
+    }
+    if (pattern.sharedWith != null &&
+        !_atSignEquals(atKey.sharedWith, pattern.sharedWith!)) {
+      return false;
+    }
+    if (pattern.namespace != null && atKey.namespace != pattern.namespace) {
+      return false;
+    }
+    if (pattern.idPrefix != null && !atKey.key.startsWith(pattern.idPrefix!)) {
+      return false;
+    }
+    return true;
+  }
+
+  /// Case-insensitive atSign comparison that tolerates the leading
+  /// `@` being present on either, neither, or both sides.
+  bool _atSignEquals(String? actual, String expected) {
+    if (actual == null) return false;
+    final a = actual.startsWith('@') ? actual.substring(1) : actual;
+    final e = expected.startsWith('@') ? expected.substring(1) : expected;
+    return a.toLowerCase() == e.toLowerCase();
+  }
+
   /// Certain keys created on one atsign server may be cached in another atsign server.
   /// Restrict key length to [_maxKeyLengthWithoutCached] if is not a cached key
   void _checkMaxLength(String key) {

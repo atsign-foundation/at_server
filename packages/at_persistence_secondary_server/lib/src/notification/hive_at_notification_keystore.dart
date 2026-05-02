@@ -196,6 +196,36 @@ class HiveAtNotificationKeystore
   Future<bool> exists(String key) async => isKeyExists(key);
 
   @override
+  Stream<String> scanKeys(
+    KeyPattern pattern, {
+    bool includeExpired = false,
+  }) async* {
+    // Notification keys are random ids, not atKey-shaped, so the
+    // structured fields on KeyPattern (sharedBy / sharedWith /
+    // namespace / idPrefix) don't apply here. We honour
+    // `isUnrestricted` (yields every notification id) and `idPrefix`
+    // (treated as a leading-substring match on the id), but
+    // sharedBy / sharedWith / namespace cannot match — return empty
+    // when those are set.
+    if (pattern.sharedBy != null ||
+        pattern.sharedWith != null ||
+        pattern.namespace != null) {
+      return;
+    }
+    for (final key in _getBox().keys) {
+      final id = key as String;
+      if (!includeExpired) {
+        final entry = await getValue(id);
+        if (entry != null && entry.isExpired()) continue;
+      }
+      if (pattern.idPrefix != null && !id.startsWith(pattern.idPrefix!)) {
+        continue;
+      }
+      yield id;
+    }
+  }
+
+  @override
   int entriesCount() {
     return _getBox().keys.length;
   }

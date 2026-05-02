@@ -35,6 +35,20 @@ abstract interface class SecondaryKeyStore<K, V, T>
   /// `get(key) != null`.
   Future<bool> exists(String key);
 
+  /// Stream the keystore keys that match [pattern]. Backend-portable
+  /// successor to [getKeys] — callers that want structured filtering
+  /// (by sharedBy / sharedWith / namespace / idPrefix) should use
+  /// this instead of building regular expressions.
+  ///
+  /// By default, expired or not-yet-born keys are excluded; pass
+  /// `includeExpired: true` to surface them.
+  ///
+  /// Implementations may stream incrementally (one key per
+  /// underlying read) or buffer; consumers should treat the stream
+  /// as ordered by the backend's natural key order (Hive: insertion
+  /// order; SQL backends: indexed scan order).
+  Stream<String> scanKeys(KeyPattern pattern, {bool includeExpired = false});
+
   /// A SecondaryKeyStore has an associated commit log
   AtLogType? get commitLog => null;
 
