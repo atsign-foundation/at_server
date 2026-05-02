@@ -42,6 +42,27 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
   @override
   Stream<KeyStoreChange> get changes => _changesController.stream;
 
+  @override
+  Future<R> transaction<R>(
+    Future<R> Function(KeyStoreTxn<String, AtData?, AtMetaData?> txn) body,
+  ) async {
+    final txn = _HiveSecondaryKeyStoreTxn(this);
+    final R result;
+    try {
+      result = await body(txn);
+    } catch (_) {
+      // body threw — drop buffered ops, propagate.
+      rethrow;
+    }
+    // Body succeeded — apply buffered ops in insertion order. Each
+    // applied op fires its own `changes` event via the standard
+    // putAll / remove paths.
+    for (final entry in txn._ops.values) {
+      await entry.apply(this);
+    }
+    return result;
+  }
+
   /// Bounded LRU of compiled regexes used by [getKeys]. Most callers reuse
   /// the same handful of patterns (`.*`, namespace selectors, sync filters);
   /// recompiling them per call is pure churn.
@@ -742,5 +763,82 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
   Future<void> clear() async {
     await persistenceManager?.getBox().clear();
     _expiryKeysCache.clear();
+  }
+}
+
+/// A buffered op recorded against a [_HiveSecondaryKeyStoreTxn].
+/// Applied to the underlying [HiveSecondaryKeyStore] at commit
+/// time, in insertion order.
+abstract class _BufferedOp {
+  Future<void> apply(HiveSecondaryKeyStore store);
+}
+
+class _BufferedPut implements _BufferedOp {
+  final String key;
+  final AtData? value;
+  final AtMetaData? metadata;
+  _BufferedPut(this.key, this.value, this.metadata);
+
+  @override
+  Future<void> apply(HiveSecondaryKeyStore store) async {
+    await store.putAll(key, value, metadata);
+  }
+}
+
+class _BufferedRemove implements _BufferedOp {
+  final String key;
+  _BufferedRemove(this.key);
+
+  @override
+  Future<void> apply(HiveSecondaryKeyStore store) async {
+    await store.remove(key);
+  }
+}
+
+class _HiveSecondaryKeyStoreTxn
+    implements KeyStoreTxn<String, AtData?, AtMetaData?> {
+  final HiveSecondaryKeyStore _store;
+
+  /// Buffered ops keyed by lowercased key. The latest op for a
+  /// given key wins (a put-then-remove leaves only the remove,
+  /// matching what would happen if these ops were applied in
+  /// sequence with no transaction).
+  final Map<String, _BufferedOp> _ops = <String, _BufferedOp>{};
+
+  _HiveSecondaryKeyStoreTxn(this._store);
+
+  @override
+  Future<void> put(String key, AtData? value, AtMetaData? metadata) async {
+    _ops[key.toLowerCase()] = _BufferedPut(key, value, metadata);
+  }
+
+  @override
+  Future<void> remove(String key) async {
+    _ops[key.toLowerCase()] = _BufferedRemove(key);
+  }
+
+  @override
+  Future<AtData?> get(String key) async {
+    final lowered = key.toLowerCase();
+    final buffered = _ops[lowered];
+    if (buffered is _BufferedPut) return buffered.value;
+    if (buffered is _BufferedRemove) return null;
+    // Fall through to the underlying store. get() throws on absent;
+    // translate to a tolerant `null` return so transaction reads
+    // mirror the buffered shape.
+    try {
+      return await _store.get(key);
+    } on KeyNotFoundException {
+      return null;
+    }
+  }
+
+  @override
+  Future<bool> exists(String key) async {
+    final lowered = key.toLowerCase();
+    final buffered = _ops[lowered];
+    if (buffered is _BufferedPut) return true;
+    if (buffered is _BufferedRemove) return false;
+    return _store.isKeyExists(key);
   }
 }

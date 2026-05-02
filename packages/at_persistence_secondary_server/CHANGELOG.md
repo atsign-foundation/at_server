@@ -1,3 +1,20 @@
+## 5.6.0
+
+- feat: add
+  `Future<R> transaction<R>(Future<R> Function(KeyStoreTxn) body)`
+  to the abstract `SecondaryKeyStore`, plus a new `KeyStoreTxn`
+  abstract in `at_persistence_spec`. Run a body of mutations
+  with all-or-nothing semantics: writes are buffered in memory
+  during the body; reads via the txn handle see the buffered
+  state on top of the underlying keystore. Successful body →
+  buffered ops applied in body order, `changes` events fire as
+  each op commits. Body throws → buffered ops dropped, no events
+  fire, exception propagates. Hive impl provides best-effort
+  atomicity (per-flush durability; mid-commit crash can leave a
+  subset applied); SQL impls (Phase 4) will use
+  `BEGIN IMMEDIATE`/`COMMIT` for true atomicity. Phase 3
+  sub-phase 3f. See `MIGRATION.md` "What's new in 5.6.0".
+
 ## 5.5.0
 
 - feat: add `Stream<KeyStoreChange> get changes` to the abstract

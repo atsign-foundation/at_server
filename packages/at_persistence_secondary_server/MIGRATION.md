@@ -950,6 +950,7 @@ addition is additive — nothing is removed within 5.x.
 - [5.3.0 — `getMany` (sub-phase 3c)](#530--getmany-sub-phase-3c)
 - [5.4.0 — `removeMany` (sub-phase 3d)](#540--removemany-sub-phase-3d)
 - [5.5.0 — `KeyStoreChange` + `changes` stream (sub-phase 3e)](#550--keystorechange--changes-stream-sub-phase-3e)
+- [5.6.0 — `KeyStoreTxn` + `transaction()` (sub-phase 3f)](#560--keystoretxn--transaction-sub-phase-3f)
 
 ### 5.1.0 — `exists(String key)` (sub-phase 3a)
 
@@ -1318,3 +1319,106 @@ Two follow-on consequences for the at_client_sdk session:
 
 **Capability flag:** none. Every backend in 5.5.0 emits change
 events.
+
+### 5.6.0 — `KeyStoreTxn` + `transaction()` (sub-phase 3f)
+
+**New types** (in `at_persistence_spec`):
+
+```dart
+abstract class KeyStoreTxn<K, V, T> {
+  Future<void> put(K key, V value, T metadata);
+  Future<void> remove(K key);
+  Future<V?> get(K key);
+  Future<bool> exists(K key);
+}
+```
+
+**New on `SecondaryKeyStore`:**
+
+```dart
+abstract interface class SecondaryKeyStore<K, V, T> ... {
+  /// Run [body] as a transaction. Buffered ops applied at commit;
+  /// dropped on body throw. `changes` events fire only on commit.
+  Future<R> transaction<R>(Future<R> Function(KeyStoreTxn<K, V, T>) body);
+}
+```
+
+**Semantics:**
+
+- During the body, mutations on the txn handle are buffered in
+  memory. Reads via the same handle (`txn.get` / `txn.exists`)
+  reflect the buffered state on top of the underlying keystore.
+- If the body returns normally, the buffered ops are applied to
+  the keystore in body order. Each op fires its own `changes`
+  event as it commits. The body's return value is the
+  `transaction()` return value.
+- If the body throws, buffered ops are dropped, no `changes`
+  events fire, and the exception propagates to the caller.
+- Within the buffer, the latest op for a given key wins. A
+  put-then-remove on the same key inside one body produces a
+  remove at commit time (matching what would happen without the
+  transaction).
+- The handle is valid only for the body's duration. Stashing it
+  for use after `transaction()` returns is undefined behaviour.
+
+**Hive impl** (best-effort atomicity):
+
+- Per-flush durability — once Hive has flushed the box, the ops
+  are persistent.
+- A process crash mid-commit may leave the keystore with a subset
+  of the buffered ops applied. There's no rollback log. Document
+  and accept; SQL backends in Phase 4 close this gap.
+- Single-isolate consistency — within the body, no other coroutine
+  in the same isolate can see the buffered ops until commit
+  (because Dart microtasks are cooperatively scheduled).
+
+**Hive impl on the notification keystore**: same shape; the
+notification keystore has no commit log so the commit phase is
+strictly box-write + post-hooks + `changes` emission per op.
+
+**SQL impl (Phase 4):** `BEGIN IMMEDIATE` / op / op / `COMMIT`
+inside SQLite. Real atomicity. The `KeyStoreTxn.get` / `exists`
+calls execute against a snapshot view (read-committed by default;
+repeatable-read available for stronger isolation).
+
+**Backward compat:** purely additive. Single-key write paths
+(`put`, `remove`, `putAll`) remain — `transaction()` is for
+multi-write paths that need all-or-nothing semantics.
+
+**Before / after** — the at_client adoption (lands separately in
+the at_client_sdk session) wraps multi-write paths that today
+use idempotent retry / compensating writes:
+
+```dart
+// Before (4.x and 5.0.x-5.5.x): _update + commit-log write are
+// in two separate awaits; a crash between them leaves the
+// keystore with the new value but the commit log un-bumped (or
+// vice versa for reads of an externally-written key).
+await keyStore.put(key, data);
+await commitLog.commit(key, CommitOp.UPDATE);
+
+// After (5.6.0+): atomic. Both happen at commit time, or
+// neither.
+await keyStore.transaction((txn) async {
+  await txn.put(key, data, metadata);
+  // Commit-log entry for this put fires implicitly when the
+  // buffered put commits — same shape as before, just
+  // guaranteed-paired now.
+});
+```
+
+The at_client adoption sites are
+`LocalSecondary._update` (+ commit-log write),
+`_persistToSharedWith` (share-walk where N recipients should all
+succeed or none),
+`_cascadeFromParentDelete` (cascade-delete sequence), and
+`updateSharedWith`'s share/unshare diff. `LocalSecondary._update`'s
+emit also moves inside the transaction — the `changes` stream
+sees the commit-time event, not a half-committed state.
+
+**Capability flag:** none on the abstract. Hive's "best-effort"
+atomicity is a documented weakening; consumers that require
+hard atomicity (e.g. for financial ledgers — not the at_client
+case) wait for SQLite. Within the at_client use cases (sync
+invariants, share-walks), Hive's per-isolate guarantee is
+sufficient.

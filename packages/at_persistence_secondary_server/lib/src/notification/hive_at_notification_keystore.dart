@@ -34,6 +34,23 @@ class HiveAtNotificationKeystore
   @override
   Stream<KeyStoreChange> get changes => _changesController.stream;
 
+  @override
+  Future<R> transaction<R>(
+    Future<R> Function(KeyStoreTxn txn) body,
+  ) async {
+    final txn = _HiveAtNotificationKeystoreTxn(this);
+    final R result;
+    try {
+      result = await body(txn);
+    } catch (_) {
+      rethrow;
+    }
+    for (final op in txn._ops.values) {
+      await op.apply(this);
+    }
+    return result;
+  }
+
   static final HiveAtNotificationKeystore _singleton =
       HiveAtNotificationKeystore('@fake_atsign_fake_fake_fake');
 
@@ -341,5 +358,63 @@ class HiveAtNotificationKeystore
   /// Used by [AtPersistenceBundle.clear] for cheap test isolation.
   Future<void> clear() async {
     await _getBox().clear();
+  }
+}
+
+abstract class _NotifBufferedOp {
+  Future<void> apply(HiveAtNotificationKeystore store);
+}
+
+class _NotifBufferedPut implements _NotifBufferedOp {
+  final dynamic key;
+  final dynamic value;
+  _NotifBufferedPut(this.key, this.value);
+
+  @override
+  Future<void> apply(HiveAtNotificationKeystore store) async {
+    await store.put(key, value);
+  }
+}
+
+class _NotifBufferedRemove implements _NotifBufferedOp {
+  final dynamic key;
+  _NotifBufferedRemove(this.key);
+
+  @override
+  Future<void> apply(HiveAtNotificationKeystore store) async {
+    await store.remove(key);
+  }
+}
+
+class _HiveAtNotificationKeystoreTxn implements KeyStoreTxn {
+  final HiveAtNotificationKeystore _store;
+  final Map<dynamic, _NotifBufferedOp> _ops = <dynamic, _NotifBufferedOp>{};
+
+  _HiveAtNotificationKeystoreTxn(this._store);
+
+  @override
+  Future<void> put(key, value, metadata) async {
+    _ops[key] = _NotifBufferedPut(key, value);
+  }
+
+  @override
+  Future<void> remove(key) async {
+    _ops[key] = _NotifBufferedRemove(key);
+  }
+
+  @override
+  Future<dynamic> get(key) async {
+    final buffered = _ops[key];
+    if (buffered is _NotifBufferedPut) return buffered.value;
+    if (buffered is _NotifBufferedRemove) return null;
+    return await _store.get(key);
+  }
+
+  @override
+  Future<bool> exists(key) async {
+    final buffered = _ops[key];
+    if (buffered is _NotifBufferedPut) return true;
+    if (buffered is _NotifBufferedRemove) return false;
+    return _store.isKeyExists(key);
   }
 }

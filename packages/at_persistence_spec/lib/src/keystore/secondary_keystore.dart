@@ -108,6 +108,26 @@ abstract interface class SecondaryKeyStore<K, V, T>
   /// trigger, polled or pushed depending on backend.
   Stream<KeyStoreChange> get changes;
 
+  /// Run [body] as a transaction. Mutations performed via the
+  /// supplied [KeyStoreTxn] handle are buffered in memory; reads
+  /// via the handle see the buffered state on top of the
+  /// underlying keystore. At successful body completion the
+  /// buffered mutations are applied to the keystore in body
+  /// order (and `changes` events fire as each is applied). If the
+  /// body throws, the buffered mutations are dropped, no `changes`
+  /// events fire, and the exception propagates to the caller.
+  ///
+  /// Hive impls provide best-effort atomicity: writes are
+  /// per-flush durable, but a process crash mid-commit can leave
+  /// the keystore with a subset of the buffered ops applied. SQL
+  /// impls (Phase 4) provide true atomicity via
+  /// `BEGIN IMMEDIATE` / `COMMIT`.
+  ///
+  /// The [KeyStoreTxn] handle is valid only for the duration of
+  /// [body]; after `transaction` returns, calls on the handle are
+  /// undefined.
+  Future<R> transaction<R>(Future<R> Function(KeyStoreTxn<K, V, T> txn) body);
+
   /// A SecondaryKeyStore has an associated commit log
   AtLogType? get commitLog => null;
 
