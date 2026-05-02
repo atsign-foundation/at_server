@@ -38,6 +38,14 @@ class HiveAtNotificationKeystore
   bool get supportsPathQueries => false;
 
   @override
+  bool get supportsSnapshots => false;
+
+  @override
+  Future<KeyStoreSnapshot> snapshot() async {
+    return _HiveBestEffortNotifSnapshot(this);
+  }
+
+  @override
   Stream<KeyEntry> queryByPath({
     required KeyPattern keyPattern,
     required Predicate predicate,
@@ -480,5 +488,29 @@ class _HiveAtNotificationKeystoreTxn implements KeyStoreTxn {
     if (buffered is _NotifBufferedPut) return true;
     if (buffered is _NotifBufferedRemove) return false;
     return _store.isKeyExists(key);
+  }
+}
+
+class _HiveBestEffortNotifSnapshot implements KeyStoreSnapshot {
+  final HiveAtNotificationKeystore _store;
+  bool _released = false;
+
+  _HiveBestEffortNotifSnapshot(this._store);
+
+  @override
+  Future<dynamic> get(key) async {
+    if (_released) throw StateError('Snapshot has been released');
+    return await _store.get(key);
+  }
+
+  @override
+  Stream scanKeys(KeyPattern pattern) {
+    if (_released) throw StateError('Snapshot has been released');
+    return _store.scanKeys(pattern);
+  }
+
+  @override
+  Future<void> release() async {
+    _released = true;
   }
 }

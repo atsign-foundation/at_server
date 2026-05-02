@@ -953,6 +953,7 @@ addition is additive — nothing is removed within 5.x.
 - [5.6.0 — `KeyStoreTxn` + `transaction()` (sub-phase 3f)](#560--keystoretxn--transaction-sub-phase-3f)
 - [5.7.0 — ordered + paginated `scanKeys` (sub-phase 3g)](#570--ordered--paginated-scankeys-sub-phase-3g)
 - [5.8.0 — `queryByPath` + `supportsPathQueries` (sub-phase 3h)](#580--querybypath--supportspathqueries-sub-phase-3h)
+- [5.9.0 — `KeyStoreSnapshot` + `snapshot()` (sub-phase 3i)](#590--keystoresnapshot--snapshot-sub-phase-3i)
 
 ### 5.1.0 — `exists(String key)` (sub-phase 3a)
 
@@ -1640,3 +1641,80 @@ walks at_client's existing AST and emits the
 flag of its kind — consumers gate on it. The pattern repeats in
 sub-phase 3i (`snapshots`, with similar Hive-stub / SQL-real
 shape).
+
+### 5.9.0 — `KeyStoreSnapshot` + `snapshot()` (sub-phase 3i)
+
+**New types** (in `at_persistence_spec`):
+
+```dart
+abstract class KeyStoreSnapshot<K, V, T> {
+  /// On supportsSnapshots == true: snapshot-creation-time view.
+  /// On supportsSnapshots == false: live-state pass-through.
+  Future<V?> get(K key);
+  Stream<K> scanKeys(KeyPattern pattern);
+  Future<void> release();
+}
+```
+
+**New on `SecondaryKeyStore`:**
+
+```dart
+abstract interface class SecondaryKeyStore<K, V, T> ... {
+  bool get supportsSnapshots;
+  Future<KeyStoreSnapshot<K, V, T>> snapshot();
+}
+```
+
+**Hive impls:** `supportsSnapshots == false`. `snapshot()` returns
+a best-effort handle (`_HiveBestEffortSnapshot`) that delegates
+every call to the live keystore — there's no real MVCC. Reads
+through the handle reflect the keystore's current state at call
+time, not at snapshot-creation time. Calling methods after
+`release()` throws `StateError`. `release()` itself is
+idempotent.
+
+**SQL impl (Phase 4):** `supportsSnapshots == true`. Snapshot
+materialised via `BEGIN`/`COMMIT` with read-committed isolation
+(or repeatable-read for stronger guarantees). Real MVCC.
+
+**Backward compat:** purely additive on the abstract.
+
+**Before / after** — the at_client adoption (lands separately
+in the at_client_sdk session) wraps `Query.fetch()` in a
+snapshot for consistency:
+
+```dart
+// Before (4.x and 5.0.x-5.8.x): a Query.fetch() over 1000 items
+// can yield mixed-version results if writes interleave with the
+// scan. The mutex serialiser inside Query.watch() (commit
+// d6c845d03) is the only consistency lever today.
+final items = <CItem>[];
+await for (final entry in keyStore.scanKeys(pattern)) {
+  items.add(decode(await keyStore.get(entry)));  // values may shift mid-scan
+}
+
+// After (5.9.0+): wrap in a snapshot. Real isolation on SQLite;
+// behaviour unchanged on Hive (the handle just delegates to
+// live state). The mutex serialiser stays as a Hive-side
+// belt-and-braces.
+final snap = await keyStore.snapshot();
+try {
+  final items = <CItem>[];
+  await for (final key in snap.scanKeys(pattern)) {
+    items.add(decode(await snap.get(key)));
+  }
+  return items;
+} finally {
+  await snap.release();
+}
+```
+
+The mutex serialiser inside `Query.watch()` (`collections.dart`,
+added in commit `d6c845d03`) gets a stronger underpinning on
+SQLite — its purpose is exactly to avoid races between
+event-driven updates and an in-flight refresh, which a snapshot
+resolves at the storage layer. On Hive it remains the primary
+defence.
+
+**Capability flag:** YES. `supportsSnapshots` mirrors
+`supportsPathQueries` — same gate-and-fall-back pattern.

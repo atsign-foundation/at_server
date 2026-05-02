@@ -1,3 +1,16 @@
+## 5.9.0
+
+- feat: add `bool get supportsSnapshots` and
+  `Future<KeyStoreSnapshot<K, V, T>> snapshot()` to the abstract
+  `SecondaryKeyStore`, plus a new abstract `KeyStoreSnapshot`
+  in `at_persistence_spec` (with `get` / `scanKeys` / `release`).
+  Real MVCC on Phase 4 SQL backends; Hive ships a best-effort
+  delegate that observes live state (no real isolation).
+  Documented weakening — consumers that require real isolation
+  gate on `supportsSnapshots`. The handle's reads after
+  `release()` throw `StateError`. Phase 3 sub-phase 3i. See
+  `MIGRATION.md` "What's new in 5.9.0".
+
 ## 5.8.0
 
 - feat: add `bool get supportsPathQueries` and

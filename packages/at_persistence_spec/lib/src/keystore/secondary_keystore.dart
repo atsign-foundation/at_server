@@ -178,6 +178,23 @@ abstract interface class SecondaryKeyStore<K, V, T>
     int? skip,
   });
 
+  /// `true` when this keystore can produce real isolated
+  /// snapshots ([snapshot] returns a handle whose reads observe
+  /// the keystore's state at snapshot-creation time, ignoring
+  /// concurrent writes). `false` when the snapshot handle
+  /// delegates to live state — Hive backends.
+  bool get supportsSnapshots;
+
+  /// Take a snapshot of the keystore's current state. On SQL
+  /// backends this is real MVCC (BEGIN/COMMIT); on Hive it's a
+  /// best-effort pass-through to live state. Always [release]
+  /// the handle when done.
+  ///
+  /// Consumers that require real isolation should gate on
+  /// [supportsSnapshots] before using the handle's reads as a
+  /// consistency boundary.
+  Future<KeyStoreSnapshot<K, V, T>> snapshot();
+
   /// A SecondaryKeyStore has an associated commit log
   AtLogType? get commitLog => null;
 

@@ -10,6 +10,7 @@ export 'package:at_persistence_spec/src/keystore/log_keystore.dart';
 export 'package:at_persistence_spec/src/keystore/key_entry.dart';
 export 'package:at_persistence_spec/src/keystore/key_pattern.dart';
 export 'package:at_persistence_spec/src/keystore/keystore_change.dart';
+export 'package:at_persistence_spec/src/keystore/keystore_snapshot.dart';
 export 'package:at_persistence_spec/src/keystore/keystore_txn.dart';
 export 'package:at_persistence_spec/src/keystore/order_by_key.dart';
 export 'package:at_persistence_spec/src/keystore/predicate.dart';

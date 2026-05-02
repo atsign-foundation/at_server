@@ -46,6 +46,14 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
   bool get supportsPathQueries => false;
 
   @override
+  bool get supportsSnapshots => false;
+
+  @override
+  Future<KeyStoreSnapshot<String, AtData?, AtMetaData?>> snapshot() async {
+    return _HiveBestEffortSnapshot(this);
+  }
+
+  @override
   Stream<KeyEntry<String, AtData?, AtMetaData?>> queryByPath({
     required KeyPattern keyPattern,
     required Predicate predicate,
@@ -975,5 +983,42 @@ class _HiveSecondaryKeyStoreTxn
     if (buffered is _BufferedPut) return true;
     if (buffered is _BufferedRemove) return false;
     return _store.isKeyExists(key);
+  }
+}
+
+/// Best-effort snapshot for Hive. Hive has no MVCC, so reads
+/// through this handle observe live state — there is no real
+/// isolation. Documented in the abstract; consumers that require
+/// isolation gate on `supportsSnapshots`.
+class _HiveBestEffortSnapshot
+    implements KeyStoreSnapshot<String, AtData?, AtMetaData?> {
+  final HiveSecondaryKeyStore _store;
+  bool _released = false;
+
+  _HiveBestEffortSnapshot(this._store);
+
+  @override
+  Future<AtData?> get(String key) async {
+    if (_released) {
+      throw StateError('Snapshot has been released');
+    }
+    try {
+      return await _store.get(key);
+    } on KeyNotFoundException {
+      return null;
+    }
+  }
+
+  @override
+  Stream<String> scanKeys(KeyPattern pattern) {
+    if (_released) {
+      throw StateError('Snapshot has been released');
+    }
+    return _store.scanKeys(pattern);
+  }
+
+  @override
+  Future<void> release() async {
+    _released = true;
   }
 }
