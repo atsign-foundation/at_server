@@ -952,6 +952,7 @@ addition is additive — nothing is removed within 5.x.
 - [5.5.0 — `KeyStoreChange` + `changes` stream (sub-phase 3e)](#550--keystorechange--changes-stream-sub-phase-3e)
 - [5.6.0 — `KeyStoreTxn` + `transaction()` (sub-phase 3f)](#560--keystoretxn--transaction-sub-phase-3f)
 - [5.7.0 — ordered + paginated `scanKeys` (sub-phase 3g)](#570--ordered--paginated-scankeys-sub-phase-3g)
+- [5.8.0 — `queryByPath` + `supportsPathQueries` (sub-phase 3h)](#580--querybypath--supportspathqueries-sub-phase-3h)
 
 ### 5.1.0 — `exists(String key)` (sub-phase 3a)
 
@@ -1522,3 +1523,120 @@ cursor pagination is a `KeyPattern` + `startAfter` parameter on
 ordered + paginated `scanKeys`. Hive's metadata-ordered paths
 are O(N log N) (sticking-plaster); SQL backends will be
 O(matching).
+
+### 5.8.0 — `queryByPath` + `supportsPathQueries` (sub-phase 3h)
+
+**This is the first primitive with a capability flag.** The
+abstract API ships in 5.8.0 so consumers (the at_client_sdk
+session) can write the call site once; on Hive the flag is
+`false` and consumers fall back to today's full-scan behaviour;
+on Phase 4's SQLite backend the flag flips to `true` and the
+same call site executes as an indexed query.
+
+**New types** (in `at_persistence_spec`):
+
+```dart
+sealed class Predicate {
+  const Predicate();
+}
+
+final class PathEquals extends Predicate {
+  final List<String> path;       // dot-style accessor
+  final Object? expected;
+  const PathEquals(this.path, this.expected);
+}
+
+final class And extends Predicate {
+  final List<Predicate> children;  // empty = vacuously true
+  const And(this.children);
+}
+
+final class Or extends Predicate {
+  final List<Predicate> children;  // empty = vacuously false
+  const Or(this.children);
+}
+
+class KeyEntry<K, V, T> {
+  final K key;
+  final V data;
+  final T metadata;
+  const KeyEntry(this.key, this.data, this.metadata);
+}
+```
+
+The AST is intentionally minimal — Phase 4's SQLite backend
+drives whatever extensions (range queries, regex, IN-set, etc.)
+the actual indexed-query schema needs.
+
+**New on `SecondaryKeyStore`:**
+
+```dart
+abstract interface class SecondaryKeyStore<K, V, T> ... {
+  /// `true` when this backend pushes path predicates down to a
+  /// native indexed query plan; `false` when consumers must
+  /// fall back to scanKeys + in-memory filter.
+  bool get supportsPathQueries;
+
+  Stream<KeyEntry<K, V, T>> queryByPath({
+    required KeyPattern keyPattern,
+    required Predicate predicate,
+    OrderByKey? orderBy,
+    int? limit,
+    int? skip,
+  });
+}
+```
+
+**Hive impls:** `supportsPathQueries == false`. `queryByPath`
+throws `UnsupportedError`. Consumers MUST gate on the flag —
+calling `queryByPath` without checking is a programming bug.
+
+**SQL impl (Phase 4):** `supportsPathQueries == true`. Translates
+the `Predicate` AST into a SQL `WHERE` over `json_extract(value,
+'$.<path>')`, with an index on each declared path. Schema
+migration to declare those indexes is owned by the SQL backend's
+`initialize()`.
+
+**Backward compat:** purely additive on the abstract.
+`getKeys(regex:)`, `scanKeys`, and existing `wherePath`-style
+filtering in at_client all continue to work — `queryByPath` is
+strictly opt-in.
+
+**Before / after** — the at_client adoption (lands separately in
+the at_client_sdk session) updates `Query.wherePath` to push
+down on backends that advertise support:
+
+```dart
+// Before (4.x and 5.0.x-5.7.x): every Query.wherePath fetches
+// every matching atKey, materialises the AtData, runs the
+// PathField predicate in Dart. The bucketed-Invoice example in
+// collections_invoices.dart is materialise-everything-then-filter.
+final keys = await keyStore.getKeys(regex: '...');
+final values = await Future.wait(keys.map(keyStore.get));
+final filtered = values.where((v) => predicate.match(v)).toList();
+
+// After (5.8.0+): backend-aware push-down with fallback.
+if (keyStore.supportsPathQueries) {
+  // SQLite path — indexed; sub-second on millions of rows.
+  await for (final entry in keyStore.queryByPath(
+    keyPattern: keyPattern,
+    predicate: _toPersistencePredicate(query.wherePathExpr),
+  )) {
+    yield entry.data;
+  }
+} else {
+  // Hive path — today's full-scan + in-memory filter.
+  // (Same shape as before, but factored behind a single
+  // capability check for clean SQLite uplift later.)
+}
+```
+
+The `path: ['obj', 'amount']` metadata each `PathField` carries
+in at_client is the introspection vehicle: `_toPersistencePredicate`
+walks at_client's existing AST and emits the
+`at_persistence_spec` AST.
+
+**Capability flag:** YES. `supportsPathQueries` is the first
+flag of its kind — consumers gate on it. The pattern repeats in
+sub-phase 3i (`snapshots`, with similar Hive-stub / SQL-real
+shape).

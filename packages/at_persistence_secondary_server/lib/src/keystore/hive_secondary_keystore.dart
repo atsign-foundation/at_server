@@ -43,6 +43,26 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
   Stream<KeyStoreChange> get changes => _changesController.stream;
 
   @override
+  bool get supportsPathQueries => false;
+
+  @override
+  Stream<KeyEntry<String, AtData?, AtMetaData?>> queryByPath({
+    required KeyPattern keyPattern,
+    required Predicate predicate,
+    OrderByKey? orderBy,
+    int? limit,
+    int? skip,
+  }) {
+    throw UnsupportedError(
+      'HiveSecondaryKeyStore does not support push-down path queries. '
+      'Check `supportsPathQueries` before calling; on Hive, fall back '
+      'to `scanKeys + getMany + in-memory filter`. SQL backends in '
+      'Phase 4 flip the flag to true and execute the predicate via '
+      'indexed `WHERE` clauses.',
+    );
+  }
+
+  @override
   Future<R> transaction<R>(
     Future<R> Function(KeyStoreTxn<String, AtData?, AtMetaData?> txn) body,
   ) async {

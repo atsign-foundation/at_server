@@ -139,6 +139,45 @@ abstract interface class SecondaryKeyStore<K, V, T>
   /// undefined.
   Future<R> transaction<R>(Future<R> Function(KeyStoreTxn<K, V, T> txn) body);
 
+  /// `true` when this keystore can push value-field predicates
+  /// down to its native query plan ([queryByPath] is then a real
+  /// indexed query). `false` when [queryByPath] is unsupported
+  /// and consumers must fall back to a `scanKeys` + in-memory
+  /// filter.
+  ///
+  /// Hive backends return `false`. SQL backends (Phase 4) flip
+  /// this to `true` once they've defined the indexed-query
+  /// schema.
+  bool get supportsPathQueries;
+
+  /// Stream every (key, value, metadata) entry matching [keyPattern]
+  /// AND [predicate]. The predicate is evaluated against the value's
+  /// JSON-shaped fields (e.g. `PathEquals(['obj', 'amount'], 100)`).
+  ///
+  /// Backends MUST throw [UnsupportedError] when called and
+  /// [supportsPathQueries] is `false`. Consumers should gate on
+  /// the flag:
+  ///
+  /// ```dart
+  /// if (keyStore.supportsPathQueries) {
+  ///   await for (final e in keyStore.queryByPath(
+  ///     keyPattern: KeyPattern(namespace: 'invoices'),
+  ///     predicate: PathEquals(['obj', 'status'], 'unpaid'),
+  ///   )) { /* ... */ }
+  /// } else {
+  ///   // Fall back: scanKeys + getMany + in-memory filter.
+  /// }
+  /// ```
+  ///
+  /// [orderBy], [limit], [skip] mirror [scanKeys].
+  Stream<KeyEntry<K, V, T>> queryByPath({
+    required KeyPattern keyPattern,
+    required Predicate predicate,
+    OrderByKey? orderBy,
+    int? limit,
+    int? skip,
+  });
+
   /// A SecondaryKeyStore has an associated commit log
   AtLogType? get commitLog => null;
 

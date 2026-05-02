@@ -35,6 +35,23 @@ class HiveAtNotificationKeystore
   Stream<KeyStoreChange> get changes => _changesController.stream;
 
   @override
+  bool get supportsPathQueries => false;
+
+  @override
+  Stream<KeyEntry> queryByPath({
+    required KeyPattern keyPattern,
+    required Predicate predicate,
+    OrderByKey? orderBy,
+    int? limit,
+    int? skip,
+  }) {
+    throw UnsupportedError(
+      'HiveAtNotificationKeystore does not support push-down path queries. '
+      'Check `supportsPathQueries` before calling.',
+    );
+  }
+
+  @override
   Future<R> transaction<R>(
     Future<R> Function(KeyStoreTxn txn) body,
   ) async {

@@ -1,3 +1,19 @@
+## 5.8.0
+
+- feat: add `bool get supportsPathQueries` and
+  `Stream<KeyEntry<K, V, T>> queryByPath(...)` to the abstract
+  `SecondaryKeyStore`. Push-down value-field filtering — Phase 4
+  SQL backends translate the `Predicate` AST into indexed `WHERE`
+  clauses; Hive backends report `supportsPathQueries == false`
+  and `queryByPath` throws `UnsupportedError` (consumers gate
+  on the flag and fall back to `scanKeys + getMany + in-memory
+  filter`). New types in `at_persistence_spec`: sealed
+  `Predicate` AST (`PathEquals`, `And`, `Or`) and generic
+  `KeyEntry<K, V, T>`. The AST is intentionally minimal in this
+  cut; Phase 4's SQLite-backed impl drives whatever extensions
+  (range queries, regex, IN-set, etc.) the real query needs.
+  Phase 3 sub-phase 3h. See `MIGRATION.md` "What's new in 5.8.0".
+
 ## 5.7.0
 
 - feat: extend `SecondaryKeyStore.scanKeys` with `OrderByKey?
