@@ -46,6 +46,35 @@ class HiveAtNotificationKeystore
   }
 
   @override
+  Future<KeyStoreStats> stats() async {
+    final box = _getBox();
+    final total = box.length;
+    int ttl = 0;
+    DateTime? oldest;
+    DateTime? newest;
+    for (final key in box.keys) {
+      final entry = await getValue(key);
+      if (entry == null) continue;
+      if (entry.ttl != null) ttl++;
+      final c = entry.notificationDateTime;
+      if (c != null) {
+        if (oldest == null || c.isBefore(oldest)) oldest = c;
+        if (newest == null || c.isAfter(newest)) newest = c;
+      }
+    }
+    return KeyStoreStats(
+      totalKeys: total,
+      ttlKeys: ttl,
+      // Notifications have no `ttb` concept (they're queued
+      // outbound — there's no "available at" semantics).
+      ttbKeys: 0,
+      sizeBytes: 0,
+      oldestCreatedAt: oldest,
+      newestCreatedAt: newest,
+    );
+  }
+
+  @override
   Stream<KeyEntry> queryByPath({
     required KeyPattern keyPattern,
     required Predicate predicate,

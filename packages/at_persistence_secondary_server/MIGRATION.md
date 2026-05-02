@@ -954,6 +954,8 @@ addition is additive — nothing is removed within 5.x.
 - [5.7.0 — ordered + paginated `scanKeys` (sub-phase 3g)](#570--ordered--paginated-scankeys-sub-phase-3g)
 - [5.8.0 — `queryByPath` + `supportsPathQueries` (sub-phase 3h)](#580--querybypath--supportspathqueries-sub-phase-3h)
 - [5.9.0 — `KeyStoreSnapshot` + `snapshot()` (sub-phase 3i)](#590--keystoresnapshot--snapshot-sub-phase-3i)
+- [5.10.0 — `KeyStoreStats` + `stats()` (sub-phase 3j)](#5100--keystorestats--stats-sub-phase-3j)
+- [Phase 3 overview — migrating from 5.0.x to 5.10.0](#phase-3-overview--migrating-from-50x-to-5100)
 
 ### 5.1.0 — `exists(String key)` (sub-phase 3a)
 
@@ -1718,3 +1720,160 @@ defence.
 
 **Capability flag:** YES. `supportsSnapshots` mirrors
 `supportsPathQueries` — same gate-and-fall-back pattern.
+
+### 5.10.0 — `KeyStoreStats` + `stats()` (sub-phase 3j)
+
+**New types** (in `at_persistence_spec`):
+
+```dart
+class KeyStoreStats {
+  final int totalKeys;
+  final int ttlKeys;
+  final int ttbKeys;
+  final int sizeBytes;       // 0 = "not reported" (Hive)
+  final DateTime? oldestCreatedAt;
+  final DateTime? newestCreatedAt;
+  const KeyStoreStats({...});
+}
+```
+
+**New on `SecondaryKeyStore`:**
+
+```dart
+abstract interface class SecondaryKeyStore<K, V, T> ... {
+  /// Diagnostic snapshot of the keystore's state. Not load-bearing.
+  Future<KeyStoreStats> stats();
+}
+```
+
+**Hive impl** (`HiveSecondaryKeyStore`): iterates the box once,
+counts `totalKeys`, `ttlKeys`, `ttbKeys` from `metaData.ttl` /
+`metaData.ttb`, and tracks min/max `createdAt`. `sizeBytes` is
+left at 0 (Hive doesn't expose a cheap on-disk byte count without
+a filesystem `stat`). Cost: O(N) async LazyBox awaits per call.
+
+**Hive impl on the notification keystore**: same shape, but
+`ttbKeys` is hardcoded to 0 (notifications have no `ttb`
+concept — they're queued outbound, no "available at" semantics).
+`oldestCreatedAt` / `newestCreatedAt` track
+`AtNotification.notificationDateTime`.
+
+**SQL impl (Phase 4):** indexed aggregate query —
+`SELECT COUNT(*), SUM(CASE WHEN ttl IS NOT NULL THEN 1 ELSE 0
+END), ..., MIN(createdAt), MAX(createdAt) FROM keystore`. O(log N)
+or O(1) for cached counts.
+
+**Backward compat:** purely additive.
+
+**Before / after** — the at_client adoption (lands separately
+in the at_client_sdk session) exposes `stats()` via a debug
+surface:
+
+```dart
+// New on AtClient:
+Future<AtClientDiagnostics> diagnostics() async {
+  return AtClientDiagnostics(
+    keyStoreStats: await persistenceBundle.keyStore.stats(),
+    notificationStats: await persistenceBundle
+        .notificationKeystore?.stats(),
+    // … other diagnostic surfaces.
+  );
+}
+```
+
+Useful for "your atSign is approaching capacity" warnings,
+startup-time logging, performance reports. Not load-bearing —
+diagnostic only.
+
+**Capability flag:** none. Every backend in 5.10.0 supports
+`stats`. Performance differs (Hive: O(N), SQL: O(log N) or O(1));
+semantics are identical.
+
+---
+
+## Phase 3 overview — migrating from 5.0.x to 5.10.0
+
+Phase 3 of the persistence overhaul widens the abstract
+`SecondaryKeyStore` with ten new primitives (sub-phases 3a-3j)
+and three capability flags. Every change is **additive** — no
+4.x or 5.0.x API was removed in Phase 3, and no semantics
+changed for existing callers.
+
+A consumer that pinned `at_persistence_secondary_server: ^5.0.0`
+and bumps to `^5.10.0` sees:
+
+- Every existing call site (`get`, `put`, `remove`, `getKeys`,
+  `putAll`, `putMeta`, `isKeyExists`, etc.) compiles and runs
+  unchanged.
+- The wider abstract surface available via the bundle's
+  `keyStore` and `notificationKeystore`.
+- Two new capability flags to gate optional features:
+  - `supportsPathQueries` (5.8.0) — backend can push value-field
+    predicates down to a native indexed query plan.
+  - `supportsSnapshots` (5.9.0) — backend produces real isolated
+    snapshots.
+  - Both are `false` on Hive; Phase 4's SQL backend flips them
+    to `true`.
+
+**Cumulative addition table:**
+
+| Primitive                | Version | Behaviour on Hive          |
+|--------------------------|---------|----------------------------|
+| `exists(key)`            | 5.1.0   | Real (delegates to `Box.containsKey`). |
+| `KeyPattern` + `scanKeys`| 5.2.0   | Real but iterates the box (no side index). O(box-size). |
+| `getMany(keys)`          | 5.3.0   | Real but per-key LazyBox await. O(N). |
+| `removeMany(keys)`       | 5.4.0   | Real, batched via `Box.deleteAll`. |
+| `changes` stream         | 5.5.0   | Real, `StreamController.broadcast` per keystore. |
+| `transaction(body)`      | 5.6.0   | Best-effort atomicity (per-flush durable; mid-commit crash can leave partial). |
+| ordered + paginated `scanKeys` | 5.7.0 | Real (insertion / lex / metadata-sort), O(N log N) for metadata sort. |
+| `queryByPath` + `supportsPathQueries`     | 5.8.0   | Stub (`false` flag, `UnsupportedError` on call). |
+| `snapshot` + `supportsSnapshots`          | 5.9.0   | Best-effort (delegates to live state, `false` flag). |
+| `stats()`                | 5.10.0  | Real, iterates the box (O(N)). |
+
+**`pubspec.yaml` change**: bump
+`at_persistence_secondary_server: ^5.0.0` → `^5.10.0` (or any
+intermediate minor — every step is independently usable). Run
+`dart pub get`; no other action required for read-only users
+of the existing API.
+
+**Adoption order for at_client_sdk** (separate session, see the
+sibling plan at `~/.claude/plans/better-cheaper-faster-at-client.md`):
+
+1. 5.1.0 / `exists` → `_selfKeyExists` in
+   `collections.dart`. ~1 line per call site.
+2. 5.2.0 / `scanKeys` → every regex-`getKeys` site in
+   `collections.dart` and the cascade / orphan walks.
+3. 5.3.0 / `getMany` → `getItemsAsStream`'s 1000-read pattern,
+   cascade reads.
+4. 5.4.0 / `removeMany` → `LocalSecondary.deleteExpiredKeys`,
+   cascade deletes.
+5. 5.5.0 / `changes` → `LocalSecondary.dataEvents` becomes a
+   filter/transform (deletes the in-LocalSecondary broadcast
+   machinery + the `_emit` counter / drain waiters).
+6. 5.6.0 / `transaction` → atomicity in `_update` + commit-log
+   write, share-walk, cascade-delete.
+7. 5.7.0 / ordered `scanKeys` → `Query.watch()` paginated
+   delta-path.
+8. 5.8.0 / `queryByPath` → `Query.wherePath` push-down (gated
+   on `supportsPathQueries`; falls back on Hive).
+9. 5.9.0 / `snapshot` → `Query.fetch()` consistency wrap.
+10. 5.10.0 / `stats` → `AtClient.diagnostics()` debug surface.
+
+Pairs 1, 3, 4, 6 are independent; 7 requires 2; 8 requires 2 and
+benefits from 6; 5, 9, 10 are independent. The sibling plan
+documents the per-pair adoption details.
+
+**Hive sticking-plaster summary.** Several Phase 3 primitives
+have Hive impls that are sub-optimal on Hive but provide the
+right API surface:
+
+- `scanKeys` filtering: O(box-size) iterate-and-filter (rather
+  than secondary indexes).
+- `getMany` / `stats`: per-key LazyBox await loops.
+- `transaction`: best-effort atomicity (no real rollback log).
+- `queryByPath`: throws on Hive; consumers fall back.
+- `snapshot`: best-effort delegate to live state.
+
+Phase 4's SQLite backend resolves all of these natively.
+Consumers don't need to change call sites when the backend
+swaps — the abstract API is identical.

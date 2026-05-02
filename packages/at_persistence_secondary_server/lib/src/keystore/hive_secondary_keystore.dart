@@ -54,6 +54,42 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
   }
 
   @override
+  Future<KeyStoreStats> stats() async {
+    if (persistenceManager == null ||
+        persistenceManager?.getBox().isOpen == false) {
+      throw DataStoreException(
+          'Failed to compute stats. Hive Keystore is not initialized or opened');
+    }
+    final box = persistenceManager!.getBox() as LazyBox;
+    int total = box.length;
+    int ttl = 0;
+    int ttb = 0;
+    DateTime? oldest;
+    DateTime? newest;
+    for (int i = 0; i < total; i++) {
+      final raw = box.keyAt(i);
+      final atData = await box.get(raw);
+      final m = atData?.metaData;
+      if (m == null) continue;
+      if (m.ttl != null) ttl++;
+      if (m.ttb != null) ttb++;
+      final c = m.createdAt;
+      if (c != null) {
+        if (oldest == null || c.isBefore(oldest)) oldest = c;
+        if (newest == null || c.isAfter(newest)) newest = c;
+      }
+    }
+    return KeyStoreStats(
+      totalKeys: total,
+      ttlKeys: ttl,
+      ttbKeys: ttb,
+      sizeBytes: 0, // Hive doesn't expose a cheap on-disk size.
+      oldestCreatedAt: oldest,
+      newestCreatedAt: newest,
+    );
+  }
+
+  @override
   Stream<KeyEntry<String, AtData?, AtMetaData?>> queryByPath({
     required KeyPattern keyPattern,
     required Predicate predicate,

@@ -1,3 +1,17 @@
+## 5.10.0
+
+- feat: add `Future<KeyStoreStats> stats()` to the abstract
+  `SecondaryKeyStore`, plus a new `KeyStoreStats` data class in
+  `at_persistence_spec`. Diagnostic snapshot of the keystore's
+  state — `totalKeys`, `ttlKeys`, `ttbKeys`, `sizeBytes` (best-
+  effort approximation; Hive impl reports 0), and the
+  oldest/newest `createdAt` timestamps. Hive impls iterate the
+  box once to compute (O(N)); SQL backends use indexed aggregates.
+  Not load-bearing — intended for operator dashboards / debug
+  surfaces. Phase 3 sub-phase 3j and the closing primitive of
+  the Phase 3 arc. See `MIGRATION.md` "What's new in 5.10.0"
+  and the cumulative "Phase 3 overview" section.
+
 ## 5.9.0
 
 - feat: add `bool get supportsSnapshots` and

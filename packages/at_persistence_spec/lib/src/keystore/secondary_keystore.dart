@@ -195,6 +195,18 @@ abstract interface class SecondaryKeyStore<K, V, T>
   /// consistency boundary.
   Future<KeyStoreSnapshot<K, V, T>> snapshot();
 
+  /// Diagnostic snapshot of the keystore's state — total counts,
+  /// TTL/TTB key counts, approximate size, and the
+  /// oldest/newest createdAt timestamps. Not load-bearing —
+  /// intended for operator dashboards (e.g. an
+  /// `AtClient.diagnostics()` surface), not for runtime decisions
+  /// on a hot path.
+  ///
+  /// Hive impls iterate the box once to compute the result
+  /// (O(N)); SQL impls use indexed aggregates (O(log N) or O(1)
+  /// for cached counts).
+  Future<KeyStoreStats> stats();
+
   /// A SecondaryKeyStore has an associated commit log
   AtLogType? get commitLog => null;
 
