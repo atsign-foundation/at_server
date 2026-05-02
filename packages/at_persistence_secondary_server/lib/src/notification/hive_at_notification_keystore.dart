@@ -274,6 +274,9 @@ class HiveAtNotificationKeystore
   Stream<String> scanKeys(
     KeyPattern pattern, {
     bool includeExpired = false,
+    OrderByKey? orderBy,
+    int? limit,
+    int? skip,
   }) async* {
     // Notification keys are random ids, not atKey-shaped, so the
     // structured fields on KeyPattern (sharedBy / sharedWith /
@@ -287,17 +290,61 @@ class HiveAtNotificationKeystore
         pattern.namespace != null) {
       return;
     }
+
+    // Collect matching ids (and the entry, if we need it for sorting).
+    final matched = <String>[];
+    final entries = <String, AtNotification>{};
     for (final key in _getBox().keys) {
       final id = key as String;
-      if (!includeExpired) {
-        final entry = await getValue(id);
-        if (entry != null && entry.isExpired()) continue;
+      AtNotification? entry;
+      if (!includeExpired || orderBy != null) {
+        entry = await getValue(id);
+        if (!includeExpired && entry != null && entry.isExpired()) continue;
       }
       if (pattern.idPrefix != null && !id.startsWith(pattern.idPrefix!)) {
         continue;
       }
-      yield id;
+      matched.add(id);
+      if (entry != null) entries[id] = entry;
     }
+
+    // Order.
+    switch (orderBy) {
+      case null:
+        // Backend's natural order — keys.iterator order from the box.
+        break;
+      case OrderByKey.byKey:
+        matched.sort();
+        break;
+      case OrderByKey.byCreatedAt:
+        matched.sort((a, b) =>
+            _compareNullableDate(
+              entries[a]?.notificationDateTime,
+              entries[b]?.notificationDateTime,
+            ));
+        break;
+      case OrderByKey.byExpiresAt:
+        matched.sort((a, b) =>
+            _compareNullableDate(entries[a]?.expiresAt, entries[b]?.expiresAt));
+        break;
+    }
+
+    // Skip + limit.
+    final skipN = skip ?? 0;
+    int yielded = 0;
+    for (int i = skipN; i < matched.length; i++) {
+      if (limit != null && yielded >= limit) break;
+      yield matched[i];
+      yielded++;
+    }
+  }
+
+  /// Sort comparator that puts `null` values last.
+  int _compareNullableDate(DateTime? a, DateTime? b) {
+    if (a == null && b == null) return 0;
+    if (a == null) return 1;
+    if (b == null) return -1;
+    return a.compareTo(b);
   }
 
   @override

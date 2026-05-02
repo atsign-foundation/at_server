@@ -595,14 +595,97 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
   Stream<String> scanKeys(
     KeyPattern pattern, {
     bool includeExpired = false,
+    OrderByKey? orderBy,
+    int? limit,
+    int? skip,
   }) async* {
     if (persistenceManager == null ||
         persistenceManager?.getBox().isOpen == false) {
       throw DataStoreException(
           'Failed to scan keys. Hive Keystore is not initialized or opened');
     }
+
+    if (orderBy == null || orderBy == OrderByKey.byKey) {
+      yield* _scanKeysOrdered(
+        pattern,
+        includeExpired: includeExpired,
+        sortByKey: orderBy == OrderByKey.byKey,
+        limit: limit,
+        skip: skip,
+      );
+    } else {
+      yield* _scanKeysOrderedByMetadata(
+        pattern,
+        includeExpired: includeExpired,
+        orderBy: orderBy,
+        limit: limit,
+        skip: skip,
+      );
+    }
+  }
+
+  /// Stream matching keys in either insertion order
+  /// (`sortByKey: false`) or lexicographic key order
+  /// (`sortByKey: true`). [skip] and [limit] are applied AFTER
+  /// pattern + expiry filtering.
+  Stream<String> _scanKeysOrdered(
+    KeyPattern pattern, {
+    required bool includeExpired,
+    required bool sortByKey,
+    int? limit,
+    int? skip,
+  }) async* {
     final now = DateTime.timestamp();
     final box = persistenceManager!.getBox();
+    final length = box.length;
+    Iterable<String> generate() sync* {
+      for (int index = 0; index < length; index++) {
+        final raw = box.keyAt(index);
+        final String key;
+        try {
+          key = Utf7.decode(raw);
+        } on Exception {
+          continue;
+        }
+        if (!includeExpired && !_isKeyAvailable(key, now: now)) continue;
+        if (!_matchesPattern(key, pattern)) continue;
+        yield key;
+      }
+    }
+
+    Iterable<String> seq = generate();
+    if (sortByKey) {
+      // Materialise to sort lexicographically.
+      seq = seq.toList()..sort();
+    }
+    final skipN = skip ?? 0;
+    int yielded = 0;
+    int seen = 0;
+    for (final k in seq) {
+      if (seen < skipN) {
+        seen++;
+        continue;
+      }
+      if (limit != null && yielded >= limit) break;
+      yield k;
+      yielded++;
+    }
+  }
+
+  /// Stream matching keys ordered by an AtMetaData field
+  /// (`createdAt` or `expiresAt`). Materialises (key, sortField)
+  /// tuples for every match, sorts, then applies skip+limit.
+  /// Cost is O(N log N) on Hive — one LazyBox await per match.
+  Stream<String> _scanKeysOrderedByMetadata(
+    KeyPattern pattern, {
+    required bool includeExpired,
+    required OrderByKey orderBy,
+    int? limit,
+    int? skip,
+  }) async* {
+    final now = DateTime.timestamp();
+    final box = persistenceManager!.getBox() as LazyBox;
+    final tuples = <_KeyWithSortField>[];
     final length = box.length;
     for (int index = 0; index < length; index++) {
       final raw = box.keyAt(index);
@@ -610,14 +693,39 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
       try {
         key = Utf7.decode(raw);
       } on Exception {
-        continue; // skip garbled keys defensively
-      }
-      if (!includeExpired && !_isKeyAvailable(key, now: now)) {
         continue;
       }
-      if (_matchesPattern(key, pattern)) {
-        yield key;
+      if (!includeExpired && !_isKeyAvailable(key, now: now)) continue;
+      if (!_matchesPattern(key, pattern)) continue;
+      final atData = await box.get(raw);
+      DateTime? sortField;
+      switch (orderBy) {
+        case OrderByKey.byCreatedAt:
+          sortField = atData?.metaData?.createdAt;
+          break;
+        case OrderByKey.byExpiresAt:
+          sortField = atData?.metaData?.expiresAt;
+          break;
+        case OrderByKey.byKey:
+          // Unreachable — handled by the byKey path above.
+          throw StateError('byKey should not reach _scanKeysOrderedByMetadata');
       }
+      tuples.add(_KeyWithSortField(key, sortField));
+    }
+    // Sort: nulls go last (no-expiry, no-createdAt entries).
+    tuples.sort((a, b) {
+      if (a.sortField == null && b.sortField == null) return 0;
+      if (a.sortField == null) return 1;
+      if (b.sortField == null) return -1;
+      return a.sortField!.compareTo(b.sortField!);
+    });
+
+    final skipN = skip ?? 0;
+    int yielded = 0;
+    for (int i = skipN; i < tuples.length; i++) {
+      if (limit != null && yielded >= limit) break;
+      yield tuples[i].key;
+      yielded++;
     }
   }
 
@@ -764,6 +872,13 @@ class HiveSecondaryKeyStore implements SecondaryKeyStore<String, AtData?, AtMeta
     await persistenceManager?.getBox().clear();
     _expiryKeysCache.clear();
   }
+}
+
+/// (key, sortField) pair used by `_scanKeysOrderedByMetadata`.
+class _KeyWithSortField {
+  final String key;
+  final DateTime? sortField;
+  _KeyWithSortField(this.key, this.sortField);
 }
 
 /// A buffered op recorded against a [_HiveSecondaryKeyStoreTxn].

@@ -43,11 +43,22 @@ abstract interface class SecondaryKeyStore<K, V, T>
   /// By default, expired or not-yet-born keys are excluded; pass
   /// `includeExpired: true` to surface them.
   ///
-  /// Implementations may stream incrementally (one key per
-  /// underlying read) or buffer; consumers should treat the stream
-  /// as ordered by the backend's natural key order (Hive: insertion
-  /// order; SQL backends: indexed scan order).
-  Stream<String> scanKeys(KeyPattern pattern, {bool includeExpired = false});
+  /// [orderBy] controls the result order. `null` (default) means
+  /// "the backend's natural order" — Hive insertion order, SQL
+  /// primary-key order. Pick a member of [OrderByKey] for a
+  /// specific ordering; on backends without an index for that
+  /// ordering, the impl materialises and sorts in memory
+  /// (O(N log N)).
+  ///
+  /// [limit] caps the number of keys yielded; [skip] discards the
+  /// first N. Both default to "no limit" / "no skip".
+  Stream<String> scanKeys(
+    KeyPattern pattern, {
+    bool includeExpired = false,
+    OrderByKey? orderBy,
+    int? limit,
+    int? skip,
+  });
 
   /// Bulk fetch — returns the values for every key in [keys] that is
   /// currently present in the keystore. Keys that are absent are

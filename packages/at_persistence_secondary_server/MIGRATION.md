@@ -951,6 +951,7 @@ addition is additive — nothing is removed within 5.x.
 - [5.4.0 — `removeMany` (sub-phase 3d)](#540--removemany-sub-phase-3d)
 - [5.5.0 — `KeyStoreChange` + `changes` stream (sub-phase 3e)](#550--keystorechange--changes-stream-sub-phase-3e)
 - [5.6.0 — `KeyStoreTxn` + `transaction()` (sub-phase 3f)](#560--keystoretxn--transaction-sub-phase-3f)
+- [5.7.0 — ordered + paginated `scanKeys` (sub-phase 3g)](#570--ordered--paginated-scankeys-sub-phase-3g)
 
 ### 5.1.0 — `exists(String key)` (sub-phase 3a)
 
@@ -1422,3 +1423,102 @@ hard atomicity (e.g. for financial ledgers — not the at_client
 case) wait for SQLite. Within the at_client use cases (sync
 invariants, share-walks), Hive's per-isolate guarantee is
 sufficient.
+
+### 5.7.0 — ordered + paginated `scanKeys` (sub-phase 3g)
+
+**New types** (in `at_persistence_spec`):
+
+```dart
+enum OrderByKey { byKey, byCreatedAt, byExpiresAt }
+```
+
+**Extended on `SecondaryKeyStore`:**
+
+```dart
+abstract interface class SecondaryKeyStore<K, V, T> ... {
+  Stream<String> scanKeys(
+    KeyPattern pattern, {
+    bool includeExpired = false,
+    OrderByKey? orderBy,    // NEW (default: null, backend's natural order)
+    int? limit,              // NEW (default: no limit)
+    int? skip,               // NEW (default: no skip)
+  });
+}
+```
+
+The original 3-arg call site
+`keyStore.scanKeys(pattern, includeExpired: x)` remains
+source-compatible — the new parameters have null defaults.
+
+**Semantics:**
+
+- `orderBy: null` (default) — backend's natural order. On Hive
+  this is lexicographic ascending (the B-tree's internal
+  key-bytes order). On SQL backends it's primary-key order.
+- `OrderByKey.byKey` — explicit lexicographic ascending; on Hive
+  this is materialise-and-sort.
+- `OrderByKey.byCreatedAt` / `byExpiresAt` — sort by the entry's
+  AtMetaData field. Entries with no expiry sort last under
+  `byExpiresAt`. On Hive this requires materialising every
+  matching entry (one LazyBox await per match) and sorting in
+  memory: O(N log N). SQL backends use indexed ORDER BY for
+  O(log N + matching).
+- `skip` discards the first N keys after ordering and pattern
+  filtering; `limit` caps the number of keys yielded after skip.
+- `skip + limit` together yield a window for pagination.
+
+**Hive impl** (`HiveSecondaryKeyStore`):
+
+- `null` / `byKey` path: streams via the existing iterate-and-filter
+  loop; for `byKey`, materialises and sorts before applying
+  skip+limit.
+- `byCreatedAt` / `byExpiresAt` path: builds a `(key, sortField)`
+  tuple per match (one LazyBox await each), sorts, applies
+  skip+limit. The cost is the trade-off for not maintaining
+  side indexes on Hive (consistent with the 3b departure).
+
+**Hive impl on the notification keystore**: same pattern. For
+notifications, `byCreatedAt` sorts on `notificationDateTime` and
+`byExpiresAt` on `expiresAt`.
+
+**SQL impl (Phase 4):** all four orderings translate into
+indexed `ORDER BY` clauses; SQLite's query planner handles
+skip+limit natively.
+
+**Backward compat:** purely additive on the abstract. Callers
+using the existing 3-arg form continue to compile and behave
+identically.
+
+**Before / after** — the at_client adoption (lands separately in
+the at_client_sdk session) unblocks the paginated delta-path in
+`Query.watch()`. Today
+(`packages/at_client/lib/src/collections/collections.dart:3014`):
+
+```dart
+// Before: Query.watch() bails to a full-refresh when limit/skip
+// is set, because there's no keystore-side primitive to
+// determine the new pagination boundary after a single-item
+// update.
+final usesDeltaPath =
+    _spec.limitN == null && _spec.skipN == null;
+
+// After (5.7.0+): paginated delta-path works.
+//   On a CItemUpdated, refresh the result-set window via:
+final newWindow = await keyStore.scanKeys(
+  pattern,
+  orderBy: OrderByKey.byKey,
+  limit: _spec.limitN,
+  skip: _spec.skipN,
+).toList();
+//   Bounded work proportional to `limit`, not full collection size.
+```
+
+The `// TODO(post-stable): add Query.startAfter(CItem) cursor
+pagination` comment in `collections.dart` becomes implementable:
+cursor pagination is a `KeyPattern` + `startAfter` parameter on
+`scanKeys` (a follow-up that builds on this primitive).
+
+**Capability flag:** none. Every backend in 5.7.0 supports
+ordered + paginated `scanKeys`. Hive's metadata-ordered paths
+are O(N log N) (sticking-plaster); SQL backends will be
+O(matching).

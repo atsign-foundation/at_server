@@ -1,3 +1,19 @@
+## 5.7.0
+
+- feat: extend `SecondaryKeyStore.scanKeys` with `OrderByKey?
+  orderBy`, `int? limit`, and `int? skip`. `null` orderBy means
+  "the backend's natural order" (Hive: lexicographic
+  ascending — its internal B-tree key-bytes order). Explicit
+  `OrderByKey.byKey` sorts lexicographically (same as Hive's
+  natural order in practice). `byCreatedAt` / `byExpiresAt` sort
+  by the entry's metadata field; on Hive these materialise +
+  sort in memory (O(N log N)) — SQL backends use indexed
+  ORDER BY for O(log N). Pagination is `limit` / `skip` applied
+  AFTER pattern + expiry filtering and ordering. The original
+  3-arg `scanKeys(KeyPattern, {includeExpired})` call site
+  remains source-compatible: the new params have null defaults.
+  Phase 3 sub-phase 3g. See `MIGRATION.md` "What's new in 5.7.0".
+
 ## 5.6.0
 
 - feat: add
