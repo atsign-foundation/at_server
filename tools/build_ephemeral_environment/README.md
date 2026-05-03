@@ -26,16 +26,16 @@ docker run -it -e FIRST_PORT=<start port> -p 64:64 \
 This will start the container with default certificates that are provided in
 the repo to `vip.ve.atsign.zone` in the same way as the Virtual Environment
 does. This is useful for testing but in actual use you will have to provide a
-valid certficate files for the atServers (secondaries) and map them to
+valid certificate files for the atServers (secondaries) and map them to
 `/atsign/secondary/base/certs` using the `-v` option and then map a DNS record
 to the container's IP. To tell the container the Fully Qualified DNS to
-configure the atServers use the `DNS_FQDN` environment variable. In addition
-the atDirectory (root) needs certifcates (which can be the same), and they can
+configure the atServers use the `DNS_FQDN` environment variable. In addition,
+the atDirectory (root) needs certificates (which can be the same), and they can
 be mapped via `-v` to `/atsign/root/certs`. The atDirectory/atServers need not
 have the same DNS/cert but will have the same IP, atDirectory being on port 64
-and atServers on contigious ports from `<start port>`.
+and atServers on contiguous ports from `<start port>`.
 
-Pulling this all togther an example command looks like this.
+Pulling this all together an example command looks like this.
 
 ```sh
 docker run -it -e DNS_FQDN="rainbow.crushware.com" \
@@ -45,7 +45,7 @@ docker run -it -e DNS_FQDN="rainbow.crushware.com" \
   -p 2500-2600:2500-2600 -d atsigncompany/ephemeral 
 ```
 
-The CRAM values will be printed out in the log file of the container and they
+The CRAM values will be printed out in the log file of the container, and they
 can be used to create atKeys via at_activate for example.
 
 ```sh
@@ -61,8 +61,8 @@ but with the additional argument of the new root server for example:
 sshnp --root-domain rainbow.crushware.com -f @alpha -t @bravo -d test -r @zulu
 ```
 
-By default 26 atSigns are created using the Phonetic Alphabet from @alpha to
-@zulu. This can be overidden by creating a file listing the atSigns you
+By default, 26 atSigns are created using the Phonetic Alphabet from @alpha to
+@zulu. This can be overridden by creating a file listing the atSigns you
 would like and mounting it at /tmp/setup/atsigns.
 
 For example the atsigns file could contain:
@@ -88,7 +88,7 @@ This would create the five atSigns instead of the defaults, for example:
 
 ## Monitoring and administration of the running container
 
-By default the admin interface is available via:
+By default, the admin interface is available via:
 
 [http://localhost:9001/](http://localhost:9001/)
 
@@ -96,3 +96,41 @@ Logs of each process/atSign are visible and can be restarted if required.
 
 A copy of the CRAM values for each atSign can be found inside the container
 in the file `/tmp/CRAM_keys` if the docker logs are lost.
+
+## Running multiple EEs side-by-side (`EPHEMERAL_BASE_PORT` mode)
+
+The container also supports an alternative startup mode in which every
+service it exposes is shifted into a contiguous 100-port range starting
+at a base port you choose. This lets several EEs coexist on one host
+without colliding — useful primarily for testing.
+
+Set `EPHEMERAL_BASE_PORT` to the lowest port you want to claim and the
+container will bind:
+
+| Service     | Port range                                             |
+|-------------|--------------------------------------------------------|
+| atDirectory | `EPHEMERAL_BASE_PORT`                                  |
+| atServers   | `EPHEMERAL_BASE_PORT + 1 .. EPHEMERAL_BASE_PORT + 80`  |
+| (reserved)  | `EPHEMERAL_BASE_PORT + 81 .. EPHEMERAL_BASE_PORT + 98` |
+| Redis       | `EPHEMERAL_BASE_PORT + 99`                             |
+
+When `EPHEMERAL_BASE_PORT` is unset the container behaves exactly as
+described above (atDirectory on 64, Redis on 6379, atServers from
+`FIRST_PORT`). Setting `EPHEMERAL_BASE_PORT` overrides `FIRST_PORT`.
+
+The easiest path is the `runee.sh` helper, which generates a
+per-container docker-compose file and brings the EE up:
+
+```sh
+./tools/build_ephemeral_environment/runee.sh ee-a 2500
+./tools/build_ephemeral_environment/runee.sh ee-b 2600
+```
+
+Both EEs are now running on the same host with no port conflict; ee-a's
+atDirectory is on 2500 and ee-b's is on 2600. Use `at_activate` against
+each one with the corresponding root domain / port.
+
+A sample docker-compose file is also provided at
+`tools/build_ephemeral_environment/docker-compose.yaml`; copy it as a
+starting point if you want to wire the EE into a larger compose stack
+rather than use `runee.sh`.

@@ -1,3 +1,9 @@
 
 # Output logs, storage directories etc are held in run_locally/runtime
 run_locally/runtime
+
+build_virtual_environment/ve/contents/atsign/root/pubspec.yaml
+build_virtual_environment/ve/contents/atsign/root/root
+
+build_virtual_environment/ve/contents/atsign/secondary/pubspec.yaml
+build_virtual_environment/ve/contents/atsign/secondary/secondary
