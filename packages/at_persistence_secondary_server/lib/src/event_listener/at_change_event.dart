@@ -38,36 +38,3 @@ enum KeyStoreType {
   accessLogKeyStore,
   notificationLogKeystore
 }
-
-/// Represents the list of keys of [CommitEntry].
-class CompactionSortedList {
-  final _list = <int>[];
-
-  /// Adds the hive key of [CommitEntry] to the list and sort's the keys in descending order.
-  void add(int commitEntryKey) {
-    _list.add(commitEntryKey);
-    _list.sort((a, b) => b.compareTo(a));
-  }
-
-  /// Returns the keys to compact.
-  List<int> getKeysToCompact() {
-    // _list.sublist(1) to retain the latest key and return the remaining.
-    var expiredKeys = _list.sublist(1);
-    return expiredKeys;
-  }
-
-  /// Removes the compacted keys from the list.
-  void deleteCompactedKeys(var expiredKeys) {
-    _list.removeWhere((element) => expiredKeys.contains(element));
-  }
-
-  /// Returns the size of list.
-  int getSize() {
-    return _list.length;
-  }
-
-  @override
-  String toString() {
-    return 'CompactionSortedList{_list: $_list}';
-  }
-}

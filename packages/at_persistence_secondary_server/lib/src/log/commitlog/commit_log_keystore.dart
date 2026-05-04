@@ -215,6 +215,14 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     return commitEntriesIterable.iterator;
   }
 
+  @override
+  Stream<CommitEntry> iterate({int? fromCommitId}) async* {
+    fromCommitId ??= 1;
+    for (final key in getBox().keys.skipWhile((key) => key < fromCommitId)) {
+      yield await getValue(key) as CommitEntry;
+    }
+  }
+
   ///Returns the key-value pair of commit-log where key is hive internal key and
   ///value is [CommitEntry]
   Future<Map<int, CommitEntry>> toMap() async {
@@ -236,6 +244,8 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
   /// Removes entries with malformed keys
   /// Repairs entries with null commit IDs
   /// Clears and repopulates the [commitLogCache]
+  /// Removes any legacy duplicate entries so the box holds at most
+  /// one entry per atKey (the entry with the highest commitId).
   @visibleForTesting
   Future<bool> repairCommitLogAndCreateCachedMap() async {
     // Ensures the below code runs only when initialized from secondary server.
@@ -245,7 +255,35 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     await repairNullCommitIDs(allEntries);
     commitLogCache.clear();
     commitLogCache.initialize();
+    await dedupBoxToOnePerAtKey();
     return true;
+  }
+
+  /// Walks the commit log box and removes any entries whose internal
+  /// hive key is not the latest seen for their atKey. After this runs,
+  /// the box invariant "at most one entry per atKey" holds.
+  ///
+  /// Called from [repairCommitLogAndCreateCachedMap] on init. New
+  /// commits maintain this invariant inline via [add]'s delete-old
+  /// step; this migration covers legacy data and any incidental
+  /// duplicates from interrupted writes.
+  @visibleForTesting
+  Future<void> dedupBoxToOnePerAtKey() async {
+    final keepKeys = <int>{};
+    for (final entry in commitLogCache._commitLogCacheMap.values) {
+      if (entry.commitId != null) keepKeys.add(entry.commitId!);
+    }
+    final toDelete = <int>[];
+    for (final key in getBox().keys) {
+      if (key is int && !keepKeys.contains(key)) {
+        toDelete.add(key);
+      }
+    }
+    if (toDelete.isNotEmpty) {
+      await getBox().deleteAll(toDelete);
+      _logger.info(
+          'Commit log dedup migration: removed ${toDelete.length} duplicate entries');
+    }
   }
 
   /// Removes all entries which have a malformed [CommitEntry.atKey]

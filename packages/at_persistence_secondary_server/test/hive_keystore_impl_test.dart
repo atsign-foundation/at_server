@@ -378,26 +378,18 @@ void main() async {
     tearDown(() async => await tearDownFunc(atSign));
   });
 
-  group('A group of tests to verify compaction', () {
+  group('A group of tests to verify the one-entry-per-atKey invariant', () {
     String atSign = '@test_user_1';
     setUp(() async => await setUpFunc(storageDir, atSign));
-    test('test to verify commit log compaction', () async {
+    test('Box has exactly 1 entry after 50 puts to the same atKey', () async {
       var keyStoreManager = testPersistenceStoreFor('@test_user_1');
       var keyStore = keyStoreManager.getSecondaryKeyStore()!;
       var commitLogInstance = (await testCommitLogFor('@test_user_1'));
-      var compactionService =
-          CommitLogCompactionService(commitLogInstance!.commitLogKeyStore);
-      commitLogInstance.addEventListener(compactionService);
       var atData = AtData()..data = 'US';
-      //
       for (int i = 0; i <= 49; i++) {
         await keyStore.put('@bob:location.wavi@test_user_1', atData);
       }
-      var locationList =
-          compactionService.getEntries('@bob:location.wavi@test_user_1');
-      expect(locationList?.getSize(), 50);
-      await keyStore.put('@bob:location.wavi@test_user_1', atData);
-      expect(locationList?.getSize(), 1);
+      expect(commitLogInstance!.commitLogKeyStore.getEntriesCount(), 1);
     });
     tearDown(() async => await tearDownFunc(atSign));
   });

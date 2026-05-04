@@ -745,11 +745,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     _assertServerCapabilities(bundle);
 
     commitLog = bundle.commitLog;
-    // Phase 2 Commit 4 will replace this Hive-specific reach-through
-    // with a bundle-level commit-log compactor field.
-    commitLog.addEventListener(CommitLogCompactionService(
-        (commitLog as HiveAtCommitLog).commitLogKeyStore));
-
     accessLog = bundle.accessLog!;
     notificationKeystore = bundle.notificationKeystore!;
     secondaryKeyStore = bundle.keyStore;

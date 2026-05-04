@@ -335,38 +335,45 @@ void main() async {
         expect(lastCommittedSeq, 0);
       });
     });
-    group('A group of commit log compaction tests', () {
+    group('A group of tests verifying the one-entry-per-atKey invariant', () {
       setUp(() async => await setUpFunc(storageDir));
-      test('Test to verify compaction when single is modified ten times',
+      test('Box has exactly 1 entry after 51 commits to the same atKey',
           () async {
-        var commitLogInstance =
-            (await testCommitLogFor('@alice'));
-        var compactionService =
-            CommitLogCompactionService(commitLogInstance!.commitLogKeyStore);
-        commitLogInstance.addEventListener(compactionService);
+        var commitLogInstance = (await testCommitLogFor('@alice'));
         for (int i = 0; i <= 50; i++) {
-          await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
+          await commitLogInstance!.commit('location@alice', CommitOp.UPDATE);
         }
-
-        var list = compactionService.getEntries('location@alice');
-        expect(list?.getSize(), 1);
+        expect(commitLogInstance!.commitLogKeyStore.getEntriesCount(), 1);
       });
 
-      test('Test to verify compaction when two are modified ten times',
+      test('Box has exactly 2 entries after 51 commits to two distinct atKeys',
           () async {
-        var commitLogInstance =
-            (await testCommitLogFor('@alice'));
-        var compactionService =
-            CommitLogCompactionService(commitLogInstance!.commitLogKeyStore);
-        commitLogInstance.addEventListener(compactionService);
+        var commitLogInstance = (await testCommitLogFor('@alice'));
         for (int i = 0; i <= 50; i++) {
-          await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
+          await commitLogInstance!.commit('location@alice', CommitOp.UPDATE);
           await commitLogInstance.commit('country@alice', CommitOp.UPDATE);
         }
-        var locationList = compactionService.getEntries('location@alice');
-        var countryList = compactionService.getEntries('country@alice');
-        expect(locationList!.getSize(), 1);
-        expect(countryList!.getSize(), 1);
+        expect(commitLogInstance!.commitLogKeyStore.getEntriesCount(), 2);
+      });
+
+      test('dedupBoxToOnePerAtKey removes legacy duplicates on init',
+          () async {
+        var commitLogInstance = (await testCommitLogFor('@alice'));
+        // Simulate legacy data: write entries directly to the box, bypassing
+        // the inline-dedup path of add(), so duplicates accumulate.
+        final box = commitLogInstance!.commitLogKeyStore.getBox();
+        for (int i = 0; i < 5; i++) {
+          final entry = CommitEntry('legacy@alice', CommitOp.UPDATE,
+              DateTime.now().toUtc());
+          final key = await box.add(entry);
+          entry.commitId = key;
+          await box.put(key, entry);
+        }
+        expect(commitLogInstance.commitLogKeyStore.getEntriesCount(), 5);
+        // Repair triggers dedupBoxToOnePerAtKey.
+        await commitLogInstance.commitLogKeyStore
+            .repairCommitLogAndCreateCachedMap();
+        expect(commitLogInstance.commitLogKeyStore.getEntriesCount(), 1);
       });
 
       test('A test to verify old commit entry is removed when a key is updated',
