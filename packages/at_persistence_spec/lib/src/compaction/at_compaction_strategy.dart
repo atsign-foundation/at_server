@@ -10,3 +10,12 @@ abstract class AtLogType<K, V> implements AtCompaction<K, V> {
   /// @return int Returns the storage size in integer type.
   int getSize();
 }
+
+/// The abstract class for Compaction Job
+@Deprecated('use CompactionService')
+abstract class AtCompactionStrategy {
+  /// Performs the compaction on the specified log type.
+  /// @param atLogType The log type to perform the compaction job.
+  @Deprecated('use CompactionService')
+  Future<AtCompactionStats?> performCompaction(AtLogType atLogType);
+}
