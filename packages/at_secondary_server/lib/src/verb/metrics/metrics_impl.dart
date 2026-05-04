@@ -408,22 +408,20 @@ class LatestCommitEntryOfEachKey extends MetricProvider {
 
   @override
   getMetrics({String? regex = '.*'}) async {
-    var responseMap = <String, List<dynamic>>{};
+    final responseMap = <String, List<dynamic>>{};
     final atCommitLog = atServer.commitLog;
-
-    int? lastCommitId = atCommitLog.lastCommittedSequenceNumber();
-    int lastCommitIdReceived = -1;
-    while (lastCommitId != null && lastCommitIdReceived != lastCommitId) {
-      Iterator commitEntryIterator =
-          atCommitLog.getEntries(lastCommitIdReceived, regex: regex);
-      while (commitEntryIterator.moveNext()) {
-        CommitEntry commitEntry = commitEntryIterator.current.value;
-        responseMap[commitEntry.atKey!] = [
-          commitEntry.commitId,
-          commitEntry.operation.name
-        ];
-        lastCommitIdReceived = commitEntry.commitId!;
-      }
+    // Phase 3.5a's box invariant guarantees one entry per atKey, so a
+    // single walk yields the latest entry for every atKey.
+    final hasRegex = regex != null && regex.isNotEmpty && regex != '.*';
+    final pattern = hasRegex ? RegExp(regex) : null;
+    await for (final commitEntry in atCommitLog.iterate(
+        where: hasRegex
+            ? (e) => e.atKey != null && pattern!.hasMatch(e.atKey!)
+            : null)) {
+      responseMap[commitEntry.atKey!] = [
+        commitEntry.commitId,
+        commitEntry.operation!.name
+      ];
     }
     return jsonEncode(responseMap);
   }
