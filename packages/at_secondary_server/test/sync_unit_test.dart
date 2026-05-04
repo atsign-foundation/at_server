@@ -569,8 +569,7 @@ void main() async {
         // and inserting the entry into the commit log
         // The "**" in the key - @invalidkey**.buzz$alice is added to set key as invalid key
         await (secondaryKeyStore as HiveSecondaryKeyStore)
-            .persistenceManager
-            ?.getBox()
+            .getBox()
             .put('@invalidkey**.buzz$alice', AtData()..data = alice);
         AtCommitLog atCommitLog =
             (secondaryKeyStore.commitLog) as HiveAtCommitLog;

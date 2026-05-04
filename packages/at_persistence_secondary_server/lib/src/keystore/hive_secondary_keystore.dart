@@ -2,17 +2,22 @@
 
 import 'dart:async';
 import 'dart:collection';
+import 'dart:io';
+import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_manager.dart';
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_utils.dart';
+import 'package:cron/cron.dart';
 import 'package:hive/hive.dart';
 import 'package:meta/meta.dart';
 
 class HiveSecondaryKeyStore
+    with HiveBase<AtData?>
     implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
   final AtSignLogger logger = AtSignLogger('HiveSecondaryKeyStore');
   final String expiresAt = 'expiresAt';
@@ -20,8 +25,17 @@ class HiveSecondaryKeyStore
   static const int maxKeyLength = 255;
   static const int maxKeyLengthWithoutCached = 248;
 
-  HivePersistenceManager? persistenceManager;
+  /// The atSign this keystore serves. Used for the per-atSign Hive
+  /// box name and as the audit value on `AtMetaData.createdBy` /
+  /// `updatedBy`.
+  final String atSign;
+
+  HiveSecondaryKeyStore(this.atSign);
+
   late HiveAtCommitLog _commitLog;
+
+  final Cron _cron = Cron();
+  final Random _random = Random();
   @override
   List<Future Function(String key, {required bool skipCommit})> preRemoveHooks =
       [];
@@ -56,12 +70,11 @@ class HiveSecondaryKeyStore
 
   @override
   Future<KeyStoreStats> stats() async {
-    if (persistenceManager == null ||
-        persistenceManager?.getBox().isOpen == false) {
+    if (!getBox().isOpen) {
       throw DataStoreException(
           'Failed to compute stats. Hive Keystore is not initialized or opened');
     }
-    final box = persistenceManager!.getBox() as LazyBox;
+    final box = getBox() as LazyBox;
     int total = box.length;
     int ttl = 0;
     int ttb = 0;
@@ -148,8 +161,6 @@ class HiveSecondaryKeyStore
     return compiled;
   }
 
-  HiveSecondaryKeyStore();
-
   @override
   set commitLog(log) {
     _commitLog = log as HiveAtCommitLog;
@@ -160,26 +171,91 @@ class HiveSecondaryKeyStore
 
   @override
   Future<void> initialize() async {
+    try {
+      if (!Hive.isAdapterRegistered(AtDataAdapter().typeId)) {
+        Hive.registerAdapter(AtDataAdapter());
+      }
+      if (!Hive.isAdapterRegistered(AtMetaDataAdapter().typeId)) {
+        Hive.registerAdapter(AtMetaDataAdapter());
+      }
+      if (!Hive.isAdapterRegistered(PublicKeyHashAdapter().typeId)) {
+        Hive.registerAdapter(PublicKeyHashAdapter());
+      }
+      final secret = await _getHiveSecretFromFile(atSign, storagePath);
+      await openBox(AtUtils.getShaForAtSign(atSign), hiveSecret: secret);
+    } on Exception catch (e) {
+      logger.severe('HiveSecondaryKeyStore.initialize exception: $e');
+      throw DataStoreException(
+          'Exception initializing secondary keystore: ${e.toString()}');
+    }
     await _initExpiryKeysCache();
   }
 
-  @Deprecated("Use [initialize]")
+  Future<List<int>?> _getHiveSecretFromFile(
+      String atsign, String storagePath) async {
+    List<int>? secretAsUint8List;
+    try {
+      atsign = atsign.trim().toLowerCase();
+      final fileName = '${AtUtils.getShaForAtSign(atsign)}.hash';
+      final filePath = '$storagePath/$fileName';
+      String hiveSecretString;
+      final exists = File(filePath).existsSync();
+      if (exists) {
+        hiveSecretString = File(filePath).readAsStringSync();
+        if (hiveSecretString.isEmpty) {
+          secretAsUint8List = Hive.generateSecureKey();
+          hiveSecretString = String.fromCharCodes(secretAsUint8List);
+          File(filePath).writeAsStringSync(hiveSecretString);
+        } else {
+          secretAsUint8List = Uint8List.fromList(hiveSecretString.codeUnits);
+        }
+      } else {
+        secretAsUint8List = Hive.generateSecureKey();
+        hiveSecretString = String.fromCharCodes(secretAsUint8List);
+        final newFile = await File(filePath).create(recursive: true);
+        newFile.writeAsStringSync(hiveSecretString);
+      }
+    } on Exception catch (exception) {
+      logger.severe('getHiveSecretFromFile exception: $exception');
+    } catch (error) {
+      logger.severe('getHiveSecretFromFile caught error: $error');
+    }
+    return secretAsUint8List;
+  }
 
-  /// Deprecated. Use [initialize]
-  Future<void> init() async {
-    await initialize();
+  /// Schedules a periodic `deleteExpiredKeys` sweep on this keystore.
+  /// Either [runFrequencyMins] (cron-style) or [runTimeInterval]
+  /// (Duration-based) controls cadence; the latter wins if both are
+  /// passed. If [skipCommits] is true, the expiry deletes don't add
+  /// DELETE entries to the commit log.
+  void scheduleKeyExpireTask(int? runFrequencyMins,
+      {Duration? runTimeInterval, bool skipCommits = false}) {
+    logger.finest('scheduleKeyExpireTask starting cron job.');
+    Schedule schedule;
+    if (runTimeInterval != null) {
+      schedule = Schedule(seconds: runTimeInterval.inSeconds);
+    } else {
+      schedule = Schedule.parse('*/$runFrequencyMins * * * *');
+    }
+    _cron.schedule(schedule, () async {
+      await Future.delayed(Duration(seconds: _random.nextInt(12)));
+      if (!getBox().isOpen) {
+        logger.warning(
+            'scheduleKeyExpireTask: keystore box is not open; skipping');
+        return;
+      }
+      await deleteExpiredKeys(skipCommit: skipCommits);
+    });
   }
 
   Future<void> _initExpiryKeysCache() async {
-    if (persistenceManager == null || !persistenceManager!.getBox().isOpen) {
-      logger.severe(
-          'persistence manager not initialized. skipping metadata caching');
+    if (!getBox().isOpen) {
+      logger.severe('keystore box not open; skipping metadata caching');
       return;
     }
     logger.finest('Initializing _expiryKeysCache Map started');
-    for (int index = 0; index < persistenceManager!.getBox().length; index++) {
-      AtData atData =
-          await (persistenceManager!.getBox() as LazyBox).getAt(index);
+    for (int index = 0; index < getBox().length; index++) {
+      AtData atData = await (getBox() as LazyBox).getAt(index);
       _updateMetadataCache(Utf7.decode(atData.key), atData.metaData);
     }
     logger.finest('_expiryKeysCache initialization completed');
@@ -191,7 +267,7 @@ class HiveSecondaryKeyStore
     AtData? value;
     try {
       String hiveKey = HiveKeyStoreHelper.prepareKey(key);
-      value = await (persistenceManager!.getBox() as LazyBox).get(hiveKey);
+      value = await (getBox() as LazyBox).get(hiveKey);
       // load metadata for hive_key
       // compare availableAt with time.now()
       //return only between ttl and ttb
@@ -238,10 +314,10 @@ class HiveSecondaryKeyStore
         var hive_value = HiveKeyStoreHelper.prepareDataForKeystoreOperation(
             value!,
             existingAtData: existingData!,
-            atSign: persistenceManager!.atsign!);
+            atSign: atSign);
         logger.finest('hive key:$hive_key');
         logger.finest('hive value:$hive_value');
-        await persistenceManager!.getBox().put(hive_key, hive_value);
+        await getBox().put(hive_key, hive_value);
         _updateMetadataCache(key, hive_value.metaData);
         if (skipCommit) {
           result = -1;
@@ -281,7 +357,7 @@ class HiveSecondaryKeyStore
     _checkMaxLength(hive_key);
     var hive_data = HiveKeyStoreHelper.prepareDataForKeystoreOperation(
       value!,
-      atSign: persistenceManager!.atsign!,
+      atSign: atSign,
     );
     // Default commitOp to Update.
     commitOp = CommitOp.UPDATE;
@@ -311,7 +387,7 @@ class HiveSecondaryKeyStore
     }
 
     try {
-      await persistenceManager!.getBox().put(hive_key, hive_data);
+      await getBox().put(hive_key, hive_data);
       _updateMetadataCache(key, hive_data.metaData);
       _changesController.add(KeyAdded(key));
       if (skipCommit) {
@@ -340,9 +416,7 @@ class HiveSecondaryKeyStore
 
     int retVal;
     try {
-      await persistenceManager!
-          .getBox()
-          .delete(HiveKeyStoreHelper.prepareKey(key));
+      await getBox().delete(HiveKeyStoreHelper.prepareKey(key));
       // On deleting the key, remove it from the expiryKeyCache.
       _expiryKeysCache.remove(key);
       if (skipCommit) {
@@ -429,8 +503,7 @@ class HiveSecondaryKeyStore
   /// @return - `List<String>` : List of keys from secondary storage.
   @override
   List<String> getKeys({String? regex}) {
-    if (persistenceManager == null ||
-        persistenceManager?.getBox().isOpen == false) {
+    if (!getBox().isOpen) {
       throw DataStoreException(
           'Failed to fetch keys. Hive Keystore is not initialized or opened');
     }
@@ -449,10 +522,8 @@ class HiveSecondaryKeyStore
     final now = DateTime.timestamp();
     String key;
     try {
-      for (int index = 0;
-          index < persistenceManager!.getBox().length;
-          index++) {
-        key = Utf7.decode(persistenceManager!.getBox().keyAt(index));
+      for (int index = 0; index < getBox().length; index++) {
+        key = Utf7.decode(getBox().keyAt(index));
         if (_isKeyAvailable(key, now: now) && regExp.hasMatch(key)) {
           keys.add(key);
         }
@@ -501,9 +572,9 @@ class HiveSecondaryKeyStore
       value!.metaData = AtMetadataBuilder(
               newAtMetaData: metadata!,
               existingMetaData: existingData?.metaData,
-              atSign: persistenceManager!.atsign!)
+              atSign: atSign)
           .build();
-      await persistenceManager!.getBox().put(hive_key, value);
+      await getBox().put(hive_key, value);
       _updateMetadataCache(key, value.metaData);
       result = await _commitLog.commit(hive_key, CommitOp.UPDATE_ALL);
       _changesController
@@ -531,10 +602,10 @@ class HiveSecondaryKeyStore
       newData.metaData = AtMetadataBuilder(
               newAtMetaData: metadata!,
               existingMetaData: existingData?.metaData,
-              atSign: persistenceManager!.atsign!)
+              atSign: atSign)
           .build();
 
-      await persistenceManager!.getBox().put(hive_key, newData);
+      await getBox().put(hive_key, newData);
       _updateMetadataCache(key, newData.metaData);
       var result = await _commitLog.commit(hive_key, CommitOp.UPDATE_META);
       _changesController
@@ -552,9 +623,7 @@ class HiveSecondaryKeyStore
   @server
   bool isKeyExists(String key) {
     key = key.toLowerCase();
-    return persistenceManager!
-        .getBox()
-        .containsKey(HiveKeyStoreHelper.prepareKey(key));
+    return getBox().containsKey(HiveKeyStoreHelper.prepareKey(key));
   }
 
   @override
@@ -563,12 +632,11 @@ class HiveSecondaryKeyStore
   @override
   Future<int> removeMany(List<String> keys, {bool skipCommit = false}) async {
     if (keys.isEmpty) return 0;
-    if (persistenceManager == null ||
-        persistenceManager?.getBox().isOpen == false) {
+    if (!getBox().isOpen) {
       throw DataStoreException(
           'Failed to bulk-delete. Hive Keystore is not initialized or opened');
     }
-    final box = persistenceManager!.getBox();
+    final box = getBox();
 
     // 1. Identify which input keys are actually present. We dedup by
     //    lowercased form so duplicates in [keys] don't double-count.
@@ -636,12 +704,11 @@ class HiveSecondaryKeyStore
 
   @override
   Future<Map<String, AtData?>> getMany(List<String> keys) async {
-    if (persistenceManager == null ||
-        persistenceManager?.getBox().isOpen == false) {
+    if (!getBox().isOpen) {
       throw DataStoreException(
           'Failed to bulk-fetch keys. Hive Keystore is not initialized or opened');
     }
-    final box = persistenceManager!.getBox() as LazyBox;
+    final box = getBox() as LazyBox;
     final result = <String, AtData?>{};
     for (final raw in keys) {
       final lowered = raw.toLowerCase();
@@ -669,8 +736,7 @@ class HiveSecondaryKeyStore
     int? limit,
     int? skip,
   }) async* {
-    if (persistenceManager == null ||
-        persistenceManager?.getBox().isOpen == false) {
+    if (!getBox().isOpen) {
       throw DataStoreException(
           'Failed to scan keys. Hive Keystore is not initialized or opened');
     }
@@ -706,7 +772,7 @@ class HiveSecondaryKeyStore
     int? skip,
   }) async* {
     final now = DateTime.timestamp();
-    final box = persistenceManager!.getBox();
+    final box = getBox();
     final length = box.length;
     Iterable<String> generate() sync* {
       for (int index = 0; index < length; index++) {
@@ -754,7 +820,7 @@ class HiveSecondaryKeyStore
     int? skip,
   }) async* {
     final now = DateTime.timestamp();
-    final box = persistenceManager!.getBox() as LazyBox;
+    final box = getBox() as LazyBox;
     final tuples = <_KeyWithSortField>[];
     final length = box.length;
     for (int index = 0; index < length; index++) {
@@ -855,10 +921,9 @@ class HiveSecondaryKeyStore
   ///Restarts the hive box.
   Future<void> _restartHiveBox(Error e) async {
     // If hive box closed, reopen the box.
-    if (e is HiveError && !persistenceManager!.getBox().isOpen) {
+    if (e is HiveError && !getBox().isOpen) {
       logger.info('Hive box closed. Restarting the hive box');
-      await persistenceManager!
-          .openBox(AtUtils.getShaForAtSign(persistenceManager!.atsign!));
+      await openBox(AtUtils.getShaForAtSign(atSign));
     }
   }
 
@@ -939,7 +1004,7 @@ class HiveSecondaryKeyStore
   /// [AtPersistenceBundle.clear] for cheap test isolation —
   /// production code uses [close] instead.
   Future<void> clear() async {
-    await persistenceManager?.getBox().clear();
+    await getBox().clear();
     _expiryKeysCache.clear();
   }
 }

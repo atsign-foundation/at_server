@@ -14,7 +14,7 @@ Future<void> setUpMethod({bool enableCommitId = true}) async {
   atCommitLog = await testCommitLogFor(atSign,
       commitLogPath: storageDir, enableCommitId: enableCommitId);
   testKeyStoreFor(atSign).commitLog = atCommitLog;
-  await testHivePersistenceManagerFor(atSign).init(storageDir);
+  await testKeyStoreFor(atSign).init(storageDir);
 }
 
 void main() {

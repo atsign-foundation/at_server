@@ -25,7 +25,7 @@ Future<void> setUpMethod() async {
   atNotificationKeystore = HiveAtNotificationKeystore('@alice');
   await atNotificationKeystore.init('$storageDir/${Uuid().v4()}');
   // Init the hive instances
-  await testHivePersistenceManagerFor('@alice').init(storageDir);
+  await testKeyStoreFor('@alice').init(storageDir);
 }
 
 Future<void> main() async {

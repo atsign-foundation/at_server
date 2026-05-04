@@ -241,7 +241,7 @@ Future<HiveSecondaryKeyStore> setUpFunc(storageDir,
     {bool enableCommitId = true}) async {
   var commitLogInstance = await testCommitLogFor('@alice',
       commitLogPath: storageDir, enableCommitId: enableCommitId);
-  await testHivePersistenceManagerFor('@alice').init(storageDir);
+  await testKeyStoreFor('@alice').init(storageDir);
   var hiveKeyStore = testKeyStoreFor('@alice');
   hiveKeyStore.commitLog = commitLogInstance;
   return hiveKeyStore;

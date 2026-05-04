@@ -805,7 +805,7 @@ Future<void> tearDownFunc(String atSign) async {
 Future<void> setUpFunc(String storageDir, String atSign) async {
   var commitLogInstance =
       await testCommitLogFor(atSign, commitLogPath: storageDir);
-  await testHivePersistenceManagerFor(atSign).init(storageDir);
+  await testKeyStoreFor(atSign).init(storageDir);
   testKeyStoreFor(atSign).commitLog = commitLogInstance;
 }
 

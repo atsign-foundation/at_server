@@ -204,7 +204,7 @@ Future<String?> getKey(keyStore, key) async {
 
 Future<HiveSecondaryKeyStore> getKeystoreManager(storageDir, atsign,
     {required bool optimizeCommits}) async {
-  var manager = testHivePersistenceManagerFor(atsign);
+  var manager = testKeyStoreFor(atsign);
   await manager.init(storageDir);
   manager.scheduleKeyExpireTask(null,
       runTimeInterval: Duration(seconds: 10), skipCommits: optimizeCommits);

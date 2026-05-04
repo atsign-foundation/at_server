@@ -1,5 +1,4 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_manager.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_secondary_keystore.dart';
 import 'package:at_persistence_secondary_server/src/log/accesslog/access_log_keystore.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_log_keystore.dart';
@@ -60,18 +59,12 @@ class HiveAtPersistenceFactory implements AtPersistenceFactory {
       await notificationKeystore.init(config.notificationStoragePath);
     }
 
-    // 4. Secondary keystore + Hive persistence manager. Wire the
-    //    pair together up-front so HivePersistenceManager's cron
-    //    has its target keystore by tick time.
-    final hivePm = HivePersistenceManager(atSign);
-    await hivePm.init(config.storagePath);
-
-    final keyStore = HiveSecondaryKeyStore();
-    keyStore.persistenceManager = hivePm;
-    hivePm.keyStoreForExpireTask = keyStore;
+    // 4. Secondary keystore. Owns its own Hive box, encryption
+    //    secret, and cron-driven key-expiry sweep (former roles
+    //    of the now-retired HivePersistenceManager).
+    final keyStore = HiveSecondaryKeyStore(atSign);
     keyStore.commitLog = commitLog;
-
-    await keyStore.initialize();
+    await keyStore.init(config.storagePath);
 
     // 5. Compactors (optional capabilities). Each wraps the
     //    underlying log/keystore in a [HiveCompactionStrategy].
@@ -97,7 +90,6 @@ class HiveAtPersistenceFactory implements AtPersistenceFactory {
       commitLogCompactor: commitLogCompactor,
       accessLogCompactor: accessLogCompactor,
       keyStoreCompactor: keyStoreCompactor,
-      hivePersistenceManager: hivePm,
     );
     _bundles[atSign] = bundle;
     return bundle;
@@ -155,11 +147,6 @@ class HiveAtPersistenceBundle implements AtPersistenceBundle {
   @override
   final AtCompactionStrategy? keyStoreCompactor;
 
-  // Hive-internal: needed by [scheduleKeyExpireTask] and [close], but
-  // intentionally NOT exposed on the bundle's public surface — every
-  // caller uses the abstract [AtPersistenceBundle] interface.
-  final HivePersistenceManager _hivePersistenceManager;
-
   bool _closed = false;
 
   HiveAtPersistenceBundle._({
@@ -171,8 +158,7 @@ class HiveAtPersistenceBundle implements AtPersistenceBundle {
     required this.commitLogCompactor,
     required this.accessLogCompactor,
     required this.keyStoreCompactor,
-    required HivePersistenceManager hivePersistenceManager,
-  }) : _hivePersistenceManager = hivePersistenceManager;
+  });
 
   @override
   AtPersistenceBackendId get backendId => AtPersistenceBackendId.hive;
@@ -180,7 +166,7 @@ class HiveAtPersistenceBundle implements AtPersistenceBundle {
   @override
   void scheduleKeyExpireTask(int? runFrequencyMins,
       {Duration? runTimeInterval, bool skipCommits = false}) {
-    _hivePersistenceManager.scheduleKeyExpireTask(runFrequencyMins,
+    keyStore.scheduleKeyExpireTask(runFrequencyMins,
         runTimeInterval: runTimeInterval, skipCommits: skipCommits);
   }
 
@@ -204,9 +190,9 @@ class HiveAtPersistenceBundle implements AtPersistenceBundle {
     if (_closed) return;
     _closed = true;
     // Order is the inverse of [HiveAtPersistenceFactory.initialize]:
-    // close the keystore-via-manager first (so any in-flight expiry
-    // task observes a closed box), then logs and notifications.
-    await _hivePersistenceManager.close();
+    // close the keystore first (so any in-flight expiry task
+    // observes a closed box), then logs and notifications.
+    await keyStore.close();
     await commitLog.close();
     accessLog
         ?.close(); // HiveAtAccessLog.close() returns void, not Future<void>
