@@ -11,6 +11,7 @@ import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
+import 'package:uuid/uuid.dart';
 
 import 'test_utils.dart';
 
@@ -158,8 +159,7 @@ void main() {
         0,
         AtSecondaryConfig.syncPageLimit,
         syncResponse,
-        atCommitLog.getEntries(0),
-        inboundConnection.metadata,
+        atCommitLog.iterate(fromCommitId: 0),
       );
       expect(syncResponse.length, 1);
       expect(syncResponse[0].key, 'test_key_alpha$alice');
@@ -193,8 +193,7 @@ void main() {
         0,
         AtSecondaryConfig.syncPageLimit,
         syncResponse,
-        atCommitLog.getEntries(0),
-        inboundConnection.metadata,
+        atCommitLog.iterate(fromCommitId: 0),
       );
       expect(syncResponse, [entry]);
 
@@ -203,8 +202,7 @@ void main() {
         0,
         AtSecondaryConfig.syncPageLimit,
         syncResponse,
-        atCommitLog.getEntries(0),
-        inboundConnection.metadata,
+        atCommitLog.iterate(fromCommitId: 0),
       );
       expect(syncResponse.length, 1);
       expect(syncResponse[0].key, 'test_key_alpha$alice');
@@ -214,8 +212,7 @@ void main() {
         0,
         AtSecondaryConfig.syncPageLimit,
         syncResponse,
-        atCommitLog.getEntries(1),
-        inboundConnection.metadata,
+        atCommitLog.iterate(fromCommitId: 1),
       );
       expect(syncResponse.length, 1);
       expect(syncResponse[0].key, 'test_key2_beta$alice');
@@ -251,8 +248,7 @@ void main() {
         10 * 1024 * 1024,
         AtSecondaryConfig.syncPageLimit,
         syncResponse,
-        atCommitLog.getEntries(0),
-        inboundConnection.metadata,
+        atCommitLog.iterate(fromCommitId: 0),
       );
 
       // Expecting that all the entries in the commitLog have been
@@ -281,8 +277,7 @@ void main() {
         0,
         AtSecondaryConfig.syncPageLimit,
         syncResponse,
-        atCommitLog.getEntries(0),
-        inboundConnection.metadata,
+        atCommitLog.iterate(fromCommitId: 0),
       );
       expect(syncResponse.length, 1);
       expect(syncResponse[0].key, 'test_key_1$alice');
@@ -292,8 +287,7 @@ void main() {
         0,
         AtSecondaryConfig.syncPageLimit,
         syncResponse,
-        atCommitLog.getEntries(1),
-        inboundConnection.metadata,
+        atCommitLog.iterate(fromCommitId: 1),
       );
       expect(syncResponse.length, 1);
       expect(syncResponse[0].key, 'test_key_2$alice');
@@ -304,8 +298,7 @@ void main() {
         10 * 1024 * 1024,
         AtSecondaryConfig.syncPageLimit,
         syncResponse,
-        atCommitLog.getEntries(2),
-        inboundConnection.metadata,
+        atCommitLog.iterate(fromCommitId: 2),
       );
       expect(syncResponse.length, 0);
     });
@@ -420,6 +413,91 @@ void main() {
       for (int i = 0; i < syncResponseList.length; i++) {
         expect(syncResponseList[i]['atKey'], 'random_${i + 1}.wavi$alice');
       }
+    });
+  });
+
+  group(
+      'A group of regression tests for the auth-filter empty-response wedge (Phase 3.5d)',
+      () {
+    late String enrollmentId;
+
+    setUp(() async {
+      // APKAM connection enrolled for namespace 'wavi' read-only.
+      // Keys in other namespaces will be filtered out by isAuthorized,
+      // exercising the iterate(where:) closure's auth path.
+      inboundConnection.metadata.isAuthenticated = true;
+      enrollmentId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'wavi': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      await secondaryKeyStore.put(
+          '$enrollmentId.new.enrollments.__manage$alice',
+          AtData()..data = jsonEncode(enrollJson));
+    });
+
+    test(
+        'all-unauthorized 25-entry window: response stays empty AND scan completes in bounded time',
+        () async {
+      // Seed 25 entries in a namespace the connection is NOT enrolled
+      // for. Pre-3.5d, the verb handler would scan only the first 25
+      // commit entries and return [], wedging the client because the
+      // commitId watermark could not advance.
+      for (int i = 0; i < 25; i++) {
+        await secondaryKeyStore.put(
+            'k$i.unauthorized$alice', AtData()..data = 'v$i');
+      }
+      expect(atCommitLog.entriesCount(), 26); // 25 keys + the enrollment record
+
+      final verbHandler = SyncProgressiveVerbHandler(secondaryKeyStore);
+      final response = Response();
+      final verbParams = HashMap<String, String>();
+      verbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+      verbParams.putIfAbsent(AtConstants.syncLimit, () => '25');
+      final stopwatch = Stopwatch()..start();
+      await verbHandler.processVerb(response, verbParams, inboundConnection);
+      stopwatch.stop();
+
+      // The bug-fixed invariant: stream-end is hit; response is [].
+      // Critical regression assertion: this completes in bounded time
+      // (one full scan), not the ad-infinitum loop the previous
+      // limit-based impl was vulnerable to.
+      final list = jsonDecode(response.data!) as List;
+      expect(list, isEmpty);
+      expect(stopwatch.elapsed.inSeconds, lessThan(1));
+    });
+
+    test(
+        'authorized entry past unauthorized run: scan walks past the filtered window and returns the survivor',
+        () async {
+      // Seed 25 unauthorized entries, then one authorized entry. Pre-3.5d
+      // would scan only the first 25 (all filtered) and miss the 26th.
+      for (int i = 0; i < 25; i++) {
+        await secondaryKeyStore.put(
+            'k$i.unauthorized$alice', AtData()..data = 'v$i');
+      }
+      await secondaryKeyStore.put(
+          'phone.wavi$alice', AtData()..data = '+12025551234');
+
+      final verbHandler = SyncProgressiveVerbHandler(secondaryKeyStore);
+      final response = Response();
+      final verbParams = HashMap<String, String>();
+      verbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+      verbParams.putIfAbsent(AtConstants.syncLimit, () => '25');
+      await verbHandler.processVerb(response, verbParams, inboundConnection);
+
+      // Exactly the one authorized entry is returned. The 25 unauthorized
+      // entries are silently skipped during the scan.
+      final list = jsonDecode(response.data!) as List;
+      expect(list.length, 1);
+      expect(list.first['atKey'], 'phone.wavi$alice');
+      expect(list.first['value'], '+12025551234');
     });
   });
 }

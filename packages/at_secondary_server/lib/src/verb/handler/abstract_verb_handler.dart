@@ -190,7 +190,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
     if (enrollmentId == null || _isReservedKey(atKey)) {
       return true;
     }
-    final enroll = await _resolveEnrollment(enrollmentId);
+    final enroll = await resolveEnrollment(enrollmentId);
     return isAuthorizedSync(enroll, enrollmentId,
         atKey: atKey,
         namespace: namespace,
@@ -202,7 +202,11 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// enrollment manager. Returns `null` if the record cannot be
   /// found ([KeyNotFoundException]); callers treat that as
   /// "deny all".
-  Future<EnrollDataStoreValue?> _resolveEnrollment(String enrollmentId) async {
+  ///
+  /// Companion to [isAuthorizedSync] — callers that need to authorize
+  /// many entries against a single enrollment context resolve once via
+  /// this method, then call [isAuthorizedSync] in a sync inner loop.
+  Future<EnrollDataStoreValue?> resolveEnrollment(String enrollmentId) async {
     try {
       return await AtSecondaryServerImpl.getInstance()
           .enrollmentManager
