@@ -16,20 +16,16 @@ late HiveAtNotificationKeystore atNotificationKeystore;
 late AtCompactionStatsServiceImpl atCompactionStatsServiceImpl;
 
 Future<void> setUpMethod() async {
-  // Initialize secondary persistent store
-  final secondaryPersistenceStore = testPersistenceStoreFor('@alice');
-  // Initialize commit log
   atCommitLog = await testCommitLogFor('@alice',
       commitLogPath: storageDir, enableCommitId: true);
-  // Initialize access log
   atAccessLog = await testAccessLogFor('@alice', accessLogPath: storageDir);
-  keyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
+  keyStore = testKeyStoreFor('@alice');
   keyStore!.commitLog = atCommitLog;
   // AtNotification Keystore
   atNotificationKeystore = HiveAtNotificationKeystore('@alice');
   await atNotificationKeystore.init('$storageDir/${Uuid().v4()}');
   // Init the hive instances
-  await secondaryPersistenceStore.getHivePersistenceManager()!.init(storageDir);
+  await testHivePersistenceManagerFor('@alice').init(storageDir);
 }
 
 Future<void> main() async {

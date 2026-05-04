@@ -5,7 +5,6 @@ import 'dart:io';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_secondary_keystore.dart';
-import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store.dart';
 import 'package:crypto/crypto.dart';
 import 'package:hive/hive.dart';
 import 'package:test/test.dart';
@@ -18,8 +17,7 @@ void main() async {
     String atSign = '@test_user_1';
     setUp(() async => await setUpFunc(storageDir, atSign));
     test('test update', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var keyStore = testKeyStoreFor('@test_user_1');
       var atData = AtData();
       atData.data = '123';
       var result = await keyStore.create('phone.wavi@test_user_1', atData);
@@ -27,8 +25,7 @@ void main() async {
     });
 
     test('test create and get', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var keyStore = testKeyStoreFor('@test_user_1');
       var atData = AtData();
       atData.data = '123';
       await keyStore.create('phone.wavi@test_user_1', atData);
@@ -37,8 +34,7 @@ void main() async {
     });
 
     test('test create, update and get', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var keyStore = testKeyStoreFor('@test_user_1');
 
       var key = 'location.wavi@test_user_1';
 
@@ -58,8 +54,7 @@ void main() async {
     });
 
     test('test create, update and get with metadata', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var keyStore = testKeyStoreFor('@test_user_1');
 
       var key = 'location.wavi@test_user_1';
 
@@ -116,8 +111,7 @@ void main() async {
     });
 
     test('test update and get', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var keyStore = testKeyStoreFor('@test_user_1');
       var updateData = AtData();
       updateData.data = 'alice';
       await keyStore.put('last_name.wavi@test_user_1', updateData);
@@ -126,8 +120,7 @@ void main() async {
     });
 
     test('test update and remove', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var keyStore = testKeyStoreFor('@test_user_1');
       var updateData = AtData();
       updateData.data = 'alice';
       await keyStore.put('last_name.wavi@test_user_1', updateData);
@@ -137,8 +130,7 @@ void main() async {
     });
 
     test('get keys', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var keyStore = testKeyStoreFor('@test_user_1');
       var data_1 = AtData();
       data_1.data = 'alice';
       await keyStore.put('last_name.wavi@test_user_1', data_1);
@@ -150,9 +142,8 @@ void main() async {
     });
 
     test('test get expired keys - no data', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore();
-      var expiredKeys = await keyStore!.getExpiredKeys();
+      var keyStore = testKeyStoreFor('@test_user_1');
+      var expiredKeys = await keyStore.getExpiredKeys();
       expect(expiredKeys.length, 0);
     });
 
@@ -181,15 +172,13 @@ void main() async {
     // });
 
     test('test delete expired keys - no data', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore();
-      var result = await keyStore!.deleteExpiredKeys();
+      var keyStore = testKeyStoreFor('@test_user_1');
+      var result = await keyStore.deleteExpiredKeys();
       expect(result, true);
     });
 
     test('get keys by regex', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var keyStore = testKeyStoreFor('@test_user_1');
       var data_1 = AtData();
       data_1.data = 'alice';
       await keyStore.put('last_name.wavi@test_user_1', data_1);
@@ -201,8 +190,7 @@ void main() async {
     });
 
     test('test create and get for metadata-ttl', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var keyStore = testKeyStoreFor('@test_user_1');
       var atData = AtData();
       atData.data = '123';
       atData.metaData = AtMetaData()..ttl = 6000;
@@ -214,8 +202,7 @@ void main() async {
     });
 
     test('test create and get for metadata-shared key', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var keyStore = testKeyStoreFor('@test_user_1');
       var atData = AtData();
       atData.data = '123';
       atData.metaData = AtMetaData()
@@ -230,8 +217,7 @@ void main() async {
     });
 
     test('test create reserved key- keystore put', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var keyStore = testKeyStoreFor('@test_user_1');
       var atData = AtData();
       atData.data = '123';
       final result = await keyStore.put(AtConstants.atPkamPrivateKey, atData);
@@ -239,8 +225,7 @@ void main() async {
     });
 
     test('test create non reserved key- keystore put', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var keyStore = testKeyStoreFor('@test_user_1');
       var atData = AtData();
       atData.data = '123';
       await expectLater(keyStore.put('privatekey:mykey', atData),
@@ -248,8 +233,7 @@ void main() async {
     });
 
     test('test create invalid key', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var keyStore = testKeyStoreFor('@test_user_1');
       var atData = AtData();
       atData.data = '123';
       await expectLater(keyStore.create('hello123', atData),
@@ -257,8 +241,7 @@ void main() async {
     });
 
     test('test put invalid key', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var keyStore = testKeyStoreFor('@test_user_1');
       var atData = AtData();
       atData.data = '123';
       await expectLater(keyStore.put('hello@', atData),
@@ -266,8 +249,7 @@ void main() async {
     });
 
     test('test create non reserved key- keystore putAll', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var keyStore = testKeyStoreFor('@test_user_1');
       var atData = AtData();
       atData.data = '123';
       await expectLater(keyStore.put('privatekey:mykey', atData),
@@ -275,8 +257,7 @@ void main() async {
     });
 
     test('test putAll invalid key', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var keyStore = testKeyStoreFor('@test_user_1');
       var atData = AtData();
       atData.data = '123';
       await expectLater(keyStore.put('hello@', atData),
@@ -284,8 +265,7 @@ void main() async {
     });
 
     test('test put max key length exceeded', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var keyStore = testKeyStoreFor('@test_user_1');
       var atData = AtData();
       atData.data = '123';
       var key = '${TestUtils.generateRandomString(245)}@test_user_1';
@@ -305,8 +285,7 @@ void main() async {
                   "key length ${cachedKey.length} is greater than max allowed ${HiveSecondaryKeyStore.maxKeyLength} chars")));
     });
     test('test put key length 248 chars should pass', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var keyStore = testKeyStoreFor('@test_user_1');
       var atData = AtData();
       atData.data = '123';
       var key = '${TestUtils.generateRandomString(236)}@test_user_1';
@@ -316,8 +295,7 @@ void main() async {
     tearDown(() async => await tearDownFunc(atSign));
 
     test('test create max key length exceeded', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var keyStore = testKeyStoreFor('@test_user_1');
       var atData = AtData();
       atData.data = '123';
       var key = '${TestUtils.generateRandomString(245)}@test_user_1';
@@ -337,8 +315,7 @@ void main() async {
                   "key length ${cachedKey.length} is greater than max allowed ${HiveSecondaryKeyStore.maxKeyLength} chars")));
     });
     test('test create key length 248 chars should pass', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var keyStore = testKeyStoreFor('@test_user_1');
       var atData = AtData();
       atData.data = '123';
       var key = '${TestUtils.generateRandomString(236)}@test_user_1';
@@ -346,8 +323,7 @@ void main() async {
       expect(result >= 0, true);
     });
     test('test putAll max key length exceeded', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var keyStore = testKeyStoreFor('@test_user_1');
       var atData = AtData();
       atData.data = '123';
       var key = '${TestUtils.generateRandomString(250)}@test_user_1';
@@ -367,8 +343,7 @@ void main() async {
                   "key length ${cachedKey.length} is greater than max allowed ${HiveSecondaryKeyStore.maxKeyLength} chars")));
     });
     test('test putAll key length 248 chars should pass', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var keyStore = testKeyStoreFor('@test_user_1');
       var atData = AtData();
       atData.data = '123';
       var key = '${TestUtils.generateRandomString(236)}@test_user_1';
@@ -383,8 +358,7 @@ void main() async {
     String atSign = '@test_user_1';
     setUp(() async => await setUpFunc(storageDir, atSign));
     test('Box has exactly 1 entry after 50 puts to the same atKey', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var keyStore = testKeyStoreFor('@test_user_1');
       var commitLogInstance = (await testCommitLogFor('@test_user_1'));
       var atData = AtData()..data = 'US';
       for (int i = 0; i <= 49; i++) {
@@ -401,115 +375,101 @@ void main() async {
     test(
         'A test to verify key updated via put method without TTL and TTB is not added to metaDataCache',
         () async {
-      SecondaryPersistenceStore keyStoreManager =
-          testPersistenceStoreFor('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
+      HiveSecondaryKeyStore keystore = testKeyStoreFor('@test_user_1');
       AtData atData = AtData()
         ..data = 'sample_data_create_1'
         ..metaData = (AtMetaData()..isEncrypted = false);
-      await keystore?.put('sample_create_key_1.wavi@test_user_1', atData);
-      final metaDataCache = keystore?.getExpiryKeysCache();
+      await keystore.put('sample_create_key_1.wavi@test_user_1', atData);
+      final metaDataCache = keystore.getExpiryKeysCache();
       expect(metaDataCache, isNotNull);
-      expect(metaDataCache!.containsKey('sample_create_key_1.wavi@test_user_1'),
+      expect(metaDataCache.containsKey('sample_create_key_1.wavi@test_user_1'),
           false);
     });
 
     test(
         'A test to verify key updated via put method with TTL is added to metaDataCache',
         () async {
-      SecondaryPersistenceStore keyStoreManager =
-          testPersistenceStoreFor('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
+      HiveSecondaryKeyStore keystore = testKeyStoreFor('@test_user_1');
       AtData atData = AtData()
         ..data = 'sample_data_create_1'
         ..metaData = (AtMetaData()
           ..isEncrypted = false
           ..ttl = 1000);
-      await keystore?.put('sample_create_key_1🛠.wavi@test_user_1', atData);
-      final metaDataCache = keystore?.getExpiryKeysCache();
+      await keystore.put('sample_create_key_1🛠.wavi@test_user_1', atData);
+      final metaDataCache = keystore.getExpiryKeysCache();
       expect(metaDataCache, isNotNull);
       expect(
-          metaDataCache!.containsKey('sample_create_key_1🛠.wavi@test_user_1'),
+          metaDataCache.containsKey('sample_create_key_1🛠.wavi@test_user_1'),
           true);
     });
 
     test(
         'A test to verify key updated via put method with TTB is added to metaDataCache',
         () async {
-      SecondaryPersistenceStore keyStoreManager =
-          testPersistenceStoreFor('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
+      HiveSecondaryKeyStore keystore = testKeyStoreFor('@test_user_1');
       AtData atData = AtData()
         ..data = 'sample_data_create_1'
         ..metaData = (AtMetaData()
           ..isEncrypted = false
           ..ttb = 1000);
-      await keystore?.put('sample_create_key_1🛠.wavi@test_user_1', atData);
-      final metaDataCache = keystore?.getExpiryKeysCache();
+      await keystore.put('sample_create_key_1🛠.wavi@test_user_1', atData);
+      final metaDataCache = keystore.getExpiryKeysCache();
       expect(metaDataCache, isNotNull);
       expect(
-          metaDataCache!.containsKey('sample_create_key_1🛠.wavi@test_user_1'),
+          metaDataCache.containsKey('sample_create_key_1🛠.wavi@test_user_1'),
           true);
     });
 
     test(
         'A test to verify key created via create method without TTL and TTB is not added to metaDataCache',
         () async {
-      SecondaryPersistenceStore keyStoreManager =
-          testPersistenceStoreFor('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
+      HiveSecondaryKeyStore keystore = testKeyStoreFor('@test_user_1');
       AtData atData = AtData()
         ..data = 'sample_data_put_1'
         ..metaData = (AtMetaData()..isEncrypted = false);
       final testKey = 'sample_data_put_1.wavi@test_user_1';
-      await keystore?.create(testKey, atData);
-      final metaDataCache = keystore?.getExpiryKeysCache();
+      await keystore.create(testKey, atData);
+      final metaDataCache = keystore.getExpiryKeysCache();
       expect(metaDataCache, isNotNull);
-      expect(metaDataCache!.containsKey(testKey), false);
+      expect(metaDataCache.containsKey(testKey), false);
     });
 
     test(
         'A test to verify key created via create method with TTL is added to metaDataCache',
         () async {
-      SecondaryPersistenceStore keyStoreManager =
-          testPersistenceStoreFor('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
+      HiveSecondaryKeyStore keystore = testKeyStoreFor('@test_user_1');
       AtData atData = AtData()
         ..data = 'sample_data_put_2'
         ..metaData = (AtMetaData()
           ..isEncrypted = false
           ..ttl = 10000);
       final testKey = 'sample_put_key_2🛠.wavi@test_user_1';
-      await keystore?.create(testKey, atData);
-      final metaDataCache = keystore?.getExpiryKeysCache();
+      await keystore.create(testKey, atData);
+      final metaDataCache = keystore.getExpiryKeysCache();
       expect(metaDataCache, isNotNull);
-      expect(metaDataCache!.containsKey(testKey), true);
+      expect(metaDataCache.containsKey(testKey), true);
     });
 
     test(
         'A test to verify key created via create method with TTB is added to metaDataCache',
         () async {
-      SecondaryPersistenceStore keyStoreManager =
-          testPersistenceStoreFor('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
+      HiveSecondaryKeyStore keystore = testKeyStoreFor('@test_user_1');
       AtData atData = AtData()
         ..data = 'sample_data_put_2'
         ..metaData = (AtMetaData()
           ..isEncrypted = false
           ..ttb = 10000);
       final testKey = 'sample_put_key_2🛠.wavi@test_user_1';
-      await keystore?.create(testKey, atData);
-      final metaDataCache = keystore?.getExpiryKeysCache();
+      await keystore.create(testKey, atData);
+      final metaDataCache = keystore.getExpiryKeysCache();
       expect(metaDataCache, isNotNull);
-      expect(metaDataCache!.containsKey(testKey), true);
+      expect(metaDataCache.containsKey(testKey), true);
     });
 
     test(
         'A test to verify key created via create method with TTB and TTL is added to metaDataCache',
         () async {
-      SecondaryPersistenceStore keyStoreManager =
-          testPersistenceStoreFor('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
+      HiveSecondaryKeyStore keystore = testKeyStoreFor('@test_user_1');
       AtData atData = AtData()
         ..data = 'sample_data_put_2'
         ..metaData = (AtMetaData()
@@ -517,31 +477,29 @@ void main() async {
           ..ttl = 10000
           ..ttb = 10000);
       final testKey = 'sample_put_key_2🛠.wavi@test_user_1';
-      await keystore?.create(testKey, atData);
-      final metaDataCache = keystore?.getExpiryKeysCache();
+      await keystore.create(testKey, atData);
+      final metaDataCache = keystore.getExpiryKeysCache();
       expect(metaDataCache, isNotNull);
-      expect(metaDataCache!.containsKey(testKey), true);
+      expect(metaDataCache.containsKey(testKey), true);
     });
 
     test('A test to verify deleted key is removed from metaDataCache',
         () async {
-      SecondaryPersistenceStore keyStoreManager =
-          testPersistenceStoreFor('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
+      HiveSecondaryKeyStore keystore = testKeyStoreFor('@test_user_1');
       AtData atData = AtData()
         ..data = 'sample_data_remove_2'
         ..metaData = (AtMetaData()
           ..isEncrypted = true
           ..ttl = 10000);
       final testKey = 'sample_remove_key_2🛠.wavi@test_user_1';
-      await keystore?.put(testKey, atData);
-      final int? cacheEntriesCountBeforeRemove =
-          keystore?.getExpiryKeysCache().length;
-      final removeResult = await keystore?.remove(testKey);
+      await keystore.put(testKey, atData);
+      final int cacheEntriesCountBeforeRemove =
+          keystore.getExpiryKeysCache().length;
+      final removeResult = await keystore.remove(testKey);
       expect(removeResult, isNotNull);
-      final metaDataCache = keystore?.getExpiryKeysCache();
+      final metaDataCache = keystore.getExpiryKeysCache();
       expect(metaDataCache, isNotNull);
-      expect(metaDataCache!.length, cacheEntriesCountBeforeRemove! - 1);
+      expect(metaDataCache.length, cacheEntriesCountBeforeRemove - 1);
       expect(metaDataCache.containsKey(testKey), false);
     });
 
@@ -549,56 +507,48 @@ void main() async {
         'A test to verify deleting a key which is not present in metaDataCache does not raise exception',
         () async {
       String atSign = '@test_user_1';
-      SecondaryPersistenceStore keyStoreManager =
-          testPersistenceStoreFor(atSign);
-      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
+      HiveSecondaryKeyStore keystore = testKeyStoreFor(atSign);
       AtData atData = AtData()
         ..data = 'sample_data_remove_4'
         ..metaData = (AtMetaData()..isEncrypted = false);
       final testKey = 'non_existent_key.wavi$atSign';
-      await keystore?.put(testKey, atData);
-      await keystore?.remove(testKey);
+      await keystore.put(testKey, atData);
+      await keystore.remove(testKey);
     });
 
     test('A test to verify metaDataCache with put and remove operations',
         () async {
-      SecondaryPersistenceStore keyStoreManager =
-          testPersistenceStoreFor('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
+      HiveSecondaryKeyStore keystore = testKeyStoreFor('@test_user_1');
       AtData atData = AtData()
         ..data = 'value_test_1'
         ..metaData = (AtMetaData()..ttl = 10000);
       // The key will be inserted into metadata cache
-      await keystore?.put('key_test_1.wavi@test_user_1', atData);
+      await keystore.put('key_test_1.wavi@test_user_1', atData);
       AtMetaData? getMetaResult =
-          await keystore?.getMeta('key_test_1.wavi@test_user_1');
+          await keystore.getMeta('key_test_1.wavi@test_user_1');
       expect(getMetaResult?.ttl, 10000);
-      await keystore?.remove('key_test_1.wavi@test_user_1');
-      expect(await keystore?.getMeta('key_test_1.wavi@test_user_1'), null);
+      await keystore.remove('key_test_1.wavi@test_user_1');
+      expect(await keystore.getMeta('key_test_1.wavi@test_user_1'), null);
     });
 
     test(
         'A test to verify key updated via putMeta method is added to metaDataCache',
         () async {
-      SecondaryPersistenceStore keyStoreManager =
-          testPersistenceStoreFor('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
+      HiveSecondaryKeyStore keystore = testKeyStoreFor('@test_user_1');
       AtData atData = AtData()
         ..data = 'value_test_2'
         ..metaData = (AtMetaData()..ttl = 10000);
-      await keystore?.put('key_test_2.wavi@test_user_1', atData);
-      await keystore?.putMeta(
+      await keystore.put('key_test_2.wavi@test_user_1', atData);
+      await keystore.putMeta(
           'key_test_2.wavi@test_user_1', AtMetaData()..ttl = 300000);
       AtMetaData? newMeta =
-          await keystore?.getMeta('key_test_2.wavi@test_user_1');
+          await keystore.getMeta('key_test_2.wavi@test_user_1');
       expect(newMeta?.ttl, 300000);
     });
 
     test('A test to verify metaDataCache with sequence of put operation',
         () async {
-      SecondaryPersistenceStore keyStoreManager =
-          testPersistenceStoreFor('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
+      HiveSecondaryKeyStore keystore = testKeyStoreFor('@test_user_1');
       AtData atData = AtData()
         ..data = 'dummy_data'
         ..metaData = (AtMetaData()
@@ -607,67 +557,63 @@ void main() async {
       for (int i = 1; i <= 5; i++) {
         final testKey = 'sample_data_put_$i.wavi@test_user_1';
         atData.data = 'sample_data_put_$i';
-        await keystore?.create(testKey, atData);
+        await keystore.create(testKey, atData);
       }
-      final metaDataCache = keystore?.getExpiryKeysCache();
+      final metaDataCache = keystore.getExpiryKeysCache();
       for (int i = 1; i <= 5; i++) {
         final testKey = 'sample_data_put_$i.wavi@test_user_1';
         atData.data = 'sample_data_put_$i';
-        expect(keystore?.isKeyExists(testKey), true);
-        expect(metaDataCache?.containsKey(testKey), true);
+        expect(keystore.isKeyExists(testKey), true);
+        expect(metaDataCache.containsKey(testKey), true);
       }
     });
 
     test(
         'test random sequence of put operations and delete operation - check cache and keystore entries',
         () async {
-      SecondaryPersistenceStore keyStoreManager =
-          testPersistenceStoreFor('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
+      HiveSecondaryKeyStore keystore = testKeyStoreFor('@test_user_1');
       AtData atData = AtData()
         ..data = 'sample_data'
         ..metaData = (AtMetaData()..ttl = 10000);
       // put 3 keys
       final testKey_1 = 'sample_data_put_1.wavi@test_user_1';
-      await keystore?.create(testKey_1, atData);
+      await keystore.create(testKey_1, atData);
       final testKey_2 = 'sample_data_put_2.wavi@test_user_1';
-      await keystore?.create(testKey_2, atData);
+      await keystore.create(testKey_2, atData);
       final testKey_3 = 'sample_data_put_3.wavi@test_user_1';
-      await keystore?.create(testKey_3, atData);
+      await keystore.create(testKey_3, atData);
 
       // delete 2 keys
-      await keystore?.remove(testKey_3);
-      await keystore?.remove(testKey_2);
-      final metaDataCache = keystore?.getExpiryKeysCache();
-      expect(keystore?.isKeyExists(testKey_1), true);
-      expect(metaDataCache?.containsKey(testKey_1), true);
-      expect(keystore?.isKeyExists(testKey_2), false);
-      expect(metaDataCache?.containsKey(testKey_2), false);
-      expect(keystore?.isKeyExists(testKey_3), false);
-      expect(metaDataCache?.containsKey(testKey_3), false);
+      await keystore.remove(testKey_3);
+      await keystore.remove(testKey_2);
+      final metaDataCache = keystore.getExpiryKeysCache();
+      expect(keystore.isKeyExists(testKey_1), true);
+      expect(metaDataCache.containsKey(testKey_1), true);
+      expect(keystore.isKeyExists(testKey_2), false);
+      expect(metaDataCache.containsKey(testKey_2), false);
+      expect(keystore.isKeyExists(testKey_3), false);
+      expect(metaDataCache.containsKey(testKey_3), false);
     });
 
     test('A test to verify new metadata is returned when TTL is unset',
         () async {
-      SecondaryPersistenceStore keyStoreManager =
-          testPersistenceStoreFor('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
+      HiveSecondaryKeyStore keystore = testKeyStoreFor('@test_user_1');
       AtData atData = AtData()
         ..data = 'dummy_value'
         ..metaData = (AtMetaData()..ttl = 10000);
-      await keystore?.put('dummykey.wavi@test_user_1', atData);
+      await keystore.put('dummykey.wavi@test_user_1', atData);
       AtData updatedAtData = AtData()
         ..data = 'updated_value'
         ..metaData = (AtMetaData()
           ..ttl = 0
           ..ttr = -1
           ..ttb = null);
-      await keystore?.put(
+      await keystore.put(
         'dummykey.wavi@test_user_1',
         updatedAtData,
       );
       AtMetaData? atMetaData =
-          await keystore?.getMeta('dummykey.wavi@test_user_1');
+          await keystore.getMeta('dummykey.wavi@test_user_1');
       expect(atMetaData?.ttr, -1);
       expect(atMetaData?.ttl, 0);
     });
@@ -675,20 +621,18 @@ void main() async {
     test(
         'A test to verify getExpiredKeys method returns the keys whose TTL is met eventually',
         () async {
-      SecondaryPersistenceStore keyStoreManager =
-          testPersistenceStoreFor('@test_user_1');
-      HiveSecondaryKeyStore? keystore = keyStoreManager.getSecondaryKeyStore();
+      HiveSecondaryKeyStore keystore = testKeyStoreFor('@test_user_1');
       AtData atData = AtData()
         ..data = 'dummy_value'
         ..metaData = (AtMetaData()..ttl = 30);
-      await keystore?.put('keyabouttoexpire.wavi@test_user_1', atData);
-      var expiredKeysList = await keystore?.getExpiredKeys();
-      expect(expiredKeysList?.contains('keyabouttoexpire.wavi@test_user_1'),
-          false);
-      await Future.delayed(Duration(milliseconds: 31));
-      expiredKeysList = await keystore?.getExpiredKeys();
+      await keystore.put('keyabouttoexpire.wavi@test_user_1', atData);
+      var expiredKeysList = await keystore.getExpiredKeys();
       expect(
-          expiredKeysList?.contains('keyabouttoexpire.wavi@test_user_1'), true);
+          expiredKeysList.contains('keyabouttoexpire.wavi@test_user_1'), false);
+      await Future.delayed(Duration(milliseconds: 31));
+      expiredKeysList = await keystore.getExpiredKeys();
+      expect(
+          expiredKeysList.contains('keyabouttoexpire.wavi@test_user_1'), true);
     });
     tearDown(() async => await tearDownFunc(atSign));
   });
@@ -699,9 +643,7 @@ void main() async {
 
     setUp(() async {
       await setUpFunc(storageDir, atSign);
-      SecondaryPersistenceStore keyStoreManager =
-          testPersistenceStoreFor(atSign);
-      keystore = (keyStoreManager.getSecondaryKeyStore())!;
+      keystore = testKeyStoreFor(atSign);
     });
     tearDown(() async => await tearDownFunc(atSign));
 
@@ -813,8 +755,7 @@ void main() async {
     String atSign = '@test_user_1';
     setUp(() async => await setUpFunc(storageDir, atSign));
     test('skip commit true in put', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var keyStore = testKeyStoreFor('@test_user_1');
       var atData = AtData();
       atData.data = '123';
       var result = await keyStore.put('phone.wavi@test_user_1', atData,
@@ -825,8 +766,7 @@ void main() async {
           isNull);
     });
     test('skip commit true in create', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var keyStore = testKeyStoreFor('@test_user_1');
       var atData = AtData();
       atData.data = '123';
       var result = await keyStore.create('email.wavi@test_user_1', atData,
@@ -837,8 +777,7 @@ void main() async {
           isNull);
     });
     test('skip commit true in remove', () async {
-      var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager.getSecondaryKeyStore()!;
+      var keyStore = testKeyStoreFor('@test_user_1');
       var atData = AtData();
       atData.data = '123';
       var result =
@@ -866,9 +805,8 @@ Future<void> tearDownFunc(String atSign) async {
 Future<void> setUpFunc(String storageDir, String atSign) async {
   var commitLogInstance =
       await testCommitLogFor(atSign, commitLogPath: storageDir);
-  var persistenceManager = testPersistenceStoreFor(atSign);
-  await persistenceManager.getHivePersistenceManager()!.init(storageDir);
-  persistenceManager.getSecondaryKeyStore()!.commitLog = commitLogInstance;
+  await testHivePersistenceManagerFor(atSign).init(storageDir);
+  testKeyStoreFor(atSign).commitLog = commitLogInstance;
 }
 
 String _getShaForAtSign(String atSign) {

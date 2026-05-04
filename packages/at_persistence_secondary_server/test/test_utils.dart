@@ -1,7 +1,8 @@
 import 'dart:math';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive_manager.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive_secondary_keystore.dart';
 import 'package:at_persistence_secondary_server/src/log/accesslog/access_log_keystore.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_log_keystore.dart';
 
@@ -24,20 +25,42 @@ class TestUtils {
 // previous singleton behaviour without resurrecting the singleton API.
 // =====================================================================
 
-final Map<String, SecondaryPersistenceStore> _testPersistenceStores = {};
+class _TestKeyStorePair {
+  final HiveSecondaryKeyStore keyStore;
+  final HivePersistenceManager manager;
+  _TestKeyStorePair(this.keyStore, this.manager);
+}
 
-/// Returns the shared [SecondaryPersistenceStore] for [atSign] in
-/// the current test process. Construction is idempotent.
-SecondaryPersistenceStore testPersistenceStoreFor(String atSign) =>
-    _testPersistenceStores.putIfAbsent(
-        atSign, () => SecondaryPersistenceStore(atSign));
+final Map<String, _TestKeyStorePair> _testKeyStores = {};
 
-/// Closes every test-shared [SecondaryPersistenceStore].
+_TestKeyStorePair _pairFor(String atSign) =>
+    _testKeyStores.putIfAbsent(atSign, () {
+      final manager = HivePersistenceManager(atSign);
+      final keyStore = HiveSecondaryKeyStore();
+      keyStore.persistenceManager = manager;
+      manager.keyStoreForExpireTask = keyStore;
+      return _TestKeyStorePair(keyStore, manager);
+    });
+
+/// Returns the shared [HiveSecondaryKeyStore] for [atSign] in the
+/// current test process. The associated [HivePersistenceManager]
+/// is wired up internally; reach it via
+/// [testHivePersistenceManagerFor].
+HiveSecondaryKeyStore testKeyStoreFor(String atSign) =>
+    _pairFor(atSign).keyStore;
+
+/// Returns the shared [HivePersistenceManager] for [atSign] in the
+/// current test process. Wired to the same [HiveSecondaryKeyStore]
+/// returned by [testKeyStoreFor].
+HivePersistenceManager testHivePersistenceManagerFor(String atSign) =>
+    _pairFor(atSign).manager;
+
+/// Closes every test-shared persistence manager.
 Future<void> closeTestPersistenceStores() async {
-  for (final store in _testPersistenceStores.values) {
-    await store.getHivePersistenceManager()?.close();
+  for (final pair in _testKeyStores.values) {
+    await pair.manager.close();
   }
-  _testPersistenceStores.clear();
+  _testKeyStores.clear();
 }
 
 final Map<String, HiveAtCommitLog> _testCommitLogs = {};

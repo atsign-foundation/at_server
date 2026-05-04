@@ -1,7 +1,6 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_manager.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_secondary_keystore.dart';
-import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store.dart';
 import 'package:at_persistence_secondary_server/src/log/accesslog/access_log_keystore.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_log_keystore.dart';
 import 'package:at_utils/at_logger.dart';
@@ -61,16 +60,15 @@ class HiveAtPersistenceFactory implements AtPersistenceFactory {
       await notificationKeystore.init(config.notificationStoragePath);
     }
 
-    // 4. Secondary keystore + Hive persistence manager. The
-    //    SecondaryPersistenceStore constructor wires all three
-    //    together (HiveSecondaryKeyStore <-> HivePersistenceManager
-    //    <-> SecondaryKeyStoreManager) and sets up the
-    //    keyStoreForExpireTask back-reference.
-    final secondaryPersistenceStore = SecondaryPersistenceStore(atSign);
-    final hivePm = secondaryPersistenceStore.getHivePersistenceManager()!;
+    // 4. Secondary keystore + Hive persistence manager. Wire the
+    //    pair together up-front so HivePersistenceManager's cron
+    //    has its target keystore by tick time.
+    final hivePm = HivePersistenceManager(atSign);
     await hivePm.init(config.storagePath);
 
-    final keyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
+    final keyStore = HiveSecondaryKeyStore();
+    keyStore.persistenceManager = hivePm;
+    hivePm.keyStoreForExpireTask = keyStore;
     keyStore.commitLog = commitLog;
 
     await keyStore.initialize();

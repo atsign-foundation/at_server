@@ -1,28 +1,20 @@
 import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store.dart';
 import 'package:at_persistence_secondary_server/src/log/accesslog/access_entry.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
 
 String storageDir = '${Directory.current.path}/test/hive';
-SecondaryPersistenceStore? secondaryPersistenceStore;
 HiveAtCommitLog? atCommitLog;
 
 Future<void> setUpMethod({bool enableCommitId = true}) async {
   String atSign = '@alice';
-  // Initialize secondary persistent store
-  secondaryPersistenceStore = testPersistenceStoreFor(atSign);
-  // Initialize commit log
   atCommitLog = await testCommitLogFor(atSign,
       commitLogPath: storageDir, enableCommitId: enableCommitId);
-  secondaryPersistenceStore!.getSecondaryKeyStore()?.commitLog = atCommitLog;
-  // Init the hive instances
-  await secondaryPersistenceStore!
-      .getHivePersistenceManager()!
-      .init(storageDir);
+  testKeyStoreFor(atSign).commitLog = atCommitLog;
+  await testHivePersistenceManagerFor(atSign).init(storageDir);
 }
 
 void main() {

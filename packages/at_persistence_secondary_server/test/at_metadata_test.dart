@@ -28,11 +28,11 @@ void main() async {
     test('A test to default field in metadata is set on a new key creation',
         () async {
       var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      var hiveKeyStore = testPersistenceStoreFor(atSign).getSecondaryKeyStore();
+      var hiveKeyStore = testKeyStoreFor(atSign);
       var key = '@bob:phone@alice';
       var value = '9878123321';
-      await hiveKeyStore?.put(key, AtData()..data = value);
-      var atData = await hiveKeyStore?.get(key);
+      await hiveKeyStore.put(key, AtData()..data = value);
+      var atData = await hiveKeyStore.get(key);
       expect(atData?.data, value);
       expect(
           atData!.metaData!.createdAt!.millisecondsSinceEpoch >=
@@ -58,14 +58,14 @@ void main() async {
         'A test to verify version field in metadata is set to 1 on updating the existing key',
         () async {
       var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      var hiveKeyStore = testPersistenceStoreFor(atSign).getSecondaryKeyStore();
+      var hiveKeyStore = testKeyStoreFor(atSign);
       var key = '@bob:mobile@alice';
       var value = '9878123321';
-      await hiveKeyStore?.put(key, AtData()..data = value);
+      await hiveKeyStore.put(key, AtData()..data = value);
       // Update the same key
       var updateKeyDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      await hiveKeyStore?.put(key, AtData()..data = '9878123322');
-      var atData = await hiveKeyStore?.get(key);
+      await hiveKeyStore.put(key, AtData()..data = '9878123322');
+      var atData = await hiveKeyStore.get(key);
       expect(atData?.data, '9878123322');
       expect(
           atData!.metaData!.createdAt!.millisecondsSinceEpoch >=
@@ -83,14 +83,14 @@ void main() async {
         'A test to verify version field in metadata is set to 1 when updating metadata using putMeta method',
         () async {
       var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      var hiveKeyStore = testPersistenceStoreFor(atSign).getSecondaryKeyStore();
+      var hiveKeyStore = testKeyStoreFor(atSign);
       var key = '@bob:country@alice';
       var value = '9878123321';
-      await hiveKeyStore?.put(key, AtData()..data = value);
+      await hiveKeyStore.put(key, AtData()..data = value);
       // Update the same key
       var updateKeyDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      await hiveKeyStore?.putMeta(key, AtMetaData()..ttl = 10000);
-      var atData = await hiveKeyStore?.get(key);
+      await hiveKeyStore.putMeta(key, AtMetaData()..ttl = 10000);
+      var atData = await hiveKeyStore.get(key);
       expect(atData?.data, value);
       expect(
           atData!.metaData!.createdAt!.millisecondsSinceEpoch >=
@@ -108,15 +108,15 @@ void main() async {
         'A test to verify version field in metadata is set to 1 when using putAll method',
         () async {
       var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      var hiveKeyStore = testPersistenceStoreFor(atSign).getSecondaryKeyStore();
+      var hiveKeyStore = testKeyStoreFor(atSign);
       var key = '@bob:city@alice';
-      await hiveKeyStore?.putAll(
+      await hiveKeyStore.putAll(
           key, AtData()..data = '9878123322', AtMetaData());
       // Update the same key
       var updateKeyDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      await hiveKeyStore?.putAll(
+      await hiveKeyStore.putAll(
           key, AtData()..data = '9878123322', AtMetaData()..ttl = 10000);
-      var atData = await hiveKeyStore?.get(key);
+      var atData = await hiveKeyStore.get(key);
       expect(atData?.data, '9878123322');
       expect(
           atData!.metaData!.createdAt!.millisecondsSinceEpoch >=
@@ -241,11 +241,8 @@ Future<HiveSecondaryKeyStore> setUpFunc(storageDir,
     {bool enableCommitId = true}) async {
   var commitLogInstance = await testCommitLogFor('@alice',
       commitLogPath: storageDir, enableCommitId: enableCommitId);
-  var secondaryPersistenceStore = testPersistenceStoreFor('@alice');
-  var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init(storageDir);
-  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
+  await testHivePersistenceManagerFor('@alice').init(storageDir);
+  var hiveKeyStore = testKeyStoreFor('@alice');
   hiveKeyStore.commitLog = commitLogInstance;
   return hiveKeyStore;
 }
