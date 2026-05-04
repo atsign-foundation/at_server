@@ -184,22 +184,58 @@ abstract class AbstractVerbHandler implements VerbHandler {
       String? namespace,
       String enrolledNamespaceAccess = '',
       String operation = ''}) async {
+    final enrollmentId = inboundConnectionMetadata.enrollmentId;
     // If legacy PKAM (full permissions) or is a reserved key (to which all
     // authenticated connections have access) then return true
-    if (inboundConnectionMetadata.enrollmentId == null ||
-        _isReservedKey(atKey)) {
+    if (enrollmentId == null || _isReservedKey(atKey)) {
       return true;
     }
+    final enroll = await _resolveEnrollment(enrollmentId);
+    return isAuthorizedSync(enroll, enrollmentId,
+        atKey: atKey,
+        namespace: namespace,
+        enrolledNamespaceAccess: enrolledNamespaceAccess,
+        operation: operation);
+  }
 
-    EnrollDataStoreValue enrollDataStoreValue;
-
+  /// Fetches the enrollment record for [enrollmentId] from the
+  /// enrollment manager. Returns `null` if the record cannot be
+  /// found ([KeyNotFoundException]); callers treat that as
+  /// "deny all".
+  Future<EnrollDataStoreValue?> _resolveEnrollment(String enrollmentId) async {
     try {
-      enrollDataStoreValue = await AtSecondaryServerImpl.getInstance()
+      return await AtSecondaryServerImpl.getInstance()
           .enrollmentManager
-          .getEnrollmentById(inboundConnectionMetadata.enrollmentId!);
+          .getEnrollmentById(enrollmentId);
     } on KeyNotFoundException {
-      logger.severe(
-          'Could not retrieve enrollment data for ${inboundConnectionMetadata.enrollmentId}');
+      logger.severe('Could not retrieve enrollment data for $enrollmentId');
+      return null;
+    }
+  }
+
+  /// Synchronous per-entry authorization check against a pre-fetched
+  /// [enrollDataStoreValue]. Hot-path companion to [isAuthorized] for
+  /// callers that decide many entries against a single enrollment
+  /// context (e.g. sync's commit-log walk) — resolve once via
+  /// [_resolveEnrollment], then call this for each candidate atKey.
+  ///
+  /// Three input states:
+  ///   - [enrollmentId] is null → legacy PKAM, full access → true
+  ///   - [atKey] is a reserved key → all authenticated connections
+  ///     have access → true (does not require a resolved enrollment)
+  ///   - [enrollDataStoreValue] is null → enrollment record unresolvable
+  ///     ([KeyNotFoundException] from [_resolveEnrollment]) → false
+  ///   - otherwise → namespace-access decision based on the enrollment
+  bool isAuthorizedSync(
+      EnrollDataStoreValue? enrollDataStoreValue, String? enrollmentId,
+      {String? atKey,
+      String? namespace,
+      String enrolledNamespaceAccess = '',
+      String operation = ''}) {
+    if (enrollmentId == null || _isReservedKey(atKey)) {
+      return true;
+    }
+    if (enrollDataStoreValue == null) {
       return false;
     }
 
@@ -236,8 +272,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
     // to public data, or if the enrollment has "*:rw"
     //
     // Unit tests to assert this are in update_verb_test.dart
-    enrollDataStoreValue.namespaces[enrollmentReservedNamespace(
-        inboundConnectionMetadata.enrollmentId!)] = 'rw';
+    enrollDataStoreValue.namespaces[enrollmentReservedNamespace(enrollmentId)] =
+        'rw';
 
     // Checks for namespace authorisation
     // In the authorizedNamespace, the first parameter represents the namespace and second parameter represents the
