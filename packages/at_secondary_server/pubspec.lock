@@ -88,13 +88,6 @@ packages:
       relative: true
     source: path
     version: "5.0.0"
-  at_persistence_spec:
-    dependency: "direct main"
-    description:
-      path: "../at_persistence_spec"
-      relative: true
-    source: path
-    version: "3.1.0"
   at_server_spec:
     dependency: "direct main"
     description:

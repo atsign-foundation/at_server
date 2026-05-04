@@ -18,7 +18,6 @@ import 'package:at_server_spec/at_server_spec.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
-
 import 'enrollment_test_utils.dart';
 import 'test_utils.dart';
 
