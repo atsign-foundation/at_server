@@ -66,10 +66,9 @@ void main() {
     test('post-release reads throw StateError', () async {
       final snap = await bundle.keyStore.snapshot();
       await snap.release();
-      expect(() => snap.get('public:k@alice'),
-          throwsA(isA<StateError>()));
-      expect(() => snap.scanKeys(KeyPattern()).first,
-          throwsA(isA<StateError>()));
+      expect(() => snap.get('public:k@alice'), throwsA(isA<StateError>()));
+      expect(
+          () => snap.scanKeys(KeyPattern()).first, throwsA(isA<StateError>()));
     });
 
     test('absent key via snapshot returns null (not throws)', () async {

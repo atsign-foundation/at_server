@@ -49,9 +49,8 @@ void main() {
           .toList();
       expect(keys.length, 6);
       // @bob isn't an owner here.
-      final none = await bundle.keyStore
-          .scanKeys(KeyPattern(sharedBy: '@bob'))
-          .toList();
+      final none =
+          await bundle.keyStore.scanKeys(KeyPattern(sharedBy: '@bob')).toList();
       expect(none, isEmpty);
     });
 
@@ -74,8 +73,7 @@ void main() {
           .scanKeys(KeyPattern(namespace: 'wavi'))
           .toList();
       expect(waviKeys.length, 3);
-      expect(
-          waviKeys.every((k) => k.contains('.wavi@')), isTrue,
+      expect(waviKeys.every((k) => k.contains('.wavi@')), isTrue,
           reason: 'every wavi key has .wavi@ in it');
 
       final tasksKeys = await bundle.keyStore
@@ -85,9 +83,8 @@ void main() {
     });
 
     test('filter by idPrefix', () async {
-      final pKeys = await bundle.keyStore
-          .scanKeys(KeyPattern(idPrefix: 'p'))
-          .toList();
+      final pKeys =
+          await bundle.keyStore.scanKeys(KeyPattern(idPrefix: 'p')).toList();
       // 'phone', 'plan' (twice) — three keys whose id starts with 'p'.
       expect(pKeys.length, 3);
     });
@@ -125,8 +122,7 @@ void main() {
       expect(keys.length, 6);
     });
 
-    test('isKeyExists / exists / scanKeys all agree on a single key',
-        () async {
+    test('isKeyExists / exists / scanKeys all agree on a single key', () async {
       const k = 'public:phone.wavi@alice';
       expect(bundle.keyStore.isKeyExists(k), isTrue);
       expect(await bundle.keyStore.exists(k), isTrue);
@@ -191,11 +187,9 @@ void main() {
 
       // sharedBy / sharedWith / namespace don't apply to notification
       // ids — scan returns empty.
-      expect(
-          await notif.scanKeys(KeyPattern(sharedBy: '@alice')).toList(),
+      expect(await notif.scanKeys(KeyPattern(sharedBy: '@alice')).toList(),
           isEmpty);
-      expect(
-          await notif.scanKeys(KeyPattern(namespace: 'wavi')).toList(),
+      expect(await notif.scanKeys(KeyPattern(namespace: 'wavi')).toList(),
           isEmpty);
     });
   });

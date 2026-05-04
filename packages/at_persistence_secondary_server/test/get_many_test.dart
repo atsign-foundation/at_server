@@ -78,8 +78,7 @@ void main() {
       expect(result.values.first?.data, '+1 555-0100');
     });
 
-    test('duplicate input keys are de-duplicated (Map semantics)',
-        () async {
+    test('duplicate input keys are de-duplicated (Map semantics)', () async {
       // Two identical input keys → one map entry.
       final result = await bundle.keyStore.getMany([
         'public:phone.wavi@alice',

@@ -89,8 +89,7 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     _verbHandlers = [];
     _verbHandlers.add(FromVerbHandler(keyStore,
         commitLog: _commitLogOverride, accessLog: _accessLogOverride));
-    _verbHandlers.add(
-        CramVerbHandler(keyStore, accessLog: _accessLogOverride));
+    _verbHandlers.add(CramVerbHandler(keyStore, accessLog: _accessLogOverride));
     _verbHandlers.add(PkamVerbHandler(keyStore));
     _verbHandlers.add(UpdateVerbHandler(
       keyStore,

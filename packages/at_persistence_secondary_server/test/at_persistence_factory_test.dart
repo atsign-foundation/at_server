@@ -37,7 +37,8 @@ void main() {
 
         // Round-trip a key through the keystore to prove it's actually open.
         final atData = AtData()..data = 'hello';
-        final commitId = await bundle.keyStore.put('public:greet@alice', atData);
+        final commitId =
+            await bundle.keyStore.put('public:greet@alice', atData);
         expect(commitId, isNotNull);
         final fetched = await bundle.keyStore.get('public:greet@alice');
         expect(fetched?.data, 'hello');
@@ -168,11 +169,9 @@ void main() {
       }
     });
 
-    test('initialize rejects a config that does not match backendId',
-        () async {
+    test('initialize rejects a config that does not match backendId', () async {
       final factory = HiveAtPersistenceFactory();
-      expect(
-          () => factory.initialize('@alice', _NotHiveConfig()),
+      expect(() => factory.initialize('@alice', _NotHiveConfig()),
           throwsA(isA<ArgumentError>()));
     });
   });
@@ -213,8 +212,7 @@ void main() {
 
 class _NotHiveConfig implements AtPersistenceConfig {
   @override
-  AtPersistenceBackendId get backend =>
-      throw UnimplementedError(); // not Hive
+  AtPersistenceBackendId get backend => throw UnimplementedError(); // not Hive
   @override
   String get storagePath => '/tmp';
   @override

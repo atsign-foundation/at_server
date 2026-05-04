@@ -38,14 +38,15 @@ void main() {
       expect(s.newestCreatedAt, isNull);
     });
 
-    test('totalKeys reflects every key, including TTL and TTB ones',
-        () async {
+    test('totalKeys reflects every key, including TTL and TTB ones', () async {
       await bundle.keyStore.put('public:a@alice', AtData()..data = 'v');
-      await bundle.keyStore.put('public:b@alice',
+      await bundle.keyStore.put(
+          'public:b@alice',
           AtData()
             ..data = 'v'
             ..metaData = (AtMetaData()..ttl = 60000));
-      await bundle.keyStore.put('public:c@alice',
+      await bundle.keyStore.put(
+          'public:c@alice',
           AtData()
             ..data = 'v'
             ..metaData = (AtMetaData()..ttb = 30000));
@@ -69,7 +70,8 @@ void main() {
       await bundle.keyStore.put('public:a@alice', AtData()..data = 'v');
       final s = await bundle.keyStore.stats();
       expect(s.sizeBytes, 0,
-          reason: 'Hive impl leaves sizeBytes at 0 — SQL backends report exact');
+          reason:
+              'Hive impl leaves sizeBytes at 0 — SQL backends report exact');
     });
   });
 

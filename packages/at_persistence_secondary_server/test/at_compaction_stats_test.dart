@@ -69,8 +69,8 @@ Future<void> main() async {
       // Store Compaction Stats
       await atCompactionStatsServiceImpl.handleStats(atCompactionStats);
       // Get Compaction Stats
-      AtData? atData = await keyStore!
-          .get(at_commons.AtConstants.commitLogCompactionKey);
+      AtData? atData =
+          await keyStore!.get(at_commons.AtConstants.commitLogCompactionKey);
 
       // Assert Compaction Stats
       var decodedData = jsonDecode(atData!.data!) as Map;
@@ -102,8 +102,8 @@ Future<void> main() async {
       var atCompactionStats =
           await atCompactionService.executeCompaction(atAccessLog!);
       await atCompactionStatsServiceImpl.handleStats(atCompactionStats);
-      AtData? atData = await keyStore!
-          .get(at_commons.AtConstants.accessLogCompactionKey);
+      AtData? atData =
+          await keyStore!.get(at_commons.AtConstants.accessLogCompactionKey);
       var data = (atData?.data);
       var decodedData = jsonDecode(data!) as Map;
       expect(decodedData["deletedKeysCount"], '3');

@@ -253,8 +253,7 @@ verbTestsSetUp() async {
   // singletons. The factory routes through the singletons internally
   // (Phase 1 wiring) so any test that still calls
   // *.getInstance() sees the same per-atSign instances.
-  final factory =
-      atServer.persistenceFactory = HiveAtPersistenceFactory();
+  final factory = atServer.persistenceFactory = HiveAtPersistenceFactory();
   final config = HivePersistenceConfig(
     storagePath: storageDir,
     commitLogPath: storageDir,

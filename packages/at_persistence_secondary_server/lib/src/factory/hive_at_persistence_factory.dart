@@ -206,7 +206,8 @@ class HiveAtPersistenceBundle implements AtPersistenceBundle {
     // task observes a closed box), then logs and notifications.
     await _hivePersistenceManager.close();
     await commitLog.close();
-    accessLog?.close(); // HiveAtAccessLog.close() returns void, not Future<void>
+    accessLog
+        ?.close(); // HiveAtAccessLog.close() returns void, not Future<void>
     await notificationKeystore?.close();
   }
 }

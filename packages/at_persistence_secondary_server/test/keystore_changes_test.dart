@@ -32,8 +32,7 @@ void main() {
 
     /// Listen to `changes` and capture events emitted while [op] runs,
     /// then return them in order.
-    Future<List<KeyStoreChange>> capture(
-        Future<void> Function() op) async {
+    Future<List<KeyStoreChange>> capture(Future<void> Function() op) async {
       final events = <KeyStoreChange>[];
       final sub = bundle.keyStore.changes.listen(events.add);
       await op();
@@ -71,8 +70,7 @@ void main() {
       expect(events.single.key, 'public:gone@alice');
     });
 
-    test('removeMany emits one KeyRemoved per actually-removed key',
-        () async {
+    test('removeMany emits one KeyRemoved per actually-removed key', () async {
       await bundle.keyStore.put('public:a@alice', AtData()..data = 'v');
       await bundle.keyStore.put('public:b@alice', AtData()..data = 'v');
       final events = await capture(() async {

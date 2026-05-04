@@ -367,8 +367,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         poolSize: serverContext!.inboundConnectionLimit);
 
     // Starts StatsNotificationService to keep monitor connections alive
-    await statsNotificationService
-        .schedule(currentAtSign, commitLog);
+    await statsNotificationService.schedule(currentAtSign, commitLog);
 
     //initializes subscribers for dynamic config change 'config:Set'
     await initDynamicConfigListeners();
@@ -790,8 +789,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// from the bundle without `!` litter at every call site.
   void _assertServerCapabilities(AtPersistenceBundle bundle) {
     if (bundle.accessLog == null) {
-      throw StateError(
-          'Server bundle is missing the access log capability. '
+      throw StateError('Server bundle is missing the access log capability. '
           'Did the config disable enableAccessLog?');
     }
     if (bundle.notificationKeystore == null) {
@@ -802,8 +800,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     if (bundle.commitLogCompactor == null ||
         bundle.accessLogCompactor == null ||
         bundle.keyStoreCompactor == null) {
-      throw StateError(
-          'Server bundle is missing one or more compactors. '
+      throw StateError('Server bundle is missing one or more compactors. '
           'Did the config disable enableCommitLogCompactor / '
           'enableAccessLogCompactor / enableKeyStoreCompactor?');
     }

@@ -79,8 +79,8 @@ void main() {
         await txn.remove('public:k@alice');
         expect(await txn.exists('public:k@alice'), isFalse);
         // Buffer a put for a fresh key → exists returns true.
-        await txn.put('public:fresh@alice',
-            AtData()..data = 'vf', AtMetaData());
+        await txn.put(
+            'public:fresh@alice', AtData()..data = 'vf', AtMetaData());
         expect(await txn.exists('public:fresh@alice'), isTrue);
       });
       // After the transaction, the buffered ops are applied.
@@ -88,14 +88,13 @@ void main() {
       expect(await bundle.keyStore.exists('public:fresh@alice'), isTrue);
     });
 
-    test('changes events fire only on commit, not on body throw',
-        () async {
+    test('changes events fire only on commit, not on body throw', () async {
       final events = <KeyStoreChange>[];
       final sub = bundle.keyStore.changes.listen(events.add);
       try {
         await bundle.keyStore.transaction((txn) async {
-          await txn.put('public:roll@alice',
-              AtData()..data = 'never', AtMetaData());
+          await txn.put(
+              'public:roll@alice', AtData()..data = 'never', AtMetaData());
           throw StateError('rolling back');
         });
       } catch (_) {/* expected */}
@@ -105,8 +104,8 @@ void main() {
 
       // Now a successful txn → events fire.
       await bundle.keyStore.transaction((txn) async {
-        await txn.put('public:ok@alice',
-            AtData()..data = 'committed', AtMetaData());
+        await txn.put(
+            'public:ok@alice', AtData()..data = 'committed', AtMetaData());
       });
       await Future.delayed(Duration.zero);
       await sub.cancel();
@@ -114,12 +113,10 @@ void main() {
       expect(events.single.key, 'public:ok@alice');
     });
 
-    test('latest op for a given key wins (put-then-remove → remove)',
-        () async {
+    test('latest op for a given key wins (put-then-remove → remove)', () async {
       await bundle.keyStore.put('public:rw@alice', AtData()..data = 'pre');
       await bundle.keyStore.transaction((txn) async {
-        await txn.put('public:rw@alice',
-            AtData()..data = 'mid', AtMetaData());
+        await txn.put('public:rw@alice', AtData()..data = 'mid', AtMetaData());
         await txn.remove('public:rw@alice');
       });
       // Final state: removed (the put inside the txn is overridden by
@@ -130,8 +127,7 @@ void main() {
 
     test('returns the body\'s value', () async {
       final n = await bundle.keyStore.transaction<int>((txn) async {
-        await txn.put('public:n@alice',
-            AtData()..data = 'one', AtMetaData());
+        await txn.put('public:n@alice', AtData()..data = 'one', AtMetaData());
         return 42;
       });
       expect(n, 42);

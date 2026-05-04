@@ -863,7 +863,8 @@ Future<void> tearDownFunc(String atSign) async {
 }
 
 Future<void> setUpFunc(String storageDir, String atSign) async {
-  var commitLogInstance = await testCommitLogFor(atSign, commitLogPath: storageDir);
+  var commitLogInstance =
+      await testCommitLogFor(atSign, commitLogPath: storageDir);
   var persistenceManager = testPersistenceStoreFor(atSign);
   await persistenceManager.getHivePersistenceManager()!.init(storageDir);
   persistenceManager.getSecondaryKeyStore()!.commitLog = commitLogInstance;

@@ -214,7 +214,8 @@ Future<SecondaryKeyStoreManager> getKeystoreManager(storageDir, atsign,
   var keyStoreManager =
       secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   var keyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
-  var commitLog = await testCommitLogFor(atsign, commitLogPath: storageDir, enableCommitId: true);
+  var commitLog = await testCommitLogFor(atsign,
+      commitLogPath: storageDir, enableCommitId: true);
   keyStore.commitLog = commitLog;
   keyStoreManager.keyStore = keyStore;
   return keyStoreManager;

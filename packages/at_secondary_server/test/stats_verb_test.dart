@@ -428,10 +428,9 @@ void main() {
       await secondaryKeyStore.put(
           '$alice:phone-$randomString$alice', AtData()..data = '9848033444');
       // Insert and delete a key
-      await secondaryKeyStore.put(
-          '$alice:deleteKey-$randomString$alice',
+      await secondaryKeyStore.put('$alice:deleteKey-$randomString$alice',
           AtData()..data = '9848033444');
-      await secondaryKeyStore          .remove('$alice:deleteKey-$randomString$alice');
+      await secondaryKeyStore.remove('$alice:deleteKey-$randomString$alice');
       var latestCommitIdForEachKey =
           await LatestCommitEntryOfEachKey(atServer).getMetrics();
       var latestCommitIdMap = jsonDecode(latestCommitIdForEachKey);
@@ -460,8 +459,7 @@ void main() {
       int randomNumber = min + Random().nextInt(max - min) + 1;
       for (int i = 1; i <= randomNumber; i++) {
         phoneNumber = phoneNumber + i;
-        await secondaryKeyStore.put(
-            '$alice:phone-${randomString}_$i$alice',
+        await secondaryKeyStore.put('$alice:phone-${randomString}_$i$alice',
             AtData()..data = phoneNumber.toString());
       }
       await LastCommitIDMetricImpl(atServer).getMetrics();
@@ -480,9 +478,12 @@ void main() {
     test(
         'A test to verify latest commitId among enrolled namespaces is returned',
         () async {
-      await secondaryKeyStore          .put('$alice:phone.wavi$alice', AtData()..data = '9848033443');
-      await secondaryKeyStore          .put('$alice:location.wavi$alice', AtData()..data = 'Hyderabad');
-      await secondaryKeyStore          .put('$alice:mobile.buzz$alice', AtData()..data = '9848033444');
+      await secondaryKeyStore.put(
+          '$alice:phone.wavi$alice', AtData()..data = '9848033443');
+      await secondaryKeyStore.put(
+          '$alice:location.wavi$alice', AtData()..data = 'Hyderabad');
+      await secondaryKeyStore.put(
+          '$alice:mobile.buzz$alice', AtData()..data = '9848033444');
 
       var lastCommitId = await LastCommitIDMetricImpl(atServer)
           .getMetrics(enrolledNamespaces: ['wavi']);
@@ -492,9 +493,12 @@ void main() {
     test(
         'A test to verify highest commitId among the authorized namespaces is returned',
         () async {
-      await secondaryKeyStore          .put('$alice:phone.wavi$alice', AtData()..data = '9848033443');
-      await secondaryKeyStore          .put('$alice:location.wavi$alice', AtData()..data = 'Hyderabad');
-      await secondaryKeyStore          .put('$alice:mobile.buzz$alice', AtData()..data = '9848033444');
+      await secondaryKeyStore.put(
+          '$alice:phone.wavi$alice', AtData()..data = '9848033443');
+      await secondaryKeyStore.put(
+          '$alice:location.wavi$alice', AtData()..data = 'Hyderabad');
+      await secondaryKeyStore.put(
+          '$alice:mobile.buzz$alice', AtData()..data = '9848033444');
       await secondaryKeyStore.put(
           '$alice:contact.atmosphere$alice', AtData()..data = '9848033444');
 
@@ -506,9 +510,12 @@ void main() {
     test(
         'A test to verify latestCommitId is returned when enrolledNamespace and regex are not supplied',
         () async {
-      await secondaryKeyStore          .put('$alice:phone.wavi$alice', AtData()..data = '9848033443');
-      await secondaryKeyStore          .put('$alice:location.wavi$alice', AtData()..data = 'Hyderabad');
-      await secondaryKeyStore          .put('$alice:mobile.buzz$alice', AtData()..data = '9848033444');
+      await secondaryKeyStore.put(
+          '$alice:phone.wavi$alice', AtData()..data = '9848033443');
+      await secondaryKeyStore.put(
+          '$alice:location.wavi$alice', AtData()..data = 'Hyderabad');
+      await secondaryKeyStore.put(
+          '$alice:mobile.buzz$alice', AtData()..data = '9848033444');
       await secondaryKeyStore.put(
           '$alice:contact.atmosphere$alice', AtData()..data = '9848033444');
 
@@ -519,9 +526,12 @@ void main() {
     test(
         'A test to verify latestCommitId is returned when only regex is not supplied',
         () async {
-      await secondaryKeyStore          .put('$alice:phone.wavi$alice', AtData()..data = '9848033443');
-      await secondaryKeyStore          .put('$alice:location.wavi$alice', AtData()..data = 'Hyderabad');
-      await secondaryKeyStore          .put('$alice:mobile.buzz$alice', AtData()..data = '9848033444');
+      await secondaryKeyStore.put(
+          '$alice:phone.wavi$alice', AtData()..data = '9848033443');
+      await secondaryKeyStore.put(
+          '$alice:location.wavi$alice', AtData()..data = 'Hyderabad');
+      await secondaryKeyStore.put(
+          '$alice:mobile.buzz$alice', AtData()..data = '9848033444');
       await secondaryKeyStore.put(
           '$alice:contact.atmosphere$alice', AtData()..data = '9848033444');
 

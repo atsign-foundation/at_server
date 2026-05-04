@@ -15,6 +15,5 @@ class KeyEntry<K, V, T> {
   const KeyEntry(this.key, this.data, this.metadata);
 
   @override
-  String toString() =>
-      'KeyEntry(key: $key, data: $data, metadata: $metadata)';
+  String toString() => 'KeyEntry(key: $key, data: $data, metadata: $metadata)';
 }

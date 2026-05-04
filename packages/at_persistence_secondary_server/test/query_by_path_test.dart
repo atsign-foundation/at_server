@@ -32,34 +32,35 @@ void main() {
       expect(bundle.keyStore.supportsPathQueries, isFalse);
     });
 
-    test('Hive notification keystore reports supportsPathQueries == false',
-        () {
+    test('Hive notification keystore reports supportsPathQueries == false', () {
       expect(bundle.notificationKeystore!.supportsPathQueries, isFalse);
     });
 
-    test('queryByPath throws UnsupportedError on Hive (gating contract)',
-        () {
+    test('queryByPath throws UnsupportedError on Hive (gating contract)', () {
       expect(
-        () => bundle.keyStore.queryByPath(
-          keyPattern: KeyPattern(),
-          predicate: PathEquals(['obj', 'amount'], 100),
-        ).first,
+        () => bundle.keyStore
+            .queryByPath(
+              keyPattern: KeyPattern(),
+              predicate: PathEquals(['obj', 'amount'], 100),
+            )
+            .first,
         throwsA(isA<UnsupportedError>()),
       );
     });
 
     test('queryByPath on the notification keystore also throws', () {
       expect(
-        () => bundle.notificationKeystore!.queryByPath(
-          keyPattern: KeyPattern(),
-          predicate: PathEquals(['anything'], 'x'),
-        ).first,
+        () => bundle.notificationKeystore!
+            .queryByPath(
+              keyPattern: KeyPattern(),
+              predicate: PathEquals(['anything'], 'x'),
+            )
+            .first,
         throwsA(isA<UnsupportedError>()),
       );
     });
 
-    test('Predicate AST round-trip: PathEquals + And + Or composition',
-        () {
+    test('Predicate AST round-trip: PathEquals + And + Or composition', () {
       // Smoke test that the AST builds without errors.
       final p = And([
         PathEquals(['obj', 'status'], 'unpaid'),

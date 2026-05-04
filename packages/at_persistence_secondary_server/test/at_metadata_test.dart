@@ -27,8 +27,7 @@ void main() async {
     test('A test to default field in metadata is set on a new key creation',
         () async {
       var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      var hiveKeyStore = testPersistenceStoreFor(atSign)
-          .getSecondaryKeyStore();
+      var hiveKeyStore = testPersistenceStoreFor(atSign).getSecondaryKeyStore();
       var key = '@bob:phone@alice';
       var value = '9878123321';
       await hiveKeyStore?.put(key, AtData()..data = value);
@@ -58,8 +57,7 @@ void main() async {
         'A test to verify version field in metadata is set to 1 on updating the existing key',
         () async {
       var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      var hiveKeyStore = testPersistenceStoreFor(atSign)
-          .getSecondaryKeyStore();
+      var hiveKeyStore = testPersistenceStoreFor(atSign).getSecondaryKeyStore();
       var key = '@bob:mobile@alice';
       var value = '9878123321';
       await hiveKeyStore?.put(key, AtData()..data = value);
@@ -84,8 +82,7 @@ void main() async {
         'A test to verify version field in metadata is set to 1 when updating metadata using putMeta method',
         () async {
       var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      var hiveKeyStore = testPersistenceStoreFor(atSign)
-          .getSecondaryKeyStore();
+      var hiveKeyStore = testPersistenceStoreFor(atSign).getSecondaryKeyStore();
       var key = '@bob:country@alice';
       var value = '9878123321';
       await hiveKeyStore?.put(key, AtData()..data = value);
@@ -110,8 +107,7 @@ void main() async {
         'A test to verify version field in metadata is set to 1 when using putAll method',
         () async {
       var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      var hiveKeyStore = testPersistenceStoreFor(atSign)
-          .getSecondaryKeyStore();
+      var hiveKeyStore = testPersistenceStoreFor(atSign).getSecondaryKeyStore();
       var key = '@bob:city@alice';
       await hiveKeyStore?.putAll(
           key, AtData()..data = '9878123322', AtMetaData());
@@ -243,7 +239,7 @@ void main() async {
 Future<SecondaryKeyStoreManager> setUpFunc(storageDir,
     {bool enableCommitId = true}) async {
   var commitLogInstance = await testCommitLogFor('@alice',
-          commitLogPath: storageDir, enableCommitId: enableCommitId);
+      commitLogPath: storageDir, enableCommitId: enableCommitId);
   var secondaryPersistenceStore = testPersistenceStoreFor('@alice');
   var persistenceManager =
       secondaryPersistenceStore.getHivePersistenceManager()!;

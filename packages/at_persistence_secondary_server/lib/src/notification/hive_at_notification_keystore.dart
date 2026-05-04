@@ -371,8 +371,7 @@ class HiveAtNotificationKeystore
         matched.sort();
         break;
       case OrderByKey.byCreatedAt:
-        matched.sort((a, b) =>
-            _compareNullableDate(
+        matched.sort((a, b) => _compareNullableDate(
               entries[a]?.notificationDateTime,
               entries[b]?.notificationDateTime,
             ));

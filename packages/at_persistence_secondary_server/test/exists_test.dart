@@ -30,8 +30,7 @@ void main() {
     });
 
     test('returns true for a key that has been put', () async {
-      await bundle.keyStore
-          .put('public:phone@alice', AtData()..data = '+1...');
+      await bundle.keyStore.put('public:phone@alice', AtData()..data = '+1...');
       expect(await bundle.keyStore.exists('public:phone@alice'), isTrue);
     });
 

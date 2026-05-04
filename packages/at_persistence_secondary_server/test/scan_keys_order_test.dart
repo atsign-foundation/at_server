@@ -37,8 +37,7 @@ void main() {
       if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
     });
 
-    test('default order yields every match (natural backend order)',
-        () async {
+    test('default order yields every match (natural backend order)', () async {
       final keys = await bundle.keyStore.scanKeys(KeyPattern()).toList();
       // Hive's natural iteration order is the B-tree (key-bytes
       // ascending) — not insertion order. Verify every match is

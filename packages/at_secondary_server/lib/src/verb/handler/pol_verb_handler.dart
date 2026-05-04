@@ -28,8 +28,7 @@ class PolVerbHandler extends AbstractVerbHandler {
       _accessLogOverride ?? AtSecondaryServerImpl.getInstance().accessLog;
   final _dummyInboundConnection = DummyInboundConnection();
 
-  PolVerbHandler(
-      super.keyStore, this.outboundClientManager, this.cacheManager,
+  PolVerbHandler(super.keyStore, this.outboundClientManager, this.cacheManager,
       {AtAccessLog? accessLog})
       : _accessLogOverride = accessLog;
 

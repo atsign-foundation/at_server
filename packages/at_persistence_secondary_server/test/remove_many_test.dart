@@ -45,8 +45,7 @@ void main() {
       expect(await bundle.keyStore.exists('public:c.wavi@alice'), isTrue);
     });
 
-    test('race-tolerant: absent keys do not contribute to the count',
-        () async {
+    test('race-tolerant: absent keys do not contribute to the count', () async {
       final n = await bundle.keyStore.removeMany([
         'public:a.wavi@alice', // present
         'public:nope@alice', // absent

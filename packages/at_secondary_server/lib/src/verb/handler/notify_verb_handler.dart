@@ -295,8 +295,11 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   ///Sends the latest commitId to the StatsNotificationService
   void _writeStats(int? cachedKeyCommitId, String? operationType) {
     if (cachedKeyCommitId != null) {
-      AtSecondaryServerImpl.getInstance().statsNotificationService.writeStatsToMonitor(
-          latestCommitID: '$cachedKeyCommitId', operationType: operationType);
+      AtSecondaryServerImpl.getInstance()
+          .statsNotificationService
+          .writeStatsToMonitor(
+              latestCommitID: '$cachedKeyCommitId',
+              operationType: operationType);
     }
   }
 
