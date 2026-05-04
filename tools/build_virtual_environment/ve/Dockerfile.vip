@@ -26,9 +26,12 @@ COPY --from=buildimage --chown=atsign:atsign \
 COPY --from=buildimage --chown=atsign:atsign \
   /app/packages/at_secondary_server/pubspec.yaml /atsign/secondary/
 
+COPY tools/build_virtual_environment/ve/contents/atsign/entrypoint.sh /atsign/entrypoint.sh
+RUN chmod +x /atsign/entrypoint.sh
+
 EXPOSE 64 443 6379 9001
 
 ENV DART_VM_OPTIONS='--use_compactor,--dontneed_on_sweep,--old_gen_growth_time_ratio=50,--old_gen_growth_space_ratio=10,--new_gen_semi_max_size=8'
 
-# Run supervisor configuration file on container startup
-CMD ["supervisord", "-n"]
+# entrypoint shifts ports if VIRTUALENV_BASE_PORT is set, then execs supervisord
+CMD ["/atsign/entrypoint.sh"]

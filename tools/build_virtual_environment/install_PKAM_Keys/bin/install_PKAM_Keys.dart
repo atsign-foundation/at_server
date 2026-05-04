@@ -5,7 +5,8 @@ import 'package:at_lookup/at_lookup.dart';
 import 'package:at_utils/at_utils.dart';
 
 final String rootDomain = 'vip.ve.atsign.zone';
-final int rootPort = 64;
+final int rootPort =
+    int.tryParse(Platform.environment['rootServerPort'] ?? '') ?? 64;
 final SecondaryAddressFinder saf =
     CacheableSecondaryAddressFinder(rootDomain, rootPort);
 late final AtSignLogger logger;

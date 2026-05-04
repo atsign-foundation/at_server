@@ -1,0 +1,31 @@
+# Sample docker-compose for the ephemeral environment (EE).
+#
+# This is a starting point — copy it, set EPHEMERAL_BASE_PORT to the
+# lowest port you want to claim, and adjust the host-side port range to
+# match. Inside the container the services bind to:
+#
+#   atDirectory  -> EPHEMERAL_BASE_PORT
+#   atServers    -> EPHEMERAL_BASE_PORT+1 .. EPHEMERAL_BASE_PORT+80
+#   (reserved)   -> EPHEMERAL_BASE_PORT+81 .. EPHEMERAL_BASE_PORT+98
+#   Redis        -> EPHEMERAL_BASE_PORT+99
+#
+# For multi-EE setups prefer the runee.sh helper, which generates one of
+# these per container with a unique compose project name.
+
+name: ephemeral
+
+services:
+  ephemeral:
+    container_name: ephemeral
+    image: atsigncompany/ephemeral:latest
+    ports:
+      - '127.0.0.1:2500-2599:2500-2599'
+    extra_hosts:
+      - 'vip.ve.atsign.zone:127.0.0.1'
+    environment:
+      - EPHEMERAL_BASE_PORT=2500
+      # - DNS_FQDN=rainbow.example.com   # optional, default vip.ve.atsign.zone
+    # volumes:
+    #   - /tmp/rainbow/certs:/atsign/root/certs
+    #   - /tmp/rainbow/certs:/atsign/secondary/base/certs
+    #   - /tmp/atsigns:/tmp/setup/atsigns
