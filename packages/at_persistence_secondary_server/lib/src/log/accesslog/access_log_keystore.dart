@@ -6,7 +6,7 @@ import 'package:at_persistence_secondary_server/src/log/accesslog/access_entry.d
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
 
-export 'package:at_persistence_spec/at_persistence_spec.dart';
+export 'package:at_persistence_secondary_server/src/spec/spec.dart';
 
 class AccessLogKeyStore
     with HiveBase<AccessLogEntry?>

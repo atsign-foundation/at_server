@@ -127,7 +127,7 @@ A lot of the 5.0.0 surface area is server-only. As an
   `hivePersistenceManager` getters) — Phase 1c removed them; the
   client never used them.
 - **`AtCommitLogManager` / `AtAccessLogManager`** abstract
-  interfaces in `at_persistence_spec` — both were removed (they
+  interfaces in `at_persistence_secondary_server` — both were removed (they
   were paired with the deleted impl classes), but `at_client_sdk`
   used the impl-side getInstance shims, not the spec-side
   interfaces. So this removal is invisible.
@@ -329,7 +329,7 @@ introduced in Commit 2.
 | `ClientAtCommitLog`      | `HiveClientAtCommitLog`      | Client-flavour Hive impl (extends `HiveAtCommitLog`).                                              |
 | `AtAccessLog`            | `HiveAtAccessLog`            | Hive impl. Unprefixed name will become abstract in Commit 2.                                       |
 | `AtNotificationKeystore` | `HiveAtNotificationKeystore` | Hive impl of the notification queue. Unprefixed name will become abstract in Commit 2.             |
-| `HiveKeystore`           | `HiveSecondaryKeyStore`      | Hive impl of the abstract `SecondaryKeyStore` (which already existed in `at_persistence_spec`).    |
+| `HiveKeystore`           | `HiveSecondaryKeyStore`      | Hive impl of the abstract `SecondaryKeyStore` (which already existed in `at_persistence_secondary_server`).    |
 
 The abstract `BaseAtCommitLog` (existing parent of the renamed
 `HiveAtCommitLog`) stays in place for now — Commit 2 will rename
@@ -448,7 +448,7 @@ abstract interfaces under the unprefixed names:
 | `AtCommitLog`                                                  | `HiveAtCommitLog`            |
 | `AtAccessLog`                                                  | `HiveAtAccessLog`            |
 | `AtNotificationKeystore`                                       | `HiveAtNotificationKeystore` |
-| `SecondaryKeyStore` (already existed in `at_persistence_spec`) | `HiveSecondaryKeyStore`      |
+| `SecondaryKeyStore` (already existed in `at_persistence_secondary_server`) | `HiveSecondaryKeyStore`      |
 
 The bundle's fields are typed at the abstracts. Code that holds
 a `HiveAtCommitLog` (or other concrete) typed local variable from
@@ -537,7 +537,7 @@ Removed alongside:
   `HiveAtPersistenceFactory`).
 - `AtAccessLogManagerImpl` class (same).
 - `AtCommitLogManager` and `AtAccessLogManager` abstract
-  interfaces in `at_persistence_spec` (orphaned by the impl
+  interfaces in `at_persistence_secondary_server` (orphaned by the impl
   deletion; nothing else implemented them).
 - The `clear()` lifecycle methods that were added in 4.x to
   let `HiveAtPersistenceFactory` reset the deprecated singletons —
@@ -600,9 +600,10 @@ the bundle owns) and a *scheduler* (`AtCompactionJob`).
 - `AtCompactionJob` constructor changed: takes
   `(AtCompactionStrategy strategy, [AtCompactionStatsService? stats])`
   rather than `(AtLogType logType, SecondaryKeyStore keyStore)`.
-- The deprecated `AtCompactionStrategy` *interface* in
-  `at_persistence_spec` is gone (it was already
-  `@Deprecated('use CompactionService')` and unimplemented).
+- The deprecated `AtCompactionStrategy` *interface* (formerly
+  in `at_persistence_spec` in 4.x — the dependency has been
+  dropped in 5.0.0) is no longer implemented; it was already
+  `@Deprecated('use CompactionService')` and unimplemented.
 
 **Server-track recipe.** Server consumers (this repo's
 `at_secondary_server`) construct an `AtCompactionStatsServiceImpl`
@@ -1020,7 +1021,7 @@ downstream consumer with a similar pattern.
 
 ### Sub-phase 3b — `KeyPattern` + `scanKeys`
 
-**New types** (in `at_persistence_spec`):
+**New types** (in `at_persistence_secondary_server`):
 
 ```dart
 class KeyPattern {
@@ -1248,7 +1249,7 @@ backend; semantics are identical.
 
 ### Sub-phase 3e — `KeyStoreChange` + `changes` stream
 
-**New types** (in `at_persistence_spec`):
+**New types** (in `at_persistence_secondary_server`):
 
 ```dart
 sealed class KeyStoreChange { final String key; }
@@ -1331,7 +1332,7 @@ events.
 
 ### Sub-phase 3f — `KeyStoreTxn` + `transaction()`
 
-**New types** (in `at_persistence_spec`):
+**New types** (in `at_persistence_secondary_server`):
 
 ```dart
 abstract class KeyStoreTxn<K, V, T> {
@@ -1434,7 +1435,7 @@ sufficient.
 
 ### Sub-phase 3g — ordered + paginated `scanKeys`
 
-**New types** (in `at_persistence_spec`):
+**New types** (in `at_persistence_secondary_server`):
 
 ```dart
 enum OrderByKey { byKey, byCreatedAt, byExpiresAt }
@@ -1540,7 +1541,7 @@ session) can write the call site once; on Hive the flag is
 on Phase 4's SQLite backend the flag flips to `true` and the
 same call site executes as an indexed query.
 
-**New types** (in `at_persistence_spec`):
+**New types** (in `at_persistence_secondary_server`):
 
 ```dart
 sealed class Predicate {
@@ -1641,7 +1642,7 @@ if (keyStore.supportsPathQueries) {
 The `path: ['obj', 'amount']` metadata each `PathField` carries
 in at_client is the introspection vehicle: `_toPersistencePredicate`
 walks at_client's existing AST and emits the
-`at_persistence_spec` AST.
+`at_persistence_secondary_server` AST.
 
 **Capability flag:** YES. `supportsPathQueries` is the first
 flag of its kind — consumers gate on it. The pattern repeats in
@@ -1650,7 +1651,7 @@ shape).
 
 ### Sub-phase 3i — `KeyStoreSnapshot` + `snapshot()`
 
-**New types** (in `at_persistence_spec`):
+**New types** (in `at_persistence_secondary_server`):
 
 ```dart
 abstract class KeyStoreSnapshot<K, V, T> {
@@ -1727,7 +1728,7 @@ defence.
 
 ### Sub-phase 3j — `KeyStoreStats` + `stats()`
 
-**New types** (in `at_persistence_spec`):
+**New types** (in `at_persistence_secondary_server`):
 
 ```dart
 class KeyStoreStats {

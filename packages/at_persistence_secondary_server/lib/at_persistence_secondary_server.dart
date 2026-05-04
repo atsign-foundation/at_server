@@ -25,5 +25,5 @@ export 'package:at_persistence_secondary_server/src/notification/hive_at_notific
 export 'package:at_persistence_secondary_server/src/notification/at_notification_manager.dart';
 export 'package:at_persistence_secondary_server/src/notification/at_notification_strategy.dart';
 export 'package:at_persistence_secondary_server/src/utils/date_time_extensions.dart';
-export 'package:at_persistence_spec/at_persistence_spec.dart';
+export 'package:at_persistence_secondary_server/src/spec/spec.dart';
 export 'package:at_persistence_secondary_server/src/compaction/at_compaction_service.dart';

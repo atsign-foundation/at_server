@@ -3,6 +3,19 @@
 Major release: persistence-overhaul (Phases 1, 2, 3, 3.5). See
 `MIGRATION.md` for the full 4.3.5 → 5.0.0 migration guide.
 
+**Top-line dependency change:** `at_persistence_secondary_server`
+no longer depends on `at_persistence_spec`. The interface types
+that used to live in `at_persistence_spec` (`SecondaryKeyStore`,
+`AtCompactionStrategy`, `AtCompactionStats`,
+`AtCompactionType`, `AtLogType`, `KeyStore`, exceptions, the
+`@server`/`@client` annotations, and all the Phase 3 additions —
+`KeyEntry`, `KeyPattern`, `KeyStoreChange`, `KeyStoreSnapshot`,
+`KeyStoreStats`, `KeyStoreTxn`, `OrderByKey`, `Predicate`) now
+live alongside the Hive implementation in
+`at_persistence_secondary_server`. Future backend packages
+depend on this package for the interface types they need to
+satisfy.
+
 ### Phase 1 — eliminate singletons; introduce factory + bundle
 
 - **feat**: introduce `AtPersistenceFactory` and
@@ -16,9 +29,9 @@ Major release: persistence-overhaul (Phases 1, 2, 3, 3.5). See
   `HiveKeyStoreHelper`. Bootstrap via `HiveAtPersistenceFactory`.
 - **breaking**: `AtCommitLogManagerImpl` /
   `AtAccessLogManagerImpl` deleted (factory handles both
-  singleton-and-cache roles); the orphaned `AtCommitLogManager` /
-  `AtAccessLogManager` spec interfaces removed from
-  `at_persistence_spec`.
+  singleton-and-cache roles); `at_persistence_secondary_server`
+  no longer implements (or depends on) the orphaned
+  `AtCommitLogManager` / `AtAccessLogManager` interfaces.
 - **refactor**: `HiveKeyStoreHelper` is now stateless with static
   methods. `AtCompactionService` no longer carries a singleton.
   `HivePersistenceManager.scheduleKeyExpireTask` uses a
@@ -81,7 +94,7 @@ Major release: persistence-overhaul (Phases 1, 2, 3, 3.5). See
   `(AtLogType, SecondaryKeyStore)` to
   `(AtCompactionStrategy, [AtCompactionStatsService?])`.
 - **breaking**: removed the deprecated `AtCompactionStrategy`
-  interface from `at_persistence_spec` (replaced by the new
+  interface from `at_persistence_secondary_server` (replaced by the new
   abstract in this package).
 - **feat**: add `AtPersistenceBundle.clear()` — drops every entry
   from each store while keeping underlying boxes open. Cheap
@@ -96,7 +109,7 @@ addition is additive — Phase 3 broke nothing.
 
 - **feat (3a)**: `Future<bool> exists(String key)` — async
   existence probe; backend-portable shape.
-- **feat (3b)**: `KeyPattern` (in `at_persistence_spec`) +
+- **feat (3b)**: `KeyPattern` (in `at_persistence_secondary_server`) +
   `Stream<String> scanKeys(KeyPattern, {includeExpired})`.
   Backend-portable structured successor to `getKeys(regex:)`.
 - **feat (3c)**: `Future<Map<K, V>> getMany(List<K> keys)` —
@@ -104,12 +117,12 @@ addition is additive — Phase 3 broke nothing.
 - **feat (3d)**: `Future<int> removeMany(List<K>, {skipCommit})`
   — bulk delete with race-tolerant return count.
 - **feat (3e)**: `Stream<KeyStoreChange> get changes` plus a
-  sealed `KeyStoreChange` hierarchy in `at_persistence_spec`
+  sealed `KeyStoreChange` hierarchy in `at_persistence_secondary_server`
   (`KeyAdded` / `KeyUpdated` / `KeyRemoved`). Broadcast stream
   of every successful mutation.
 - **feat (3f)**:
   `Future<R> transaction<R>(Future<R> Function(KeyStoreTxn) body)`
-  + `KeyStoreTxn` abstract in `at_persistence_spec`.
+  + `KeyStoreTxn` abstract in `at_persistence_secondary_server`.
   All-or-nothing mutation buffer; Hive impl provides best-effort
   atomicity (Phase 4 SQL backends will use real transactions).
 - **feat (3g)**: extend `scanKeys` with `OrderByKey? orderBy` +
@@ -118,18 +131,18 @@ addition is additive — Phase 3 broke nothing.
 - **feat (3h)**: `bool get supportsPathQueries` +
   `Stream<KeyEntry<K, V, T>> queryByPath(...)` plus a sealed
   `Predicate` AST (`PathEquals`, `And`, `Or`) and generic
-  `KeyEntry<K, V, T>` in `at_persistence_spec`. Push-down
+  `KeyEntry<K, V, T>` in `at_persistence_secondary_server`. Push-down
   value-field filtering — Phase 4 SQL backends translate to
   indexed `WHERE`; Hive throws `UnsupportedError` and consumers
   gate on the flag.
 - **feat (3i)**: `bool get supportsSnapshots` +
   `Future<KeyStoreSnapshot<K, V, T>> snapshot()` plus a new
-  abstract `KeyStoreSnapshot` in `at_persistence_spec` (with
+  abstract `KeyStoreSnapshot` in `at_persistence_secondary_server` (with
   `get` / `scanKeys` / `release`). Real MVCC on Phase 4 SQL
   backends; Hive ships a best-effort delegate that observes
   live state.
 - **feat (3j)**: `Future<KeyStoreStats> stats()` + a new
-  `KeyStoreStats` data class in `at_persistence_spec`.
+  `KeyStoreStats` data class in `at_persistence_secondary_server`.
   Diagnostic snapshot (`totalKeys`, `ttlKeys`, `ttbKeys`,
   `sizeBytes`, oldest/newest `createdAt`).
 

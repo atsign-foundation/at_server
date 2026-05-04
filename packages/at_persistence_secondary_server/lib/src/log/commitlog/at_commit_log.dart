@@ -1,6 +1,6 @@
 import 'package:at_persistence_secondary_server/src/event_listener/at_change_event_listener.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
-import 'package:at_persistence_spec/at_persistence_spec.dart';
+import 'package:at_persistence_secondary_server/src/spec/spec.dart';
 
 /// Abstract contract for a commit log: an append-style record of
 /// `(atKey, op)` tuples keyed by a monotonically-increasing

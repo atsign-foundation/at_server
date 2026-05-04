@@ -1,5 +1,5 @@
 import 'package:at_persistence_secondary_server/src/notification/at_notification.dart';
-import 'package:at_persistence_spec/at_persistence_spec.dart';
+import 'package:at_persistence_secondary_server/src/spec/spec.dart';
 
 /// Abstract contract for a queue of pending atSign-to-atSign
 /// notifications, persisted server-side. The Hive-backed

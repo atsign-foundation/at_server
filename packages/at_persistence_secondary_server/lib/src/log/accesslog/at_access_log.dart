@@ -1,5 +1,5 @@
 import 'package:at_persistence_secondary_server/src/log/accesslog/access_entry.dart';
-import 'package:at_persistence_spec/at_persistence_spec.dart';
+import 'package:at_persistence_secondary_server/src/spec/spec.dart';
 
 /// Abstract contract for an access log: an append-only audit trail
 /// of which atSign performed which verb on the secondary, when, and
