@@ -9,18 +9,16 @@ import 'test_utils.dart';
 String storageDir = '${Directory.current.path}/test/hive';
 HiveAtCommitLog? atCommitLog;
 
-Future<void> setUpMethod({bool enableCommitId = true}) async {
-  String atSign = '@alice';
-  atCommitLog = await testCommitLogFor(atSign,
-      commitLogPath: storageDir, enableCommitId: enableCommitId);
-  testKeyStoreFor(atSign).commitLog = atCommitLog;
-  await testKeyStoreFor(atSign).init(storageDir);
+Future<void> setUpFunc({bool enableCommitId = true}) async {
+  final keyStore = await setUpTestKeyStore('@alice',
+      storageDir: storageDir, enableCommitId: enableCommitId);
+  atCommitLog = keyStore.commitLog as HiveAtCommitLog;
 }
 
 void main() {
   group('A group of test to verify commit log compaction job on server', () {
     setUp(() async {
-      await setUpMethod();
+      await setUpFunc();
     });
 
     test(
@@ -50,14 +48,14 @@ void main() {
     });
 
     tearDown(() async {
-      await tearDownMethod();
+      await tearDownFunc();
     });
   });
 
   group('A group of test to verify commit log compaction job on client', () {
     setUp(() async {
       // Setting enableCommitId to false to replicate the client side commit log
-      await setUpMethod(enableCommitId: false);
+      await setUpFunc(enableCommitId: false);
     });
     test(
         'A test to verify commit log compaction on the client side does not remove null values',
@@ -73,13 +71,13 @@ void main() {
       await HiveCompactionStrategy(atCommitLog!).compact();
       expect(atCommitLog!.entriesCount(), 2);
     });
-    tearDown(() async => await tearDownMethod());
+    tearDown(() async => await tearDownFunc());
   });
 
   group('A group of test to verify access log compaction job', () {
     HiveAtAccessLog? atAccessLog;
     setUp(() async {
-      await setUpMethod();
+      await setUpFunc();
       // Initialize commit log
       atAccessLog = await testAccessLogFor('@alice', accessLogPath: storageDir);
     });
@@ -100,16 +98,9 @@ void main() {
       expect(accessLogEntry?.verbName, 'lookup');
     });
     tearDown(() async {
-      await tearDownMethod();
+      await tearDownFunc();
     });
   });
 }
 
-Future<void> tearDownMethod() async {
-  await closeTestPersistenceStores();
-  await closeTestCommitLogs();
-  var isExists = await Directory(storageDir).exists();
-  if (isExists) {
-    Directory(storageDir).deleteSync(recursive: true);
-  }
-}
+Future<void> tearDownFunc() => tearDownTestPersistence(storageDir: storageDir);

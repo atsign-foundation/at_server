@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_secondary_keystore.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_log_keystore.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:test/test.dart';
@@ -728,19 +727,8 @@ void main() async {
 }
 
 Future<HiveSecondaryKeyStore> setUpFunc(storageDir,
-    {bool enableCommitId = true}) async {
-  var commitLogInstance = await testCommitLogFor('@alice',
-      commitLogPath: storageDir, enableCommitId: enableCommitId);
-  await testKeyStoreFor('@alice').init(storageDir);
-  var hiveKeyStore = testKeyStoreFor('@alice');
-  hiveKeyStore.commitLog = commitLogInstance;
-  return hiveKeyStore;
-}
+        {bool enableCommitId = true}) =>
+    setUpTestKeyStore('@alice',
+        storageDir: storageDir, enableCommitId: enableCommitId);
 
-Future<void> tearDownFunc() async {
-  await closeTestCommitLogs();
-  var isExists = await Directory('test/hive/').exists();
-  if (isExists) {
-    Directory('test/hive').deleteSync(recursive: true);
-  }
-}
+Future<void> tearDownFunc() => tearDownTestPersistence(storageDir: 'test/hive');

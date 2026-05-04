@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_secondary_keystore.dart';
 import 'package:test/expect.dart';
 import 'package:test/scaffolding.dart';
 
@@ -202,20 +201,11 @@ Future<String?> getKey(keyStore, key) async {
   return atData?.data;
 }
 
-Future<HiveSecondaryKeyStore> getKeystoreManager(storageDir, atsign,
-    {required bool optimizeCommits}) async {
-  var keyStore = testKeyStoreFor(atsign);
-  await keyStore.init(storageDir);
-  var commitLog = await testCommitLogFor(atsign,
-      commitLogPath: storageDir, enableCommitId: true);
-  keyStore.commitLog = commitLog;
-  return keyStore;
-}
+Future<HiveSecondaryKeyStore> getKeystoreManager(
+  storageDir,
+  atsign, {
+  required bool optimizeCommits,
+}) =>
+    setUpTestKeyStore(atsign, storageDir: storageDir, enableCommitId: true);
 
-Future<void> tearDownFunc() async {
-  await closeTestCommitLogs();
-  var isExists = await Directory('test/hive/').exists();
-  if (isExists) {
-    Directory('test/hive').deleteSync(recursive: true);
-  }
-}
+Future<void> tearDownFunc() => tearDownTestPersistence(storageDir: 'test/hive');

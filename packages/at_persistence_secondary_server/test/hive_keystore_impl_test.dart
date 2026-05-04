@@ -4,7 +4,6 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_secondary_keystore.dart';
 import 'package:crypto/crypto.dart';
 import 'package:hive/hive.dart';
 import 'package:test/test.dart';
@@ -795,19 +794,11 @@ void main() async {
 Future<void> tearDownFunc(String atSign) async {
   await Hive.deleteBoxFromDisk('commit_log_$atSign');
   await Hive.deleteBoxFromDisk(_getShaForAtSign(atSign));
-  await closeTestCommitLogs();
-  var isExists = await Directory('test/hive/').exists();
-  if (isExists) {
-    Directory('test/hive').deleteSync(recursive: true);
-  }
+  await tearDownTestPersistence(storageDir: 'test/hive');
 }
 
-Future<void> setUpFunc(String storageDir, String atSign) async {
-  var commitLogInstance =
-      await testCommitLogFor(atSign, commitLogPath: storageDir);
-  await testKeyStoreFor(atSign).init(storageDir);
-  testKeyStoreFor(atSign).commitLog = commitLogInstance;
-}
+Future<void> setUpFunc(String storageDir, String atSign) =>
+    setUpTestKeyStore(atSign, storageDir: storageDir);
 
 String _getShaForAtSign(String atSign) {
   var bytes = utf8.encode(atSign);

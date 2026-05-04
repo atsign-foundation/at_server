@@ -15,23 +15,19 @@ late HiveAtNotificationKeystore atNotificationKeystore;
 
 late AtCompactionStatsServiceImpl atCompactionStatsServiceImpl;
 
-Future<void> setUpMethod() async {
-  atCommitLog = await testCommitLogFor('@alice',
-      commitLogPath: storageDir, enableCommitId: true);
+Future<void> setUpFunc() async {
+  keyStore = await setUpTestKeyStore('@alice', storageDir: storageDir);
+  atCommitLog =
+      (keyStore as HiveSecondaryKeyStore).commitLog as HiveAtCommitLog;
   atAccessLog = await testAccessLogFor('@alice', accessLogPath: storageDir);
-  keyStore = testKeyStoreFor('@alice');
-  keyStore!.commitLog = atCommitLog;
-  // AtNotification Keystore
   atNotificationKeystore = HiveAtNotificationKeystore('@alice');
   await atNotificationKeystore.init('$storageDir/${Uuid().v4()}');
-  // Init the hive instances
-  await testKeyStoreFor('@alice').init(storageDir);
 }
 
 Future<void> main() async {
   group('A group of tests related commit log compaction', () {
     setUp(() async {
-      await setUpMethod();
+      await setUpFunc();
       atCompactionStatsServiceImpl =
           AtCompactionStatsServiceImpl(atCommitLog!, keyStore!);
     });
@@ -75,12 +71,12 @@ Future<void> main() async {
       expect(decodedData['atCompactionType'], 'HiveAtCommitLog');
     });
 
-    tearDown(() async => await tearDownMethod());
+    tearDown(() async => await tearDownFunc());
   });
 
   group('A group of tests related to access log compaction', () {
     setUp(() async {
-      await setUpMethod();
+      await setUpFunc();
       atCompactionStatsServiceImpl =
           AtCompactionStatsServiceImpl(atAccessLog!, keyStore!);
     });
@@ -104,12 +100,12 @@ Future<void> main() async {
       expect(decodedData["postCompactionEntriesCount"], '1');
       expect(decodedData["preCompactionEntriesCount"], '4');
     });
-    tearDown(() async => await tearDownMethod());
+    tearDown(() async => await tearDownFunc());
   });
 
   group('A group of tests for Notification keystore compaction', () {
     setUp(() async {
-      await setUpMethod();
+      await setUpFunc();
       atCompactionStatsServiceImpl =
           AtCompactionStatsServiceImpl(atNotificationKeystore, keyStore!);
     });
@@ -145,7 +141,7 @@ Future<void> main() async {
           '2000');
     });
 
-    tearDown(() async => await tearDownMethod());
+    tearDown(() async => await tearDownFunc());
   });
 
   test("check commitLog compactionStats key", () async {
@@ -173,12 +169,7 @@ Future<void> main() async {
   });
 }
 
-Future<void> tearDownMethod() async {
-  await closeTestPersistenceStores();
-  await closeTestCommitLogs();
+Future<void> tearDownFunc() async {
   await atNotificationKeystore.close();
-  var isExists = await Directory(storageDir).exists();
-  if (isExists) {
-    Directory(storageDir).deleteSync(recursive: true);
-  }
+  await tearDownTestPersistence(storageDir: storageDir);
 }

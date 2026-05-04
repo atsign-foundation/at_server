@@ -1,7 +1,7 @@
+import 'dart:io';
 import 'dart:math';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_secondary_keystore.dart';
 import 'package:at_persistence_secondary_server/src/log/accesslog/access_log_keystore.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_log_keystore.dart';
 
@@ -99,4 +99,46 @@ Future<void> closeTestAccessLogs() async {
     log.close();
   }
   _testAccessLogs.clear();
+}
+
+// =====================================================================
+// Composite helpers — collapse the common 3-step setUp boilerplate
+// (commit log + keystore init + commit-log wiring) into a single call.
+// Most test files use these via a thin per-file `setUpFunc` wrapper.
+// =====================================================================
+
+/// Initialises a per-atSign [HiveSecondaryKeyStore] backed by the
+/// given [storageDir], creates a matching [HiveAtCommitLog], wires
+/// the commit log onto the keystore, and returns the keystore.
+///
+/// Idempotent: subsequent calls for the same atSign return the
+/// already-initialised instance. Pair with [tearDownTestPersistence]
+/// in a tearDown to close everything and wipe the dir.
+Future<HiveSecondaryKeyStore> setUpTestKeyStore(
+  String atSign, {
+  required String storageDir,
+  bool enableCommitId = true,
+}) async {
+  final commitLog = await testCommitLogFor(atSign,
+      commitLogPath: storageDir, enableCommitId: enableCommitId);
+  final keyStore = testKeyStoreFor(atSign);
+  await keyStore.init(storageDir);
+  keyStore.commitLog = commitLog;
+  return keyStore;
+}
+
+/// Closes every test-shared keystore / commit log / access log
+/// and wipes [storageDir] from disk. Pair with [setUpTestKeyStore]
+/// in tearDown.
+Future<void> tearDownTestPersistence({String? storageDir}) async {
+  await closeTestPersistenceStores();
+  await closeTestCommitLogs();
+  await closeTestAccessLogs();
+  if (storageDir != null) {
+    try {
+      await Directory(storageDir).delete(recursive: true);
+    } on FileSystemException {
+      // Already gone (concurrent tearDown, or never created). Fine.
+    }
+  }
 }
