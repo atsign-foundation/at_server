@@ -21,8 +21,7 @@ Future<({HivePersistenceConfig config, Directory tmp})> _newConfig(
 
 void main() {
   group('HiveAtPersistenceFactory', () {
-    test('initialize wires every store + scheduleKeyExpireTask is callable',
-        () async {
+    test('initialize wires every store', () async {
       final cfg = await _newConfig('init');
       final factory = HiveAtPersistenceFactory();
       try {
@@ -42,9 +41,6 @@ void main() {
         expect(commitId, isNotNull);
         final fetched = await bundle.keyStore.get('public:greet@alice');
         expect(fetched?.data, 'hello');
-
-        // scheduleKeyExpireTask should not throw.
-        bundle.scheduleKeyExpireTask(60);
       } finally {
         await factory.close();
         await cfg.tmp.delete(recursive: true);

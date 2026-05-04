@@ -62,12 +62,6 @@ abstract class AtPersistenceBundle {
   /// backend produces (e.g. [HiveAtCommitLog]).
   AtCommitLog get commitLog;
 
-  /// Schedule the periodic expired-keys removal task. Generic
-  /// across backends — the bundle internally drives whatever the
-  /// backend needs (cron + delete sweep on Hive).
-  void scheduleKeyExpireTask(int? runFrequencyMins,
-      {Duration? runTimeInterval, bool skipCommits = false});
-
   /// Drop all data from this bundle's stores while keeping the
   /// underlying connections (Hive boxes etc.) open. Idempotent.
   /// Intended for cheap per-test isolation: cheaper than

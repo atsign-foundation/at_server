@@ -3,7 +3,6 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:io';
-import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:at_commons/at_commons.dart';
@@ -12,7 +11,6 @@ import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore_helper.dart';
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_utils.dart';
-import 'package:cron/cron.dart';
 import 'package:hive/hive.dart';
 import 'package:meta/meta.dart';
 
@@ -34,8 +32,6 @@ class HiveSecondaryKeyStore
 
   late HiveAtCommitLog _commitLog;
 
-  final Cron _cron = Cron();
-  final Random _random = Random();
   @override
   List<Future Function(String key, {required bool skipCommit})> preRemoveHooks =
       [];
@@ -221,31 +217,6 @@ class HiveSecondaryKeyStore
       logger.severe('getHiveSecretFromFile caught error: $error');
     }
     return secretAsUint8List;
-  }
-
-  /// Schedules a periodic `deleteExpiredKeys` sweep on this keystore.
-  /// Either [runFrequencyMins] (cron-style) or [runTimeInterval]
-  /// (Duration-based) controls cadence; the latter wins if both are
-  /// passed. If [skipCommits] is true, the expiry deletes don't add
-  /// DELETE entries to the commit log.
-  void scheduleKeyExpireTask(int? runFrequencyMins,
-      {Duration? runTimeInterval, bool skipCommits = false}) {
-    logger.finest('scheduleKeyExpireTask starting cron job.');
-    Schedule schedule;
-    if (runTimeInterval != null) {
-      schedule = Schedule(seconds: runTimeInterval.inSeconds);
-    } else {
-      schedule = Schedule.parse('*/$runFrequencyMins * * * *');
-    }
-    _cron.schedule(schedule, () async {
-      await Future.delayed(Duration(seconds: _random.nextInt(12)));
-      if (!getBox().isOpen) {
-        logger.warning(
-            'scheduleKeyExpireTask: keystore box is not open; skipping');
-        return;
-      }
-      await deleteExpiredKeys(skipCommit: skipCommits);
-    });
   }
 
   Future<void> _initExpiryKeysCache() async {

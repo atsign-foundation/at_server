@@ -180,7 +180,10 @@ class HiveAtNotificationKeystore
   }
 
   @override
-  Future<bool> deleteExpiredKeys() async {
+  Future<bool> deleteExpiredKeys({bool skipCommit = false}) async {
+    // Notifications never participate in the commit log, so [skipCommit]
+    // is a no-op here — accepted for SecondaryKeyStore signature
+    // compatibility.
     var result = true;
     try {
       var expiredKeys = await getExpiredKeys();

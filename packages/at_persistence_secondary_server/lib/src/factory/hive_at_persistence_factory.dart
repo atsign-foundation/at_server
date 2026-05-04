@@ -164,13 +164,6 @@ class HiveAtPersistenceBundle implements AtPersistenceBundle {
   AtPersistenceBackendId get backendId => AtPersistenceBackendId.hive;
 
   @override
-  void scheduleKeyExpireTask(int? runFrequencyMins,
-      {Duration? runTimeInterval, bool skipCommits = false}) {
-    keyStore.scheduleKeyExpireTask(runFrequencyMins,
-        runTimeInterval: runTimeInterval, skipCommits: skipCommits);
-  }
-
-  @override
   Future<void> clear() async {
     if (_closed) {
       throw StateError(

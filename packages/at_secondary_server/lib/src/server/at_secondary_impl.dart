@@ -6,6 +6,7 @@ import 'dart:math';
 
 import 'package:at_commons/at_commons.dart' hide StringBuffer;
 import 'package:at_lookup/at_lookup.dart';
+import 'package:cron/cron.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/caching/cache_refresh_job.dart';
@@ -117,6 +118,12 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late AtCompactionJob commitLogCompactionJobInstance;
   late AtCompactionJob accessLogCompactionJobInstance;
   late AtCompactionJob notificationKeyStoreCompactionJobInstance;
+
+  /// Cron driving the periodic key-expiry sweep. Owned by the
+  /// secondary (not the persistence layer): the application picks
+  /// the schedule, the keystore just exposes
+  /// [SecondaryKeyStore.deleteExpiredKeys].
+  Cron? _keyExpiryCron;
   @visibleForTesting
   AtCertificateValidationJob? certificateReloadJob;
   late SecondaryKeyStore<String, AtData?, AtMetaData?> secondaryKeyStore;
@@ -203,12 +210,29 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // We add a hook here to handle deletion of enrollments.
     secondaryKeyStore.preRemoveHooks.add(enrollmentManager.preRemoveHook);
 
-    // expiringRunFreqMins default is 10 mins. Randomly run the task every 8-15 mins.
+    // Schedule the periodic key-expiry sweep. Frequency is in
+    // [expiringRunFreqMins-2, expiringRunFreqMins+5] mins (default
+    // 8-15) so independent secondaries on the same host don't all
+    // sweep at the same wall-clock minute. A 0-12s jitter inside
+    // each tick spreads the disk load further when multiple atSigns
+    // are co-hosted.
     final expiryRunRandomMins =
         (expiringRunFreqMins! - 2) + Random().nextInt(8);
     logger.finest('Scheduling key expiry job every $expiryRunRandomMins mins');
-    _persistenceBundle!.scheduleKeyExpireTask(3,
-        skipCommits: AtSecondaryConfig.skipCommitsForExpiredKeys);
+    _keyExpiryCron = Cron();
+    _keyExpiryCron!.schedule(
+      Schedule.parse('*/$expiryRunRandomMins * * * *'),
+      () async {
+        await Future.delayed(Duration(seconds: Random().nextInt(12)));
+        if (_persistenceBundle == null) return;
+        try {
+          await secondaryKeyStore.deleteExpiredKeys(
+              skipCommit: AtSecondaryConfig.skipCommitsForExpiredKeys);
+        } on Exception catch (e) {
+          logger.warning('Key expiry sweep failed: $e');
+        }
+      },
+    );
 
     await secondaryKeyStore.deleteExpiredKeys();
 
@@ -702,6 +726,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
       secondaryKeyStore.preRemoveHooks.clear();
       secondaryKeyStore.postRemoveHooks.clear();
+
+      logger.shout("Stopping key expiry cron");
+      await _keyExpiryCron?.close();
+      _keyExpiryCron = null;
 
       logger.shout('Closing persistence (commit log, access log, '
           'notification keystore, secondary keystore)');

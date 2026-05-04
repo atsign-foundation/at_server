@@ -6,8 +6,12 @@ abstract interface class SecondaryKeyStore<K, V, T>
   /// @return - List of keys that have expired
   Future<List<K>> getExpiredKeys();
 
-  /// Removes all expired keys from keystore
-  Future<bool> deleteExpiredKeys();
+  /// Removes all expired keys from the keystore. If [skipCommit] is
+  /// true, the deletes are not appended to the commit log (the
+  /// deletes still happen — they just don't trigger sync to other
+  /// secondaries). Used by application-side expiry crons that don't
+  /// want every TTL tick to amplify into a sync wave.
+  Future<bool> deleteExpiredKeys({bool skipCommit = false});
 
   ///Returns the list of keys, optionally keys can be searched on regular expression
   ///@param - String : This is an optional parameter that accepts the regular expression

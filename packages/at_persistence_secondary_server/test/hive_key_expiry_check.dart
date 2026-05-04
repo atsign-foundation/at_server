@@ -204,11 +204,8 @@ Future<String?> getKey(keyStore, key) async {
 
 Future<HiveSecondaryKeyStore> getKeystoreManager(storageDir, atsign,
     {required bool optimizeCommits}) async {
-  var manager = testKeyStoreFor(atsign);
-  await manager.init(storageDir);
-  manager.scheduleKeyExpireTask(null,
-      runTimeInterval: Duration(seconds: 10), skipCommits: optimizeCommits);
   var keyStore = testKeyStoreFor(atsign);
+  await keyStore.init(storageDir);
   var commitLog = await testCommitLogFor(atsign,
       commitLogPath: storageDir, enableCommitId: true);
   keyStore.commitLog = commitLog;
