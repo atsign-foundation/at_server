@@ -54,21 +54,33 @@ mixin HiveBase<E> {
         : await (getBox() as Box).get(key);
   }
 
+  /// Size of this store's on-disk footprint, in KB. Sums the lengths
+  /// of every file under [storagePath] whose name starts with the
+  /// box name (Hive writes `<boxName>.hive` and `<boxName>.lock`).
+  /// The previous impl summed the WHOLE [storagePath] directory,
+  /// which double-counts whenever multiple boxes share a directory
+  /// (which they do on the secondary).
   int getSize() {
-    var logSize = 0;
-    var logLocation = Directory(storagePath);
-
-    //The listSync function returns the list of files in the commit log storage location.
-    // The below loop iterates recursively into sub-directories over each file and gets the file size using lengthSync function
-    logLocation.listSync().forEach((element) {
-      logSize = logSize + File(element.path).lengthSync();
-    });
-    return logSize ~/ 1024;
+    final dir = Directory(storagePath);
+    if (!dir.existsSync()) return 0;
+    var bytes = 0;
+    for (final entity in dir.listSync()) {
+      if (entity is! File) continue;
+      final name = entity.uri.pathSegments.last;
+      if (!name.startsWith('$_boxName.')) continue;
+      bytes += entity.lengthSync();
+    }
+    return bytes ~/ 1024;
   }
 
   Future<void> close() async {
-    if (getBox().isOpen) {
-      await getBox().close();
+    try {
+      if (getBox().isOpen) {
+        await getBox().close();
+      }
+    } on HiveError {
+      // Box is already gone (e.g. deleteBoxFromDisk called by teardown).
+      // Idempotent close — nothing to do.
     }
   }
 }
