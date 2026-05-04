@@ -150,7 +150,7 @@ void main() async {
 
     test('test get expired keys - no data', () async {
       var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager!.getSecondaryKeyStore();
+      var keyStore = keyStoreManager.getSecondaryKeyStore();
       var expiredKeys = await keyStore!.getExpiredKeys();
       expect(expiredKeys.length, 0);
     });
@@ -181,7 +181,7 @@ void main() async {
 
     test('test delete expired keys - no data', () async {
       var keyStoreManager = testPersistenceStoreFor('@test_user_1');
-      var keyStore = keyStoreManager!.getSecondaryKeyStore();
+      var keyStore = keyStoreManager.getSecondaryKeyStore();
       var result = await keyStore!.deleteExpiredKeys();
       expect(result, true);
     });
@@ -389,7 +389,7 @@ void main() async {
       for (int i = 0; i <= 49; i++) {
         await keyStore.put('@bob:location.wavi@test_user_1', atData);
       }
-      expect(commitLogInstance!.commitLogKeyStore.getEntriesCount(), 1);
+      expect(commitLogInstance.commitLogKeyStore.getEntriesCount(), 1);
     });
     tearDown(() async => await tearDownFunc(atSign));
   });
@@ -820,7 +820,7 @@ void main() async {
           skipCommit: true);
       expect(result, -1);
       var commitLogInstance = (await testCommitLogFor('@test_user_1'));
-      expect(commitLogInstance!.getLatestCommitEntry('phone.wavi@test_user_1'),
+      expect(commitLogInstance.getLatestCommitEntry('phone.wavi@test_user_1'),
           isNull);
     });
     test('skip commit true in create', () async {
@@ -832,7 +832,7 @@ void main() async {
           skipCommit: true);
       expect(result, -1);
       var commitLogInstance = (await testCommitLogFor('@test_user_1'));
-      expect(commitLogInstance!.getLatestCommitEntry('email.wavi@test_user_1'),
+      expect(commitLogInstance.getLatestCommitEntry('email.wavi@test_user_1'),
           isNull);
     });
     test('skip commit true in remove', () async {
@@ -845,7 +845,7 @@ void main() async {
       expect(result, -1);
       var commitLogInstance = (await testCommitLogFor('@test_user_1'));
       expect(
-          commitLogInstance!.getLatestCommitEntry('firstname.wavi@test_user_1'),
+          commitLogInstance.getLatestCommitEntry('firstname.wavi@test_user_1'),
           isNull);
     });
     tearDown(() async => await tearDownFunc(atSign));

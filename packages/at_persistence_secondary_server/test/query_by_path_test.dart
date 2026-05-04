@@ -71,7 +71,7 @@ void main() {
       ]);
       expect(p, isA<Predicate>());
       expect(p, isA<And>());
-      expect((p as And).children.length, 2);
+      expect((p).children.length, 2);
       expect(p.children[1], isA<Or>());
       expect((p.children[1] as Or).children.length, 2);
     });

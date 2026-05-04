@@ -1,7 +1,6 @@
 import 'dart:math';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store.dart';
 
 class TestUtils {
   static String generateRandomString(int length) {

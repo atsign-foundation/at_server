@@ -23,7 +23,7 @@ void main() async {
           () async {
         HiveAtCommitLog? commitLogInstance = (await testCommitLogFor('@alice'));
         var hiveKey =
-            await commitLogInstance!.commit('location@alice', CommitOp.UPDATE);
+            await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
         var committedEntry = await (commitLogInstance.getEntry(hiveKey));
         expect(committedEntry?.key, hiveKey);
         expect(committedEntry?.atKey, 'location@alice');
@@ -37,8 +37,8 @@ void main() async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
 
         var key_1 =
-            await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
-        await commitLogInstance!.commit('phone@alice', CommitOp.UPDATE);
+            await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
+        await commitLogInstance.commit('phone@alice', CommitOp.UPDATE);
 
         var changes = await commitLogInstance.getChanges(key_1, '');
         expect(changes.length, 1);
@@ -53,18 +53,18 @@ void main() async {
           () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
 
-        await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
-        await commitLogInstance?.commit('mobile@alice', CommitOp.UPDATE);
-        await commitLogInstance?.commit('phone@alice', CommitOp.UPDATE);
+        await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
+        await commitLogInstance.commit('mobile@alice', CommitOp.UPDATE);
+        await commitLogInstance.commit('phone@alice', CommitOp.UPDATE);
 
-        CommitEntry? commitEntry0 = await commitLogInstance?.getEntry(0);
-        await commitLogInstance?.update(commitEntry0!, 1);
-        CommitEntry? commitEntry1 = await commitLogInstance?.getEntry(1);
-        await commitLogInstance?.update(commitEntry1!, 0);
-        var lastSyncedEntry = await commitLogInstance?.lastSyncedEntry();
+        CommitEntry? commitEntry0 = await commitLogInstance.getEntry(0);
+        await commitLogInstance.update(commitEntry0!, 1);
+        CommitEntry? commitEntry1 = await commitLogInstance.getEntry(1);
+        await commitLogInstance.update(commitEntry1!, 0);
+        var lastSyncedEntry = await commitLogInstance.lastSyncedEntry();
         expect(lastSyncedEntry!.commitId, 1);
         ClientCommitLogKeyStore keyStore =
-            commitLogInstance?.commitLogKeyStore as ClientCommitLogKeyStore;
+            commitLogInstance.commitLogKeyStore as ClientCommitLogKeyStore;
         var lastSyncedCacheSize =
             keyStore.getLastSyncedEntryCacheMapValues().length;
         expect(lastSyncedCacheSize, 1);
@@ -73,26 +73,26 @@ void main() async {
       test('test to verify the last synced entry with regex', () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
 
-        await commitLogInstance?.commit('location.buzz@alice', CommitOp.UPDATE);
-        await commitLogInstance?.commit('mobile.wavi@alice', CommitOp.UPDATE);
-        await commitLogInstance?.commit('phone.buzz@alice', CommitOp.UPDATE);
+        await commitLogInstance.commit('location.buzz@alice', CommitOp.UPDATE);
+        await commitLogInstance.commit('mobile.wavi@alice', CommitOp.UPDATE);
+        await commitLogInstance.commit('phone.buzz@alice', CommitOp.UPDATE);
 
-        CommitEntry? commitEntry0 = await commitLogInstance?.getEntry(0);
-        await commitLogInstance?.update(commitEntry0!, 2);
-        CommitEntry? commitEntry1 = await commitLogInstance?.getEntry(1);
-        await commitLogInstance?.update(commitEntry1!, 1);
-        CommitEntry? commitEntry2 = await commitLogInstance?.getEntry(2);
-        await commitLogInstance?.update(commitEntry2!, 0);
+        CommitEntry? commitEntry0 = await commitLogInstance.getEntry(0);
+        await commitLogInstance.update(commitEntry0!, 2);
+        CommitEntry? commitEntry1 = await commitLogInstance.getEntry(1);
+        await commitLogInstance.update(commitEntry1!, 1);
+        CommitEntry? commitEntry2 = await commitLogInstance.getEntry(2);
+        await commitLogInstance.update(commitEntry2!, 0);
         var lastSyncedEntry =
-            await commitLogInstance?.lastSyncedEntryWithRegex('buzz');
+            await commitLogInstance.lastSyncedEntryWithRegex('buzz');
         expect(lastSyncedEntry!.atKey!, 'location.buzz@alice');
         expect(lastSyncedEntry.commitId!, 2);
         lastSyncedEntry =
-            await commitLogInstance?.lastSyncedEntryWithRegex('wavi');
+            await commitLogInstance.lastSyncedEntryWithRegex('wavi');
         expect(lastSyncedEntry!.atKey!, 'mobile.wavi@alice');
         expect(lastSyncedEntry.commitId!, 1);
         ClientCommitLogKeyStore keyStore =
-            commitLogInstance?.commitLogKeyStore as ClientCommitLogKeyStore;
+            commitLogInstance.commitLogKeyStore as ClientCommitLogKeyStore;
         var lastSyncedEntriesList = keyStore.getLastSyncedEntryCacheMapValues();
         expect(lastSyncedEntriesList.length, 2);
       });
@@ -101,7 +101,7 @@ void main() async {
           'Test to verify that null is returned when no values are present in local keystore',
           () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
-        var lastSyncedEntry = await commitLogInstance?.lastSyncedEntry();
+        var lastSyncedEntry = await commitLogInstance.lastSyncedEntry();
         expect(lastSyncedEntry, null);
       });
 
@@ -110,11 +110,11 @@ void main() async {
           () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
 
-        await commitLogInstance?.commit('location.buzz@alice', CommitOp.UPDATE);
-        CommitEntry? commitEntry0 = await commitLogInstance?.getEntry(0);
-        await commitLogInstance?.update(commitEntry0!, 2);
+        await commitLogInstance.commit('location.buzz@alice', CommitOp.UPDATE);
+        CommitEntry? commitEntry0 = await commitLogInstance.getEntry(0);
+        await commitLogInstance.update(commitEntry0!, 2);
         var lastSyncedEntry =
-            await commitLogInstance?.lastSyncedEntryWithRegex('wavi');
+            await commitLogInstance.lastSyncedEntryWithRegex('wavi');
         expect(lastSyncedEntry, null);
       });
     });
@@ -123,7 +123,7 @@ void main() async {
           'A test to verify only commit entries with null commitId are returned when enableCommitId is false',
           () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
-        var commitLogKeystore = commitLogInstance!.commitLogKeyStore;
+        var commitLogKeystore = commitLogInstance.commitLogKeyStore;
         //setting enable commitId to false - to test client side functionality
         //commitLogKeystore.enableCommitId = false;
         //loop to create 10 keys - even keys have commitId null - odd keys have commitId
@@ -155,127 +155,127 @@ void main() async {
       setUp(() async => await setUpFunc(storageDir, enableCommitId: true));
       test('test multiple insert', () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
-        await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
-        await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
-        await commitLogInstance?.commit('location@alice', CommitOp.DELETE);
-        expect(commitLogInstance?.lastCommittedSequenceNumber(), 2);
+        await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
+        await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
+        await commitLogInstance.commit('location@alice', CommitOp.DELETE);
+        expect(commitLogInstance.lastCommittedSequenceNumber(), 2);
       });
 
       test('test last sequence number called once', () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
 
-        await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
+        await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
 
-        await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
-        expect(commitLogInstance?.lastCommittedSequenceNumber(), 1);
+        await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
+        expect(commitLogInstance.lastCommittedSequenceNumber(), 1);
       });
 
       test('test last sequence number called multiple times', () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
 
-        await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
+        await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
 
-        await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
-        expect(commitLogInstance?.lastCommittedSequenceNumber(), 1);
-        expect(commitLogInstance?.lastCommittedSequenceNumber(), 1);
+        await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
+        expect(commitLogInstance.lastCommittedSequenceNumber(), 1);
+        expect(commitLogInstance.lastCommittedSequenceNumber(), 1);
       });
 
       test(
           'test to verify commitId does not increment for public hidden keys with single _',
           () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
-        var commitId = await commitLogInstance?.commit(
+        var commitId = await commitLogInstance.commit(
             'public:_location@alice', CommitOp.UPDATE);
         expect(commitId, -1);
-        expect(commitLogInstance?.lastCommittedSequenceNumber(), -1);
+        expect(commitLogInstance.lastCommittedSequenceNumber(), -1);
       });
 
       test('test to verify commitId does not increment for privatekey',
           () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
-        var commitId = await commitLogInstance?.commit(
+        var commitId = await commitLogInstance.commit(
             'privatekey:testkey@alice', CommitOp.UPDATE);
         expect(commitId, -1);
-        expect(commitLogInstance?.lastCommittedSequenceNumber(), -1);
+        expect(commitLogInstance.lastCommittedSequenceNumber(), -1);
       });
 
       test('test to verify commitId increments for signing public key',
           () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
-        var commitId = await commitLogInstance?.commit(
+        var commitId = await commitLogInstance.commit(
             'public:signing_publickey@alice', CommitOp.UPDATE);
         expect(commitId, 0);
-        expect(commitLogInstance?.lastCommittedSequenceNumber(), 0);
+        expect(commitLogInstance.lastCommittedSequenceNumber(), 0);
       });
 
       test('test to verify commitId increments for signing private key',
           () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
-        var commitId = await commitLogInstance?.commit(
+        var commitId = await commitLogInstance.commit(
             '@alice:signing_privatekey@alice', CommitOp.UPDATE);
         expect(commitId, 0);
-        expect(commitLogInstance?.lastCommittedSequenceNumber(), 0);
+        expect(commitLogInstance.lastCommittedSequenceNumber(), 0);
       });
 
       test(
           'test to verify commitId does not increment for key starting with private:',
           () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
-        var commitId = await commitLogInstance?.commit(
+        var commitId = await commitLogInstance.commit(
             'private:testkey@alice', CommitOp.UPDATE);
         expect(commitId, -1);
-        expect(commitLogInstance?.lastCommittedSequenceNumber(), -1);
+        expect(commitLogInstance.lastCommittedSequenceNumber(), -1);
       });
 
       test(
           'test to verify commitId does increment for public hidden keys with multiple __',
           () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
-        var commitId = await commitLogInstance?.commit(
+        var commitId = await commitLogInstance.commit(
             'public:__location@alice', CommitOp.UPDATE);
         expect(commitId, 0);
-        expect(commitLogInstance?.lastCommittedSequenceNumber(), 0);
+        expect(commitLogInstance.lastCommittedSequenceNumber(), 0);
       });
       test('test to verify last committed sequenceNumber with regex', () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
-        await commitLogInstance?.commit(
+        await commitLogInstance.commit(
             'public:location_1.wavi@alice', CommitOp.UPDATE);
-        await commitLogInstance?.commit(
+        await commitLogInstance.commit(
             'public:phone.buzz@alice', CommitOp.UPDATE);
-        await commitLogInstance?.commit(
+        await commitLogInstance.commit(
             'public:location_2.wavi@alice', CommitOp.UPDATE);
-        await commitLogInstance?.commit(
+        await commitLogInstance.commit(
             'public:email.buzz@alice', CommitOp.UPDATE);
         expect(
             await commitLogInstance
-                ?.lastCommittedSequenceNumberWithRegex('buzz'),
+                .lastCommittedSequenceNumberWithRegex('buzz'),
             3);
         expect(
             await commitLogInstance
-                ?.lastCommittedSequenceNumberWithRegex('wavi'),
+                .lastCommittedSequenceNumberWithRegex('wavi'),
             2);
-        await commitLogInstance?.commit(
+        await commitLogInstance.commit(
             'public:location_1.wavi@alice', CommitOp.UPDATE);
-        await commitLogInstance?.commit(
+        await commitLogInstance.commit(
             'public:location_2.wavi@alice', CommitOp.DELETE);
-        await commitLogInstance?.commit(
+        await commitLogInstance.commit(
             'public:phone.buzz@alice', CommitOp.DELETE);
-        await commitLogInstance?.commit(
+        await commitLogInstance.commit(
             'public:email.buzz@alice', CommitOp.DELETE);
         expect(
             await commitLogInstance
-                ?.lastCommittedSequenceNumberWithRegex('buzz'),
+                .lastCommittedSequenceNumberWithRegex('buzz'),
             7);
         expect(
             await commitLogInstance
-                ?.lastCommittedSequenceNumberWithRegex('wavi'),
+                .lastCommittedSequenceNumberWithRegex('wavi'),
             5);
       });
       test(
           'A test to verify lastCommittedSequenceNumber does not  include key which does not match regex',
           () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
-        var commitLogKeystore = commitLogInstance!.commitLogKeyStore;
+        var commitLogKeystore = commitLogInstance.commitLogKeyStore;
         await commitLogKeystore.add(CommitEntry(
             'public:phone.buzz@alice', CommitOp.UPDATE, DateTime.now()));
         await commitLogKeystore.add(CommitEntry(
@@ -288,7 +288,7 @@ void main() async {
           'A test to verify lastCommittedSequenceNumber include key which matches regex and enrollednamespace',
           () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
-        var commitLogKeystore = commitLogInstance!.commitLogKeyStore;
+        var commitLogKeystore = commitLogInstance.commitLogKeyStore;
         await commitLogKeystore.add(
             CommitEntry('phone.buzz@alice', CommitOp.UPDATE, DateTime.now()));
         await commitLogKeystore.add(
@@ -304,7 +304,7 @@ void main() async {
           'A test to verify lastCommittedSequenceNumber does not include key which does not match enrollednamespace',
           () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
-        var commitLogKeystore = commitLogInstance!.commitLogKeyStore;
+        var commitLogKeystore = commitLogInstance.commitLogKeyStore;
         await commitLogKeystore.add(
             CommitEntry('phone.buzz@alice', CommitOp.UPDATE, DateTime.now()));
         await commitLogKeystore.add(
@@ -321,26 +321,26 @@ void main() async {
           () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
         for (int i = 0; i <= 50; i++) {
-          await commitLogInstance!.commit('location@alice', CommitOp.UPDATE);
+          await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
         }
-        expect(commitLogInstance!.commitLogKeyStore.getEntriesCount(), 1);
+        expect(commitLogInstance.commitLogKeyStore.getEntriesCount(), 1);
       });
 
       test('Box has exactly 2 entries after 51 commits to two distinct atKeys',
           () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
         for (int i = 0; i <= 50; i++) {
-          await commitLogInstance!.commit('location@alice', CommitOp.UPDATE);
+          await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
           await commitLogInstance.commit('country@alice', CommitOp.UPDATE);
         }
-        expect(commitLogInstance!.commitLogKeyStore.getEntriesCount(), 2);
+        expect(commitLogInstance.commitLogKeyStore.getEntriesCount(), 2);
       });
 
       test('dedupBoxToOnePerAtKey removes legacy duplicates on init', () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
         // Simulate legacy data: write entries directly to the box, bypassing
         // the inline-dedup path of add(), so duplicates accumulate.
-        final box = commitLogInstance!.commitLogKeyStore.getBox();
+        final box = commitLogInstance.commitLogKeyStore.getBox();
         for (int i = 0; i < 5; i++) {
           final entry = CommitEntry(
               'legacy@alice', CommitOp.UPDATE, DateTime.now().toUtc());
@@ -359,10 +359,10 @@ void main() async {
           () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
         for (int i = 0; i < 5; i++) {
-          await commitLogInstance!
-              .commit('location.wavi@alice', CommitOp.UPDATE);
+          await commitLogInstance.commit(
+              'location.wavi@alice', CommitOp.UPDATE);
         }
-        final entry = await commitLogInstance!
+        final entry = await commitLogInstance
             .iterate(
                 where: (e) => RegExp('location.wavi').hasMatch(e.atKey ?? ''))
             .first;
@@ -374,7 +374,7 @@ void main() async {
       test('A test to verify old commit entry is removed when a key is delete',
           () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
-        await commitLogInstance!.commit('location.wavi@alice', CommitOp.UPDATE);
+        await commitLogInstance.commit('location.wavi@alice', CommitOp.UPDATE);
         await commitLogInstance.commit('location.wavi@alice', CommitOp.DELETE);
         // Fetch the commit entry
         final entry = await commitLogInstance
@@ -391,8 +391,7 @@ void main() async {
           () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
         // Add 5 distinct keys
-        await commitLogInstance!
-            .commit('firstname.wavi@alice', CommitOp.UPDATE);
+        await commitLogInstance.commit('firstname.wavi@alice', CommitOp.UPDATE);
         await commitLogInstance.commit('lastName.wavi@alice', CommitOp.UPDATE);
         await commitLogInstance.commit('country.wavi@alice', CommitOp.UPDATE);
         await commitLogInstance.commit('phone.wavi@alice', CommitOp.UPDATE);
@@ -466,13 +465,13 @@ void main() async {
           'A test to verify null commit id gets replaced with hive internal key',
           () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
-        await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
-        var commitLogMap = await commitLogInstance?.commitLogKeyStore.toMap();
-        expect(commitLogMap?.values.first.commitId, null);
-        await commitLogInstance?.commitLogKeyStore
-            .repairNullCommitIDs(commitLogMap!);
-        commitLogMap = await commitLogInstance?.commitLogKeyStore.toMap();
-        expect(commitLogMap?.values.first.commitId, 0);
+        await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
+        var commitLogMap = await commitLogInstance.commitLogKeyStore.toMap();
+        expect(commitLogMap.values.first.commitId, null);
+        await commitLogInstance.commitLogKeyStore
+            .repairNullCommitIDs(commitLogMap);
+        commitLogMap = await commitLogInstance.commitLogKeyStore.toMap();
+        expect(commitLogMap.values.first.commitId, 0);
       });
 
       test(
@@ -480,7 +479,7 @@ void main() async {
           () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
         // Inserting commitEntry with commitId 0
-        await commitLogInstance!.commitLogKeyStore.add(
+        await commitLogInstance.commitLogKeyStore.add(
             CommitEntry('location@alice', CommitOp.UPDATE, DateTime.now())
               ..commitId = 0);
         // Inserting commitEntry with null commitId
@@ -516,7 +515,7 @@ void main() async {
       test('local key does not add to commit log', () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
 
-        var commitId = await commitLogInstance?.commit(
+        var commitId = await commitLogInstance.commit(
             'local:phone.wavi@alice', CommitOp.UPDATE);
         expect(commitId, -1);
       });
@@ -529,7 +528,7 @@ void main() async {
         var atKey = AtKey.local('phone', '@alice', namespace: 'wavi').build();
 
         var commitId =
-            await commitLogInstance?.commit(atKey.toString(), CommitOp.UPDATE);
+            await commitLogInstance.commit(atKey.toString(), CommitOp.UPDATE);
         expect(commitId, -1);
       });
 
@@ -542,7 +541,7 @@ void main() async {
           ..namespace = 'wavi'
           ..isLocal = true;
         var commitId =
-            await commitLogInstance?.commit(atKey.toString(), CommitOp.UPDATE);
+            await commitLogInstance.commit(atKey.toString(), CommitOp.UPDATE);
         expect(commitId, -1);
       });
     });
@@ -552,28 +551,28 @@ void main() async {
           () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
 
-        await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
-        await commitLogInstance?.commit('mobile@alice', CommitOp.UPDATE);
-        await commitLogInstance?.commit('phone@alice', CommitOp.UPDATE);
+        await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
+        await commitLogInstance.commit('mobile@alice', CommitOp.UPDATE);
+        await commitLogInstance.commit('phone@alice', CommitOp.UPDATE);
 
-        final entriesList = await commitLogInstance!.iterate().toList();
+        final entriesList = await commitLogInstance.iterate().toList();
         expect(entriesList.length, 3);
       });
       test(
           'A test to verify entries in commit cache map are sorted by commit-id in ascending order',
           () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
-        await commitLogInstance?.commit(
+        await commitLogInstance.commit(
             '@alice:key1.wavi@alice', CommitOp.UPDATE);
-        await commitLogInstance?.commit(
+        await commitLogInstance.commit(
             '@alice:key2.wavi@alice', CommitOp.UPDATE);
-        await commitLogInstance?.commit(
+        await commitLogInstance.commit(
             '@alice:key3.wavi@alice', CommitOp.UPDATE);
-        await commitLogInstance?.commit(
+        await commitLogInstance.commit(
             '@alice:key2.wavi@alice', CommitOp.DELETE);
-        await commitLogInstance?.commit(
+        await commitLogInstance.commit(
             '@alice:key1.wavi@alice', CommitOp.UPDATE);
-        await commitLogInstance!.commitLogKeyStore
+        await commitLogInstance.commitLogKeyStore
             .repairCommitLogAndCreateCachedMap();
         final entries = await commitLogInstance.iterate().toList();
         expect(entries.length, 3);
@@ -594,17 +593,17 @@ void main() async {
           'A test to verify the order of keys and values in commit log cache map',
           () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
-        await commitLogInstance?.commit(
+        await commitLogInstance.commit(
             '@alice:key1.wavi@alice', CommitOp.UPDATE);
-        await commitLogInstance?.commit(
+        await commitLogInstance.commit(
             '@alice:key2.wavi@alice', CommitOp.UPDATE);
-        await commitLogInstance?.commit(
+        await commitLogInstance.commit(
             '@alice:key3.wavi@alice', CommitOp.UPDATE);
-        await commitLogInstance?.commit(
+        await commitLogInstance.commit(
             '@alice:key2.wavi@alice', CommitOp.DELETE);
-        await commitLogInstance?.commit(
+        await commitLogInstance.commit(
             '@alice:key1.wavi@alice', CommitOp.UPDATE);
-        await commitLogInstance!.commitLogKeyStore
+        await commitLogInstance.commitLogKeyStore
             .repairCommitLogAndCreateCachedMap();
 
         List<MapEntry<String, CommitEntry>> commitEntriesList =
@@ -624,12 +623,12 @@ void main() async {
           () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
 
-        await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
+        await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
         int? commitIdToRemove =
-            await commitLogInstance?.commit('mobile@alice', CommitOp.UPDATE);
-        await commitLogInstance?.commit('phone@alice', CommitOp.UPDATE);
+            await commitLogInstance.commit('mobile@alice', CommitOp.UPDATE);
+        await commitLogInstance.commit('phone@alice', CommitOp.UPDATE);
 
-        var entriesList = await commitLogInstance!.iterate().toList();
+        var entriesList = await commitLogInstance.iterate().toList();
         expect(entriesList.length, 3);
         await commitLogInstance.commitLogKeyStore.remove(commitIdToRemove!);
         entriesList = await commitLogInstance.iterate().toList();
@@ -640,13 +639,13 @@ void main() async {
           () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
 
-        await commitLogInstance?.commit('location@alice', CommitOp.UPDATE);
+        await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
         int? commitIdToRemove =
-            await commitLogInstance?.commit('mobile@alice', CommitOp.UPDATE);
-        await commitLogInstance?.commit('phone@alice', CommitOp.UPDATE);
+            await commitLogInstance.commit('mobile@alice', CommitOp.UPDATE);
+        await commitLogInstance.commit('phone@alice', CommitOp.UPDATE);
 
-        await commitLogInstance?.commitLogKeyStore.remove(commitIdToRemove!);
-        final entries = await commitLogInstance!.iterate().toList();
+        await commitLogInstance.commitLogKeyStore.remove(commitIdToRemove!);
+        final entries = await commitLogInstance.iterate().toList();
         expect(entries.length, 2);
         expect(entries[0].atKey, 'location@alice');
         expect(entries[1].atKey, 'phone@alice');
@@ -656,7 +655,7 @@ void main() async {
           'A test to verify all commit entries are returned when enableCommitId is true',
           () async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
-        var commitLogKeystore = commitLogInstance!.commitLogKeyStore;
+        var commitLogKeystore = commitLogInstance.commitLogKeyStore;
         //loop to create 10 keys - even keys have commitId null - odd keys have commitId
         for (int i = 0; i < 10; i++) {
           if (i % 2 == 0) {
@@ -683,14 +682,14 @@ void main() async {
         var commitLogInstance = (await testCommitLogFor('@alice'));
         String key = 'same_key.test@alice';
         int? firstCommitId =
-            await commitLogInstance?.commit(key, CommitOp.UPDATE);
+            await commitLogInstance.commit(key, CommitOp.UPDATE);
         Future<int?>? secondCommitIdFuture = // no await here is intentional
-            commitLogInstance?.commit(key, CommitOp.UPDATE);
+            commitLogInstance.commit(key, CommitOp.UPDATE);
         int? thirdCommitId =
-            await commitLogInstance?.commit(key, CommitOp.UPDATE);
+            await commitLogInstance.commit(key, CommitOp.UPDATE);
 
         CommitEntry? commitEntryInCache =
-            commitLogInstance?.getLatestCommitEntry(key);
+            commitLogInstance.getLatestCommitEntry(key);
         // This is to create an un-orderly update of commitEntries
         int? secondCommitId = await secondCommitIdFuture;
         assert(
@@ -712,7 +711,7 @@ void main() async {
         () async {
       await setUpFunc(storageDir, enableCommitId: true);
       HiveAtCommitLog? atCommitLog = (await testCommitLogFor('@alice'));
-      expect(atCommitLog!.commitLogKeyStore, isA<CommitLogKeyStore>());
+      expect(atCommitLog.commitLogKeyStore, isA<CommitLogKeyStore>());
     });
 
     test(
@@ -720,7 +719,7 @@ void main() async {
         () async {
       await setUpFunc(storageDir, enableCommitId: false);
       HiveAtCommitLog? atCommitLog = (await testCommitLogFor('@alice'));
-      expect(atCommitLog!.commitLogKeyStore, isA<ClientCommitLogKeyStore>());
+      expect(atCommitLog.commitLogKeyStore, isA<ClientCommitLogKeyStore>());
     });
     tearDown(() async => await tearDownFunc());
   });
