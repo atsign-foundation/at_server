@@ -2,7 +2,6 @@ import 'dart:math';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store.dart';
-import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store_factory.dart';
 import 'package:at_persistence_secondary_server/src/log/accesslog/access_log_keystore.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_log_keystore.dart';
 
@@ -25,17 +24,21 @@ class TestUtils {
 // previous singleton behaviour without resurrecting the singleton API.
 // =====================================================================
 
-final SecondaryPersistenceStoreFactory _testPersistenceStoreFactory =
-    SecondaryPersistenceStoreFactory();
+final Map<String, SecondaryPersistenceStore> _testPersistenceStores = {};
 
 /// Returns the shared [SecondaryPersistenceStore] for [atSign] in
 /// the current test process. Construction is idempotent.
 SecondaryPersistenceStore testPersistenceStoreFor(String atSign) =>
-    _testPersistenceStoreFactory.getSecondaryPersistenceStore(atSign)!;
+    _testPersistenceStores.putIfAbsent(
+        atSign, () => SecondaryPersistenceStore(atSign));
 
 /// Closes every test-shared [SecondaryPersistenceStore].
-Future<void> closeTestPersistenceStores() =>
-    _testPersistenceStoreFactory.close();
+Future<void> closeTestPersistenceStores() async {
+  for (final store in _testPersistenceStores.values) {
+    await store.getHivePersistenceManager()?.close();
+  }
+  _testPersistenceStores.clear();
+}
 
 final Map<String, HiveAtCommitLog> _testCommitLogs = {};
 
