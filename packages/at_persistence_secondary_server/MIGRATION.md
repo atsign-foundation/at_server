@@ -1,13 +1,14 @@
 # Migrating from 4.3.5 to 5.0.0
 
-> ## What's new in 5.1.0 and later (sub-phases of Phase 3)
+> ## What's new in 5.0.0 (Phases 1, 2, 3, 3.5)
 >
-> Phase 3 of the persistence overhaul widens the abstract
-> `SecondaryKeyStore` with new primitives that let
-> `at_client_sdk`'s collection layer drop expensive workarounds.
-> Each minor release lands one primitive (additive — no breaks
-> within 5.x). See [What's new in 5.X.0](#whats-new-in-5x0) at
-> the bottom of this file for the per-release index.
+> 5.0.0 is the single release that ships the persistence
+> overhaul: factory + bundle (Phase 1), abstract interfaces +
+> Hive renames (Phase 2), ten new `SecondaryKeyStore` primitives
+> for at_client_sdk (Phase 3, sub-phases 3a-3j), and the sync
+> handler bugfix + `getEntries` retirement (Phase 3.5). See
+> [Phase 3 sub-phases (additive primitives)](#phase-3-sub-phases-additive-primitives)
+> below for the per-primitive index.
 
 `at_persistence_secondary_server` 5.0.0 is a major release that
 overhauls how persistence stores are constructed, named, and
@@ -938,27 +939,29 @@ fully cover.
 
 ---
 
-## What's new in 5.X.0
+## Phase 3 sub-phases (additive primitives)
 
-This index lists the primitives added in each 5.X minor release
-(Phase 3 of the persistence overhaul; design source:
-`~/.claude/plans/better-cheaper-faster-at-client.md`). Every
-addition is additive — nothing is removed within 5.x.
+This index lists the ten new primitives added by Phase 3 of the
+persistence overhaul (design source:
+`~/.claude/plans/better-cheaper-faster-at-client.md`). All ten
+ship in 5.0.0 alongside Phases 1, 2, and 3.5. Every addition is
+additive — Phase 3 itself broke nothing; the breaking changes
+in 5.0.0 come from Phases 1, 2, and 3.5.
 
-- [5.1.0 — `exists(String key)` (sub-phase 3a)](#510--existsstring-key-sub-phase-3a)
-- [5.2.0 — `KeyPattern` + `scanKeys` (sub-phase 3b)](#520--keypattern--scankeys-sub-phase-3b)
-- [5.3.0 — `getMany` (sub-phase 3c)](#530--getmany-sub-phase-3c)
-- [5.4.0 — `removeMany` (sub-phase 3d)](#540--removemany-sub-phase-3d)
-- [5.5.0 — `KeyStoreChange` + `changes` stream (sub-phase 3e)](#550--keystorechange--changes-stream-sub-phase-3e)
-- [5.6.0 — `KeyStoreTxn` + `transaction()` (sub-phase 3f)](#560--keystoretxn--transaction-sub-phase-3f)
-- [5.7.0 — ordered + paginated `scanKeys` (sub-phase 3g)](#570--ordered--paginated-scankeys-sub-phase-3g)
-- [5.8.0 — `queryByPath` + `supportsPathQueries` (sub-phase 3h)](#580--querybypath--supportspathqueries-sub-phase-3h)
-- [5.9.0 — `KeyStoreSnapshot` + `snapshot()` (sub-phase 3i)](#590--keystoresnapshot--snapshot-sub-phase-3i)
-- [5.10.0 — `KeyStoreStats` + `stats()` (sub-phase 3j)](#5100--keystorestats--stats-sub-phase-3j)
+- [Sub-phase 3a — `exists(String key)`](#sub-phase-3a--existsstring-key)
+- [Sub-phase 3b — `KeyPattern` + `scanKeys`](#sub-phase-3b--keypattern--scankeys)
+- [Sub-phase 3c — `getMany`](#sub-phase-3c--getmany)
+- [Sub-phase 3d — `removeMany`](#sub-phase-3d--removemany)
+- [Sub-phase 3e — `KeyStoreChange` + `changes` stream](#sub-phase-3e--keystorechange--changes-stream)
+- [Sub-phase 3f — `KeyStoreTxn` + `transaction()`](#sub-phase-3f--keystoretxn--transaction)
+- [Sub-phase 3g — ordered + paginated `scanKeys`](#sub-phase-3g--ordered--paginated-scankeys)
+- [Sub-phase 3h — `queryByPath` + `supportsPathQueries`](#sub-phase-3h--querybypath--supportspathqueries)
+- [Sub-phase 3i — `KeyStoreSnapshot` + `snapshot()`](#sub-phase-3i--keystoresnapshot--snapshot)
+- [Sub-phase 3j — `KeyStoreStats` + `stats()`](#sub-phase-3j--keystorestats--stats)
 - [Phase 3.5 — refactor and simplify persistence interfaces and usage](#phase-35--refactor-and-simplify-persistence-interfaces-and-usage)
-- [Phase 3 overview — migrating from 5.0.x to 5.10.0](#phase-3-overview--migrating-from-50x-to-5100)
+- [Phase 3 overview — adopting the additive primitives](#phase-3-overview--adopting-the-additive-primitives)
 
-### 5.1.0 — `exists(String key)` (sub-phase 3a)
+### Sub-phase 3a — `exists(String key)`
 
 **New on `SecondaryKeyStore`:**
 
@@ -998,12 +1001,12 @@ the at_client_sdk session) replaces existence probes that used to
 iterate the entire keystore:
 
 ```dart
-// Before (4.x and 5.0.x): O(box-size) per write — getKeys iterates
+// Before (4.x): O(box-size) per write — getKeys iterates
 // the whole keystore even for an exact-key regex.
 final keys = await keyStore.getKeys(regex: '^$exactKey\$');
 final exists = keys.isNotEmpty;
 
-// After (5.1.0+): O(1) on every backend.
+// After (5.0.0+): O(1) on every backend.
 final exists = await keyStore.exists(exactKey);
 ```
 
@@ -1012,10 +1015,10 @@ The at_client adoption site is `AtCollection._selfKeyExists` in
 from `create()` and `update()`); the same recipe applies to any
 downstream consumer with a similar pattern.
 
-**Capability flag:** none. Every backend in 5.1.0 supports
+**Capability flag:** none. Every backend supports
 `exists` natively (no fallback path; no `supportsX` flag needed).
 
-### 5.2.0 — `KeyPattern` + `scanKeys` (sub-phase 3b)
+### Sub-phase 3b — `KeyPattern` + `scanKeys`
 
 **New types** (in `at_persistence_spec`):
 
@@ -1065,7 +1068,7 @@ and `idPrefix` (leading-substring match on the id); `sharedBy`,
 key LIKE ?` against composite indexes. O(matching).
 
 **Backward compat:** purely additive on the abstract.
-`getKeys(regex: ...)` stays in place and isn't deprecated in 5.2.0
+`getKeys(regex: ...)` stays in place and isn't deprecated in 5.0.0
 — that step waits until at_client_sdk's adoption of `scanKeys`
 removes the legacy callers (later sub-phase / separate session).
 
@@ -1073,12 +1076,12 @@ removes the legacy callers (later sub-phase / separate session).
 the at_client_sdk session) replaces every regex-`getKeys` site:
 
 ```dart
-// Before (4.x and 5.0.x-5.1.x): build a regex describing the
+// Before (4.x): build a regex describing the
 // shape, run it across the whole keystore, parse results.
 final regex = '^@bob:.*\\.tasks@alice\$';
 final keys = await keyStore.getKeys(regex: regex);
 
-// After (5.2.0+): structured filter; backend can push it down
+// After (5.0.0+): structured filter; backend can push it down
 // to its native query plan.
 final keys = await keyStore
     .scanKeys(KeyPattern(sharedWith: '@bob', namespace: 'tasks'))
@@ -1092,21 +1095,21 @@ The at_client adoption sites are documented inline in
 `_uniqueItemId`'s collision check, and every per-event scan in
 `Query.watch().onUpdate`.
 
-**Capability flag:** none. Every backend in 5.2.0 supports
+**Capability flag:** none. Every backend supports
 `scanKeys` (Hive scans-and-filters, SQL backends index-and-select);
 the absence of a flag reflects that semantics are identical
 across backends — only performance differs.
 
 **Departure from source plan:** the source plan called for
 in-memory secondary indexes on the Hive side (sticking-plaster
-to make Hive O(matching)). 5.2.0 ships iterate-and-filter
+to make Hive O(matching)). 5.0.0 ships iterate-and-filter
 instead — simpler, no drift risk, no memory cost. Hive performance
 is what `getKeys(regex)` was. If at_client adoption surfaces a
 real bottleneck, a follow-up sub-phase can add the side index
 behind the same API. The decision is reversible because it lives
 entirely inside `HiveSecondaryKeyStore`.
 
-### 5.3.0 — `getMany` (sub-phase 3c)
+### Sub-phase 3c — `getMany`
 
 **New on `SecondaryKeyStore`:**
 
@@ -1150,13 +1153,13 @@ expressed as `get` (cleaner than `getMany([k])`).
 the at_client_sdk session) replaces per-key get loops:
 
 ```dart
-// Before (4.x and 5.0.x-5.2.x): N round-trips for N keys.
+// Before (4.x): N round-trips for N keys.
 final values = <String, AtData?>{};
 for (final k in keys) {
   values[k] = await atClient.get(k);
 }
 
-// After (5.3.0+): one bulk fetch, no per-key await.
+// After (5.0.0+): one bulk fetch, no per-key await.
 final values = await keyStore.getMany(keys);
 ```
 
@@ -1168,12 +1171,12 @@ and `_cascadeFromParentDelete` envelope reads. Watch-setup cost
 on a 1000-item collection drops from "1 scan + 1000 reads" to
 "1 scan + 1 bulk-read".
 
-**Capability flag:** none. Every backend in 5.3.0 supports
+**Capability flag:** none. Every backend supports
 `getMany`. Performance characteristics differ (Hive: O(N) async
 LazyBox awaits; SQLite: single round-trip), but semantics are
 identical.
 
-### 5.4.0 — `removeMany` (sub-phase 3d)
+### Sub-phase 3d — `removeMany`
 
 **New on `SecondaryKeyStore`:**
 
@@ -1222,13 +1225,13 @@ the at_client_sdk session) replaces per-key delete loops while
 preserving per-key event emission upstream:
 
 ```dart
-// Before (4.x and 5.0.x-5.3.x): N round-trips for N deletes,
+// Before (4.x): N round-trips for N deletes,
 // commit log notified N times.
 for (final k in keys) {
   await keyStore.remove(k);
 }
 
-// After (5.4.0+): one batched delete, still emits one commit-log
+// After (5.0.0+): one batched delete, still emits one commit-log
 // DELETE entry per key (so sync sees each).
 final removed = await keyStore.removeMany(keys);
 ```
@@ -1238,12 +1241,12 @@ The at_client adoption sites are
 ~500 round-trips → 1 on a heavy sweep), `_cascadeFromParentDelete`,
 and `updateSharedWith`'s "unshare" loop.
 
-**Capability flag:** none. Every backend in 5.4.0 supports
+**Capability flag:** none. Every backend supports
 `removeMany` (Hive batches via `deleteAll`, SQL backends use
 single-statement `DELETE WHERE IN`). Performance differs by
 backend; semantics are identical.
 
-### 5.5.0 — `KeyStoreChange` + `changes` stream (sub-phase 3e)
+### Sub-phase 3e — `KeyStoreChange` + `changes` stream
 
 **New types** (in `at_persistence_spec`):
 
@@ -1304,7 +1307,7 @@ class LocalSecondary {
   // _emit machinery, counter, drain waiters, putValue silence...
 }
 
-// After (5.5.0+): pure transform over keystore's changes stream.
+// After (5.0.0+): pure transform over keystore's changes stream.
 class LocalSecondary {
   Stream<DataEvent> get dataEvents =>
       keyStore.changes
@@ -1323,10 +1326,10 @@ Two follow-on consequences for the at_client_sdk session:
    `putValue` writes to be visible can subscribe to
    `keyStore.changes` upstream of LocalSecondary's filter.
 
-**Capability flag:** none. Every backend in 5.5.0 emits change
+**Capability flag:** none. Every backend emits change
 events.
 
-### 5.6.0 — `KeyStoreTxn` + `transaction()` (sub-phase 3f)
+### Sub-phase 3f — `KeyStoreTxn` + `transaction()`
 
 **New types** (in `at_persistence_spec`):
 
@@ -1396,14 +1399,14 @@ the at_client_sdk session) wraps multi-write paths that today
 use idempotent retry / compensating writes:
 
 ```dart
-// Before (4.x and 5.0.x-5.5.x): _update + commit-log write are
+// Before (4.x): _update + commit-log write are
 // in two separate awaits; a crash between them leaves the
 // keystore with the new value but the commit log un-bumped (or
 // vice versa for reads of an externally-written key).
 await keyStore.put(key, data);
 await commitLog.commit(key, CommitOp.UPDATE);
 
-// After (5.6.0+): atomic. Both happen at commit time, or
+// After (5.0.0+): atomic. Both happen at commit time, or
 // neither.
 await keyStore.transaction((txn) async {
   await txn.put(key, data, metadata);
@@ -1429,7 +1432,7 @@ case) wait for SQLite. Within the at_client use cases (sync
 invariants, share-walks), Hive's per-isolate guarantee is
 sufficient.
 
-### 5.7.0 — ordered + paginated `scanKeys` (sub-phase 3g)
+### Sub-phase 3g — ordered + paginated `scanKeys`
 
 **New types** (in `at_persistence_spec`):
 
@@ -1507,7 +1510,7 @@ the at_client_sdk session) unblocks the paginated delta-path in
 final usesDeltaPath =
     _spec.limitN == null && _spec.skipN == null;
 
-// After (5.7.0+): paginated delta-path works.
+// After (5.0.0+): paginated delta-path works.
 //   On a CItemUpdated, refresh the result-set window via:
 final newWindow = await keyStore.scanKeys(
   pattern,
@@ -1523,15 +1526,15 @@ pagination` comment in `collections.dart` becomes implementable:
 cursor pagination is a `KeyPattern` + `startAfter` parameter on
 `scanKeys` (a follow-up that builds on this primitive).
 
-**Capability flag:** none. Every backend in 5.7.0 supports
+**Capability flag:** none. Every backend supports
 ordered + paginated `scanKeys`. Hive's metadata-ordered paths
 are O(N log N) (sticking-plaster); SQL backends will be
 O(matching).
 
-### 5.8.0 — `queryByPath` + `supportsPathQueries` (sub-phase 3h)
+### Sub-phase 3h — `queryByPath` + `supportsPathQueries`
 
 **This is the first primitive with a capability flag.** The
-abstract API ships in 5.8.0 so consumers (the at_client_sdk
+abstract API ships in 5.0.0 so consumers (the at_client_sdk
 session) can write the call site once; on Hive the flag is
 `false` and consumers fall back to today's full-scan behaviour;
 on Phase 4's SQLite backend the flag flips to `true` and the
@@ -1611,7 +1614,7 @@ the at_client_sdk session) updates `Query.wherePath` to push
 down on backends that advertise support:
 
 ```dart
-// Before (4.x and 5.0.x-5.7.x): every Query.wherePath fetches
+// Before (4.x): every Query.wherePath fetches
 // every matching atKey, materialises the AtData, runs the
 // PathField predicate in Dart. The bucketed-Invoice example in
 // collections_invoices.dart is materialise-everything-then-filter.
@@ -1619,7 +1622,7 @@ final keys = await keyStore.getKeys(regex: '...');
 final values = await Future.wait(keys.map(keyStore.get));
 final filtered = values.where((v) => predicate.match(v)).toList();
 
-// After (5.8.0+): backend-aware push-down with fallback.
+// After (5.0.0+): backend-aware push-down with fallback.
 if (keyStore.supportsPathQueries) {
   // SQLite path — indexed; sub-second on millions of rows.
   await for (final entry in keyStore.queryByPath(
@@ -1645,7 +1648,7 @@ flag of its kind — consumers gate on it. The pattern repeats in
 sub-phase 3i (`snapshots`, with similar Hive-stub / SQL-real
 shape).
 
-### 5.9.0 — `KeyStoreSnapshot` + `snapshot()` (sub-phase 3i)
+### Sub-phase 3i — `KeyStoreSnapshot` + `snapshot()`
 
 **New types** (in `at_persistence_spec`):
 
@@ -1687,7 +1690,7 @@ in the at_client_sdk session) wraps `Query.fetch()` in a
 snapshot for consistency:
 
 ```dart
-// Before (4.x and 5.0.x-5.8.x): a Query.fetch() over 1000 items
+// Before (4.x): a Query.fetch() over 1000 items
 // can yield mixed-version results if writes interleave with the
 // scan. The mutex serialiser inside Query.watch() (commit
 // d6c845d03) is the only consistency lever today.
@@ -1696,7 +1699,7 @@ await for (final entry in keyStore.scanKeys(pattern)) {
   items.add(decode(await keyStore.get(entry)));  // values may shift mid-scan
 }
 
-// After (5.9.0+): wrap in a snapshot. Real isolation on SQLite;
+// After (5.0.0+): wrap in a snapshot. Real isolation on SQLite;
 // behaviour unchanged on Hive (the handle just delegates to
 // live state). The mutex serialiser stays as a Hive-side
 // belt-and-braces.
@@ -1722,7 +1725,7 @@ defence.
 **Capability flag:** YES. `supportsSnapshots` mirrors
 `supportsPathQueries` — same gate-and-fall-back pattern.
 
-### 5.10.0 — `KeyStoreStats` + `stats()` (sub-phase 3j)
+### Sub-phase 3j — `KeyStoreStats` + `stats()`
 
 **New types** (in `at_persistence_spec`):
 
@@ -1786,7 +1789,7 @@ Useful for "your atSign is approaching capacity" warnings,
 startup-time logging, performance reports. Not load-bearing —
 diagnostic only.
 
-**Capability flag:** none. Every backend in 5.10.0 supports
+**Capability flag:** none. Every backend supports
 `stats`. Performance differs (Hive: O(N), SQL: O(log N) or O(1));
 semantics are identical.
 
@@ -1794,9 +1797,9 @@ semantics are identical.
 
 ## Phase 3.5 — refactor and simplify persistence interfaces and usage
 
-Phase 3.5 lands alongside Phase 3 in the in-progress 5.10.0
-release. Unlike Phase 3 (purely additive), Phase 3.5 includes
-**breaking changes** to the commit-log abstract API.
+Phase 3.5 ships alongside Phases 1, 2, and 3 in 5.0.0. Unlike
+Phase 3 (purely additive), Phase 3.5 includes **breaking changes**
+to the commit-log abstract API.
 
 ### What changed
 
@@ -1853,26 +1856,27 @@ release. Unlike Phase 3 (purely additive), Phase 3.5 includes
    versions will see a one-time `'Commit log dedup migration:
    removed N duplicate entries'` log line on first start.
 
-### Why this lands as a minor release
+### Why this lands in 5.0.0
 
-Per the project's deferred-version-bump rule, Phase 3.5's
-breaking changes ride along under 5.10.0 (the in-progress
-version that already bundles Phase 3 sub-phase 3j). Consumers
-moving from 4.3.5 / 5.0.x to 5.10.0 will see both the additive
-Phase 3 surface and the Phase 3.5 retirements in the same bump.
+Per the project's deferred-version-bump rule, the entire
+persistence overhaul (Phases 1, 2, 3, 3.5) ships as a single
+5.0.0 release rather than per-sub-phase minor bumps. Consumers
+moving from 4.3.5 to 5.0.0 see Phases 1/2/3.5 (breaking +
+infrastructural) and Phase 3 (additive primitives) together.
 
 ---
 
-## Phase 3 overview — migrating from 5.0.x to 5.10.0
+## Phase 3 overview — adopting the additive primitives
 
 Phase 3 of the persistence overhaul widens the abstract
 `SecondaryKeyStore` with ten new primitives (sub-phases 3a-3j)
-and three capability flags. Every change is **additive** — no
-4.x or 5.0.x API was removed in Phase 3, and no semantics
-changed for existing callers.
+and three capability flags. Every Phase 3 change is **additive** —
+no 4.x API was removed by Phase 3, and no semantics changed for
+existing callers. (The breaking changes in 5.0.0 come from
+Phases 1, 2, and 3.5; see those sections.)
 
-A consumer that pinned `at_persistence_secondary_server: ^5.0.0`
-and bumps to `^5.10.0` sees:
+A consumer that pinned `at_persistence_secondary_server: ^4.3.5`
+and bumps to `^5.0.0` sees:
 
 - Every existing call site (`get`, `put`, `remove`, `getKeys`,
   `putAll`, `putMeta`, `isKeyExists`, etc.) compiles and runs
@@ -1880,56 +1884,56 @@ and bumps to `^5.10.0` sees:
 - The wider abstract surface available via the bundle's
   `keyStore` and `notificationKeystore`.
 - Two new capability flags to gate optional features:
-  - `supportsPathQueries` (5.8.0) — backend can push value-field
-    predicates down to a native indexed query plan.
-  - `supportsSnapshots` (5.9.0) — backend produces real isolated
-    snapshots.
+  - `supportsPathQueries` (sub-phase 3h) — backend can push
+    value-field predicates down to a native indexed query plan.
+  - `supportsSnapshots` (sub-phase 3i) — backend produces real
+    isolated snapshots.
   - Both are `false` on Hive; Phase 4's SQL backend flips them
     to `true`.
 
-**Cumulative addition table:**
+**Cumulative addition table** (all primitives ship in 5.0.0):
 
-| Primitive                | Version | Behaviour on Hive          |
-|--------------------------|---------|----------------------------|
-| `exists(key)`            | 5.1.0   | Real (delegates to `Box.containsKey`). |
-| `KeyPattern` + `scanKeys`| 5.2.0   | Real but iterates the box (no side index). O(box-size). |
-| `getMany(keys)`          | 5.3.0   | Real but per-key LazyBox await. O(N). |
-| `removeMany(keys)`       | 5.4.0   | Real, batched via `Box.deleteAll`. |
-| `changes` stream         | 5.5.0   | Real, `StreamController.broadcast` per keystore. |
-| `transaction(body)`      | 5.6.0   | Best-effort atomicity (per-flush durable; mid-commit crash can leave partial). |
-| ordered + paginated `scanKeys` | 5.7.0 | Real (insertion / lex / metadata-sort), O(N log N) for metadata sort. |
-| `queryByPath` + `supportsPathQueries`     | 5.8.0   | Stub (`false` flag, `UnsupportedError` on call). |
-| `snapshot` + `supportsSnapshots`          | 5.9.0   | Best-effort (delegates to live state, `false` flag). |
-| `stats()`                | 5.10.0  | Real, iterates the box (O(N)). |
+| Primitive                | Sub-phase | Behaviour on Hive          |
+|--------------------------|-----------|----------------------------|
+| `exists(key)`            | 3a        | Real (delegates to `Box.containsKey`). |
+| `KeyPattern` + `scanKeys`| 3b        | Real but iterates the box (no side index). O(box-size). |
+| `getMany(keys)`          | 3c        | Real but per-key LazyBox await. O(N). |
+| `removeMany(keys)`       | 3d        | Real, batched via `Box.deleteAll`. |
+| `changes` stream         | 3e        | Real, `StreamController.broadcast` per keystore. |
+| `transaction(body)`      | 3f        | Best-effort atomicity (per-flush durable; mid-commit crash can leave partial). |
+| ordered + paginated `scanKeys` | 3g  | Real (insertion / lex / metadata-sort), O(N log N) for metadata sort. |
+| `queryByPath` + `supportsPathQueries`     | 3h        | Stub (`false` flag, `UnsupportedError` on call). |
+| `snapshot` + `supportsSnapshots`          | 3i        | Best-effort (delegates to live state, `false` flag). |
+| `stats()`                | 3j        | Real, iterates the box (O(N)). |
 
 **`pubspec.yaml` change**: bump
-`at_persistence_secondary_server: ^5.0.0` → `^5.10.0` (or any
-intermediate minor — every step is independently usable). Run
+`at_persistence_secondary_server: ^4.3.5` → `^5.0.0`. Run
 `dart pub get`; no other action required for read-only users
-of the existing API.
+of the existing API. (Read the Phases 1, 2, and 3.5 sections
+for the breaking-change actions you may need to take.)
 
 **Adoption order for at_client_sdk** (separate session, see the
 sibling plan at `~/.claude/plans/better-cheaper-faster-at-client.md`):
 
-1. 5.1.0 / `exists` → `_selfKeyExists` in
+1. Sub-phase 3a / `exists` → `_selfKeyExists` in
    `collections.dart`. ~1 line per call site.
-2. 5.2.0 / `scanKeys` → every regex-`getKeys` site in
+2. Sub-phase 3b / `scanKeys` → every regex-`getKeys` site in
    `collections.dart` and the cascade / orphan walks.
-3. 5.3.0 / `getMany` → `getItemsAsStream`'s 1000-read pattern,
-   cascade reads.
-4. 5.4.0 / `removeMany` → `LocalSecondary.deleteExpiredKeys`,
+3. Sub-phase 3c / `getMany` → `getItemsAsStream`'s 1000-read
+   pattern, cascade reads.
+4. Sub-phase 3d / `removeMany` → `LocalSecondary.deleteExpiredKeys`,
    cascade deletes.
-5. 5.5.0 / `changes` → `LocalSecondary.dataEvents` becomes a
-   filter/transform (deletes the in-LocalSecondary broadcast
-   machinery + the `_emit` counter / drain waiters).
-6. 5.6.0 / `transaction` → atomicity in `_update` + commit-log
-   write, share-walk, cascade-delete.
-7. 5.7.0 / ordered `scanKeys` → `Query.watch()` paginated
-   delta-path.
-8. 5.8.0 / `queryByPath` → `Query.wherePath` push-down (gated
-   on `supportsPathQueries`; falls back on Hive).
-9. 5.9.0 / `snapshot` → `Query.fetch()` consistency wrap.
-10. 5.10.0 / `stats` → `AtClient.diagnostics()` debug surface.
+5. Sub-phase 3e / `changes` → `LocalSecondary.dataEvents`
+   becomes a filter/transform (deletes the in-LocalSecondary
+   broadcast machinery + the `_emit` counter / drain waiters).
+6. Sub-phase 3f / `transaction` → atomicity in `_update` +
+   commit-log write, share-walk, cascade-delete.
+7. Sub-phase 3g / ordered `scanKeys` → `Query.watch()`
+   paginated delta-path.
+8. Sub-phase 3h / `queryByPath` → `Query.wherePath` push-down
+   (gated on `supportsPathQueries`; falls back on Hive).
+9. Sub-phase 3i / `snapshot` → `Query.fetch()` consistency wrap.
+10. Sub-phase 3j / `stats` → `AtClient.diagnostics()` debug surface.
 
 Pairs 1, 3, 4, 6 are independent; 7 requires 2; 8 requires 2 and
 benefits from 6; 5, 9, 10 are independent. The sibling plan
