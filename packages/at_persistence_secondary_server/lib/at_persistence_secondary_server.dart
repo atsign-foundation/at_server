@@ -5,6 +5,7 @@ export 'package:at_persistence_secondary_server/src/compaction/at_compaction_job
 export 'package:at_persistence_secondary_server/src/compaction/at_compaction_strategy.dart';
 export 'package:at_persistence_secondary_server/src/compaction/at_compaction_stats_service.dart';
 export 'package:at_persistence_secondary_server/src/compaction/at_compaction_stats_service_impl.dart';
+export 'package:at_persistence_secondary_server/src/keystore/hive_secondary_keystore.dart';
 export 'package:at_persistence_secondary_server/src/log/accesslog/at_access_log.dart';
 export 'package:at_persistence_secondary_server/src/log/accesslog/hive_at_access_log.dart';
 export 'package:at_persistence_secondary_server/src/log/commitlog/at_commit_log.dart';
