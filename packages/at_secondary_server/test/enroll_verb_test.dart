@@ -1157,9 +1157,9 @@ void main() {
       expect(enrollmentResponse['enrollmentId'], isNotNull);
       expect(enrollmentResponse['status'], 'approved');
       // Commit log
-      Iterator iterator =
-          (secondaryKeyStore.commitLog as HiveAtCommitLog).getEntries(-1);
-      expect(iterator.moveNext(), false);
+      expect(
+          await (secondaryKeyStore.commitLog as AtCommitLog).iterate().isEmpty,
+          true);
     });
 
     test(
@@ -1182,9 +1182,9 @@ void main() {
       expect(enrollmentResponse['enrollmentId'], isNotNull);
       expect(enrollmentResponse['status'], 'approved');
       // Commit log
-      Iterator iterator =
-          (secondaryKeyStore.commitLog as HiveAtCommitLog).getEntries(-1);
-      expect(iterator.moveNext(), false);
+      expect(
+          await (secondaryKeyStore.commitLog as AtCommitLog).iterate().isEmpty,
+          true);
     });
 
     test('A test to ensure enroll approval is not added to commit log',
@@ -1222,10 +1222,12 @@ void main() {
       expect(approveEnrollmentResponse['enrollmentId'], enrollmentId);
       expect(approveEnrollmentResponse['status'], 'approved');
       // Verify Commit log does not contain keys with __manage namespace
-      Iterator iterator =
-          (secondaryKeyStore.commitLog as HiveAtCommitLog).getEntries(-1);
-      iterator.moveNext();
-      expect(iterator.moveNext(), false);
+      // (the enrollment approval should NOT have produced a commit-log entry).
+      final entries =
+          await (secondaryKeyStore.commitLog as AtCommitLog).iterate().toList();
+      expect(
+          entries.where((e) => e.atKey?.contains('__manage') ?? false).isEmpty,
+          true);
     });
     tearDown(() async => await verbTestsTearDown());
   });
@@ -2723,9 +2725,8 @@ void main() {
       expect(enrollmentDataMap['apkamPublicKey'], 'lorem_apkam');
 
       AtCommitLog atCommitLog = atServer.commitLog;
-      var itr = atCommitLog.getEntries(-1);
-      // Since there are no entries in commit log, iterator.moveNext() returns false.
-      expect(itr.moveNext(), false);
+      // Since there are no entries in commit log, the stream is empty.
+      expect(await atCommitLog.iterate().isEmpty, true);
 
       // 2. Approve an enrollment and verify enrollmentKey is not stored in the commit log.
       String approveEnrollment =
@@ -2740,9 +2741,8 @@ void main() {
       expect(jsonDecode(response.data!)['status'], 'approved');
 
       atCommitLog = atServer.commitLog;
-      itr = atCommitLog.getEntries(-1);
       // Ensure there are no other keys in the commit log.
-      expect(itr.moveNext(), false);
+      expect(await atCommitLog.iterate().isEmpty, true);
 
       // 3. Revoke an enrollment and verify the commit log state.
       enrollmentRequest = 'enroll:revoke:{"enrollmentId":"$enrollmentId"}';
@@ -2758,9 +2758,8 @@ void main() {
       expect(jsonDecode(response.data!)['status'], 'revoked');
 
       atCommitLog = atServer.commitLog;
-      itr = atCommitLog.getEntries(-1);
       // Ensure there are no other keys in the commit log.
-      expect(itr.moveNext(), false);
+      expect(await atCommitLog.iterate().isEmpty, true);
 
       // 4. Delete an enrollment request.
       enrollmentRequest = 'enroll:delete:{"enrollmentId":"$enrollmentId"}';
@@ -2776,10 +2775,8 @@ void main() {
       expect(jsonDecode(response.data!)['status'], 'deleted');
 
       atCommitLog = atServer.commitLog;
-      itr = atCommitLog.getEntries(-1);
-      // Since there are no entries in commit log, iterator.moveNext() returns false.
       // Ensure there are no other keys in the commit log.
-      expect(itr.moveNext(), false);
+      expect(await atCommitLog.iterate().isEmpty, true);
 
       // Verify key is deleted in the secondary keystore.
       expect(() async => await secondaryKeyStore.get(enrollmentKey),
@@ -2828,9 +2825,8 @@ void main() {
       expect(enrollmentDataMap['apkamPublicKey'], 'lorem_apkam');
 
       AtCommitLog atCommitLog = atServer.commitLog;
-      var itr = atCommitLog.getEntries(-1);
-      // Since there are no entries in commit log, iterator.moveNext() returns false.
-      expect(itr.moveNext(), false);
+      // Since there are no entries in commit log, the stream is empty.
+      expect(await atCommitLog.iterate().isEmpty, true);
 
       // 2. Deny an enrollment and verify the commit log state.
       enrollmentRequest = 'enroll:deny:{"enrollmentId":"$enrollmentId"}';
@@ -2846,9 +2842,8 @@ void main() {
       expect(jsonDecode(response.data!)['status'], 'denied');
 
       atCommitLog = atServer.commitLog;
-      itr = atCommitLog.getEntries(-1);
-      // Since there are no entries in commit log, iterator.moveNext() returns false.
-      expect(itr.moveNext(), false);
+      // Since there are no entries in commit log, the stream is empty.
+      expect(await atCommitLog.iterate().isEmpty, true);
 
       // 3. Delete an enrollment request.
       enrollmentRequest = 'enroll:delete:{"enrollmentId":"$enrollmentId"}';
@@ -2864,9 +2859,8 @@ void main() {
       expect(jsonDecode(response.data!)['status'], 'deleted');
 
       atCommitLog = atServer.commitLog;
-      itr = atCommitLog.getEntries(-1);
-      // Since there are no entries in commit log, iterator.moveNext() returns false.
-      expect(itr.moveNext(), false);
+      // Since there are no entries in commit log, the stream is empty.
+      expect(await atCommitLog.iterate().isEmpty, true);
 
       // Verify key is deleted in the secondary keystore.
       expect(() async => await secondaryKeyStore.get(enrollmentKey),

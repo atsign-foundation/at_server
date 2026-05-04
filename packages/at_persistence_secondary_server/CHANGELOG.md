@@ -1,5 +1,23 @@
 ## 5.10.0
 
+- refactor: **(breaking)** retire `AtCommitLog.getEntries`. Migrate to
+  `iterate(fromCommitId, where: closure)` for delta walks. The
+  closure carries any caller-side filtering (regex, skipDeletesUntil,
+  etc.) — those semantics moved out of the commit-log abstraction
+  and into the consumer (e.g. `SyncProgressiveVerbHandler`).
+  Phase 3.5 sub-phase 3.5f.
+- refactor: retire `CommitLogCompactionService` and
+  `CompactionSortedList`. Inline single-atKey dedup in
+  `CommitLogKeyStore.add()` (delete-old-on-write) means the box
+  satisfies the "at most one entry per atKey" invariant at all
+  times; the async batch sweeper was redundant. Startup migration
+  in `repairCommitLogAndCreateCachedMap` cleans up any legacy
+  duplicates. Phase 3.5 sub-phase 3.5a.
+- refactor: replace `HiveAtCommitLog.iterate`'s `toMap()+sort` impl
+  with a lazy box-walk via `getBox().keys.skipWhile(<fromCommitId)`.
+  Add optional sync `where:` predicate to abstract `AtCommitLog.iterate`,
+  Hive impl, and `CommitLogKeyStore.iterate`. Default `null` = no filter.
+  Phase 3.5 sub-phase 3.5b.
 - feat: add `Future<KeyStoreStats> stats()` to the abstract
   `SecondaryKeyStore`, plus a new `KeyStoreStats` data class in
   `at_persistence_spec`. Diagnostic snapshot of the keystore's

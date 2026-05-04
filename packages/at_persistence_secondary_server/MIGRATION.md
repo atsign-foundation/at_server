@@ -955,6 +955,7 @@ addition is additive — nothing is removed within 5.x.
 - [5.8.0 — `queryByPath` + `supportsPathQueries` (sub-phase 3h)](#580--querybypath--supportspathqueries-sub-phase-3h)
 - [5.9.0 — `KeyStoreSnapshot` + `snapshot()` (sub-phase 3i)](#590--keystoresnapshot--snapshot-sub-phase-3i)
 - [5.10.0 — `KeyStoreStats` + `stats()` (sub-phase 3j)](#5100--keystorestats--stats-sub-phase-3j)
+- [Phase 3.5 — refactor and simplify persistence interfaces and usage](#phase-35--refactor-and-simplify-persistence-interfaces-and-usage)
 - [Phase 3 overview — migrating from 5.0.x to 5.10.0](#phase-3-overview--migrating-from-50x-to-5100)
 
 ### 5.1.0 — `exists(String key)` (sub-phase 3a)
@@ -1788,6 +1789,77 @@ diagnostic only.
 **Capability flag:** none. Every backend in 5.10.0 supports
 `stats`. Performance differs (Hive: O(N), SQL: O(log N) or O(1));
 semantics are identical.
+
+---
+
+## Phase 3.5 — refactor and simplify persistence interfaces and usage
+
+Phase 3.5 lands alongside Phase 3 in the in-progress 5.10.0
+release. Unlike Phase 3 (purely additive), Phase 3.5 includes
+**breaking changes** to the commit-log abstract API.
+
+### What changed
+
+1. **`AtCommitLog.getEntries` is removed.** Migrate to
+   `iterate(fromCommitId, where: closure)`. The closure carries
+   any caller-side filtering (regex, skipDeletesUntil, etc.) —
+   those semantics moved out of the commit-log abstraction and
+   into the consumer.
+
+   Before:
+   ```dart
+   final iter = commitLog.getEntries(fromCommitId,
+       regex: 'foo', skipDeletesUntil: 25);
+   while (iter.moveNext()) {
+     final entry = iter.current.value;
+     // ...
+   }
+   ```
+   After:
+   ```dart
+   await for (final entry in commitLog.iterate(
+       fromCommitId: fromCommitId,
+       where: (e) => RegExp('foo').hasMatch(e.atKey ?? ''))) {
+     // ...
+   }
+   ```
+
+2. **`HiveAtCommitLog.iterate` is now lazy.** Walks
+   `getBox().keys.skipWhile(<fromCommitId)` directly instead of
+   materialising the full log via `toMap()+sort`. No semantic
+   change for existing callers; perf improves significantly on
+   large logs.
+
+3. **`AtCommitLog.iterate` gains an optional `where:` predicate.**
+   Synchronous `bool Function(CommitEntry)?`; entries for which
+   the predicate returns false are skipped. Default `null` =
+   no filter. Existing migrator-flavour callers (no `where:`)
+   are unaffected.
+
+4. **`CommitLogCompactionService` and `CompactionSortedList` are
+   removed.** Their job — async batch removal of duplicate
+   commit entries per atKey — is now done eagerly by
+   `CommitLogKeyStore.add()` itself (delete-old-on-write). The
+   commit-log box satisfies the "at most one entry per atKey"
+   invariant at all times. Server consumers that registered the
+   compaction service as a change-event listener can simply
+   delete those calls.
+
+5. **Startup dedup migration**. `repairCommitLogAndCreateCachedMap`
+   now removes any legacy duplicate entries on init (cleaning up
+   data that pre-dates the inline-dedup invariant or was left
+   behind by interrupted writes). Idempotent; safe to run on
+   already-deduped data. Operators upgrading from earlier
+   versions will see a one-time `'Commit log dedup migration:
+   removed N duplicate entries'` log line on first start.
+
+### Why this lands as a minor release
+
+Per the project's deferred-version-bump rule, Phase 3.5's
+breaking changes ride along under 5.10.0 (the in-progress
+version that already bundles Phase 3 sub-phase 3j). Consumers
+moving from 4.3.5 / 5.0.x to 5.10.0 will see both the additive
+Phase 3 surface and the Phase 3.5 retirements in the same bump.
 
 ---
 

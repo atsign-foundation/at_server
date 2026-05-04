@@ -57,11 +57,6 @@ abstract class AtCommitLog implements AtLogType<int, CommitEntry> {
   /// Close the underlying storage handle.
   Future<void> close();
 
-  /// Iterator over commit entries with `commitId >= [commitId]`,
-  /// optionally filtered by [regex] and limited to [limit] entries.
-  Iterator<MapEntry<String, CommitEntry>> getEntries(int commitId,
-      {String? regex, int limit = 25, int? skipDeletesUntil});
-
   /// Subscribe / unsubscribe to commit-log change events.
   void addEventListener(AtChangeEventListener listener);
   void removeEventListener(AtChangeEventListener listener);

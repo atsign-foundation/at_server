@@ -65,19 +65,16 @@ void main() async {
         DateTime start = DateTime.now();
         await putData('$alice:phone$alice');
         // verify metadata
-        AtMetaData md = (await secondaryKeyStore                .get('$alice:phone$alice'))!
-            .metaData!;
+        AtMetaData md =
+            (await secondaryKeyStore.get('$alice:phone$alice'))!.metaData!;
         expect(md.createdAt!.difference(start).inMicroseconds, isPositive);
         expect(md.updatedAt!.difference(start).inMicroseconds, isPositive);
         expect(md.version, 0);
         expect(md.createdBy, atSign);
         // verify commit entry data
-        // The "getEntry" method is specific to "client" operations. Hence
-        // replaced with "getEntries"
-        Iterator itr = atCommitLog.getEntries(-1);
-        itr.moveNext();
-        expect(itr.current.value.operation, CommitOp.UPDATE);
-        expect(itr.current.value.commitId, 0);
+        final entry = await atCommitLog.iterate().first;
+        expect(entry.operation, CommitOp.UPDATE);
+        expect(entry.commitId, 0);
       });
 
       try {
@@ -100,12 +97,9 @@ void main() async {
           var keyCreationDateTime = DateTime.now().toUtc();
           await putData('$alice:phone$alice');
           // Assert commit entry before update
-          // The "getChanges" method is specific to the client operations. Hence
-          // replaced with "getEntries" method
-          Iterator itr = atCommitLog.getEntries(-1);
-          itr.moveNext();
-          expect(itr.current.value.atKey, '$alice:phone$alice');
-          expect(itr.current.value.commitId, 0);
+          var entry = await atCommitLog.iterate().first;
+          expect(entry.atKey, '$alice:phone$alice');
+          expect(entry.commitId, 0);
           // Update the same key again
           var keyUpdateDateTime = DateTime.now().toUtc();
           await secondaryKeyStore.put(
@@ -114,7 +108,8 @@ void main() async {
                 ..data = '345'
                 ..metaData = (AtMetaData()..ttl = 10000));
           // Assert the metadata
-          AtData? atDataAfterUpdate = await secondaryKeyStore              .get('$alice:phone$alice');
+          AtData? atDataAfterUpdate =
+              await secondaryKeyStore.get('$alice:phone$alice');
           expect(atDataAfterUpdate!.data, '345');
           expect(atDataAfterUpdate.metaData!.ttl, 10000);
           expect(atDataAfterUpdate.metaData!.version, 1);
@@ -127,10 +122,9 @@ void main() async {
               atDataAfterUpdate.metaData!.updatedAt!.millisecondsSinceEpoch >=
                   keyUpdateDateTime.millisecondsSinceEpoch,
               true);
-          itr = atCommitLog.getEntries(-1);
-          while (itr.moveNext()) {
-            expect(itr.current.value.operation, CommitOp.UPDATE_ALL);
-            expect(itr.current.value.commitId, 1);
+          await for (final entry in atCommitLog.iterate()) {
+            expect(entry.operation, CommitOp.UPDATE_ALL);
+            expect(entry.commitId, 1);
           }
         });
       } catch (e, s) {
@@ -159,7 +153,7 @@ void main() async {
         var keyUpdateDateTime = DateTime.now().toUtc();
         await putMetaData('$alice:phone$alice', AtMetaData()..ttl = 10000);
         // verify the metadata
-        AtData? atData = await secondaryKeyStore            .get('$alice:phone$alice');
+        AtData? atData = await secondaryKeyStore.get('$alice:phone$alice');
         expect(
             atData!.metaData!.createdAt!.millisecondsSinceEpoch >=
                 keyCreationDateTime.millisecondsSinceEpoch,
@@ -194,10 +188,9 @@ void main() async {
         var isKeyExist = secondaryKeyStore.isKeyExists('$alice:phone$alice');
         expect(isKeyExist, false);
         // Verify commit entry
-        Iterator itr = atCommitLog.getEntries(-1);
-        while (itr.moveNext()) {
-          expect(itr.current.value.operation, CommitOp.DELETE);
-          expect(itr.current.value.commitId, 1);
+        await for (final entry in atCommitLog.iterate()) {
+          expect(entry.operation, CommitOp.DELETE);
+          expect(entry.commitId, 1);
         }
       });
       test(
@@ -213,10 +206,9 @@ void main() async {
         var isKeyExist = secondaryKeyStore.isKeyExists('$alice:mobile$alice');
         expect(isKeyExist, false);
         // Verify commit entry
-        Iterator itr = atCommitLog.getEntries(-1);
-        while (itr.moveNext()) {
-          expect(itr.current.value.operation, CommitOp.DELETE);
-          expect(itr.current.value.commitId, 0);
+        await for (final entry in atCommitLog.iterate()) {
+          expect(entry.operation, CommitOp.DELETE);
+          expect(entry.commitId, 0);
         }
       });
       tearDown(() async => await verbTestsTearDown());
@@ -252,9 +244,8 @@ void main() async {
               'update:ttl:1000:ttb:2000:ttr:3000:ccd:true:mobile$alice 1234')
         ]);
         // Process Batch request
-        var batchVerbHandler = BatchVerbHandler(
-            secondaryKeyStore,
-            verbHandlerManager);
+        var batchVerbHandler =
+            BatchVerbHandler(secondaryKeyStore, verbHandlerManager);
 
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var response = Response();
@@ -273,23 +264,21 @@ void main() async {
         expect(batchResponseList[2]['response']['data'], '2');
         expect(batchResponseList[3]['response']['data'], '3');
         // Assert the data stored in the keystore
-        var atData = await secondaryKeyStore            .get('city$alice');
+        var atData = await secondaryKeyStore.get('city$alice');
         expect(atData!.data, 'copenhagen');
         // Assert the data and metadata stored in the keystore
-        atData = await secondaryKeyStore            .get('mobile$alice');
+        atData = await secondaryKeyStore.get('mobile$alice');
         expect(atData!.data, '1234');
         expect(atData.metaData!.ttl, 1000);
         expect(atData.metaData!.ttb, 2000);
         expect(atData.metaData!.ttr, 3000);
         expect(atData.metaData!.isCascade, true);
         // Assert the data and metadata of a public key
-        atData = await secondaryKeyStore            .get('public:country$alice');
+        atData = await secondaryKeyStore.get('public:country$alice');
         expect(atData!.data, 'denmark');
         expect(atData.metaData!.dataSignature, 'dummy_data_signature');
         // Assert the key is removed on delete operation
-        expect(
-            secondaryKeyStore                .isKeyExists('phone$alice'),
-            false);
+        expect(secondaryKeyStore.isKeyExists('phone$alice'), false);
       });
 
       test('test to verify when one of the command in batch has invalid syntax',
@@ -314,9 +303,8 @@ void main() async {
           BatchRequest(2, 'update:city$alice'),
           BatchRequest(3, 'update:public:country$alice denmark')
         ]);
-        var batchVerbHandler = BatchVerbHandler(
-            secondaryKeyStore,
-            verbHandlerManager);
+        var batchVerbHandler =
+            BatchVerbHandler(secondaryKeyStore, verbHandlerManager);
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var response = Response();
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -376,8 +364,8 @@ void main() async {
         // Updating the key again to have two entries for the same key.
         // The entry with highest commit should be returned.
         await putData('$alice:phone.wavi$alice');
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryKeyStore);
+        var syncProgressiveVerbHandler =
+            SyncProgressiveVerbHandler(secondaryKeyStore);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -417,8 +405,8 @@ void main() async {
         await secondaryKeyStore.remove('test_key_2$alice');
         await putData('test_key_3$alice');
         await secondaryKeyStore.remove('test_key_3$alice');
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryKeyStore);
+        var syncProgressiveVerbHandler =
+            SyncProgressiveVerbHandler(secondaryKeyStore);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -447,8 +435,8 @@ void main() async {
         await secondaryKeyStore.remove('test_key_2.buzz$alice');
         await putData('test_key_3.buzz$alice');
         await putData('test_key_4.wavi$alice');
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryKeyStore);
+        var syncProgressiveVerbHandler =
+            SyncProgressiveVerbHandler(secondaryKeyStore);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -481,8 +469,8 @@ void main() async {
         await putData('test_key_4.wavi$alice');
         await putData('test_key_5.buzz$alice');
         await secondaryKeyStore.remove('test_key_4.wavi$alice');
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryKeyStore);
+        var syncProgressiveVerbHandler =
+            SyncProgressiveVerbHandler(secondaryKeyStore);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -514,8 +502,8 @@ void main() async {
         ///
         /// Assertions
         /// The sync response contains the keys that matches the regex in sync request
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryKeyStore);
+        var syncProgressiveVerbHandler =
+            SyncProgressiveVerbHandler(secondaryKeyStore);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -549,8 +537,8 @@ void main() async {
         ///
         /// Assertions:
         /// The sync response should not exceed the sync buffer size
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryKeyStore);
+        var syncProgressiveVerbHandler =
+            SyncProgressiveVerbHandler(secondaryKeyStore);
         // Setting buffer size to 250 Bytes
         syncProgressiveVerbHandler.capacity = 275;
         var response = Response();
@@ -584,11 +572,12 @@ void main() async {
             .persistenceManager
             ?.getBox()
             .put('@invalidkey**.buzz$alice', AtData()..data = alice);
-        AtCommitLog atCommitLog = (secondaryKeyStore.commitLog) as HiveAtCommitLog;
+        AtCommitLog atCommitLog =
+            (secondaryKeyStore.commitLog) as HiveAtCommitLog;
         await atCommitLog.commit('@invalidkey**.buzz$alice', CommitOp.UPDATE);
 
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryKeyStore);
+        var syncProgressiveVerbHandler =
+            SyncProgressiveVerbHandler(secondaryKeyStore);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -668,8 +657,8 @@ void main() async {
             AtData()
               ..data = '8897896765'
               ..metaData = atMetadata);
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryKeyStore);
+        var syncProgressiveVerbHandler =
+            SyncProgressiveVerbHandler(secondaryKeyStore);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -731,8 +720,8 @@ void main() async {
         // Update the metadata alone
         await putMetaData(
             'public:phone.wavi$alice', (AtMetaData()..ttl = 1000));
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryKeyStore);
+        var syncProgressiveVerbHandler =
+            SyncProgressiveVerbHandler(secondaryKeyStore);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -767,8 +756,8 @@ void main() async {
         await putData('public:phone.wavi$alice');
         // Delete the key
         await secondaryKeyStore.remove('public:phone.wavi$alice');
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryKeyStore);
+        var syncProgressiveVerbHandler =
+            SyncProgressiveVerbHandler(secondaryKeyStore);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -805,8 +794,8 @@ void main() async {
         await Future.delayed(Duration(milliseconds: 2));
         // manually trigger the deleteExpiredKeys to remove the expired keys
         await secondaryKeyStore.deleteExpiredKeys();
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryKeyStore);
+        var syncProgressiveVerbHandler =
+            SyncProgressiveVerbHandler(secondaryKeyStore);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -852,8 +841,8 @@ void main() async {
               ..data = '8897896765'
               ..metaData =
                   (AtMetaData()..ttb = Duration(minutes: 1).inMilliseconds));
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryKeyStore);
+        var syncProgressiveVerbHandler =
+            SyncProgressiveVerbHandler(secondaryKeyStore);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -1010,8 +999,8 @@ void main() async {
         await putData('test_key_2$alice');
         await secondaryKeyStore.remove('test_key_2$alice');
         await putData('test_key_3$alice');
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryKeyStore);
+        var syncProgressiveVerbHandler =
+            SyncProgressiveVerbHandler(secondaryKeyStore);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -1042,8 +1031,8 @@ void main() async {
         for (int i = 0; i < 25; i++) {
           await secondaryKeyStore.remove('test_key_$i$alice');
         }
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryKeyStore);
+        var syncProgressiveVerbHandler =
+            SyncProgressiveVerbHandler(secondaryKeyStore);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -1079,8 +1068,8 @@ void main() async {
           await secondaryKeyStore.remove('test_key_$i$alice');
         }
 
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryKeyStore);
+        var syncProgressiveVerbHandler =
+            SyncProgressiveVerbHandler(secondaryKeyStore);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -1126,8 +1115,8 @@ void main() async {
           await secondaryKeyStore.remove('test_key_$i$alice');
         }
 
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryKeyStore);
+        var syncProgressiveVerbHandler =
+            SyncProgressiveVerbHandler(secondaryKeyStore);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -1160,8 +1149,8 @@ void main() async {
           await secondaryKeyStore.remove('test_key_$i$alice');
         }
 
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryKeyStore);
+        var syncProgressiveVerbHandler =
+            SyncProgressiveVerbHandler(secondaryKeyStore);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -1199,8 +1188,8 @@ void main() async {
         await putData('test_key_25$alice');
         await secondaryKeyStore.remove('test_key_25$alice');
 
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryKeyStore);
+        var syncProgressiveVerbHandler =
+            SyncProgressiveVerbHandler(secondaryKeyStore);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -1246,8 +1235,8 @@ void main() async {
           await secondaryKeyStore.remove('test_key_$i$alice');
         }
 
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryKeyStore);
+        var syncProgressiveVerbHandler =
+            SyncProgressiveVerbHandler(secondaryKeyStore);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -1284,8 +1273,8 @@ void main() async {
           await secondaryKeyStore.remove('test_key_$i$alice');
         }
 
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryKeyStore);
+        var syncProgressiveVerbHandler =
+            SyncProgressiveVerbHandler(secondaryKeyStore);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -1325,8 +1314,8 @@ void main() async {
           await putData('test_key_$i$alice');
         }
 
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryKeyStore);
+        var syncProgressiveVerbHandler =
+            SyncProgressiveVerbHandler(secondaryKeyStore);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -1366,8 +1355,8 @@ void main() async {
         for (int i = 0; i < 10; i++) {
           await secondaryKeyStore.remove('test_key_$i$alice');
         }
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryKeyStore);
+        var syncProgressiveVerbHandler =
+            SyncProgressiveVerbHandler(secondaryKeyStore);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -1416,8 +1405,8 @@ void main() async {
         for (int i = 0; i < 5; i++) {
           await secondaryKeyStore.remove('test_key_$i$alice');
         }
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryKeyStore);
+        var syncProgressiveVerbHandler =
+            SyncProgressiveVerbHandler(secondaryKeyStore);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -1466,8 +1455,8 @@ void main() async {
           await putData('test_key_$i$alice');
         }
 
-        var syncProgressiveVerbHandler = SyncProgressiveVerbHandler(
-            secondaryKeyStore);
+        var syncProgressiveVerbHandler =
+            SyncProgressiveVerbHandler(secondaryKeyStore);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);

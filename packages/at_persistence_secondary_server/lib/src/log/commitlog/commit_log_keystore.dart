@@ -199,22 +199,6 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     return commitLogCache.getEntry(key);
   }
 
-  /// Returns the Iterator of entries as Key value pairs after the given the [commitId] for the keys that matches the [regex]
-  Iterator<MapEntry<String, CommitEntry>> getEntries(int commitId,
-      {String regex = '.*', int limit = 25, int? skipDeletesUntil}) {
-    SyncKeysFetchStrategy syncKeysFetchStrategy = skipDeletesUntil != null
-        ? SkipDeleteStrategy(skipDeletesUntil, commitLogCache.latestCommitId)
-        : _syncKeysFetchStrategy;
-    Iterable<MapEntry<String, CommitEntry>> commitEntriesIterable =
-        commitLogCache
-            .entriesList()
-            .where((element) =>
-                syncKeysFetchStrategy.shouldIncludeEntryInSyncResponse(
-                    element.value, commitId, regex))
-            .take(limit);
-    return commitEntriesIterable.iterator;
-  }
-
   /// Lazy stream over every commit entry with `commitId >= [fromCommitId]`
   /// (or all entries if [fromCommitId] is null), in commit-id order.
   /// If [where] is provided, only entries for which `where(entry)` returns

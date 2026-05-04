@@ -130,19 +130,6 @@ class HiveAtCommitLog extends AtCommitLog {
     await _commitLogKeyStore.close();
   }
 
-  /// Returns the Iterator of [_commitLogCacheMap] from the commitId specified.
-  @override
-  @server
-  Iterator<MapEntry<String, CommitEntry>> getEntries(int commitId,
-      {String? regex, int limit = 25, int? skipDeletesUntil}) {
-    // If regex is null or isEmpty set regex to match all keys
-    if (regex == null || regex.isEmpty) {
-      regex = '.*';
-    }
-    return _commitLogKeyStore.getEntries(commitId,
-        regex: regex, limit: limit, skipDeletesUntil: skipDeletesUntil);
-  }
-
   Future<void> _publishChangeEvent(CommitEntry commitEntry) async {
     try {
       for (var listener in _atChangeEventListener) {
