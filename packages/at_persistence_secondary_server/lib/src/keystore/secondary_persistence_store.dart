@@ -1,11 +1,9 @@
 import 'package:at_persistence_secondary_server/src/keystore/hive_manager.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_secondary_keystore.dart';
-import 'package:at_persistence_secondary_server/src/keystore/secondary_keystore_manager.dart';
 
 class SecondaryPersistenceStore {
   late HiveSecondaryKeyStore _hiveKeystore;
   HivePersistenceManager? _hivePersistenceManager;
-  SecondaryKeyStoreManager? _secondaryKeyStoreManager;
   String? _atSign;
 
   SecondaryPersistenceStore(String? atSign) {
@@ -21,19 +19,12 @@ class SecondaryPersistenceStore {
     return _hivePersistenceManager;
   }
 
-  SecondaryKeyStoreManager? getSecondaryKeyStoreManager() {
-    return _secondaryKeyStoreManager;
-  }
-
   void _init() {
     _hiveKeystore = HiveSecondaryKeyStore();
     _hivePersistenceManager = HivePersistenceManager(_atSign);
     _hiveKeystore.persistenceManager = _hivePersistenceManager;
     // Wire the back-reference up-front so HivePersistenceManager.scheduleKeyExpireTask
-    // doesn't have to resolve SecondaryPersistenceStoreFactory.getInstance() at
-    // tick time (cuts the latent cyclic dep through the singleton).
+    // doesn't have to resolve at tick time.
     _hivePersistenceManager!.keyStoreForExpireTask = _hiveKeystore;
-    _secondaryKeyStoreManager = SecondaryKeyStoreManager();
-    _secondaryKeyStoreManager!.keyStore = _hiveKeystore;
   }
 }

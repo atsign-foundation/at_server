@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_secondary_keystore.dart';
-import 'package:at_persistence_secondary_server/src/keystore/secondary_keystore_manager.dart';
 import 'package:test/expect.dart';
 import 'package:test/scaffolding.dart';
 
@@ -19,9 +18,8 @@ void main() async {
     late HiveAtCommitLog commitLog;
 
     setUp(() async {
-      var keyStoreManager =
+      keyStore =
           await getKeystoreManager(storageDir, atsign, optimizeCommits: true);
-      keyStore = keyStoreManager.getKeyStore() as HiveSecondaryKeyStore?;
       assert(keyStore != null);
       commitLog = keyStore!.commitLog as HiveAtCommitLog;
     });
@@ -143,9 +141,8 @@ void main() async {
     late HiveAtCommitLog commitLog;
 
     setUp(() async {
-      var keyStoreManager =
+      keyStore =
           await getKeystoreManager(storageDir, atsign, optimizeCommits: false);
-      keyStore = keyStoreManager.getKeyStore() as HiveSecondaryKeyStore?;
       assert(keyStore != null);
       commitLog = keyStore!.commitLog as HiveAtCommitLog;
     });
@@ -205,21 +202,18 @@ Future<String?> getKey(keyStore, key) async {
   return atData?.data;
 }
 
-Future<SecondaryKeyStoreManager> getKeystoreManager(storageDir, atsign,
+Future<HiveSecondaryKeyStore> getKeystoreManager(storageDir, atsign,
     {required bool optimizeCommits}) async {
   var secondaryPersistenceStore = testPersistenceStoreFor(atsign);
   var manager = secondaryPersistenceStore.getHivePersistenceManager()!;
   await manager.init(storageDir);
   manager.scheduleKeyExpireTask(null,
       runTimeInterval: Duration(seconds: 10), skipCommits: optimizeCommits);
-  var keyStoreManager =
-      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
   var keyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   var commitLog = await testCommitLogFor(atsign,
       commitLogPath: storageDir, enableCommitId: true);
   keyStore.commitLog = commitLog;
-  keyStoreManager.keyStore = keyStore;
-  return keyStoreManager;
+  return keyStore;
 }
 
 Future<void> tearDownFunc() async {

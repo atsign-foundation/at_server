@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/secondary_keystore_manager.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive_secondary_keystore.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_log_keystore.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:test/test.dart';
@@ -727,7 +727,7 @@ void main() async {
   });
 }
 
-Future<SecondaryKeyStoreManager> setUpFunc(storageDir,
+Future<HiveSecondaryKeyStore> setUpFunc(storageDir,
     {bool enableCommitId = true}) async {
   var commitLogInstance = await testCommitLogFor('@alice',
       commitLogPath: storageDir, enableCommitId: enableCommitId);
@@ -735,13 +735,9 @@ Future<SecondaryKeyStoreManager> setUpFunc(storageDir,
   var persistenceManager =
       secondaryPersistenceStore.getHivePersistenceManager()!;
   await persistenceManager.init(storageDir);
-//  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
   var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
   hiveKeyStore.commitLog = commitLogInstance;
-  var keyStoreManager =
-      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
-  keyStoreManager.keyStore = hiveKeyStore;
-  return keyStoreManager;
+  return hiveKeyStore;
 }
 
 Future<void> tearDownFunc() async {
