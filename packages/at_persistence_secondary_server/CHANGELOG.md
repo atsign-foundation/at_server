@@ -1,190 +1,70 @@
 ## 5.0.0
 
-Major release: persistence-overhaul (Phases 1, 2, 3, 3.5). See
-`MIGRATION.md` for the full 4.3.5 → 5.0.0 migration guide.
+Major release: persistence-overhaul. Themes:
 
-**Top-line dependency change:** `at_persistence_secondary_server`
-no longer depends on `at_persistence_spec`. The interface types
-that used to live in `at_persistence_spec` (`SecondaryKeyStore`,
-`AtCompactionStrategy`, `AtCompactionStats`,
-`AtCompactionType`, `AtLogType`, `KeyStore`, exceptions, the
-`@server`/`@client` annotations, and all the Phase 3 additions —
-`KeyEntry`, `KeyPattern`, `KeyStoreChange`, `KeyStoreSnapshot`,
-`KeyStoreStats`, `KeyStoreTxn`, `OrderByKey`, `Predicate`) now
-live alongside the Hive implementation in
-`at_persistence_secondary_server`. Future backend packages
-depend on this package for the interface types they need to
-satisfy.
-
-### Phase 1 — eliminate singletons; introduce factory + bundle
-
-- **feat**: introduce `AtPersistenceFactory` and
-  `AtPersistenceBundle` abstractions, plus a
-  `HiveAtPersistenceFactory` concrete impl, as the new way to
-  wire per-atSign persistence stores. Designed to be
-  backend-pluggable.
-- **breaking**: removed the legacy `getInstance()` shims:
-  `SecondaryPersistenceStoreFactory`, `AtCommitLogManagerImpl`,
-  `AtAccessLogManagerImpl`, `AtCompactionService`,
-  `HiveKeyStoreHelper`. Bootstrap via `HiveAtPersistenceFactory`.
-- **breaking**: `AtCommitLogManagerImpl` /
-  `AtAccessLogManagerImpl` deleted (factory handles both
-  singleton-and-cache roles); `at_persistence_secondary_server`
-  no longer implements (or depends on) the orphaned
-  `AtCommitLogManager` / `AtAccessLogManager` interfaces.
-- **refactor**: `HiveKeyStoreHelper` is now stateless with static
-  methods. `AtCompactionService` no longer carries a singleton.
-  `HivePersistenceManager.scheduleKeyExpireTask` uses a
-  `keyStoreForExpireTask` reference set at construction (no more
-  cron-tick singleton lookup).
-- **chore**: delete the previously-deprecated
-  `AtNotificationCallback` class.
-
-### Phase 1b/1c — `AtConfig` move + bundle escape-hatch removal
-
-- **breaking**: `AtConfig` and `Configuration` moved to
-  `package:at_secondary/src/config/`. The persistence package no
-  longer re-exports `AtConfig` (no shim possible — `at_secondary`
-  depends on `at_persistence_secondary_server`, not vice versa).
-- **refactor!**: `AtConfig` now takes a `SecondaryKeyStore` (not
-  an `AtCommitLog`). Reads/writes route through the abstract
-  keystore; writes pass `skipCommit: true` so block-list changes
-  don't bump the local `commitId`.
-- **breaking**: `AtCompactionJob` and `AtCompactionStatsServiceImpl`
-  constructors now take a `SecondaryKeyStore` instead of a
-  `SecondaryPersistenceStore`.
-- **refactor**: `HiveAtPersistenceBundle` no longer exposes
-  `secondaryPersistenceStore` or `hivePersistenceManager`.
-  Production consumers use only the abstract `AtPersistenceBundle`
-  surface (`keyStore`, `commitLog`, `accessLog`,
-  `notificationKeystore`, `scheduleKeyExpireTask`, `close`).
-
-### Phase 2 — Hive renames; abstract interfaces; iterate/replay
-
-- **refactor!**: Hive concretes renamed so the unprefixed names
-  are free for the abstract interfaces:
-  `AtCommitLog` → `HiveAtCommitLog`,
-  `ClientAtCommitLog` → `HiveClientAtCommitLog`,
-  `AtAccessLog` → `HiveAtAccessLog`,
-  `AtNotificationKeystore` → `HiveAtNotificationKeystore`,
-  `HiveKeystore` → `HiveSecondaryKeyStore`. File paths follow
-  the same rename. No deprecated re-exports.
-- **feat!**: introduce abstract `AtCommitLog` / `AtAccessLog` /
-  `AtNotificationKeystore` interfaces under the now-free
-  unprefixed names. Bundle fields type at the abstracts.
-- **feat**: `AtPersistenceBundle` is a slim core (`keyStore`,
-  `commitLog`, `scheduleKeyExpireTask`, `close`) plus optional
-  capabilities (`accessLog?`, `notificationKeystore?`).
-  `AtPersistenceConfig` gains `enableAccessLog` /
-  `enableNotificationKeystore` toggles. `serverDefaults`
-  enables every capability; `clientDefaults` opts into core only.
-- **feat**: add `AtCommitLog.replay(CommitEntry)`,
-  `AtCommitLog.iterate({int? fromCommitId})`,
-  `AtAccessLog.iterate()`,
-  `AtNotificationKeystore.iterate()` for the Phase 4
-  persistence-backend migrator. `replay` writes an entry under
-  its supplied `commitId` without firing change events.
-- **feat**: introduce `AtCompactionStrategy` abstract +
-  `HiveCompactionStrategy` concrete. Bundle gains nullable
-  `commitLogCompactor` / `accessLogCompactor` / `keyStoreCompactor`
-  fields, gated by `enableCommitLogCompactor` /
-  `enableAccessLogCompactor` / `enableKeyStoreCompactor` config
-  toggles. Server defaults all-on; client defaults commit-log-only.
-- **breaking**: `AtCompactionJob` constructor changed from
-  `(AtLogType, SecondaryKeyStore)` to
-  `(AtCompactionStrategy, [AtCompactionStatsService?])`.
-- **breaking**: removed the deprecated `AtCompactionStrategy`
-  interface from `at_persistence_secondary_server` (replaced by the new
-  abstract in this package).
-- **feat**: add `AtPersistenceBundle.clear()` — drops every entry
-  from each store while keeping underlying boxes open. Cheap
-  test-isolation primitive.
-
-### Phase 3 — widen `SecondaryKeyStore` for at_client (3a-3j)
-
-Ten new primitives on the abstract `SecondaryKeyStore` (and
-related types) to let the at_client collection layer drop
-expensive `getKeys(regex) + per-key get` workarounds. Every
-addition is additive — Phase 3 broke nothing.
-
-- **feat (3a)**: `Future<bool> exists(String key)` — async
-  existence probe; backend-portable shape.
-- **feat (3b)**: `KeyPattern` (in `at_persistence_secondary_server`) +
-  `Stream<String> scanKeys(KeyPattern, {includeExpired})`.
-  Backend-portable structured successor to `getKeys(regex:)`.
-- **feat (3c)**: `Future<Map<K, V>> getMany(List<K> keys)` —
-  bulk fetch, absent keys silently dropped from result.
-- **feat (3d)**: `Future<int> removeMany(List<K>, {skipCommit})`
-  — bulk delete with race-tolerant return count.
-- **feat (3e)**: `Stream<KeyStoreChange> get changes` plus a
-  sealed `KeyStoreChange` hierarchy in `at_persistence_secondary_server`
-  (`KeyAdded` / `KeyUpdated` / `KeyRemoved`). Broadcast stream
-  of every successful mutation.
-- **feat (3f)**:
-  `Future<R> transaction<R>(Future<R> Function(KeyStoreTxn) body)`
-  + `KeyStoreTxn` abstract in `at_persistence_secondary_server`.
-  All-or-nothing mutation buffer; Hive impl provides best-effort
-  atomicity (Phase 4 SQL backends will use real transactions).
-- **feat (3g)**: extend `scanKeys` with `OrderByKey? orderBy` +
-  `int? limit` + `int? skip`. `null` orderBy = backend-natural;
-  `byKey` / `byCreatedAt` / `byExpiresAt` explicit.
-- **feat (3h)**: `bool get supportsPathQueries` +
-  `Stream<KeyEntry<K, V, T>> queryByPath(...)` plus a sealed
-  `Predicate` AST (`PathEquals`, `And`, `Or`) and generic
-  `KeyEntry<K, V, T>` in `at_persistence_secondary_server`. Push-down
-  value-field filtering — Phase 4 SQL backends translate to
-  indexed `WHERE`; Hive throws `UnsupportedError` and consumers
-  gate on the flag.
-- **feat (3i)**: `bool get supportsSnapshots` +
-  `Future<KeyStoreSnapshot<K, V, T>> snapshot()` plus a new
-  abstract `KeyStoreSnapshot` in `at_persistence_secondary_server` (with
-  `get` / `scanKeys` / `release`). Real MVCC on Phase 4 SQL
-  backends; Hive ships a best-effort delegate that observes
-  live state.
-- **feat (3j)**: `Future<KeyStoreStats> stats()` + a new
-  `KeyStoreStats` data class in `at_persistence_secondary_server`.
-  Diagnostic snapshot (`totalKeys`, `ttlKeys`, `ttbKeys`,
-  `sizeBytes`, oldest/newest `createdAt`).
-
-### Phase 3.5 — refactor and simplify persistence interfaces
-
-- **breaking**: retire `AtCommitLog.getEntries`. Migrate to
-  `iterate(fromCommitId, where: closure)` for delta walks. The
-  closure carries any caller-side filtering (regex,
-  skipDeletesUntil, etc.) — those semantics moved out of the
-  commit-log abstraction and into the consumer (e.g.
-  `SyncProgressiveVerbHandler`).
-- **refactor**: retire `CommitLogCompactionService` and
-  `CompactionSortedList`. Inline single-atKey dedup in
-  `CommitLogKeyStore.add()` (delete-old-on-write) means the box
-  satisfies the "at most one entry per atKey" invariant at all
-  times; the async batch sweeper was redundant. Startup
-  migration in `repairCommitLogAndCreateCachedMap` cleans up
-  any legacy duplicates.
-- **refactor**: replace `HiveAtCommitLog.iterate`'s
-  `toMap()+sort` impl with a lazy box-walk via
-  `getBox().keys.skipWhile(<fromCommitId)`. Add optional sync
-  `where:` predicate to abstract `AtCommitLog.iterate`, Hive
-  impl, and `CommitLogKeyStore.iterate`. Default `null` =
-  no filter.
-- **fix**: `SyncProgressiveVerbHandler` empty-response wedge —
-  when every entry in a requested range failed `isAuthorized`
+- **Bootstrap is now factory + bundle, not singletons.**
+  `AtPersistenceFactory` / `AtPersistenceBundle` replace every
+  legacy `getInstance()` shim. Backend-pluggable by design.
+- **Hive concretes renamed; abstract interfaces freed.**
+  `HiveAtCommitLog` / `HiveAtAccessLog` /
+  `HiveAtNotificationKeystore` / `HiveSecondaryKeyStore`
+  implement abstract `AtCommitLog` / `AtAccessLog` /
+  `AtNotificationKeystore` / `SecondaryKeyStore`. Bundles type
+  at the abstracts.
+- **Slim bundle + capability toggles.** `keyStore` /
+  `commitLog` are core; `accessLog?` / `notificationKeystore?`
+  / compactor fields are optional, gated by
+  `AtPersistenceConfig` toggles. `serverDefaults` opts into
+  every capability; `clientDefaults` opts into core only.
+- **`SecondaryKeyStore` widened with ten new primitives** for
+  at_client adoption: `exists`, `scanKeys` (with
+  `KeyPattern` + ordering + pagination), `getMany`,
+  `removeMany`, `changes` stream, `transaction`,
+  `queryByPath` (+ `supportsPathQueries`), `snapshot`
+  (+ `supportsSnapshots`), and `stats`. Capability flags let
+  Phase 4 SQL backends light up native indexed query / MVCC
+  paths while Hive falls back gracefully.
+- **Migrator-friendly walks.** `replay(CommitEntry)` and
+  `iterate({fromCommitId, where})` on `AtCommitLog`, plus
+  `iterate()` on access log + notification keystore. Lazy box-
+  walks; no upfront map materialisation.
+- **Commit log is one-entry-per-atKey by construction.** Inline
+  single-atKey dedup in `CommitLogKeyStore.add()` plus a
+  startup dedup migration. `CommitLogCompactionService` and
+  `CompactionSortedList` retired (their job is done eagerly by
+  the write path).
+- **`AtCommitLog.getEntries` retired.** Migrate to
+  `iterate(fromCommitId, where: closure)`; the closure carries
+  any caller-side filtering (regex, skipDeletesUntil, etc.).
+- **`SyncProgressiveVerbHandler` empty-response wedge fixed.**
+  When every entry in a requested range failed `isAuthorized`
   (or another in-loop filter), the handler returned `[]` and
-  the client wedged because it could not advance its `from`
-  watermark. Resolved by switching from `getEntries(...,
-  limit: 25)` to `iterate(fromCommitId, where: closure)`,
-  which is unbounded by design — the loop scans past filtered
-  entries until one survives or the log is exhausted. No wire
-  format change. Regression tests in `sync_verb_test.dart`
-  prove the fix.
+  the client could not advance its `from` watermark. The
+  switch to `iterate(where:)` makes the scan unbounded; the
+  client now always sees forward progress. No wire-format
+  change.
+- **`AtConfig` moved out** of this package into
+  `at_secondary_server`. Block-list writes pass
+  `skipCommit: true` and don't bump the local `commitId`.
+- **Test-isolation primitive.** `AtPersistenceBundle.clear()`
+  drops every entry from each store while keeping underlying
+  boxes open.
+- **Dependency on `at_persistence_spec` dropped.** The
+  interface types this package previously imported from
+  `at_persistence_spec` (`SecondaryKeyStore`,
+  `AtCompactionStrategy`, exceptions, the `@server`/`@client`
+  annotations, and the new Phase 3 types — `KeyEntry`,
+  `KeyPattern`, `KeyStoreChange`, `KeyStoreSnapshot`,
+  `KeyStoreStats`, `KeyStoreTxn`, `OrderByKey`, `Predicate`)
+  now live alongside the Hive implementation in this package.
+  Future backend packages depend on
+  `at_persistence_secondary_server` for the interface types
+  they need to satisfy.
 
-### Documentation
-
-- **docs**: `MIGRATION.md` ships with this release — covers
-  4.3.5 → 5.0.0 with separate server and client tracks, a
-  per-Phase-3-sub-phase index, a Phase 3.5 section, and a
-  worked-example appendix linking canonical example files for
-  every major surface.
+See [`MIGRATION.md`](MIGRATION.md) for the full 4.3.5 → 5.0.0
+migration guide, including server / client tracks, per-primitive
+recipes (signatures, before/after examples, capability-flag
+callouts), and a worked-example appendix.
 
 ## 4.3.5
 
