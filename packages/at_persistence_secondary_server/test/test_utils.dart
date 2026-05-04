@@ -1,6 +1,10 @@
 import 'dart:math';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store.dart';
+import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store_factory.dart';
+import 'package:at_persistence_secondary_server/src/log/accesslog/access_log_keystore.dart';
+import 'package:at_persistence_secondary_server/src/log/commitlog/commit_log_keystore.dart';
 
 class TestUtils {
   static String generateRandomString(int length) {

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store.dart';
 import 'package:at_persistence_secondary_server/src/log/accesslog/access_entry.dart';
 import 'package:test/test.dart';
 
@@ -35,8 +36,7 @@ void main() {
         () async {
       await atCommitLog!.commit('@alice:phone@alice', CommitOp.UPDATE);
       await atCommitLog!.commit('@alice:phone@alice', CommitOp.UPDATE);
-      var atCompactionService = AtCompactionService();
-      await atCompactionService.executeCompactionInternal(atCommitLog!);
+      await HiveCompactionStrategy(atCommitLog!).compact();
       expect(atCommitLog!.entriesCount(), 1);
     });
 
@@ -45,8 +45,7 @@ void main() {
         () async {
       await atCommitLog!.commit('@alice:phone@alice', CommitOp.UPDATE);
       await atCommitLog!.commit('@bob:mobile@alice', CommitOp.UPDATE);
-      var atCompactionService = AtCompactionService();
-      await atCompactionService.executeCompactionInternal(atCommitLog!);
+      await HiveCompactionStrategy(atCommitLog!).compact();
       expect(atCommitLog!.entriesCount(), 2);
     });
 
@@ -79,8 +78,7 @@ void main() {
             ..commitId = 2);
       await atCommitLog!.commitLogKeyStore.add(
           CommitEntry('@bob:phone@alice', CommitOp.UPDATE, DateTime.now()));
-      var atCompactionService = AtCompactionService();
-      await atCompactionService.executeCompactionInternal(atCommitLog!);
+      await HiveCompactionStrategy(atCommitLog!).compact();
       expect(atCommitLog!.entriesCount(), 2);
     });
     tearDown(() async => await tearDownMethod());
@@ -101,8 +99,7 @@ void main() {
           lookupKey: '@alice:phone@bob');
       atAccessLog?.setCompactionConfig(
           AtCompactionConfig()..compactionPercentage = 99);
-      var atCompactionService = AtCompactionService();
-      await atCompactionService.executeCompactionInternal(atAccessLog!);
+      await HiveCompactionStrategy(atAccessLog!).compact();
       expect(atAccessLog?.entriesCount(), 1);
       AccessLogEntry? accessLogEntry =
           await atAccessLog?.getLastAccessLogEntry();

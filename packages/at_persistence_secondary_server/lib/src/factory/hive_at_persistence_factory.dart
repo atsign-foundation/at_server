@@ -1,5 +1,9 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/keystore/hive_manager.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_secondary_keystore.dart';
+import 'package:at_persistence_secondary_server/src/keystore/secondary_persistence_store.dart';
+import 'package:at_persistence_secondary_server/src/log/accesslog/access_log_keystore.dart';
+import 'package:at_persistence_secondary_server/src/log/commitlog/commit_log_keystore.dart';
 import 'package:at_utils/at_logger.dart';
 
 /// Hive-backed [AtPersistenceFactory]. Produces

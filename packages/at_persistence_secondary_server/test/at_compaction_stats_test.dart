@@ -44,11 +44,10 @@ Future<void> main() async {
       // Add CommitEntries to CommitLog
       await atCommitLog?.commit('@alice:phone@alice', CommitOp.UPDATE);
       await atCommitLog?.commit('@alice:phone@alice', CommitOp.UPDATE);
-      var atCompactionService = AtCompactionService();
       int beforeMicros = DateTime.now().toUtc().microsecondsSinceEpoch;
       // Run Compaction
       AtCompactionStats atCompactionStats =
-          await atCompactionService.executeCompaction(atCommitLog!);
+          await HiveCompactionStrategy(atCommitLog!).compact();
 
       int afterMicros = DateTime.now().toUtc().microsecondsSinceEpoch;
 
@@ -98,9 +97,8 @@ Future<void> main() async {
           lookupKey: '@alice:phone@bob');
       atAccessLog?.setCompactionConfig(
           AtCompactionConfig()..compactionPercentage = 99);
-      var atCompactionService = AtCompactionService();
       var atCompactionStats =
-          await atCompactionService.executeCompaction(atAccessLog!);
+          await HiveCompactionStrategy(atAccessLog!).compact();
       await atCompactionStatsServiceImpl.handleStats(atCompactionStats);
       AtData? atData =
           await keyStore!.get(at_commons.AtConstants.accessLogCompactionKey);

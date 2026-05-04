@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/keystore/hive_secondary_keystore.dart';
+import 'package:at_persistence_secondary_server/src/keystore/secondary_keystore_manager.dart';
 import 'package:test/expect.dart';
 import 'package:test/scaffolding.dart';
 
