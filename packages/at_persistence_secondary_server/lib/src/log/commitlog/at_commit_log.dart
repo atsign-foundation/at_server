@@ -26,9 +26,18 @@ abstract class AtCommitLog implements AtLogType<int, CommitEntry> {
 
   /// Iterate every commit entry in `commitId` order. If
   /// [fromCommitId] is provided, yields only entries with
-  /// `commitId >= fromCommitId`. Used by sync, by migration, and
-  /// by anything that needs full-log traversal.
-  Stream<CommitEntry> iterate({int? fromCommitId});
+  /// `commitId >= fromCommitId`. If [where] is provided, only
+  /// entries for which `where(entry)` returns true are yielded;
+  /// the rest are silently skipped. Used by sync, by migration,
+  /// and by anything that needs full-log traversal.
+  ///
+  /// After 3.5a's dedup invariant, the box has at most one entry
+  /// per atKey, so a full-log walk yields one entry per atKey
+  /// in commit-id order.
+  Stream<CommitEntry> iterate({
+    int? fromCommitId,
+    bool Function(CommitEntry)? where,
+  });
 
   /// Latest assigned `commitId`, or `null` if the log is empty.
   int? lastCommittedSequenceNumber();

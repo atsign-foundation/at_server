@@ -62,8 +62,8 @@ void main() {
     test('replay preserves the supplied commitId', () async {
       // Build an entry that names its own commitId — typical of a
       // migration source where IDs were already assigned.
-      final entry = CommitEntry('public:replayed@alice', CommitOp.UPDATE,
-          DateTime.now().toUtc())
+      final entry = CommitEntry(
+          'public:replayed@alice', CommitOp.UPDATE, DateTime.now().toUtc())
         ..commitId = 9001;
       await bundle.commitLog.replay(entry);
 
@@ -88,7 +88,54 @@ void main() {
     test('replay rejects a CommitEntry without a commitId', () {
       final entry = CommitEntry('public:nocommitid@alice', CommitOp.UPDATE,
           DateTime.now().toUtc()); // no commitId set
-      expect(() => bundle.commitLog.replay(entry), throwsA(isA<ArgumentError>()));
+      expect(
+          () => bundle.commitLog.replay(entry), throwsA(isA<ArgumentError>()));
+    });
+
+    test('iterate over an empty log yields nothing', () async {
+      final entries = await bundle.commitLog.iterate().toList();
+      expect(entries, isEmpty);
+    });
+
+    test('iterate with where filter skips non-matching entries', () async {
+      await bundle.commitLog.commit('public:alpha@alice', CommitOp.UPDATE);
+      await bundle.commitLog.commit('public:beta@alice', CommitOp.UPDATE);
+      await bundle.commitLog.commit('public:gamma@alice', CommitOp.UPDATE);
+
+      final filtered = await bundle.commitLog
+          .iterate(where: (e) => e.atKey == 'public:beta@alice')
+          .toList();
+      expect(filtered.length, 1);
+      expect(filtered.single.atKey, 'public:beta@alice');
+    });
+
+    test('iterate where filter combines with fromCommitId', () async {
+      await bundle.commitLog.commit('public:a@alice', CommitOp.UPDATE);
+      await bundle.commitLog.commit('public:b@alice', CommitOp.UPDATE);
+      await bundle.commitLog.commit('public:c@alice', CommitOp.UPDATE);
+
+      final all = await bundle.commitLog.iterate().toList();
+      final cutoff = all[1].commitId!;
+      final filtered = await bundle.commitLog
+          .iterate(
+              fromCommitId: cutoff,
+              where: (e) => e.operation == CommitOp.UPDATE)
+          .toList();
+      // From cutoff: 2 entries; both UPDATE; both pass.
+      expect(filtered.length, 2);
+    });
+
+    test(
+        'iterate yields one entry per atKey under stream of commits to same atKey',
+        () async {
+      // Phase 3.5a's invariant in action: even after multiple commits to
+      // the same atKey, iterate yields exactly one entry (the latest).
+      for (int i = 0; i < 10; i++) {
+        await bundle.commitLog.commit('public:hot@alice', CommitOp.UPDATE);
+      }
+      final entries = await bundle.commitLog.iterate().toList();
+      expect(entries.length, 1);
+      expect(entries.single.atKey, 'public:hot@alice');
     });
   });
 

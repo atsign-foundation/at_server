@@ -73,14 +73,11 @@ class HiveAtCommitLog extends AtCommitLog {
   }
 
   @override
-  Stream<CommitEntry> iterate({int? fromCommitId}) async* {
-    final map = await _commitLogKeyStore.toMap();
-    final sortedKeys = map.keys.toList()..sort();
-    for (final commitId in sortedKeys) {
-      if (fromCommitId != null && commitId < fromCommitId) continue;
-      final entry = map[commitId];
-      if (entry != null) yield entry;
-    }
+  Stream<CommitEntry> iterate({
+    int? fromCommitId,
+    bool Function(CommitEntry)? where,
+  }) {
+    return _commitLogKeyStore.iterate(fromCommitId: fromCommitId, where: where);
   }
 
   /// Returns the latest committed sequence number
