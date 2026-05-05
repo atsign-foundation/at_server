@@ -1,7 +1,6 @@
 export 'package:at_persistence_secondary_server/src/factory/at_persistence_config.dart';
 export 'package:at_persistence_secondary_server/src/factory/at_persistence_factory.dart';
 export 'package:at_persistence_secondary_server/src/factory/hive_at_persistence_factory.dart';
-export 'package:at_persistence_secondary_server/src/compaction/at_compaction_job.dart';
 export 'package:at_persistence_secondary_server/src/compaction/at_compaction_strategy.dart';
 export 'package:at_persistence_secondary_server/src/compaction/at_compaction_stats_service.dart';
 export 'package:at_persistence_secondary_server/src/keystore/hive_secondary_keystore.dart';

@@ -203,37 +203,36 @@ them:
 
 ## Compaction
 
-Compaction is split into a **strategy** (which the bundle owns,
-one per log/store), a **scheduler** (`AtCompactionJob`, which
-just runs the strategy on a cron), and a **stats sink**
-(`AtCompactionStatsService`, which records per-pass metrics):
+This package owns the **strategy** side of compaction — what
+"compact" means for a given backend. The bundle exposes one
+strategy per log/store (`commitLogCompactor`,
+`accessLogCompactor`, `keyStoreCompactor`), each implementing
+the backend-agnostic `AtCompactionStrategy` contract:
 
 ```dart
-final job = AtCompactionJob(
-  bundle.commitLogCompactor!,
-  myStatsService, // optional
-);
-job.scheduleCompactionJob(
-  AtCompactionConfig()
-    ..compactionPercentage = 50
-    ..compactionFrequencyInMins = 30,
-);
+abstract class AtCompactionStrategy {
+  void setConfig(AtCompactionConfig config);
+  Future<AtCompactionStats> compact();
+}
 ```
 
-`AtCompactionStrategy` is backend-agnostic. On Hive, the supplied
-`HiveCompactionStrategy` reaches the underlying
-`getKeysToDeleteOnCompaction()` / `deleteKeyForCompaction(...)`
-primitives on each `AtLogType`. A future SQLite or Postgres
-backend would implement the same interface with `DELETE WHERE`
-plus `VACUUM`, and consumer code would not change.
+On Hive, the supplied `HiveCompactionStrategy` reaches the
+underlying `getKeysToDeleteOnCompaction()` /
+`deleteKeyForCompaction(...)` primitives on each `AtLogType`. A
+future SQLite or Postgres backend would implement the same
+interface with `DELETE WHERE` plus `VACUUM`, and consumer code
+would not change.
 
-`AtCompactionStatsService` is an interface; ship your own impl
-or reuse one. The atSecondary consumer ships
-`AtCompactionStatsServiceImpl` (in
-`at_secondary_server/lib/src/compaction/`) which persists stats
-as atKeys in the keystore. A different consumer might push stats
-to Prometheus, drop them, etc. Clients typically omit the second
-arg to `AtCompactionJob`.
+`AtCompactionStatsService` is the interface for the *sink* that
+records each pass's metrics. Ship your own impl — or reuse one.
+
+Scheduling — running a strategy on a cron, threading stats into
+a sink — is the consumer's concern, not this package's. For
+atSecondary, both the cron (`AtCompactionJob`) and the keystore-
+backed stats sink (`AtCompactionStatsServiceImpl`) live in
+`at_secondary_server/lib/src/compaction/`. A different consumer
+might run compaction on demand, or push stats to Prometheus
+instead of the keystore.
 
 ## Migration / iteration primitives
 
