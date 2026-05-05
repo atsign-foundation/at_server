@@ -186,8 +186,7 @@ class HiveAtPersistenceBundle implements AtPersistenceBundle {
     // observes a closed box), then logs and notifications.
     await keyStore.close();
     await commitLog.close();
-    accessLog
-        ?.close(); // HiveAtAccessLog.close() returns void, not Future<void>
+    await accessLog?.close();
     await notificationKeystore?.close();
   }
 }

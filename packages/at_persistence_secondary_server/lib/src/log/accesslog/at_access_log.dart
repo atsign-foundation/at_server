@@ -35,5 +35,5 @@ abstract class AtAccessLog implements AtLogType<int, AccessLogEntry> {
   Stream<AccessLogEntry> iterate();
 
   /// Close the underlying storage handle.
-  void close();
+  Future<void> close();
 }

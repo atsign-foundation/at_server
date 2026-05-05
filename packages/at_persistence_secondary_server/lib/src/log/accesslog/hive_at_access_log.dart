@@ -117,8 +117,8 @@ class HiveAtAccessLog implements AtAccessLog {
 
   ///Closes the [accessLogKeyStore] instance.
   @override
-  void close() {
-    _accessLogKeyStore.close();
+  Future<void> close() async {
+    await _accessLogKeyStore.close();
   }
 
   /// Drop every entry from the underlying box without closing it.

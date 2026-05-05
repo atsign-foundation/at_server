@@ -96,7 +96,7 @@ Future<HiveAtAccessLog> testAccessLogFor(
 /// Closes every test-shared [HiveAtAccessLog].
 Future<void> closeTestAccessLogs() async {
   for (final log in _testAccessLogs.values) {
-    log.close();
+    await log.close();
   }
   _testAccessLogs.clear();
 }
