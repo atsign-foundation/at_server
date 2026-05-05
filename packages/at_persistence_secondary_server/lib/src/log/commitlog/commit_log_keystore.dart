@@ -4,8 +4,6 @@ import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
 import 'package:meta/meta.dart';
-import 'package:at_persistence_secondary_server/src/log/commitlog/sync/fetch_all_keys_strategy.dart';
-import 'package:at_persistence_secondary_server/src/log/commitlog/sync/sync_keys_fetch_strategy.dart';
 
 @server
 class CommitLogKeyStore extends BaseCommitLogKeyStore {
@@ -14,11 +12,8 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
 
   int get latestCommitId => commitLogCache.latestCommitId;
 
-  late SyncKeysFetchStrategy _syncKeysFetchStrategy;
-
   CommitLogKeyStore(super.currentAtSign) {
     commitLogCache = CommitLogCache(this);
-    _syncKeysFetchStrategy = FetchAllKeysStrategy();
   }
 
   @override
@@ -184,13 +179,56 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     }
   }
 
-  /// match a key to be passed in getEntries/getChanges when these conditions are met
-  /// if enrolledNamespace is passed, key namespace has be in list of enrolled namespace with required authorization
-  /// if regex is passed, key has to match the regex or it has to be a special key.
+  /// True if [atKey] should be included in a sync response for
+  /// [regex] (and, if non-null, [enrolledNamespace]). The atKey is
+  /// included when its namespace is authorised for the enrollment
+  /// AND it either matches the regex or is in the always-include
+  /// set (encryption-shared/-public keys, top-level public keys
+  /// without a namespace).
   bool _shouldIncludeKeyInSyncResponse(String atKey, String regex,
       {List<String>? enrolledNamespace}) {
-    return _syncKeysFetchStrategy.shouldIncludeKeyInSyncResponse(atKey, regex,
-        enrolledNamespace: enrolledNamespace);
+    return _isNamespaceAuthorised(atKey, enrolledNamespace) &&
+        (RegExp(regex).hasMatch(atKey) || _alwaysIncludeInSync(atKey));
+  }
+
+  /// True when the atKey's namespace is in [enrolledNamespace] (or
+  /// when authorisation is effectively unrestricted: caller passed
+  /// null/empty, or the atKey carries no namespace, or the
+  /// enrollment is a wildcard '*'). The bare 'configkey' is
+  /// always authorised — see github.com/atsign-foundation/at_server/issues/1570.
+  bool _isNamespaceAuthorised(
+      String atKeyAsString, List<String>? enrolledNamespace) {
+    if (atKeyAsString.toLowerCase() == 'configkey') {
+      return true;
+    }
+    late AtKey atKey;
+    try {
+      atKey = AtKey.fromString(atKeyAsString);
+    } on InvalidSyntaxException catch (_) {
+      _logger.warning(
+          '_isNamespaceAuthorised found an invalid key "$atKeyAsString" in the commit log. Returning false');
+      return false;
+    }
+    final keyNamespace = atKey.namespace;
+    if (enrolledNamespace == null ||
+        enrolledNamespace.isEmpty ||
+        keyNamespace == null ||
+        keyNamespace.isEmpty) {
+      return true;
+    }
+    return enrolledNamespace.contains('*') ||
+        enrolledNamespace.contains(keyNamespace);
+  }
+
+  /// AtKeys that are always included in sync responses regardless
+  /// of any caller-supplied regex: encryption shared keys,
+  /// encryption public keys, and top-level public keys without a
+  /// namespace (e.g. `public:phone@alice`).
+  bool _alwaysIncludeInSync(String atKey) {
+    return (atKey.contains(AtConstants.atEncryptionSharedKey) &&
+            RegexUtil.keyType(atKey, false) == KeyType.reservedKey) ||
+        atKey.startsWith(AtConstants.atEncryptionPublicKey) ||
+        (atKey.startsWith('public:') && !atKey.contains('.'));
   }
 
   /// Returns the latest commitEntry of the key.
