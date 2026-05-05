@@ -1,4 +1,3 @@
-import 'package:at_persistence_secondary_server/src/event_listener/at_change_event_listener.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:at_persistence_secondary_server/src/spec/spec.dart';
 
@@ -56,10 +55,6 @@ abstract class AtCommitLog implements AtLogType<int, CommitEntry> {
 
   /// Close the underlying storage handle.
   Future<void> close();
-
-  /// Subscribe / unsubscribe to commit-log change events.
-  void addEventListener(AtChangeEventListener listener);
-  void removeEventListener(AtChangeEventListener listener);
 
   /// Set the compaction config governing automatic pruning.
   @override

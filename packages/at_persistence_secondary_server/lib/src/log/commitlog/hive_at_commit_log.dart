@@ -1,6 +1,4 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/event_listener/at_change_event.dart';
-import 'package:at_persistence_secondary_server/src/event_listener/at_change_event_listener.dart';
 import 'package:at_persistence_secondary_server/src/log/commitlog/commit_log_keystore.dart';
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_logger.dart';
@@ -10,8 +8,6 @@ import 'package:hive/hive.dart';
 @server
 class HiveAtCommitLog extends AtCommitLog {
   var logger = AtSignLogger('HiveAtCommitLog');
-
-  late final List<AtChangeEventListener> _atChangeEventListener = [];
 
   late CommitLogKeyStore _commitLogKeyStore;
 
@@ -46,7 +42,6 @@ class HiveAtCommitLog extends AtCommitLog {
         key, operation, DateTime.now().toUtcMillisecondsPrecision());
     try {
       result = await _commitLogKeyStore.add(entry);
-      await _publishChangeEvent(entry);
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception adding to commit log:${e.toString()}');
@@ -129,33 +124,6 @@ class HiveAtCommitLog extends AtCommitLog {
   @server
   Future<void> close() async {
     await _commitLogKeyStore.close();
-  }
-
-  Future<void> _publishChangeEvent(CommitEntry commitEntry) async {
-    try {
-      for (var listener in _atChangeEventListener) {
-        await listener.listen(AtPersistenceChangeEvent.from(commitEntry.atKey,
-            value: commitEntry.commitId,
-            commitOp: commitEntry.operation!,
-            keyStoreType: KeyStoreType.commitLogKeyStore));
-      }
-    } on Exception catch (e) {
-      logger.severe('Failed to publish change event ${e.toString()}');
-    } on Error catch (err) {
-      logger.severe('Failed to publish change event ${err.toString()}');
-    }
-  }
-
-  /// Adds the class implementing the [AtChangeEventListener] to publish the [AtPersistenceChangeEvent]
-  @override
-  void addEventListener(AtChangeEventListener atChangeEventListener) {
-    _atChangeEventListener.add(atChangeEventListener);
-  }
-
-  /// Removes the [AtChangeEventListener]
-  @override
-  void removeEventListener(AtChangeEventListener atChangeEventListener) {
-    _atChangeEventListener.remove(atChangeEventListener);
   }
 
   @override
