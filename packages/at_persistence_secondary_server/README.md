@@ -204,13 +204,14 @@ them:
 ## Compaction
 
 Compaction is split into a **strategy** (which the bundle owns,
-one per log/store) and a **scheduler** (`AtCompactionJob`, which
-just runs the strategy on a cron):
+one per log/store), a **scheduler** (`AtCompactionJob`, which
+just runs the strategy on a cron), and a **stats sink**
+(`AtCompactionStatsService`, which records per-pass metrics):
 
 ```dart
 final job = AtCompactionJob(
   bundle.commitLogCompactor!,
-  AtCompactionStatsServiceImpl(bundle.commitLog, bundle.keyStore),
+  myStatsService, // optional
 );
 job.scheduleCompactionJob(
   AtCompactionConfig()
@@ -226,9 +227,13 @@ primitives on each `AtLogType`. A future SQLite or Postgres
 backend would implement the same interface with `DELETE WHERE`
 plus `VACUUM`, and consumer code would not change.
 
-The `AtCompactionStatsService` is optional — pass it only if you
-want to record per-pass metrics into the keystore. Clients
-typically omit it.
+`AtCompactionStatsService` is an interface; ship your own impl
+or reuse one. The atSecondary consumer ships
+`AtCompactionStatsServiceImpl` (in
+`at_secondary_server/lib/src/compaction/`) which persists stats
+as atKeys in the keystore. A different consumer might push stats
+to Prometheus, drop them, etc. Clients typically omit the second
+arg to `AtCompactionJob`.
 
 ## Migration / iteration primitives
 

@@ -6,8 +6,11 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_utils/at_logger.dart';
 import 'package:meta/meta.dart';
 
-/// An implementation class of [AtCompactionStatsService] to write the compaction
-/// metrics to the [SecondaryKeyStore]
+/// Persists compaction stats as atKeys in the secondary's keystore.
+/// The atKey chosen depends on which log/store the stats came from
+/// — see [_getKey]. This is the secondary-server-shaped policy: a
+/// different deployment could implement [AtCompactionStatsService]
+/// to push stats to Prometheus, drop them, etc.
 class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
   final SecondaryKeyStore _keyStore;
   final AtCompaction _atCompaction;

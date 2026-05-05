@@ -9,6 +9,7 @@ import 'package:at_lookup/at_lookup.dart';
 import 'package:cron/cron.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
+import 'package:at_secondary/src/compaction/at_compaction_stats_service_impl.dart';
 import 'package:at_secondary/src/caching/cache_refresh_job.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart'
