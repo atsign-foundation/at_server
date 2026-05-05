@@ -4,9 +4,12 @@ import 'dart:math';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
-import 'package:at_secondary/src/utils/regex_util.dart';
+import 'package:at_secondary/src/utils/regex_util.dart' as sync_filter;
 import 'package:at_secondary/src/verb/metrics/metrics_provider.dart';
 import 'package:at_commons/at_commons.dart';
+import 'package:at_utils/at_logger.dart';
+
+final _logger = AtSignLogger('MetricsImpl');
 
 class InboundMetricImpl extends MetricProvider {
   InboundMetricImpl(super.atServer);
@@ -72,16 +75,21 @@ class LastCommitIDMetricImpl extends MetricProvider {
   @override
   Future<String> getMetrics(
       {String? regex, List<String>? enrolledNamespaces}) async {
-    logger.finer('In commitID getMetrics...regex : $regex');
-    int? lastCommitID;
-    if (regex != null || enrolledNamespaces != null) {
-      regex ??= '.*';
-      lastCommitID = await atServer.commitLog
-          .lastCommittedSequenceNumberWithRegex(regex,
-              enrolledNamespace: enrolledNamespaces);
-      return lastCommitID.toString();
+    _logger.finer('In commitID getMetrics...regex : $regex');
+    if (regex == null && enrolledNamespaces == null) {
+      return atServer.commitLog.lastCommittedSequenceNumber().toString();
     }
-    lastCommitID = atServer.commitLog.lastCommittedSequenceNumber();
+    final effectiveRegex = regex ?? '.*';
+    int? lastCommitID;
+    await for (final entry in atServer.commitLog.iterate(
+        where: (e) => sync_filter.shouldIncludeKeyInSyncResponse(
+            e.atKey!, effectiveRegex,
+            enrolledNamespace: enrolledNamespaces))) {
+      if (entry.commitId != null &&
+          (lastCommitID == null || entry.commitId! > lastCommitID)) {
+        lastCommitID = entry.commitId;
+      }
+    }
     return lastCommitID.toString();
   }
 

@@ -41,11 +41,6 @@ abstract class AtCommitLog implements AtLogType<int, CommitEntry> {
   /// Latest assigned `commitId`, or `null` if the log is empty.
   int? lastCommittedSequenceNumber();
 
-  /// Latest `commitId` whose `atKey` matches [regex] and whose
-  /// namespace is in [enrolledNamespace] (if provided).
-  Future<int?> lastCommittedSequenceNumberWithRegex(String regex,
-      {List<String>? enrolledNamespace});
-
   /// Earliest assigned `commitId`.
   int? firstCommittedSequenceNumber();
 

@@ -237,84 +237,11 @@ void main() async {
         expect(commitId, 0);
         expect(commitLogInstance.lastCommittedSequenceNumber(), 0);
       });
-      test('test to verify last committed sequenceNumber with regex', () async {
-        var commitLogInstance = (await testCommitLogFor('@alice'));
-        await commitLogInstance.commit(
-            'public:location_1.wavi@alice', CommitOp.UPDATE);
-        await commitLogInstance.commit(
-            'public:phone.buzz@alice', CommitOp.UPDATE);
-        await commitLogInstance.commit(
-            'public:location_2.wavi@alice', CommitOp.UPDATE);
-        await commitLogInstance.commit(
-            'public:email.buzz@alice', CommitOp.UPDATE);
-        expect(
-            await commitLogInstance
-                .lastCommittedSequenceNumberWithRegex('buzz'),
-            3);
-        expect(
-            await commitLogInstance
-                .lastCommittedSequenceNumberWithRegex('wavi'),
-            2);
-        await commitLogInstance.commit(
-            'public:location_1.wavi@alice', CommitOp.UPDATE);
-        await commitLogInstance.commit(
-            'public:location_2.wavi@alice', CommitOp.DELETE);
-        await commitLogInstance.commit(
-            'public:phone.buzz@alice', CommitOp.DELETE);
-        await commitLogInstance.commit(
-            'public:email.buzz@alice', CommitOp.DELETE);
-        expect(
-            await commitLogInstance
-                .lastCommittedSequenceNumberWithRegex('buzz'),
-            7);
-        expect(
-            await commitLogInstance
-                .lastCommittedSequenceNumberWithRegex('wavi'),
-            5);
-      });
-      test(
-          'A test to verify lastCommittedSequenceNumber does not  include key which does not match regex',
-          () async {
-        var commitLogInstance = (await testCommitLogFor('@alice'));
-        var commitLogKeystore = commitLogInstance.commitLogKeyStore;
-        await commitLogKeystore.add(CommitEntry(
-            'public:phone.buzz@alice', CommitOp.UPDATE, DateTime.now()));
-        await commitLogKeystore.add(CommitEntry(
-            'public:email.wavi@alice', CommitOp.UPDATE, DateTime.now()));
-        final lastCommittedSeq = await commitLogKeystore
-            .lastCommittedSequenceNumberWithRegex('.buzz');
-        expect(lastCommittedSeq, 0);
-      });
-      test(
-          'A test to verify lastCommittedSequenceNumber include key which matches regex and enrollednamespace',
-          () async {
-        var commitLogInstance = (await testCommitLogFor('@alice'));
-        var commitLogKeystore = commitLogInstance.commitLogKeyStore;
-        await commitLogKeystore.add(
-            CommitEntry('phone.buzz@alice', CommitOp.UPDATE, DateTime.now()));
-        await commitLogKeystore.add(
-            CommitEntry('phone.wavi@alice', CommitOp.UPDATE, DateTime.now()));
-        await commitLogKeystore.add(CommitEntry(
-            'location.buzz@alice', CommitOp.UPDATE, DateTime.now()));
-        final lastCommittedSeq = await commitLogKeystore
-            .lastCommittedSequenceNumberWithRegex('.buzz',
-                enrolledNamespace: ['buzz']);
-        expect(lastCommittedSeq, 2);
-      });
-      test(
-          'A test to verify lastCommittedSequenceNumber does not include key which does not match enrollednamespace',
-          () async {
-        var commitLogInstance = (await testCommitLogFor('@alice'));
-        var commitLogKeystore = commitLogInstance.commitLogKeyStore;
-        await commitLogKeystore.add(
-            CommitEntry('phone.buzz@alice', CommitOp.UPDATE, DateTime.now()));
-        await commitLogKeystore.add(
-            CommitEntry('phone.wavi@alice', CommitOp.UPDATE, DateTime.now()));
-        final lastCommittedSeq = await commitLogKeystore
-            .lastCommittedSequenceNumberWithRegex('.*',
-                enrolledNamespace: ['buzz']);
-        expect(lastCommittedSeq, 0);
-      });
+      // Regex-and-enrolled-namespace filtering on the commit log
+      // moved out of the persistence package into the
+      // LastCommitIDMetricImpl in at_secondary_server. Coverage now
+      // lives in at_secondary_server/test/stats_verb_test.dart and
+      // at_secondary_server/test/regex_util_test.dart.
     });
     group('A group of tests verifying the one-entry-per-atKey invariant', () {
       setUp(() async => await setUpFunc(storageDir));

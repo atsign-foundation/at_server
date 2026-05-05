@@ -83,15 +83,6 @@ class HiveAtCommitLog extends AtCommitLog {
     return _commitLogKeyStore.latestCommitId;
   }
 
-  /// Returns the latest committed sequence number with regex
-  @override
-  @server
-  Future<int?> lastCommittedSequenceNumberWithRegex(String regex,
-      {List<String>? enrolledNamespace}) async {
-    return await _commitLogKeyStore.lastCommittedSequenceNumberWithRegex(regex,
-        enrolledNamespace: enrolledNamespace);
-  }
-
   /// Returns the first committed sequence number
   @override
   @server

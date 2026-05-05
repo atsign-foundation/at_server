@@ -7,6 +7,7 @@ import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/utils/regex_util.dart' as sync_filter;
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -97,7 +98,7 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       if (regex != null &&
           regex.isNotEmpty &&
           !RegExp(regex).hasMatch(atKey) &&
-          !_alwaysIncludeInSync(atKey)) {
+          !sync_filter.alwaysIncludeInSync(atKey)) {
         return false;
       }
 
@@ -190,17 +191,6 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       }
       currentResponseLength += encoded.length;
     }
-  }
-
-  /// Returns true for atKeys that are always included in sync regardless
-  /// of any caller-supplied regex. Mirrors the legacy SyncKeysFetchStrategy
-  /// semantic so the iterate(where:) closure's regex filter doesn't
-  /// drop reserved keys that clients depend on receiving.
-  bool _alwaysIncludeInSync(String atKey) {
-    return (atKey.contains(AtConstants.atEncryptionSharedKey) &&
-            RegexUtil.keyType(atKey, false) == KeyType.reservedKey) ||
-        atKey.startsWith(AtConstants.atEncryptionPublicKey) ||
-        (atKey.startsWith('public:') && !atKey.contains('.'));
   }
 
   Map _populateMetadata(AtData value) {

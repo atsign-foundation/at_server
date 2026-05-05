@@ -57,18 +57,6 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     return internalKey;
   }
 
-  /// Returns the latest committed sequence number with regex
-  Future<int?> lastCommittedSequenceNumberWithRegex(String regex,
-      {List<String>? enrolledNamespace}) async {
-    var lastCommittedEntry = (getBox() as Box).values.lastWhere(
-        (entry) => (_shouldIncludeKeyInSyncResponse(entry.atKey, regex,
-            enrolledNamespace: enrolledNamespace)),
-        orElse: () => NullCommitEntry());
-    var lastCommittedSequenceNum =
-        (lastCommittedEntry != null) ? lastCommittedEntry.key : null;
-    return lastCommittedSequenceNum;
-  }
-
   /// Sorts the [CommitEntry]'s order by commit in descending order
   int _sortByCommitId(dynamic c1, dynamic c2) {
     if (c1.commitId == null && c2.commitId == null) {
