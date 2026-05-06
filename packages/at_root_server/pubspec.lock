@@ -46,21 +46,21 @@ packages:
     description:
       path: "../at_persistence_root_server"
       relative: true
-    source: git
+    source: path
     version: "2.0.7"
   at_persistence_spec:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
       path: "../at_persistence_spec"
       relative: true
-    source: hosted
-    version: "2.0.14"
+    source: path
+    version: "3.1.0"
   at_server_spec:
     dependency: "direct main"
     description:
       path: "../at_server_spec"
       relative: true
-    source: hosted
+    source: path
     version: "5.1.0"
   at_utils:
     dependency: "direct main"
