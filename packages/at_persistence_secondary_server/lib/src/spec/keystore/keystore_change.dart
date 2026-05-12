@@ -1,4 +1,4 @@
-/// A single mutation observed on a [SecondaryKeyStore]. The base
+/// A single mutation observed on a [AtKeyValueStore]. The base
 /// type exposes [key]; subclasses describe what happened.
 ///
 /// `KeyStoreChange` is a sealed hierarchy: every concrete subtype

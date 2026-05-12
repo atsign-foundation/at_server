@@ -24,7 +24,7 @@ import 'package:uuid/uuid.dart';
 import 'test_utils.dart';
 
 void main() {
-  SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+  AtKeyValueStore mockKeyStore = MockAtKeyValueStore();
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
   AtCacheManager mockAtCacheManager = MockAtCacheManager();
   FakeSocket mockSocket = FakeSocket();
@@ -176,7 +176,7 @@ void main() {
         'createdOn': 0,
       };
       var notifyListVerbHandler =
-          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
+          NotifyListVerbHandler(keyValueStore, notificationManager);
       var testNotification = (AtNotificationBuilder()
             ..id = '1031'
             ..fromAtSign = '@bob'
@@ -320,7 +320,7 @@ void main() {
       atCompactionStats.postCompactionEntriesCount = 92;
       atCompactionStats.preCompactionEntriesCount = 96;
       atCompactionStats.atCompactionType = atServer.accessLog.toString();
-      await secondaryKeyStore.put(AtConstants.commitLogCompactionKey,
+      await keyValueStore.put(AtConstants.commitLogCompactionKey,
           AtData()..data = jsonEncode(atCompactionStats));
 
       var atData = await CommitLogCompactionStats(atServer).getMetrics();
@@ -364,7 +364,7 @@ void main() {
       atCompactionStats.postCompactionEntriesCount = 902;
       atCompactionStats.preCompactionEntriesCount = 906;
       atCompactionStats.atCompactionType = atServer.accessLog.toString();
-      await secondaryKeyStore.put(AtConstants.accessLogCompactionKey,
+      await keyValueStore.put(AtConstants.accessLogCompactionKey,
           AtData()..data = jsonEncode(atCompactionStats));
 
       var atData = await AccessLogCompactionStats(atServer).getMetrics();
@@ -401,7 +401,7 @@ void main() {
       atCompactionStats.postCompactionEntriesCount = 1;
       atCompactionStats.preCompactionEntriesCount = 1;
       atCompactionStats.atCompactionType = notifStore.toString();
-      await secondaryKeyStore.put(AtConstants.commitLogCompactionKey,
+      await keyValueStore.put(AtConstants.commitLogCompactionKey,
           AtData()..data = jsonEncode(atCompactionStats));
 
       var atData = await CommitLogCompactionStats(atServer).getMetrics();
@@ -419,18 +419,18 @@ void main() {
     test('A test to validate latestCommitEntryOfEachKey', () async {
       var lastCommitId = await LastCommitIDMetricImpl(atServer).getMetrics();
       var randomString = Uuid().v4();
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '$alice:phone-$randomString$alice', AtData()..data = '9848033443');
       // create a new key
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '$alice:location-$randomString$alice', AtData()..data = 'Hyderabad');
       // Update the first key again
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '$alice:phone-$randomString$alice', AtData()..data = '9848033444');
       // Insert and delete a key
-      await secondaryKeyStore.put('$alice:deleteKey-$randomString$alice',
+      await keyValueStore.put('$alice:deleteKey-$randomString$alice',
           AtData()..data = '9848033444');
-      await secondaryKeyStore.remove('$alice:deleteKey-$randomString$alice');
+      await keyValueStore.remove('$alice:deleteKey-$randomString$alice');
       var latestCommitIdForEachKey =
           await LatestCommitEntryOfEachKey(atServer).getMetrics();
       var latestCommitIdMap = jsonDecode(latestCommitIdForEachKey);
@@ -459,7 +459,7 @@ void main() {
       int randomNumber = min + Random().nextInt(max - min) + 1;
       for (int i = 1; i <= randomNumber; i++) {
         phoneNumber = phoneNumber + i;
-        await secondaryKeyStore.put('$alice:phone-${randomString}_$i$alice',
+        await keyValueStore.put('$alice:phone-${randomString}_$i$alice',
             AtData()..data = phoneNumber.toString());
       }
       await LastCommitIDMetricImpl(atServer).getMetrics();
@@ -478,11 +478,11 @@ void main() {
     test(
         'A test to verify latest commitId among enrolled namespaces is returned',
         () async {
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '$alice:phone.wavi$alice', AtData()..data = '9848033443');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '$alice:location.wavi$alice', AtData()..data = 'Hyderabad');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '$alice:mobile.buzz$alice', AtData()..data = '9848033444');
 
       var lastCommitId = await LastCommitIDMetricImpl(atServer)
@@ -493,13 +493,13 @@ void main() {
     test(
         'A test to verify highest commitId among the authorized namespaces is returned',
         () async {
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '$alice:phone.wavi$alice', AtData()..data = '9848033443');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '$alice:location.wavi$alice', AtData()..data = 'Hyderabad');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '$alice:mobile.buzz$alice', AtData()..data = '9848033444');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '$alice:contact.atmosphere$alice', AtData()..data = '9848033444');
 
       var lastCommitId = await LastCommitIDMetricImpl(atServer)
@@ -510,13 +510,13 @@ void main() {
     test(
         'A test to verify latestCommitId is returned when enrolledNamespace and regex are not supplied',
         () async {
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '$alice:phone.wavi$alice', AtData()..data = '9848033443');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '$alice:location.wavi$alice', AtData()..data = 'Hyderabad');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '$alice:mobile.buzz$alice', AtData()..data = '9848033444');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '$alice:contact.atmosphere$alice', AtData()..data = '9848033444');
 
       var lastCommitId = await LastCommitIDMetricImpl(atServer).getMetrics();
@@ -526,13 +526,13 @@ void main() {
     test(
         'A test to verify latestCommitId is returned when only regex is not supplied',
         () async {
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '$alice:phone.wavi$alice', AtData()..data = '9848033443');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '$alice:location.wavi$alice', AtData()..data = 'Hyderabad');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '$alice:mobile.buzz$alice', AtData()..data = '9848033444');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '$alice:contact.atmosphere$alice', AtData()..data = '9848033444');
 
       var lastCommitId =

@@ -21,7 +21,7 @@ class MonitorConfig {
 class MonitorVerbHandler extends AbstractVerbHandler {
   static Monitor monitor = Monitor();
 
-  MonitorVerbHandler(super.keyStore, this.notifMgr);
+  MonitorVerbHandler(super.keyValueStore, this.notifMgr);
 
   NotificationManager notifMgr;
 

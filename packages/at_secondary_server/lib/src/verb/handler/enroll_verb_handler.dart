@@ -39,7 +39,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   final EnrollmentManager enMgr;
   final NotificationManager notifManager;
 
-  EnrollVerbHandler(super.keyStore, this.enMgr, this.notifManager);
+  EnrollVerbHandler(super.keyValueStore, this.enMgr, this.notifManager);
 
   @override
   bool accept(String command) => command.startsWith('enroll:');
@@ -274,7 +274,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       inboundConnectionMetadata.enrollmentId = newEnrollmentId;
       // store this apkam as default pkam public key for old clients
       // The keys with AT_PKAM_PUBLIC_KEY does not sync to client.
-      await keyStore.put(AtConstants.atPkamPublicKey,
+      await keyValueStore.put(AtConstants.atPkamPublicKey,
           AtData()..data = enrollParams.apkamPublicKey!,
           skipCommit: true);
       AtData enrollData = AtData()..data = jsonEncode(enrollmentValue.toJson());
@@ -367,7 +367,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (operation == 'approve') {
       // Fetch the existing data
       String ek = enMgr.buildEnrollmentKey(enId);
-      AtMetaData emd = await keyStore.getMeta(ek) ?? AtMetaData();
+      AtMetaData emd = await keyValueStore.getMeta(ek) ?? AtMetaData();
       // Update key with new data
       // Update ttl value to support auto expiry of APKAM keys
       emd.ttl = enVal.apkamKeysExpiryDuration.inMilliseconds;
@@ -437,7 +437,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (enrollParams.encPrivateKeyIV != null) {
       privateKeyJson['iv'] = enrollParams.encPrivateKeyIV;
     }
-    await keyStore.put(
+    await keyValueStore.put(
         enMgr.keyForPEK(newEnrollmentId),
         AtData()
           ..data = jsonEncode(privateKeyJson)
@@ -449,7 +449,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (enrollParams.selfEncKeyIV != null) {
       selfKeyJson['iv'] = enrollParams.selfEncKeyIV;
     }
-    await keyStore.put(
+    await keyValueStore.put(
         enMgr.keyForSEK(newEnrollmentId),
         AtData()
           ..data = jsonEncode(selfKeyJson)
@@ -590,14 +590,14 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   Future<void> preventDuplicateEnrollRequest(EnrollParams enrollParams) async {
     // Fetches all the enrollment keys from the keystore.
     List<dynamic> enrollmentKeys =
-        keyStore.getKeys(regex: EnrollmentConstants.enrollmentsRegex);
+        keyValueStore.getKeys(regex: EnrollmentConstants.enrollmentsRegex);
 
     // Iterate through the existing enrollments and verify that there is no enrollment with the same
     // appName and deviceName combination, and a status of 'pending' or 'approved'
     for (String key in enrollmentKeys) {
       AtData atData = AtData();
       try {
-        atData = await keyStore.get(key);
+        atData = await keyValueStore.get(key);
       } on KeyNotFoundException {
         logger.finest('An enrollment with $key does not exist or expired');
       }

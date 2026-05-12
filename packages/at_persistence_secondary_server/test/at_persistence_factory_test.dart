@@ -29,7 +29,7 @@ void main() {
 
         expect(bundle.atSign, '@alice');
         expect(bundle.backendId, AtPersistenceBackendId.hive);
-        expect(bundle.keyStore, isNotNull);
+        expect(bundle.keyValueStore, isNotNull);
         expect(bundle.commitLog, isNotNull);
         expect(bundle.accessLog, isNotNull);
         expect(bundle.notificationKeystore, isNotNull);
@@ -37,9 +37,9 @@ void main() {
         // Round-trip a key through the keystore to prove it's actually open.
         final atData = AtData()..data = 'hello';
         final commitId =
-            await bundle.keyStore.put('public:greet@alice', atData);
+            await bundle.keyValueStore.put('public:greet@alice', atData);
         expect(commitId, isNotNull);
-        final fetched = await bundle.keyStore.get('public:greet@alice');
+        final fetched = await bundle.keyValueStore.get('public:greet@alice');
         expect(fetched?.data, 'hello');
       } finally {
         await factory.close();
@@ -87,15 +87,16 @@ void main() {
 
         expect(alice.atSign, '@alice');
         expect(bob.atSign, '@bob');
-        expect(identical(alice.keyStore, bob.keyStore), isFalse);
+        expect(identical(alice.keyValueStore, bob.keyValueStore), isFalse);
         expect(identical(alice.commitLog, bob.commitLog), isFalse);
         expect(identical(alice.accessLog, bob.accessLog), isFalse);
         expect(identical(alice.notificationKeystore, bob.notificationKeystore),
             isFalse);
 
         // Writing into alice's keystore must not affect bob's.
-        await alice.keyStore.put('public:k@alice', AtData()..data = 'a-value');
-        expect(() => bob.keyStore.get('public:k@alice'),
+        await alice.keyValueStore
+            .put('public:k@alice', AtData()..data = 'a-value');
+        expect(() => bob.keyValueStore.get('public:k@alice'),
             throwsA(isA<KeyNotFoundException>()));
       } finally {
         await factory.close();
@@ -125,7 +126,7 @@ void main() {
         final bob = await factoryB.initialize('@bob', bobCfg.config);
 
         expect(identical(alice, bob), isFalse);
-        expect(identical(alice.keyStore, bob.keyStore), isFalse);
+        expect(identical(alice.keyValueStore, bob.keyValueStore), isFalse);
 
         // Each factory only knows about its own atSign.
         expect(factoryA.bundleFor('@alice'), same(alice));

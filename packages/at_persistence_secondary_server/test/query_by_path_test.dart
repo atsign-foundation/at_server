@@ -4,7 +4,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:test/test.dart';
 
 void main() {
-  group('SecondaryKeyStore.queryByPath() — Hive capability', () {
+  group('AtKeyValueStore.queryByPath() — Hive capability', () {
     late Directory tempDir;
     late HiveAtPersistenceFactory factory;
     late AtPersistenceBundle bundle;
@@ -29,7 +29,7 @@ void main() {
     });
 
     test('Hive keystore reports supportsPathQueries == false', () {
-      expect(bundle.keyStore.supportsPathQueries, isFalse);
+      expect(bundle.keyValueStore.supportsPathQueries, isFalse);
     });
 
     test('Hive notification keystore reports supportsPathQueries == false', () {
@@ -38,7 +38,7 @@ void main() {
 
     test('queryByPath throws UnsupportedError on Hive (gating contract)', () {
       expect(
-        () => bundle.keyStore
+        () => bundle.keyValueStore
             .queryByPath(
               keyPattern: KeyPattern(),
               predicate: PathEquals(['obj', 'amount'], 100),

@@ -61,9 +61,9 @@ class HiveAtPersistenceFactory implements AtPersistenceFactory {
     // 4. Secondary keystore. Owns its own Hive box, encryption
     //    secret, and cron-driven key-expiry sweep (former roles
     //    of the now-retired HivePersistenceManager).
-    final keyStore = HiveSecondaryKeyStore(atSign);
-    keyStore.commitLog = commitLog;
-    await keyStore.init(config.storagePath);
+    final keyValueStore = HiveAtKeyValueStore(atSign);
+    keyValueStore.commitLog = commitLog;
+    await keyValueStore.init(config.storagePath);
 
     // 5. Compactors (optional capabilities). Each wraps the
     //    underlying log/keystore in a [HiveCompactionStrategy].
@@ -82,7 +82,7 @@ class HiveAtPersistenceFactory implements AtPersistenceFactory {
 
     final bundle = HiveAtPersistenceBundle._(
       atSign: atSign,
-      keyStore: keyStore,
+      keyValueStore: keyValueStore,
       commitLog: commitLog,
       accessLog: accessLog,
       notificationKeystore: notificationKeystore,
@@ -119,10 +119,10 @@ class HiveAtPersistenceBundle implements AtPersistenceBundle {
   @override
   // Typed at the concrete on HiveAtPersistenceBundle so [clear]
   // can reach the Hive-specific in-memory caches. The abstract
-  // [AtPersistenceBundle.keyStore] still surfaces it as
-  // SecondaryKeyStore<...>.
+  // [AtPersistenceBundle.keyValueStore] still surfaces it as
+  // AtKeyValueStore<...>.
   @override
-  final HiveSecondaryKeyStore keyStore;
+  final HiveAtKeyValueStore keyValueStore;
 
   @override
   final HiveAtCommitLog commitLog;
@@ -150,7 +150,7 @@ class HiveAtPersistenceBundle implements AtPersistenceBundle {
 
   HiveAtPersistenceBundle._({
     required this.atSign,
-    required this.keyStore,
+    required this.keyValueStore,
     required this.commitLog,
     required this.accessLog,
     required this.notificationKeystore,
@@ -171,7 +171,7 @@ class HiveAtPersistenceBundle implements AtPersistenceBundle {
     // Order: keystore, commit log, access log, notification keystore.
     // Caller-visible state and in-memory caches are reset; underlying
     // Hive boxes stay open for fast reuse in subsequent tests.
-    await keyStore.clear();
+    await keyValueStore.clear();
     await commitLog.commitLogKeyStore.getBox().clear();
     await accessLog?.clear();
     await notificationKeystore?.clear();
@@ -184,7 +184,7 @@ class HiveAtPersistenceBundle implements AtPersistenceBundle {
     // Order is the inverse of [HiveAtPersistenceFactory.initialize]:
     // close the keystore first (so any in-flight expiry task
     // observes a closed box), then logs and notifications.
-    await keyStore.close();
+    await keyValueStore.close();
     await commitLog.close();
     await accessLog?.close();
     await notificationKeystore?.close();

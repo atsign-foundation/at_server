@@ -101,7 +101,7 @@ class StatsVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  StatsVerbHandler(super.keyStore);
+  StatsVerbHandler(super.keyValueStore);
 
   // Method to verify whether command is accepted or not
   // Input: command

@@ -21,7 +21,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
   final NotificationManager notificationManager;
 
   DeleteVerbHandler(
-    super.keyStore,
+    super.keyValueStore,
     super.statsNotificationService,
     this.notificationManager,
   );
@@ -91,7 +91,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     assert(deleteKey.isNotEmpty);
     deleteKey = deleteKey.trim().toLowerCase().replaceAll(' ', '');
     if (deleteKey == AtConstants.atCramSecret) {
-      await keyStore.put(
+      await keyValueStore.put(
           AtConstants.atCramSecretDeleted, AtData()..data = 'true');
     }
 
@@ -113,8 +113,8 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       // then check if the data is immutable
       // and if so, prevent deletion unless the "force" flag was set
       if (verbParams['isCached'] != 'true') {
-        if (keyStore.isKeyExists(deleteKey)) {
-          AtData atData = await keyStore.get(deleteKey);
+        if (keyValueStore.isKeyExists(deleteKey)) {
+          AtData atData = await keyValueStore.get(deleteKey);
           if (atData.metaData?.immutable == true) {
             // immutable records need the force flag in order to be deleted
             bool force = verbParams[AtConstants.force] == AtConstants.force;
@@ -125,7 +125,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
           }
         }
       }
-      var result = await keyStore.remove(deleteKey);
+      var result = await keyValueStore.remove(deleteKey);
       response.data = result?.toString();
       logger.finer('delete success. delete key: $deleteKey');
     } on KeyNotFoundException {

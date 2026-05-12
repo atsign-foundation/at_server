@@ -4,7 +4,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:test/test.dart';
 
 void main() {
-  group('SecondaryKeyStore.scanKeys() ordering + pagination', () {
+  group('AtKeyValueStore.scanKeys() ordering + pagination', () {
     late Directory tempDir;
     late HiveAtPersistenceFactory factory;
     late AtPersistenceBundle bundle;
@@ -24,7 +24,7 @@ void main() {
       // Insert in non-alphabetical order so insertion-order vs
       // byKey-order can be told apart.
       Future<void> put(String k) =>
-          bundle.keyStore.put(k, AtData()..data = 'v');
+          bundle.keyValueStore.put(k, AtData()..data = 'v');
       await put('public:zebra@alice');
       await put('public:apple@alice');
       await put('public:mango@alice');
@@ -37,7 +37,7 @@ void main() {
     });
 
     test('default order yields every match (natural backend order)', () async {
-      final keys = await bundle.keyStore.scanKeys(KeyPattern()).toList();
+      final keys = await bundle.keyValueStore.scanKeys(KeyPattern()).toList();
       // Hive's natural iteration order is the B-tree (key-bytes
       // ascending) — not insertion order. Verify every match is
       // present rather than asserting a specific order; the
@@ -51,7 +51,7 @@ void main() {
     });
 
     test('orderBy: byKey returns lexicographic ascending', () async {
-      final keys = await bundle.keyStore
+      final keys = await bundle.keyValueStore
           .scanKeys(KeyPattern(), orderBy: OrderByKey.byKey)
           .toList();
       expect(keys, [
@@ -63,21 +63,21 @@ void main() {
     });
 
     test('limit caps the number of yielded keys', () async {
-      final keys = await bundle.keyStore
+      final keys = await bundle.keyValueStore
           .scanKeys(KeyPattern(), orderBy: OrderByKey.byKey, limit: 2)
           .toList();
       expect(keys, ['public:apple@alice', 'public:banana@alice']);
     });
 
     test('skip discards the first N matching keys', () async {
-      final keys = await bundle.keyStore
+      final keys = await bundle.keyValueStore
           .scanKeys(KeyPattern(), orderBy: OrderByKey.byKey, skip: 2)
           .toList();
       expect(keys, ['public:mango@alice', 'public:zebra@alice']);
     });
 
     test('skip + limit together yield a window', () async {
-      final keys = await bundle.keyStore
+      final keys = await bundle.keyValueStore
           .scanKeys(
             KeyPattern(),
             orderBy: OrderByKey.byKey,
@@ -94,14 +94,14 @@ void main() {
       // — explicit values don't survive. So we pace the puts with
       // sleep-between-writes to spread createdAt across distinct
       // millisecond timestamps.
-      await bundle.keyStore.removeMany([
+      await bundle.keyValueStore.removeMany([
         'public:apple@alice',
         'public:banana@alice',
         'public:mango@alice',
         'public:zebra@alice',
       ]);
       Future<void> spacedPut(String k) async {
-        await bundle.keyStore.put(k, AtData()..data = 'v');
+        await bundle.keyValueStore.put(k, AtData()..data = 'v');
         await Future.delayed(const Duration(milliseconds: 5));
       }
 
@@ -110,7 +110,7 @@ void main() {
       await spacedPut('public:mango@alice');
       await spacedPut('public:banana@alice'); // newest
 
-      final keys = await bundle.keyStore
+      final keys = await bundle.keyValueStore
           .scanKeys(KeyPattern(), orderBy: OrderByKey.byCreatedAt)
           .toList();
       expect(keys, [
@@ -122,14 +122,14 @@ void main() {
     });
 
     test('skip beyond match count yields empty', () async {
-      final keys = await bundle.keyStore
+      final keys = await bundle.keyValueStore
           .scanKeys(KeyPattern(), orderBy: OrderByKey.byKey, skip: 100)
           .toList();
       expect(keys, isEmpty);
     });
 
     test('limit=0 yields empty', () async {
-      final keys = await bundle.keyStore
+      final keys = await bundle.keyValueStore
           .scanKeys(KeyPattern(), orderBy: OrderByKey.byKey, limit: 0)
           .toList();
       expect(keys, isEmpty);
@@ -137,9 +137,9 @@ void main() {
 
     test('order + pattern compose: byKey filtered by namespace', () async {
       // Add a tasks-namespace key; it should sort independently.
-      await bundle.keyStore
+      await bundle.keyValueStore
           .put('public:plan.tasks@alice', AtData()..data = 'v');
-      final keys = await bundle.keyStore
+      final keys = await bundle.keyValueStore
           .scanKeys(
             KeyPattern(namespace: 'tasks'),
             orderBy: OrderByKey.byKey,

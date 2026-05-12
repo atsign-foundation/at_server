@@ -11,8 +11,8 @@ class HiveAtAccessLog implements AtAccessLog {
 
   late AtCompactionConfig atCompactionConfig;
 
-  HiveAtAccessLog(AccessLogKeyStore keyStore) {
-    _accessLogKeyStore = keyStore;
+  HiveAtAccessLog(AccessLogKeyStore keyValueStore) {
+    _accessLogKeyStore = keyValueStore;
   }
 
   ///Creates a new entry with fromAtSign, verbName and optional parameter lookupKey for lookup and plookup verbs.

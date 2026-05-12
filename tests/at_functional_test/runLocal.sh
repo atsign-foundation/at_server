@@ -40,10 +40,10 @@ ls -laR ./contents
 docker build -f ./Dockerfile -t at_virtual_env:local . || exit 1
 
 echo "Stopping any running docker container"
-docker stop at_virtual_env_cont
+docker stop at_server_func_cont
 
 echo "Run docker container"
-docker run -d --rm --name at_virtual_env_cont \
+docker run -d --rm --name at_server_func_cont \
   -e testingMode="true" -e httpsEnabled="true" \
   -p 6379:6379 -p 25000-25040:25000-25040 -p 64:64 -p 443:443 \
   at_virtual_env:local || exit 1
@@ -71,8 +71,8 @@ dart run test --concurrency=1 || exit 1
 
 cd $originalDir
 
-echo "Stopping docker container at_virtual_env_cont"
-docker stop at_virtual_env_cont || exit 1
+echo "Stopping docker container at_server_func_cont"
+docker stop at_server_func_cont || exit 1
 
 exit 0
 

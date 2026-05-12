@@ -1,5 +1,5 @@
 /// A filter predicate over the value's structured fields. Used by
-/// [`SecondaryKeyStore.queryByPath`] to push value-field filtering
+/// [`AtKeyValueStore.queryByPath`] to push value-field filtering
 /// down to the backend.
 ///
 /// Sealed: every concrete subtype lives in this file. Backends

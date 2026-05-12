@@ -18,7 +18,7 @@ import 'package:at_utils/at_logger.dart';
 final String paramFullCommandAsReceived = 'FullCommandAsReceived';
 
 abstract class AbstractVerbHandler implements VerbHandler {
-  final SecondaryKeyStore keyStore;
+  final AtKeyValueStore keyValueStore;
 
   late AtSignLogger logger;
   ResponseHandlerManager responseManager =
@@ -27,7 +27,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
   RegExp perEnrollmentRegex =
       RegExp(EnrollmentConstants.regexForPerEnrollmentNamespaces);
 
-  AbstractVerbHandler(this.keyStore) {
+  AbstractVerbHandler(this.keyValueStore) {
     logger = AtSignLogger(runtimeType.toString());
   }
 
@@ -454,14 +454,14 @@ abstract class AbstractVerbHandler implements VerbHandler {
     // If SPP key is available, check if the otp sent is a valid pass code.
     // If yes, return true, else check it is a valid OTP.
     String passcodeKey = OtpVerbHandler.passcodeKey(passcode, isSpp: true);
-    if (!keyStore.isKeyExists(passcodeKey)) {
+    if (!keyValueStore.isKeyExists(passcodeKey)) {
       // if new SPPKey does not exist in keystore, check for SPP data against legacy SPP key
       // New SPP key has __otp namespace, legacy key does NOT have any namespace
       passcodeKey =
           'private:spp${AtSecondaryServerImpl.getInstance().currentAtSign}';
     }
     try {
-      AtData? sppAtData = await keyStore.get(passcodeKey);
+      AtData? sppAtData = await keyValueStore.get(passcodeKey);
       // SPP has a special key so we have to check the value that was stored
       // (which is the actual SPP)
       // By comparison, OTPs are stored with the key being ${OTP}.__otp@alice
@@ -480,7 +480,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
 
     // 2. If not a valid SPP, then check against OTP keys
     String otpKey = OtpVerbHandler.passcodeKey(passcode, isSpp: false);
-    if (!keyStore.isKeyExists(otpKey)) {
+    if (!keyValueStore.isKeyExists(otpKey)) {
       // if new OTPKey does not exist in keystore, check for OTP data against legacy OTPKey
       // New OTP key has __otp namespace, legacy key does not have namespace
       otpKey =
@@ -489,7 +489,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
 
     AtData? otpAtData;
     try {
-      otpAtData ??= await keyStore.get(otpKey);
+      otpAtData ??= await keyValueStore.get(otpKey);
     } on KeyNotFoundException {
       return false;
     }
@@ -498,7 +498,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
     // Remove the OTP after it is used.
     // NOTE: SPP code should NOT be deleted. only OTPs should be
     // deleted after use.
-    await keyStore.remove(otpKey);
+    await keyValueStore.remove(otpKey);
 
     return isOTPValid;
   }

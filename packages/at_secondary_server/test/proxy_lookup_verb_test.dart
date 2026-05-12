@@ -43,7 +43,7 @@ void main() {
       ///
       /// This test group tests all of the above behaviour
       ///
-      /// We are using the concrete implementation of the SecondaryKeyStore in these tests as we
+      /// We are using the concrete implementation of the AtKeyValueStore in these tests as we
       /// don't need to mock its behaviour.
 
       late ProxyLookupVerbHandler plookupVerbHandler;
@@ -55,7 +55,7 @@ void main() {
       setUp(() async {
         await verbTestsSetUp();
         plookupVerbHandler = ProxyLookupVerbHandler(
-            secondaryKeyStore, mockOutboundClientManager, cacheManager);
+            keyValueStore, mockOutboundClientManager, cacheManager);
       });
 
       tearDown(() async {
@@ -112,9 +112,9 @@ void main() {
 
         // Even if the ttr is null or zero, our compromise rules for now are that
         // we will cache the record, keep ttr as null (or zero), but assign a ttl of 24 hours
-        expect(secondaryKeyStore.isKeyExists(cachedKeyName), true);
+        expect(keyValueStore.isKeyExists(cachedKeyName), true);
         // Cached data should be identical to what was sent by @bob
-        AtData cachedAtData = (await secondaryKeyStore.get(cachedKeyName))!;
+        AtData cachedAtData = (await keyValueStore.get(cachedKeyName))!;
         expect(cachedAtData.data, bobData.data);
         // The metadata should NOT match, as we have set a ttl
         if (expectDifferentMetadata) {
@@ -140,8 +140,8 @@ void main() {
             bobData.metaData!.toCommonsMetadata());
         expect(mapSentToClient['key'], 'public:$keyName');
 
-        expect(secondaryKeyStore.isKeyExists(keyName), false);
-        expect(secondaryKeyStore.isKeyExists(cachedKeyName), true);
+        expect(keyValueStore.isKeyExists(keyName), false);
+        expect(keyValueStore.isKeyExists(cachedKeyName), true);
       }
 
       test('plookup - not in cache but exists on remote - ttr null', () async {
@@ -179,7 +179,7 @@ void main() {
         bobData.metaData!.ttb = null;
         bobData.metaData!.ttl = null;
         await cacheManager.put(cachedKeyName, bobData);
-        expect(secondaryKeyStore.isKeyExists(cachedKeyName), true);
+        expect(keyValueStore.isKeyExists(cachedKeyName), true);
 
         inboundConnection.metadata.isAuthenticated =
             true; // owner connection, authenticated
@@ -205,7 +205,7 @@ void main() {
         bobOriginalData.metaData!.ttb = null;
         bobOriginalData.metaData!.ttl = null;
         await cacheManager.put(cachedKeyName, bobOriginalData);
-        expect(secondaryKeyStore.isKeyExists(cachedKeyName), true);
+        expect(keyValueStore.isKeyExists(cachedKeyName), true);
 
         AtData bobNewData = AtData().fromJson(bobOriginalData.toJson());
         bobNewData.data = "New data";
@@ -246,7 +246,7 @@ void main() {
         bobOriginalData.metaData!.ttb = null;
         bobOriginalData.metaData!.ttl = null;
         await cacheManager.put(cachedKeyName, bobOriginalData);
-        expect(secondaryKeyStore.isKeyExists(cachedKeyName), true);
+        expect(keyValueStore.isKeyExists(cachedKeyName), true);
 
         AtData bobNewData = AtData().fromJson(bobOriginalData.toJson());
         bobNewData.data = "New data";
@@ -289,7 +289,7 @@ void main() {
         bobOriginalData.data = "Old data";
 
         await cacheManager.put(cachedKeyName, bobOriginalData);
-        expect(secondaryKeyStore.isKeyExists(cachedKeyName), true);
+        expect(keyValueStore.isKeyExists(cachedKeyName), true);
 
         AtData bobNewData = AtData().fromJson(bobOriginalData.toJson());
         bobOriginalData.metaData!.ttr = -1;
@@ -337,7 +337,7 @@ void main() {
         bobOriginalData.data = "Old data";
 
         await cacheManager.put(cachedKeyName, bobOriginalData);
-        expect(secondaryKeyStore.isKeyExists(cachedKeyName), true);
+        expect(keyValueStore.isKeyExists(cachedKeyName), true);
 
         when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
             .thenAnswer((Invocation invocation) async {
@@ -393,7 +393,7 @@ void main() {
   }
 
   group('plookup (proxy lookup) syntax tests', () {
-    SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+    AtKeyValueStore mockKeyStore = MockAtKeyValueStore();
     OutboundClientManager mockOutboundClientManager =
         MockOutboundClientManager();
     AtCacheManager mockAtCacheManager = MockAtCacheManager();

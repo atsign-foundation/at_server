@@ -4,7 +4,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:test/test.dart';
 
 void main() {
-  group('SecondaryKeyStore.stats()', () {
+  group('AtKeyValueStore.stats()', () {
     late Directory tempDir;
     late HiveAtPersistenceFactory factory;
     late AtPersistenceBundle bundle;
@@ -29,7 +29,7 @@ void main() {
     });
 
     test('empty keystore yields zero counts and null timestamps', () async {
-      final s = await bundle.keyStore.stats();
+      final s = await bundle.keyValueStore.stats();
       expect(s.totalKeys, 0);
       expect(s.ttlKeys, 0);
       expect(s.ttbKeys, 0);
@@ -38,36 +38,36 @@ void main() {
     });
 
     test('totalKeys reflects every key, including TTL and TTB ones', () async {
-      await bundle.keyStore.put('public:a@alice', AtData()..data = 'v');
-      await bundle.keyStore.put(
+      await bundle.keyValueStore.put('public:a@alice', AtData()..data = 'v');
+      await bundle.keyValueStore.put(
           'public:b@alice',
           AtData()
             ..data = 'v'
             ..metaData = (AtMetaData()..ttl = 60000));
-      await bundle.keyStore.put(
+      await bundle.keyValueStore.put(
           'public:c@alice',
           AtData()
             ..data = 'v'
             ..metaData = (AtMetaData()..ttb = 30000));
-      final s = await bundle.keyStore.stats();
+      final s = await bundle.keyValueStore.stats();
       expect(s.totalKeys, 3);
       expect(s.ttlKeys, 1);
       expect(s.ttbKeys, 1);
     });
 
     test('oldest/newest createdAt span all entries', () async {
-      await bundle.keyStore.put('public:a@alice', AtData()..data = 'v');
+      await bundle.keyValueStore.put('public:a@alice', AtData()..data = 'v');
       await Future.delayed(const Duration(milliseconds: 10));
-      await bundle.keyStore.put('public:b@alice', AtData()..data = 'v');
-      final s = await bundle.keyStore.stats();
+      await bundle.keyValueStore.put('public:b@alice', AtData()..data = 'v');
+      final s = await bundle.keyValueStore.stats();
       expect(s.oldestCreatedAt, isNotNull);
       expect(s.newestCreatedAt, isNotNull);
       expect(s.oldestCreatedAt!.isBefore(s.newestCreatedAt!), isTrue);
     });
 
     test('sizeBytes is zero on Hive (not reported)', () async {
-      await bundle.keyStore.put('public:a@alice', AtData()..data = 'v');
-      final s = await bundle.keyStore.stats();
+      await bundle.keyValueStore.put('public:a@alice', AtData()..data = 'v');
+      final s = await bundle.keyValueStore.stats();
       expect(s.sizeBytes, 0,
           reason:
               'Hive impl leaves sizeBytes at 0 — SQL backends report exact');

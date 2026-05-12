@@ -24,14 +24,14 @@ class TestUtils {
 // previous singleton behaviour without resurrecting the singleton API.
 // =====================================================================
 
-final Map<String, HiveSecondaryKeyStore> _testKeyStores = {};
+final Map<String, HiveAtKeyValueStore> _testKeyStores = {};
 
-/// Returns the shared [HiveSecondaryKeyStore] for [atSign] in the
+/// Returns the shared [HiveAtKeyValueStore] for [atSign] in the
 /// current test process. Construction is idempotent; the keystore
 /// owns its own Hive box, encryption secret, and key-expiry cron
 /// (call `init(storagePath)` to open the box).
-HiveSecondaryKeyStore testKeyStoreFor(String atSign) =>
-    _testKeyStores.putIfAbsent(atSign, () => HiveSecondaryKeyStore(atSign));
+HiveAtKeyValueStore testKeyStoreFor(String atSign) =>
+    _testKeyStores.putIfAbsent(atSign, () => HiveAtKeyValueStore(atSign));
 
 /// Closes every test-shared keystore.
 Future<void> closeTestPersistenceStores() async {
@@ -107,24 +107,24 @@ Future<void> closeTestAccessLogs() async {
 // Most test files use these via a thin per-file `setUpFunc` wrapper.
 // =====================================================================
 
-/// Initialises a per-atSign [HiveSecondaryKeyStore] backed by the
+/// Initialises a per-atSign [HiveAtKeyValueStore] backed by the
 /// given [storageDir], creates a matching [HiveAtCommitLog], wires
 /// the commit log onto the keystore, and returns the keystore.
 ///
 /// Idempotent: subsequent calls for the same atSign return the
 /// already-initialised instance. Pair with [tearDownTestPersistence]
 /// in a tearDown to close everything and wipe the dir.
-Future<HiveSecondaryKeyStore> setUpTestKeyStore(
+Future<HiveAtKeyValueStore> setUpTestKeyStore(
   String atSign, {
   required String storageDir,
   bool enableCommitId = true,
 }) async {
   final commitLog = await testCommitLogFor(atSign,
       commitLogPath: storageDir, enableCommitId: enableCommitId);
-  final keyStore = testKeyStoreFor(atSign);
-  await keyStore.init(storageDir);
-  keyStore.commitLog = commitLog;
-  return keyStore;
+  final keyValueStore = testKeyStoreFor(atSign);
+  await keyValueStore.init(storageDir);
+  keyValueStore.commitLog = commitLog;
+  return keyValueStore;
 }
 
 /// Closes every test-shared keystore / commit log / access log

@@ -17,7 +17,7 @@ import 'package:test/test.dart';
 import 'test_utils.dart';
 
 void main() async {
-  SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+  AtKeyValueStore mockKeyStore = MockAtKeyValueStore();
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
   AtCacheManager mockAtCacheManager = MockAtCacheManager();
   FakeSocket mockSocket = FakeSocket();

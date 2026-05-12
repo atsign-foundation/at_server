@@ -23,7 +23,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
   final AtCacheManager cacheManager;
 
   ScanVerbHandler(
-      super.keyStore, this.outboundClientManager, this.cacheManager);
+      super.keyValueStore, this.outboundClientManager, this.cacheManager);
 
   /// Verifies whether command is accepted or not
   ///
@@ -121,7 +121,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
       bool showHiddenKeys,
       String currentAtSign) async {
     List<String> localKeysList =
-        keyStore.getKeys(regex: scanRegex) as List<String>;
+        keyValueStore.getKeys(regex: scanRegex) as List<String>;
     if (logger.logger.isLoggable(Level.INFO)) {
       logger.info('${localKeysList.length} local keys for regex $scanRegex');
     } else if (logger.logger.isLoggable(Level.FINER)) {

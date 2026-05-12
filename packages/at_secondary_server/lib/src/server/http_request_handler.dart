@@ -11,14 +11,14 @@ const String paramNameContentType = 'at_ct';
 
 class AtServerHttpRequestHandler {
   final String currentAtSign;
-  final SecondaryKeyStore<String, AtData?, AtMetaData?> secondaryKeyStore;
+  final AtKeyValueStore<String, AtData?, AtMetaData?> keyValueStore;
   final logger = AtSignLogger('Http Request Handler');
 
-  AtServerHttpRequestHandler(this.currentAtSign, this.secondaryKeyStore);
+  AtServerHttpRequestHandler(this.currentAtSign, this.keyValueStore);
 
   Future<void> handle(HttpRequest request) async {
     try {
-      // Reject malformed (too long to be keyStore keys) requests
+      // Reject malformed (too long to be keyValueStore keys) requests
       if (request.uri.toString().length > 1000) {
         request.response.statusCode = HttpStatus.badRequest;
         await request.response.close();
@@ -40,7 +40,7 @@ class AtServerHttpRequestHandler {
 
         AtData? atData;
         try {
-          atData = (await secondaryKeyStore.get(lookupKey))!;
+          atData = (await keyValueStore.get(lookupKey))!;
         } catch (error) {
           request.response.statusCode = HttpStatus.notFound;
           request.response.write('404 Not Found');

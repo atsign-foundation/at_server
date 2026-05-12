@@ -11,9 +11,9 @@ import 'package:meta/meta.dart';
 ///
 /// This class provides methods to retrieve and store enrollment data
 /// associated with a given enrollment ID. It interacts with the
-/// SecondaryKeyStore to persist and retrieve enrollment information.
+/// AtKeyValueStore to persist and retrieve enrollment information.
 class EnrollmentManager {
-  final SecondaryKeyStore<String, AtData?, AtMetaData?> keyStore;
+  final AtKeyValueStore<String, AtData?, AtMetaData?> keyValueStore;
   final String atSign;
 
   static int cacheHits = 0;
@@ -41,8 +41,8 @@ class EnrollmentManager {
 
   /// Creates an instance of [EnrollmentManager].
   ///
-  /// The [keyStore] is required to interact with the persistence layer.
-  EnrollmentManager(this.keyStore, this.atSign);
+  /// The [keyValueStore] is required to interact with the persistence layer.
+  EnrollmentManager(this.keyValueStore, this.atSign);
 
   /// Retrieves the enrollment data for a given [enId].
   ///
@@ -108,7 +108,7 @@ class EnrollmentManager {
         break;
     }
 
-    await keyStore.put(ek, atData, skipCommit: true);
+    await keyValueStore.put(ek, atData, skipCommit: true);
   }
 
   RegExp reForPerEnrollmentNamespaces =
@@ -126,7 +126,7 @@ class EnrollmentManager {
       case EnrollmentConstants.perEnrollmentDeleted:
       case EnrollmentConstants.perEnrollmentApproved:
         List<String> moved = [];
-        for (final String fromKey in keyStore.getKeys(
+        for (final String fromKey in keyValueStore.getKeys(
             regex: EnrollmentConstants.regexForPerEnrollmentNamespaces)) {
           final String toKey = fromKey
               .replaceAll(
@@ -139,9 +139,9 @@ class EnrollmentManager {
             continue;
           }
 
-          AtData data = (await keyStore.get(fromKey))!;
-          await keyStore.put(toKey, data, skipCommit: false);
-          await keyStore.remove(fromKey);
+          AtData data = (await keyValueStore.get(fromKey))!;
+          await keyValueStore.put(toKey, data, skipCommit: false);
+          await keyValueStore.remove(fromKey);
           moved.add(fromKey);
         }
         return moved;
@@ -184,7 +184,7 @@ class EnrollmentManager {
   Future<void> _preRemove({
     required String ek,
   }) async {
-    if (!keyStore.isKeyExists(ek)) {
+    if (!keyValueStore.isKeyExists(ek)) {
       logger.info('_preRemove: $ek no longer exists, nothing to do');
       return;
     }
@@ -195,18 +195,18 @@ class EnrollmentManager {
 
     // Delete private encryption key if it's there
     final pekKey = keyForPEK(enId);
-    if (keyStore.isKeyExists(pekKey)) {
+    if (keyValueStore.isKeyExists(pekKey)) {
       logger.info('_preRemove: Removing $pekKey');
-      await keyStore.remove(pekKey, skipCommit: true);
+      await keyValueStore.remove(pekKey, skipCommit: true);
     } else {
       logger.info('_preRemove: $pekKey has already been removed');
     }
 
     // Delete self encryption key if it's there
     final sekKey = keyForSEK(enId);
-    if (keyStore.isKeyExists(sekKey)) {
+    if (keyValueStore.isKeyExists(sekKey)) {
       logger.info('_preRemove: Removing $sekKey');
-      await keyStore.remove(sekKey, skipCommit: true);
+      await keyValueStore.remove(sekKey, skipCommit: true);
     } else {
       logger.info('_preRemove: $sekKey has already been removed');
     }
@@ -225,7 +225,7 @@ class EnrollmentManager {
   /// Parameters:
   ///  - [enId]: The ID associated with the enrollment.
   Future<void> remove({required String enId}) async {
-    if (!keyStore.preRemoveHooks.contains(preRemoveHook)) {
+    if (!keyValueStore.preRemoveHooks.contains(preRemoveHook)) {
       throw StateError('Managing datastore consistency for enrollments requires'
           ' that the preRemoveHook be active');
     }
@@ -235,11 +235,11 @@ class EnrollmentManager {
     cacheInvalidations++;
     atDataCache.remove(ek);
 
-    await keyStore.remove(ek, skipCommit: true);
+    await keyValueStore.remove(ek, skipCommit: true);
   }
 
   Future<List<String>> getAllEnrollmentKeys() async {
-    return keyStore.getKeys(regex: EnrollmentConstants.enrollmentsRegex);
+    return keyValueStore.getKeys(regex: EnrollmentConstants.enrollmentsRegex);
   }
 
   /// Fetch an enrollment key from the keystore.
@@ -259,7 +259,7 @@ class EnrollmentManager {
     } else {
       // not in cache - fetch from keystore, and populate the cache
       cacheMisses++;
-      enrollData = (await keyStore.get(ek))!;
+      enrollData = (await keyValueStore.get(ek))!;
       enrollJson = jsonDecode(enrollData.data!);
       atDataCache[ek] = (enrollData, enrollJson);
     }
@@ -305,9 +305,9 @@ class EnrollmentManager {
     for (final ek in eks) {
       final EnrollDataStoreValue ev = await getEnrollmentByFullKey(ek);
       final lk = keyForLegacyPK(ev);
-      if (keyStore.isKeyExists(lk)) {
+      if (keyValueStore.isKeyExists(lk)) {
         logger.warning('removeLegacyApkamPublicKeys: DELETING $lk');
-        await keyStore.remove(lk, skipCommit: true);
+        await keyValueStore.remove(lk, skipCommit: true);
         deletedLegacyKeys.add(ek);
       }
     }
@@ -325,14 +325,16 @@ class EnrollmentManager {
       enIds.add(getIdFromKey(ek));
     }
     final List<String> candidates = [];
-    candidates.addAll(keyStore.getKeys(regex: EnrollmentConstants.regexForPEK));
-    candidates.addAll(keyStore.getKeys(regex: EnrollmentConstants.regexForSEK));
+    candidates
+        .addAll(keyValueStore.getKeys(regex: EnrollmentConstants.regexForPEK));
+    candidates
+        .addAll(keyValueStore.getKeys(regex: EnrollmentConstants.regexForSEK));
     for (final candidateKey in candidates) {
       String candidateId = getIdFromKey(candidateKey);
       if (!enIds.contains(candidateId)) {
         logger.info('DELETING orphaned key $candidateKey');
         deletedOrphanedKeys.add(candidateKey);
-        await keyStore.remove(candidateKey, skipCommit: true);
+        await keyValueStore.remove(candidateKey, skipCommit: true);
       } else {
         logger.info('NOT deleting $candidateKey - not orphaned');
       }

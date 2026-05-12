@@ -30,7 +30,7 @@ void main() {
     });
     test('test scan getVerb', () {
       var handler = ScanVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          keyValueStore, mockOutboundClientManager, cacheManager);
       var verb = handler.getVerb();
       expect(verb is Scan, true);
     });
@@ -38,7 +38,7 @@ void main() {
     test('test scan command accept test', () {
       var command = 'scan';
       var handler = ScanVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          keyValueStore, mockOutboundClientManager, cacheManager);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -57,7 +57,7 @@ void main() {
       var command = 'SCAN';
       command = SecondaryUtil.convertCommand(command);
       var handler = ScanVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          keyValueStore, mockOutboundClientManager, cacheManager);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -78,7 +78,7 @@ void main() {
       var inbound = InboundConnectionImpl(mockSocket, null);
       var defaultVerbExecutor = DefaultVerbExecutor();
       var defaultVerbHandlerManager = DefaultVerbHandlerManager(
-        secondaryKeyStore,
+        keyValueStore,
         mockOutboundClientManager,
         cacheManager,
         statsNotificationService,
@@ -122,19 +122,19 @@ void main() {
     setUp(() async {
       await verbTestsSetUp();
       scanVerbHandler = ScanVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
-      llookupVH = LocalLookupVerbHandler(secondaryKeyStore, enMgr);
+          keyValueStore, mockOutboundClientManager, cacheManager);
+      llookupVH = LocalLookupVerbHandler(keyValueStore, enMgr);
     });
     test('A test to verify all keys are returned for a simple scan', () async {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       inboundConnection.metaData.isAuthenticated = true;
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           'public:location.wavi$alice', AtData()..data = 'dummy_value');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '@bob:phone.buzz$alice', AtData()..data = 'dummy_value');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '$alice:mobile.wavi$alice', AtData()..data = 'dummy_value');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           'selfkey.atmosphere$alice', AtData()..data = 'dummy_value');
       await scanVerbHandler.process('scan', inboundConnection);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
@@ -153,13 +153,13 @@ void main() {
         () async {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       inboundConnection.metaData.isAuthenticated = true;
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           'public:location.wavi$alice', AtData()..data = 'dummy_value');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '@bob:phone.buzz$alice', AtData()..data = 'dummy_value');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '$alice:mobile.wavi$alice', AtData()..data = 'dummy_value');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           'selfkey.atmosphere$alice', AtData()..data = 'dummy_value');
       await scanVerbHandler.process('scan wavi', inboundConnection);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
@@ -176,9 +176,9 @@ void main() {
         () async {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       inboundConnection.metaData.isAuthenticated = true;
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           'public:__phone.wavi$alice', AtData()..data = 'dummy_value');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '_mobile.wavi$alice', AtData()..data = 'dummy_value');
       await scanVerbHandler.process('scan:showhidden:true', inboundConnection);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
@@ -195,9 +195,9 @@ void main() {
         () async {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       inboundConnection.metaData.isAuthenticated = true;
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           'public:__phone.wavi$alice', AtData()..data = 'dummy_value');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '_mobile.wavi$alice', AtData()..data = 'dummy_value');
       await scanVerbHandler.process('scan:showhidden:false', inboundConnection);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
@@ -236,7 +236,7 @@ void main() {
       String keyName = '$nowMicros.events'
           '.${AtConstants.atServerReservedNamespace}'
           '@${alice.withoutAt()}';
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           keyName, AtData()..data = jsonEncode(event.toJson()));
 
       await llookupVH.process('llookup:$keyName', inboundConnection);
@@ -265,7 +265,7 @@ void main() {
     setUp(() async {
       await verbTestsSetUp();
       scanVerbHandler = ScanVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          keyValueStore, mockOutboundClientManager, cacheManager);
     });
 
     test(
@@ -274,15 +274,15 @@ void main() {
       inboundConnection.metaData.isPolAuthenticated = true;
       inboundConnection.metaData.fromAtSign = '@bob'.toAtsign();
 
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '@bob:phone.wavi$alice', AtData()..data = 'dummy-value');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '@kevin:location.wavi$alice', AtData()..data = 'dummy-value');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '@random:country.wavi$alice', AtData()..data = 'dummy-value');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           'public:mobile.wavi$alice', AtData()..data = 'dummy-value');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           'city.wavi$alice', AtData()..data = 'dummy-value');
 
       List<String> scanResponseKeys = await scanVerbHandler.getLocalKeys(
@@ -297,17 +297,17 @@ void main() {
       inboundConnection.metaData.isPolAuthenticated = true;
       inboundConnection.metaData.fromAtSign = '@bob'.toAtsign();
 
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '@bob:phone.wavi$alice', AtData()..data = 'dummy-value');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '@bob:firstname.buzz$alice', AtData()..data = 'dummy-value');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '@kevin:location.wavi$alice', AtData()..data = 'dummy-value');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '@random:country.wavi$alice', AtData()..data = 'dummy-value');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           'public:mobile.wavi$alice', AtData()..data = 'dummy-value');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           'city.wavi$alice', AtData()..data = 'dummy-value');
 
       List<String> scanResponseKeys = await scanVerbHandler.getLocalKeys(
@@ -325,7 +325,7 @@ void main() {
     setUp(() async {
       await verbTestsSetUp();
       scanVerbHandler = ScanVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          keyValueStore, mockOutboundClientManager, cacheManager);
     });
     test(
         'A test to verify scan to forAtSign cannot be executed on unauthenticated connection',
@@ -340,11 +340,11 @@ void main() {
     test(
         'A test to verify scan on unauthenticated connection returns only public keys',
         () async {
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '@bob:phone.wavi$alice', AtData()..data = 'dummy-value');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           'public:firstname.buzz$alice', AtData()..data = 'dummy-value');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           'city.wavi$alice', AtData()..data = 'dummy-value');
       await scanVerbHandler.process('scan', inboundConnection);
 
@@ -382,13 +382,12 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
-          keyName, AtData()..data = jsonEncode(enrollJson));
-      await secondaryKeyStore.put(
+      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
+      await keyValueStore.put(
           'public:firstName.wavi$alice', AtData()..data = 'alice');
 
       scanVerbHandler = ScanVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          keyValueStore, mockOutboundClientManager, cacheManager);
       // Set enrollmentId to the inboundConnection to mimic the APKAM auth
       inboundConnection.metaData.enrollmentId = enrollmentId;
       await scanVerbHandler.process('scan', inboundConnection);
@@ -419,16 +418,14 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
-          keyName, AtData()..data = jsonEncode(enrollJson));
+      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
       // Insert key with wavi and buzz namespace
-      await secondaryKeyStore.put(
-          'firstName.wavi$alice', AtData()..data = 'alice');
-      await secondaryKeyStore.put(
+      await keyValueStore.put('firstName.wavi$alice', AtData()..data = 'alice');
+      await keyValueStore.put(
           'mobileNumber.buzz$alice', AtData()..data = '+1 434 543 3232');
 
       scanVerbHandler = ScanVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          keyValueStore, mockOutboundClientManager, cacheManager);
       // Set enrollmentId to the inboundConnection to mimic the APKAM auth
       inboundConnection.metaData.enrollmentId = enrollmentId;
       await scanVerbHandler.process('scan', inboundConnection);
@@ -457,11 +454,10 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
-          keyName, AtData()..data = jsonEncode(enrollJson));
+      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
 
       scanVerbHandler = ScanVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          keyValueStore, mockOutboundClientManager, cacheManager);
       await scanVerbHandler.process('scan', inboundConnection);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
           .split('\n')[0]
@@ -488,11 +484,10 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
-          keyName, AtData()..data = jsonEncode(enrollJson));
+      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
 
       scanVerbHandler = ScanVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          keyValueStore, mockOutboundClientManager, cacheManager);
       await scanVerbHandler.process('scan', inboundConnection);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
           .split('\n')[0]
@@ -519,18 +514,17 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
-          keyName, AtData()..data = jsonEncode(enrollJson));
+      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
 
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           'public:phone.wavi$alice', AtData()..data = '+455 675 6765');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '@bob:firstName.atmosphere$alice', AtData()..data = 'Alice');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           'mobile.buzz$alice', AtData()..data = '+878 787 7679');
 
       scanVerbHandler = ScanVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          keyValueStore, mockOutboundClientManager, cacheManager);
       await scanVerbHandler.process('scan', inboundConnection);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
           .split('\n')[0]
@@ -565,20 +559,19 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
-          keyName, AtData()..data = jsonEncode(enrollJson));
+      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
       // Inserting wavi
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           'phone.wavi$alice', AtData()..data = '+455 677 8789');
       // Inserting buzz
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           'mobile.buzz$alice', AtData()..data = '+544 545 4545');
       // Inserting atmosphere
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           'firstname.atmosphere$alice', AtData()..data = 'alice');
 
       scanVerbHandler = ScanVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          keyValueStore, mockOutboundClientManager, cacheManager);
       await scanVerbHandler.process('scan', inboundConnection);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
           .split('\n')[0]
@@ -605,18 +598,17 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
-          keyName, AtData()..data = jsonEncode(enrollJson));
+      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
       // Insert key with wavi and buzz namespace
-      await secondaryKeyStore.put('firstName$alice', AtData()..data = 'alice');
-      await secondaryKeyStore.put(
+      await keyValueStore.put('firstName$alice', AtData()..data = 'alice');
+      await keyValueStore.put(
           'mobilenumber.wavi$alice', AtData()..data = '+1 434 543 3232');
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           'public:country.wavi$alice', AtData()..data = 'India');
-      await secondaryKeyStore.put('city.buzz$alice', AtData()..data = 'India');
+      await keyValueStore.put('city.buzz$alice', AtData()..data = 'India');
 
       scanVerbHandler = ScanVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager);
+          keyValueStore, mockOutboundClientManager, cacheManager);
       // Set enrollmentId to the inboundConnection to mimic the APKAM auth
       inboundConnection.metaData.enrollmentId = enrollmentId;
       await scanVerbHandler.process('scan', inboundConnection);

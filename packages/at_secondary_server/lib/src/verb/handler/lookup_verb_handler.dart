@@ -27,7 +27,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
       _accessLogOverride ?? AtSecondaryServerImpl.getInstance().accessLog;
 
   LookupVerbHandler(
-    super.keyStore,
+    super.keyValueStore,
     this.outboundClientManager,
     this.cacheManager,
     this.enMgr, {
@@ -166,7 +166,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     // 'atSign'. In this scenario, set the lookupKey prefix to the requesting 'atSign'.
     var lookupKey = '${atConnectionMetadata.fromAtSign}:$keyAtAtSign';
     logger.finer('lookupKey in lookupVerbHandler : $lookupKey');
-    var lookupData = await keyStore.get(lookupKey);
+    var lookupData = await keyValueStore.get(lookupKey);
     var isActive = SecondaryUtil.isActiveKey(lookupData);
     if (!isActive) {
       response.data = null;
@@ -206,7 +206,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     // so, set the lookupKey prefix to "public:".
     var lookupKey = 'public:$keyAtAtSign';
     logger.finer('lookupKey in lookupVerbHandler : $lookupKey');
-    var lookupData = await keyStore.get(lookupKey);
+    var lookupData = await keyValueStore.get(lookupKey);
     var isActive = SecondaryUtil.isActiveKey(lookupData);
     if (!isActive) {
       response.data = null;
@@ -278,7 +278,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     } else {
       lookupKey = keyAtAtSign;
     }
-    var lookupValue = await keyStore.get(lookupKey);
+    var lookupValue = await keyValueStore.get(lookupKey);
     response.data = SecondaryUtil.prepareResponseData(operation, lookupValue);
     //Resolving value references to correct value
     if (response.data != null &&
@@ -322,11 +322,11 @@ class LookupVerbHandler extends AbstractVerbHandler {
         keyPrefix = '$keyPrefix:';
       }
       keyToResolve = keyPrefix + keyToResolve;
-      var lookupValue = await keyStore.get(keyToResolve);
+      var lookupValue = await keyValueStore.get(keyToResolve);
       value = lookupValue?.data;
       // If the value is null for a private key, searches on public namespace.
       keyToResolve = keyToResolve.replaceAll(keyPrefix, 'public:');
-      lookupValue = await keyStore.get(keyToResolve);
+      lookupValue = await keyValueStore.get(keyToResolve);
       value = lookupValue?.data;
       resolutionCount++;
     }

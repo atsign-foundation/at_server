@@ -1,6 +1,6 @@
 import 'package:at_persistence_secondary_server/src/spec/spec.dart';
 
-/// A read-only view of a [SecondaryKeyStore] taken at snapshot
+/// A read-only view of a [AtKeyValueStore] taken at snapshot
 /// creation time. Backends with real MVCC support (SQL: SQLite,
 /// Postgres) materialise the snapshot via `BEGIN`/`COMMIT` so
 /// concurrent writes don't bleed into reads through this handle.
@@ -8,7 +8,7 @@ import 'package:at_persistence_secondary_server/src/spec/spec.dart';
 /// keystore — there's no true MVCC, so reads through the handle
 /// observe live state, not snapshot-creation state.
 ///
-/// Always check [`SecondaryKeyStore.supportsSnapshots`] before
+/// Always check [`AtKeyValueStore.supportsSnapshots`] before
 /// relying on isolation. On `false` backends, treat the handle
 /// as a convenience pass-through with the same consistency
 /// guarantees as direct keystore access.

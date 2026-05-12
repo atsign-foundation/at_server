@@ -17,7 +17,7 @@ final _storageDir = '${Directory.current.path}/test/hive_compaction_stats';
 
 late HiveAtPersistenceFactory _factory;
 late HiveAtPersistenceBundle _bundle;
-late SecondaryKeyStore _keyStore;
+late AtKeyValueStore _keyStore;
 late HiveAtCommitLog _commitLog;
 late HiveAtAccessLog _accessLog;
 late HiveAtNotificationKeystore _notificationKeystore;
@@ -33,7 +33,7 @@ Future<void> _bootstrap() async {
       notificationStoragePath: _storageDir,
     ),
   ) as HiveAtPersistenceBundle;
-  _keyStore = _bundle.keyStore;
+  _keyStore = _bundle.keyValueStore;
   _commitLog = _bundle.commitLog;
   _accessLog = _bundle.accessLog!;
   _notificationKeystore = _bundle.notificationKeystore!;

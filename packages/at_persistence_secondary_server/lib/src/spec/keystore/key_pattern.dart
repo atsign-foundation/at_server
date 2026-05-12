@@ -1,5 +1,5 @@
 /// Structured filter for key-store scans. Supersedes the
-/// regex-string-only [`SecondaryKeyStore.getKeys(regex: ...)`]
+/// regex-string-only [`AtKeyValueStore.getKeys(regex: ...)`]
 /// API for callers that want backend-portable key enumeration.
 ///
 /// All fields are independently optional. A `null` field means

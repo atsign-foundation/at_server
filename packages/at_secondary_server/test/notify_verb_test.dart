@@ -29,7 +29,7 @@ import 'package:uuid/uuid.dart';
 import 'test_utils.dart';
 
 void main() {
-  SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+  AtKeyValueStore mockKeyStore = MockAtKeyValueStore();
   FakeSocket mockSocket = FakeSocket();
   NotificationManager mockNotificationManager = MockNotificationManager();
 
@@ -331,7 +331,7 @@ void main() {
 
       //Notify Verb
       var notifyVerbHandler =
-          NotifyVerbHandler(secondaryKeyStore, notificationManager);
+          NotifyVerbHandler(keyValueStore, notificationManager);
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('operation', () => 'update');
@@ -343,7 +343,7 @@ void main() {
 
       //Notify list verb handler
       var notifyListVerbHandler =
-          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
+          NotifyListVerbHandler(keyValueStore, notificationManager);
       var notifyListResponse = Response();
       var notifyListVerbParams = HashMap<String, String>();
       await notifyListVerbHandler.processVerb(
@@ -363,7 +363,7 @@ void main() {
 
       //Notify Verb
       var notifyVerbHandler =
-          NotifyVerbHandler(secondaryKeyStore, notificationManager);
+          NotifyVerbHandler(keyValueStore, notificationManager);
       var notifyResponse = Response();
 
       var notifyVerbParams = HashMap<String, String>.from({
@@ -376,7 +376,7 @@ void main() {
           notifyResponse, notifyVerbParams, atConnection);
       //Notify list verb handler
       var notifyListVerbHandler =
-          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
+          NotifyListVerbHandler(keyValueStore, notificationManager);
       var notifyListResponse = Response();
       var notifyListVerbParams = HashMap<String, String>();
       await notifyListVerbHandler.processVerb(
@@ -403,7 +403,7 @@ void main() {
       var regex = verb.syntax();
 
       var notifyVerbHandler =
-          NotifyVerbHandler(secondaryKeyStore, notificationManager);
+          NotifyVerbHandler(keyValueStore, notificationManager);
       var notifyResponse = Response();
       var notifyVerbParams = getVerbParam(regex, command);
       await notifyVerbHandler.processVerb(
@@ -418,8 +418,7 @@ void main() {
     });
     test('test for max key length check for cached key', () async {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
-      var notifyVerb =
-          NotifyVerbHandler(secondaryKeyStore, notificationManager);
+      var notifyVerb = NotifyVerbHandler(keyValueStore, notificationManager);
       var inboundConnection = InboundConnectionImpl(mockSocket, '123');
       inboundConnection.metaData = InboundConnectionMetadata()
         ..isPolAuthenticated = true
@@ -508,11 +507,9 @@ void main() {
 
     setUp(() async {
       await verbTestsSetUp();
-      notifyVerbHandler =
-          NotifyVerbHandler(secondaryKeyStore, notificationManager);
+      notifyVerbHandler = NotifyVerbHandler(keyValueStore, notificationManager);
       notifyResponse = Response();
-      notifyFetch =
-          NotifyFetchVerbHandler(secondaryKeyStore, notificationManager);
+      notifyFetch = NotifyFetchVerbHandler(keyValueStore, notificationManager);
 
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
       atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -592,7 +589,7 @@ void main() {
     setUp(() async {
       await verbTestsSetUp();
       notifyVerbHandler = NotifyVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         notificationManager,
       );
     });
@@ -688,16 +685,16 @@ void main() {
     setUp(() async {
       await verbTestsSetUp();
       notifyVerbHandler = NotifyVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         notificationManager,
       );
       notifyAllVerbHandler = NotifyAllVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         notificationManager,
       );
       inboundConnection = DummyInboundConnection();
       AtSecondaryServerImpl.getInstance().enrollmentManager =
-          EnrollmentManager(secondaryKeyStore, alice);
+          EnrollmentManager(keyValueStore, alice);
       registerFallbackValue(inboundConnection);
     });
     tearDown(() async => await verbTestsTearDown());
@@ -734,7 +731,7 @@ void main() {
       var enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
         keyName,
         AtData()..data = jsonEncode(enrollJson),
       );
@@ -762,7 +759,7 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
         keyName,
         AtData()..data = jsonEncode(enrollJson),
       );
@@ -797,7 +794,7 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
         keyName,
         AtData()..data = jsonEncode(enrollJson),
       );
@@ -827,7 +824,7 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
         keyName,
         AtData()..data = jsonEncode(enrollJson),
       );
@@ -862,7 +859,7 @@ void main() {
       var enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
         keyName,
         AtData()..data = jsonEncode(enrollJson),
       );
@@ -894,7 +891,7 @@ void main() {
       var enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
         keyName,
         AtData()..data = jsonEncode(enrollJson),
       );
@@ -929,7 +926,7 @@ void main() {
       var enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
         keyName,
         AtData()..data = jsonEncode(enrollJson),
       );
@@ -955,15 +952,15 @@ void main() {
     setUp(() async {
       await verbTestsSetUp();
       notifyVerbHandler = NotifyVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         notificationManager,
       );
       notifyFetchVerbHandler =
-          NotifyFetchVerbHandler(secondaryKeyStore, notificationManager);
+          NotifyFetchVerbHandler(keyValueStore, notificationManager);
       notifyStatusVerbHandler =
-          NotifyStatusVerbHandler(secondaryKeyStore, notificationManager);
+          NotifyStatusVerbHandler(keyValueStore, notificationManager);
       notifyRemoveVerbHandler = NotifyRemoveVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         notificationManager,
       );
       inboundConnection = DummyInboundConnection();
@@ -1022,7 +1019,7 @@ void main() {
       var enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
         keyName,
         AtData()..data = jsonEncode(enrollJson),
       );
@@ -1071,7 +1068,7 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
         keyName,
         AtData()..data = jsonEncode(enrollJson),
       );
@@ -1116,7 +1113,7 @@ void main() {
       };
       var newEnrollmentKeyName =
           '$newEnrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
         newEnrollmentKeyName,
         AtData()..data = jsonEncode(newEnrollJson),
       );
@@ -1216,7 +1213,7 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
         keyName,
         AtData()..data = jsonEncode(enrollJson),
       );
@@ -1261,7 +1258,7 @@ void main() {
       };
       var newEnrollmentKeyName =
           '$newEnrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
         newEnrollmentKeyName,
         AtData()..data = jsonEncode(newEnrollJson),
       );
@@ -1325,14 +1322,14 @@ void main() {
     setUp(() async {
       await verbTestsSetUp();
       notifyVerbHandler = NotifyVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         notificationManager,
       );
       notifyListVerbHandler =
-          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
+          NotifyListVerbHandler(keyValueStore, notificationManager);
       inboundConnection = DummyInboundConnection();
       AtSecondaryServerImpl.getInstance().enrollmentManager =
-          EnrollmentManager(secondaryKeyStore, alice);
+          EnrollmentManager(keyValueStore, alice);
       registerFallbackValue(inboundConnection);
     });
     tearDown(() async => await verbTestsTearDown());
@@ -1353,7 +1350,7 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
         keyName,
         AtData()..data = jsonEncode(enrollJson),
       );
@@ -1405,7 +1402,7 @@ void main() {
       };
       var newEnrollmentKeyName =
           '$newEnrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
         newEnrollmentKeyName,
         AtData()..data = jsonEncode(newEnrollJson),
       );
@@ -1438,7 +1435,7 @@ void main() {
     setUp(() async {
       await verbTestsSetUp();
       notifyVerbHandler = NotifyVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         notificationManager,
       );
       inboundConnection = DummyInboundConnection();
@@ -1511,7 +1508,7 @@ void main() {
       expect(response.isError, false);
       expect(response.data, isNotNull);
 
-      // verify that data in the notification keyStore is as expected
+      // verify that data in the notification keyValueStore is as expected
       var notifId = response.data;
       var stored = await notifStore.get(notifId);
       expect(stored, isNotNull);

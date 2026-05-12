@@ -28,7 +28,8 @@ class PolVerbHandler extends AbstractVerbHandler {
       _accessLogOverride ?? AtSecondaryServerImpl.getInstance().accessLog;
   final _dummyInboundConnection = DummyInboundConnection();
 
-  PolVerbHandler(super.keyStore, this.outboundClientManager, this.cacheManager,
+  PolVerbHandler(
+      super.keyValueStore, this.outboundClientManager, this.cacheManager,
       {AtAccessLog? accessLog})
       : _accessLogOverride = accessLog;
 
@@ -104,7 +105,7 @@ class PolVerbHandler extends AbstractVerbHandler {
 
       // Getting stored secret from this secondary server
       doing = 'fetching stored secret $storedSecretId';
-      message = (await keyStore.get(storedSecretId))?.data;
+      message = (await keyValueStore.get(storedSecretId))?.data;
     } on Exception catch (e) {
       logger.severe('Exception while $doing : $e');
       rethrow;
@@ -129,7 +130,7 @@ class PolVerbHandler extends AbstractVerbHandler {
 
     // remove the stored secret
     try {
-      await keyStore.remove(storedSecretId);
+      await keyValueStore.remove(storedSecretId);
     } catch (e) {
       logger.warning('Failed to immediately remove $storedSecretId');
     }

@@ -1,4 +1,4 @@
-/// Ordering options for [`SecondaryKeyStore.scanKeys`].
+/// Ordering options for [`AtKeyValueStore.scanKeys`].
 ///
 /// `null` (the default) means "use the backend's natural order" —
 /// Hive returns insertion order; SQL backends return primary-key

@@ -6,20 +6,20 @@ import 'package:at_secondary/src/config/at_config.dart';
 import 'package:test/test.dart';
 
 var storageDir = '${Directory.current.path}/test/hive';
-late SecondaryKeyStore keyStore;
+late AtKeyValueStore keyValueStore;
 void main() async {
   group('Verify blocklist configuration behaviour', () {
     setUp(() async => await setUpFunc(storageDir));
 
     test('test for adding data to blocklist', () async {
       var atsignsToBeBlocked = {'@alice', '@bob'};
-      var atConfigInstance = AtConfig(keyStore, '@test_user_1');
+      var atConfigInstance = AtConfig(keyValueStore, '@test_user_1');
       var result = await atConfigInstance.addToBlockList(atsignsToBeBlocked);
       expect(result, 'success');
     });
 
     test('test for fetching blocklist', () async {
-      var atConfigInstance = AtConfig(keyStore, '@test_user_1');
+      var atConfigInstance = AtConfig(keyValueStore, '@test_user_1');
       var atsignsToBeBlocked = {'@alice', '@bob'};
       await atConfigInstance.addToBlockList(atsignsToBeBlocked);
       var result = await atConfigInstance.getBlockList();
@@ -27,7 +27,7 @@ void main() async {
     });
 
     test('test for removing blocklist data', () async {
-      var atConfigInstance = AtConfig(keyStore, '@test_user_1');
+      var atConfigInstance = AtConfig(keyValueStore, '@test_user_1');
       var atsignsToBeBlocked = {'@alice', '@bob', '@charlie'};
       await atConfigInstance.addToBlockList(atsignsToBeBlocked);
       var atsignsToBeUnblocked = {'@alice', '@bob'};
@@ -41,7 +41,7 @@ void main() async {
 
     test('test for removing non existing data from blocklist', () async {
       var data = {'@alice', '@bob'};
-      var atConfigInstance = AtConfig(keyStore, '@test_user_1');
+      var atConfigInstance = AtConfig(keyValueStore, '@test_user_1');
       await atConfigInstance.addToBlockList(data);
       var removeData = {'@colin'};
       var result = await atConfigInstance.removeFromBlockList(removeData);
@@ -50,13 +50,13 @@ void main() async {
 
     test('test for removing empty data', () async {
       var removeData = <String>{};
-      var atConfigInstance = AtConfig(keyStore, '@test_user_1');
+      var atConfigInstance = AtConfig(keyValueStore, '@test_user_1');
       expect(() async => await atConfigInstance.removeFromBlockList(removeData),
           throwsA(predicate((dynamic e) => e is IllegalArgumentException)));
     });
 
     test('test for removing null data', () async {
-      var atConfigInstance = AtConfig(keyStore, '@test_user_1');
+      var atConfigInstance = AtConfig(keyValueStore, '@test_user_1');
       expect(() async => await atConfigInstance.removeFromBlockList({}),
           throwsA(predicate((dynamic e) => e is IllegalArgumentException)));
     });
@@ -78,7 +78,7 @@ Future<void> setUpFunc(String storageDir) async {
       notificationStoragePath: storageDir,
     ),
   );
-  keyStore = bundle.keyStore;
+  keyValueStore = bundle.keyValueStore;
 }
 
 Future<void> tearDownFunc() async {

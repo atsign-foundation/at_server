@@ -4,7 +4,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:test/test.dart';
 
 void main() {
-  group('SecondaryKeyStore.removeMany()', () {
+  group('AtKeyValueStore.removeMany()', () {
     late Directory tempDir;
     late HiveAtPersistenceFactory factory;
     late AtPersistenceBundle bundle;
@@ -22,7 +22,7 @@ void main() {
         ),
       );
       Future<void> put(String k) =>
-          bundle.keyStore.put(k, AtData()..data = 'v');
+          bundle.keyValueStore.put(k, AtData()..data = 'v');
       await put('public:a.wavi@alice');
       await put('public:b.wavi@alice');
       await put('public:c.wavi@alice');
@@ -34,18 +34,18 @@ void main() {
     });
 
     test('removes every present key, returns count', () async {
-      final n = await bundle.keyStore.removeMany([
+      final n = await bundle.keyValueStore.removeMany([
         'public:a.wavi@alice',
         'public:b.wavi@alice',
       ]);
       expect(n, 2);
-      expect(await bundle.keyStore.exists('public:a.wavi@alice'), isFalse);
-      expect(await bundle.keyStore.exists('public:b.wavi@alice'), isFalse);
-      expect(await bundle.keyStore.exists('public:c.wavi@alice'), isTrue);
+      expect(await bundle.keyValueStore.exists('public:a.wavi@alice'), isFalse);
+      expect(await bundle.keyValueStore.exists('public:b.wavi@alice'), isFalse);
+      expect(await bundle.keyValueStore.exists('public:c.wavi@alice'), isTrue);
     });
 
     test('race-tolerant: absent keys do not contribute to the count', () async {
-      final n = await bundle.keyStore.removeMany([
+      final n = await bundle.keyValueStore.removeMany([
         'public:a.wavi@alice', // present
         'public:nope@alice', // absent
         'public:also_nope@alice', // absent
@@ -54,13 +54,13 @@ void main() {
     });
 
     test('all-absent input returns 0', () async {
-      final n = await bundle.keyStore
+      final n = await bundle.keyValueStore
           .removeMany(['public:nope_a@alice', 'public:nope_b@alice']);
       expect(n, 0);
     });
 
     test('empty input is a no-op that returns 0', () async {
-      final n = await bundle.keyStore.removeMany(<String>[]);
+      final n = await bundle.keyValueStore.removeMany(<String>[]);
       expect(n, 0);
     });
 
@@ -70,7 +70,7 @@ void main() {
       // prior entry for the same key. So count stays the same after
       // a put-then-delete cycle. Instead, verify the latest commit
       // entry for each removed key has CommitOp.DELETE.
-      final n = await bundle.keyStore.removeMany([
+      final n = await bundle.keyValueStore.removeMany([
         'public:a.wavi@alice',
         'public:b.wavi@alice',
       ]);
@@ -96,7 +96,7 @@ void main() {
       // emit new DELETE entries. After scrubbing:
       //   - no commit entry for the deleted key.
       //   - other keys' commit entries are untouched.
-      await bundle.keyStore
+      await bundle.keyValueStore
           .removeMany(['public:a.wavi@alice'], skipCommit: true);
       expect(
         bundle.commitLog.getLatestCommitEntry('public:a.wavi@alice'),
@@ -110,7 +110,7 @@ void main() {
 
     test('duplicate input keys are de-duped (count reflects unique present)',
         () async {
-      final n = await bundle.keyStore.removeMany([
+      final n = await bundle.keyValueStore.removeMany([
         'public:a.wavi@alice',
         'public:a.wavi@alice',
         'public:a.wavi@alice',
@@ -119,11 +119,11 @@ void main() {
     });
 
     test('case-insensitive lookup (matches remove() behaviour)', () async {
-      final n = await bundle.keyStore
+      final n = await bundle.keyValueStore
           .removeMany(['PUBLIC:A.Wavi@alice', 'public:b.wavi@ALICE']);
       expect(n, 2);
-      expect(await bundle.keyStore.exists('public:a.wavi@alice'), isFalse);
-      expect(await bundle.keyStore.exists('public:b.wavi@alice'), isFalse);
+      expect(await bundle.keyValueStore.exists('public:a.wavi@alice'), isFalse);
+      expect(await bundle.keyValueStore.exists('public:b.wavi@alice'), isFalse);
     });
   });
 

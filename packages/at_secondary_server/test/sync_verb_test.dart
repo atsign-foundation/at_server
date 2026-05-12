@@ -74,18 +74,18 @@ void main() {
   group('A group of sync verb accept test', () {
     test('test sync accept', () {
       var command = 'sync:from:5:limit:10';
-      var handler = SyncProgressiveVerbHandler(secondaryKeyStore);
+      var handler = SyncProgressiveVerbHandler(keyValueStore);
       expect(handler.accept(command), true);
     });
     test('test sync accept invalid keyword', () {
       var command = 'syncing:1';
-      var handler = SyncProgressiveVerbHandler(secondaryKeyStore);
+      var handler = SyncProgressiveVerbHandler(keyValueStore);
       expect(handler.accept(command), false);
     });
     test('test sync verb upper case', () {
       var command = 'SYNC:from:5:limit:10';
       command = SecondaryUtil.convertCommand(command);
-      var handler = SyncProgressiveVerbHandler(secondaryKeyStore);
+      var handler = SyncProgressiveVerbHandler(keyValueStore);
       expect(handler.accept(command), true);
     });
     test('test sync verb with regex', () {
@@ -105,7 +105,7 @@ void main() {
       // Add data to commit log
       await atCommitLog.commit('phone.wavi$alice', CommitOp.UPDATE);
       //Add data to keystore
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           'phone.wavi$alice',
           AtData()
             ..data = '+9189877783232'
@@ -119,7 +119,7 @@ void main() {
                   PublicKeyHash('dummy_hash', HashingAlgoType.sha512.name)
               ..pubKeyCS = 'dummy_pub_key_cs'));
 
-      verbHandler = SyncProgressiveVerbHandler(secondaryKeyStore);
+      verbHandler = SyncProgressiveVerbHandler(keyValueStore);
       var response = Response();
       var verbParams = HashMap<String, String>();
       verbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '0');
@@ -144,13 +144,11 @@ void main() {
     });
 
     test('test to ensure at least one entry is synced always', () async {
-      verbHandler = SyncProgressiveVerbHandler(secondaryKeyStore);
+      verbHandler = SyncProgressiveVerbHandler(keyValueStore);
 
       // generate some commit entries
-      await secondaryKeyStore.put(
-          'test_key_alpha$alice', AtData()..data = 'ALPHA');
-      await secondaryKeyStore.put(
-          'test_key2_beta$alice', AtData()..data = 'BETA');
+      await keyValueStore.put('test_key_alpha$alice', AtData()..data = 'ALPHA');
+      await keyValueStore.put('test_key2_beta$alice', AtData()..data = 'BETA');
       // ensure commitLog is not empty
       assert(atCommitLog.entriesCount() > 0);
 
@@ -168,14 +166,12 @@ void main() {
     test(
         'overflowing entry not added to syncResponse when syncResponse not empty',
         () async {
-      verbHandler = SyncProgressiveVerbHandler(secondaryKeyStore);
+      verbHandler = SyncProgressiveVerbHandler(keyValueStore);
       List<KeyStoreEntry> syncResponse = [];
 
       // generate some commit entries
-      await secondaryKeyStore.put(
-          'test_key_alpha$alice', AtData()..data = 'ALPHA');
-      await secondaryKeyStore.put(
-          'test_key2_beta$alice', AtData()..data = 'BETA');
+      await keyValueStore.put('test_key_alpha$alice', AtData()..data = 'ALPHA');
+      await keyValueStore.put('test_key2_beta$alice', AtData()..data = 'BETA');
       // Ensure commitLog is not empty
       expect(atCommitLog.entriesCount(), greaterThan(0));
 
@@ -220,15 +216,13 @@ void main() {
 
     test('test to ensure all entries are synced if buffer does not overflow',
         () async {
-      verbHandler = SyncProgressiveVerbHandler(secondaryKeyStore);
+      verbHandler = SyncProgressiveVerbHandler(keyValueStore);
 
       // generate some commit entries
-      await secondaryKeyStore.put(
-          'test_key_alpha$alice', AtData()..data = 'ALPHA');
-      await secondaryKeyStore.put(
-          'test_key2_beta$alice', AtData()..data = 'BETA');
-      await secondaryKeyStore.put('abcd$alice', AtData()..data = 'ABCD');
-      await secondaryKeyStore.put(
+      await keyValueStore.put('test_key_alpha$alice', AtData()..data = 'ALPHA');
+      await keyValueStore.put('test_key2_beta$alice', AtData()..data = 'BETA');
+      await keyValueStore.put('abcd$alice', AtData()..data = 'ABCD');
+      await keyValueStore.put(
           'another_random_key$alice', AtData()..data = 'RANDOM');
 
       // ensure commitLog is not empty
@@ -264,10 +258,10 @@ void main() {
     test(
         'ensure only one overflowing entry is added to syncResponse when commitLog has two large entries',
         () async {
-      verbHandler = SyncProgressiveVerbHandler(secondaryKeyStore);
+      verbHandler = SyncProgressiveVerbHandler(keyValueStore);
       // generate some commit entries
-      await secondaryKeyStore.put('test_key_1$alice', AtData()..data = 'ONE');
-      await secondaryKeyStore.put('test_key_2$alice', AtData()..data = 'TWO');
+      await keyValueStore.put('test_key_1$alice', AtData()..data = 'ONE');
+      await keyValueStore.put('test_key_2$alice', AtData()..data = 'TWO');
 
       // ensure commitLog is not empty
       assert(atCommitLog.entriesCount() == 2);
@@ -318,14 +312,14 @@ void main() {
         ..pubKeyHash = PublicKeyHash('dummy_hash', HashingAlgoType.sha512.name)
         ..pubKeyCS = 'dummy_pub_key_cs');
       for (int i = 1; i <= 40; i++) {
-        await secondaryKeyStore.put(
+        await keyValueStore.put(
             'random_$i.wavi$alice',
             AtData()
               ..data = i.toString()
               ..metaData = metadata);
       }
 
-      verbHandler = SyncProgressiveVerbHandler(secondaryKeyStore);
+      verbHandler = SyncProgressiveVerbHandler(keyValueStore);
       var response = Response();
       var verbParams = HashMap<String, String>();
       verbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '0');
@@ -355,14 +349,14 @@ void main() {
         ..pubKeyHash = PublicKeyHash('dummy_hash', HashingAlgoType.sha512.name)
         ..pubKeyCS = 'dummy_pub_key_cs');
       for (int i = 1; i <= 40; i++) {
-        await secondaryKeyStore.put(
+        await keyValueStore.put(
             'random_$i.wavi$alice',
             AtData()
               ..data = i.toString()
               ..metaData = metadata);
       }
 
-      verbHandler = SyncProgressiveVerbHandler(secondaryKeyStore);
+      verbHandler = SyncProgressiveVerbHandler(keyValueStore);
       var response = Response();
       var verbParams = HashMap<String, String>();
       verbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '0');
@@ -392,14 +386,14 @@ void main() {
         ..pubKeyHash = PublicKeyHash('dummy_hash', HashingAlgoType.sha512.name)
         ..pubKeyCS = 'dummy_pub_key_cs');
       for (int i = 1; i <= 40; i++) {
-        await secondaryKeyStore.put(
+        await keyValueStore.put(
             'random_$i.wavi$alice',
             AtData()
               ..data = i.toString()
               ..metaData = metadata);
       }
 
-      verbHandler = SyncProgressiveVerbHandler(secondaryKeyStore);
+      verbHandler = SyncProgressiveVerbHandler(keyValueStore);
       var response = Response();
       var verbParams = HashMap<String, String>();
       verbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '0');
@@ -437,8 +431,7 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      await secondaryKeyStore.put(
-          '$enrollmentId.new.enrollments.__manage$alice',
+      await keyValueStore.put('$enrollmentId.new.enrollments.__manage$alice',
           AtData()..data = jsonEncode(enrollJson));
     });
 
@@ -450,12 +443,12 @@ void main() {
       // commit entries and return [], wedging the client because the
       // commitId watermark could not advance.
       for (int i = 0; i < 25; i++) {
-        await secondaryKeyStore.put(
+        await keyValueStore.put(
             'k$i.unauthorized$alice', AtData()..data = 'v$i');
       }
       expect(atCommitLog.entriesCount(), 26); // 25 keys + the enrollment record
 
-      final verbHandler = SyncProgressiveVerbHandler(secondaryKeyStore);
+      final verbHandler = SyncProgressiveVerbHandler(keyValueStore);
       final response = Response();
       final verbParams = HashMap<String, String>();
       verbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
@@ -479,13 +472,13 @@ void main() {
       // Seed 25 unauthorized entries, then one authorized entry. Pre-3.5d
       // would scan only the first 25 (all filtered) and miss the 26th.
       for (int i = 0; i < 25; i++) {
-        await secondaryKeyStore.put(
+        await keyValueStore.put(
             'k$i.unauthorized$alice', AtData()..data = 'v$i');
       }
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           'phone.wavi$alice', AtData()..data = '+12025551234');
 
-      final verbHandler = SyncProgressiveVerbHandler(secondaryKeyStore);
+      final verbHandler = SyncProgressiveVerbHandler(keyValueStore);
       final response = Response();
       final verbParams = HashMap<String, String>();
       verbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');

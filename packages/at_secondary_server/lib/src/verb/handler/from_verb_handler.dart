@@ -29,7 +29,7 @@ class FromVerbHandler extends AbstractVerbHandler {
   AtAccessLog get accessLog =>
       _accessLogOverride ?? AtSecondaryServerImpl.getInstance().accessLog;
 
-  FromVerbHandler(super.keyStore,
+  FromVerbHandler(super.keyValueStore,
       {AtCommitLog? commitLog, AtAccessLog? accessLog})
       : _commitLogOverride = commitLog,
         _accessLogOverride = accessLog {
@@ -53,7 +53,7 @@ class FromVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-    atConfigInstance = AtConfig(keyStore, currentAtSign);
+    atConfigInstance = AtConfig(keyValueStore, currentAtSign);
     atConnection.initiatedBy = currentAtSign;
     var atConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
@@ -98,7 +98,7 @@ class FromVerbHandler extends AbstractVerbHandler {
     atData.data = proof;
     atData.metaData = AtMetaData()..ttl = 60 * 1000; //expire in 1 min
     logger.finer('Storing secret to $storedSecretId');
-    await keyStore.put(storedSecretId, atData);
+    await keyValueStore.put(storedSecretId, atData);
     response.data =
         '$responsePrefix${atConnectionMetadata.sessionID}$fromAtSign:$proof';
 

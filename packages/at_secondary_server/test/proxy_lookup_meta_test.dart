@@ -10,7 +10,7 @@ import 'package:at_commons/at_commons.dart';
 import 'test_utils.dart';
 
 void main() {
-  SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+  AtKeyValueStore mockKeyStore = MockAtKeyValueStore();
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
   AtCacheManager mockAtCacheManager = MockAtCacheManager();
 

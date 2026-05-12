@@ -12,7 +12,7 @@ class AtConfig {
   /// Current key under which the blocklist is stored.
   final String configKey;
 
-  final SecondaryKeyStore _keyStore;
+  final AtKeyValueStore _keyStore;
   // ignore: unused_field
   final String? _atSign;
 

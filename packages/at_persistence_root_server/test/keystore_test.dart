@@ -3,12 +3,12 @@ import 'package:test/test.dart';
 import 'package:at_persistence_spec/at_persistence_spec.dart';
 
 void main() {
-  var keyStore = MapKeyStore();
+  var keyValueStore = MapKeyStore();
   group('Keystore-1', () {
-    setUp(() => keyStore.init());
-    tearDown(() => keyStore.clear());
+    setUp(() => keyValueStore.init());
+    tearDown(() => keyValueStore.clear());
     test('test simple keystore get', () async {
-      var value = await keyStore.get('aaa');
+      var value = await keyValueStore.get('aaa');
       expect(value, 1);
       print('end of simple keystore get test');
     });

@@ -50,21 +50,21 @@ void main() {
 
     test('test llookup meta command accept test without operation', () {
       var command = 'llookup:location$alice';
-      var handler = LocalLookupVerbHandler(secondaryKeyStore, enMgr);
+      var handler = LocalLookupVerbHandler(keyValueStore, enMgr);
       var result = handler.accept(command);
       expect(result, true);
     });
 
     test('test llookup meta command accept test for meta', () {
       var command = 'llookup:meta:location$alice';
-      var handler = LocalLookupVerbHandler(secondaryKeyStore, enMgr);
+      var handler = LocalLookupVerbHandler(keyValueStore, enMgr);
       var result = handler.accept(command);
       expect(result, true);
     });
 
     test('test llookup meta command accept test for all', () {
       var command = 'llookup:all:location$alice';
-      var handler = LocalLookupVerbHandler(secondaryKeyStore, enMgr);
+      var handler = LocalLookupVerbHandler(keyValueStore, enMgr);
       var result = handler.accept(command);
       expect(result, true);
     });

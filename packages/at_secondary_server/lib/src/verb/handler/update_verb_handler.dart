@@ -12,7 +12,7 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
   static Update update = Update();
 
   UpdateVerbHandler(
-    super.keyStore,
+    super.keyValueStore,
     super.statsNotificationService,
     super.notificationManager,
     super.atSign,
@@ -60,7 +60,7 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
       );
 
       // update the key in data store
-      var result = await keyStore.put(
+      var result = await keyValueStore.put(
         updatePreProcessResult.atKey,
         updatePreProcessResult.atData,
       );

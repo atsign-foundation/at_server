@@ -8,8 +8,8 @@ import 'test_utils.dart';
 
 HashMap<String, String> dummyKeyStore = HashMap();
 
-class MockSecondaryKeyStore extends Mock
-    implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
+class MockAtKeyValueStore extends Mock
+    implements AtKeyValueStore<String, AtData?, AtMetaData?> {
   @override
   List<String> getKeys({String? regex}) {
     return dummyKeyStore.keys.toList();
@@ -36,8 +36,7 @@ void main() {
       dummyKeyStore.putIfAbsent('$alice:phone@bob', () => 'dummy_value');
     });
     test('A test to verify only malformed keys are removed', () async {
-      AtSecondaryServerImpl.getInstance().secondaryKeyStore =
-          MockSecondaryKeyStore();
+      AtSecondaryServerImpl.getInstance().keyValueStore = MockAtKeyValueStore();
       await AtSecondaryServerImpl.getInstance().removeMalformedKeys();
       expect(dummyKeyStore.length, 2);
       expect(dummyKeyStore.containsKey('public:publickey$alice'), true);

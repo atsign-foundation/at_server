@@ -2,7 +2,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
     show AtCommitLog;
 import 'package:at_persistence_secondary_server/src/spec/spec.dart';
 
-abstract interface class SecondaryKeyStore<K, V, T>
+abstract interface class AtKeyValueStore<K, V, T>
     implements WritableKeystore<K, V>, SynchronizableKeyStore<K, V, T> {
   /// Retrieves all keys have that expired.
   /// @return - List of keys that have expired
@@ -166,8 +166,8 @@ abstract interface class SecondaryKeyStore<K, V, T>
   /// the flag:
   ///
   /// ```dart
-  /// if (keyStore.supportsPathQueries) {
-  ///   await for (final e in keyStore.queryByPath(
+  /// if (keyValueStore.supportsPathQueries) {
+  ///   await for (final e in keyValueStore.queryByPath(
   ///     keyPattern: KeyPattern(namespace: 'invoices'),
   ///     predicate: PathEquals(['obj', 'status'], 'unpaid'),
   ///   )) { /* ... */ }
@@ -214,9 +214,9 @@ abstract interface class SecondaryKeyStore<K, V, T>
   /// for cached counts).
   Future<KeyStoreStats> stats();
 
-  /// A SecondaryKeyStore has an associated commit log
+  /// A AtKeyValueStore has an associated commit log
   AtCommitLog? get commitLog => null;
 
-  /// A SecondaryKeyStore has an associated commit log
+  /// A AtKeyValueStore has an associated commit log
   set commitLog(AtCommitLog? log) {}
 }

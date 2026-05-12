@@ -218,7 +218,7 @@ class HiveAtNotificationKeystore
       _logger.severe('exception in hive get expired keys:${e.toString()}');
       throw DataStoreException('exception in getExpiredKeys: ${e.toString()}');
     } on HiveError catch (error) {
-      _logger.severe('HiveSecondaryKeyStore get error: $error');
+      _logger.severe('HiveAtKeyValueStore get error: $error');
       throw DataStoreException(error.message);
     }
     return expiredKeys;
@@ -443,7 +443,7 @@ class HiveAtNotificationKeystore
 
   /// Notifications never participate in the commit log — the queue
   /// is server-local and sync is the wrong abstraction for it. The
-  /// `SecondaryKeyStore` interface still exposes `commitLog`, so the
+  /// `AtKeyValueStore` interface still exposes `commitLog`, so the
   /// getter returns `null` and the setter is a no-op rather than
   /// holding a field that would always be null.
   @override

@@ -15,8 +15,8 @@ class HiveAtCommitLog extends AtCommitLog {
 
   CommitLogKeyStore get commitLogKeyStore => _commitLogKeyStore;
 
-  HiveAtCommitLog(CommitLogKeyStore keyStore) {
-    _commitLogKeyStore = keyStore;
+  HiveAtCommitLog(CommitLogKeyStore keyValueStore) {
+    _commitLogKeyStore = keyValueStore;
   }
 
   /// Creates a new entry with key, operation and adds to the commit log with key - commitId and value - [CommitEntry]
@@ -166,7 +166,7 @@ class HiveAtCommitLog extends AtCommitLog {
 
 @client
 class HiveClientAtCommitLog extends HiveAtCommitLog {
-  HiveClientAtCommitLog(super.keyStore);
+  HiveClientAtCommitLog(super.keyValueStore);
 
   /// Returns the commit entry for a given commit sequence number
   /// throws [DataStoreException] if there is an exception getting the commit entry

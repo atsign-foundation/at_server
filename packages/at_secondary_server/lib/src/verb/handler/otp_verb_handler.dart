@@ -19,7 +19,7 @@ class OtpVerbHandler extends AbstractVerbHandler {
   @visibleForTesting
   static const Duration defaultOtpExpiry = Duration(minutes: 5);
 
-  OtpVerbHandler(super.keyStore);
+  OtpVerbHandler(super.keyValueStore);
 
   @override
   bool accept(String command) => command.startsWith('otp:');
@@ -110,7 +110,7 @@ class OtpVerbHandler extends AbstractVerbHandler {
 
   Future<void> savePasscode(String passcode,
       {required int ttl, required bool isSpp}) async {
-    await keyStore.put(
+    await keyValueStore.put(
         passcodeKey(passcode, isSpp: isSpp),
         AtData()
           ..data = passcode

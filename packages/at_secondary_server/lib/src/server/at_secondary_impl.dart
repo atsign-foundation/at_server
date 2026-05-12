@@ -124,11 +124,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// Cron driving the periodic key-expiry sweep. Owned by the
   /// secondary (not the persistence layer): the application picks
   /// the schedule, the keystore just exposes
-  /// [SecondaryKeyStore.deleteExpiredKeys].
+  /// [AtKeyValueStore.deleteExpiredKeys].
   Cron? _keyExpiryCron;
   @visibleForTesting
   AtCertificateValidationJob? certificateReloadJob;
-  late SecondaryKeyStore<String, AtData?, AtMetaData?> secondaryKeyStore;
+  late AtKeyValueStore<String, AtData?, AtMetaData?> keyValueStore;
   late AtNotificationKeystore notificationKeystore;
   late NotificationManager notificationManager;
   late var atCommitLogCompactionConfig;
@@ -197,7 +197,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
 
     // Initialize enrollment manager
-    enrollmentManager = EnrollmentManager(secondaryKeyStore, currentAtSign);
+    enrollmentManager = EnrollmentManager(keyValueStore, currentAtSign);
     List<String> deletedKeys =
         await enrollmentManager.removeLegacyApkamPublicKeys();
     if (deletedKeys.isNotEmpty) {
@@ -210,7 +210,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     // Set up removal of expired keys
     // We add a hook here to handle deletion of enrollments.
-    secondaryKeyStore.preRemoveHooks.add(enrollmentManager.preRemoveHook);
+    keyValueStore.preRemoveHooks.add(enrollmentManager.preRemoveHook);
 
     // Schedule the periodic key-expiry sweep. Frequency is in
     // [expiringRunFreqMins-2, expiringRunFreqMins+5] mins (default
@@ -228,19 +228,19 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         await Future.delayed(Duration(seconds: Random().nextInt(30)));
         if (_persistenceBundle == null) return;
         try {
-          await secondaryKeyStore.deleteExpiredKeys();
+          await keyValueStore.deleteExpiredKeys();
         } on Exception catch (e) {
           logger.warning('Key expiry sweep failed: $e');
         }
       },
     );
 
-    await secondaryKeyStore.deleteExpiredKeys();
+    await keyValueStore.deleteExpiredKeys();
 
     //Commit Log Compaction
     commitLogCompactionJobInstance = AtCompactionJob(
         _persistenceBundle!.commitLogCompactor!,
-        AtCompactionStatsServiceImpl(commitLog, secondaryKeyStore));
+        AtCompactionStatsServiceImpl(commitLog, keyValueStore));
     atCommitLogCompactionConfig = AtCompactionConfig()
       ..compactionPercentage = AtSecondaryConfig.commitLogCompactionPercentage
       ..compactionFrequencyInMins =
@@ -251,7 +251,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     //Access Log Compaction
     accessLogCompactionJobInstance = AtCompactionJob(
         _persistenceBundle!.accessLogCompactor!,
-        AtCompactionStatsServiceImpl(accessLog, secondaryKeyStore));
+        AtCompactionStatsServiceImpl(accessLog, keyValueStore));
     atAccessLogCompactionConfig = AtCompactionConfig()
       ..compactionPercentage = AtSecondaryConfig.accessLogCompactionPercentage
       ..compactionFrequencyInMins =
@@ -262,7 +262,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // Notification keystore compaction
     notificationKeyStoreCompactionJobInstance = AtCompactionJob(
         _persistenceBundle!.keyStoreCompactor!,
-        AtCompactionStatsServiceImpl(notificationKeystore, secondaryKeyStore));
+        AtCompactionStatsServiceImpl(notificationKeystore, keyValueStore));
     atNotificationCompactionConfig = AtCompactionConfig()
       ..compactionPercentage =
           AtSecondaryConfig.notificationKeyStoreCompactionPercentage
@@ -300,8 +300,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         ));
 
     // Refresh Cached Keys
-    cacheManager = AtCacheManager(serverContext!.currentAtSign!,
-        secondaryKeyStore, outboundClientManager, notificationManager);
+    cacheManager = AtCacheManager(serverContext!.currentAtSign!, keyValueStore,
+        outboundClientManager, notificationManager);
 
     var random = Random();
     var runRefreshJobHour = random.nextInt(23);
@@ -322,7 +322,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // But if not, create a DefaultVerbHandlerManager
     if (verbHandlerManager == null) {
       verbHandlerManager = DefaultVerbHandlerManager(
-        secondaryKeyStore,
+        keyValueStore,
         outboundClientManager,
         cacheManager,
         statsNotificationService,
@@ -335,11 +335,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     } else {
       // If the server has been stop()'d and re-start()'d then we will get here.
       // We have to make sure that if we used a DefaultVerbHandlerManager then we
-      // create a new one here so that it has the correct instances of the SecondaryKeyStore,
+      // create a new one here so that it has the correct instances of the AtKeyValueStore,
       // OutboundClientManager and AtCacheManager
       if (verbHandlerManager is DefaultVerbHandlerManager) {
         verbHandlerManager = DefaultVerbHandlerManager(
-          secondaryKeyStore,
+          keyValueStore,
           outboundClientManager,
           cacheManager,
           statsNotificationService,
@@ -553,7 +553,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // to the pseudoServerSocket
     HttpServer httpServer = HttpServer.listenOn(pseudoServerSocket);
     final httpReqHandler =
-        AtServerHttpRequestHandler(currentAtSign, secondaryKeyStore);
+        AtServerHttpRequestHandler(currentAtSign, keyValueStore);
     httpServer.listen((HttpRequest req) {
       if (req.uri.path == '/ws') {
         // Upgrade an HttpRequest to a WebSocket connection.
@@ -725,8 +725,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.shout("Closing Notification Manager");
       await notificationManager.close();
 
-      secondaryKeyStore.preRemoveHooks.clear();
-      secondaryKeyStore.postRemoveHooks.clear();
+      keyValueStore.preRemoveHooks.clear();
+      keyValueStore.postRemoveHooks.clear();
 
       logger.shout("Stopping key expiry cron");
       await _keyExpiryCron?.close();
@@ -755,7 +755,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     throw Exception("AtSecondaryServer.getMetrics() is obsolete");
   }
 
-  /// Initializes [SecondaryKeyStore], [AtCommitLog], [AtNotificationKeystore] and [AtAccessLog] instances.
+  /// Initializes [AtKeyValueStore], [AtCommitLog], [AtNotificationKeystore] and [AtAccessLog] instances.
   Future<void> _initializePersistentInstances() async {
     AtNotification.defaultTtl =
         Duration(minutes: AtSecondaryConfig.notificationExpiryInMins);
@@ -775,7 +775,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     commitLog = bundle.commitLog;
     accessLog = bundle.accessLog!;
     notificationKeystore = bundle.notificationKeystore!;
-    secondaryKeyStore = bundle.keyStore;
+    keyValueStore = bundle.keyValueStore;
 
     serverContext!.isKeyStoreInitialized = true;
 
@@ -783,28 +783,27 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     atData.data = serverContext!.sharedSecret;
 
     // Ensure essential data is present in persistence
-    if (!secondaryKeyStore.isKeyExists(AtConstants.atCramSecretDeleted)) {
-      await secondaryKeyStore.put(AtConstants.atCramSecret, atData);
+    if (!keyValueStore.isKeyExists(AtConstants.atCramSecretDeleted)) {
+      await keyValueStore.put(AtConstants.atCramSecret, atData);
     }
-    if (!secondaryKeyStore.isKeyExists(AtConstants.atSigningKeypairGenerated)) {
+    if (!keyValueStore.isKeyExists(AtConstants.atSigningKeypairGenerated)) {
       var rsaKeypair = RSAKeypair.fromRandom();
-      await secondaryKeyStore.put(
-          '${AtConstants.atSigningPublicKey}$currentAtSign',
+      await keyValueStore.put('${AtConstants.atSigningPublicKey}$currentAtSign',
           AtData()..data = rsaKeypair.publicKey.toString());
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '$currentAtSign:${AtConstants.atSigningPrivateKey}$currentAtSign',
           AtData()..data = rsaKeypair.privateKey.toString());
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           AtConstants.atSigningKeypairGenerated, AtData()..data = 'true');
       logger.info('signing keypair generated');
     }
     try {
-      var signingPrivateKey = await secondaryKeyStore.get(
+      var signingPrivateKey = await keyValueStore.get(
           '$currentAtSign:${AtConstants.atSigningPrivateKey}$currentAtSign');
       signingKey = signingPrivateKey?.data;
     } on KeyNotFoundException {
       logger.info(
-          'signing key generated? ${secondaryKeyStore.isKeyExists(AtConstants.atSigningKeypairGenerated)}');
+          'signing key generated? ${keyValueStore.isKeyExists(AtConstants.atSigningKeypairGenerated)}');
     }
   }
 
@@ -844,13 +843,12 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // To retain the invalid keys on server start-up, set the flag to false.
     if (AtSecondaryConfig.shouldRemoveMalformedKeys) {
       List<String> malformedKeys = AtSecondaryConfig.malformedKeysList;
-      final keyStore = secondaryKeyStore;
-      List<String> keys = keyStore.getKeys();
+      List<String> keys = keyValueStore.getKeys();
       logger.finest('malformed keys from config: $malformedKeys');
       for (String key in keys) {
         if (key.startsWith('public:cached:') || (malformedKeys.contains(key))) {
           try {
-            int? commitId = await keyStore.remove(key);
+            int? commitId = await keyValueStore.remove(key);
             logger.warning('commitId for removed key $key: $commitId');
           } on KeyNotFoundException catch (e) {
             logger

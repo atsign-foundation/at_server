@@ -23,7 +23,7 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
       _accessLogOverride ?? AtSecondaryServerImpl.getInstance().accessLog;
 
   ProxyLookupVerbHandler(
-      super.keyStore, this.outboundClientManager, this.cacheManager,
+      super.keyValueStore, this.outboundClientManager, this.cacheManager,
       {AtAccessLog? accessLog})
       : _accessLogOverride = accessLog;
 

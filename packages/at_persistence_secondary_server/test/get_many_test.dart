@@ -5,7 +5,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:test/test.dart';
 
 void main() {
-  group('SecondaryKeyStore.getMany()', () {
+  group('AtKeyValueStore.getMany()', () {
     late Directory tempDir;
     late HiveAtPersistenceFactory factory;
     late AtPersistenceBundle bundle;
@@ -23,7 +23,7 @@ void main() {
         ),
       );
       Future<void> put(String k, String v) =>
-          bundle.keyStore.put(k, AtData()..data = v);
+          bundle.keyValueStore.put(k, AtData()..data = v);
       await put('public:phone.wavi@alice', '+1 555-0100');
       await put('public:email.wavi@alice', 'alice@example.com');
       await put('@bob:secret.wavi@alice', 'shhh');
@@ -35,7 +35,7 @@ void main() {
     });
 
     test('returns values for every present key', () async {
-      final result = await bundle.keyStore.getMany([
+      final result = await bundle.keyValueStore.getMany([
         'public:phone.wavi@alice',
         'public:email.wavi@alice',
         '@bob:secret.wavi@alice',
@@ -47,7 +47,7 @@ void main() {
     });
 
     test('absent keys are NOT in the result map', () async {
-      final result = await bundle.keyStore.getMany([
+      final result = await bundle.keyValueStore.getMany([
         'public:phone.wavi@alice',
         'public:does_not_exist@alice',
       ]);
@@ -57,7 +57,7 @@ void main() {
     });
 
     test('all-absent input yields empty map', () async {
-      final result = await bundle.keyStore.getMany([
+      final result = await bundle.keyValueStore.getMany([
         'public:nope_a@alice',
         'public:nope_b@alice',
       ]);
@@ -65,13 +65,13 @@ void main() {
     });
 
     test('empty input yields empty map', () async {
-      final result = await bundle.keyStore.getMany(<String>[]);
+      final result = await bundle.keyValueStore.getMany(<String>[]);
       expect(result, isEmpty);
     });
 
     test('case-insensitive lookup (matches get() behaviour)', () async {
       // Underlying storage is lowercased; mixed-case input still hits.
-      final result = await bundle.keyStore.getMany([
+      final result = await bundle.keyValueStore.getMany([
         'PUBLIC:Phone.Wavi@alice',
       ]);
       expect(result.length, 1);
@@ -80,7 +80,7 @@ void main() {
 
     test('duplicate input keys are de-duplicated (Map semantics)', () async {
       // Two identical input keys → one map entry.
-      final result = await bundle.keyStore.getMany([
+      final result = await bundle.keyValueStore.getMany([
         'public:phone.wavi@alice',
         'public:phone.wavi@alice',
       ]);
@@ -97,11 +97,11 @@ void main() {
         'public:email.wavi@alice',
         '@bob:secret.wavi@alice',
       ];
-      final viaMany = await bundle.keyStore.getMany(keys);
+      final viaMany = await bundle.keyValueStore.getMany(keys);
       final viaSingles = <String, AtData?>{};
       for (final k in keys) {
         try {
-          viaSingles[k.toLowerCase()] = await bundle.keyStore.get(k);
+          viaSingles[k.toLowerCase()] = await bundle.keyValueStore.get(k);
         } on KeyNotFoundException {
           // skip
         }

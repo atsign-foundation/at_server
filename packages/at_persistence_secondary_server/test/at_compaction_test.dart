@@ -10,9 +10,9 @@ String storageDir = '${Directory.current.path}/test/hive';
 HiveAtCommitLog? atCommitLog;
 
 Future<void> setUpFunc({bool enableCommitId = true}) async {
-  final keyStore = await setUpTestKeyStore('@alice',
+  final keyValueStore = await setUpTestKeyStore('@alice',
       storageDir: storageDir, enableCommitId: enableCommitId);
-  atCommitLog = keyStore.commitLog as HiveAtCommitLog;
+  atCommitLog = keyValueStore.commitLog as HiveAtCommitLog;
 }
 
 void main() {

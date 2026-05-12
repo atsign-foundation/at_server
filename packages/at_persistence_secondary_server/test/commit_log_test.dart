@@ -64,10 +64,10 @@ void main() async {
         await commitLogInstance.update(commitEntry1!, 0);
         var lastSyncedEntry = await commitLogInstance.lastSyncedEntry();
         expect(lastSyncedEntry!.commitId, 1);
-        ClientCommitLogKeyStore keyStore =
+        ClientCommitLogKeyStore keyValueStore =
             commitLogInstance.commitLogKeyStore as ClientCommitLogKeyStore;
         var lastSyncedCacheSize =
-            keyStore.getLastSyncedEntryCacheMapValues().length;
+            keyValueStore.getLastSyncedEntryCacheMapValues().length;
         expect(lastSyncedCacheSize, 1);
       });
 
@@ -92,9 +92,10 @@ void main() async {
             await commitLogInstance.lastSyncedEntryWithRegex('wavi');
         expect(lastSyncedEntry!.atKey!, 'mobile.wavi@alice');
         expect(lastSyncedEntry.commitId!, 1);
-        ClientCommitLogKeyStore keyStore =
+        ClientCommitLogKeyStore keyValueStore =
             commitLogInstance.commitLogKeyStore as ClientCommitLogKeyStore;
-        var lastSyncedEntriesList = keyStore.getLastSyncedEntryCacheMapValues();
+        var lastSyncedEntriesList =
+            keyValueStore.getLastSyncedEntryCacheMapValues();
         expect(lastSyncedEntriesList.length, 2);
       });
 
@@ -653,7 +654,7 @@ void main() async {
   });
 }
 
-Future<HiveSecondaryKeyStore> setUpFunc(storageDir,
+Future<HiveAtKeyValueStore> setUpFunc(storageDir,
         {bool enableCommitId = true}) =>
     setUpTestKeyStore('@alice',
         storageDir: storageDir, enableCommitId: enableCommitId);

@@ -1,4 +1,4 @@
-/// A single record yielded by [`SecondaryKeyStore.queryByPath`] —
+/// A single record yielded by [`AtKeyValueStore.queryByPath`] —
 /// a (key, value, metadata) tuple. Generic-typed against the
 /// keystore's K / V / T parameters, so callers see properly-typed
 /// fields without needing to cast.

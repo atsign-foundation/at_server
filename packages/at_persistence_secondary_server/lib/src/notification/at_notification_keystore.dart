@@ -14,7 +14,7 @@ import 'package:at_persistence_secondary_server/src/spec/spec.dart';
 /// consumers leave it disabled.
 ///
 /// This abstract mirrors the public surface of the Hive concrete:
-/// it implements [SecondaryKeyStore] (because notifications are
+/// it implements [AtKeyValueStore] (because notifications are
 /// keyed by notification id) and [AtLogType] (because the
 /// notification queue is compactable on the same access-log
 /// dimensions). Type parameters intentionally default to `dynamic`
@@ -22,7 +22,7 @@ import 'package:at_persistence_secondary_server/src/spec/spec.dart';
 /// shape; tightening to `<String, AtNotification?, AtMetaData?>`
 /// is left for a future cleanup that also rewrites the tests.
 abstract class AtNotificationKeystore
-    implements SecondaryKeyStore, AtLogType<String, AtNotification> {
+    implements AtKeyValueStore, AtLogType<String, AtNotification> {
   /// Initialize the underlying storage rooted at [path]. Called once
   /// at bootstrap; implementation-defined what `path` means
   /// (directory for Hive, connection string for SQL backends, ...).

@@ -20,7 +20,7 @@ Future<void> main(List<String> arguments) async {
 
   // Keystore
   final atData = AtData()..data = '123';
-  final result = await bundle.keyStore.create('phone@alice', atData);
+  final result = await bundle.keyValueStore.create('phone@alice', atData);
   print(result);
 
   // Commit log

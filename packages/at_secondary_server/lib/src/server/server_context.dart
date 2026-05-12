@@ -45,7 +45,7 @@ class AtSecondaryContext extends AtServerContext {
   String? currentAtSign;
   String? sharedSecret;
   AtSecurityContextImpl? securityContext;
-  SecondaryKeyStore? secondaryKeyStore;
+  AtKeyValueStore? keyValueStore;
   VerbExecutor? verbExecutor;
 
   // When true, SecondaryServerImpl will gracefully shut down the service immediately

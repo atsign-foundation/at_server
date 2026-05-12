@@ -23,7 +23,7 @@ class CacheUpdateResult {
 class AtCacheManager {
   /// This atServer's atSign
   final Atsign atSign;
-  final SecondaryKeyStore<String, AtData?, AtMetaData?> keyStore;
+  final AtKeyValueStore<String, AtData?, AtMetaData?> keyValueStore;
   final OutboundClientManager outboundClientManager;
   final NotificationManager notificationManager;
 
@@ -33,14 +33,14 @@ class AtCacheManager {
 
   AtCacheManager(
     String atSign,
-    this.keyStore,
+    this.keyValueStore,
     this.outboundClientManager,
     this.notificationManager,
   ) : atSign = atSign.toAtsign();
 
   /// Returns a List of keyNames of all cached records due to refresh
   Future<List<String>> getKeyNamesToRefresh() async {
-    List<String> keysList = keyStore.getKeys(regex: r'cached\:');
+    List<String> keysList = keyValueStore.getKeys(regex: r'cached\:');
     var cachedKeys = <String>[];
 
     var nowInEpoch = DateTime.now().millisecondsSinceEpoch;
@@ -49,7 +49,7 @@ class AtCacheManager {
       var key = itr.current;
       logger.finer("getKeyNamesToRefresh : Checking $key");
 
-      AtMetaData? metadata = await keyStore.getMeta(key);
+      AtMetaData? metadata = await keyValueStore.getMeta(key);
 
       if (metadata == null) {
         // Should never be true. Log a warning.
@@ -225,7 +225,7 @@ class AtCacheManager {
   }
 
   /// Fetch the currently cached value, if any.
-  /// * If [applyMetadataRules] is false, return whatever is found in the [keyStore]
+  /// * If [applyMetadataRules] is false, return whatever is found in the [keyValueStore]
   /// * If [applyMetadataRules] is true, then use [SecondaryUtil.isActiveKey] to check
   ///   * Is this record 'active' i.e. it is non-null, it's been 'born', and it is still 'alive'
   ///   * Is it cacheable indefinitely (ttr == -1) or have we not yet reached its 'refreshAt' timestamp?
@@ -237,10 +237,10 @@ class AtCacheManager {
           'AtCacheManager.get called with invalid cachedKeyName $cachedKeyName');
     }
 
-    if (!keyStore.isKeyExists(cachedKeyName)) {
+    if (!keyValueStore.isKeyExists(cachedKeyName)) {
       return null;
     }
-    var atData = await keyStore.get(cachedKeyName);
+    var atData = await keyValueStore.get(cachedKeyName);
     if (atData == null) {
       return null;
     }
@@ -279,7 +279,7 @@ class AtCacheManager {
     }
 
     try {
-      await keyStore.remove(cachedKeyName);
+      await keyValueStore.remove(cachedKeyName);
     } on KeyNotFoundException {
       logger.warning(
           'remove operation - key $cachedKeyName does not exist in keystore');
@@ -303,12 +303,12 @@ class AtCacheManager {
 
     // For everything other than 'cached:public:publickey@atSign' just put it into the key store
     AtData? existingAtData;
-    if (keyStore.isKeyExists(cachedKeyName)) {
-      existingAtData = await keyStore.get(cachedKeyName);
+    if (keyValueStore.isKeyExists(cachedKeyName)) {
+      existingAtData = await keyValueStore.get(cachedKeyName);
     }
 
     if (!cachedKeyName.startsWith('cached:public:publickey@')) {
-      await keyStore.put(cachedKeyName, atData);
+      await keyValueStore.put(cachedKeyName, atData);
       if (existingAtData == null) {
         return CacheUpdateResult(
           newEntry: true,
@@ -358,9 +358,9 @@ class AtCacheManager {
         cachedKeyName.replaceFirst('cached:public:publickey@', '@').toAtsign();
     try {
       // 1) If it's not currently in the cache, then just update the cache and return
-      if (!keyStore.isKeyExists(cachedKeyName)) {
+      if (!keyValueStore.isKeyExists(cachedKeyName)) {
         atData.metaData!.ttr = -1;
-        await keyStore.put(cachedKeyName, atData);
+        await keyValueStore.put(cachedKeyName, atData);
         return CacheUpdateResult(
           newEntry: true,
           dataChanged: true,
@@ -420,7 +420,7 @@ class AtCacheManager {
   /// atServer reset where the owner has re-onboarded with a different encryption keypair.
   /// <p/>
   ///
-  /// When that happens, we need to do some stuff in this atServer's keyStore so that
+  /// When that happens, we need to do some stuff in this atServer's keyValueStore so that
   /// some client for this atSign can know that it needs to cut a new shared encryption key
   /// (or, if client library supports it, reuse the old shared encryption key)
   /// and share it with the other atSign. (Context: sharing a shared encryption key involves
@@ -452,9 +452,10 @@ class AtCacheManager {
     String keyName = '$nowMicros.events'
         '.${AtConstants.atServerReservedNamespace}'
         '@${atSign.withoutAt()}';
-    await keyStore.put(keyName, AtData()..data = jsonEncode(event.toJson()));
+    await keyValueStore.put(
+        keyName, AtData()..data = jsonEncode(event.toJson()));
 
-    AtData? stored = await keyStore.get(keyName);
+    AtData? stored = await keyValueStore.get(keyName);
     logger.warning('Created AtSignPKChangedEvent for $otherAtSign.'
         ' Stored event keyName: $keyName value: ${stored?.data}');
 
@@ -483,23 +484,23 @@ class AtCacheManager {
     int now = DateTime.now().millisecondsSinceEpoch;
     var nameOfMyCopyOfSharedKey =
         'shared_key.${otherAtSign.withoutAt()}$atSign';
-    if (keyStore.isKeyExists(nameOfMyCopyOfSharedKey)) {
-      AtData data = (await keyStore.get(nameOfMyCopyOfSharedKey))!;
+    if (keyValueStore.isKeyExists(nameOfMyCopyOfSharedKey)) {
+      AtData data = (await keyValueStore.get(nameOfMyCopyOfSharedKey))!;
 
       logger.warning('Removing $nameOfMyCopyOfSharedKey');
-      await keyStore.remove(nameOfMyCopyOfSharedKey);
+      await keyValueStore.remove(nameOfMyCopyOfSharedKey);
 
       var copyOfSharedKeyKeyName =
           'shared_key.${otherAtSign.withoutAt()}.until.$now$atSign';
       logger.warning('Creating $copyOfSharedKeyKeyName');
-      await keyStore.put(copyOfSharedKeyKeyName, data);
+      await keyValueStore.put(copyOfSharedKeyKeyName, data);
     }
 
     // Housekeeping (2): update the cache
     // and ensure that ttr is set to -1 (cache indefinitely)
-    await keyStore.remove(cachedKeyName);
+    await keyValueStore.remove(cachedKeyName);
     atData.metaData!.ttr = -1;
-    await keyStore.put(cachedKeyName, atData);
+    await keyValueStore.put(cachedKeyName, atData);
   }
 
   /// Does the remote lookup - returns the atProtocol string which it receives

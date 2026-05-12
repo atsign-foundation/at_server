@@ -5,15 +5,15 @@ import 'package:at_persistence_secondary_server/src/spec/spec.dart';
 /// Gets all the keys that match the criteria set in the [AtCompactionConfig]
 /// and removes from the Keystore.
 ///
-/// Abstract class for [SecondaryKeyStore] and [AtLogType] that requires compaction to be performed.
+/// Abstract class for [AtKeyValueStore] and [AtLogType] that requires compaction to be performed.
 abstract class AtCompaction<K, V> {
   /// Set the configuration required for running compaction.
   void setCompactionConfig(AtCompactionConfig atCompactionConfig);
 
-  /// Returns the keys to delete from the [SecondaryKeyStore] or [AtLogType] when compaction job is run
+  /// Returns the keys to delete from the [AtKeyValueStore] or [AtLogType] when compaction job is run
   Future<List<K>> getKeysToDeleteOnCompaction();
 
-  /// Deletes a passed [key] from the [SecondaryKeyStore] or [AtLogType]
+  /// Deletes a passed [key] from the [AtKeyValueStore] or [AtLogType]
   Future<void> deleteKeyForCompaction(List<K> key);
 }
 

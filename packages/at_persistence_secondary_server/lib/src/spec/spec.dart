@@ -23,4 +23,4 @@ export 'keystore/keystore_stats.dart';
 export 'keystore/keystore_txn.dart';
 export 'keystore/order_by_key.dart';
 export 'keystore/predicate.dart';
-export 'keystore/secondary_keystore.dart';
+export 'keystore/at_keyvalue_store.dart';

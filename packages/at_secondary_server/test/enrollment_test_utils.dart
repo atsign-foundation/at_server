@@ -24,23 +24,23 @@ class ETU {
   late String primaryEnId;
 
   Future<void> init() async {
-    evh = EnrollVerbHandler(secondaryKeyStore, enMgr, notificationManager);
-    ovh = OtpVerbHandler(secondaryKeyStore);
+    evh = EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
+    ovh = OtpVerbHandler(keyValueStore);
     uvh = UpdateVerbHandler(
-      secondaryKeyStore,
+      keyValueStore,
       statsNotificationService,
       notificationManager,
       alice,
     );
     lvh = LookupVerbHandler(
-      secondaryKeyStore,
+      keyValueStore,
       mockOutboundClientManager,
       cacheManager,
       enMgr,
     );
-    llvh = LocalLookupVerbHandler(secondaryKeyStore, enMgr);
+    llvh = LocalLookupVerbHandler(keyValueStore, enMgr);
     plvh = ProxyLookupVerbHandler(
-      secondaryKeyStore,
+      keyValueStore,
       mockOutboundClientManager,
       cacheManager,
     );
@@ -201,11 +201,11 @@ class ETU {
       bool ancillaryKeysShouldExist = !enDeleted || (enDeleted && !cleanedUp);
       // print ('checking ${i++} deleted: $enDeleted cleanedUp: $cleanedUp ancillaryShouldExist: $ancillaryKeysShouldExist');
       await expectLater(
-          secondaryKeyStore.isKeyExists(enMgr.buildEnrollmentKey(enId)),
+          keyValueStore.isKeyExists(enMgr.buildEnrollmentKey(enId)),
           enrollmentShouldExist);
-      await expectLater(secondaryKeyStore.isKeyExists(enMgr.keyForPEK(enId)),
+      await expectLater(keyValueStore.isKeyExists(enMgr.keyForPEK(enId)),
           ancillaryKeysShouldExist);
-      await expectLater(secondaryKeyStore.isKeyExists(enMgr.keyForSEK(enId)),
+      await expectLater(keyValueStore.isKeyExists(enMgr.keyForSEK(enId)),
           ancillaryKeysShouldExist);
     }
   }

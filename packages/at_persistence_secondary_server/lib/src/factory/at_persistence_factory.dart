@@ -55,7 +55,7 @@ abstract class AtPersistenceBundle {
   AtPersistenceBackendId get backendId;
 
   /// The keystore for client data (target of `update` / `lookup`).
-  SecondaryKeyStore<String, AtData?, AtMetaData?> get keyStore;
+  AtKeyValueStore<String, AtData?, AtMetaData?> get keyValueStore;
 
   /// The commit log used by sync. Typed at the abstract
   /// [AtCommitLog]; the concrete is whatever the factory's

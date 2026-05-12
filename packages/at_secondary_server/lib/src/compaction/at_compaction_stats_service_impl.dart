@@ -12,7 +12,7 @@ import 'package:meta/meta.dart';
 /// different deployment could implement [AtCompactionStatsService]
 /// to push stats to Prometheus, drop them, etc.
 class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
-  final SecondaryKeyStore _keyStore;
+  final AtKeyValueStore _keyStore;
   final AtCompaction _atCompaction;
   @visibleForTesting
   late String compactionStatsKey;

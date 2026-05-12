@@ -17,7 +17,7 @@ class CramVerbHandler extends AbstractVerbHandler {
   AtAccessLog get accessLog =>
       _accessLogOverride ?? AtSecondaryServerImpl.getInstance().accessLog;
 
-  CramVerbHandler(super.keyStore, {AtAccessLog? accessLog})
+  CramVerbHandler(super.keyValueStore, {AtAccessLog? accessLog})
       : _accessLogOverride = accessLog;
 
   @override
@@ -41,7 +41,7 @@ class CramVerbHandler extends AbstractVerbHandler {
     }
 
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-    AtData? internalSecret = await keyStore.get('privatekey:at_secret');
+    AtData? internalSecret = await keyValueStore.get('privatekey:at_secret');
 
     // If there is no secret in keystore then return error
     if (internalSecret == null) {
@@ -51,7 +51,7 @@ class CramVerbHandler extends AbstractVerbHandler {
 
     //retrieve stored secret using sessionid and atsign
     String storedSecretId = 'private:$sessionID$atSign';
-    String? storedSecret = (await keyStore.get(storedSecretId))?.data;
+    String? storedSecret = (await keyValueStore.get(storedSecretId))?.data;
     String expectedDigest = sha512
         .convert(utf8
             .encode('${internalSecret.data}$sessionID$atSign:$storedSecret'))
@@ -72,7 +72,7 @@ class CramVerbHandler extends AbstractVerbHandler {
 
       // remove the stored secret
       try {
-        await keyStore.remove(storedSecretId);
+        await keyValueStore.remove(storedSecretId);
       } catch (e) {
         logger.warning('Failed to immediately remove $storedSecretId');
       }

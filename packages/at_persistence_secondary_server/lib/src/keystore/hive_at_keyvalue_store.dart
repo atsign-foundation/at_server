@@ -14,10 +14,10 @@ import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
 import 'package:meta/meta.dart';
 
-class HiveSecondaryKeyStore
+class HiveAtKeyValueStore
     with HiveBase<AtData?>
-    implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
-  final AtSignLogger logger = AtSignLogger('HiveSecondaryKeyStore');
+    implements AtKeyValueStore<String, AtData?, AtMetaData?> {
+  final AtSignLogger logger = AtSignLogger('HiveAtKeyValueStore');
   final String expiresAt = 'expiresAt';
   final String availableAt = 'availableAt';
   static const int maxKeyLength = 255;
@@ -28,7 +28,7 @@ class HiveSecondaryKeyStore
   /// `updatedBy`.
   final String atSign;
 
-  HiveSecondaryKeyStore(this.atSign);
+  HiveAtKeyValueStore(this.atSign);
 
   late HiveAtCommitLog _commitLog;
 
@@ -108,7 +108,7 @@ class HiveSecondaryKeyStore
     int? skip,
   }) {
     throw UnsupportedError(
-      'HiveSecondaryKeyStore does not support push-down path queries. '
+      'HiveAtKeyValueStore does not support push-down path queries. '
       'Check `supportsPathQueries` before calling; on Hive, fall back '
       'to `scanKeys + getMany + in-memory filter`. SQL backends in '
       'Phase 4 flip the flag to true and execute the predicate via '
@@ -120,7 +120,7 @@ class HiveSecondaryKeyStore
   Future<R> transaction<R>(
     Future<R> Function(KeyStoreTxn<String, AtData?, AtMetaData?> txn) body,
   ) async {
-    final txn = _HiveSecondaryKeyStoreTxn(this);
+    final txn = _HiveAtKeyValueStoreTxn(this);
     final R result;
     try {
       result = await body(txn);
@@ -180,7 +180,7 @@ class HiveSecondaryKeyStore
       final secret = await _getHiveSecretFromFile(atSign, storagePath);
       await openBox(AtUtils.getShaForAtSign(atSign), hiveSecret: secret);
     } on Exception catch (e) {
-      logger.severe('HiveSecondaryKeyStore.initialize exception: $e');
+      logger.severe('HiveAtKeyValueStore.initialize exception: $e');
       throw DataStoreException(
           'Exception initializing secondary keystore: ${e.toString()}');
     }
@@ -243,10 +243,10 @@ class HiveSecondaryKeyStore
       // compare availableAt with time.now()
       //return only between ttl and ttb
     } on Exception catch (exception) {
-      logger.severe('HiveSecondaryKeyStore get exception: $exception');
+      logger.severe('HiveAtKeyValueStore get exception: $exception');
       throw DataStoreException('exception in get: ${exception.toString()}');
     } on HiveError catch (error) {
-      logger.severe('HiveSecondaryKeyStore get error: $error');
+      logger.severe('HiveAtKeyValueStore get error: $error');
       await _restartHiveBox(error);
       throw DataStoreException(error.message);
     }
@@ -298,11 +298,11 @@ class HiveSecondaryKeyStore
     } on DataStoreException {
       rethrow;
     } on Exception catch (exception) {
-      logger.severe('HiveSecondaryKeyStore put exception: $exception');
+      logger.severe('HiveAtKeyValueStore put exception: $exception');
       throw DataStoreException('exception in put: ${exception.toString()}');
     } on HiveError catch (error) {
       await _restartHiveBox(error);
-      logger.severe('HiveSecondaryKeyStore error: $error');
+      logger.severe('HiveAtKeyValueStore error: $error');
       throw DataStoreException(error.message);
     }
     return result;
@@ -365,11 +365,11 @@ class HiveSecondaryKeyStore
         return await _commitLog.commit(hive_key, commitOp);
       }
     } on Exception catch (exception) {
-      logger.severe('HiveSecondaryKeyStore create exception: $exception');
+      logger.severe('HiveAtKeyValueStore create exception: $exception');
       throw DataStoreException('exception in create: ${exception.toString()}');
     } on HiveError catch (error) {
       await _restartHiveBox(error);
-      logger.severe('HiveSecondaryKeyStore error: $error');
+      logger.severe('HiveAtKeyValueStore error: $error');
       throw DataStoreException(error.message);
     }
   }
@@ -403,11 +403,11 @@ class HiveSecondaryKeyStore
       }
       _changesController.add(KeyRemoved(key));
     } on Exception catch (exception) {
-      logger.severe('HiveSecondaryKeyStore delete exception: $exception');
+      logger.severe('HiveAtKeyValueStore delete exception: $exception');
       throw DataStoreException('exception in remove: ${exception.toString()}');
     } on HiveError catch (error) {
       await _restartHiveBox(error);
-      logger.severe('HiveSecondaryKeyStore delete error: $error');
+      logger.severe('HiveAtKeyValueStore delete error: $error');
       throw DataStoreException(error.message);
     }
 
@@ -446,7 +446,7 @@ class HiveSecondaryKeyStore
       throw DataStoreException(
           'exception in deleteExpiredKeys: ${e.toString()}');
     } on HiveError catch (error) {
-      logger.severe('HiveSecondaryKeyStore get error: $error');
+      logger.severe('HiveAtKeyValueStore get error: $error');
       await _restartHiveBox(error);
       throw DataStoreException(error.message);
     }
@@ -499,10 +499,10 @@ class HiveSecondaryKeyStore
       }
     } on Exception catch (exception) {
       logger.severe(
-          'HiveSecondaryKeyStore getKeys exception: ${exception.toString()}');
+          'HiveAtKeyValueStore getKeys exception: ${exception.toString()}');
       throw DataStoreException('exception in getKeys: ${exception.toString()}');
     } on HiveError catch (error) {
-      logger.severe('HiveSecondaryKeyStore get error: $error');
+      logger.severe('HiveAtKeyValueStore get error: $error');
       _restartHiveBox(error);
       throw DataStoreException(error.message);
     }
@@ -550,7 +550,7 @@ class HiveSecondaryKeyStore
           .add(existingData == null ? KeyAdded(key) : KeyUpdated(key));
       return result;
     } on HiveError catch (error) {
-      logger.severe('HiveSecondaryKeyStore get error: $error');
+      logger.severe('HiveAtKeyValueStore get error: $error');
       await _restartHiveBox(error);
       throw DataStoreException(error.message);
     }
@@ -581,13 +581,13 @@ class HiveSecondaryKeyStore
           .add(existingData == null ? KeyAdded(key) : KeyUpdated(key));
       return result;
     } on HiveError catch (error) {
-      logger.severe('HiveSecondaryKeyStore get error: $error');
+      logger.severe('HiveAtKeyValueStore get error: $error');
       await _restartHiveBox(error);
       throw DataStoreException(error.message);
     }
   }
 
-  /// Returns true if key exists in [HiveSecondaryKeyStore]. false otherwise.
+  /// Returns true if key exists in [HiveAtKeyValueStore]. false otherwise.
   @override
   @server
   bool isKeyExists(String key) {
@@ -647,12 +647,12 @@ class HiveSecondaryKeyStore
         }
       }
     } on Exception catch (exception) {
-      logger.severe('HiveSecondaryKeyStore removeMany exception: $exception');
+      logger.severe('HiveAtKeyValueStore removeMany exception: $exception');
       throw DataStoreException(
           'exception in removeMany: ${exception.toString()}');
     } on HiveError catch (error) {
       await _restartHiveBox(error);
-      logger.severe('HiveSecondaryKeyStore removeMany error: $error');
+      logger.severe('HiveAtKeyValueStore removeMany error: $error');
       throw DataStoreException(error.message);
     }
 
@@ -686,10 +686,10 @@ class HiveSecondaryKeyStore
       try {
         result[lowered] = await box.get(hiveKey);
       } on Exception catch (e) {
-        logger.severe('HiveSecondaryKeyStore getMany exception for "$raw": $e');
+        logger.severe('HiveAtKeyValueStore getMany exception for "$raw": $e');
         throw DataStoreException('exception in getMany: ${e.toString()}');
       } on HiveError catch (error) {
-        logger.severe('HiveSecondaryKeyStore getMany error: $error');
+        logger.severe('HiveAtKeyValueStore getMany error: $error');
         await _restartHiveBox(error);
         throw DataStoreException(error.message);
       }
@@ -985,11 +985,11 @@ class _KeyWithSortField {
   _KeyWithSortField(this.key, this.sortField);
 }
 
-/// A buffered op recorded against a [_HiveSecondaryKeyStoreTxn].
-/// Applied to the underlying [HiveSecondaryKeyStore] at commit
+/// A buffered op recorded against a [_HiveAtKeyValueStoreTxn].
+/// Applied to the underlying [HiveAtKeyValueStore] at commit
 /// time, in insertion order.
 abstract class _BufferedOp {
-  Future<void> apply(HiveSecondaryKeyStore store);
+  Future<void> apply(HiveAtKeyValueStore store);
 }
 
 class _BufferedPut implements _BufferedOp {
@@ -999,7 +999,7 @@ class _BufferedPut implements _BufferedOp {
   _BufferedPut(this.key, this.value, this.metadata);
 
   @override
-  Future<void> apply(HiveSecondaryKeyStore store) async {
+  Future<void> apply(HiveAtKeyValueStore store) async {
     await store.putAll(key, value, metadata);
   }
 }
@@ -1009,14 +1009,14 @@ class _BufferedRemove implements _BufferedOp {
   _BufferedRemove(this.key);
 
   @override
-  Future<void> apply(HiveSecondaryKeyStore store) async {
+  Future<void> apply(HiveAtKeyValueStore store) async {
     await store.remove(key);
   }
 }
 
-class _HiveSecondaryKeyStoreTxn
+class _HiveAtKeyValueStoreTxn
     implements KeyStoreTxn<String, AtData?, AtMetaData?> {
-  final HiveSecondaryKeyStore _store;
+  final HiveAtKeyValueStore _store;
 
   /// Buffered ops keyed by lowercased key. The latest op for a
   /// given key wins (a put-then-remove leaves only the remove,
@@ -1024,7 +1024,7 @@ class _HiveSecondaryKeyStoreTxn
   /// sequence with no transaction).
   final Map<String, _BufferedOp> _ops = <String, _BufferedOp>{};
 
-  _HiveSecondaryKeyStoreTxn(this._store);
+  _HiveAtKeyValueStoreTxn(this._store);
 
   @override
   Future<void> put(String key, AtData? value, AtMetaData? metadata) async {
@@ -1068,7 +1068,7 @@ class _HiveSecondaryKeyStoreTxn
 /// isolation gate on `supportsSnapshots`.
 class _HiveBestEffortSnapshot
     implements KeyStoreSnapshot<String, AtData?, AtMetaData?> {
-  final HiveSecondaryKeyStore _store;
+  final HiveAtKeyValueStore _store;
   bool _released = false;
 
   _HiveBestEffortSnapshot(this._store);

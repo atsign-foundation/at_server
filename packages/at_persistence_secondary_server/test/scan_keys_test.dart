@@ -4,7 +4,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:test/test.dart';
 
 void main() {
-  group('SecondaryKeyStore.scanKeys()', () {
+  group('AtKeyValueStore.scanKeys()', () {
     late Directory tempDir;
     late HiveAtPersistenceFactory factory;
     late AtPersistenceBundle bundle;
@@ -23,7 +23,7 @@ void main() {
       );
       // Seed a representative spread of atKey shapes.
       Future<void> put(String k) =>
-          bundle.keyStore.put(k, AtData()..data = 'v');
+          bundle.keyValueStore.put(k, AtData()..data = 'v');
       await put('public:phone.wavi@alice');
       await put('public:email.wavi@alice');
       await put('@bob:secret.wavi@alice');
@@ -38,65 +38,67 @@ void main() {
     });
 
     test('unrestricted pattern yields every available key', () async {
-      final keys = await bundle.keyStore.scanKeys(KeyPattern()).toList();
+      final keys = await bundle.keyValueStore.scanKeys(KeyPattern()).toList();
       expect(keys.length, 6);
     });
 
     test('filter by sharedBy', () async {
-      final keys = await bundle.keyStore
+      final keys = await bundle.keyValueStore
           .scanKeys(KeyPattern(sharedBy: '@alice'))
           .toList();
       expect(keys.length, 6);
       // @bob isn't an owner here.
-      final none =
-          await bundle.keyStore.scanKeys(KeyPattern(sharedBy: '@bob')).toList();
+      final none = await bundle.keyValueStore
+          .scanKeys(KeyPattern(sharedBy: '@bob'))
+          .toList();
       expect(none, isEmpty);
     });
 
     test('filter by sharedWith', () async {
-      final bobKeys = await bundle.keyStore
+      final bobKeys = await bundle.keyValueStore
           .scanKeys(KeyPattern(sharedWith: '@bob'))
           .toList();
       expect(bobKeys.length, 2);
       expect(bobKeys, contains('@bob:secret.wavi@alice'));
       expect(bobKeys, contains('@bob:plan.tasks@alice'));
 
-      final charlieKeys = await bundle.keyStore
+      final charlieKeys = await bundle.keyValueStore
           .scanKeys(KeyPattern(sharedWith: '@charlie'))
           .toList();
       expect(charlieKeys, ['@charlie:plan.tasks@alice']);
     });
 
     test('filter by namespace', () async {
-      final waviKeys = await bundle.keyStore
+      final waviKeys = await bundle.keyValueStore
           .scanKeys(KeyPattern(namespace: 'wavi'))
           .toList();
       expect(waviKeys.length, 3);
       expect(waviKeys.every((k) => k.contains('.wavi@')), isTrue,
           reason: 'every wavi key has .wavi@ in it');
 
-      final tasksKeys = await bundle.keyStore
+      final tasksKeys = await bundle.keyValueStore
           .scanKeys(KeyPattern(namespace: 'tasks'))
           .toList();
       expect(tasksKeys.length, 2);
     });
 
     test('filter by idPrefix', () async {
-      final pKeys =
-          await bundle.keyStore.scanKeys(KeyPattern(idPrefix: 'p')).toList();
+      final pKeys = await bundle.keyValueStore
+          .scanKeys(KeyPattern(idPrefix: 'p'))
+          .toList();
       // 'phone', 'plan' (twice) — three keys whose id starts with 'p'.
       expect(pKeys.length, 3);
     });
 
     test('AND of multiple fields', () async {
-      final keys = await bundle.keyStore
+      final keys = await bundle.keyValueStore
           .scanKeys(KeyPattern(sharedWith: '@bob', namespace: 'tasks'))
           .toList();
       expect(keys, ['@bob:plan.tasks@alice']);
     });
 
     test('no matches yields empty stream', () async {
-      final keys = await bundle.keyStore
+      final keys = await bundle.keyValueStore
           .scanKeys(KeyPattern(namespace: 'nope_does_not_exist'))
           .toList();
       expect(keys, isEmpty);
@@ -106,7 +108,7 @@ void main() {
         () async {
       // None of the 'public:' or 'private:' seeded keys have sharedWith,
       // so a sharedWith filter must exclude them.
-      final keys = await bundle.keyStore
+      final keys = await bundle.keyValueStore
           .scanKeys(KeyPattern(sharedWith: '@bob'))
           .toList();
       expect(keys, everyElement(startsWith('@bob:')));
@@ -115,7 +117,7 @@ void main() {
 
     test('case-insensitive on @sign comparison', () async {
       // @ALICE should match keys owned by @alice.
-      final keys = await bundle.keyStore
+      final keys = await bundle.keyValueStore
           .scanKeys(KeyPattern(sharedBy: '@ALICE'))
           .toList();
       expect(keys.length, 6);
@@ -123,9 +125,9 @@ void main() {
 
     test('isKeyExists / exists / scanKeys all agree on a single key', () async {
       const k = 'public:phone.wavi@alice';
-      expect(bundle.keyStore.isKeyExists(k), isTrue);
-      expect(await bundle.keyStore.exists(k), isTrue);
-      final hits = await bundle.keyStore
+      expect(bundle.keyValueStore.isKeyExists(k), isTrue);
+      expect(await bundle.keyValueStore.exists(k), isTrue);
+      final hits = await bundle.keyValueStore
           .scanKeys(KeyPattern(idPrefix: 'phone'))
           .toList();
       expect(hits, contains(k));

@@ -8,7 +8,7 @@ class UpdateMetaVerbHandler extends AbstractUpdateVerbHandler {
   static UpdateMeta updateMeta = UpdateMeta();
 
   UpdateMetaVerbHandler(
-    super.keyStore,
+    super.keyValueStore,
     super.statsNotificationService,
     super.notificationManager,
     super.atSign,
@@ -48,8 +48,8 @@ class UpdateMetaVerbHandler extends AbstractUpdateVerbHandler {
 
       // update the key in data store
       logger.finer(
-          'calling keyStore.putMeta(${updatePreProcessResult.atKey}, ${updatePreProcessResult.atData.metaData!}');
-      var result = await keyStore.putMeta(updatePreProcessResult.atKey,
+          'calling keyValueStore.putMeta(${updatePreProcessResult.atKey}, ${updatePreProcessResult.atData.metaData!}');
+      var result = await keyValueStore.putMeta(updatePreProcessResult.atKey,
           updatePreProcessResult.atData.metaData!);
       response.data = result?.toString();
     } finally {

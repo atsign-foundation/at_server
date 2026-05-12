@@ -304,7 +304,7 @@ void main() {
       expect(bundle.notificationKeystore, isNull);
       // Core capabilities are still populated.
       expect(bundle.commitLog, isNotNull);
-      expect(bundle.keyStore, isNotNull);
+      expect(bundle.keyValueStore, isNotNull);
     });
 
     test('serverDefaults populates every optional capability', () async {

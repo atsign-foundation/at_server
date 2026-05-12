@@ -236,7 +236,7 @@ void main() async {
   });
 }
 
-Future<HiveSecondaryKeyStore> setUpFunc(storageDir,
+Future<HiveAtKeyValueStore> setUpFunc(storageDir,
         {bool enableCommitId = true}) =>
     setUpTestKeyStore('@alice',
         storageDir: storageDir, enableCommitId: enableCommitId);

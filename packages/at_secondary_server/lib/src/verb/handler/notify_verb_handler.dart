@@ -23,7 +23,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
 
   final NotificationManager notifMgr;
 
-  NotifyVerbHandler(super.keyStore, this.notifMgr);
+  NotifyVerbHandler(super.keyValueStore, this.notifMgr);
 
   AtNotificationBuilder atNotificationBuilder = AtNotificationBuilder();
 
@@ -178,14 +178,14 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       return;
     }
 
-    var isKeyPresent = keyStore.isKeyExists(cachedNotificationKey);
+    var isKeyPresent = keyValueStore.isKeyExists(cachedNotificationKey);
     AtMetaData? atMetadata;
     // If atValue is not null, store a cached key
     if (atNotificationBuilder.atValue != null) {
       // If the cached key is already present, get the existing metadata
       // and update the new metadata.
       if (isKeyPresent) {
-        atMetadata = await keyStore.getMeta(cachedNotificationKey);
+        atMetadata = await keyValueStore.getMeta(cachedNotificationKey);
       }
       var metadata = AtMetadataBuilder(
               atSign: polConnectionMetadata.fromAtSign!,
@@ -262,24 +262,24 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     if (logger.isLoggable('info')) {
       logger.info('Cached $cachedKey :  $atMetaData');
     }
-    return await keyStore.put(cachedKey, atData);
+    return await keyValueStore.put(cachedKey, atData);
   }
 
   Future<int?> _updateMetadata(String cachedKey, AtMetaData? atMetaData) async {
     if (logger.isLoggable('info')) {
       logger.info('Updating the metadata of $cachedKey');
     }
-    return await keyStore.putMeta(cachedKey, atMetaData);
+    return await keyValueStore.putMeta(cachedKey, atMetaData);
   }
 
   ///Removes the cached key from the keystore.
   Future<int?> _removeCachedKey(String cachedKey) async {
-    var metadata = await keyStore.getMeta(cachedKey);
+    var metadata = await keyValueStore.getMeta(cachedKey);
     if (metadata != null && metadata.isCascade) {
       if (logger.isLoggable('info')) {
         logger.info('Removed cached key $cachedKey');
       }
-      return await keyStore.remove(cachedKey);
+      return await keyValueStore.remove(cachedKey);
     } else {
       return null;
     }

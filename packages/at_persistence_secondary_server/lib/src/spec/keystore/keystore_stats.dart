@@ -1,5 +1,5 @@
-/// Diagnostic snapshot of a [SecondaryKeyStore]'s state. Returned
-/// by [`SecondaryKeyStore.stats`]. Counts are exact; [sizeBytes]
+/// Diagnostic snapshot of a [AtKeyValueStore]'s state. Returned
+/// by [`AtKeyValueStore.stats`]. Counts are exact; [sizeBytes]
 /// is a best-effort approximation (Hive doesn't expose a precise
 /// byte count without a filesystem `stat`).
 ///

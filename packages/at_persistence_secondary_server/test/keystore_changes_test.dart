@@ -5,7 +5,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:test/test.dart';
 
 void main() {
-  group('SecondaryKeyStore.changes', () {
+  group('AtKeyValueStore.changes', () {
     late Directory tempDir;
     late HiveAtPersistenceFactory factory;
     late AtPersistenceBundle bundle;
@@ -33,7 +33,7 @@ void main() {
     /// then return them in order.
     Future<List<KeyStoreChange>> capture(Future<void> Function() op) async {
       final events = <KeyStoreChange>[];
-      final sub = bundle.keyStore.changes.listen(events.add);
+      final sub = bundle.keyValueStore.changes.listen(events.add);
       await op();
       // Give the broadcast a microtask to flush.
       await Future.delayed(Duration.zero);
@@ -43,7 +43,8 @@ void main() {
 
     test('first put on a key emits KeyAdded', () async {
       final events = await capture(() async {
-        await bundle.keyStore.put('public:phone@alice', AtData()..data = 'v');
+        await bundle.keyValueStore
+            .put('public:phone@alice', AtData()..data = 'v');
       });
       expect(events.length, 1);
       expect(events.single, isA<KeyAdded>());
@@ -51,18 +52,20 @@ void main() {
     });
 
     test('put on an existing key emits KeyUpdated', () async {
-      await bundle.keyStore.put('public:phone@alice', AtData()..data = 'v1');
+      await bundle.keyValueStore
+          .put('public:phone@alice', AtData()..data = 'v1');
       final events = await capture(() async {
-        await bundle.keyStore.put('public:phone@alice', AtData()..data = 'v2');
+        await bundle.keyValueStore
+            .put('public:phone@alice', AtData()..data = 'v2');
       });
       expect(events.length, 1);
       expect(events.single, isA<KeyUpdated>());
     });
 
     test('remove on a present key emits KeyRemoved', () async {
-      await bundle.keyStore.put('public:gone@alice', AtData()..data = 'v');
+      await bundle.keyValueStore.put('public:gone@alice', AtData()..data = 'v');
       final events = await capture(() async {
-        await bundle.keyStore.remove('public:gone@alice');
+        await bundle.keyValueStore.remove('public:gone@alice');
       });
       expect(events.length, 1);
       expect(events.single, isA<KeyRemoved>());
@@ -70,10 +73,10 @@ void main() {
     });
 
     test('removeMany emits one KeyRemoved per actually-removed key', () async {
-      await bundle.keyStore.put('public:a@alice', AtData()..data = 'v');
-      await bundle.keyStore.put('public:b@alice', AtData()..data = 'v');
+      await bundle.keyValueStore.put('public:a@alice', AtData()..data = 'v');
+      await bundle.keyValueStore.put('public:b@alice', AtData()..data = 'v');
       final events = await capture(() async {
-        await bundle.keyStore.removeMany([
+        await bundle.keyValueStore.removeMany([
           'public:a@alice',
           'public:b@alice',
           'public:absent@alice',
@@ -90,11 +93,12 @@ void main() {
         () async {
       final eventsA = <KeyStoreChange>[];
       final eventsB = <KeyStoreChange>[];
-      final subA = bundle.keyStore.changes.listen(eventsA.add);
-      final subB = bundle.keyStore.changes.listen(eventsB.add);
+      final subA = bundle.keyValueStore.changes.listen(eventsA.add);
+      final subB = bundle.keyValueStore.changes.listen(eventsB.add);
 
-      await bundle.keyStore.put('public:multi@alice', AtData()..data = 'v');
-      await bundle.keyStore.remove('public:multi@alice');
+      await bundle.keyValueStore
+          .put('public:multi@alice', AtData()..data = 'v');
+      await bundle.keyValueStore.remove('public:multi@alice');
       await Future.delayed(Duration.zero);
 
       await subA.cancel();
@@ -109,11 +113,13 @@ void main() {
     test('late subscribers do not see prior events (broadcast semantics)',
         () async {
       // Mutate before any subscriber attaches.
-      await bundle.keyStore.put('public:early@alice', AtData()..data = 'v');
+      await bundle.keyValueStore
+          .put('public:early@alice', AtData()..data = 'v');
 
       final events = await capture(() async {
         // Fresh subscription; no event seen for the prior put.
-        await bundle.keyStore.put('public:late@alice', AtData()..data = 'v');
+        await bundle.keyValueStore
+            .put('public:late@alice', AtData()..data = 'v');
       });
       expect(events.length, 1);
       expect(events.single.key, 'public:late@alice');

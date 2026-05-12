@@ -55,8 +55,8 @@ import 'package:crypton/crypton.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:uuid/uuid.dart';
 
-class MockSecondaryKeyStore extends Mock
-    implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
+class MockAtKeyValueStore extends Mock
+    implements AtKeyValueStore<String, AtData?, AtMetaData?> {
   @override
   List<Future Function(String key, {required bool skipCommit})> preRemoveHooks =
       [];
@@ -185,7 +185,7 @@ late String bobOriginalPublicKeyAsJson;
 
 var cachedBobsPublicKeyName = 'cached:public:publickey@bob';
 
-late SecondaryKeyStore<String, AtData?, AtMetaData?> secondaryKeyStore;
+late AtKeyValueStore<String, AtData?, AtMetaData?> keyValueStore;
 late AtCacheManager cacheManager;
 late MockOutboundClientManager mockOutboundClientManager;
 late OutboundClient outboundClientWithHandshake;
@@ -228,7 +228,7 @@ Future<String> createAndPersistAnEnrollment(
     'requestType': 'newEnrollment',
     'approval': {'state': 'approved'}
   };
-  await secondaryKeyStore.put(
+  await keyValueStore.put(
     key,
     AtData()..data = jsonEncode(enrollJson),
     skipCommit: true,
@@ -264,7 +264,7 @@ verbTestsSetUp() async {
 
   atServer.commitLog = atCommitLog = bundle.commitLog;
   atServer.accessLog = bundle.accessLog!;
-  secondaryKeyStore = bundle.keyStore;
+  keyValueStore = bundle.keyValueStore;
 
   mockSecondaryAddressFinder = MockSecondaryAddressFinder();
   when(() => mockSecondaryAddressFinder.findSecondary(bob))
@@ -361,12 +361,12 @@ verbTestsSetUp() async {
 
   cacheManager = atServer.cacheManager = AtCacheManager(
     alice,
-    secondaryKeyStore,
+    keyValueStore,
     mockOutboundClientManager,
     notificationManager,
   );
 
-  AtSecondaryServerImpl.getInstance().secondaryKeyStore = secondaryKeyStore;
+  AtSecondaryServerImpl.getInstance().keyValueStore = keyValueStore;
   AtSecondaryServerImpl.getInstance().outboundClientManager =
       mockOutboundClientManager;
   AtSecondaryServerImpl.getInstance().currentAtSign = alice;
@@ -374,9 +374,9 @@ verbTestsSetUp() async {
       bobServerSigningKeypair.privateKey.toString();
 
   AtSecondaryServerImpl.getInstance().enrollmentManager =
-      enMgr = EnrollmentManager(secondaryKeyStore, alice);
+      enMgr = EnrollmentManager(keyValueStore, alice);
   enMgr.logger.level = 'shout';
-  secondaryKeyStore.preRemoveHooks.add(enMgr.preRemoveHook);
+  keyValueStore.preRemoveHooks.add(enMgr.preRemoveHook);
 
   DateTime now = DateTime.now().toUtcMillisecondsPrecision();
   bobOriginalPublicKeyAtData = AtData();
@@ -417,8 +417,8 @@ verbTestsSetUp() async {
 }
 
 Future<void> verbTestsTearDown() async {
-  secondaryKeyStore.preRemoveHooks.clear();
-  secondaryKeyStore.postRemoveHooks.clear();
+  keyValueStore.preRemoveHooks.clear();
+  keyValueStore.postRemoveHooks.clear();
   // factory.close() cascades to commit log, access log, notification
   // keystore and the Hive persistence manager, and clears the legacy
   // singletons' caches.
@@ -442,12 +442,12 @@ List decodeResponseAsList(String serverResponse) {
 }
 
 Future<AtData> createRandomKeyStoreEntry(String owner, String keyName,
-    SecondaryKeyStore<String, AtData?, AtMetaData?> secondaryKeyStore,
+    AtKeyValueStore<String, AtData?, AtMetaData?> keyValueStore,
     {String? data, Metadata? commonsMetadata, DateTime? refreshAt}) async {
   AtData entry = createRandomAtData(owner,
       data: data, commonsMetadata: commonsMetadata, refreshAt: refreshAt);
-  await secondaryKeyStore.put(keyName, entry);
-  return (await secondaryKeyStore.get(keyName))!;
+  await keyValueStore.put(keyName, entry);
+  return (await keyValueStore.get(keyName))!;
 }
 
 AtData createRandomAtData(String owner,

@@ -15,7 +15,7 @@ class LocalLookupVerbHandler extends AbstractVerbHandler {
   static LocalLookup llookup = LocalLookup();
   final EnrollmentManager enMgr;
 
-  LocalLookupVerbHandler(super.keyStore, this.enMgr);
+  LocalLookupVerbHandler(super.keyValueStore, this.enMgr);
 
   @override
   bool accept(String command) =>
@@ -93,7 +93,7 @@ class LocalLookupVerbHandler extends AbstractVerbHandler {
       }
     }
 
-    AtData? atData = await keyStore.get(key);
+    AtData? atData = await keyValueStore.get(key);
     var isActive = false;
     isActive = SecondaryUtil.isActiveKey(atData);
     if (isActive) {

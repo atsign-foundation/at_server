@@ -34,7 +34,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
   AtCommitLog get commitLog =>
       _commitLogOverride ?? AtSecondaryServerImpl.getInstance().commitLog;
 
-  ConfigVerbHandler(super.keyStore, {AtCommitLog? commitLog})
+  ConfigVerbHandler(super.keyValueStore, {AtCommitLog? commitLog})
       : _commitLogOverride = commitLog;
 
   late AtConfig atConfigInstance;
@@ -56,7 +56,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-    atConfigInstance = AtConfig(keyStore, currentAtSign);
+    atConfigInstance = AtConfig(keyValueStore, currentAtSign);
     dynamic result;
     var operation = verbParams[AtConstants.operation];
     var atsigns = verbParams[AtConstants.atSign];
