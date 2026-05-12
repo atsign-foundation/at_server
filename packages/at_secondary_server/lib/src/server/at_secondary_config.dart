@@ -97,8 +97,6 @@ class AtSecondaryConfig {
   static final List<String> _malformedKeys = [];
   static const bool _shouldRemoveMalformedKeys = true;
 
-  static final bool _skipCommitsForExpiredKeys = true;
-
   // Protected Keys
   // <@atsign> is a placeholder. To be replaced with actual atsign during runtime
   static final Set<String> _protectedKeys = {
@@ -626,22 +624,6 @@ class AtSecondaryConfig {
       return getConfigFromYaml(['hive', 'shouldRemoveMalformedKeys']);
     } on ElementNotFoundException {
       return _shouldRemoveMalformedKeys;
-    }
-  }
-
-  static bool get skipCommitsForExpiredKeys {
-    // read from env var if set
-    bool? result = _getBoolEnvVar('skipCommitsForExpiredKeys');
-    if (result != null) {
-      return result;
-    }
-
-    // read from config file if available
-    try {
-      return getConfigFromYaml(['hive', 'skipCommitsForExpiredKeys']);
-    } on ElementNotFoundException {
-      // if not found, fallback to class variable
-      return _skipCommitsForExpiredKeys;
     }
   }
 

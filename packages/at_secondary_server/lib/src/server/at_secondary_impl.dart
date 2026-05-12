@@ -215,7 +215,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // Schedule the periodic key-expiry sweep. Frequency is in
     // [expiringRunFreqMins-2, expiringRunFreqMins+5] mins (default
     // 8-15) so independent secondaries on the same host don't all
-    // sweep at the same wall-clock minute. A 0-12s jitter inside
+    // sweep at the same wall-clock minute. A 0-30s jitter inside
     // each tick spreads the disk load further when multiple atSigns
     // are co-hosted.
     final expiryRunRandomMins =
@@ -225,11 +225,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     _keyExpiryCron!.schedule(
       Schedule.parse('*/$expiryRunRandomMins * * * *'),
       () async {
-        await Future.delayed(Duration(seconds: Random().nextInt(12)));
+        await Future.delayed(Duration(seconds: Random().nextInt(30)));
         if (_persistenceBundle == null) return;
         try {
-          await secondaryKeyStore.deleteExpiredKeys(
-              skipCommit: AtSecondaryConfig.skipCommitsForExpiredKeys);
+          await secondaryKeyStore.deleteExpiredKeys();
         } on Exception catch (e) {
           logger.warning('Key expiry sweep failed: $e');
         }

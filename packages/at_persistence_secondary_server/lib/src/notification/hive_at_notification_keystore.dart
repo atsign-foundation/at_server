@@ -180,16 +180,12 @@ class HiveAtNotificationKeystore
   }
 
   @override
-  Future<bool> deleteExpiredKeys({bool skipCommit = false}) async {
-    // Notifications never participate in the commit log, so [skipCommit]
-    // is a no-op here — accepted for SecondaryKeyStore signature
-    // compatibility.
+  Future<bool> deleteExpiredKeys() async {
     var result = true;
     try {
       var expiredKeys = await getExpiredKeys();
       if (expiredKeys.isNotEmpty) {
         await Future.forEach(expiredKeys, (expiredKey) async {
-          // Delete entries for expired keys will not be added to commitLog
           await remove(expiredKey, skipCommit: true);
         });
       } else {
@@ -444,7 +440,7 @@ class HiveAtNotificationKeystore
   }
 
   @override
-  AtLogType? commitLog;
+  AtCommitLog? commitLog;
 
   @override
   Stream<AtNotification> iterate() async* {

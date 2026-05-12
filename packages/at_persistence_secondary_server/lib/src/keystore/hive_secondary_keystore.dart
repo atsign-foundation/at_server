@@ -423,7 +423,7 @@ class HiveSecondaryKeyStore
   @override
   @server
   @client
-  Future<bool> deleteExpiredKeys({bool skipCommit = false}) async {
+  Future<bool> deleteExpiredKeys() async {
     logger.finer('Removing expired keys');
     bool result = true;
     try {
@@ -436,7 +436,7 @@ class HiveSecondaryKeyStore
         try {
           // delete entries for expired keys will not be added to the commitLog
           // Removal of expired keys will be handled on the client side
-          await remove(element, skipCommit: skipCommit);
+          await remove(element, skipCommit: true);
         } on KeyNotFoundException {
           continue;
         }

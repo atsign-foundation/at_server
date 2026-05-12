@@ -1,3 +1,5 @@
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart'
+    show AtCommitLog;
 import 'package:at_persistence_secondary_server/src/spec/spec.dart';
 
 abstract interface class SecondaryKeyStore<K, V, T>
@@ -6,12 +8,13 @@ abstract interface class SecondaryKeyStore<K, V, T>
   /// @return - List of keys that have expired
   Future<List<K>> getExpiredKeys();
 
-  /// Removes all expired keys from the keystore. If [skipCommit] is
-  /// true, the deletes are not appended to the commit log (the
-  /// deletes still happen — they just don't trigger sync to other
-  /// secondaries). Used by application-side expiry crons that don't
-  /// want every TTL tick to amplify into a sync wave.
-  Future<bool> deleteExpiredKeys({bool skipCommit = false});
+  /// Removes all expired keys from the keystore. Deletes are local-
+  /// only — they are NOT appended to the commit log, so an expiry
+  /// sweep never advances the local `commitId` and never propagates
+  /// to other secondaries via sync. Expiry is treated as backend
+  /// maintenance, not a sync-worthy mutation; clients drop expired
+  /// keys independently using their own TTL bookkeeping.
+  Future<bool> deleteExpiredKeys();
 
   ///Returns the list of keys, optionally keys can be searched on regular expression
   ///@param - String : This is an optional parameter that accepts the regular expression
@@ -212,8 +215,8 @@ abstract interface class SecondaryKeyStore<K, V, T>
   Future<KeyStoreStats> stats();
 
   /// A SecondaryKeyStore has an associated commit log
-  AtLogType? get commitLog => null;
+  AtCommitLog? get commitLog => null;
 
   /// A SecondaryKeyStore has an associated commit log
-  set commitLog(AtLogType? log) {}
+  set commitLog(AtCommitLog? log) {}
 }

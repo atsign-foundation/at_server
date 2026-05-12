@@ -774,8 +774,8 @@ void main() async {
     group('A group of tests on TTL and TTB with respect to sync', () {
       setUp(() async => await verbTestsSetUp());
       test(
-          'test to verify when TTL of a key is expired and deleted then commit operation should have delete',
-          () async {
+          'test to verify when TTL of a key is expired and deleted then'
+          ' there should be no commit entry', () async {
         /// Preconditions:
         /// 1. The key is created on server at time T1 with TTL set
         /// 2. The key is expired at time T2 (T2 > T1); and key is deleted from keystore
@@ -784,8 +784,9 @@ void main() async {
         ///
         /// Assertions:
         /// 1. The sync response should contain the commit entry of commitOp.delete
+        String keyName = 'public:lastname.wavi$alice';
         await secondaryKeyStore.put(
-            'public:lastname.wavi$alice',
+            keyName,
             AtData()
               ..data = '8897896765'
               ..metaData = (AtMetaData()..ttl = 1));
@@ -803,8 +804,11 @@ void main() async {
         await syncProgressiveVerbHandler.processVerb(
             response, syncVerbParams, atConnection);
         List syncResponseList = jsonDecode(response.data!);
-        expect(syncResponseList[0]['atKey'], 'public:lastname.wavi$alice');
-        expect(syncResponseList[0]['operation'], '-');
+        expect(syncResponseList, isEmpty);
+        expect(
+          secondaryKeyStore.commitLog!.getLatestCommitEntry(keyName),
+          isNull,
+        );
       });
 
       test(

@@ -30,7 +30,7 @@ void main() async {
       await keyStore?.put(key, atData);
       var atDataResponse = await keyStore?.get(key);
       assert(atDataResponse!.data == 'abc');
-      await keyStore!.deleteExpiredKeys(skipCommit: true);
+      await keyStore!.deleteExpiredKeys();
       expect(
           () async => getKey(keyStore, key),
           throwsA(predicate((e) =>
@@ -45,7 +45,7 @@ void main() async {
       await keyStore?.put(key, atData);
       expect((await keyStore?.get(key))?.data, atData.data);
 
-      await keyStore?.deleteExpiredKeys(skipCommit: true);
+      await keyStore?.deleteExpiredKeys();
       await Future.delayed(Duration(seconds: 2));
       // ensure that the key is expired
       expect(
@@ -73,7 +73,7 @@ void main() async {
       await keyStore!.put(key2, atData);
       await keyStore!.remove(key2);
 
-      await keyStore!.deleteExpiredKeys(skipCommit: true);
+      await keyStore!.deleteExpiredKeys();
       await Future.delayed(Duration(seconds: 2));
 
       // ensure that key1 and key2 do NOT exist in the keystore
@@ -109,7 +109,7 @@ void main() async {
       atData = AtData()..data = 'randomDataString3';
       await keyStore!.put(key3, atData);
 
-      await keyStore!.deleteExpiredKeys(skipCommit: true);
+      await keyStore!.deleteExpiredKeys();
       await Future.delayed(Duration(seconds: 2));
 
       // key1 and key should NOT be in the keystore as they have been removed
