@@ -19,10 +19,10 @@ class HiveAtNotificationKeystore
   static const int maxKeyLengthWithoutCached = 248;
   late AtCompactionConfig atCompactionConfig;
   @override
-  List<Future Function(String key, {required bool skipCommit})> preRemoveHooks =
-      [];
+  List<Future<void> Function(String key, {required bool skipCommit})>
+      preRemoveHooks = [];
   @override
-  List<Future Function(String key, {required bool skipCommit})>
+  List<Future<void> Function(String key, {required bool skipCommit})>
       postRemoveHooks = [];
 
   /// Broadcast stream of mutations on this notification keystore.
@@ -163,7 +163,7 @@ class HiveAtNotificationKeystore
   }
 
   @override
-  Future<dynamic> put(key, value, {bool skipCommit = false}) async {
+  Future<int?> put(key, value, {bool skipCommit = false}) async {
     if (key.length > maxKeyLengthWithoutCached) {
       throw DataStoreException(
           'key length ${key.length} is greater than $maxKeyLengthWithoutCached chars');
@@ -172,10 +172,11 @@ class HiveAtNotificationKeystore
     await _getBox().put(key, value);
     _changesController
         .add(wasPresent ? KeyUpdated(key as String) : KeyAdded(key as String));
+    return null;
   }
 
   @override
-  Future<dynamic> create(key, value, {bool skipCommit = false}) async {
+  Future<int?> create(key, value, {bool skipCommit = false}) async {
     throw UnimplementedError();
   }
 
@@ -244,7 +245,7 @@ class HiveAtNotificationKeystore
   }
 
   @override
-  Future remove(key, {bool skipCommit = false}) async {
+  Future<int?> remove(key, {bool skipCommit = false}) async {
     for (final hook in preRemoveHooks) {
       await hook(key, skipCommit: skipCommit);
     }
@@ -258,6 +259,7 @@ class HiveAtNotificationKeystore
     if (wasPresent) {
       _changesController.add(KeyRemoved(key as String));
     }
+    return null;
   }
 
   Future<Map>? _toMap() async {
@@ -410,12 +412,12 @@ class HiveAtNotificationKeystore
   }
 
   @override
-  Future putAll(key, value, metadata) {
+  Future<int?> putAll(key, value, metadata) {
     throw UnimplementedError();
   }
 
   @override
-  Future putMeta(key, metadata) {
+  Future<int?> putMeta(key, metadata) {
     throw UnimplementedError();
   }
 
@@ -439,8 +441,15 @@ class HiveAtNotificationKeystore
     return runtimeType.toString();
   }
 
+  /// Notifications never participate in the commit log — the queue
+  /// is server-local and sync is the wrong abstraction for it. The
+  /// `SecondaryKeyStore` interface still exposes `commitLog`, so the
+  /// getter returns `null` and the setter is a no-op rather than
+  /// holding a field that would always be null.
   @override
-  AtCommitLog? commitLog;
+  AtCommitLog? get commitLog => null;
+  @override
+  set commitLog(AtCommitLog? log) {}
 
   @override
   Stream<AtNotification> iterate() async* {

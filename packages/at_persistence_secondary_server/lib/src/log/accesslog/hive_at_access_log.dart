@@ -36,20 +36,13 @@ class HiveAtAccessLog implements AtAccessLog {
     return result;
   }
 
-  ///The functions returns the top [length] visited atSign's.
-  ///@param - length : The maximum number of atsign's to return
-  ///@return Map : Returns a key value pair. Key is the atsign and value is the count of number of times the atsign is looked at.
   @override
-  Future<Map>? mostVisitedAtSigns(int length) async {
+  Future<Map<String, int>> mostVisitedAtSigns(int length) async {
     return await _accessLogKeyStore.mostVisitedAtSigns(length);
   }
 
-  ///The functions returns the top [length] visited atKey's.
-  ///@param length : The recent number of keys to fetch
-  ///@return Map : Returns a key value pair. Key is the atsign key looked up and
-  ///value is number of times the key is looked up.
   @override
-  Future<Map>? mostVisitedKeys(int length) async {
+  Future<Map<String, int>> mostVisitedKeys(int length) async {
     return await _accessLogKeyStore.mostVisitedKeys(length);
   }
 

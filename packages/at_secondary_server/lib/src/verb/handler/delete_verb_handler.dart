@@ -114,7 +114,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       // and if so, prevent deletion unless the "force" flag was set
       if (verbParams['isCached'] != 'true') {
         if (keyStore.isKeyExists(deleteKey)) {
-          AtData atData = await keyStore.get(deleteKey)!;
+          AtData atData = await keyStore.get(deleteKey);
           if (atData.metaData?.immutable == true) {
             // immutable records need the force flag in order to be deleted
             bool force = verbParams[AtConstants.force] == AtConstants.force;

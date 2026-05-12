@@ -36,6 +36,27 @@ Major release: persistence-overhaul. Themes:
 - **`AtCommitLog.getEntries` retired.** Migrate to
   `iterate(fromCommitId, where: closure)`; the closure carries
   any caller-side filtering (regex, skipDeletesUntil, etc.).
+- **Keystore signatures tightened to remove `dynamic`.** CRUD
+  methods on `WritableKeystore` / `SynchronizableKeyStore` now
+  return `Future<int?>` (commit-log sequence number or `null`)
+  instead of `Future<dynamic>`. `Keystore.get` is `Future<V?>`
+  instead of `Future<V>?`. `LogKeyStore.add` returns
+  `Future<int>` (Hive-assigned key); `update`/`remove` return
+  `Future<void>`; `getFirstNEntries` returns `List<int>`;
+  `getExpired` returns `Future<List<K>>`. `AtAccessLog`'s
+  `mostVisitedAtSigns` / `mostVisitedKeys` return
+  `Future<Map<String, int>>`. Pre/post-remove hook callbacks
+  are `Future<void> Function(...)`. Call sites can drop
+  `as int?` / `as AtData?` / `as Map` casts.
+- **`SecondaryKeyStore.deleteExpiredKeys` drops `skipCommit`.**
+  Expiry is treated as backend-local maintenance: the sweep
+  never advances `commitId` and never propagates via sync.
+- **`SecondaryKeyStore.commitLog` typed `AtCommitLog?` rather
+  than `AtLogType?`.** Callers no longer need `as AtCommitLog`
+  at every access site.
+- **`HiveAtNotificationKeystore.commitLog` is a no-op
+  getter/setter** instead of a mutable field — notifications
+  never participate in the commit log.
 - **`SyncProgressiveVerbHandler` empty-response wedge fixed.**
   When every entry in a requested range failed `isAuthorized`
   (or another in-loop filter), the handler returned `[]` and

@@ -33,10 +33,10 @@ class HiveSecondaryKeyStore
   late HiveAtCommitLog _commitLog;
 
   @override
-  List<Future Function(String key, {required bool skipCommit})> preRemoveHooks =
-      [];
+  List<Future<void> Function(String key, {required bool skipCommit})>
+      preRemoveHooks = [];
   @override
-  List<Future Function(String key, {required bool skipCommit})>
+  List<Future<void> Function(String key, {required bool skipCommit})>
       postRemoveHooks = [];
 
   /// A map-based cache that stores "expiresAt" and "availableAt" from AtMetadata
@@ -261,16 +261,14 @@ class HiveSecondaryKeyStore
   /// hive does not support directly storing emoji characters, therefore keys
   /// are encoded in [HiveKeyStoreHelper.prepareKey] using utf7 before storing.
   @override
-  Future<dynamic> put(String key, AtData? value,
-      {bool skipCommit = false}) async {
+  Future<int?> put(String key, AtData? value, {bool skipCommit = false}) async {
     key = key.toLowerCase();
     final atKey = AtKey.getKeyType(key, enforceNameSpace: false);
     if (atKey == KeyType.invalidKey) {
       logger.warning('Key $key is invalid');
       throw InvalidAtKeyException('Key $key is invalid');
     }
-    // ignore: prefer_typing_uninitialized_variables
-    var result;
+    int? result;
 
     CommitOp commitOp = CommitOp.UPDATE_ALL;
 
@@ -314,7 +312,7 @@ class HiveSecondaryKeyStore
   /// are encoded in [HiveKeyStoreHelper.prepareKey] using utf7 before storing.
   @override
   @server
-  Future<dynamic> create(String key, AtData? value,
+  Future<int?> create(String key, AtData? value,
       {bool skipCommit = false}) async {
     key = key.toLowerCase();
     final atKey = AtKey.getKeyType(key, enforceNameSpace: false);

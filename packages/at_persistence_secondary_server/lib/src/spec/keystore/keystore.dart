@@ -1,10 +1,10 @@
 /// Keystore represents a data store like a database which can store mapping between keys and values.
 abstract interface class Keystore<K, V> {
-  /// Retrieves a Future value for the key passed from the key store.
-  ///
-  /// @param key Key associated with a value.
-  /// @return Returns the value to which the specified key is mapped, or null if this map contains no mapping for the key or if key is not null.
-  Future<V>? get(K key);
+  /// Retrieves the value mapped to [key], or `null` if no mapping
+  /// exists. Implementations may also throw a backend-specific
+  /// not-found exception (e.g. `KeyNotFoundException`) instead of
+  /// returning `null` — consult the concrete impl.
+  Future<V?> get(K key);
 }
 
 /// WritableKeystore represents a data store like a database that allows CRUD operations on the values belonging to the keys
@@ -13,43 +13,53 @@ abstract interface class WritableKeystore<K, V> implements Keystore<K, V> {
   /// in this method
   Future<void> initialize() async {}
 
-  /// Associates the specified value with the specified key.
-  /// If the key store previously contained a mapping for the key, the old value is replaced by the specified value.
+  /// Associates [value] with [key]. If a mapping already exists for
+  /// [key], the old value is replaced.
   ///
-  /// @param key - Key associated with a value.
-  /// @param value - Value to be associated with the specified key.
-  /// @param skipCommit - if set to true, will skip adding entry to commit log for this update. Set to false by default.
-  /// @returns sequence number from commit log if put is success. null otherwise
-  /// Throws a [DataStoreException] if the the operation fails due to some issue with the data store.
-  Future<dynamic> put(K key, V value, {bool skipCommit = false});
-
-  /// If the specified key is not already associated with a value (or is mapped to null) associates it with the given value and returns null, else returns the current value.
+  /// Returns the commit-log sequence number assigned to this write,
+  /// or `null` if no sequence number was produced (for example when
+  /// [skipCommit] is `true`, or when the backend does not maintain
+  /// a commit log).
   ///
-  /// @param key - Key with which the specified value is to be associated
-  /// @param value - Value to be associated with the specified key
-  /// @param skipCommit - if set to true, will skip adding entry to commit log for this create operation. Set to false by default.
-  /// @return - sequence number from commit log if put is success. null otherwise
-  /// Throws a [DataStoreException] if the the operation fails due to some issue with the data store.
-  Future<dynamic> create(K key, V value, {bool skipCommit = false});
+  /// Throws a [DataStoreException] if the underlying store fails.
+  Future<int?> put(K key, V value, {bool skipCommit = false});
 
-  /// Removes the mapping for a key from this key store if it is present
+  /// If no mapping exists for [key], associates it with [value] and
+  /// returns the commit-log sequence number; otherwise behaviour is
+  /// implementation-defined (typically throws a key-already-exists
+  /// exception).
   ///
-  /// @param key - Key associated with a value.
-  /// @param skipCommit - if set to true, will skip adding entry to commit log for this remove operation. Set to false by default.
-  /// @return - sequence number from commit log if remove is success. null otherwise
-  /// Throws a [DataStoreException] if the operation fails due to some issue with the data store.
-  Future<dynamic> remove(K key, {bool skipCommit = false});
+  /// Returns the commit-log sequence number assigned to this write,
+  /// or `null` if no sequence number was produced.
+  ///
+  /// Throws a [DataStoreException] if the underlying store fails.
+  Future<int?> create(K key, V value, {bool skipCommit = false});
 
-  List<Future<dynamic> Function(String key, {required bool skipCommit})>
+  /// Removes the mapping for [key] if present.
+  ///
+  /// Returns the commit-log sequence number assigned to this
+  /// deletion, or `null` if no sequence number was produced (for
+  /// example when [skipCommit] is `true`, or the key did not exist).
+  ///
+  /// Throws a [DataStoreException] if the underlying store fails.
+  Future<int?> remove(K key, {bool skipCommit = false});
+
+  List<Future<void> Function(String key, {required bool skipCommit})>
       get preRemoveHooks;
-  List<Future<dynamic> Function(String key, {required bool skipCommit})>
+  List<Future<void> Function(String key, {required bool skipCommit})>
       get postRemoveHooks;
 }
 
 abstract interface class SynchronizableKeyStore<K, V, T> {
-  Future<dynamic> putMeta(K key, T metadata);
+  /// Updates the metadata for [key]. Returns the commit-log
+  /// sequence number assigned to this write, or `null` if no
+  /// sequence number was produced.
+  Future<int?> putMeta(K key, T metadata);
 
-  Future<dynamic> putAll(K key, V value, T metadata);
+  /// Writes [value] and [metadata] for [key] atomically. Returns the
+  /// commit-log sequence number assigned to this write, or `null`
+  /// if no sequence number was produced.
+  Future<int?> putAll(K key, V value, T metadata);
 
   Future<T> getMeta(K key);
 }

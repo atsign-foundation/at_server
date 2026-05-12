@@ -289,7 +289,7 @@ void main() async {
       atData.data = '123';
       var key = '${TestUtils.generateRandomString(236)}@test_user_1';
       var result = await keyStore.put(key, atData);
-      expect(result >= 0, true);
+      expect(result! >= 0, true);
     });
     tearDown(() async => await tearDownFunc(atSign));
 
@@ -319,7 +319,7 @@ void main() async {
       atData.data = '123';
       var key = '${TestUtils.generateRandomString(236)}@test_user_1';
       var result = await keyStore.create(key, atData);
-      expect(result >= 0, true);
+      expect(result! >= 0, true);
     });
     test('test putAll max key length exceeded', () async {
       var keyStore = testKeyStoreFor('@test_user_1');

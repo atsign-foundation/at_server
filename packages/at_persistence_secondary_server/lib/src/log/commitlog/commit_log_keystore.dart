@@ -86,13 +86,12 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     return totalKeys;
   }
 
-  /// Gets the first 'N' keys from the logs
-  /// @param - N : The integer to get the first 'N'
-  /// @return List of first 'N' keys from the log
-  List getFirstNEntries(int N) {
-    var entries = [];
+  /// Gets the first 'N' Hive-assigned integer keys from the commit
+  /// log, in insertion order.
+  List<int> getFirstNEntries(int N) {
+    List<int> entries;
     try {
-      entries = getBox().keys.toList().take(N).toList();
+      entries = List<int>.from(getBox().keys.toList().take(N).toList());
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception getting first N entries:${e.toString()}');

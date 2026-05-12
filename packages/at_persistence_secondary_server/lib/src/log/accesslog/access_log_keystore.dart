@@ -27,7 +27,7 @@ class AccessLogKeyStore
   }
 
   @override
-  Future add(AccessLogEntry? accessLogEntry) async {
+  Future<int> add(AccessLogEntry? accessLogEntry) async {
     int result;
     try {
       result = await _getBox().add(accessLogEntry);
@@ -56,7 +56,7 @@ class AccessLogKeyStore
   }
 
   @override
-  Future remove(int key) async {
+  Future<void> remove(int key) async {
     try {
       await _getBox().delete(key);
     } on Exception catch (e) {
@@ -85,19 +85,21 @@ class AccessLogKeyStore
     return totalKeys;
   }
 
-  /// Returns the list of expired keys.
-  /// @param expiryInDays - The count of days after which the keys expires
-  /// @return `List<dynamic>` - The list of expired keys.
+  /// Returns the list of expired entry keys (Hive-assigned integer
+  /// box keys), older than [expiryInDays] days.
   @override
-  Future<List<dynamic>> getExpired(int expiryInDays) async {
-    var expiredKeys = <dynamic>[];
+  Future<List<int>> getExpired(int expiryInDays) async {
+    var expiredKeys = <int>[];
     var now = DateTime.timestamp();
     var accessLogMap = await _toMap();
-    accessLogMap!.forEach((key, value) {
+    accessLogMap.forEach((key, value) {
       if (value == null) {
         expiredKeys.add(key);
-      } else if (value.requestDateTime != null &&
-          value.requestDateTime
+        return;
+      }
+      final requestDateTime = value.requestDateTime;
+      if (requestDateTime != null &&
+          requestDateTime
               .isBefore(now.subtract(Duration(days: expiryInDays)))) {
         expiredKeys.add(key);
       }
@@ -124,101 +126,81 @@ class AccessLogKeyStore
   }
 
   @override
-  Future update(int key, AccessLogEntry? value) {
-    // TODO: implement update
-    throw 'Not implemented';
+  Future<void> update(int key, AccessLogEntry? value) {
+    throw UnimplementedError('AccessLogKeyStore.update is not supported');
   }
 
-  ///The functions returns the top [length] visited atSign's.
-  ///@param - length : The maximum number of atsign's to return
-  ///@return Map : Returns a key value pair. Key is the atsign and value is the count of number of times the atsign is looked at.
-  Future<Map> mostVisitedAtSigns(int length) async {
-    var atSignMap = {};
-    var accessLogMap = await _toMap();
-    accessLogMap!.forEach((key, value) {
-      //Verify the records of pol verb in access log entry. To ignore the records of lookup(s)
-      if (value.verbName == 'pol') {
-        atSignMap.containsKey(value.fromAtSign)
-            ? atSignMap[value.fromAtSign] = atSignMap[value.fromAtSign] + 1
-            : atSignMap[value.fromAtSign] = 1;
-      }
+  /// Top [length] atSigns by `pol`-verb access-log entry count.
+  /// Result map: atSign → visit count, ordered by descending count.
+  Future<Map<String, int>> mostVisitedAtSigns(int length) async {
+    final atSignMap = <String, int>{};
+    final accessLogMap = await _toMap();
+    accessLogMap.forEach((key, value) {
+      if (value == null || value.verbName != 'pol') return;
+      final from = value.fromAtSign;
+      if (from == null) return;
+      atSignMap[from] = (atSignMap[from] ?? 0) + 1;
     });
-
-    // box.toMap().forEach((key, value) {
-    //   //Verify the records of pol verb in access log entry. To ignore the records of lookup(s)
-    //   if (value.verbName == 'pol') {
-    //     atSignMap.containsKey(value.fromAtSign)
-    //         ? atSignMap[value.fromAtSign] = atSignMap[value.fromAtSign] + 1
-    //         : atSignMap[value.fromAtSign] = 1;
-    //   }
-    // });
-    // Iterate over the atKeys map and sort the keys on value
-    var sortedKeys = atSignMap.keys.toList(growable: false)
-      ..sort((k1, k2) => atSignMap[k2].compareTo(atSignMap[k1]));
-    // If the length of the sortedKeys is less the length [var length] set length to sortedKeys length
+    final sortedKeys = atSignMap.keys.toList(growable: false)
+      ..sort((k1, k2) => atSignMap[k2]!.compareTo(atSignMap[k1]!));
     if (sortedKeys.length < length) {
       length = sortedKeys.length;
     }
-    var sortedMap = LinkedHashMap.fromIterable(
+    return LinkedHashMap<String, int>.fromIterable(
         sortedKeys.toList().getRange(0, length),
-        key: (k) => k,
-        value: (k) => atSignMap[k]);
-
-    return sortedMap;
+        key: (k) => k as String,
+        value: (k) => atSignMap[k as String]!);
   }
 
-  ///The functions returns the top [length] visited atKey's.
-  ///@param length : The recent number of keys to fetch
-  ///@return Map : Returns a key value pair. Key is the atsign key looked up and
-  ///value is number of times the key is looked up.
-  Future<Map> mostVisitedKeys(int length) async {
-    var atKeys = {};
-    var accessLogMap = await _toMap();
-    accessLogMap!.forEach((key, value) {
-      //Verify the record in access entry is of from verb. To ignore the records of lookup(s)
-      if (value.verbName == 'lookup' && value.lookupKey != null) {
-        atKeys.containsKey(value.lookupKey)
-            ? atKeys[value.lookupKey] = atKeys[value.lookupKey] + 1
-            : atKeys[value.lookupKey] = 1;
+  /// Top [length] lookup keys by `lookup`-verb access-log entry
+  /// count. Result map: lookup-key → visit count, ordered by
+  /// descending count.
+  Future<Map<String, int>> mostVisitedKeys(int length) async {
+    final atKeys = <String, int>{};
+    final accessLogMap = await _toMap();
+    accessLogMap.forEach((key, value) {
+      if (value != null &&
+          value.verbName == 'lookup' &&
+          value.lookupKey != null) {
+        final lookup = value.lookupKey!;
+        atKeys[lookup] = (atKeys[lookup] ?? 0) + 1;
       }
     });
-    // Iterate over the atKeys map and sort the keys on value
-    var sortedKeys = atKeys.keys.toList(growable: false)
-      ..sort((k1, k2) => atKeys[k2].compareTo(atKeys[k1]));
-    // If the length of the sortedKeys is less the length [var length] set length to sortedKeys length
+    final sortedKeys = atKeys.keys.toList(growable: false)
+      ..sort((k1, k2) => atKeys[k2]!.compareTo(atKeys[k1]!));
     if (sortedKeys.length < length) {
       length = sortedKeys.length;
     }
-    var sortedMap = LinkedHashMap.fromIterable(
+    return LinkedHashMap<String, int>.fromIterable(
         sortedKeys.toList().getRange(0, length),
-        key: (k) => k,
-        value: (k) => atKeys[k]);
-
-    return sortedMap;
+        key: (k) => k as String,
+        value: (k) => atKeys[k as String]!);
   }
 
   ///Get last [AccessLogEntry] entry.
   Future<AccessLogEntry> getLastEntry() async {
-    var accessLogMap = await _toMap();
-    return accessLogMap!.values.last;
+    final accessLogMap = await _toMap();
+    return accessLogMap.values.last!;
   }
 
   ///Get last [AccessLogEntry] entry.
   Future<AccessLogEntry?> getLastPkamEntry() async {
-    var accessLogMap = await _toMap();
-    var items = accessLogMap!.values.toList();
-    items.removeWhere((item) => (item.verbName != 'pkam'));
-    items.sort((a, b) => a.requestDateTime.compareTo(b.requestDateTime));
+    final accessLogMap = await _toMap();
+    final items = accessLogMap.values
+        .whereType<AccessLogEntry>()
+        .where(
+            (item) => item.verbName == 'pkam' && item.requestDateTime != null)
+        .toList();
+    items.sort((a, b) => a.requestDateTime!.compareTo(b.requestDateTime!));
     return (items.isNotEmpty) ? items.last : null;
   }
 
-  Future<Map>? _toMap() async {
-    var accessLogMap = {};
-    var keys = _getBox().keys;
-    AccessLogEntry? value;
+  Future<Map<int, AccessLogEntry?>> _toMap() async {
+    final accessLogMap = <int, AccessLogEntry?>{};
+    final keys = _getBox().keys;
     await Future.forEach(keys, (key) async {
-      value = await getValue(key);
-      accessLogMap.putIfAbsent(key, () => value);
+      final value = await getValue(key);
+      accessLogMap.putIfAbsent(key as int, () => value);
     });
     return accessLogMap;
   }

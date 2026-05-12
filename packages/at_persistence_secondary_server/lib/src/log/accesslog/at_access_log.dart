@@ -17,11 +17,13 @@ abstract class AtAccessLog implements AtLogType<int, AccessLogEntry> {
   /// instant. Returns the assigned entry id, or `null` on failure.
   Future<int?> insert(String fromAtSign, String verbName, {String? lookupKey});
 
-  /// Top [length] atSigns by access-log entry count.
-  Future<Map>? mostVisitedAtSigns(int length);
+  /// Top [length] atSigns by access-log entry count. Result map:
+  /// atSign → visit count, ordered by descending count.
+  Future<Map<String, int>> mostVisitedAtSigns(int length);
 
-  /// Top [length] lookup keys by access-log entry count.
-  Future<Map>? mostVisitedKeys(int length);
+  /// Top [length] lookup keys by access-log entry count. Result map:
+  /// lookup-key → visit count, ordered by descending count.
+  Future<Map<String, int>> mostVisitedKeys(int length);
 
   /// Most-recent access-log entry, regardless of verb.
   Future<AccessLogEntry> getLastAccessLogEntry();

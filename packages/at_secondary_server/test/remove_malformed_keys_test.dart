@@ -16,7 +16,7 @@ class MockSecondaryKeyStore extends Mock
   }
 
   @override
-  Future<dynamic> remove(String key, {bool skipCommit = false}) async {
+  Future<int?> remove(String key, {bool skipCommit = false}) async {
     dummyKeyStore.remove(key);
     return 1;
   }
