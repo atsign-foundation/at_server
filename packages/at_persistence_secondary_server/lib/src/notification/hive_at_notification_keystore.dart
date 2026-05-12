@@ -17,7 +17,10 @@ class HiveAtNotificationKeystore
   late String currentAtSign;
   late String _boxName;
   static const int maxKeyLengthWithoutCached = 248;
-  late AtCompactionConfig atCompactionConfig;
+
+  /// Per-pass percentage of entries to drop when compaction is
+  /// invoked. Captured from `AtSecondaryConfig` at factory time.
+  final int compactionPercentage;
   @override
   List<Future<void> Function(String key, {required bool skipCommit})>
       preRemoveHooks = [];
@@ -33,9 +36,6 @@ class HiveAtNotificationKeystore
 
   @override
   Stream<KeyStoreChange> get changes => _changesController.stream;
-
-  @override
-  bool get supportsPathQueries => false;
 
   @override
   bool get supportsSnapshots => false;
@@ -75,20 +75,6 @@ class HiveAtNotificationKeystore
   }
 
   @override
-  Stream<KeyEntry> queryByPath({
-    required KeyPattern keyPattern,
-    required Predicate predicate,
-    OrderByKey? orderBy,
-    int? limit,
-    int? skip,
-  }) {
-    throw UnsupportedError(
-      'HiveAtNotificationKeystore does not support push-down path queries. '
-      'Check `supportsPathQueries` before calling.',
-    );
-  }
-
-  @override
   Future<R> transaction<R>(
     Future<R> Function(KeyStoreTxn txn) body,
   ) async {
@@ -124,7 +110,8 @@ class HiveAtNotificationKeystore
   }
 
   /// You **must** subsequently call [init]
-  HiveAtNotificationKeystore(this.currentAtSign) {
+  HiveAtNotificationKeystore(this.currentAtSign,
+      {this.compactionPercentage = 30}) {
     if (!_typesRegistered) {
       Hive.registerAdapter(AtNotificationAdapter());
       Hive.registerAdapter(OperationTypeAdapter());
@@ -177,7 +164,9 @@ class HiveAtNotificationKeystore
 
   @override
   Future<int?> create(key, value, {bool skipCommit = false}) async {
-    throw UnimplementedError();
+    // Notification keystore doesn't distinguish create-vs-update;
+    // delegate to put() which atomically sets the entry regardless.
+    return put(key, value, skipCommit: skipCommit);
   }
 
   @override
@@ -406,50 +395,28 @@ class HiveAtNotificationKeystore
     return _getBox().keys.length;
   }
 
+  /// Compact the notification queue. Drops every expired
+  /// notification — those are the only entries that ever leave the
+  /// queue this way.
   @override
-  Future getMeta(key) {
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<int?> putAll(key, value, metadata) {
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<int?> putMeta(key, metadata) {
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<void> deleteKeyForCompaction(List<String> keysList) async {
-    await _getBox().deleteAll(keysList);
-  }
-
-  @override
-  Future<List<String>> getKeysToDeleteOnCompaction() async {
-    return await getExpiredKeys();
-  }
-
-  @override
-  void setCompactionConfig(AtCompactionConfig atCompactionConfig) {
-    this.atCompactionConfig = atCompactionConfig;
+  Stream<String> compact(bool dryRun) async* {
+    final List<String> expired = await getExpiredKeys();
+    if (dryRun) {
+      for (final key in expired) {
+        yield key;
+      }
+      return;
+    }
+    await _getBox().deleteAll(expired);
+    for (final key in expired) {
+      yield key;
+    }
   }
 
   @override
   String toString() {
     return runtimeType.toString();
   }
-
-  /// Notifications never participate in the commit log — the queue
-  /// is server-local and sync is the wrong abstraction for it. The
-  /// `AtKeyValueStore` interface still exposes `commitLog`, so the
-  /// getter returns `null` and the setter is a no-op rather than
-  /// holding a field that would always be null.
-  @override
-  AtCommitLog? get commitLog => null;
-  @override
-  set commitLog(AtCommitLog? log) {}
 
   @override
   Stream<AtNotification> iterate() async* {

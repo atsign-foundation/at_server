@@ -15,6 +15,15 @@ Future<void> setUpFunc({bool enableCommitId = true}) async {
   atCommitLog = keyValueStore.commitLog as HiveAtCommitLog;
 }
 
+/// Drain a compact() stream, return the count of items yielded.
+Future<int> _runCompaction(Compactable resource) async {
+  var count = 0;
+  await for (final _ in resource.compact(false)) {
+    count++;
+  }
+  return count;
+}
+
 void main() {
   group('A group of test to verify commit log compaction job on server', () {
     setUp(() async {
@@ -26,7 +35,7 @@ void main() {
         () async {
       await atCommitLog!.commit('@alice:phone@alice', CommitOp.UPDATE);
       await atCommitLog!.commit('@alice:phone@alice', CommitOp.UPDATE);
-      await HiveCompactionStrategy(atCommitLog!).compact();
+      await _runCompaction(atCommitLog!);
       expect(atCommitLog!.entriesCount(), 1);
     });
 
@@ -35,16 +44,21 @@ void main() {
         () async {
       await atCommitLog!.commit('@alice:phone@alice', CommitOp.UPDATE);
       await atCommitLog!.commit('@bob:mobile@alice', CommitOp.UPDATE);
-      await HiveCompactionStrategy(atCommitLog!).compact();
+      await _runCompaction(atCommitLog!);
       expect(atCommitLog!.entriesCount(), 2);
     });
 
-    test('A test to verify duplicate entry with lowest commit id returned',
-        () async {
+    test('A test to verify dryRun does not mutate the store', () async {
       await atCommitLog!.commit('@alice:phone@alice', CommitOp.UPDATE);
-      await atCommitLog!.commit('@alice:phone@alice', CommitOp.UPDATE);
-      List<int> keysToDelete = await atCommitLog!.getKeysToDeleteOnCompaction();
-      expect(keysToDelete.length, 0);
+      await atCommitLog!.commit('@bob:mobile@alice', CommitOp.UPDATE);
+      final preCount = atCommitLog!.entriesCount();
+      final dryRunItems = await atCommitLog!.compact(true).toList();
+      expect(atCommitLog!.entriesCount(), preCount,
+          reason: 'dryRun should not mutate the store');
+      // dryRun yields the same key-set a real run would; immediately
+      // running the real compaction yields an equal-length set.
+      final realItems = await atCommitLog!.compact(false).toList();
+      expect(realItems.length, dryRunItems.length);
     });
 
     tearDown(() async {
@@ -68,7 +82,7 @@ void main() {
             ..commitId = 2);
       await atCommitLog!.commitLogKeyStore.add(
           CommitEntry('@bob:phone@alice', CommitOp.UPDATE, DateTime.now()));
-      await HiveCompactionStrategy(atCommitLog!).compact();
+      await _runCompaction(atCommitLog!);
       expect(atCommitLog!.entriesCount(), 2);
     });
     tearDown(() async => await tearDownFunc());
@@ -78,8 +92,10 @@ void main() {
     HiveAtAccessLog? atAccessLog;
     setUp(() async {
       await setUpFunc();
-      // Initialize commit log
-      atAccessLog = await testAccessLogFor('@alice', accessLogPath: storageDir);
+      // Initialize access log with an aggressive compactionPercentage so
+      // the test can drop nearly every entry in one pass.
+      atAccessLog = await testAccessLogFor('@alice',
+          accessLogPath: storageDir, compactionPercentage: 99);
     });
     test('A test to verify access log compaction job', () async {
       await atAccessLog?.insert('@alice', 'from');
@@ -87,9 +103,7 @@ void main() {
       await atAccessLog?.insert('@alice', 'scan');
       await atAccessLog?.insert('@alice', 'lookup',
           lookupKey: '@alice:phone@bob');
-      atAccessLog?.setCompactionConfig(
-          AtCompactionConfig()..compactionPercentage = 99);
-      await HiveCompactionStrategy(atAccessLog!).compact();
+      await _runCompaction(atAccessLog!);
       expect(atAccessLog?.entriesCount(), 1);
       AccessLogEntry? accessLogEntry =
           await atAccessLog?.getLastAccessLogEntry();

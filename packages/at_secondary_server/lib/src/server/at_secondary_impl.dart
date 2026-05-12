@@ -10,7 +10,6 @@ import 'package:cron/cron.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/caching/cache_refresh_job.dart';
-import 'package:at_secondary/src/compaction/at_compaction_job.dart';
 import 'package:at_secondary/src/compaction/at_compaction_stats_service_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart'
@@ -117,9 +116,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late AtCacheManager cacheManager;
   final StatsNotificationService statsNotificationService =
       StatsNotificationService();
-  late AtCompactionJob commitLogCompactionJobInstance;
-  late AtCompactionJob accessLogCompactionJobInstance;
-  late AtCompactionJob notificationKeyStoreCompactionJobInstance;
+
+  /// Timers driving the per-resource compaction cron. Each ticks
+  /// on its own configured frequency; tick body drains the
+  /// resource's `compact(false)` stream with an overlap guard.
+  final List<Timer> _compactionTimers = [];
 
   /// Cron driving the periodic key-expiry sweep. Owned by the
   /// secondary (not the persistence layer): the application picks
@@ -131,9 +132,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late AtKeyValueStore<String, AtData?, AtMetaData?> keyValueStore;
   late AtNotificationKeystore notificationKeystore;
   late NotificationManager notificationManager;
-  late var atCommitLogCompactionConfig;
-  late var atAccessLogCompactionConfig;
-  late var atNotificationCompactionConfig;
   late EnrollmentManager enrollmentManager;
   late InboundConnectionManager inboundConnectionManager;
 
@@ -237,39 +235,37 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     await keyValueStore.deleteExpiredKeys();
 
-    //Commit Log Compaction
-    commitLogCompactionJobInstance = AtCompactionJob(
-        _persistenceBundle!.commitLogCompactor!,
-        AtCompactionStatsServiceImpl(commitLog, keyValueStore));
-    atCommitLogCompactionConfig = AtCompactionConfig()
-      ..compactionPercentage = AtSecondaryConfig.commitLogCompactionPercentage
-      ..compactionFrequencyInMins =
-          AtSecondaryConfig.commitLogCompactionFrequencyMins;
-    commitLogCompactionJobInstance
-        .scheduleCompactionJob(atCommitLogCompactionConfig);
-
-    //Access Log Compaction
-    accessLogCompactionJobInstance = AtCompactionJob(
-        _persistenceBundle!.accessLogCompactor!,
-        AtCompactionStatsServiceImpl(accessLog, keyValueStore));
-    atAccessLogCompactionConfig = AtCompactionConfig()
-      ..compactionPercentage = AtSecondaryConfig.accessLogCompactionPercentage
-      ..compactionFrequencyInMins =
-          AtSecondaryConfig.accessLogCompactionFrequencyMins;
-    accessLogCompactionJobInstance
-        .scheduleCompactionJob(atAccessLogCompactionConfig);
-
-    // Notification keystore compaction
-    notificationKeyStoreCompactionJobInstance = AtCompactionJob(
-        _persistenceBundle!.keyStoreCompactor!,
-        AtCompactionStatsServiceImpl(notificationKeystore, keyValueStore));
-    atNotificationCompactionConfig = AtCompactionConfig()
-      ..compactionPercentage =
-          AtSecondaryConfig.notificationKeyStoreCompactionPercentage
-      ..compactionFrequencyInMins =
-          AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins;
-    notificationKeyStoreCompactionJobInstance
-        .scheduleCompactionJob(atNotificationCompactionConfig);
+    // Compaction is scheduled at the secondary level (not by the
+    // persistence layer): the Timer ticks, drains the resource's
+    // compact(false) stream with an overlap guard, and records
+    // primitives to a stats service.
+    final statsService = AtCompactionStatsServiceImpl(keyValueStore);
+    if (AtSecondaryConfig.enableCommitLogCompactor) {
+      _scheduleCompaction(
+        commitLog,
+        Duration(minutes: AtSecondaryConfig.commitLogCompactionFrequencyMins),
+        'commitLog',
+        statsService,
+      );
+    }
+    if (AtSecondaryConfig.enableAccessLogCompactor) {
+      _scheduleCompaction(
+        accessLog,
+        Duration(minutes: AtSecondaryConfig.accessLogCompactionFrequencyMins),
+        'accessLog',
+        statsService,
+      );
+    }
+    if (AtSecondaryConfig.enableNotificationCompactor) {
+      _scheduleCompaction(
+        notificationKeystore,
+        Duration(
+            minutes:
+                AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins),
+        'notificationKeystore',
+        statsService,
+      );
+    }
 
     final socketConfig = SecureSocketConfig()
       ..decryptPackets = false
@@ -441,19 +437,60 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     resume();
   }
 
-  ///restarts compaction with new compaction frequency. Works only when testingMode set to true.
-  Future<void> restartCompaction(
-      AtCompactionJob atCompactionJob,
-      AtCompactionConfig atCompactionConfig,
-      int newFrequency,
-      AtLogType atLogType) async {
+  /// Restart compaction with a new frequency for the resource
+  /// identified by [label]. Works only when testing mode is set.
+  Future<void> _restartCompaction(
+    Compactable resource,
+    Duration newFrequency,
+    String label,
+    AtCompactionStatsService statsService,
+  ) async {
     logger.finest(
-        'Received new frequency for $atLogType compaction: $newFrequency');
-    await atCompactionJob.stopCompactionJob();
-    logger.finest('Existing cron job of $atLogType compaction terminated');
-    atCompactionConfig.compactionFrequencyInMins = newFrequency;
-    atCompactionJob.scheduleCompactionJob(atCompactionConfig);
-    logger.finest('New compaction cron job started for $atLogType');
+        'Received new frequency for $label compaction: ${newFrequency.inMinutes}m');
+    // Cancel any existing timer for this label (best effort: we
+    // currently don't index timers by label so the simplest restart
+    // is to cancel all and re-schedule the one we care about).
+    for (final t in _compactionTimers) {
+      t.cancel();
+    }
+    _compactionTimers.clear();
+    _scheduleCompaction(resource, newFrequency, label, statsService);
+  }
+
+  /// Schedule a periodic compaction tick for [resource]. The tick
+  /// drains `compact(false)` with an overlap guard and records the
+  /// pass via [statsService].
+  void _scheduleCompaction(
+    Compactable resource,
+    Duration period,
+    String label,
+    AtCompactionStatsService statsService,
+  ) {
+    bool running = false;
+    _compactionTimers.add(Timer.periodic(period, (_) async {
+      if (running) return;
+      running = true;
+      try {
+        final start = DateTime.timestamp();
+        var count = 0;
+        await for (final _ in resource.compact(false)) {
+          count++;
+        }
+        final duration = DateTime.timestamp().difference(start);
+        logger.info(
+            'compacted $label: dropped $count entries in ${duration.inMilliseconds}ms');
+        await statsService.record(
+          label: label,
+          start: start,
+          compactedCount: count,
+          duration: duration,
+        );
+      } catch (e, st) {
+        logger.warning('compaction failed for $label: $e\n$st');
+      } finally {
+        running = false;
+      }
+    }));
   }
 
   Future<void> initDynamicConfigListeners() async {
@@ -466,14 +503,19 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           'inbound_max_limit change received. Modifying inbound_max_limit of server to $newSize');
     });
 
+    final statsService = AtCompactionStatsServiceImpl(keyValueStore);
+
     //subscriber for notification keystore compaction freq change
     logger.finest(
         'Subscribing to dynamic changes made to notificationKeystoreCompactionFreq');
     AtSecondaryConfig.subscribe(
             ModifiableConfigs.notificationKeyStoreCompactionFrequencyMins)
         ?.listen((newFrequency) async {
-      await restartCompaction(notificationKeyStoreCompactionJobInstance,
-          atNotificationCompactionConfig, newFrequency, notificationKeystore);
+      await _restartCompaction(
+          notificationKeystore,
+          Duration(minutes: newFrequency),
+          'notificationKeystore',
+          statsService);
     });
 
     //subscriber for access log compaction frequency change
@@ -482,8 +524,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     AtSecondaryConfig.subscribe(
             ModifiableConfigs.accessLogCompactionFrequencyMins)
         ?.listen((newFrequency) async {
-      await restartCompaction(accessLogCompactionJobInstance,
-          atAccessLogCompactionConfig, newFrequency, accessLog);
+      await _restartCompaction(accessLog, Duration(minutes: newFrequency),
+          'accessLog', statsService);
     });
 
     //subscriber for commit log compaction frequency change
@@ -492,8 +534,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     AtSecondaryConfig.subscribe(
             ModifiableConfigs.commitLogCompactionFrequencyMins)
         ?.listen((newFrequency) async {
-      await restartCompaction(commitLogCompactionJobInstance,
-          atCommitLogCompactionConfig, newFrequency, commitLog);
+      await _restartCompaction(commitLog, Duration(minutes: newFrequency),
+          'commitLog', statsService);
     });
 
     //subscriber for autoNotify state change
@@ -739,8 +781,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
       logger.shout("Stopping scheduled tasks");
       atRefreshJob.close();
-      commitLogCompactionJobInstance.close();
-      accessLogCompactionJobInstance.close();
+      for (final t in _compactionTimers) {
+        t.cancel();
+      }
+      _compactionTimers.clear();
       _isRunning = false;
     } on Exception catch (e) {
       throw AtServerException(
@@ -772,7 +816,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     _assertServerCapabilities(bundle);
 
-    commitLog = bundle.commitLog;
+    // Server bundle invariant: the keystore's commitLog is non-null
+    // (asserted above). Bind once to a non-nullable local so
+    // downstream consumers don't litter `!` at every call site.
+    commitLog = bundle.keyValueStore.commitLog!;
     accessLog = bundle.accessLog!;
     notificationKeystore = bundle.notificationKeystore!;
     keyValueStore = bundle.keyValueStore;
@@ -825,12 +872,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           'Server bundle is missing the notification keystore capability. '
           'Did the config disable enableNotificationKeystore?');
     }
-    if (bundle.commitLogCompactor == null ||
-        bundle.accessLogCompactor == null ||
-        bundle.keyStoreCompactor == null) {
-      throw StateError('Server bundle is missing one or more compactors. '
-          'Did the config disable enableCommitLogCompactor / '
-          'enableAccessLogCompactor / enableKeyStoreCompactor?');
+    if (bundle.keyValueStore.commitLog == null) {
+      throw StateError(
+          'Server bundle is missing the commit log on its keystore. '
+          'Did the config disable enableCommitId?');
     }
   }
 

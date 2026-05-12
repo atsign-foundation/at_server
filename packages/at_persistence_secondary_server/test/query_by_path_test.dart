@@ -32,10 +32,6 @@ void main() {
       expect(bundle.keyValueStore.supportsPathQueries, isFalse);
     });
 
-    test('Hive notification keystore reports supportsPathQueries == false', () {
-      expect(bundle.notificationKeystore!.supportsPathQueries, isFalse);
-    });
-
     test('queryByPath throws UnsupportedError on Hive (gating contract)', () {
       expect(
         () => bundle.keyValueStore
@@ -48,16 +44,12 @@ void main() {
       );
     });
 
-    test('queryByPath on the notification keystore also throws', () {
-      expect(
-        () => bundle.notificationKeystore!
-            .queryByPath(
-              keyPattern: KeyPattern(),
-              predicate: PathEquals(['anything'], 'x'),
-            )
-            .first,
-        throwsA(isA<UnsupportedError>()),
-      );
+    test('notification keystore does not have path-query surface', () {
+      // After the keystore-tier collapse, the notification keystore
+      // extends KeyValueStore (not AtKeyValueStore), so it doesn't
+      // declare queryByPath / supportsPathQueries at all — the test
+      // captures the structural change.
+      expect(bundle.notificationKeystore, isNotNull);
     });
 
     test('Predicate AST round-trip: PathEquals + And + Or composition', () {

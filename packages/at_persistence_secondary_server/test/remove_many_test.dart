@@ -76,16 +76,22 @@ void main() {
       ]);
       expect(n, 2);
       expect(
-        bundle.commitLog.getLatestCommitEntry('public:a.wavi@alice')?.operation,
+        bundle.keyValueStore.commitLog!
+            .getLatestCommitEntry('public:a.wavi@alice')
+            ?.operation,
         CommitOp.DELETE,
       );
       expect(
-        bundle.commitLog.getLatestCommitEntry('public:b.wavi@alice')?.operation,
+        bundle.keyValueStore.commitLog!
+            .getLatestCommitEntry('public:b.wavi@alice')
+            ?.operation,
         CommitOp.DELETE,
       );
       // The untouched key still has its UPDATE entry.
       expect(
-        bundle.commitLog.getLatestCommitEntry('public:c.wavi@alice')?.operation,
+        bundle.keyValueStore.commitLog!
+            .getLatestCommitEntry('public:c.wavi@alice')
+            ?.operation,
         CommitOp.UPDATE,
       );
     });
@@ -99,11 +105,14 @@ void main() {
       await bundle.keyValueStore
           .removeMany(['public:a.wavi@alice'], skipCommit: true);
       expect(
-        bundle.commitLog.getLatestCommitEntry('public:a.wavi@alice'),
+        bundle.keyValueStore.commitLog!
+            .getLatestCommitEntry('public:a.wavi@alice'),
         isNull,
       );
       expect(
-        bundle.commitLog.getLatestCommitEntry('public:c.wavi@alice')?.operation,
+        bundle.keyValueStore.commitLog!
+            .getLatestCommitEntry('public:c.wavi@alice')
+            ?.operation,
         CommitOp.UPDATE,
       );
     });

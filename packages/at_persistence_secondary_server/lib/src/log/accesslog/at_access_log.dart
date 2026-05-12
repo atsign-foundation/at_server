@@ -11,7 +11,7 @@ import 'package:at_persistence_secondary_server/src/spec/spec.dart';
 /// run a full secondary opt into this capability via
 /// [AtPersistenceConfig.enableAccessLog]; client-only consumers
 /// leave it disabled.
-abstract class AtAccessLog implements AtLogType<int, AccessLogEntry> {
+abstract class AtAccessLog implements Compactable {
   /// Append a new entry recording that [fromAtSign] performed
   /// [verbName] (optionally against [lookupKey]) at the current
   /// instant. Returns the assigned entry id, or `null` on failure.
@@ -36,6 +36,20 @@ abstract class AtAccessLog implements AtLogType<int, AccessLogEntry> {
   /// backend to another.
   Stream<AccessLogEntry> iterate();
 
+  /// Total entry count. Used by operators / metrics; not on any
+  /// hot path.
+  int entriesCount();
+
+  /// Approximate on-disk size in bytes.
+  int getSize();
+
   /// Close the underlying storage handle.
   Future<void> close();
+
+  /// Compact the access log. If [dryRun] is `true`, yields each
+  /// entry id that WOULD be removed without performing the
+  /// deletion. If `false`, performs the compaction and yields each
+  /// id as it is removed.
+  @override
+  Stream<int> compact(bool dryRun);
 }

@@ -7,43 +7,50 @@ import 'package:at_utils/at_logger.dart';
 import 'package:meta/meta.dart';
 
 /// Persists compaction stats as atKeys in the secondary's keystore.
-/// The atKey chosen depends on which log/store the stats came from
-/// — see [_getKey]. This is the secondary-server-shaped policy: a
+/// One persistence-key per resource label
+/// (`commitLog` / `accessLog` / `notificationKeystore`). A
 /// different deployment could implement [AtCompactionStatsService]
 /// to push stats to Prometheus, drop them, etc.
 class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
-  final AtKeyValueStore _keyStore;
-  final AtCompaction _atCompaction;
-  @visibleForTesting
-  late String compactionStatsKey;
+  final AtKeyValueStore _keyValueStore;
   final _logger = AtSignLogger("AtCompactionStats");
 
-  AtCompactionStatsServiceImpl(this._atCompaction, this._keyStore) {
-    _getKey();
-  }
+  AtCompactionStatsServiceImpl(this._keyValueStore);
+
+  /// Resource-label → keystore atKey used to persist that resource's
+  /// stats. Exposed for tests.
+  @visibleForTesting
+  static const Map<String, String> labelToKey = {
+    'commitLog': AtConstants.commitLogCompactionKey,
+    'accessLog': AtConstants.accessLogCompactionKey,
+    'notificationKeystore': AtConstants.notificationCompactionKey,
+  };
 
   @override
-  Future<void> handleStats(AtCompactionStats atCompactionStats) async {
-    _logger.finest(
-        'Completed compaction of $_atCompaction: ${atCompactionStats.toString()}');
+  Future<void> record({
+    required String label,
+    required DateTime start,
+    required int compactedCount,
+    required Duration duration,
+  }) async {
+    final compactionStatsKey = labelToKey[label];
+    if (compactionStatsKey == null) {
+      _logger.warning('No persistence key for compaction label "$label"; '
+          'stats dropped.');
+      return;
+    }
+    final payload = <String, String>{
+      'atCompactionType': label,
+      'lastCompactionRun': start.toUtc().toString(),
+      'compactionDurationInMills': duration.inMilliseconds.toString(),
+      'deletedKeysCount': compactedCount.toString(),
+    };
+    _logger.finest('Completed compaction of $label: $payload');
     try {
-      await _keyStore.put(compactionStatsKey,
-          AtData()..data = json.encode(atCompactionStats.toJson()));
-    } on Exception catch (_, e) {
+      await _keyValueStore.put(
+          compactionStatsKey, AtData()..data = json.encode(payload));
+    } on Exception catch (e) {
       _logger.severe(e);
-    }
-  }
-
-  ///changes the value of [compactionStatsKey] to match the AtLogType being processed
-  void _getKey() {
-    if (_atCompaction is HiveAtCommitLog) {
-      compactionStatsKey = AtConstants.commitLogCompactionKey;
-    }
-    if (_atCompaction is HiveAtAccessLog) {
-      compactionStatsKey = AtConstants.accessLogCompactionKey;
-    }
-    if (_atCompaction is HiveAtNotificationKeystore) {
-      compactionStatsKey = AtConstants.notificationCompactionKey;
     }
   }
 }

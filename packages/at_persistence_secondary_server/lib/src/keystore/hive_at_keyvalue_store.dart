@@ -165,6 +165,15 @@ class HiveAtKeyValueStore
   @override
   get commitLog => _commitLog;
 
+  /// Compact this keystore by delegating to the internal commit
+  /// log's [HiveAtCommitLog.compact]. The keystore itself doesn't
+  /// have its own compaction algorithm — the commit log is the
+  /// thing that accumulates entries faster than it can shed them.
+  @override
+  Stream<int> compact(bool dryRun) {
+    return _commitLog.compact(dryRun);
+  }
+
   @override
   Future<void> initialize() async {
     try {

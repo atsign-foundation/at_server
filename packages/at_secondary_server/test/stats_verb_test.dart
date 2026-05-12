@@ -313,32 +313,19 @@ void main() {
     });
 
     test('commit Log stats get value test', () async {
-      AtCompactionStats atCompactionStats = AtCompactionStats();
-      atCompactionStats.compactionDurationInMills = 1000;
-      atCompactionStats.deletedKeysCount = 41;
-      atCompactionStats.lastCompactionRun = DateTime.now();
-      atCompactionStats.postCompactionEntriesCount = 92;
-      atCompactionStats.preCompactionEntriesCount = 96;
-      atCompactionStats.atCompactionType = atServer.accessLog.toString();
+      final payload = <String, String>{
+        'atCompactionType': 'commitLog',
+        'lastCompactionRun': DateTime.now().toUtc().toString(),
+        'compactionDurationInMills': '1000',
+        'deletedKeysCount': '41',
+      };
       await keyValueStore.put(AtConstants.commitLogCompactionKey,
-          AtData()..data = jsonEncode(atCompactionStats));
+          AtData()..data = jsonEncode(payload));
 
       var atData = await CommitLogCompactionStats(atServer).getMetrics();
       var decodedData = jsonDecode(atData!) as Map;
-      expect(
-          decodedData[AtCompactionConstants.deletedKeysCount].toString(), '41');
-      expect(
-          decodedData[AtCompactionConstants.postCompactionEntriesCount]
-              .toString(),
-          '92');
-      expect(
-          decodedData[AtCompactionConstants.preCompactionEntriesCount]
-              .toString(),
-          '96');
-      expect(
-          decodedData[AtCompactionConstants.compactionDurationInMills]
-              .toString(),
-          '1000');
+      expect(decodedData['deletedKeysCount'].toString(), '41');
+      expect(decodedData['compactionDurationInMills'].toString(), '1000');
     });
   });
 
@@ -357,25 +344,19 @@ void main() {
     });
 
     test('accessLogCompactionStats getValue test', () async {
-      AtCompactionStats atCompactionStats = AtCompactionStats();
-      atCompactionStats.compactionDurationInMills = 10000;
-      atCompactionStats.deletedKeysCount = 431;
-      atCompactionStats.lastCompactionRun = DateTime.now();
-      atCompactionStats.postCompactionEntriesCount = 902;
-      atCompactionStats.preCompactionEntriesCount = 906;
-      atCompactionStats.atCompactionType = atServer.accessLog.toString();
+      final payload = <String, String>{
+        'atCompactionType': 'accessLog',
+        'lastCompactionRun': DateTime.now().toUtc().toString(),
+        'compactionDurationInMills': '10000',
+        'deletedKeysCount': '431',
+      };
       await keyValueStore.put(AtConstants.accessLogCompactionKey,
-          AtData()..data = jsonEncode(atCompactionStats));
+          AtData()..data = jsonEncode(payload));
 
       var atData = await AccessLogCompactionStats(atServer).getMetrics();
       var decodedData = jsonDecode(atData!) as Map;
-      expect(decodedData[AtCompactionConstants.deletedKeysCount], '431');
-      expect(
-          decodedData[AtCompactionConstants.postCompactionEntriesCount], '902');
-      expect(
-          decodedData[AtCompactionConstants.preCompactionEntriesCount], '906');
-      expect(decodedData[AtCompactionConstants.compactionDurationInMills],
-          '10000');
+      expect(decodedData['deletedKeysCount'], '431');
+      expect(decodedData['compactionDurationInMills'], '10000');
     });
   });
 
@@ -394,24 +375,19 @@ void main() {
     });
 
     test('notificationCompactionStats get value test', () async {
-      AtCompactionStats atCompactionStats = AtCompactionStats();
-      atCompactionStats.compactionDurationInMills = 10000;
-      atCompactionStats.deletedKeysCount = 1;
-      atCompactionStats.lastCompactionRun = DateTime.now();
-      atCompactionStats.postCompactionEntriesCount = 1;
-      atCompactionStats.preCompactionEntriesCount = 1;
-      atCompactionStats.atCompactionType = notifStore.toString();
+      final payload = <String, String>{
+        'atCompactionType': 'notificationKeystore',
+        'lastCompactionRun': DateTime.now().toUtc().toString(),
+        'compactionDurationInMills': '10000',
+        'deletedKeysCount': '1',
+      };
       await keyValueStore.put(AtConstants.commitLogCompactionKey,
-          AtData()..data = jsonEncode(atCompactionStats));
+          AtData()..data = jsonEncode(payload));
 
       var atData = await CommitLogCompactionStats(atServer).getMetrics();
       var decodedData = jsonDecode(atData!) as Map;
-      expect(decodedData[AtCompactionConstants.deletedKeysCount], '1');
-      expect(
-          decodedData[AtCompactionConstants.postCompactionEntriesCount], '1');
-      expect(decodedData[AtCompactionConstants.preCompactionEntriesCount], '1');
-      expect(decodedData[AtCompactionConstants.compactionDurationInMills],
-          '10000');
+      expect(decodedData['deletedKeysCount'], '1');
+      expect(decodedData['compactionDurationInMills'], '10000');
     });
   });
 

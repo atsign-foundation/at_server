@@ -84,11 +84,12 @@ final Map<String, HiveAtAccessLog> _testAccessLogs = {};
 Future<HiveAtAccessLog> testAccessLogFor(
   String atSign, {
   String? accessLogPath,
+  int compactionPercentage = 30,
 }) async {
   if (_testAccessLogs.containsKey(atSign)) return _testAccessLogs[atSign]!;
   final ks = AccessLogKeyStore(atSign);
   if (accessLogPath != null) await ks.init(accessLogPath);
-  final log = HiveAtAccessLog(ks);
+  final log = HiveAtAccessLog(ks, compactionPercentage: compactionPercentage);
   _testAccessLogs[atSign] = log;
   return log;
 }

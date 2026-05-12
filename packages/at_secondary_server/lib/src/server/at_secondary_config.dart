@@ -37,11 +37,13 @@ class AtSecondaryConfig {
   static const int _commitLogCompactionFrequencyMins = 18;
   static const int _commitLogCompactionPercentage = 20;
   static const int _commitLogSizeInKB = 2;
+  static const bool _enableCommitLogCompactor = true;
 
   //Access Log
   static const int _accessLogCompactionFrequencyMins = 15;
   static const int _accessLogCompactionPercentage = 30;
   static const int _accessLogSizeInKB = 2;
+  static const bool _enableAccessLogCompactor = true;
 
   //Notification
   static const bool _autoNotify = true;
@@ -56,6 +58,7 @@ class AtSecondaryConfig {
   static const int _notificationKeyStoreCompactionFrequencyMins = 5;
   static const int _notificationKeyStoreCompactionPercentage = 30;
   static const int _notificationKeyStoreSizeInKB = -1;
+  static const bool _enableNotificationCompactor = true;
 
   //Refresh Job
   static const int _runRefreshJobHour = 3;
@@ -286,6 +289,28 @@ class AtSecondaryConfig {
         getNullableIntFromYaml(
             ['notification_keystore_compaction', 'compactionFrequencyMins']) ??
         _notificationKeyStoreCompactionFrequencyMins;
+  }
+
+  /// Whether the commit-log compactor cron should be scheduled.
+  /// Disable to suppress the periodic prune.
+  static bool get enableCommitLogCompactor {
+    return _getBoolEnvVar('enableCommitLogCompactor') ??
+        _enableCommitLogCompactor;
+  }
+
+  /// Whether the access-log compactor cron should be scheduled. No
+  /// effect when [AtPersistenceConfig.enableAccessLog] is `false`.
+  static bool get enableAccessLogCompactor {
+    return _getBoolEnvVar('enableAccessLogCompactor') ??
+        _enableAccessLogCompactor;
+  }
+
+  /// Whether the notification-keystore compactor cron should be
+  /// scheduled. No effect when
+  /// [AtPersistenceConfig.enableNotificationKeystore] is `false`.
+  static bool get enableNotificationCompactor {
+    return _getBoolEnvVar('enableNotificationCompactor') ??
+        _enableNotificationCompactor;
   }
 
   static String get notificationStoragePath {

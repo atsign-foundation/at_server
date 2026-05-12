@@ -263,7 +263,8 @@ Future<AtKeyValueStore> setUpFunc(storageDir) async {
   );
 
   AtSecondaryServerImpl.getInstance().currentAtSign = alice;
-  AtSecondaryServerImpl.getInstance().commitLog = bundle.commitLog;
+  AtSecondaryServerImpl.getInstance().commitLog =
+      bundle.keyValueStore.commitLog!;
   AtSecondaryServerImpl.getInstance().accessLog = bundle.accessLog!;
   return bundle.keyValueStore;
 }

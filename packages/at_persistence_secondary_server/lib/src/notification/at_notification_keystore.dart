@@ -13,16 +13,14 @@ import 'package:at_persistence_secondary_server/src/spec/spec.dart';
 /// [AtPersistenceConfig.enableNotificationKeystore]; client-only
 /// consumers leave it disabled.
 ///
-/// This abstract mirrors the public surface of the Hive concrete:
-/// it implements [AtKeyValueStore] (because notifications are
-/// keyed by notification id) and [AtLogType] (because the
-/// notification queue is compactable on the same access-log
-/// dimensions). Type parameters intentionally default to `dynamic`
-/// — the legacy keystore is loosely typed and Phase 2 keeps that
-/// shape; tightening to `<String, AtNotification?, AtMetaData?>`
-/// is left for a future cleanup that also rewrites the tests.
+/// Re-parented to [KeyValueStore] (rather than [AtKeyValueStore])
+/// because the notification queue has no commit log — sync is the
+/// wrong abstraction for it. The metadata-triplet
+/// ([AtKeyValueStore.putMeta] / [AtKeyValueStore.putAll] /
+/// [AtKeyValueStore.getMeta]) and predicate-query surface are not
+/// part of the notification contract.
 abstract class AtNotificationKeystore
-    implements AtKeyValueStore, AtLogType<String, AtNotification> {
+    implements KeyValueStore<dynamic, dynamic>, Compactable {
   /// Initialize the underlying storage rooted at [path]. Called once
   /// at bootstrap; implementation-defined what `path` means
   /// (directory for Hive, connection string for SQL backends, ...).
@@ -35,4 +33,17 @@ abstract class AtNotificationKeystore
   /// migrator to copy notification content from one backend to
   /// another.
   Stream<AtNotification> iterate();
+
+  /// Total entry count. Used by operators / metrics.
+  int entriesCount();
+
+  /// Approximate on-disk size in bytes.
+  int getSize();
+
+  /// Compact the notification queue. If [dryRun] is `true`, yields
+  /// each notification key that WOULD be removed without performing
+  /// the deletion. If `false`, performs the compaction and yields
+  /// each key as it is removed.
+  @override
+  Stream<String> compact(bool dryRun);
 }

@@ -30,7 +30,7 @@ void main() {
         expect(bundle.atSign, '@alice');
         expect(bundle.backendId, AtPersistenceBackendId.hive);
         expect(bundle.keyValueStore, isNotNull);
-        expect(bundle.commitLog, isNotNull);
+        expect(bundle.keyValueStore.commitLog!, isNotNull);
         expect(bundle.accessLog, isNotNull);
         expect(bundle.notificationKeystore, isNotNull);
 
@@ -88,7 +88,10 @@ void main() {
         expect(alice.atSign, '@alice');
         expect(bob.atSign, '@bob');
         expect(identical(alice.keyValueStore, bob.keyValueStore), isFalse);
-        expect(identical(alice.commitLog, bob.commitLog), isFalse);
+        expect(
+            identical(
+                alice.keyValueStore.commitLog, bob.keyValueStore.commitLog),
+            isFalse);
         expect(identical(alice.accessLog, bob.accessLog), isFalse);
         expect(identical(alice.notificationKeystore, bob.notificationKeystore),
             isFalse);
@@ -224,10 +227,4 @@ class _NotHiveConfig implements AtPersistenceConfig {
   bool get enableAccessLog => true;
   @override
   bool get enableNotificationKeystore => true;
-  @override
-  bool get enableCommitLogCompactor => true;
-  @override
-  bool get enableAccessLogCompactor => true;
-  @override
-  bool get enableKeyStoreCompactor => true;
 }

@@ -7,13 +7,9 @@
 //
 // Ships as the public surface via at_persistence_secondary_server.dart.
 export 'annotation/at_annotation.dart';
-export 'compaction/at_compaction_strategy.dart';
-export 'compaction/at_compaction_stats.dart';
-export 'compaction/at_compaction_type.dart';
-export 'compaction/at_compaction.dart';
+export 'compaction/compactable.dart';
 export 'exception/exceptions.dart';
 export 'keystore/keystore.dart';
-export 'keystore/keystore_manager.dart';
 export 'keystore/log_keystore.dart';
 export 'keystore/key_entry.dart';
 export 'keystore/key_pattern.dart';

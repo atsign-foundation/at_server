@@ -37,43 +37,29 @@ abstract class AtPersistenceFactory {
 /// All the per-atSign persistence resources an at_server needs,
 /// produced by an [AtPersistenceFactory].
 ///
-/// The bundle is split into a *core* (always present) and
-/// *optional capabilities* (nullable, populated based on the
-/// [AtPersistenceConfig] passed to the factory). Server-shaped
-/// consumers (full atSecondary) opt into all capabilities; client-
-/// shaped consumers (e.g. at_client_sdk's local cache) opt into
-/// core only.
+/// The bundle exposes three top-level resources, each of which
+/// implements [Compactable]:
+///   * [keyValueStore] — the main key-value store. Its internal
+///     commit log (server-side; null on client-side) is reachable
+///     via [AtKeyValueStore.commitLog].
+///   * [accessLog] — optional audit trail (server-side only).
+///   * [notificationKeystore] — optional notification queue
+///     (server-side only).
+///
+/// Server-shaped consumers (full atSecondary) opt into all
+/// capabilities; client-shaped consumers (e.g. at_client_sdk's
+/// local cache) opt into the keystore only.
 abstract class AtPersistenceBundle {
-  // ----- Core (always present) -----
-
   /// The atSign this bundle owns.
   String get atSign;
 
-  /// Identifies which backend produced this bundle. Phase 3
-  /// migration tooling reads this to detect a config change
-  /// between restarts.
+  /// Identifies which backend produced this bundle.
   AtPersistenceBackendId get backendId;
 
   /// The keystore for client data (target of `update` / `lookup`).
+  /// Its commit log is accessible as `keyValueStore.commitLog` —
+  /// non-null on server bundles, null on client bundles.
   AtKeyValueStore<String, AtData?, AtMetaData?> get keyValueStore;
-
-  /// The commit log used by sync. Typed at the abstract
-  /// [AtCommitLog]; the concrete is whatever the factory's
-  /// backend produces (e.g. [HiveAtCommitLog]).
-  AtCommitLog get commitLog;
-
-  /// Drop all data from this bundle's stores while keeping the
-  /// underlying connections (Hive boxes etc.) open. Idempotent.
-  /// Intended for cheap per-test isolation: cheaper than
-  /// [close] + a fresh [AtPersistenceFactory.initialize], because
-  /// it doesn't tear down and re-open the boxes / DB handles.
-  /// Production code should use [close] instead.
-  Future<void> clear();
-
-  /// Close all underlying resources. Idempotent.
-  Future<void> close();
-
-  // ----- Optional capabilities (nullable) -----
 
   /// The access log used for stats and security audit. `null` when
   /// [AtPersistenceConfig.enableAccessLog] is `false` (typical for
@@ -84,18 +70,11 @@ abstract class AtPersistenceBundle {
   /// [AtPersistenceConfig.enableNotificationKeystore] is `false`.
   AtNotificationKeystore? get notificationKeystore;
 
-  /// Strategy for compacting the commit log. `null` when
-  /// [AtPersistenceConfig.enableCommitLogCompactor] is `false`.
-  AtCompactionStrategy? get commitLogCompactor;
+  /// Drop all data from this bundle's stores while keeping the
+  /// underlying connections (Hive boxes etc.) open. Idempotent.
+  /// Intended for cheap per-test isolation.
+  Future<void> clear();
 
-  /// Strategy for compacting the access log. `null` when
-  /// [AtPersistenceConfig.enableAccessLogCompactor] is `false`
-  /// (server-track only).
-  AtCompactionStrategy? get accessLogCompactor;
-
-  /// Strategy for compacting the keystore (typically used for
-  /// notification keystore TTL sweeps). `null` when
-  /// [AtPersistenceConfig.enableKeyStoreCompactor] is `false`
-  /// (server-track only).
-  AtCompactionStrategy? get keyStoreCompactor;
+  /// Close all underlying resources. Idempotent.
+  Future<void> close();
 }

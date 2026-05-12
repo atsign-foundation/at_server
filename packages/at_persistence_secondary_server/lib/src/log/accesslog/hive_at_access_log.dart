@@ -6,12 +6,15 @@ import 'package:hive/hive.dart';
 /// Hive-backed implementation of [AtAccessLog] for the secondary
 /// server's audit trail (from, cram, pol, lookup, plookup, pkam).
 class HiveAtAccessLog implements AtAccessLog {
-  // ignore: prefer_typing_uninitialized_variables
   late AccessLogKeyStore _accessLogKeyStore;
 
-  late AtCompactionConfig atCompactionConfig;
+  /// Per-pass percentage of entries to drop when compaction is
+  /// invoked. Captured from `AtSecondaryConfig` at factory time;
+  /// immutable per instance.
+  final int compactionPercentage;
 
-  HiveAtAccessLog(AccessLogKeyStore keyValueStore) {
+  HiveAtAccessLog(AccessLogKeyStore keyValueStore,
+      {this.compactionPercentage = 30}) {
     _accessLogKeyStore = keyValueStore;
   }
 
@@ -53,35 +56,6 @@ class HiveAtAccessLog implements AtAccessLog {
   }
 
   @override
-  Future<void> deleteKeyForCompaction(List<int> keysList) async {
-    try {
-      await _accessLogKeyStore.removeAll(keysList);
-    } on Exception catch (e) {
-      throw DataStoreException(
-          'DataStoreException while deleting for compaction:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error while deleting for compaction:${e.toString()}');
-    }
-  }
-
-  @override
-  Future<List<int>> getKeysToDeleteOnCompaction() async {
-    int totalKeys = entriesCount();
-    int firstNKeys =
-        (totalKeys * (atCompactionConfig.compactionPercentage! / 100)).toInt();
-    try {
-      return _accessLogKeyStore.getFirstNEntries(firstNKeys);
-    } on Exception catch (e) {
-      throw DataStoreException(
-          'DataStoreException while getting keys for compaction:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error while getting keys for compaction:${e.toString()}');
-    }
-  }
-
-  @override
   int getSize() {
     return _accessLogKeyStore.getSize();
   }
@@ -120,9 +94,31 @@ class HiveAtAccessLog implements AtAccessLog {
     await _accessLogKeyStore.getBox().clear();
   }
 
+  /// Compact the access log. Drops the oldest
+  /// [compactionPercentage] of entries by insertion order.
   @override
-  void setCompactionConfig(AtCompactionConfig atCompactionConfig) {
-    this.atCompactionConfig = atCompactionConfig;
+  Stream<int> compact(bool dryRun) async* {
+    final int totalKeys = entriesCount();
+    final int firstN = (totalKeys * (compactionPercentage / 100)).toInt();
+    final List<int> keysToDelete = _accessLogKeyStore.getFirstNEntries(firstN);
+    if (dryRun) {
+      for (final id in keysToDelete) {
+        yield id;
+      }
+      return;
+    }
+    try {
+      await _accessLogKeyStore.removeAll(keysToDelete);
+    } on Exception catch (e) {
+      throw DataStoreException(
+          'DataStoreException while deleting for compaction:${e.toString()}');
+    } on HiveError catch (e) {
+      throw DataStoreException(
+          'Hive error while deleting for compaction:${e.toString()}');
+    }
+    for (final id in keysToDelete) {
+      yield id;
+    }
   }
 
   @override

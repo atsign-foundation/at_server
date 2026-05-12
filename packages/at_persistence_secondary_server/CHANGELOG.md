@@ -24,6 +24,56 @@ Major release: persistence-overhaul. Themes:
   (+ `supportsSnapshots`), and `stats`. Capability flags let
   Phase 4 SQL backends light up native indexed query / MVCC
   paths while Hive falls back gracefully.
+- **Keystore type hierarchy collapsed.**
+  `SecondaryKeyStore` renamed to `AtKeyValueStore`;
+  `HiveSecondaryKeyStore` renamed to `HiveAtKeyValueStore`.
+  Bundle field `keyStore` renamed to `keyValueStore`.
+  `Keystore` (read-only), `WritableKeystore`, and
+  `SynchronizableKeyStore` collapsed into a single
+  `KeyValueStore<K, V>` interface that holds the merged
+  CRUD + rich surface (scan, bulk, expire, change stream,
+  transaction, snapshot, stats). `AtKeyValueStore<K, V, T>`
+  extends `KeyValueStore` and adds the sync-coupled surface:
+  the (nullable) `commitLog`, `putMeta` / `putAll` /
+  `getMeta`, and `queryByPath` /  `supportsPathQueries`.
+- **`AtKeyValueStore.commitLog` is nullable.** Server bundles
+  hold a non-null commit log on the keystore; client bundles
+  hold `null` (sync via fsync or other mechanism). The server's
+  bootstrap asserts non-null once and binds to a non-nullable
+  local for downstream consumers.
+- **Bundle no longer exposes the commit log directly.**
+  `AtPersistenceBundle.commitLog` is gone; reach it as
+  `bundle.keyValueStore.commitLog!`.
+- **`AtNotificationKeystore` re-parented to `KeyValueStore`.**
+  No longer extends the AtKeyValueStore tier — notifications
+  don't participate in the commit log. Drops the six
+  `UnimplementedError` stubs and the no-op `commitLog`
+  override that the old interface forced on it. Notification
+  keystore implementations stop pretending to support
+  `putMeta` / `putAll` / `getMeta` / `queryByPath`.
+- **Compaction is intrinsic, not strategy-wrapped.** The
+  `Compactable` interface (one method: `Stream<Object>
+  compact(bool dryRun)`) replaces `AtCompactionStrategy`,
+  `HiveCompactionStrategy`, `AtCompaction`, `AtLogType`,
+  `AtCompactionConfig`, and `AtCompactionStats` — all
+  deleted. `AtCommitLog`, `AtAccessLog`,
+  `AtNotificationKeystore`, and `AtKeyValueStore` all
+  implement `Compactable`. The Hive impls each carry their
+  own `compactionPercentage` constructor parameter; on
+  `compact(false)` they yield the items removed,
+  `compact(true)` yields what would be removed.
+- **Compactor scheduling moves to `at_secondary_server`.**
+  The persistence layer no longer schedules anything — the
+  secondary server runs three `Timer.periodic` ticks with
+  overlap guards. `AtCompactionJob` deleted.
+  `AtCompactionStatsService.record()` takes primitives
+  (`label`, `start`, `compactedCount`, `duration`) instead
+  of an `AtCompactionStats` object.
+- **`AtPersistenceConfig` compactor flags removed.**
+  `enableCommitLogCompactor` / `enableAccessLogCompactor` /
+  `enableKeyStoreCompactor` moved to `AtSecondaryConfig`
+  (with `enableKeyStoreCompactor` → `enableNotificationCompactor`,
+  matching the resource it actually gates).
 - **Migrator-friendly walks.** `replay(CommitEntry)` and
   `iterate({fromCommitId, where})` on `AtCommitLog`, plus
   `iterate()` on access log + notification keystore. Lazy box-

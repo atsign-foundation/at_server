@@ -8,9 +8,9 @@ import 'package:at_persistence_secondary_server/src/spec/spec.dart';
 ///
 /// This interface intentionally does NOT expose the underlying
 /// keystore handle (Hive-specific). Backend-aware operations
-/// (compaction, on-disk maintenance) reach the impl via the
-/// bundle's compactor field, not via this interface.
-abstract class AtCommitLog implements AtLogType<int, CommitEntry> {
+/// (e.g. compaction) are exposed via [compact] on the [Compactable]
+/// contract.
+abstract class AtCommitLog implements Compactable {
   /// Append a new entry for [key] / [operation]. Returns the
   /// assigned `commitId`, or `-1` for keys that bypass the commit
   /// log (`private:`, `privatekey:`, `public:_`, `local:`, ...).
@@ -48,12 +48,26 @@ abstract class AtCommitLog implements AtLogType<int, CommitEntry> {
   /// never been committed.
   CommitEntry? getLatestCommitEntry(String key);
 
+  /// Total entry count. Used by operators / metrics; not on any
+  /// hot path.
+  int entriesCount();
+
+  /// Approximate on-disk size in bytes.
+  int getSize();
+
   /// Close the underlying storage handle.
   Future<void> close();
 
-  /// Set the compaction config governing automatic pruning.
+  /// Compact the commit log. If [dryRun] is `true`, yields each
+  /// commit-id that WOULD be removed without performing the
+  /// deletion. If `false`, performs the compaction and yields each
+  /// commit-id as it is removed.
+  ///
+  /// The Hive impl drops the oldest configured percentage of
+  /// entries; SQL backends will do a `DELETE WHERE` (and possibly
+  /// `VACUUM`) instead.
   @override
-  void setCompactionConfig(AtCompactionConfig atCompactionConfig);
+  Stream<int> compact(bool dryRun);
 
   // ----- Client-flavour members (default-throwing) -----
   //

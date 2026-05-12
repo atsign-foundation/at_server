@@ -7,9 +7,9 @@ import 'package:at_secondary/src/compaction/at_compaction_stats_service_impl.dar
 import 'package:test/test.dart';
 
 /// Unit-tests for [AtCompactionStatsServiceImpl] — the
-/// at_secondary-shaped sink that persists [AtCompactionStats] as
-/// atKeys in the keystore. The compaction itself is exercised by
-/// [HiveCompactionStrategy] in
+/// at_secondary-shaped sink that persists per-compaction-pass
+/// metrics as atKeys in the keystore. The compaction itself is
+/// exercised on each resource's `compact()` method in
 /// `at_persistence_secondary_server/test/at_compaction_test.dart`.
 
 const _atSign = '@alice';
@@ -17,7 +17,7 @@ final _storageDir = '${Directory.current.path}/test/hive_compaction_stats';
 
 late HiveAtPersistenceFactory _factory;
 late HiveAtPersistenceBundle _bundle;
-late AtKeyValueStore _keyStore;
+late AtKeyValueStore _keyValueStore;
 late HiveAtCommitLog _commitLog;
 late HiveAtAccessLog _accessLog;
 late HiveAtNotificationKeystore _notificationKeystore;
@@ -33,8 +33,8 @@ Future<void> _bootstrap() async {
       notificationStoragePath: _storageDir,
     ),
   ) as HiveAtPersistenceBundle;
-  _keyStore = _bundle.keyValueStore;
-  _commitLog = _bundle.commitLog;
+  _keyValueStore = _bundle.keyValueStore;
+  _commitLog = _bundle.keyValueStore.commitLog! as HiveAtCommitLog;
   _accessLog = _bundle.accessLog!;
   _notificationKeystore = _bundle.notificationKeystore!;
 }
@@ -45,41 +45,44 @@ Future<void> _teardown() async {
   if (dir.existsSync()) await dir.delete(recursive: true);
 }
 
+/// Drain a compact() stream, return the count.
+Future<int> _runCompaction(Compactable resource) async {
+  var count = 0;
+  await for (final _ in resource.compact(false)) {
+    count++;
+  }
+  return count;
+}
+
 void main() {
-  group('A group of tests related to commit log compaction', () {
+  group('A group of tests related to commit log compaction stats', () {
     setUp(_bootstrap);
     tearDown(_teardown);
 
     test('verify commitLog stats in keystore', () async {
       await _commitLog.commit('@alice:phone@alice', CommitOp.UPDATE);
       await _commitLog.commit('@alice:phone@alice', CommitOp.UPDATE);
-      final beforeMicros = DateTime.now().toUtc().microsecondsSinceEpoch;
-      final stats = await HiveCompactionStrategy(_commitLog).compact();
-      final afterMicros = DateTime.now().toUtc().microsecondsSinceEpoch;
+      final start = DateTime.timestamp();
+      final count = await _runCompaction(_commitLog);
+      final duration = DateTime.timestamp().difference(start);
 
-      expect(stats.preCompactionEntriesCount, 1);
-      expect(stats.postCompactionEntriesCount, 1);
-      expect(stats.compactionDurationInMills >= 0, true);
-      expect(stats.compactionDurationInMills <= (afterMicros - beforeMicros),
-          true);
-      expect(
-          stats.lastCompactionRun.microsecondsSinceEpoch > 0 &&
-              stats.lastCompactionRun.microsecondsSinceEpoch <
-                  DateTime.now().toUtc().microsecondsSinceEpoch,
-          true);
+      await AtCompactionStatsServiceImpl(_keyValueStore).record(
+        label: 'commitLog',
+        start: start,
+        compactedCount: count,
+        duration: duration,
+      );
 
-      await AtCompactionStatsServiceImpl(_commitLog, _keyStore)
-          .handleStats(stats);
-      final atData = await _keyStore.get(AtConstants.commitLogCompactionKey);
+      final atData =
+          await _keyValueStore.get(AtConstants.commitLogCompactionKey);
       final decoded = jsonDecode(atData!.data!) as Map;
-      expect(decoded['deletedKeysCount'], '0');
-      expect(decoded['postCompactionEntriesCount'], '1');
-      expect(decoded['preCompactionEntriesCount'], '1');
-      expect(decoded['atCompactionType'], 'HiveAtCommitLog');
+      expect(decoded['deletedKeysCount'], count.toString());
+      expect(decoded['atCompactionType'], 'commitLog');
+      expect(int.parse(decoded['compactionDurationInMills']) >= 0, isTrue);
     });
   });
 
-  group('A group of tests related to access log compaction', () {
+  group('A group of tests related to access log compaction stats', () {
     setUp(_bootstrap);
     tearDown(_teardown);
 
@@ -89,72 +92,54 @@ void main() {
       await _accessLog.insert('@alice', 'scan');
       await _accessLog.insert('@alice', 'lookup',
           lookupKey: '@alice:phone@bob');
-      _accessLog
-          .setCompactionConfig(AtCompactionConfig()..compactionPercentage = 99);
-      final stats = await HiveCompactionStrategy(_accessLog).compact();
-      await AtCompactionStatsServiceImpl(_accessLog, _keyStore)
-          .handleStats(stats);
-      final atData = await _keyStore.get(AtConstants.accessLogCompactionKey);
+      final start = DateTime.timestamp();
+      final count = await _runCompaction(_accessLog);
+      final duration = DateTime.timestamp().difference(start);
+
+      await AtCompactionStatsServiceImpl(_keyValueStore).record(
+        label: 'accessLog',
+        start: start,
+        compactedCount: count,
+        duration: duration,
+      );
+      final atData =
+          await _keyValueStore.get(AtConstants.accessLogCompactionKey);
       final decoded = jsonDecode(atData!.data!) as Map;
-      expect(decoded['deletedKeysCount'], '3');
-      expect(decoded['postCompactionEntriesCount'], '1');
-      expect(decoded['preCompactionEntriesCount'], '4');
+      expect(decoded['deletedKeysCount'], count.toString());
+      expect(decoded['atCompactionType'], 'accessLog');
     });
   });
 
-  group('A group of tests for Notification keystore compaction', () {
+  group('A group of tests for Notification keystore compaction stats', () {
     setUp(_bootstrap);
     tearDown(_teardown);
 
     test('verify notificationKeyStore stats in keystore', () async {
-      final stats = AtCompactionStats()
-        ..compactionDurationInMills = 2000
-        ..deletedKeysCount = 239
-        ..lastCompactionRun = DateTime.now()
-        ..postCompactionEntriesCount = 302
-        ..preCompactionEntriesCount = 404
-        ..atCompactionType = _notificationKeystore.toString();
-      await AtCompactionStatsServiceImpl(_notificationKeystore, _keyStore)
-          .handleStats(stats);
+      final start = DateTime.now();
+      await AtCompactionStatsServiceImpl(_keyValueStore).record(
+        label: 'notificationKeystore',
+        start: start,
+        compactedCount: 239,
+        duration: Duration(milliseconds: 2000),
+      );
       final atData =
-          await _keyStore.get('privatekey:notificationCompactionStats');
+          await _keyValueStore.get('privatekey:notificationCompactionStats');
       final decoded = jsonDecode(atData!.data!) as Map;
-      expect(decoded[AtCompactionConstants.deletedKeysCount].toString(), '239');
-      expect(
-          decoded[AtCompactionConstants.postCompactionEntriesCount].toString(),
-          '302');
-      expect(
-          decoded[AtCompactionConstants.preCompactionEntriesCount].toString(),
-          '404');
-      expect(
-          decoded[AtCompactionConstants.compactionDurationInMills].toString(),
-          '2000');
+      expect(decoded['deletedKeysCount'].toString(), '239');
+      expect(decoded['compactionDurationInMills'].toString(), '2000');
+      // Sanity reference: _notificationKeystore exists for setup.
+      expect(_notificationKeystore, isNotNull);
     });
   });
 
-  group('compactionStatsKey selection', () {
-    setUp(_bootstrap);
-    tearDown(_teardown);
-
-    test('commitLog -> commitLogCompactionStats', () async {
-      expect(
-          AtCompactionStatsServiceImpl(_commitLog, _keyStore)
-              .compactionStatsKey,
-          'privatekey:commitLogCompactionStats');
-    });
-
-    test('accessLog -> accessLogCompactionStats', () async {
-      expect(
-          AtCompactionStatsServiceImpl(_accessLog, _keyStore)
-              .compactionStatsKey,
-          'privatekey:accessLogCompactionStats');
-    });
-
-    test('notificationKeystore -> notificationCompactionStats', () async {
-      expect(
-          AtCompactionStatsServiceImpl(_notificationKeystore, _keyStore)
-              .compactionStatsKey,
-          'privatekey:notificationCompactionStats');
+  group('Per-resource persistence key selection', () {
+    test('label-to-key map covers all three resources', () {
+      expect(AtCompactionStatsServiceImpl.labelToKey['commitLog'],
+          AtConstants.commitLogCompactionKey);
+      expect(AtCompactionStatsServiceImpl.labelToKey['accessLog'],
+          AtConstants.accessLogCompactionKey);
+      expect(AtCompactionStatsServiceImpl.labelToKey['notificationKeystore'],
+          AtConstants.notificationCompactionKey);
     });
   });
 }

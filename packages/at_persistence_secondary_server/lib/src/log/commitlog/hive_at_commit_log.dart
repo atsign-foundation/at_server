@@ -11,11 +11,15 @@ class HiveAtCommitLog extends AtCommitLog {
 
   late CommitLogKeyStore _commitLogKeyStore;
 
-  late AtCompactionConfig atCompactionConfig;
+  /// Per-pass percentage of entries to drop when compaction is
+  /// invoked. Captured from `AtSecondaryConfig` at factory time;
+  /// immutable per instance.
+  final int compactionPercentage;
 
   CommitLogKeyStore get commitLogKeyStore => _commitLogKeyStore;
 
-  HiveAtCommitLog(CommitLogKeyStore keyValueStore) {
+  HiveAtCommitLog(CommitLogKeyStore keyValueStore,
+      {this.compactionPercentage = 30}) {
     _commitLogKeyStore = keyValueStore;
   }
 
@@ -117,10 +121,21 @@ class HiveAtCommitLog extends AtCommitLog {
     await _commitLogKeyStore.close();
   }
 
+  /// Compact the commit log. The Hive impl prunes duplicate entries
+  /// (same atKey, older commitId) — the same algorithm
+  /// `HiveCompactionStrategy` used to drive externally.
   @override
-  Future<void> deleteKeyForCompaction(List<int> keysList) async {
+  Stream<int> compact(bool dryRun) async* {
+    final List<int> keysToDelete =
+        await _commitLogKeyStore.getDuplicateEntries();
+    if (dryRun) {
+      for (final id in keysToDelete) {
+        yield id;
+      }
+      return;
+    }
     try {
-      await _commitLogKeyStore.removeAll(keysList);
+      await _commitLogKeyStore.removeAll(keysToDelete);
     } on Exception catch (e) {
       throw DataStoreException(
           'DataStoreException while deleting for compaction:${e.toString()}');
@@ -128,26 +143,9 @@ class HiveAtCommitLog extends AtCommitLog {
       throw DataStoreException(
           'Hive error while deleting for compaction:${e.toString()}');
     }
-  }
-
-  @override
-  Future<List<int>> getKeysToDeleteOnCompaction() async {
-    List<int> entries = [];
-    try {
-      entries = await _commitLogKeyStore.getDuplicateEntries();
-    } on Exception catch (e) {
-      throw DataStoreException(
-          'DataStoreException getting keys to delete for compaction:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error getting keys to delete for compaction:${e.toString()}');
+    for (final id in keysToDelete) {
+      yield id;
     }
-    return entries;
-  }
-
-  @override
-  void setCompactionConfig(AtCompactionConfig atCompactionConfig) {
-    this.atCompactionConfig = atCompactionConfig;
   }
 
   @override

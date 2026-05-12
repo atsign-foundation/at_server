@@ -262,7 +262,7 @@ verbTestsSetUp() async {
   );
   final bundle = await factory.initialize(alice, config);
 
-  atServer.commitLog = atCommitLog = bundle.commitLog;
+  atServer.commitLog = atCommitLog = bundle.keyValueStore.commitLog!;
   atServer.accessLog = bundle.accessLog!;
   keyValueStore = bundle.keyValueStore;
 

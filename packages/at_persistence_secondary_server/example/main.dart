@@ -23,9 +23,9 @@ Future<void> main(List<String> arguments) async {
   final result = await bundle.keyValueStore.create('phone@alice', atData);
   print(result);
 
-  // Commit log
-  final hiveKey =
-      await bundle.commitLog.commit('location@alice', CommitOp.UPDATE);
+  // Commit log lives inside the keystore.
+  final hiveKey = await bundle.keyValueStore.commitLog!
+      .commit('location@alice', CommitOp.UPDATE);
   print(hiveKey);
 
   // Notification keystore
