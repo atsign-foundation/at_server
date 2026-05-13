@@ -10,3 +10,37 @@
 - AtServer and AtDirectory storage is externalized so that the container can be swarmed
 - Proxy server is built into the image .
 
+## Commands
+
+Build:
+
+```bash
+docker build \
+    -f tools/build_prod_container/Dockerfile \
+    -t atsigncompany/prod_container:dev \
+    .
+```
+
+Run:
+
+```bash
+docker run \
+    -it \
+    --rm \
+    atsigncompany/prod_container:dev \
+    /bin/bash
+```
+
+Build and Run:
+
+```bash
+docker build \
+    -f tools/build_prod_container/Dockerfile \
+    -t atsigncompany/prod_container:dev \
+    . && \
+docker run \
+    -it \
+    --rm \
+    atsigncompany/prod_container:dev \
+    /bin/bash
+```
