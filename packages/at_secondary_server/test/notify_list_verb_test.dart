@@ -122,7 +122,11 @@ void main() async {
       await notifStore.put('122', notification1);
       await notifStore.put('125', notification2);
       var verb = NotifyList();
-      var date = DateTime.now().toString().split(' ')[0];
+      // The notify-list handler interprets fromDate as a UTC date —
+      // derive the date string from UTC too, otherwise the
+      // local-zone date-string can fall outside the UTC window for
+      // notifications at the day boundary in non-UTC timezones.
+      var date = DateTime.now().toUtc().toString().split(' ')[0];
       var command = 'notify:list:$date';
       var regex = verb.syntax();
       var verbParams = getVerbParam(regex, command);
@@ -206,10 +210,22 @@ void main() async {
       await notifStore.put('122', notification2);
       await notifStore.put('123', notification3);
       var verb = NotifyList();
-      var fromDate =
-          DateTime.now().subtract(Duration(days: 2)).toString().split(' ')[0];
-      var toDate =
-          DateTime.now().subtract(Duration(days: 1)).toString().split(' ')[0];
+      // The notify-list handler interprets the fromDate/toDate query
+      // parameters as UTC dates (window =
+      // `[fromDate 00:00:00Z, toDate 23:59:59.999Z]`), so derive the
+      // date strings from UTC too. Mixing local-zone date-string
+      // derivation here against the UTC-zone handler bounds produced
+      // a window that depended on time-of-day in non-UTC timezones.
+      var fromDate = DateTime.now()
+          .toUtc()
+          .subtract(Duration(days: 2))
+          .toString()
+          .split(' ')[0];
+      var toDate = DateTime.now()
+          .toUtc()
+          .subtract(Duration(days: 1))
+          .toString()
+          .split(' ')[0];
       var command = 'notify:list:$fromDate:$toDate';
       var regex = verb.syntax();
       var verbParams = getVerbParam(regex, command);
