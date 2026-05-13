@@ -44,27 +44,23 @@ packages:
   at_persistence_root_server:
     dependency: "direct main"
     description:
-      path: "packages/at_persistence_root_server"
-      ref: trunk
-      resolved-ref: "350680af0009c1885cae18d67a0b257d752f23ff"
-      url: "https://github.com/atsign-foundation/at_server.git"
-    source: git
+      path: "../at_persistence_root_server"
+      relative: true
+    source: path
     version: "2.0.7"
   at_persistence_spec:
     dependency: "direct overridden"
     description:
-      name: at_persistence_spec
-      sha256: ea8e550368ccee9150247ae7abdc256dccf78467bb48c11d1d0d66b843b21ba7
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.0.14"
+      path: "../at_persistence_spec"
+      relative: true
+    source: path
+    version: "3.1.0"
   at_server_spec:
     dependency: "direct main"
     description:
-      name: at_server_spec
-      sha256: c128bc00c8bde819ff547b2a7baf9788723f9d87c36eddc30fd18042c64060cf
-      url: "https://pub.dev"
-    source: hosted
+      path: "../at_server_spec"
+      relative: true
+    source: path
     version: "5.1.0"
   at_utils:
     dependency: "direct main"

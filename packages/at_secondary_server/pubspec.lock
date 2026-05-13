@@ -69,10 +69,10 @@ packages:
     dependency: "direct main"
     description:
       name: at_commons
-      sha256: a8a07fff913a36524b95757ff72fcde448ae461b1647c8e8aee3276395452ae7
+      sha256: ae9be3918d75eabf342de86adf87af40120f80e3521c59f2cb166d340fd0a9e6
       url: "https://pub.dev"
     source: hosted
-    version: "5.8.0"
+    version: "5.10.0"
   at_lookup:
     dependency: "direct main"
     description:
