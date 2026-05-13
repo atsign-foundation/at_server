@@ -1,3 +1,7 @@
+# 3.13.0
+
+- feat(deps): Take up at_commons ^5.10.0 to pick up new command (verb) syntax
+
 # 3.12.0
 
 - perf: substantial reduction in per-request heap allocations on the
