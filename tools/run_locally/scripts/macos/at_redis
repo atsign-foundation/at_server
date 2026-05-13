@@ -18,5 +18,25 @@ echo "Running $scriptDir/$scriptName in working directory $(pwd)"
 # We need to run a redis server, with a password required.
 # (Un-comment "requirepass foobared" in redis.conf)
 
+if ! command -v redis-server >/dev/null 2>&1; then
+  echo "redis-server not found."
+  echo "  brew install redis"
+  exit 1
+fi
+
+if [ -z "$REDIS_CONF" ]; then
+  if [ -f /opt/homebrew/etc/redis.conf ]; then
+    REDIS_CONF=/opt/homebrew/etc/redis.conf
+  else
+    REDIS_CONF=/usr/local/etc/redis.conf
+  fi
+fi
+
+if [ ! -f "$REDIS_CONF" ]; then
+  echo "Redis config not found: $REDIS_CONF"
+  echo "Set REDIS_CONF=/path/to/redis.conf or install Redis with Homebrew."
+  exit 1
+fi
+
 echo "Starting redis server"
-redis-server /usr/local/etc/redis.conf
+redis-server "$REDIS_CONF"
