@@ -46,12 +46,12 @@ packages:
     description:
       path: "packages/at_persistence_root_server"
       ref: trunk
-      resolved-ref: "350680af0009c1885cae18d67a0b257d752f23ff"
+      resolved-ref: "8f12ed02bebed854ad85ffc5fcc92446ecd3a5bf"
       url: "https://github.com/atsign-foundation/at_server.git"
     source: git
     version: "2.0.7"
   at_persistence_spec:
-    dependency: "direct overridden"
+    dependency: transitive
     description:
       name: at_persistence_spec
       sha256: ea8e550368ccee9150247ae7abdc256dccf78467bb48c11d1d0d66b843b21ba7
@@ -467,4 +467,4 @@ packages:
     source: hosted
     version: "3.1.3"
 sdks:
-  dart: ">=3.9.0 <4.0.0"
+  dart: ">=3.10.0 <4.0.0"
