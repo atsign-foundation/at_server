@@ -1,4 +1,4 @@
-# 3.13.0
+# 3.14.0
 
 - refactor: the persistence layer is now wired through the new
   `AtPersistenceFactory` injected into `AtSecondaryServerImpl`,
@@ -33,6 +33,10 @@
   no longer bumps the local `commitId`. Callers in
   `from_verb_handler` and `config_verb_handler` updated; the
   construction signature is now `AtConfig(keyStore, atSign)`.
+
+# 3.13.0
+
+- feat(deps): Take up at_commons ^5.10.0 to pick up new command (verb) syntax
 
 # 3.12.0
 
