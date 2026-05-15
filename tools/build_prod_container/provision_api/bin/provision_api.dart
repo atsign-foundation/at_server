@@ -29,7 +29,8 @@ Future<void> main(List<String> arguments) async {
       .addMiddleware(logRequests())
       .addHandler(router.call);
 
-  final server = await io.serve(handler, InternetAddress.anyIPv4, 8080);
+  final port = int.tryParse(Platform.environment['PROVISION_API_PORT'] ?? '') ?? 3000;
+  final server = await io.serve(handler, InternetAddress.anyIPv4, port);
   print('provision_api listening on port ${server.port}');
 }
 
