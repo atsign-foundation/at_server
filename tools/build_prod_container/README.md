@@ -158,7 +158,7 @@ docker run \
     -d \
     --restart unless-stopped \
     --name prod_container \
-    -p 1443:1443 \
+    -p 443:1443 \
     -p 8080:8080 \
     -e PROXY_URL=vip.ve.atsign.zone:443 \
     atsigncompany/prod_container:dev

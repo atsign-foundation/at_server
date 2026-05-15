@@ -1,10 +1,4 @@
 #!/bin/bash
 set -euo pipefail
-
-mkdir -p /atsign/logs
-mkdir -p /atsign/root
-mkdir -p /atsign/secondary
-mkdir -p /atsign/atservers
-mkdir -p /atsign/supervisor/conf.d
-
+echo "127.0.0.1 vip.ve.atsign.zone" | sudo tee -a /etc/hosts > /dev/null
 exec supervisord -c /etc/supervisor/supervisord.conf

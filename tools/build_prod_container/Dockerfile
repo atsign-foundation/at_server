@@ -74,13 +74,19 @@ ENV GROUP_ID=1024
 ENV USER_ID=1024
 
 RUN \
-  mkdir -p ${HOMEDIR}/bin && \
   apt-get update && \
   apt-get install -y sudo redis-server supervisor curl vim tree && \
   groupadd --gid ${GROUP_ID} ${USER} && \
   useradd --system --shell /bin/bash --home ${HOMEDIR} --uid ${USER_ID} --gid ${GROUP_ID} ${USER} && \
   usermod -aG sudo ${USER} && \
-  sed -i '$ a %sudo ALL=(ALL:ALL) NOPASSWD:ALL' /etc/sudoers ;
+  sed -i '$ a %sudo ALL=(ALL:ALL) NOPASSWD:ALL' /etc/sudoers && \
+  mkdir -p \
+    ${HOMEDIR}/bin \
+    ${HOMEDIR}/logs \
+    ${HOMEDIR}/root \
+    ${HOMEDIR}/secondary \
+    ${HOMEDIR}/atservers \
+    ${HOMEDIR}/supervisor/conf.d ;
 
 COPY --from=buildimage /output/at_activate ${HOMEDIR}/bin/at_activate
 COPY --from=buildimage /output/provision_api ${HOMEDIR}/bin/provision_api
