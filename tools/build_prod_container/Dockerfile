@@ -86,6 +86,7 @@ RUN \
     ${HOMEDIR}/root \
     ${HOMEDIR}/secondary \
     ${HOMEDIR}/atservers \
+    ${HOMEDIR}/redis \
     ${HOMEDIR}/supervisor/conf.d ;
 
 COPY --from=buildimage /output/at_activate ${HOMEDIR}/bin/at_activate
