@@ -575,7 +575,7 @@ To survive container restarts without losing state, mount the following three di
 | `/atsign/redis` | Redis RDB snapshot (`dump.rdb`) — atSign→address mappings | Losing this means the root server can't resolve any atSign |
 | `/atsign/supervisor/conf.d` | Supervisor conf files written by `provision_api` at provision time | Losing this means provisioned atSigns (e.g. `@alice`, `@bob`) are forgotten and won't restart with the container |
 
-Redis RDB persistence is enabled by default (`dir /atsign/redis`, `save 60 1`). Mounting `/atsign/redis` as a volume is sufficient — no extra configuration needed.
+Redis RDB persistence is enabled by default (`dir /atsign/redis`, `save 1 1`). Mounting `/atsign/redis` as a volume is sufficient — no extra configuration needed.
 
 ### Scenario 1 — Atsign-managed certs (POC)
 
