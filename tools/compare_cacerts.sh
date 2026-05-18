@@ -6,7 +6,6 @@ MOZCAS="https://curl.se/ca/cacert.pem"
 TARGET_CAS=(
     "GlobalSign ECC Root CA - R4"
     "GTS Root R1"
-    "GTS Root R2"
     "GTS Root R3"
     "GTS Root R4"
     "ISRG Root X1"
