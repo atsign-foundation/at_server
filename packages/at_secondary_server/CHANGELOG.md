@@ -14,6 +14,14 @@
   `StatsNotificationService.schedule()` takes its `AtCommitLog`
   parameter rather than fetching it lazily.
   `SecondaryUtil.saveCookie` takes the `SecondaryKeyStore` parameter.
+- refactor: `AbstractVerbHandler.keyValueStore` and
+  `DefaultVerbHandlerManager.keyValueStore` are now typed
+  `AtKeyValueStore<String, AtData, AtMetaData?>` instead of the raw
+  `AtKeyValueStore`. This surfaced and fixed a set of latent
+  nullability gaps in the verb handlers that the raw type had been
+  masking: unchecked `get()` results bound to a non-null `AtData`,
+  `String?` keys passed into `get` / `remove` / `put`, and a
+  `bool?` metadata field (`isCascade`) used directly as a condition.
 - chore: `_accessLog` field on `AtSecondaryServerImpl` is now
   publicly named `accessLog`.
 - chore: `DefaultVerbHandlerManager`'s constructor now takes

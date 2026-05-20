@@ -15,13 +15,13 @@ import 'package:test/test.dart';
 import 'test_utils.dart';
 
 void main() async {
-  late AtKeyValueStore mockKeyStore;
+  late AtKeyValueStore<String, AtData, AtMetaData?> mockKeyStore;
   late FakeSocket mockSocket;
 
   verbTestsSetUpLogging();
 
   var storageDir = '${Directory.current.path}/test/hive';
-  late AtKeyValueStore keyValueStore;
+  late AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore;
   setUp(() async {
     mockKeyStore = MockAtKeyValueStore();
     mockSocket = FakeSocket();
@@ -251,7 +251,8 @@ void main() async {
 
 final HiveAtPersistenceFactory _fromTestFactory = HiveAtPersistenceFactory();
 
-Future<AtKeyValueStore> setUpFunc(storageDir) async {
+Future<AtKeyValueStore<String, AtData, AtMetaData?>> setUpFunc(
+    storageDir) async {
   final bundle = await _fromTestFactory.initialize(
     alice,
     HivePersistenceConfig(

@@ -10,7 +10,8 @@ import 'package:at_commons/at_commons.dart';
 import 'test_utils.dart';
 
 void main() {
-  AtKeyValueStore mockKeyStore = MockAtKeyValueStore();
+  AtKeyValueStore<String, AtData, AtMetaData?> mockKeyStore =
+      MockAtKeyValueStore();
 
   group('a group of config verb regex test', () {
     test('test config add operation', () {

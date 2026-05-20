@@ -6,7 +6,7 @@ import 'package:at_secondary/src/config/at_config.dart';
 import 'package:test/test.dart';
 
 var storageDir = '${Directory.current.path}/test/hive';
-late AtKeyValueStore keyValueStore;
+late AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore;
 void main() async {
   group('Verify blocklist configuration behaviour', () {
     setUp(() async => await setUpFunc(storageDir));

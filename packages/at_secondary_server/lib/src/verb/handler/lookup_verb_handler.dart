@@ -313,6 +313,14 @@ class LookupVerbHandler extends AbstractVerbHandler {
   Future<String?> resolveValueReference(String value, String keyPrefix) async {
     var resolutionCount = 1;
 
+    // TODO Is this feature used anywhere?
+    // TODO Pre-existing bug: the public-namespace re-lookup below
+    // (the `keyToResolve.replaceAll(keyPrefix, 'public:')` block) runs
+    // unconditionally and overwrites `value` even when the private-key
+    // lookup already succeeded. The comment says "if the value is null
+    // for a private key, search public" but the code never checks that
+    // the private lookup failed. Left as-is here (out of scope for the
+    // keystore-typing change).
     // Iterates for DEPTH_OF_RESOLUTION times to resolve the value reference.If value is still a reference, returns null.
     while (value.contains(AtConstants.atValueReference) &&
         resolutionCount <= depthOfResolution!) {
@@ -323,11 +331,11 @@ class LookupVerbHandler extends AbstractVerbHandler {
       }
       keyToResolve = keyPrefix + keyToResolve;
       var lookupValue = await keyValueStore.get(keyToResolve);
-      value = lookupValue?.data;
+      value = lookupValue?.data ?? value;
       // If the value is null for a private key, searches on public namespace.
       keyToResolve = keyToResolve.replaceAll(keyPrefix, 'public:');
       lookupValue = await keyValueStore.get(keyToResolve);
-      value = lookupValue?.data;
+      value = lookupValue?.data ?? value;
       resolutionCount++;
     }
     return value.contains(AtConstants.atValueReference) ? null : value;

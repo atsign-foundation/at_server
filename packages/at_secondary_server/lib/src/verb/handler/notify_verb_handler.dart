@@ -254,7 +254,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   /// key Key to cache.
   /// AtMetadata metadata of the key.
   /// atValue value of the key to cache.
-  Future<int?> _storeCachedKey(String? cachedKey, AtMetaData? atMetaData,
+  Future<int?> _storeCachedKey(String cachedKey, AtMetaData? atMetaData,
       {String? atValue}) async {
     var atData = AtData();
     atData.data = atValue;
@@ -275,7 +275,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   ///Removes the cached key from the keystore.
   Future<int?> _removeCachedKey(String cachedKey) async {
     var metadata = await keyValueStore.getMeta(cachedKey);
-    if (metadata != null && metadata.isCascade) {
+    if (metadata != null && metadata.isCascade == true) {
       if (logger.isLoggable('info')) {
         logger.info('Removed cached key $cachedKey');
       }

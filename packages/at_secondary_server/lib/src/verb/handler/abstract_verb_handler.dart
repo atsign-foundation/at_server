@@ -18,7 +18,7 @@ import 'package:at_utils/at_logger.dart';
 final String paramFullCommandAsReceived = 'FullCommandAsReceived';
 
 abstract class AbstractVerbHandler implements VerbHandler {
-  final AtKeyValueStore keyValueStore;
+  final AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore;
 
   late AtSignLogger logger;
   ResponseHandlerManager responseManager =

@@ -597,7 +597,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     for (String key in enrollmentKeys) {
       AtData atData = AtData();
       try {
-        atData = await keyValueStore.get(key);
+        atData = (await keyValueStore.get(key))!;
       } on KeyNotFoundException {
         logger.finest('An enrollment with $key does not exist or expired');
       }

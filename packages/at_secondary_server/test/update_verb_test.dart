@@ -29,7 +29,7 @@ import 'package:uuid/uuid.dart';
 import 'test_utils.dart';
 
 void main() {
-  late AtKeyValueStore mockKeyStore;
+  late AtKeyValueStore<String, AtData, AtMetaData?> mockKeyStore;
   late FakeSocket mockSocket;
 
   setUpAll(() async {

@@ -517,7 +517,8 @@ void main() {
   });
 
   group('lookup syntax tests', () {
-    AtKeyValueStore mockKeyStore = MockAtKeyValueStore();
+    AtKeyValueStore<String, AtData, AtMetaData?> mockKeyStore =
+        MockAtKeyValueStore();
     OutboundClientManager mockOutboundClientManager =
         MockOutboundClientManager();
     AtCacheManager mockAtCacheManager = MockAtCacheManager();

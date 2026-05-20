@@ -167,7 +167,7 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
         ..operation = entry.operation!;
 
       if (entry.operation != CommitOp.DELETE) {
-        final atData = await keyValueStore.get(entry.atKey);
+        final atData = await keyValueStore.get(entry.atKey!);
         if (atData == null) {
           logger.info('atData is null for ${entry.atKey}');
           continue;

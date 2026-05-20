@@ -111,7 +111,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
     final keyNameFromParams = verbParams[AtConstants.keyName];
     if (keyNameFromParams != null && keyNameFromParams.isNotEmpty) {
       try {
-        final value = await keyValueStore.get(keyNameFromParams);
+        final value = (await keyValueStore.get(keyNameFromParams))!;
         response.data = value.data;
         return;
       } on KeyNotFoundException {
@@ -166,7 +166,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
     HashMap<String, String?> verbParams,
     Response response,
   ) async {
-    final keyNameFromParams = verbParams[AtConstants.keyName];
+    final keyNameFromParams = verbParams[AtConstants.keyName]!;
     response.data =
         (await keyValueStore.remove(keyNameFromParams, skipCommit: true))
             .toString();
@@ -178,8 +178,9 @@ class KeysVerbHandler extends AbstractVerbHandler {
   Future<void> _addKeyIfEnrollmentIdMatches(List<dynamic> filteredKeys,
       String key, String enrollIdFromMetadata) async {
     final value = await keyValueStore.get(key);
-    if (value != null && value.data != null) {
-      final valueJson = jsonDecode(value.data);
+    final data = value?.data;
+    if (data != null) {
+      final valueJson = jsonDecode(data);
       if (valueJson[AtConstants.enrollmentId] == enrollIdFromMetadata) {
         filteredKeys.add(key);
       }

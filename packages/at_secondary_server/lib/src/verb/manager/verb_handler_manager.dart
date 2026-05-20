@@ -40,7 +40,7 @@ import 'package:at_server_spec/at_verb_spec.dart';
 class DefaultVerbHandlerManager implements VerbHandlerManager {
   late List<VerbHandler> _verbHandlers;
 
-  final AtKeyValueStore keyValueStore;
+  final AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore;
   final OutboundClientManager outboundClientManager;
   final AtCacheManager cacheManager;
   final NotificationManager notificationManager;
