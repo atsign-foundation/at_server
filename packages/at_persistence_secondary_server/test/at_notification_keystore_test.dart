@@ -50,10 +50,10 @@ void main() async {
             ..id = '123'
             ..atMetaData = atMetaData)
           .build();
-      await keyValueStore.put(atNotification.id, atNotification);
-      final value = await keyValueStore.get(atNotification.id);
+      await keyValueStore.put(atNotification.id!, atNotification);
+      final value = await keyValueStore.get(atNotification.id!);
       expect(value, isNotNull);
-      expect(value!.id, '123');
+      expect(value!.id!, '123');
       expect(value.atMetadata?.skeEncKeyName, commonsMetadata.skeEncKeyName);
       expect(value.atMetadata?.toCommonsMetadata(), commonsMetadata);
     });
@@ -63,9 +63,9 @@ void main() async {
             ..fromAtSign = atSign
             ..id = '123')
           .build();
-      await keyValueStore.put(atNotification.id, atNotification);
-      await keyValueStore.remove(atNotification.id);
-      final value = await keyValueStore.get(atNotification.id);
+      await keyValueStore.put(atNotification.id!, atNotification);
+      await keyValueStore.remove(atNotification.id!);
+      final value = await keyValueStore.get(atNotification.id!);
       expect(value, isNull);
     });
     test('test delete expired keys - key expired', () async {
@@ -76,13 +76,13 @@ void main() async {
             ..ttl = ttl
             ..id = '123')
           .build();
-      await keyValueStore.put(atNotification.id, atNotification);
+      await keyValueStore.put(atNotification.id!, atNotification);
       await keyValueStore.deleteExpiredKeys();
-      expect((await keyValueStore.get(atNotification.id))?.toAtSign, '@bob');
+      expect((await keyValueStore.get(atNotification.id!))?.toAtSign, '@bob');
 
       sleep(Duration(milliseconds: ttl + 1));
       await keyValueStore.deleteExpiredKeys();
-      expect(await keyValueStore.get(atNotification.id), isNull);
+      expect(await keyValueStore.get(atNotification.id!), isNull);
     });
     test('test delete expired keys - key not expired', () async {
       var atNotification = (AtNotificationBuilder()
@@ -91,11 +91,11 @@ void main() async {
             ..ttl = 10
             ..id = '123')
           .build();
-      await keyValueStore.put(atNotification.id, atNotification);
+      await keyValueStore.put(atNotification.id!, atNotification);
       await keyValueStore.deleteExpiredKeys();
-      final value = await keyValueStore.get(atNotification.id);
+      final value = await keyValueStore.get(atNotification.id!);
       expect(value, isNotNull);
-      expect(value!.id, '123');
+      expect(value!.id!, '123');
     });
     test('test get expired keys - multiple keys expired', () async {
       var atNotification_1 = (AtNotificationBuilder()
@@ -116,9 +116,9 @@ void main() async {
             ..ttl = 10
             ..id = '333')
           .build();
-      await keyValueStore.put(atNotification_1.id, atNotification_1);
-      await keyValueStore.put(atNotification_2.id, atNotification_2);
-      await keyValueStore.put(atNotification_3.id, atNotification_3);
+      await keyValueStore.put(atNotification_1.id!, atNotification_1);
+      await keyValueStore.put(atNotification_2.id!, atNotification_2);
+      await keyValueStore.put(atNotification_3.id!, atNotification_3);
       sleep(Duration(milliseconds: 11));
       var expiredKeys = await keyValueStore.getExpiredKeys();
       expect(expiredKeys.length, 2);
@@ -150,9 +150,9 @@ void main() async {
             ..ttl = 5000
             ..id = '333')
           .build();
-      await keyValueStore.put(atNotification_1.id, atNotification_1);
-      await keyValueStore.put(atNotification_2.id, atNotification_2);
-      await keyValueStore.put(atNotification_3.id, atNotification_3);
+      await keyValueStore.put(atNotification_1.id!, atNotification_1);
+      await keyValueStore.put(atNotification_2.id!, atNotification_2);
+      await keyValueStore.put(atNotification_3.id!, atNotification_3);
       var expiredKeys = await keyValueStore.getExpiredKeys();
       expect(0, expiredKeys.length);
     });

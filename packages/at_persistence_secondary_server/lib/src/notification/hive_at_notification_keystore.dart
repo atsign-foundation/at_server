@@ -41,7 +41,7 @@ class HiveAtNotificationKeystore
   bool get supportsSnapshots => false;
 
   @override
-  Future<KeyStoreSnapshot> snapshot() async {
+  Future<KeyStoreSnapshot<String, AtNotification, dynamic>> snapshot() async {
     return _HiveBestEffortNotifSnapshot(this);
   }
 
@@ -76,7 +76,7 @@ class HiveAtNotificationKeystore
 
   @override
   Future<R> transaction<R>(
-    Future<R> Function(KeyStoreTxn txn) body,
+    Future<R> Function(KeyStoreTxn<String, AtNotification, dynamic> txn) body,
   ) async {
     final txn = _HiveAtNotificationKeystoreTxn(this);
     final R result;
@@ -157,8 +157,7 @@ class HiveAtNotificationKeystore
     }
     final wasPresent = isKeyExists(key);
     await _getBox().put(key, value);
-    _changesController
-        .add(wasPresent ? KeyUpdated(key as String) : KeyAdded(key as String));
+    _changesController.add(wasPresent ? KeyUpdated(key) : KeyAdded(key));
     return null;
   }
 
@@ -214,7 +213,7 @@ class HiveAtNotificationKeystore
   }
 
   @override
-  List getKeys({String? regex}) {
+  List<String> getKeys({String? regex}) {
     var keys = <String>[];
     // ignore: prefer_typing_uninitialized_variables
     var encodedKeys;
@@ -230,7 +229,7 @@ class HiveAtNotificationKeystore
       encodedKeys = _getBox().keys.toList();
     }
     encodedKeys?.forEach((key) => keys.add(Utf7.decode(key)));
-    return encodedKeys;
+    return keys;
   }
 
   @override
@@ -238,7 +237,6 @@ class HiveAtNotificationKeystore
     for (final hook in preRemoveHooks) {
       await hook(key, skipCommit: skipCommit);
     }
-    assert(key != null);
     final wasPresent = isKeyExists(key);
     await _getBox().delete(key);
 
@@ -246,7 +244,7 @@ class HiveAtNotificationKeystore
       await hook(key, skipCommit: skipCommit);
     }
     if (wasPresent) {
-      _changesController.add(KeyRemoved(key as String));
+      _changesController.add(KeyRemoved(key));
     }
     return null;
   }
@@ -305,11 +303,12 @@ class HiveAtNotificationKeystore
   }
 
   @override
-  Future<Map<dynamic, dynamic>> getMany(List keys) async {
-    final result = <dynamic, dynamic>{};
+  Future<Map<String, AtNotification>> getMany(List<String> keys) async {
+    final result = <String, AtNotification>{};
     for (final k in keys) {
       if (!_getBox().keys.contains(k)) continue;
-      result[k] = await getValue(k);
+      final value = await getValue(k);
+      if (value != null) result[k] = value;
     }
     return result;
   }
@@ -461,7 +460,8 @@ class _NotifBufferedRemove implements _NotifBufferedOp {
   }
 }
 
-class _HiveAtNotificationKeystoreTxn implements KeyStoreTxn {
+class _HiveAtNotificationKeystoreTxn
+    implements KeyStoreTxn<String, AtNotification, dynamic> {
   final HiveAtNotificationKeystore _store;
   final Map<dynamic, _NotifBufferedOp> _ops = <dynamic, _NotifBufferedOp>{};
 
@@ -478,7 +478,7 @@ class _HiveAtNotificationKeystoreTxn implements KeyStoreTxn {
   }
 
   @override
-  Future<dynamic> get(key) async {
+  Future<AtNotification?> get(key) async {
     final buffered = _ops[key];
     if (buffered is _NotifBufferedPut) return buffered.value;
     if (buffered is _NotifBufferedRemove) return null;
@@ -494,20 +494,21 @@ class _HiveAtNotificationKeystoreTxn implements KeyStoreTxn {
   }
 }
 
-class _HiveBestEffortNotifSnapshot implements KeyStoreSnapshot {
+class _HiveBestEffortNotifSnapshot
+    implements KeyStoreSnapshot<String, AtNotification, dynamic> {
   final HiveAtNotificationKeystore _store;
   bool _released = false;
 
   _HiveBestEffortNotifSnapshot(this._store);
 
   @override
-  Future<dynamic> get(key) async {
+  Future<AtNotification?> get(key) async {
     if (_released) throw StateError('Snapshot has been released');
     return await _store.get(key);
   }
 
   @override
-  Stream scanKeys(KeyPattern pattern) {
+  Stream<String> scanKeys(KeyPattern pattern) {
     if (_released) throw StateError('Snapshot has been released');
     return _store.scanKeys(pattern);
   }

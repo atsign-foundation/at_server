@@ -174,7 +174,7 @@ void main() {
           .build();
 
       await notif.transaction((txn) async {
-        await txn.put(m.id, m, null);
+        await txn.put(m.id!, m, null);
         await txn.remove(n.id!);
       });
       expect(await notif.exists(m.id!), isTrue);

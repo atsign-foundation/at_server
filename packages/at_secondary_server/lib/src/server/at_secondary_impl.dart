@@ -129,7 +129,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   Cron? _keyExpiryCron;
   @visibleForTesting
   AtCertificateValidationJob? certificateReloadJob;
-  late AtKeyValueStore<String, AtData?, AtMetaData?> keyValueStore;
+  late AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore;
   late AtNotificationKeystore notificationKeystore;
   late NotificationManager notificationManager;
   late EnrollmentManager enrollmentManager;

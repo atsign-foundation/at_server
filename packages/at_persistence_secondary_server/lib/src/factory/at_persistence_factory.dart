@@ -59,7 +59,7 @@ abstract class AtPersistenceBundle {
   /// The keystore for client data (target of `update` / `lookup`).
   /// Its commit log is accessible as `keyValueStore.commitLog` —
   /// non-null on server bundles, null on client bundles.
-  AtKeyValueStore<String, AtData?, AtMetaData?> get keyValueStore;
+  AtKeyValueStore<String, AtData, AtMetaData?> get keyValueStore;
 
   /// The access log used for stats and security audit. `null` when
   /// [AtPersistenceConfig.enableAccessLog] is `false` (typical for

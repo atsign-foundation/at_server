@@ -20,7 +20,7 @@ import 'package:at_persistence_secondary_server/src/spec/spec.dart';
 /// [AtKeyValueStore.getMeta]) and predicate-query surface are not
 /// part of the notification contract.
 abstract class AtNotificationKeystore
-    implements KeyValueStore<dynamic, dynamic>, Compactable {
+    implements KeyValueStore<String, AtNotification>, Compactable {
   /// Initialize the underlying storage rooted at [path]. Called once
   /// at bootstrap; implementation-defined what `path` means
   /// (directory for Hive, connection string for SQL backends, ...).

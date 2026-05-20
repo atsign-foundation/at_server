@@ -36,6 +36,16 @@ Major release: persistence-overhaul. Themes:
   extends `KeyValueStore` and adds the sync-coupled surface:
   the (nullable) `commitLog`, `putMeta` / `putAll` /
   `getMeta`, and `queryByPath` /  `supportsPathQueries`.
+- **`HiveAtKeyValueStore` value type tightened to non-null
+  `AtData`.** The main keystore now implements
+  `AtKeyValueStore<String, AtData, AtMetaData?>` (was
+  `<String, AtData?, AtMetaData?>`), and `AtPersistenceBundle`
+  surfaces it as such. `put` / `create` / `putAll` reject a
+  null value at compile time instead of crashing on an internal
+  `value!`; `getMany` returns `Map<String, AtData>`. `get` is
+  unchanged — it still returns `Future<AtData?>` (`null` for an
+  absent key). The metadata type parameter stays nullable
+  (`AtMetaData?`) since `getMeta` legitimately returns `null`.
 - **`AtKeyValueStore.commitLog` is nullable.** Server bundles
   hold a non-null commit log on the keystore; client bundles
   hold `null` (sync via fsync or other mechanism). The server's
@@ -50,7 +60,10 @@ Major release: persistence-overhaul. Themes:
   `UnimplementedError` stubs and the no-op `commitLog`
   override that the old interface forced on it. Notification
   keystore implementations stop pretending to support
-  `putMeta` / `putAll` / `getMeta` / `queryByPath`.
+  `putMeta` / `putAll` / `getMeta` / `queryByPath`. Now
+  strongly typed `KeyValueStore<String, AtNotification>`
+  (was `<dynamic, dynamic>`) — keys are notification ids,
+  values are `AtNotification`; consumers no longer cast.
 - **Compaction is intrinsic, not strategy-wrapped.** The
   `Compactable` interface (one method: `Stream<Object>
   compact(bool dryRun)`) replaces `AtCompactionStrategy`,

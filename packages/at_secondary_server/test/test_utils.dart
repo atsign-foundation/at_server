@@ -56,7 +56,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:uuid/uuid.dart';
 
 class MockAtKeyValueStore extends Mock
-    implements AtKeyValueStore<String, AtData?, AtMetaData?> {
+    implements AtKeyValueStore<String, AtData, AtMetaData?> {
   @override
   List<Future Function(String key, {required bool skipCommit})> preRemoveHooks =
       [];
@@ -185,7 +185,7 @@ late String bobOriginalPublicKeyAsJson;
 
 var cachedBobsPublicKeyName = 'cached:public:publickey@bob';
 
-late AtKeyValueStore<String, AtData?, AtMetaData?> keyValueStore;
+late AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore;
 late AtCacheManager cacheManager;
 late MockOutboundClientManager mockOutboundClientManager;
 late OutboundClient outboundClientWithHandshake;
@@ -442,7 +442,7 @@ List decodeResponseAsList(String serverResponse) {
 }
 
 Future<AtData> createRandomKeyStoreEntry(String owner, String keyName,
-    AtKeyValueStore<String, AtData?, AtMetaData?> keyValueStore,
+    AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore,
     {String? data, Metadata? commonsMetadata, DateTime? refreshAt}) async {
   AtData entry = createRandomAtData(owner,
       data: data, commonsMetadata: commonsMetadata, refreshAt: refreshAt);

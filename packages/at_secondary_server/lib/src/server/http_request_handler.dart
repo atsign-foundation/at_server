@@ -11,7 +11,7 @@ const String paramNameContentType = 'at_ct';
 
 class AtServerHttpRequestHandler {
   final String currentAtSign;
-  final AtKeyValueStore<String, AtData?, AtMetaData?> keyValueStore;
+  final AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore;
   final logger = AtSignLogger('Http Request Handler');
 
   AtServerHttpRequestHandler(this.currentAtSign, this.keyValueStore);

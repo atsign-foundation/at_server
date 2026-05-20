@@ -410,7 +410,7 @@ void main() {
           notifyResponse, notifyVerbParams, atConnection);
 
       AtNotification? atNotification =
-          await notifStore.get(notifyResponse.data);
+          await notifStore.get(notifyResponse.data!);
       expect(atNotification?.toAtSign, '@bob');
       expect(atNotification?.fromAtSign, alice);
       expect(atNotification?.notification, '@bob:hello');
@@ -1509,7 +1509,7 @@ void main() {
       expect(response.data, isNotNull);
 
       // verify that data in the notification keyValueStore is as expected
-      var notifId = response.data;
+      var notifId = response.data!;
       var stored = await notifStore.get(notifId);
       expect(stored, isNotNull);
       expect(stored!.toAtSign, '@bob');

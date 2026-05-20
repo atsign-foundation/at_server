@@ -227,8 +227,8 @@ void main() {
             ..toAtSign = '@charlie'
             ..notification = 'email@charlie')
           .build();
-      await notif.put(n1.id, n1);
-      await notif.put(n2.id, n2);
+      await notif.put(n1.id!, n1);
+      await notif.put(n2.id!, n2);
 
       final entries = await notif.iterate().toList();
       expect(entries.length, 2);
@@ -270,7 +270,7 @@ void main() {
             ..toAtSign = '@bob'
             ..notification = 'phone@bob')
           .build();
-      await bundle.notificationKeystore!.put(n.id, n);
+      await bundle.notificationKeystore!.put(n.id!, n);
 
       expect(bundle.keyValueStore.commitLog!.entriesCount(), greaterThan(0));
       expect(bundle.accessLog!.entriesCount(), greaterThan(0));

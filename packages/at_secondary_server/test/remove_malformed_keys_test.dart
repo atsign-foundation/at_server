@@ -9,7 +9,7 @@ import 'test_utils.dart';
 HashMap<String, String> dummyKeyStore = HashMap();
 
 class MockAtKeyValueStore extends Mock
-    implements AtKeyValueStore<String, AtData?, AtMetaData?> {
+    implements AtKeyValueStore<String, AtData, AtMetaData?> {
   @override
   List<String> getKeys({String? regex}) {
     return dummyKeyStore.keys.toList();

@@ -108,8 +108,9 @@ class NotificationManager {
       throw StateError('Closed');
     }
 
-    // Persist the notification
-    await _notifStore.put(n.id, n);
+    // Persist the notification. `id` is non-null by construction —
+    // AtNotificationBuilder defaults it to a fresh Uuid v4.
+    await _notifStore.put(n.id!, n);
 
     // Queue it for delivery
     enqueue(n);
@@ -158,7 +159,7 @@ class NotificationManager {
         logger.severe('Setting status to errored');
         try {
           n.notificationStatus = NotificationStatus.errored;
-          await notifStore.put(n.id, n);
+          await notifStore.put(n.id!, n);
         } catch (e) {
           logger.severe('*** Error while updating stored notification: $e');
         }
@@ -187,10 +188,10 @@ class NotificationManager {
   }
 
   Future<AtNotification?> get(key) async {
-    return await _notifStore.get(key) as AtNotification?;
+    return await _notifStore.get(key);
   }
 
-  Future<List> getKeys({String? regex}) async {
+  Future<List<String>> getKeys({String? regex}) async {
     return _notifStore.getKeys(regex: regex);
   }
 

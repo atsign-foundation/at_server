@@ -17,7 +17,7 @@ import 'package:uuid/uuid.dart';
 import 'test_utils.dart';
 
 void main() async {
-  AtKeyValueStore<String, AtData?, AtMetaData?> mockKeyStore =
+  AtKeyValueStore<String, AtData, AtMetaData?> mockKeyStore =
       MockAtKeyValueStore();
 
   verbTestsSetUpLogging();

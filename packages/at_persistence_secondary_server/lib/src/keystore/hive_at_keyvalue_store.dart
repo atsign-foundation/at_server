@@ -16,7 +16,7 @@ import 'package:meta/meta.dart';
 
 class HiveAtKeyValueStore
     with HiveBase<AtData?>
-    implements AtKeyValueStore<String, AtData?, AtMetaData?> {
+    implements AtKeyValueStore<String, AtData, AtMetaData?> {
   final AtSignLogger logger = AtSignLogger('HiveAtKeyValueStore');
   final String expiresAt = 'expiresAt';
   final String availableAt = 'availableAt';
@@ -60,7 +60,7 @@ class HiveAtKeyValueStore
   bool get supportsSnapshots => false;
 
   @override
-  Future<KeyStoreSnapshot<String, AtData?, AtMetaData?>> snapshot() async {
+  Future<KeyStoreSnapshot<String, AtData, AtMetaData?>> snapshot() async {
     return _HiveBestEffortSnapshot(this);
   }
 
@@ -100,7 +100,7 @@ class HiveAtKeyValueStore
   }
 
   @override
-  Stream<KeyEntry<String, AtData?, AtMetaData?>> queryByPath({
+  Stream<KeyEntry<String, AtData, AtMetaData?>> queryByPath({
     required KeyPattern keyPattern,
     required Predicate predicate,
     OrderByKey? orderBy,
@@ -118,7 +118,7 @@ class HiveAtKeyValueStore
 
   @override
   Future<R> transaction<R>(
-    Future<R> Function(KeyStoreTxn<String, AtData?, AtMetaData?> txn) body,
+    Future<R> Function(KeyStoreTxn<String, AtData, AtMetaData?> txn) body,
   ) async {
     final txn = _HiveAtKeyValueStoreTxn(this);
     final R result;
@@ -270,7 +270,7 @@ class HiveAtKeyValueStore
   /// hive does not support directly storing emoji characters, therefore keys
   /// are encoded in [HiveKeyStoreHelper.prepareKey] using utf7 before storing.
   @override
-  Future<int?> put(String key, AtData? value, {bool skipCommit = false}) async {
+  Future<int?> put(String key, AtData value, {bool skipCommit = false}) async {
     key = key.toLowerCase();
     final atKey = AtKey.getKeyType(key, enforceNameSpace: false);
     if (atKey == KeyType.invalidKey) {
@@ -290,7 +290,7 @@ class HiveAtKeyValueStore
         AtData? existingData = await get(key);
         String hive_key = HiveKeyStoreHelper.prepareKey(key);
         var hive_value = HiveKeyStoreHelper.prepareDataForKeystoreOperation(
-            value!,
+            value,
             existingAtData: existingData!,
             atSign: atSign);
         logger.finest('hive key:$hive_key');
@@ -321,7 +321,7 @@ class HiveAtKeyValueStore
   /// are encoded in [HiveKeyStoreHelper.prepareKey] using utf7 before storing.
   @override
   @server
-  Future<int?> create(String key, AtData? value,
+  Future<int?> create(String key, AtData value,
       {bool skipCommit = false}) async {
     key = key.toLowerCase();
     final atKey = AtKey.getKeyType(key, enforceNameSpace: false);
@@ -334,7 +334,7 @@ class HiveAtKeyValueStore
     String hive_key = HiveKeyStoreHelper.prepareKey(key);
     _checkMaxLength(hive_key);
     var hive_data = HiveKeyStoreHelper.prepareDataForKeystoreOperation(
-      value!,
+      value,
       atSign: atSign,
     );
     // Default commitOp to Update.
@@ -532,7 +532,7 @@ class HiveAtKeyValueStore
 
   @override
   @client
-  Future<int?> putAll(String key, AtData? value, AtMetaData? metadata) async {
+  Future<int?> putAll(String key, AtData value, AtMetaData? metadata) async {
     key = key.toLowerCase();
     final atKeyType = AtKey.getKeyType(key, enforceNameSpace: false);
     if (atKeyType == KeyType.invalidKey) {
@@ -547,7 +547,7 @@ class HiveAtKeyValueStore
       if (isKeyExists(key)) {
         existingData = await get(key);
       }
-      value!.metaData = AtMetadataBuilder(
+      value.metaData = AtMetadataBuilder(
               newAtMetaData: metadata!,
               existingMetaData: existingData?.metaData,
               atSign: atSign)
@@ -681,19 +681,22 @@ class HiveAtKeyValueStore
   }
 
   @override
-  Future<Map<String, AtData?>> getMany(List<String> keys) async {
+  Future<Map<String, AtData>> getMany(List<String> keys) async {
     if (!getBox().isOpen) {
       throw DataStoreException(
           'Failed to bulk-fetch keys. Hive Keystore is not initialized or opened');
     }
     final box = getBox() as LazyBox;
-    final result = <String, AtData?>{};
+    final result = <String, AtData>{};
     for (final raw in keys) {
       final lowered = raw.toLowerCase();
       final hiveKey = HiveKeyStoreHelper.prepareKey(lowered);
       if (!box.containsKey(hiveKey)) continue;
       try {
-        result[lowered] = await box.get(hiveKey);
+        // A present key always maps to a non-null AtData — the store
+        // never persists null. The guard only satisfies the type.
+        final value = await box.get(hiveKey);
+        if (value != null) result[lowered] = value;
       } on Exception catch (e) {
         logger.severe('HiveAtKeyValueStore getMany exception for "$raw": $e');
         throw DataStoreException('exception in getMany: ${e.toString()}');
@@ -1003,7 +1006,7 @@ abstract class _BufferedOp {
 
 class _BufferedPut implements _BufferedOp {
   final String key;
-  final AtData? value;
+  final AtData value;
   final AtMetaData? metadata;
   _BufferedPut(this.key, this.value, this.metadata);
 
@@ -1024,7 +1027,7 @@ class _BufferedRemove implements _BufferedOp {
 }
 
 class _HiveAtKeyValueStoreTxn
-    implements KeyStoreTxn<String, AtData?, AtMetaData?> {
+    implements KeyStoreTxn<String, AtData, AtMetaData?> {
   final HiveAtKeyValueStore _store;
 
   /// Buffered ops keyed by lowercased key. The latest op for a
@@ -1036,7 +1039,7 @@ class _HiveAtKeyValueStoreTxn
   _HiveAtKeyValueStoreTxn(this._store);
 
   @override
-  Future<void> put(String key, AtData? value, AtMetaData? metadata) async {
+  Future<void> put(String key, AtData value, AtMetaData? metadata) async {
     _ops[key.toLowerCase()] = _BufferedPut(key, value, metadata);
   }
 
@@ -1076,7 +1079,7 @@ class _HiveAtKeyValueStoreTxn
 /// isolation. Documented in the abstract; consumers that require
 /// isolation gate on `supportsSnapshots`.
 class _HiveBestEffortSnapshot
-    implements KeyStoreSnapshot<String, AtData?, AtMetaData?> {
+    implements KeyStoreSnapshot<String, AtData, AtMetaData?> {
   final HiveAtKeyValueStore _store;
   bool _released = false;
 
