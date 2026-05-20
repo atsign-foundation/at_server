@@ -4,18 +4,13 @@ import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart
 import 'package:hive/hive.dart';
 
 /// Represents a commit entry with a key, [CommitOperation] and a commit id
-@HiveType(typeId: 2)
 class CommitEntry extends HiveObject {
-  @HiveField(0)
   final String? _atKey;
 
-  @HiveField(1)
   CommitOp? operation;
 
-  @HiveField(2)
   final DateTime? _opTime;
 
-  @HiveField(3)
   int? commitId;
 
   CommitEntry(this._atKey, this.operation, this._opTime);

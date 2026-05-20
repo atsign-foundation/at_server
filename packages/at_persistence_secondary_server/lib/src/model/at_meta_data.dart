@@ -3,84 +3,57 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart';
 import 'package:hive/hive.dart';
 
-@HiveType(typeId: 1)
 class AtMetaData extends HiveObject {
-  @HiveField(0)
   String? createdBy;
 
-  @HiveField(1)
   String? updatedBy;
 
-  @HiveField(2)
   DateTime? createdAt;
 
-  @HiveField(3)
   DateTime? updatedAt;
 
-  @HiveField(4)
   DateTime? expiresAt;
 
-  @HiveField(5)
   String? status;
 
-  @HiveField(6)
   int? version;
 
-  @HiveField(7)
   DateTime? availableAt;
 
-  @HiveField(8)
   int? ttb;
 
-  @HiveField(9)
   int? ttl;
 
-  @HiveField(10)
   int? ttr;
 
-  @HiveField(11)
   DateTime? refreshAt;
 
-  @HiveField(12)
   bool? isCascade;
 
-  @HiveField(13)
   bool? isBinary;
 
-  @HiveField(14)
   bool? isEncrypted;
 
-  @HiveField(15)
   String? dataSignature;
 
-  @HiveField(16)
   String? sharedKeyEnc;
 
-  @HiveField(17)
   String? pubKeyCS;
 
-  @HiveField(18)
   String? encoding;
 
-  @HiveField(19)
   String? encKeyName;
 
-  @HiveField(20)
   String? encAlgo;
 
-  @HiveField(21)
   String? ivNonce;
 
-  @HiveField(22)
   String? skeEncKeyName;
 
-  @HiveField(23)
   String? skeEncAlgo;
 
-  @HiveField(24)
   PublicKeyHash? pubKeyHash;
 
-  @HiveField(25)
   bool? immutable;
 
   @override
@@ -384,7 +357,6 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
   }
 }
 
-@HiveType(typeId: 11)
 class PublicKeyHashAdapter extends TypeAdapter<PublicKeyHash> {
   @override
   final int typeId = typeAdapterMap['PublicKeyHashAdapter'];

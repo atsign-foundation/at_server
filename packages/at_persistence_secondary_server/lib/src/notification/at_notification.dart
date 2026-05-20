@@ -7,58 +7,40 @@ import 'package:uuid/uuid.dart';
 
 /// Represents an [AtNotification] entry in keystore.
 class AtNotification {
-  @HiveField(0)
   final String? _id;
 
-  @HiveField(1)
   final String? _fromAtSign;
 
-  @HiveField(2)
   final DateTime? _notificationDateTime;
 
-  @HiveField(3)
   final String? _toAtSign;
 
-  @HiveField(4)
   final String? _notification;
 
-  @HiveField(5)
   final NotificationType? _type;
 
-  @HiveField(6)
   final OperationType? _opType;
 
-  @HiveField(7)
   final MessageType? _messageType;
 
-  @HiveField(8)
   final DateTime? _expiresAt;
 
-  @HiveField(9)
   NotificationPriority? priority;
 
-  @HiveField(10)
   NotificationStatus? notificationStatus;
 
-  @HiveField(11)
   int retryCount;
 
-  @HiveField(12)
   final String? _strategy;
 
-  @HiveField(13)
   final String? _notifier;
 
-  @HiveField(14)
   final int? _depth;
 
-  @HiveField(15)
   final String? _atValue;
 
-  @HiveField(16)
   final AtMetaData? _atMetadata;
 
-  @HiveField(17)
   final int? _ttl;
 
   AtNotification._builder(AtNotificationBuilder atNotificationBuilder)

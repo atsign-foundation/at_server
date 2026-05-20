@@ -2,18 +2,13 @@ import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart
 import 'package:hive/hive.dart';
 
 /// Represents an access entry with fromAtSign, requestDateTime, verbName and key lookup(if any).
-@HiveType(typeId: 4)
 class AccessLogEntry extends HiveObject {
-  @HiveField(0)
   final String? _fromAtSign;
 
-  @HiveField(1)
   final DateTime? _requestDateTime;
 
-  @HiveField(2)
   final String? _verbName;
 
-  @HiveField(3)
   final String? _lookupKey;
 
   AccessLogEntry(
