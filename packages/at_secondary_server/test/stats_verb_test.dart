@@ -121,14 +121,15 @@ void main() {
       var inbound = InboundConnectionImpl(mockSocket, null);
       var defaultVerbExecutor = DefaultVerbExecutor();
       var defaultVerbHandlerManager = DefaultVerbHandlerManager(
-        mockKeyStore,
-        mockOutboundClientManager,
-        mockAtCacheManager,
-        statsNotificationService,
-        mockNotificationManager,
-        mockEnrollmentManager,
-        alice,
-      );
+          mockKeyStore,
+          mockOutboundClientManager,
+          mockAtCacheManager,
+          statsNotificationService,
+          mockNotificationManager,
+          mockEnrollmentManager,
+          alice,
+          commitLog: atCommitLog,
+          accessLog: atAccessLog);
 
       expect(
           () => defaultVerbExecutor.execute(

@@ -4,7 +4,6 @@ import 'dart:collection';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
@@ -18,14 +17,11 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
   static ProxyLookup pLookup = ProxyLookup();
   final OutboundClientManager outboundClientManager;
   final AtCacheManager cacheManager;
-  final AtAccessLog? _accessLogOverride;
-  AtAccessLog get accessLog =>
-      _accessLogOverride ?? AtSecondaryServerImpl.getInstance().accessLog;
+  final AtAccessLog accessLog;
 
   ProxyLookupVerbHandler(
       super.keyValueStore, this.outboundClientManager, this.cacheManager,
-      {AtAccessLog? accessLog})
-      : _accessLogOverride = accessLog;
+      {required this.accessLog});
 
   // Method to verify whether command is accepted or not
   // Input: command

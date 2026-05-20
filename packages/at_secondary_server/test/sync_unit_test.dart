@@ -226,14 +226,15 @@ void main() async {
         /// 2. The commit-id's should be incremented sequentially
         /// 3. Assert the data and metadata updated to keystore
         VerbHandlerManager verbHandlerManager = DefaultVerbHandlerManager(
-          keyValueStore,
-          mockOutboundClientManager,
-          mockAtCacheManager,
-          statsNotificationService,
-          mockNotificationManager,
-          enMgr,
-          alice,
-        );
+            keyValueStore,
+            mockOutboundClientManager,
+            mockAtCacheManager,
+            statsNotificationService,
+            mockNotificationManager,
+            enMgr,
+            alice,
+            commitLog: atCommitLog,
+            accessLog: atAccessLog);
         var batchRequestCommand = jsonEncode([
           BatchRequest(100, 'update:city$alice copenhagen'),
           BatchRequest(456, 'delete:phone$alice'),
@@ -289,14 +290,15 @@ void main() async {
         /// 1. The valid commands should be processed and commit-id should be added to batch response
         /// 2. For the invalid batch request command, the error code and error message should be updated in the batch response
         VerbHandlerManager verbHandlerManager = DefaultVerbHandlerManager(
-          keyValueStore,
-          mockOutboundClientManager,
-          mockAtCacheManager,
-          statsNotificationService,
-          mockNotificationManager,
-          enMgr,
-          alice,
-        );
+            keyValueStore,
+            mockOutboundClientManager,
+            mockAtCacheManager,
+            statsNotificationService,
+            mockNotificationManager,
+            enMgr,
+            alice,
+            commitLog: atCommitLog,
+            accessLog: atAccessLog);
         var batchRequestCommand = jsonEncode([
           BatchRequest(1, 'delete:phone$alice'),
           BatchRequest(2, 'update:city$alice'),
@@ -364,7 +366,7 @@ void main() async {
         // The entry with highest commit should be returned.
         await putData('$alice:phone.wavi$alice');
         var syncProgressiveVerbHandler =
-            SyncProgressiveVerbHandler(keyValueStore);
+            SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -405,7 +407,7 @@ void main() async {
         await putData('test_key_3$alice');
         await keyValueStore.remove('test_key_3$alice');
         var syncProgressiveVerbHandler =
-            SyncProgressiveVerbHandler(keyValueStore);
+            SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -435,7 +437,7 @@ void main() async {
         await putData('test_key_3.buzz$alice');
         await putData('test_key_4.wavi$alice');
         var syncProgressiveVerbHandler =
-            SyncProgressiveVerbHandler(keyValueStore);
+            SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -469,7 +471,7 @@ void main() async {
         await putData('test_key_5.buzz$alice');
         await keyValueStore.remove('test_key_4.wavi$alice');
         var syncProgressiveVerbHandler =
-            SyncProgressiveVerbHandler(keyValueStore);
+            SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -502,7 +504,7 @@ void main() async {
         /// Assertions
         /// The sync response contains the keys that matches the regex in sync request
         var syncProgressiveVerbHandler =
-            SyncProgressiveVerbHandler(keyValueStore);
+            SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -537,7 +539,7 @@ void main() async {
         /// Assertions:
         /// The sync response should not exceed the sync buffer size
         var syncProgressiveVerbHandler =
-            SyncProgressiveVerbHandler(keyValueStore);
+            SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
         // Setting buffer size to 250 Bytes
         syncProgressiveVerbHandler.capacity = 275;
         var response = Response();
@@ -574,7 +576,7 @@ void main() async {
         await atCommitLog.commit('@invalidkey**.buzz$alice', CommitOp.UPDATE);
 
         var syncProgressiveVerbHandler =
-            SyncProgressiveVerbHandler(keyValueStore);
+            SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -655,7 +657,7 @@ void main() async {
               ..data = '8897896765'
               ..metaData = atMetadata);
         var syncProgressiveVerbHandler =
-            SyncProgressiveVerbHandler(keyValueStore);
+            SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -718,7 +720,7 @@ void main() async {
         await putMetaData(
             'public:phone.wavi$alice', (AtMetaData()..ttl = 1000));
         var syncProgressiveVerbHandler =
-            SyncProgressiveVerbHandler(keyValueStore);
+            SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -754,7 +756,7 @@ void main() async {
         // Delete the key
         await keyValueStore.remove('public:phone.wavi$alice');
         var syncProgressiveVerbHandler =
-            SyncProgressiveVerbHandler(keyValueStore);
+            SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -793,7 +795,7 @@ void main() async {
         // manually trigger the deleteExpiredKeys to remove the expired keys
         await keyValueStore.deleteExpiredKeys();
         var syncProgressiveVerbHandler =
-            SyncProgressiveVerbHandler(keyValueStore);
+            SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -843,7 +845,7 @@ void main() async {
               ..metaData =
                   (AtMetaData()..ttb = Duration(minutes: 1).inMilliseconds));
         var syncProgressiveVerbHandler =
-            SyncProgressiveVerbHandler(keyValueStore);
+            SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -864,7 +866,8 @@ void main() async {
       late SyncProgressiveVerbHandler handler;
       setUp(() async {
         await verbTestsSetUp();
-        handler = SyncProgressiveVerbHandler(keyValueStore);
+        handler =
+            SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
       });
 
       Future<List> executeSyncVerb(
@@ -1001,7 +1004,7 @@ void main() async {
         await keyValueStore.remove('test_key_2$alice');
         await putData('test_key_3$alice');
         var syncProgressiveVerbHandler =
-            SyncProgressiveVerbHandler(keyValueStore);
+            SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -1033,7 +1036,7 @@ void main() async {
           await keyValueStore.remove('test_key_$i$alice');
         }
         var syncProgressiveVerbHandler =
-            SyncProgressiveVerbHandler(keyValueStore);
+            SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -1070,7 +1073,7 @@ void main() async {
         }
 
         var syncProgressiveVerbHandler =
-            SyncProgressiveVerbHandler(keyValueStore);
+            SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -1117,7 +1120,7 @@ void main() async {
         }
 
         var syncProgressiveVerbHandler =
-            SyncProgressiveVerbHandler(keyValueStore);
+            SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -1151,7 +1154,7 @@ void main() async {
         }
 
         var syncProgressiveVerbHandler =
-            SyncProgressiveVerbHandler(keyValueStore);
+            SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -1190,7 +1193,7 @@ void main() async {
         await keyValueStore.remove('test_key_25$alice');
 
         var syncProgressiveVerbHandler =
-            SyncProgressiveVerbHandler(keyValueStore);
+            SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -1237,7 +1240,7 @@ void main() async {
         }
 
         var syncProgressiveVerbHandler =
-            SyncProgressiveVerbHandler(keyValueStore);
+            SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -1275,7 +1278,7 @@ void main() async {
         }
 
         var syncProgressiveVerbHandler =
-            SyncProgressiveVerbHandler(keyValueStore);
+            SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -1316,7 +1319,7 @@ void main() async {
         }
 
         var syncProgressiveVerbHandler =
-            SyncProgressiveVerbHandler(keyValueStore);
+            SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -1357,7 +1360,7 @@ void main() async {
           await keyValueStore.remove('test_key_$i$alice');
         }
         var syncProgressiveVerbHandler =
-            SyncProgressiveVerbHandler(keyValueStore);
+            SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -1407,7 +1410,7 @@ void main() async {
           await keyValueStore.remove('test_key_$i$alice');
         }
         var syncProgressiveVerbHandler =
-            SyncProgressiveVerbHandler(keyValueStore);
+            SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -1457,7 +1460,7 @@ void main() async {
         }
 
         var syncProgressiveVerbHandler =
-            SyncProgressiveVerbHandler(keyValueStore);
+            SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
         var response = Response();
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);

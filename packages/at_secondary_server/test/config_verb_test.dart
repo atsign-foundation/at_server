@@ -104,7 +104,8 @@ void main() {
   group('A group of config verb handler test', () {
     test('test config verb handler - add config', () {
       var command = 'config:block:add:$alice @bob';
-      AbstractVerbHandler verbHandler = ConfigVerbHandler(mockKeyStore);
+      AbstractVerbHandler verbHandler =
+          ConfigVerbHandler(mockKeyStore, commitLog: atCommitLog);
       var verbParameters = verbHandler.parse(command);
       var verb = verbHandler.getVerb();
       expect(verb is Config, true);
@@ -115,7 +116,8 @@ void main() {
 
     test('test config verb handler - remove config', () {
       var command = 'config:block:remove:$alice @bob';
-      AbstractVerbHandler verbHandler = ConfigVerbHandler(mockKeyStore);
+      AbstractVerbHandler verbHandler =
+          ConfigVerbHandler(mockKeyStore, commitLog: atCommitLog);
       var verbParameters = verbHandler.parse(command);
       var verb = verbHandler.getVerb();
       expect(verb is Config, true);
@@ -126,7 +128,8 @@ void main() {
 
     test('test config verb handler - show config', () {
       var command = 'config:block:show';
-      AbstractVerbHandler verbHandler = ConfigVerbHandler(mockKeyStore);
+      AbstractVerbHandler verbHandler =
+          ConfigVerbHandler(mockKeyStore, commitLog: atCommitLog);
       var verbParameters = verbHandler.parse(command);
       var verb = verbHandler.getVerb();
       expect(verb is Config, true);
@@ -137,21 +140,24 @@ void main() {
 
     test('test config key- invalid add command', () {
       var command = 'config:block:add';
-      AbstractVerbHandler handler = ConfigVerbHandler(mockKeyStore);
+      AbstractVerbHandler handler =
+          ConfigVerbHandler(mockKeyStore, commitLog: atCommitLog);
       expect(
           () => handler.parse(command), throwsA(isA<InvalidSyntaxException>()));
     });
 
     test('test config key- invalid remove command', () {
       var command = 'config:block:remove:';
-      AbstractVerbHandler handler = ConfigVerbHandler(mockKeyStore);
+      AbstractVerbHandler handler =
+          ConfigVerbHandler(mockKeyStore, commitLog: atCommitLog);
       expect(
           () => handler.parse(command), throwsA(isA<InvalidSyntaxException>()));
     });
 
     test('test config key- invalid show command', () {
       var command = 'config:block:show:$alice';
-      AbstractVerbHandler handler = ConfigVerbHandler(mockKeyStore);
+      AbstractVerbHandler handler =
+          ConfigVerbHandler(mockKeyStore, commitLog: atCommitLog);
       expect(
           () => handler.parse(command), throwsA(isA<InvalidSyntaxException>()));
     });

@@ -31,7 +31,8 @@ void main() async {
 
   test('test pol Verb', () {
     var handler = PolVerbHandler(
-        mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
+        mockKeyStore, mockOutboundClientManager, mockAtCacheManager,
+        accessLog: atAccessLog);
     var verb = handler.getVerb();
     expect(verb is Pol, true);
   });
@@ -39,7 +40,8 @@ void main() async {
   test('test pol command accept test', () {
     var command = 'pol';
     var handler = PolVerbHandler(
-        mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
+        mockKeyStore, mockOutboundClientManager, mockAtCacheManager,
+        accessLog: atAccessLog);
     var result = handler.accept(command);
     expect(result, true);
   });
@@ -68,6 +70,8 @@ void main() async {
       mockNotificationManager,
       mockEnrollmentManager,
       alice,
+      commitLog: atCommitLog,
+      accessLog: atAccessLog,
     );
 
     expect(

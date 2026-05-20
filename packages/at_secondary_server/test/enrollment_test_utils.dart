@@ -33,17 +33,12 @@ class ETU {
       alice,
     );
     lvh = LookupVerbHandler(
-      keyValueStore,
-      mockOutboundClientManager,
-      cacheManager,
-      enMgr,
-    );
+        keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+        accessLog: atAccessLog);
     llvh = LocalLookupVerbHandler(keyValueStore, enMgr);
     plvh = ProxyLookupVerbHandler(
-      keyValueStore,
-      mockOutboundClientManager,
-      cacheManager,
-    );
+        keyValueStore, mockOutboundClientManager, cacheManager,
+        accessLog: atAccessLog);
     primaryEnId = await createPrimaryEnrollment();
   }
 

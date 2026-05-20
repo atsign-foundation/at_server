@@ -8,7 +8,6 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -22,17 +21,15 @@ class LookupVerbHandler extends AbstractVerbHandler {
   final OutboundClientManager outboundClientManager;
   final AtCacheManager cacheManager;
   final EnrollmentManager enMgr;
-  final AtAccessLog? _accessLogOverride;
-  AtAccessLog get accessLog =>
-      _accessLogOverride ?? AtSecondaryServerImpl.getInstance().accessLog;
+  final AtAccessLog accessLog;
 
   LookupVerbHandler(
     super.keyValueStore,
     this.outboundClientManager,
     this.cacheManager,
     this.enMgr, {
-    AtAccessLog? accessLog,
-  }) : _accessLogOverride = accessLog;
+    required this.accessLog,
+  });
 
   @override
   bool accept(String command) =>

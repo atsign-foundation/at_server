@@ -55,6 +55,10 @@ import 'package:crypton/crypton.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:uuid/uuid.dart';
 
+class MockAtCommitLog extends Mock implements AtCommitLog {}
+
+class MockAtAccessLog extends Mock implements AtAccessLog {}
+
 class MockAtKeyValueStore extends Mock
     implements AtKeyValueStore<String, AtData, AtMetaData?> {
   @override
@@ -207,7 +211,12 @@ late Function() socketOnDoneFn;
 late Function(Exception e, StackTrace st) socketOnErrorFn;
 
 String storageDir = '${Directory.current.path}/unit_test_storage';
-late AtCommitLog atCommitLog;
+// Default to bare mocks so handler-construction tests that never run
+// `verbTestsSetUp` (e.g. accept()/syntax tests on a mock keystore)
+// still have a non-null commit/access log to inject. `verbTestsSetUp`
+// overwrites both with the real bundle-backed instances.
+AtCommitLog atCommitLog = MockAtCommitLog();
+AtAccessLog atAccessLog = MockAtAccessLog();
 
 /// Creates and persists a new approved enrollment
 /// NB: Does not go through enroll verb handler, so
@@ -263,7 +272,7 @@ verbTestsSetUp() async {
   final bundle = await factory.initialize(alice, config);
 
   atServer.commitLog = atCommitLog = bundle.keyValueStore.commitLog!;
-  atServer.accessLog = bundle.accessLog!;
+  atServer.accessLog = atAccessLog = bundle.accessLog!;
   keyValueStore = bundle.keyValueStore;
 
   mockSecondaryAddressFinder = MockSecondaryAddressFinder();

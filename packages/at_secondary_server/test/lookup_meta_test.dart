@@ -51,7 +51,8 @@ void main() {
     test('test lookup meta command accept test without operation', () {
       var command = 'lookup:location$alice';
       var handler = LookupVerbHandler(
-          mockKeyStore, mockOutboundClientManager, mockAtCacheManager, enMgr);
+          mockKeyStore, mockOutboundClientManager, mockAtCacheManager, enMgr,
+          accessLog: atAccessLog);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -59,7 +60,8 @@ void main() {
     test('test lookup meta command accept test for meta', () {
       var command = 'lookup:meta:location$alice';
       var handler = LookupVerbHandler(
-          mockKeyStore, mockOutboundClientManager, mockAtCacheManager, enMgr);
+          mockKeyStore, mockOutboundClientManager, mockAtCacheManager, enMgr,
+          accessLog: atAccessLog);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -67,7 +69,8 @@ void main() {
     test('test lookup meta command accept test for all', () {
       var command = 'lookup:all:location$alice';
       var handler = LookupVerbHandler(
-          mockKeyStore, mockOutboundClientManager, mockAtCacheManager, enMgr);
+          mockKeyStore, mockOutboundClientManager, mockAtCacheManager, enMgr,
+          accessLog: atAccessLog);
       var result = handler.accept(command);
       expect(result, true);
     });

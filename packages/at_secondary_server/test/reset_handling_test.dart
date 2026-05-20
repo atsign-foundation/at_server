@@ -30,7 +30,8 @@ void main() {
     setUp(() async {
       await verbTestsSetUp();
       lookupVerbHandler = LookupVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager, enMgr);
+          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+          accessLog: atAccessLog);
     });
 
     tearDown(() async {

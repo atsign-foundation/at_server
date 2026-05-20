@@ -30,12 +30,9 @@ import 'package:at_commons/at_commons.dart';
 class ConfigVerbHandler extends AbstractVerbHandler {
   static Config config = Config();
 
-  final AtCommitLog? _commitLogOverride;
-  AtCommitLog get commitLog =>
-      _commitLogOverride ?? AtSecondaryServerImpl.getInstance().commitLog;
+  final AtCommitLog commitLog;
 
-  ConfigVerbHandler(super.keyValueStore, {AtCommitLog? commitLog})
-      : _commitLogOverride = commitLog;
+  ConfigVerbHandler(super.keyValueStore, {required this.commitLog});
 
   late AtConfig atConfigInstance;
   late ModifiableConfigs? setConfigName;

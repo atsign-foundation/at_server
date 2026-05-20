@@ -587,7 +587,8 @@ void main() {
       secretData.data =
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyValueStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(keyValueStore);
+      var fromVerbHandler = FromVerbHandler(keyValueStore,
+          commitLog: atCommitLog, accessLog: atAccessLog);
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -601,7 +602,8 @@ void main() {
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
-      var cramVerbHandler = CramVerbHandler(keyValueStore);
+      var cramVerbHandler =
+          CramVerbHandler(keyValueStore, accessLog: atAccessLog);
       var cramResponse = Response();
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
@@ -638,7 +640,8 @@ void main() {
       secretData.data =
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyValueStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(keyValueStore);
+      var fromVerbHandler = FromVerbHandler(keyValueStore,
+          commitLog: atCommitLog, accessLog: atAccessLog);
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -652,7 +655,8 @@ void main() {
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
-      var cramVerbHandler = CramVerbHandler(keyValueStore);
+      var cramVerbHandler =
+          CramVerbHandler(keyValueStore, accessLog: atAccessLog);
       var cramResponse = Response();
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
@@ -719,7 +723,8 @@ void main() {
       secretData.data =
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyValueStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(keyValueStore);
+      var fromVerbHandler = FromVerbHandler(keyValueStore,
+          commitLog: atCommitLog, accessLog: atAccessLog);
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -733,7 +738,8 @@ void main() {
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
-      var cramVerbHandler = CramVerbHandler(keyValueStore);
+      var cramVerbHandler =
+          CramVerbHandler(keyValueStore, accessLog: atAccessLog);
       var cramResponse = Response();
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
