@@ -88,7 +88,7 @@ class AccessLogKeyStore
   /// Returns the list of expired entry keys (Hive-assigned integer
   /// box keys), older than [expiryInDays] days.
   @override
-  Future<List<int>> getExpired(int expiryInDays) async {
+  Future<Stream<int>> getExpired(int expiryInDays) async {
     var expiredKeys = <int>[];
     var now = DateTime.timestamp();
     var accessLogMap = await _toMap();
@@ -104,7 +104,7 @@ class AccessLogKeyStore
         expiredKeys.add(key);
       }
     });
-    return expiredKeys;
+    return Stream.fromIterable(expiredKeys);
   }
 
   /// Gets the first 'N' keys from the logs

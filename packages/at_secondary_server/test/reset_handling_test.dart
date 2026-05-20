@@ -74,7 +74,7 @@ void main() {
           cachedBobPublicKeyData.metaData!.updatedAt!.millisecondsSinceEpoch,
           bobOriginalPublicKeyAtData
               .metaData!.updatedAt!.millisecondsSinceEpoch);
-      expect(keyValueStore.isKeyExists(sharedEncryptionKeyName), true);
+      expect(await keyValueStore.exists(sharedEncryptionKeyName), true);
 
       var existsKeyName = 'some.key.some_app@bob';
       AtData bobData = createRandomAtData(bob);
@@ -101,7 +101,7 @@ void main() {
           cachedBobPublicKeyData.metaData!.createdAt!.millisecondsSinceEpoch,
           bobOriginalPublicKeyAtData
               .metaData!.createdAt!.millisecondsSinceEpoch);
-      expect(keyValueStore.isKeyExists(sharedEncryptionKeyName), true);
+      expect(await keyValueStore.exists(sharedEncryptionKeyName), true);
     });
 
     doPKChangeAndAssertions() async {
@@ -156,7 +156,7 @@ void main() {
         socketOnDataFn("data:$bobNewPublicKeyAsJson\n$alice@".codeUnits);
       });
 
-      expect(keyValueStore.isKeyExists(sharedEncryptionKeyName), true);
+      expect(await keyValueStore.exists(sharedEncryptionKeyName), true);
 
       await lookupVerbHandler.process(
           'lookup:all:$existsKeyName', inboundConnection);
@@ -205,9 +205,11 @@ void main() {
 
       await doPKChangeAndAssertions();
 
-      expect(keyValueStore.isKeyExists(sharedEncryptionKeyName), false);
+      expect(await keyValueStore.exists(sharedEncryptionKeyName), false);
 
-      List<String> matches = keyValueStore.getKeys(regex: r'shared_key\.bob');
+      List<String> matches =
+          await (await keyValueStore.getKeys(regex: r'shared_key\.bob'))
+              .toList();
       expect(matches.contains(sharedEncryptionKeyName), false);
       bool found = false;
       for (String mkn in matches) {
@@ -221,11 +223,12 @@ void main() {
     test('PKChangedEvent created when public key changed', () async {
       await doPKChangeAndAssertions();
 
-      List<String> eventKeys = keyValueStore.getKeys(
-          regex: '\\d*'
-              '\\.events'
-              '\\.${AtConstants.atServerReservedNamespace}'
-              '$alice');
+      List<String> eventKeys = await (await keyValueStore.getKeys(
+              regex: '\\d*'
+                  '\\.events'
+                  '\\.${AtConstants.atServerReservedNamespace}'
+                  '$alice'))
+          .toList();
       expect(eventKeys.length, 1);
       AtData? atData = await keyValueStore.get(eventKeys.first);
 

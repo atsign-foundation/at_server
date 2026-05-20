@@ -156,7 +156,7 @@ class HiveAtCommitLog extends AtCommitLog {
   /// Returns the list of commit entries greater than [sequenceNumber]
   /// throws [DataStoreException] if there is an exception getting the commit entries
   @override
-  Future<List<CommitEntry>> getChanges(int? sequenceNumber, String? regex,
+  Future<Stream<CommitEntry>> getChanges(int? sequenceNumber, String? regex,
       {int? limit}) async {
     throw UnimplementedError('');
   }
@@ -208,7 +208,7 @@ class HiveClientAtCommitLog extends HiveAtCommitLog {
   /// Returns the list of commit entries greater than [sequenceNumber]
   /// throws [DataStoreException] if there is an exception getting the commit entries
   @override
-  Future<List<CommitEntry>> getChanges(int? sequenceNumber, String? regex,
+  Future<Stream<CommitEntry>> getChanges(int? sequenceNumber, String? regex,
       {int? limit}) async {
     List<CommitEntry> changes;
     try {
@@ -222,8 +222,8 @@ class HiveClientAtCommitLog extends HiveAtCommitLog {
     }
     // ignore: unnecessary_null_comparison
     if (changes == null) {
-      return [];
+      return const Stream.empty();
     }
-    return changes;
+    return Stream.fromIterable(changes);
   }
 }

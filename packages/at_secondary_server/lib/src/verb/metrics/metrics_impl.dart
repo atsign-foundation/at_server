@@ -353,7 +353,7 @@ class CommitLogCompactionStats extends MetricProvider {
   @override
   getMetrics({String? regex}) async {
     final keyValueStore = atServer.keyValueStore;
-    if (keyValueStore.isKeyExists(AtConstants.commitLogCompactionKey)) {
+    if (await keyValueStore.exists(AtConstants.commitLogCompactionKey)) {
       AtData? atData =
           await keyValueStore.get(AtConstants.commitLogCompactionKey);
       if (atData != null && atData.data != null) {
@@ -375,7 +375,7 @@ class AccessLogCompactionStats extends MetricProvider {
   @override
   getMetrics({String? regex}) async {
     final keyValueStore = atServer.keyValueStore;
-    if (keyValueStore.isKeyExists(AtConstants.accessLogCompactionKey)) {
+    if (await keyValueStore.exists(AtConstants.accessLogCompactionKey)) {
       AtData? atData =
           await keyValueStore.get(AtConstants.accessLogCompactionKey);
       if (atData != null && atData.data != null) {
@@ -397,7 +397,7 @@ class NotificationCompactionStats extends MetricProvider {
   @override
   getMetrics({String? regex}) async {
     final keyValueStore = atServer.keyValueStore;
-    if (keyValueStore.isKeyExists(AtConstants.notificationCompactionKey)) {
+    if (await keyValueStore.exists(AtConstants.notificationCompactionKey)) {
       AtData? atData =
           await keyValueStore.get(AtConstants.notificationCompactionKey);
       if (atData != null && atData.data != null) {

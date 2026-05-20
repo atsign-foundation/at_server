@@ -830,10 +830,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     atData.data = serverContext!.sharedSecret;
 
     // Ensure essential data is present in persistence
-    if (!keyValueStore.isKeyExists(AtConstants.atCramSecretDeleted)) {
+    if (!await keyValueStore.exists(AtConstants.atCramSecretDeleted)) {
       await keyValueStore.put(AtConstants.atCramSecret, atData);
     }
-    if (!keyValueStore.isKeyExists(AtConstants.atSigningKeypairGenerated)) {
+    if (!await keyValueStore.exists(AtConstants.atSigningKeypairGenerated)) {
       var rsaKeypair = RSAKeypair.fromRandom();
       await keyValueStore.put('${AtConstants.atSigningPublicKey}$currentAtSign',
           AtData()..data = rsaKeypair.publicKey.toString());
@@ -850,7 +850,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       signingKey = signingPrivateKey?.data;
     } on KeyNotFoundException {
       logger.info(
-          'signing key generated? ${keyValueStore.isKeyExists(AtConstants.atSigningKeypairGenerated)}');
+          'signing key generated? ${await keyValueStore.exists(AtConstants.atSigningKeypairGenerated)}');
     }
   }
 
@@ -888,7 +888,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // To retain the invalid keys on server start-up, set the flag to false.
     if (AtSecondaryConfig.shouldRemoveMalformedKeys) {
       List<String> malformedKeys = AtSecondaryConfig.malformedKeysList;
-      List<String> keys = keyValueStore.getKeys();
+      List<String> keys = await (await keyValueStore.getKeys()).toList();
       logger.finest('malformed keys from config: $malformedKeys');
       for (String key in keys) {
         if (key.startsWith('public:cached:') || (malformedKeys.contains(key))) {

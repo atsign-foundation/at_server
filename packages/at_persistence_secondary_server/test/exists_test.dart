@@ -58,25 +58,6 @@ void main() {
       expect(await bundle.keyValueStore.exists('public:mixed@alice'), isTrue);
       expect(await bundle.keyValueStore.exists('PUBLIC:MIXED@alice'), isTrue);
     });
-
-    test('agrees with isKeyExists() on every probe', () async {
-      // exists() is documented as the async flavour of isKeyExists();
-      // they must answer identically for any input. Both methods are
-      // on the abstract AtKeyValueStore so the test reaches them
-      // without downcasting.
-      await bundle.keyValueStore.put('public:k1@alice', AtData()..data = 'v1');
-      for (final probe in [
-        'public:k1@alice',
-        'public:absent@alice',
-        'public:K1@alice',
-      ]) {
-        expect(
-          await bundle.keyValueStore.exists(probe),
-          equals(bundle.keyValueStore.isKeyExists(probe)),
-          reason: 'mismatch for probe "$probe"',
-        );
-      }
-    });
   });
 
   group('AtNotificationKeystore.exists()', () {

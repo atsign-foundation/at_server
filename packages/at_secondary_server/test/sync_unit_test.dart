@@ -184,7 +184,7 @@ void main() async {
         await putData('$alice:phone$alice');
         await keyValueStore.remove('$alice:phone$alice');
         // Verify key does not exist in the keystore
-        var isKeyExist = keyValueStore.isKeyExists('$alice:phone$alice');
+        var isKeyExist = await keyValueStore.exists('$alice:phone$alice');
         expect(isKeyExist, false);
         // Verify commit entry
         await for (final entry in atCommitLog.iterate()) {
@@ -202,7 +202,7 @@ void main() async {
         /// A new entry associated with the key should be added to commit log with CommitOp.Delete
         await keyValueStore.remove('$alice:mobile$alice');
         // Verify key does not exist in the keystore
-        var isKeyExist = keyValueStore.isKeyExists('$alice:mobile$alice');
+        var isKeyExist = await keyValueStore.exists('$alice:mobile$alice');
         expect(isKeyExist, false);
         // Verify commit entry
         await for (final entry in atCommitLog.iterate()) {
@@ -277,7 +277,7 @@ void main() async {
         expect(atData!.data, 'denmark');
         expect(atData.metaData!.dataSignature, 'dummy_data_signature');
         // Assert the key is removed on delete operation
-        expect(keyValueStore.isKeyExists('phone$alice'), false);
+        expect(await keyValueStore.exists('phone$alice'), false);
       });
 
       test('test to verify when one of the command in batch has invalid syntax',

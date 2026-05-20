@@ -129,13 +129,16 @@ class KeysVerbHandler extends AbstractVerbHandler {
   /// Also return the encrypted default encryption private key and encrypted self encryption key for enrollmentId [enId]
   Future<List<String>> _getFilteredKeys(
       String? keyVisibility, bool hasManageAccess, String enId) async {
-    final result = keyVisibility != null && keyVisibility.isNotEmpty
+    final List<String> result = keyVisibility != null &&
+            keyVisibility.isNotEmpty
         ? hasManageAccess
-            ? keyValueStore.getKeys(
-                regex:
-                    '.*$keyVisibility.*__global$atSign\$|.*$keyVisibility.*__manage$atSign\$')
-            : keyValueStore.getKeys(
-                regex: '.*__${keyVisibility}_keys.__global$atSign\$')
+            ? await (await keyValueStore.getKeys(
+                    regex:
+                        '.*$keyVisibility.*__global$atSign\$|.*$keyVisibility.*__manage$atSign\$'))
+                .toList()
+            : await (await keyValueStore.getKeys(
+                    regex: '.*__${keyVisibility}_keys.__global$atSign\$'))
+                .toList()
         : <String>[];
 
     final filteredKeys = <String>[];

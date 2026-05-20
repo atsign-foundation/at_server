@@ -92,7 +92,7 @@ abstract class AtCommitLog implements Compactable {
     throw UnimplementedError();
   }
 
-  Future<List<CommitEntry>> getChanges(int? sequenceNumber, String? regex,
+  Future<Stream<CommitEntry>> getChanges(int? sequenceNumber, String? regex,
       {int? limit}) async {
     throw UnimplementedError();
   }

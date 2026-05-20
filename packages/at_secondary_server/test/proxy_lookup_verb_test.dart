@@ -112,7 +112,7 @@ void main() {
 
         // Even if the ttr is null or zero, our compromise rules for now are that
         // we will cache the record, keep ttr as null (or zero), but assign a ttl of 24 hours
-        expect(keyValueStore.isKeyExists(cachedKeyName), true);
+        expect(await keyValueStore.exists(cachedKeyName), true);
         // Cached data should be identical to what was sent by @bob
         AtData cachedAtData = (await keyValueStore.get(cachedKeyName))!;
         expect(cachedAtData.data, bobData.data);
@@ -140,8 +140,8 @@ void main() {
             bobData.metaData!.toCommonsMetadata());
         expect(mapSentToClient['key'], 'public:$keyName');
 
-        expect(keyValueStore.isKeyExists(keyName), false);
-        expect(keyValueStore.isKeyExists(cachedKeyName), true);
+        expect(await keyValueStore.exists(keyName), false);
+        expect(await keyValueStore.exists(cachedKeyName), true);
       }
 
       test('plookup - not in cache but exists on remote - ttr null', () async {
@@ -179,7 +179,7 @@ void main() {
         bobData.metaData!.ttb = null;
         bobData.metaData!.ttl = null;
         await cacheManager.put(cachedKeyName, bobData);
-        expect(keyValueStore.isKeyExists(cachedKeyName), true);
+        expect(await keyValueStore.exists(cachedKeyName), true);
 
         inboundConnection.metadata.isAuthenticated =
             true; // owner connection, authenticated
@@ -205,7 +205,7 @@ void main() {
         bobOriginalData.metaData!.ttb = null;
         bobOriginalData.metaData!.ttl = null;
         await cacheManager.put(cachedKeyName, bobOriginalData);
-        expect(keyValueStore.isKeyExists(cachedKeyName), true);
+        expect(await keyValueStore.exists(cachedKeyName), true);
 
         AtData bobNewData = AtData().fromJson(bobOriginalData.toJson());
         bobNewData.data = "New data";
@@ -246,7 +246,7 @@ void main() {
         bobOriginalData.metaData!.ttb = null;
         bobOriginalData.metaData!.ttl = null;
         await cacheManager.put(cachedKeyName, bobOriginalData);
-        expect(keyValueStore.isKeyExists(cachedKeyName), true);
+        expect(await keyValueStore.exists(cachedKeyName), true);
 
         AtData bobNewData = AtData().fromJson(bobOriginalData.toJson());
         bobNewData.data = "New data";
@@ -289,7 +289,7 @@ void main() {
         bobOriginalData.data = "Old data";
 
         await cacheManager.put(cachedKeyName, bobOriginalData);
-        expect(keyValueStore.isKeyExists(cachedKeyName), true);
+        expect(await keyValueStore.exists(cachedKeyName), true);
 
         AtData bobNewData = AtData().fromJson(bobOriginalData.toJson());
         bobOriginalData.metaData!.ttr = -1;
@@ -337,7 +337,7 @@ void main() {
         bobOriginalData.data = "Old data";
 
         await cacheManager.put(cachedKeyName, bobOriginalData);
-        expect(keyValueStore.isKeyExists(cachedKeyName), true);
+        expect(await keyValueStore.exists(cachedKeyName), true);
 
         when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
             .thenAnswer((Invocation invocation) async {

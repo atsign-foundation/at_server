@@ -127,7 +127,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     }
   }
 
-  Future<List<int>> getExpired(int expiryInDays) async {
+  Future<Stream<int>> getExpired(int expiryInDays) async {
     var expiredKeys = <int>[];
     var now = DateTime.timestamp();
     var commitLogMap = await toMap();
@@ -137,7 +137,7 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
         expiredKeys.add(key);
       }
     });
-    return expiredKeys;
+    return Stream.fromIterable(expiredKeys);
   }
 
   Future<List<int>> getDuplicateEntries() async {

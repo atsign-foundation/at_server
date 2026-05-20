@@ -53,9 +53,9 @@ void main() {
       // when $alice caches, the key will be prefixed with 'cached:$alice:'
       var cachedKeyName = 'cached:$alice:$keyName';
 
-      expect(keyValueStore.isKeyExists(keyName), false);
-      expect(keyValueStore.isKeyExists(cachedKeyName), false);
-      expect(keyValueStore.isKeyExists(cachedBobsPublicKeyName), false);
+      expect(await keyValueStore.exists(keyName), false);
+      expect(await keyValueStore.exists(cachedKeyName), false);
+      expect(await keyValueStore.exists(cachedBobsPublicKeyName), false);
 
       inboundConnection.metadata.isAuthenticated =
           true; // owner connection, authenticated
@@ -78,7 +78,7 @@ void main() {
       await lookupVerbHandler.process('lookup:all:$keyName', inboundConnection);
 
       // Response should have been cached
-      expect(keyValueStore.isKeyExists(cachedKeyName), true);
+      expect(await keyValueStore.exists(cachedKeyName), true);
       // Cached data should be identical to what was sent by @bob
       AtData cachedAtData = (await keyValueStore.get(cachedKeyName))!;
       expect(cachedAtData.data, bobData.data);
@@ -94,8 +94,8 @@ void main() {
           bobData.metaData!.toCommonsMetadata());
       expect(mapSentToClient['key'], '$alice:$keyName');
 
-      expect(keyValueStore.isKeyExists(keyName), false);
-      expect(keyValueStore.isKeyExists(cachedKeyName), true);
+      expect(await keyValueStore.exists(keyName), false);
+      expect(await keyValueStore.exists(cachedKeyName), true);
     });
 
     test(
@@ -118,9 +118,9 @@ void main() {
           'all', bobData,
           key: '$alice:$keyName')!;
 
-      expect(keyValueStore.isKeyExists(keyName), false);
-      expect(keyValueStore.isKeyExists(cachedKeyName), false);
-      expect(keyValueStore.isKeyExists(cachedBobsPublicKeyName), false);
+      expect(await keyValueStore.exists(keyName), false);
+      expect(await keyValueStore.exists(cachedKeyName), false);
+      expect(await keyValueStore.exists(cachedBobsPublicKeyName), false);
 
       inboundConnection.metadata.isAuthenticated =
           true; // owner connection, authenticated
@@ -135,11 +135,11 @@ void main() {
       // *************************************************************
       // In the course of doing the remote lookup, Bob's public key should have been fetched and cached
       //
-      expect(keyValueStore.isKeyExists(cachedBobsPublicKeyName), true);
+      expect(await keyValueStore.exists(cachedBobsPublicKeyName), true);
       // Let's remove our cache of Bob's public key because then we can verify that after the next lookup
       // retrieves from cache, there is no need to do a remote lookup and therefore Bob's public key won't have been fetched
       await cacheManager.delete(cachedBobsPublicKeyName);
-      expect(keyValueStore.isKeyExists(cachedBobsPublicKeyName), false);
+      expect(await keyValueStore.exists(cachedBobsPublicKeyName), false);
       //
       // *************************************************************
     });
@@ -164,9 +164,9 @@ void main() {
           'all', bobData,
           key: '$alice:$keyName')!;
 
-      expect(keyValueStore.isKeyExists(keyName), false);
-      expect(keyValueStore.isKeyExists(cachedKeyName), false);
-      expect(keyValueStore.isKeyExists(cachedBobsPublicKeyName), false);
+      expect(await keyValueStore.exists(keyName), false);
+      expect(await keyValueStore.exists(cachedKeyName), false);
+      expect(await keyValueStore.exists(cachedBobsPublicKeyName), false);
 
       inboundConnection.metadata.isAuthenticated =
           true; // owner connection, authenticated
@@ -183,11 +183,11 @@ void main() {
       // *************************************************************
       // In the course of doing the remote lookup, Bob's public key should have been fetched and cached
       //
-      expect(keyValueStore.isKeyExists(cachedBobsPublicKeyName), true);
+      expect(await keyValueStore.exists(cachedBobsPublicKeyName), true);
       // Let's remove our cache of Bob's public key because then we can verify that after the next lookup
       // retrieves from cache, there is no need to do a remote lookup and therefore Bob's public key won't have been fetched
       await cacheManager.delete(cachedBobsPublicKeyName);
-      expect(keyValueStore.isKeyExists(cachedBobsPublicKeyName), false);
+      expect(await keyValueStore.exists(cachedBobsPublicKeyName), false);
       //
       // *************************************************************
 
@@ -202,10 +202,10 @@ void main() {
           bobData.metaData!.toCommonsMetadata());
       expect(mapSentToClient['key'], 'cached:$alice:$keyName');
 
-      expect(keyValueStore.isKeyExists(keyName), false);
-      expect(keyValueStore.isKeyExists(cachedKeyName), true);
+      expect(await keyValueStore.exists(keyName), false);
+      expect(await keyValueStore.exists(cachedKeyName), true);
       // We didn't do a remote lookup, so bob's public key should not have been cached
-      expect(keyValueStore.isKeyExists(cachedBobsPublicKeyName), false);
+      expect(await keyValueStore.exists(cachedBobsPublicKeyName), false);
     });
 
     test(
@@ -228,9 +228,9 @@ void main() {
           'all', bobData,
           key: '$alice:$keyName')!;
 
-      expect(keyValueStore.isKeyExists(keyName), false);
-      expect(keyValueStore.isKeyExists(cachedKeyName), false);
-      expect(keyValueStore.isKeyExists(cachedBobsPublicKeyName), false);
+      expect(await keyValueStore.exists(keyName), false);
+      expect(await keyValueStore.exists(cachedKeyName), false);
+      expect(await keyValueStore.exists(cachedBobsPublicKeyName), false);
 
       inboundConnection.metadata.isAuthenticated =
           true; // owner connection, authenticated
@@ -284,9 +284,9 @@ void main() {
           'all', bobData,
           key: '$alice:$keyName')!;
 
-      expect(keyValueStore.isKeyExists(keyName), false);
-      expect(keyValueStore.isKeyExists(cachedKeyName), false);
-      expect(keyValueStore.isKeyExists(cachedBobsPublicKeyName), false);
+      expect(await keyValueStore.exists(keyName), false);
+      expect(await keyValueStore.exists(cachedKeyName), false);
+      expect(await keyValueStore.exists(cachedBobsPublicKeyName), false);
 
       inboundConnection.metadata.isAuthenticated =
           true; // owner connection, authenticated
@@ -302,12 +302,12 @@ void main() {
       // First - just the data
       // (a) when doing remote lookup
       await cacheManager.delete(cachedKeyName);
-      expect(keyValueStore.isKeyExists(cachedKeyName), false);
+      expect(await keyValueStore.exists(cachedKeyName), false);
       await lookupVerbHandler.process('lookup:$keyName', inboundConnection);
       expect(
           inboundConnection.lastWrittenData!, 'data:${bobData.data}\n$alice@');
       // (b) and when it's been cached
-      expect(keyValueStore.isKeyExists(cachedKeyName), true);
+      expect(await keyValueStore.exists(cachedKeyName), true);
       await lookupVerbHandler.process('lookup:$keyName', inboundConnection);
       expect(
           inboundConnection.lastWrittenData!, 'data:${bobData.data}\n$alice@');
@@ -315,14 +315,14 @@ void main() {
       // Second - just the metaData
       // (a) when doing remote lookup
       await cacheManager.delete(cachedKeyName);
-      expect(keyValueStore.isKeyExists(cachedKeyName), false);
+      expect(await keyValueStore.exists(cachedKeyName), false);
       await lookupVerbHandler.process(
           'lookup:meta:$keyName', inboundConnection);
       mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
       expect(AtMetaData.fromJson(mapSentToClient).toCommonsMetadata(),
           bobData.metaData!.toCommonsMetadata());
       // (b) and when it's been cached
-      expect(keyValueStore.isKeyExists(cachedKeyName), true);
+      expect(await keyValueStore.exists(cachedKeyName), true);
       await lookupVerbHandler.process(
           'lookup:meta:$keyName', inboundConnection);
       mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
@@ -338,8 +338,8 @@ void main() {
       // if $alice caches, the key would be prefixed with 'cached:$alice:'
       var cachedKeyName = 'cached:$alice:$keyName';
 
-      expect(keyValueStore.isKeyExists(keyName), false);
-      expect(keyValueStore.isKeyExists(cachedKeyName), false);
+      expect(await keyValueStore.exists(keyName), false);
+      expect(await keyValueStore.exists(cachedKeyName), false);
 
       AtData bobData = createRandomAtData(bob);
       bobData.metaData!.ttr = null;
@@ -359,8 +359,8 @@ void main() {
       await lookupVerbHandler.process('lookup:all:$keyName', inboundConnection);
 
       // Response should not have been cached
-      expect(keyValueStore.isKeyExists(cachedKeyName), false);
-      expect(keyValueStore.isKeyExists(keyName), false);
+      expect(await keyValueStore.exists(cachedKeyName), false);
+      expect(await keyValueStore.exists(keyName), false);
 
       Map mapSentToClient;
       // When returned from remote lookup, the 'key' in the response should be e.g.. $alice:foo.bar@bob
@@ -403,8 +403,8 @@ void main() {
       aliceData.metaData!.ttl = null;
 
       await keyValueStore.put('$bob:$keyName', aliceData);
-      expect(keyValueStore.isKeyExists(keyName), false);
-      expect(keyValueStore.isKeyExists('$bob:$keyName'), true);
+      expect(await keyValueStore.exists(keyName), false);
+      expect(await keyValueStore.exists('$bob:$keyName'), true);
 
       inboundConnection.metaData.isPolAuthenticated =
           true; // connection from @bob atServer to $alice atServer, polAuthenticated
@@ -463,8 +463,8 @@ void main() {
       aliceData.metaData!.ttl = 0;
 
       await keyValueStore.put('public:$keyName', aliceData);
-      expect(keyValueStore.isKeyExists(keyName), false);
-      expect(keyValueStore.isKeyExists('public:$keyName'), true);
+      expect(await keyValueStore.exists(keyName), false);
+      expect(await keyValueStore.exists('public:$keyName'), true);
 
       expect(inboundConnection.metadata.isAuthenticated, false);
       expect(inboundConnection.metadata.isPolAuthenticated, false);
@@ -504,7 +504,7 @@ void main() {
       aliceData.metaData!.ttl = 0;
 
       await keyValueStore.put(keyName, aliceData);
-      expect(keyValueStore.isKeyExists(keyName), true);
+      expect(await keyValueStore.exists(keyName), true);
 
       expect(inboundConnection.metadata.isAuthenticated, false);
       expect(inboundConnection.metadata.isPolAuthenticated, false);
@@ -691,9 +691,9 @@ void main() {
       // when $alice caches, the key will be prefixed with 'cached:$alice:'
       var cachedKeyName = 'cached:$alice:$keyName';
 
-      expect(keyValueStore.isKeyExists(keyName), false);
-      expect(keyValueStore.isKeyExists(cachedKeyName), false);
-      expect(keyValueStore.isKeyExists(cachedBobsPublicKeyName), false);
+      expect(await keyValueStore.exists(keyName), false);
+      expect(await keyValueStore.exists(cachedKeyName), false);
+      expect(await keyValueStore.exists(cachedBobsPublicKeyName), false);
 
       AtData bobData = createRandomAtData(bob);
       bobData.metaData!.ttr = 10;
@@ -715,7 +715,7 @@ void main() {
       await lookupVerbHandler.process('lookup:all:$keyName', inboundConnection);
 
       // Response should have been cached
-      expect(keyValueStore.isKeyExists(cachedKeyName), true);
+      expect(await keyValueStore.exists(cachedKeyName), true);
       // Cached data should be identical to what was sent by @bob
       AtData cachedAtData = (await keyValueStore.get(cachedKeyName))!;
       expect(cachedAtData.data, bobData.data);
@@ -731,8 +731,8 @@ void main() {
           bobData.metaData!.toCommonsMetadata());
       expect(mapSentToClient['key'], '$alice:$keyName');
 
-      expect(keyValueStore.isKeyExists(keyName), false);
-      expect(keyValueStore.isKeyExists(cachedKeyName), true);
+      expect(await keyValueStore.exists(keyName), false);
+      expect(await keyValueStore.exists(cachedKeyName), true);
     });
 
     test(

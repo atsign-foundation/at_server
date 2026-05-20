@@ -11,8 +11,8 @@ HashMap<String, String> dummyKeyStore = HashMap();
 class MockAtKeyValueStore extends Mock
     implements AtKeyValueStore<String, AtData, AtMetaData?> {
   @override
-  List<String> getKeys({String? regex}) {
-    return dummyKeyStore.keys.toList();
+  Future<Stream<String>> getKeys({String? regex}) async {
+    return Stream.fromIterable(dummyKeyStore.keys.toList());
   }
 
   @override

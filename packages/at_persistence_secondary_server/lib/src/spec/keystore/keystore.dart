@@ -67,8 +67,10 @@ abstract interface class KeyValueStore<K, V> {
   // Expiry
   // ---------------------------------------------------------------
 
-  /// Retrieves all keys that have expired.
-  Future<List<K>> getExpiredKeys();
+  /// Streams all keys that have expired. The returned `Future`
+  /// completes once the backend has accepted the request (surfacing
+  /// any setup failure eagerly); the `Stream` then yields the keys.
+  Future<Stream<K>> getExpiredKeys();
 
   /// Removes all expired keys. Deletes are local-only — they are
   /// NOT appended to the commit log, so an expiry sweep never
@@ -82,19 +84,15 @@ abstract interface class KeyValueStore<K, V> {
   // Listing / existence
   // ---------------------------------------------------------------
 
-  /// Returns the list of keys, optionally filtered by [regex].
-  List<K> getKeys({String? regex});
-
-  /// Checks whether the keystore contains [key]. Synchronous
-  /// flavour intended for in-process Hive-backed consumers where
-  /// blocking on I/O is fine. Async-only backends (e.g. SQLite,
-  /// Postgres) should use [exists] instead — the async signature
-  /// is the canonical forward-compat shape.
-  bool isKeyExists(String key);
+  /// Streams the keys, optionally filtered by [regex]. The returned
+  /// `Future` completes once the backend has accepted the request —
+  /// setup failures (store not open, invalid [regex]) reject the
+  /// `Future` eagerly rather than surfacing mid-stream; the `Stream`
+  /// then yields the matching keys.
+  Future<Stream<K>> getKeys({String? regex});
 
   /// Returns `true` if the keystore currently contains [key],
-  /// else `false`. The async flavour of [isKeyExists] —
-  /// backend-agnostic consumers should prefer this so the same
+  /// else `false`. The backend-agnostic existence check — the same
   /// call site works against every backend.
   ///
   /// Should be O(1) on every backend that ships with this
@@ -114,7 +112,10 @@ abstract interface class KeyValueStore<K, V> {
   /// [orderBy] controls the result order. `null` (default) means
   /// "the backend's natural order". [limit] caps the number of
   /// keys yielded; [skip] discards the first N.
-  Stream<String> scanKeys(
+  ///
+  /// The returned `Future` completes once the backend has accepted
+  /// the request; the `Stream` then yields the matching keys.
+  Future<Stream<String>> scanKeys(
     KeyPattern pattern, {
     bool includeExpired = false,
     OrderByKey? orderBy,

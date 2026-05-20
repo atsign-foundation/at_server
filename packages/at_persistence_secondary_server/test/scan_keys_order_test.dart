@@ -37,7 +37,8 @@ void main() {
     });
 
     test('default order yields every match (natural backend order)', () async {
-      final keys = await bundle.keyValueStore.scanKeys(KeyPattern()).toList();
+      final keys =
+          await (await bundle.keyValueStore.scanKeys(KeyPattern())).toList();
       // Hive's natural iteration order is the B-tree (key-bytes
       // ascending) — not insertion order. Verify every match is
       // present rather than asserting a specific order; the
@@ -51,8 +52,8 @@ void main() {
     });
 
     test('orderBy: byKey returns lexicographic ascending', () async {
-      final keys = await bundle.keyValueStore
-          .scanKeys(KeyPattern(), orderBy: OrderByKey.byKey)
+      final keys = await (await bundle.keyValueStore
+              .scanKeys(KeyPattern(), orderBy: OrderByKey.byKey))
           .toList();
       expect(keys, [
         'public:apple@alice',
@@ -63,27 +64,26 @@ void main() {
     });
 
     test('limit caps the number of yielded keys', () async {
-      final keys = await bundle.keyValueStore
-          .scanKeys(KeyPattern(), orderBy: OrderByKey.byKey, limit: 2)
+      final keys = await (await bundle.keyValueStore
+              .scanKeys(KeyPattern(), orderBy: OrderByKey.byKey, limit: 2))
           .toList();
       expect(keys, ['public:apple@alice', 'public:banana@alice']);
     });
 
     test('skip discards the first N matching keys', () async {
-      final keys = await bundle.keyValueStore
-          .scanKeys(KeyPattern(), orderBy: OrderByKey.byKey, skip: 2)
+      final keys = await (await bundle.keyValueStore
+              .scanKeys(KeyPattern(), orderBy: OrderByKey.byKey, skip: 2))
           .toList();
       expect(keys, ['public:mango@alice', 'public:zebra@alice']);
     });
 
     test('skip + limit together yield a window', () async {
-      final keys = await bundle.keyValueStore
-          .scanKeys(
-            KeyPattern(),
-            orderBy: OrderByKey.byKey,
-            skip: 1,
-            limit: 2,
-          )
+      final keys = await (await bundle.keyValueStore.scanKeys(
+        KeyPattern(),
+        orderBy: OrderByKey.byKey,
+        skip: 1,
+        limit: 2,
+      ))
           .toList();
       expect(keys, ['public:banana@alice', 'public:mango@alice']);
     });
@@ -110,8 +110,8 @@ void main() {
       await spacedPut('public:mango@alice');
       await spacedPut('public:banana@alice'); // newest
 
-      final keys = await bundle.keyValueStore
-          .scanKeys(KeyPattern(), orderBy: OrderByKey.byCreatedAt)
+      final keys = await (await bundle.keyValueStore
+              .scanKeys(KeyPattern(), orderBy: OrderByKey.byCreatedAt))
           .toList();
       expect(keys, [
         'public:zebra@alice',
@@ -122,15 +122,15 @@ void main() {
     });
 
     test('skip beyond match count yields empty', () async {
-      final keys = await bundle.keyValueStore
-          .scanKeys(KeyPattern(), orderBy: OrderByKey.byKey, skip: 100)
+      final keys = await (await bundle.keyValueStore
+              .scanKeys(KeyPattern(), orderBy: OrderByKey.byKey, skip: 100))
           .toList();
       expect(keys, isEmpty);
     });
 
     test('limit=0 yields empty', () async {
-      final keys = await bundle.keyValueStore
-          .scanKeys(KeyPattern(), orderBy: OrderByKey.byKey, limit: 0)
+      final keys = await (await bundle.keyValueStore
+              .scanKeys(KeyPattern(), orderBy: OrderByKey.byKey, limit: 0))
           .toList();
       expect(keys, isEmpty);
     });
@@ -139,11 +139,10 @@ void main() {
       // Add a tasks-namespace key; it should sort independently.
       await bundle.keyValueStore
           .put('public:plan.tasks@alice', AtData()..data = 'v');
-      final keys = await bundle.keyValueStore
-          .scanKeys(
-            KeyPattern(namespace: 'tasks'),
-            orderBy: OrderByKey.byKey,
-          )
+      final keys = await (await bundle.keyValueStore.scanKeys(
+        KeyPattern(namespace: 'tasks'),
+        orderBy: OrderByKey.byKey,
+      ))
           .toList();
       expect(keys, ['public:plan.tasks@alice']);
     });

@@ -126,7 +126,7 @@ class EnrollmentManager {
       case EnrollmentConstants.perEnrollmentDeleted:
       case EnrollmentConstants.perEnrollmentApproved:
         List<String> moved = [];
-        for (final String fromKey in keyStore.getKeys(
+        await for (final String fromKey in await keyStore.getKeys(
             regex: EnrollmentConstants.regexForPerEnrollmentNamespaces)) {
           final String toKey = fromKey
               .replaceAll(
@@ -184,7 +184,7 @@ class EnrollmentManager {
   Future<void> _preRemove({
     required String ek,
   }) async {
-    if (!keyStore.isKeyExists(ek)) {
+    if (!await keyStore.exists(ek)) {
       logger.info('_preRemove: $ek no longer exists, nothing to do');
       return;
     }
@@ -195,7 +195,7 @@ class EnrollmentManager {
 
     // Delete private encryption key if it's there
     final pekKey = keyForPEK(enId);
-    if (keyStore.isKeyExists(pekKey)) {
+    if (await keyStore.exists(pekKey)) {
       logger.info('_preRemove: Removing $pekKey');
       await keyStore.remove(pekKey, skipCommit: true);
     } else {
@@ -204,7 +204,7 @@ class EnrollmentManager {
 
     // Delete self encryption key if it's there
     final sekKey = keyForSEK(enId);
-    if (keyStore.isKeyExists(sekKey)) {
+    if (await keyStore.exists(sekKey)) {
       logger.info('_preRemove: Removing $sekKey');
       await keyStore.remove(sekKey, skipCommit: true);
     } else {
@@ -239,7 +239,8 @@ class EnrollmentManager {
   }
 
   Future<List<String>> getAllEnrollmentKeys() async {
-    return keyStore.getKeys(regex: EnrollmentConstants.enrollmentsRegex);
+    return (await keyStore.getKeys(regex: EnrollmentConstants.enrollmentsRegex))
+        .toList();
   }
 
   /// Fetch an enrollment key from the keystore.
@@ -305,7 +306,7 @@ class EnrollmentManager {
     for (final ek in eks) {
       final EnrollDataStoreValue ev = await getEnrollmentByFullKey(ek);
       final lk = keyForLegacyPK(ev);
-      if (keyStore.isKeyExists(lk)) {
+      if (await keyStore.exists(lk)) {
         logger.warning('removeLegacyApkamPublicKeys: DELETING $lk');
         await keyStore.remove(lk, skipCommit: true);
         deletedLegacyKeys.add(ek);
@@ -325,8 +326,12 @@ class EnrollmentManager {
       enIds.add(getIdFromKey(ek));
     }
     final List<String> candidates = [];
-    candidates.addAll(keyStore.getKeys(regex: EnrollmentConstants.regexForPEK));
-    candidates.addAll(keyStore.getKeys(regex: EnrollmentConstants.regexForSEK));
+    candidates.addAll(
+        await (await keyStore.getKeys(regex: EnrollmentConstants.regexForPEK))
+            .toList());
+    candidates.addAll(
+        await (await keyStore.getKeys(regex: EnrollmentConstants.regexForSEK))
+            .toList());
     for (final candidateKey in candidates) {
       String candidateId = getIdFromKey(candidateKey);
       if (!enIds.contains(candidateId)) {

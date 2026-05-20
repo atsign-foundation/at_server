@@ -41,7 +41,8 @@ void main() async {
             await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
         await commitLogInstance.commit('phone@alice', CommitOp.UPDATE);
 
-        var changes = await commitLogInstance.getChanges(key_1, '');
+        var changes =
+            await (await commitLogInstance.getChanges(key_1, '')).toList();
         expect(changes.length, 1);
         expect(changes[0].atKey, 'phone@alice');
       });

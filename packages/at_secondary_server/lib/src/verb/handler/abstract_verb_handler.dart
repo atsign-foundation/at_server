@@ -454,7 +454,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
     // If SPP key is available, check if the otp sent is a valid pass code.
     // If yes, return true, else check it is a valid OTP.
     String passcodeKey = OtpVerbHandler.passcodeKey(passcode, isSpp: true);
-    if (!keyValueStore.isKeyExists(passcodeKey)) {
+    if (!await keyValueStore.exists(passcodeKey)) {
       // if new SPPKey does not exist in keystore, check for SPP data against legacy SPP key
       // New SPP key has __otp namespace, legacy key does NOT have any namespace
       passcodeKey =
@@ -480,7 +480,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
 
     // 2. If not a valid SPP, then check against OTP keys
     String otpKey = OtpVerbHandler.passcodeKey(passcode, isSpp: false);
-    if (!keyValueStore.isKeyExists(otpKey)) {
+    if (!await keyValueStore.exists(otpKey)) {
       // if new OTPKey does not exist in keystore, check for OTP data against legacy OTPKey
       // New OTP key has __otp namespace, legacy key does not have namespace
       otpKey =

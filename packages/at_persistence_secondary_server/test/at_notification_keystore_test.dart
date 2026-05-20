@@ -120,12 +120,12 @@ void main() async {
       await keyValueStore.put(atNotification_2.id!, atNotification_2);
       await keyValueStore.put(atNotification_3.id!, atNotification_3);
       sleep(Duration(milliseconds: 11));
-      var expiredKeys = await keyValueStore.getExpiredKeys();
+      var expiredKeys = await (await keyValueStore.getExpiredKeys()).toList();
       expect(expiredKeys.length, 2);
       expect('111', expiredKeys.elementAt(0));
       expect('333', expiredKeys.elementAt(1));
       sleep(Duration(milliseconds: 11));
-      expiredKeys = await keyValueStore.getExpiredKeys();
+      expiredKeys = await (await keyValueStore.getExpiredKeys()).toList();
       expect(expiredKeys.length, 3);
       expect('111', expiredKeys.elementAt(0));
       expect('222', expiredKeys.elementAt(1));
@@ -153,7 +153,7 @@ void main() async {
       await keyValueStore.put(atNotification_1.id!, atNotification_1);
       await keyValueStore.put(atNotification_2.id!, atNotification_2);
       await keyValueStore.put(atNotification_3.id!, atNotification_3);
-      var expiredKeys = await keyValueStore.getExpiredKeys();
+      var expiredKeys = await (await keyValueStore.getExpiredKeys()).toList();
       expect(0, expiredKeys.length);
     });
     test('test hive key exceeds max allowed chars', () async {

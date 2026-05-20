@@ -113,7 +113,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       // then check if the data is immutable
       // and if so, prevent deletion unless the "force" flag was set
       if (verbParams['isCached'] != 'true') {
-        if (keyValueStore.isKeyExists(deleteKey)) {
+        if (await keyValueStore.exists(deleteKey)) {
           AtData atData = (await keyValueStore.get(deleteKey))!;
           if (atData.metaData?.immutable == true) {
             // immutable records need the force flag in order to be deleted

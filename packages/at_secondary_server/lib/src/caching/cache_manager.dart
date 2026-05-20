@@ -40,7 +40,8 @@ class AtCacheManager {
 
   /// Returns a List of keyNames of all cached records due to refresh
   Future<List<String>> getKeyNamesToRefresh() async {
-    List<String> keysList = keyStore.getKeys(regex: r'cached\:');
+    List<String> keysList =
+        await (await keyStore.getKeys(regex: r'cached\:')).toList();
     var cachedKeys = <String>[];
 
     var nowInEpoch = DateTime.now().millisecondsSinceEpoch;
@@ -237,7 +238,7 @@ class AtCacheManager {
           'AtCacheManager.get called with invalid cachedKeyName $cachedKeyName');
     }
 
-    if (!keyStore.isKeyExists(cachedKeyName)) {
+    if (!await keyStore.exists(cachedKeyName)) {
       return null;
     }
     var atData = await keyStore.get(cachedKeyName);
@@ -303,7 +304,7 @@ class AtCacheManager {
 
     // For everything other than 'cached:public:publickey@atSign' just put it into the key store
     AtData? existingAtData;
-    if (keyStore.isKeyExists(cachedKeyName)) {
+    if (await keyStore.exists(cachedKeyName)) {
       existingAtData = await keyStore.get(cachedKeyName);
     }
 
@@ -358,7 +359,7 @@ class AtCacheManager {
         cachedKeyName.replaceFirst('cached:public:publickey@', '@').toAtsign();
     try {
       // 1) If it's not currently in the cache, then just update the cache and return
-      if (!keyStore.isKeyExists(cachedKeyName)) {
+      if (!await keyStore.exists(cachedKeyName)) {
         atData.metaData!.ttr = -1;
         await keyStore.put(cachedKeyName, atData);
         return CacheUpdateResult(
@@ -483,7 +484,7 @@ class AtCacheManager {
     int now = DateTime.now().millisecondsSinceEpoch;
     var nameOfMyCopyOfSharedKey =
         'shared_key.${otherAtSign.withoutAt()}$atSign';
-    if (keyStore.isKeyExists(nameOfMyCopyOfSharedKey)) {
+    if (await keyStore.exists(nameOfMyCopyOfSharedKey)) {
       AtData data = (await keyStore.get(nameOfMyCopyOfSharedKey))!;
 
       logger.warning('Removing $nameOfMyCopyOfSharedKey');

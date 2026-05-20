@@ -168,7 +168,7 @@ void main() {
       var (keys, values) = await etu.createSomePerEnrollmentData(enId);
       // 2a. Verify everything is in a.__e
       for (final k in keys) {
-        expect(keyValueStore.isKeyExists(k), true);
+        expect(await keyValueStore.exists(k), true);
       }
       // 3. Run expired keys cleanup
       await Future.delayed(Duration(milliseconds: ttl + 1));
@@ -176,14 +176,14 @@ void main() {
 
       // 4. Verify nothing in a.__e
       for (final k in keys) {
-        expect(keyValueStore.isKeyExists(k), false);
+        expect(await keyValueStore.exists(k), false);
       }
 
       // 5. Verify all in d.__e
       for (final k in keys.map((k) => k.replaceAll(
           '${EnrollmentConstants.perEnrollmentApproved}@',
           '${EnrollmentConstants.perEnrollmentDeleted}@'))) {
-        expect(keyValueStore.isKeyExists(k), true);
+        expect(await keyValueStore.exists(k), true);
       }
     }, timeout: Timeout(Duration(minutes: 5)));
 
@@ -194,21 +194,21 @@ void main() {
       var (keys, values) = await etu.createSomePerEnrollmentData(enId);
       // 2a. Verify everything is in a.__e
       for (final k in keys) {
-        expect(keyValueStore.isKeyExists(k), true);
+        expect(await keyValueStore.exists(k), true);
       }
       // 3. Delete the enrollment
       await enMgr.remove(enId: enId);
 
       // 4. Verify nothing in a.__e
       for (final k in keys) {
-        expect(keyValueStore.isKeyExists(k), false);
+        expect(await keyValueStore.exists(k), false);
       }
 
       // 5. Verify all in d.__e
       for (final k in keys.map((k) => k.replaceAll(
           '${EnrollmentConstants.perEnrollmentApproved}@',
           '${EnrollmentConstants.perEnrollmentDeleted}@'))) {
-        expect(keyValueStore.isKeyExists(k), true);
+        expect(await keyValueStore.exists(k), true);
       }
     });
 
@@ -219,21 +219,21 @@ void main() {
       var (keys, values) = await etu.createSomePerEnrollmentData(enId);
       // 2a. Verify everything is in a.__e
       for (final k in keys) {
-        expect(keyValueStore.isKeyExists(k), true);
+        expect(await keyValueStore.exists(k), true);
       }
       // 3. Revoke the enrollment
       await etu.revokeEnrollment(etu.primaryEnId, enId);
 
       // 4. Verify nothing in a.__e
       for (final k in keys) {
-        expect(keyValueStore.isKeyExists(k), false);
+        expect(await keyValueStore.exists(k), false);
       }
 
       // 5. Verify all in r.__e
       for (final k in keys.map((k) => k.replaceAll(
           '${EnrollmentConstants.perEnrollmentApproved}@',
           '${EnrollmentConstants.perEnrollmentRevoked}@'))) {
-        expect(keyValueStore.isKeyExists(k), true);
+        expect(await keyValueStore.exists(k), true);
       }
     });
 
@@ -244,7 +244,7 @@ void main() {
       var (keys, values) = await etu.createSomePerEnrollmentData(enId);
       // 2a. Verify everything is in a.__e
       for (final k in keys) {
-        expect(keyValueStore.isKeyExists(k), true);
+        expect(await keyValueStore.exists(k), true);
       }
       // 3. Revoke the enrollment
       await etu.revokeEnrollment(etu.primaryEnId, enId);
@@ -253,7 +253,7 @@ void main() {
       for (final k in keys.map((k) => k.replaceAll(
           '${EnrollmentConstants.perEnrollmentApproved}@',
           '${EnrollmentConstants.perEnrollmentRevoked}@'))) {
-        expect(keyValueStore.isKeyExists(k), true);
+        expect(await keyValueStore.exists(k), true);
       }
 
       // 5. Unrevoke the enrollment
@@ -261,7 +261,7 @@ void main() {
 
       // 6. Verify all in a.__e
       for (final k in keys) {
-        expect(keyValueStore.isKeyExists(k), true);
+        expect(await keyValueStore.exists(k), true);
       }
     });
 
@@ -272,7 +272,7 @@ void main() {
       var (keys, values) = await etu.createSomePerEnrollmentData(enId);
       // 2a. Verify everything is in a.__e
       for (final k in keys) {
-        expect(keyValueStore.isKeyExists(k), true);
+        expect(await keyValueStore.exists(k), true);
       }
       // 3. Revoke the enrollment
       await etu.revokeEnrollment(etu.primaryEnId, enId);
@@ -281,7 +281,7 @@ void main() {
       for (final k in keys.map((k) => k.replaceAll(
           '${EnrollmentConstants.perEnrollmentApproved}@',
           '${EnrollmentConstants.perEnrollmentRevoked}@'))) {
-        expect(keyValueStore.isKeyExists(k), true);
+        expect(await keyValueStore.exists(k), true);
       }
 
       // 6. Delete the revoked enrollment
@@ -291,7 +291,7 @@ void main() {
       for (final k in keys.map((k) => k.replaceAll(
           '${EnrollmentConstants.perEnrollmentApproved}@',
           '${EnrollmentConstants.perEnrollmentDeleted}@'))) {
-        expect(keyValueStore.isKeyExists(k), true);
+        expect(await keyValueStore.exists(k), true);
       }
     });
 

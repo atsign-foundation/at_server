@@ -46,6 +46,17 @@ Major release: persistence-overhaul. Themes:
   unchanged — it still returns `Future<AtData?>` (`null` for an
   absent key). The metadata type parameter stays nullable
   (`AtMetaData?`) since `getMeta` legitimately returns `null`.
+- **Keystore listing/existence APIs are now fully async, and
+  list-returning queries stream.** `KeyValueStore.getKeys`,
+  `getExpiredKeys` and `scanKeys` now return
+  `Future<Stream<…>>`; `LogKeyStore.getExpired` and
+  `AtCommitLog.getChanges` likewise return `Future<Stream<…>>`.
+  The `Future` completes once the backend has accepted the
+  request (so setup failures — store not open, invalid regex —
+  reject eagerly rather than mid-stream); the `Stream` then
+  yields the results. The synchronous `isKeyExists` is removed —
+  use the async `exists` (the two were duplicates; `exists` is
+  the backend-agnostic shape SQL backends need).
 - **`AtKeyValueStore.commitLog` is nullable.** Server bundles
   hold a non-null commit log on the keystore; client bundles
   hold `null` (sync via fsync or other mechanism). The server's

@@ -107,16 +107,12 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
         return false;
       }
 
-      // For non-DELETE entries, the keystore must hold the key. Hint
-      // only — the post-filter keyValueStore.get in the output-flow loop
-      // is the real guard against TOCTOU between filter-time and
-      // fetch-time.
-      if (entry.operation != CommitOp.DELETE &&
-          !keyValueStore.isKeyExists(atKey)) {
-        logger.finer(
-            'sync filter | $atKey does not exist in the keystore. Skipping.');
-        return false;
-      }
+      // Note: for non-DELETE entries the keystore-presence check is
+      // applied in the output-flow loop (prepareResponse), where the
+      // keyValueStore.get is the real guard against the TOCTOU window
+      // between filter-time and fetch-time. The keystore's existence
+      // check is async, so it cannot run inside this synchronous
+      // `where` predicate.
       return true;
     }
 

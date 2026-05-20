@@ -137,7 +137,7 @@ class NotificationManager {
         ' defaultTtl is ${AtNotification.defaultTtl}');
     int removed = 0;
     int failed = 0;
-    for (final k in await notifStore.getExpiredKeys()) {
+    await for (final k in await notifStore.getExpiredKeys()) {
       try {
         await remove(k);
         removed++;
@@ -184,7 +184,7 @@ class NotificationManager {
   }
 
   Future<bool> isKeyExists(String key) async {
-    return _notifStore.isKeyExists(key);
+    return _notifStore.exists(key);
   }
 
   Future<AtNotification?> get(key) async {
@@ -192,7 +192,7 @@ class NotificationManager {
   }
 
   Future<List<String>> getKeys({String? regex}) async {
-    return _notifStore.getKeys(regex: regex);
+    return (await _notifStore.getKeys(regex: regex)).toList();
   }
 
   int compareDateTime(AtNotification n1, AtNotification n2) {
@@ -222,7 +222,7 @@ class NotificationManager {
     List<AtNotification> values = [];
 
     // Iterate through all the keys
-    for (final k in _notifStore.getKeys()) {
+    await for (final k in await _notifStore.getKeys()) {
       //   Fetch each one in turn
       AtNotification? n = await _notifStore.get(k);
       //   Filter null (who knows)

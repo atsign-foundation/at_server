@@ -155,7 +155,7 @@ class HiveAtNotificationKeystore
       throw DataStoreException(
           'key length ${key.length} is greater than $maxKeyLengthWithoutCached chars');
     }
-    final wasPresent = isKeyExists(key);
+    final wasPresent = await exists(key);
     await _getBox().put(key, value);
     _changesController.add(wasPresent ? KeyUpdated(key) : KeyAdded(key));
     return null;
@@ -172,7 +172,7 @@ class HiveAtNotificationKeystore
   Future<bool> deleteExpiredKeys() async {
     var result = true;
     try {
-      var expiredKeys = await getExpiredKeys();
+      var expiredKeys = await (await getExpiredKeys()).toList();
       if (expiredKeys.isNotEmpty) {
         await Future.forEach(expiredKeys, (expiredKey) async {
           await remove(expiredKey, skipCommit: true);
@@ -193,7 +193,7 @@ class HiveAtNotificationKeystore
   }
 
   @override
-  Future<List<String>> getExpiredKeys() async {
+  Future<Stream<String>> getExpiredKeys() async {
     List<String> expiredKeys = <String>[];
     try {
       for (final key in _getBox().keys) {
@@ -209,17 +209,17 @@ class HiveAtNotificationKeystore
       _logger.severe('HiveAtKeyValueStore get error: $error');
       throw DataStoreException(error.message);
     }
-    return expiredKeys;
+    return Stream.fromIterable(expiredKeys);
   }
 
   @override
-  List<String> getKeys({String? regex}) {
+  Future<Stream<String>> getKeys({String? regex}) async {
     var keys = <String>[];
     // ignore: prefer_typing_uninitialized_variables
     var encodedKeys;
 
     if (_getBox().keys.isEmpty) {
-      return [];
+      return const Stream.empty();
     }
     // If regular expression is not null or not empty, filter keys on regular expression.
     if (regex != null && regex.isNotEmpty) {
@@ -229,7 +229,7 @@ class HiveAtNotificationKeystore
       encodedKeys = _getBox().keys.toList();
     }
     encodedKeys?.forEach((key) => keys.add(Utf7.decode(key)));
-    return keys;
+    return Stream.fromIterable(keys);
   }
 
   @override
@@ -237,7 +237,7 @@ class HiveAtNotificationKeystore
     for (final hook in preRemoveHooks) {
       await hook(key, skipCommit: skipCommit);
     }
-    final wasPresent = isKeyExists(key);
+    final wasPresent = await exists(key);
     await _getBox().delete(key);
 
     for (final hook in postRemoveHooks) {
@@ -265,12 +265,9 @@ class HiveAtNotificationKeystore
   }
 
   @override
-  bool isKeyExists(String key) {
+  Future<bool> exists(String key) async {
     return _getBox().keys.contains(key);
   }
-
-  @override
-  Future<bool> exists(String key) async => isKeyExists(key);
 
   @override
   Future<int> removeMany(List keys, {bool skipCommit = false}) async {
@@ -314,13 +311,13 @@ class HiveAtNotificationKeystore
   }
 
   @override
-  Stream<String> scanKeys(
+  Future<Stream<String>> scanKeys(
     KeyPattern pattern, {
     bool includeExpired = false,
     OrderByKey? orderBy,
     int? limit,
     int? skip,
-  }) async* {
+  }) async {
     // Notification keys are random ids, not atKey-shaped, so the
     // structured fields on KeyPattern (sharedBy / sharedWith /
     // namespace / idPrefix) don't apply here. We honour
@@ -331,7 +328,7 @@ class HiveAtNotificationKeystore
     if (pattern.sharedBy != null ||
         pattern.sharedWith != null ||
         pattern.namespace != null) {
-      return;
+      return const Stream.empty();
     }
 
     // Collect matching ids (and the entry, if we need it for sorting).
@@ -373,12 +370,14 @@ class HiveAtNotificationKeystore
 
     // Skip + limit.
     final skipN = skip ?? 0;
+    final result = <String>[];
     int yielded = 0;
     for (int i = skipN; i < matched.length; i++) {
       if (limit != null && yielded >= limit) break;
-      yield matched[i];
+      result.add(matched[i]);
       yielded++;
     }
+    return Stream.fromIterable(result);
   }
 
   /// Sort comparator that puts `null` values last.
@@ -399,7 +398,7 @@ class HiveAtNotificationKeystore
   /// queue this way.
   @override
   Stream<String> compact(bool dryRun) async* {
-    final List<String> expired = await getExpiredKeys();
+    final List<String> expired = await (await getExpiredKeys()).toList();
     if (dryRun) {
       for (final key in expired) {
         yield key;
@@ -490,7 +489,7 @@ class _HiveAtNotificationKeystoreTxn
     final buffered = _ops[key];
     if (buffered is _NotifBufferedPut) return true;
     if (buffered is _NotifBufferedRemove) return false;
-    return _store.isKeyExists(key);
+    return _store.exists(key);
   }
 }
 
@@ -508,9 +507,9 @@ class _HiveBestEffortNotifSnapshot
   }
 
   @override
-  Stream<String> scanKeys(KeyPattern pattern) {
+  Stream<String> scanKeys(KeyPattern pattern) async* {
     if (_released) throw StateError('Snapshot has been released');
-    return _store.scanKeys(pattern);
+    yield* await _store.scanKeys(pattern);
   }
 
   @override

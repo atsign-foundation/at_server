@@ -61,9 +61,9 @@ void main() {
       await keysVerbHandler.process(keysCommand, inboundConnection);
 
       expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(keyValueStore.isKeyExists(keyName), true);
+      expect(await keyValueStore.exists(keyName), true);
       expect(
-          keyValueStore.isKeyExists(
+          await keyValueStore.exists(
               'public:encryption_$enrollId.__public_keys.__global$alice'),
           true);
       var keysGetCommand = 'keys:get:public';
@@ -109,9 +109,9 @@ void main() {
       await keysVerbHandler.process(keysCommand, inboundConnection);
 
       expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(keyValueStore.isKeyExists(enrollKey), true);
+      expect(await keyValueStore.exists(enrollKey), true);
       expect(
-          keyValueStore.isKeyExists(
+          await keyValueStore.exists(
               'public:encryption_$enrollId.__public_keys.__global$alice'),
           true);
       var keysGetCommand = 'keys:get:public';
@@ -151,10 +151,10 @@ void main() {
       await keysVerbHandler.process(keysCommand, inboundConnection);
 
       expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(keyValueStore.isKeyExists(keyName), true);
+      expect(await keyValueStore.exists(keyName), true);
       expect(
-          keyValueStore
-              .isKeyExists('wavi.pixel.mykey.__self_keys.__global$alice'),
+          await keyValueStore
+              .exists('wavi.pixel.mykey.__self_keys.__global$alice'),
           true);
 
       var keysGetCommand = 'keys:get:self';
@@ -194,10 +194,10 @@ void main() {
       await keysVerbHandler.process(keysCommand, inboundConnection);
 
       expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(keyValueStore.isKeyExists(keyName), true);
+      expect(await keyValueStore.exists(keyName), true);
       expect(
-          keyValueStore
-              .isKeyExists('wavi.pixel.mykey.__self_keys.__global$alice'),
+          await keyValueStore
+              .exists('wavi.pixel.mykey.__self_keys.__global$alice'),
           true);
 
       var keysGetCommand = 'keys:get:self';
@@ -236,9 +236,9 @@ void main() {
       await keysVerbHandler.process(keysCommand, inboundConnection);
 
       expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(keyValueStore.isKeyExists(keyName), true);
+      expect(await keyValueStore.exists(keyName), true);
       expect(
-          keyValueStore.isKeyExists(
+          await keyValueStore.exists(
               'private:wavi.pixel.secretKey.__private_keys.__global$alice'),
           true);
       var keysGetCommand = 'keys:get:private';
@@ -278,9 +278,9 @@ void main() {
       await keysVerbHandler.process(keysCommand, inboundConnection);
 
       expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(keyValueStore.isKeyExists(keyName), true);
+      expect(await keyValueStore.exists(keyName), true);
       expect(
-          keyValueStore.isKeyExists(
+          await keyValueStore.exists(
               'private:wavi.pixel.secretKey.__private_keys.__global$alice'),
           true);
       var keysGetCommand = 'keys:get:private';
@@ -321,9 +321,9 @@ void main() {
       await keysVerbHandler.process(keysCommand, inboundConnection);
 
       expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(keyValueStore.isKeyExists(enrollKeyName), true);
+      expect(await keyValueStore.exists(enrollKeyName), true);
       expect(
-          keyValueStore.isKeyExists(
+          await keyValueStore.exists(
               'public:encryption_$enrollId.__public_keys.__global$alice'),
           true);
       var publicKeyName =
@@ -337,7 +337,7 @@ void main() {
       var deleteKeyCommand = 'keys:delete:keyName:$publicKeyName';
       await keysVerbHandler.process(deleteKeyCommand, inboundConnection);
       expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(keyValueStore.isKeyExists(publicKeyName), false);
+      expect(await keyValueStore.exists(publicKeyName), false);
     });
 
     test(
@@ -365,9 +365,9 @@ void main() {
       await keysVerbHandler.process(keysCommand, inboundConnection);
 
       expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(keyValueStore.isKeyExists(ek), true);
+      expect(await keyValueStore.exists(ek), true);
       expect(
-          keyValueStore.isKeyExists(
+          await keyValueStore.exists(
               'public:encryption_$enrollId.__public_keys.__global$alice'),
           true);
       var publicKeyName =
@@ -381,7 +381,7 @@ void main() {
       var deleteKeyCommand = 'keys:delete:keyName:$publicKeyName';
       await keysVerbHandler.process(deleteKeyCommand, inboundConnection);
       expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(keyValueStore.isKeyExists(publicKeyName), false);
+      expect(await keyValueStore.exists(publicKeyName), false);
     });
 
     test('keys verb  - put self key and check getKeyName,delete key ',
@@ -409,10 +409,10 @@ void main() {
       await keysVerbHandler.process(keysCommand, inboundConnection);
 
       expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(keyValueStore.isKeyExists(enrollKeyName), true);
+      expect(await keyValueStore.exists(enrollKeyName), true);
       expect(
-          keyValueStore
-              .isKeyExists('wavi.pixel.mykey.__self_keys.__global$alice'),
+          await keyValueStore
+              .exists('wavi.pixel.mykey.__self_keys.__global$alice'),
           true);
       var selfKeyName = 'wavi.pixel.mykey.__self_keys.__global$alice';
       var keysGetCommand = 'keys:get:keyName:$selfKeyName';
@@ -424,7 +424,7 @@ void main() {
       var deleteKeyCommand = 'keys:delete:keyName:$selfKeyName';
       await keysVerbHandler.process(deleteKeyCommand, inboundConnection);
       expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(keyValueStore.isKeyExists(selfKeyName), false);
+      expect(await keyValueStore.exists(selfKeyName), false);
     });
 
     test(
@@ -453,10 +453,10 @@ void main() {
       await keysVerbHandler.process(keysCommand, inboundConnection);
 
       expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(keyValueStore.isKeyExists(enrollKeyName), true);
+      expect(await keyValueStore.exists(enrollKeyName), true);
       expect(
-          keyValueStore
-              .isKeyExists('wavi.pixel.mykey.__self_keys.__global$alice'),
+          await keyValueStore
+              .exists('wavi.pixel.mykey.__self_keys.__global$alice'),
           true);
       var selfKeyName = 'wavi.pixel.mykey.__self_keys.__global$alice';
       var keysGetCommand = 'keys:get:keyName:$selfKeyName';
@@ -468,7 +468,7 @@ void main() {
       var deleteKeyCommand = 'keys:delete:keyName:$selfKeyName';
       await keysVerbHandler.process(deleteKeyCommand, inboundConnection);
       expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(keyValueStore.isKeyExists(selfKeyName), false);
+      expect(await keyValueStore.exists(selfKeyName), false);
     });
 
     test('keys verb  - put private key and check getKeyName, delete', () async {
@@ -494,9 +494,9 @@ void main() {
       await keysVerbHandler.process(keysCommand, inboundConnection);
 
       expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(keyValueStore.isKeyExists(keyName), true);
+      expect(await keyValueStore.exists(keyName), true);
       expect(
-          keyValueStore.isKeyExists(
+          await keyValueStore.exists(
               'private:wavi.pixel.secretKey.__private_keys.__global$alice'),
           true);
       var privateKeyName =
@@ -511,7 +511,7 @@ void main() {
       var deleteKeyCommand = 'keys:delete:keyName:$privateKeyName';
       await keysVerbHandler.process(deleteKeyCommand, inboundConnection);
       expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(keyValueStore.isKeyExists(privateKeyName), false);
+      expect(await keyValueStore.exists(privateKeyName), false);
     });
 
     test(
@@ -539,9 +539,9 @@ void main() {
       await keysVerbHandler.process(keysCommand, inboundConnection);
 
       expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(keyValueStore.isKeyExists(keyName), true);
+      expect(await keyValueStore.exists(keyName), true);
       expect(
-          keyValueStore.isKeyExists(
+          await keyValueStore.exists(
               'private:wavi.pixel.secretKey.__private_keys.__global$alice'),
           true);
       var privateKeyName =
@@ -556,7 +556,7 @@ void main() {
       var deleteKeyCommand = 'keys:delete:keyName:$privateKeyName';
       await keysVerbHandler.process(deleteKeyCommand, inboundConnection);
       expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(keyValueStore.isKeyExists(privateKeyName), false);
+      expect(await keyValueStore.exists(privateKeyName), false);
     });
 
     test(
@@ -584,9 +584,9 @@ void main() {
       await keysVerbHandler.process(keysCommand, inboundConnection);
 
       expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(keyValueStore.isKeyExists(keyName), true);
+      expect(await keyValueStore.exists(keyName), true);
       expect(
-          keyValueStore.isKeyExists(
+          await keyValueStore.exists(
               'private:wavi.pixel.secretKey.__private_keys.__global$alice'),
           true);
       var privateKeyName =
@@ -601,7 +601,7 @@ void main() {
       var deleteKeyCommand = 'keys:delete:keyName:$privateKeyName';
       await keysVerbHandler.process(deleteKeyCommand, inboundConnection);
       expect(inboundConnection.lastWrittenData, "data:-1\n$alice@");
-      expect(keyValueStore.isKeyExists(privateKeyName), false);
+      expect(await keyValueStore.exists(privateKeyName), false);
     });
 
     test(

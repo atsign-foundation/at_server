@@ -38,68 +38,69 @@ void main() {
     });
 
     test('unrestricted pattern yields every available key', () async {
-      final keys = await bundle.keyValueStore.scanKeys(KeyPattern()).toList();
+      final keys =
+          await (await bundle.keyValueStore.scanKeys(KeyPattern())).toList();
       expect(keys.length, 6);
     });
 
     test('filter by sharedBy', () async {
-      final keys = await bundle.keyValueStore
-          .scanKeys(KeyPattern(sharedBy: '@alice'))
+      final keys = await (await bundle.keyValueStore
+              .scanKeys(KeyPattern(sharedBy: '@alice')))
           .toList();
       expect(keys.length, 6);
       // @bob isn't an owner here.
-      final none = await bundle.keyValueStore
-          .scanKeys(KeyPattern(sharedBy: '@bob'))
+      final none = await (await bundle.keyValueStore
+              .scanKeys(KeyPattern(sharedBy: '@bob')))
           .toList();
       expect(none, isEmpty);
     });
 
     test('filter by sharedWith', () async {
-      final bobKeys = await bundle.keyValueStore
-          .scanKeys(KeyPattern(sharedWith: '@bob'))
+      final bobKeys = await (await bundle.keyValueStore
+              .scanKeys(KeyPattern(sharedWith: '@bob')))
           .toList();
       expect(bobKeys.length, 2);
       expect(bobKeys, contains('@bob:secret.wavi@alice'));
       expect(bobKeys, contains('@bob:plan.tasks@alice'));
 
-      final charlieKeys = await bundle.keyValueStore
-          .scanKeys(KeyPattern(sharedWith: '@charlie'))
+      final charlieKeys = await (await bundle.keyValueStore
+              .scanKeys(KeyPattern(sharedWith: '@charlie')))
           .toList();
       expect(charlieKeys, ['@charlie:plan.tasks@alice']);
     });
 
     test('filter by namespace', () async {
-      final waviKeys = await bundle.keyValueStore
-          .scanKeys(KeyPattern(namespace: 'wavi'))
+      final waviKeys = await (await bundle.keyValueStore
+              .scanKeys(KeyPattern(namespace: 'wavi')))
           .toList();
       expect(waviKeys.length, 3);
       expect(waviKeys.every((k) => k.contains('.wavi@')), isTrue,
           reason: 'every wavi key has .wavi@ in it');
 
-      final tasksKeys = await bundle.keyValueStore
-          .scanKeys(KeyPattern(namespace: 'tasks'))
+      final tasksKeys = await (await bundle.keyValueStore
+              .scanKeys(KeyPattern(namespace: 'tasks')))
           .toList();
       expect(tasksKeys.length, 2);
     });
 
     test('filter by idPrefix', () async {
-      final pKeys = await bundle.keyValueStore
-          .scanKeys(KeyPattern(idPrefix: 'p'))
-          .toList();
+      final pKeys =
+          await (await bundle.keyValueStore.scanKeys(KeyPattern(idPrefix: 'p')))
+              .toList();
       // 'phone', 'plan' (twice) — three keys whose id starts with 'p'.
       expect(pKeys.length, 3);
     });
 
     test('AND of multiple fields', () async {
-      final keys = await bundle.keyValueStore
-          .scanKeys(KeyPattern(sharedWith: '@bob', namespace: 'tasks'))
+      final keys = await (await bundle.keyValueStore
+              .scanKeys(KeyPattern(sharedWith: '@bob', namespace: 'tasks')))
           .toList();
       expect(keys, ['@bob:plan.tasks@alice']);
     });
 
     test('no matches yields empty stream', () async {
-      final keys = await bundle.keyValueStore
-          .scanKeys(KeyPattern(namespace: 'nope_does_not_exist'))
+      final keys = await (await bundle.keyValueStore
+              .scanKeys(KeyPattern(namespace: 'nope_does_not_exist')))
           .toList();
       expect(keys, isEmpty);
     });
@@ -108,8 +109,8 @@ void main() {
         () async {
       // None of the 'public:' or 'private:' seeded keys have sharedWith,
       // so a sharedWith filter must exclude them.
-      final keys = await bundle.keyValueStore
-          .scanKeys(KeyPattern(sharedWith: '@bob'))
+      final keys = await (await bundle.keyValueStore
+              .scanKeys(KeyPattern(sharedWith: '@bob')))
           .toList();
       expect(keys, everyElement(startsWith('@bob:')));
       expect(keys, isNot(contains('public:phone.wavi@alice')));
@@ -117,18 +118,17 @@ void main() {
 
     test('case-insensitive on @sign comparison', () async {
       // @ALICE should match keys owned by @alice.
-      final keys = await bundle.keyValueStore
-          .scanKeys(KeyPattern(sharedBy: '@ALICE'))
+      final keys = await (await bundle.keyValueStore
+              .scanKeys(KeyPattern(sharedBy: '@ALICE')))
           .toList();
       expect(keys.length, 6);
     });
 
-    test('isKeyExists / exists / scanKeys all agree on a single key', () async {
+    test('exists / scanKeys agree on a single key', () async {
       const k = 'public:phone.wavi@alice';
-      expect(bundle.keyValueStore.isKeyExists(k), isTrue);
       expect(await bundle.keyValueStore.exists(k), isTrue);
-      final hits = await bundle.keyValueStore
-          .scanKeys(KeyPattern(idPrefix: 'phone'))
+      final hits = await (await bundle.keyValueStore
+              .scanKeys(KeyPattern(idPrefix: 'phone')))
           .toList();
       expect(hits, contains(k));
     });
@@ -173,7 +173,7 @@ void main() {
       await notif.put(n1.id!, n1);
       await notif.put(n2.id!, n2);
 
-      final keys = await notif.scanKeys(KeyPattern()).toList();
+      final keys = await (await notif.scanKeys(KeyPattern())).toList();
       expect(keys, containsAll([n1.id, n2.id]));
     });
 
@@ -188,9 +188,11 @@ void main() {
 
       // sharedBy / sharedWith / namespace don't apply to notification
       // ids — scan returns empty.
-      expect(await notif.scanKeys(KeyPattern(sharedBy: '@alice')).toList(),
+      expect(
+          await (await notif.scanKeys(KeyPattern(sharedBy: '@alice'))).toList(),
           isEmpty);
-      expect(await notif.scanKeys(KeyPattern(namespace: 'wavi')).toList(),
+      expect(
+          await (await notif.scanKeys(KeyPattern(namespace: 'wavi'))).toList(),
           isEmpty);
     });
   });

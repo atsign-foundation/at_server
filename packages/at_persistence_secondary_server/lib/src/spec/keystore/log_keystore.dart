@@ -29,9 +29,11 @@ abstract class LogKeyStore<K, V> {
   /// backend-natural order.
   List<int> getFirstNEntries(int N);
 
-  /// Returns the keys whose entries expired more than
-  /// [expiryInDays] days ago.
-  Future<List<K>> getExpired(int expiryInDays);
+  /// Streams the keys whose entries expired more than
+  /// [expiryInDays] days ago. The returned `Future` completes once
+  /// the backend has accepted the request; the `Stream` then yields
+  /// the keys.
+  Future<Stream<K>> getExpired(int expiryInDays);
 
   /// Returns the size of the storage
   /// @return int Returns the storage size in integer type.

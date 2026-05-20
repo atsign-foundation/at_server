@@ -120,7 +120,8 @@ class ScanVerbHandler extends AbstractVerbHandler {
       String? scanRegex,
       bool showHiddenKeys,
       String currentAtSign) async {
-    List<String> localKeysList = keyValueStore.getKeys(regex: scanRegex);
+    List<String> localKeysList =
+        await (await keyValueStore.getKeys(regex: scanRegex)).toList();
     if (logger.logger.isLoggable(Level.INFO)) {
       logger.info('${localKeysList.length} local keys for regex $scanRegex');
     } else if (logger.logger.isLoggable(Level.FINER)) {

@@ -137,13 +137,13 @@ void main() async {
       var data_2 = AtData();
       data_2.data = 'bob';
       await keyValueStore.put('first_name.wavi@test_user_1', data_2);
-      var keys = keyValueStore.getKeys();
+      var keys = (await (await keyValueStore.getKeys()).toList());
       expect(keys.length, 2);
     });
 
     test('test get expired keys - no data', () async {
       var keyValueStore = testKeyStoreFor('@test_user_1');
-      var expiredKeys = await keyValueStore.getExpiredKeys();
+      var expiredKeys = await (await keyValueStore.getExpiredKeys()).toList();
       expect(expiredKeys.length, 0);
     });
 
@@ -185,7 +185,8 @@ void main() async {
       var data_2 = AtData();
       data_2.data = 'bob';
       await keyValueStore.put('first_name.wavi@test_user_1', data_2);
-      var keys = keyValueStore.getKeys(regex: '^first');
+      var keys =
+          (await (await keyValueStore.getKeys(regex: '^first')).toList());
       expect(keys.length, 1);
     });
 
@@ -564,7 +565,7 @@ void main() async {
       for (int i = 1; i <= 5; i++) {
         final testKey = 'sample_data_put_$i.wavi@test_user_1';
         atData.data = 'sample_data_put_$i';
-        expect(keystore.isKeyExists(testKey), true);
+        expect(await keystore.exists(testKey), true);
         expect(metaDataCache.containsKey(testKey), true);
       }
     });
@@ -588,11 +589,11 @@ void main() async {
       await keystore.remove(testKey_3);
       await keystore.remove(testKey_2);
       final metaDataCache = keystore.getExpiryKeysCache();
-      expect(keystore.isKeyExists(testKey_1), true);
+      expect(await keystore.exists(testKey_1), true);
       expect(metaDataCache.containsKey(testKey_1), true);
-      expect(keystore.isKeyExists(testKey_2), false);
+      expect(await keystore.exists(testKey_2), false);
       expect(metaDataCache.containsKey(testKey_2), false);
-      expect(keystore.isKeyExists(testKey_3), false);
+      expect(await keystore.exists(testKey_3), false);
       expect(metaDataCache.containsKey(testKey_3), false);
     });
 
@@ -627,11 +628,11 @@ void main() async {
         ..data = 'dummy_value'
         ..metaData = (AtMetaData()..ttl = 30);
       await keystore.put('keyabouttoexpire.wavi@test_user_1', atData);
-      var expiredKeysList = await keystore.getExpiredKeys();
+      var expiredKeysList = await (await keystore.getExpiredKeys()).toList();
       expect(
           expiredKeysList.contains('keyabouttoexpire.wavi@test_user_1'), false);
       await Future.delayed(Duration(milliseconds: 31));
-      expiredKeysList = await keystore.getExpiredKeys();
+      expiredKeysList = await (await keystore.getExpiredKeys()).toList();
       expect(
           expiredKeysList.contains('keyabouttoexpire.wavi@test_user_1'), true);
     });
@@ -656,7 +657,7 @@ void main() async {
       await keystore.put('expired_key.wavi$atSign', atData);
       // Adding delay for the key to expire.
       await Future.delayed(Duration(milliseconds: 31));
-      List<String>? keysList = keystore.getKeys();
+      List<String> keysList = (await (await keystore.getKeys()).toList());
       expect(keysList.contains('expired_key.wavi$atSign'), false);
     });
 
@@ -666,7 +667,7 @@ void main() async {
         ..data = 'value_test_3'
         ..metaData = (AtMetaData()..ttb = 300000);
       await keystore.put('key_test_3.wavi$atSign', atData);
-      List<String>? keysList = keystore.getKeys();
+      List<String> keysList = (await (await keystore.getKeys()).toList());
       expect(keysList.contains('key_test_3.wavi$atSign'), false);
     });
 
@@ -689,7 +690,7 @@ void main() async {
         await keystore.put('key_test_$i.wavi$atSign', atData);
       }
 
-      List<String> keys = keystore.getKeys();
+      List<String> keys = (await (await keystore.getKeys()).toList());
 
       for (var key in keys) {
         atData = await keystore.get(key);
@@ -703,7 +704,7 @@ void main() async {
         ..data = 'value_test_3'
         ..metaData = (AtMetaData());
       await keystore.put('emoji_🛠️.wavi$atSign', atData);
-      List<String> keysList = keystore.getKeys();
+      List<String> keysList = (await (await keystore.getKeys()).toList());
       print(keysList);
       expect(keysList.contains('emoji_🛠️.wavi$atSign'), true);
     });
@@ -718,12 +719,12 @@ void main() async {
       final k = 'emoji_🛠️.${i + 1}.wavi$atSign';
 
       await keystore.put(k, atData, skipCommit: true);
-      List<String> keysList = keystore.getKeys();
+      List<String> keysList = (await (await keystore.getKeys()).toList());
       expect(keysList.contains(k), false);
 
       await Future.delayed(Duration(milliseconds: ttb + 1));
 
-      keysList = keystore.getKeys();
+      keysList = (await (await keystore.getKeys()).toList());
       expect(keysList.contains(k), true);
 
       await keystore.remove(k, skipCommit: true);
@@ -740,12 +741,12 @@ void main() async {
       final k = 'emoji_🛠️.${i + 1}.wavi$atSign';
 
       await keystore.put(k, atData);
-      List<String> keysList = keystore.getKeys();
+      List<String> keysList = (await (await keystore.getKeys()).toList());
       expect(keysList.contains(k), true);
 
       await Future.delayed(Duration(milliseconds: ttl + 1));
 
-      keysList = keystore.getKeys();
+      keysList = (await (await keystore.getKeys()).toList());
       expect(keysList.contains(k), false);
 
       await keystore.remove(k, skipCommit: true);

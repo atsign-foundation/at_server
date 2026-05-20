@@ -284,7 +284,7 @@ class HiveAtKeyValueStore
     try {
       // If does not exist, create a new key,
       // else update existing key.
-      if (!isKeyExists(key)) {
+      if (!await exists(key)) {
         result = await create(key, value, skipCommit: skipCommit);
       } else {
         AtData? existingData = await get(key);
@@ -434,7 +434,7 @@ class HiveAtKeyValueStore
     logger.finer('Removing expired keys');
     bool result = true;
     try {
-      List<String> expiredKeys = await getExpiredKeys();
+      List<String> expiredKeys = await (await getExpiredKeys()).toList();
       if (expiredKeys.isEmpty) {
         return result;
       }
@@ -465,7 +465,7 @@ class HiveAtKeyValueStore
 
   @override
   @server
-  Future<List<String>> getExpiredKeys() async {
+  Future<Stream<String>> getExpiredKeys() async {
     List<String> expiredKeys = <String>[];
     final now = DateTime.timestamp();
     for (String key in _expiryKeysCache.keys) {
@@ -473,14 +473,14 @@ class HiveAtKeyValueStore
         expiredKeys.add(key);
       }
     }
-    return expiredKeys;
+    return Stream.fromIterable(expiredKeys);
   }
 
   /// Returns list of keys from the secondary storage.
   /// @param - regex : Optional parameter to filter keys on regular expression.
   /// @return - `List<String>` : List of keys from secondary storage.
   @override
-  List<String> getKeys({String? regex}) {
+  Future<Stream<String>> getKeys({String? regex}) async {
     if (!getBox().isOpen) {
       throw DataStoreException(
           'Failed to fetch keys. Hive Keystore is not initialized or opened');
@@ -512,10 +512,10 @@ class HiveAtKeyValueStore
       throw DataStoreException('exception in getKeys: ${exception.toString()}');
     } on HiveError catch (error) {
       logger.severe('HiveAtKeyValueStore get error: $error');
-      _restartHiveBox(error);
+      await _restartHiveBox(error);
       throw DataStoreException(error.message);
     }
-    return keys;
+    return Stream.fromIterable(keys);
   }
 
   @override
@@ -544,7 +544,7 @@ class HiveAtKeyValueStore
       String hive_key = HiveKeyStoreHelper.prepareKey(key);
       _checkMaxLength(hive_key);
       AtData? existingData;
-      if (isKeyExists(key)) {
+      if (await exists(key)) {
         existingData = await get(key);
       }
       value.metaData = AtMetadataBuilder(
@@ -571,7 +571,7 @@ class HiveAtKeyValueStore
     try {
       String hive_key = HiveKeyStoreHelper.prepareKey(key);
       AtData? existingData;
-      if (isKeyExists(key)) {
+      if (await exists(key)) {
         existingData = await get(key);
       }
       // putMeta is intended to updates only the metadata of a key.
@@ -598,14 +598,10 @@ class HiveAtKeyValueStore
 
   /// Returns true if key exists in [HiveAtKeyValueStore]. false otherwise.
   @override
-  @server
-  bool isKeyExists(String key) {
+  Future<bool> exists(String key) async {
     key = key.toLowerCase();
     return getBox().containsKey(HiveKeyStoreHelper.prepareKey(key));
   }
-
-  @override
-  Future<bool> exists(String key) async => isKeyExists(key);
 
   @override
   Future<int> removeMany(List<String> keys, {bool skipCommit = false}) async {
@@ -710,20 +706,20 @@ class HiveAtKeyValueStore
   }
 
   @override
-  Stream<String> scanKeys(
+  Future<Stream<String>> scanKeys(
     KeyPattern pattern, {
     bool includeExpired = false,
     OrderByKey? orderBy,
     int? limit,
     int? skip,
-  }) async* {
+  }) async {
     if (!getBox().isOpen) {
       throw DataStoreException(
           'Failed to scan keys. Hive Keystore is not initialized or opened');
     }
 
     if (orderBy == null || orderBy == OrderByKey.byKey) {
-      yield* _scanKeysOrdered(
+      return _scanKeysOrdered(
         pattern,
         includeExpired: includeExpired,
         sortByKey: orderBy == OrderByKey.byKey,
@@ -731,7 +727,7 @@ class HiveAtKeyValueStore
         skip: skip,
       );
     } else {
-      yield* _scanKeysOrderedByMetadata(
+      return _scanKeysOrderedByMetadata(
         pattern,
         includeExpired: includeExpired,
         orderBy: orderBy,
@@ -1070,7 +1066,7 @@ class _HiveAtKeyValueStoreTxn
     final buffered = _ops[lowered];
     if (buffered is _BufferedPut) return true;
     if (buffered is _BufferedRemove) return false;
-    return _store.isKeyExists(key);
+    return _store.exists(key);
   }
 }
 
@@ -1098,11 +1094,11 @@ class _HiveBestEffortSnapshot
   }
 
   @override
-  Stream<String> scanKeys(KeyPattern pattern) {
+  Stream<String> scanKeys(KeyPattern pattern) async* {
     if (_released) {
       throw StateError('Snapshot has been released');
     }
-    return _store.scanKeys(pattern);
+    yield* await _store.scanKeys(pattern);
   }
 
   @override

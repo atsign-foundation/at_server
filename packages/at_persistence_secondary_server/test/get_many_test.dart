@@ -75,7 +75,7 @@ void main() {
         'PUBLIC:Phone.Wavi@alice',
       ]);
       expect(result.length, 1);
-      expect(result.values.first?.data, '+1 555-0100');
+      expect(result.values.first.data, '+1 555-0100');
     });
 
     test('duplicate input keys are de-duplicated (Map semantics)', () async {
@@ -85,7 +85,7 @@ void main() {
         'public:phone.wavi@alice',
       ]);
       expect(result.length, 1);
-      expect(result.values.first?.data, '+1 555-0100');
+      expect(result.values.first.data, '+1 555-0100');
     });
 
     test('cheaper-than-N-individual-gets is observable as a single batch',
@@ -108,7 +108,7 @@ void main() {
       }
       expect(viaMany.length, viaSingles.length);
       for (final entry in viaMany.entries) {
-        expect(viaSingles[entry.key]?.data, entry.value?.data);
+        expect(viaSingles[entry.key]?.data, entry.value.data);
       }
     });
   });

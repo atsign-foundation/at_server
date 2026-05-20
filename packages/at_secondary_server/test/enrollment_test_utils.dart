@@ -201,11 +201,11 @@ class ETU {
       bool ancillaryKeysShouldExist = !enDeleted || (enDeleted && !cleanedUp);
       // print ('checking ${i++} deleted: $enDeleted cleanedUp: $cleanedUp ancillaryShouldExist: $ancillaryKeysShouldExist');
       await expectLater(
-          keyValueStore.isKeyExists(enMgr.buildEnrollmentKey(enId)),
+          await keyValueStore.exists(enMgr.buildEnrollmentKey(enId)),
           enrollmentShouldExist);
-      await expectLater(keyValueStore.isKeyExists(enMgr.keyForPEK(enId)),
+      await expectLater(await keyValueStore.exists(enMgr.keyForPEK(enId)),
           ancillaryKeysShouldExist);
-      await expectLater(keyValueStore.isKeyExists(enMgr.keyForSEK(enId)),
+      await expectLater(await keyValueStore.exists(enMgr.keyForSEK(enId)),
           ancillaryKeysShouldExist);
     }
   }

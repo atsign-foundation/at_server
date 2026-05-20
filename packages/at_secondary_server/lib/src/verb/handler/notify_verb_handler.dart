@@ -178,7 +178,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       return;
     }
 
-    var isKeyPresent = keyValueStore.isKeyExists(cachedNotificationKey);
+    var isKeyPresent = await keyValueStore.exists(cachedNotificationKey);
     AtMetaData? atMetadata;
     // If atValue is not null, store a cached key
     if (atNotificationBuilder.atValue != null) {
