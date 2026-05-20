@@ -1,7 +1,5 @@
-import 'package:hive/hive.dart';
-
 /// Represents an access entry with fromAtSign, requestDateTime, verbName and key lookup(if any).
-class AccessLogEntry extends HiveObject {
+class AccessLogEntry {
   final String? _fromAtSign;
 
   final DateTime? _requestDateTime;

@@ -1,8 +1,7 @@
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:hive/hive.dart';
 
-class AtMetaData extends HiveObject {
+class AtMetaData {
   String? createdBy;
 
   String? updatedBy;
