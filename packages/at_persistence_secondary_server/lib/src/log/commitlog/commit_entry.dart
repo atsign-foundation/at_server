@@ -1,9 +1,7 @@
 // ignore_for_file: constant_identifier_names
 
-import 'package:hive/hive.dart';
-
 /// Represents a commit entry with a key, [CommitOperation] and a commit id
-class CommitEntry extends HiveObject {
+class CommitEntry {
   final String? _atKey;
 
   CommitOp? operation;
@@ -11,6 +9,12 @@ class CommitEntry extends HiveObject {
   final DateTime? _opTime;
 
   int? commitId;
+
+  /// The commit-log box key this entry was read under (its local
+  /// sequence number), or `null` for an entry not loaded from
+  /// storage. Transient — the keystore sets it on read; it is not
+  /// part of the serialized form.
+  int? key;
 
   CommitEntry(this._atKey, this.operation, this._opTime);
 

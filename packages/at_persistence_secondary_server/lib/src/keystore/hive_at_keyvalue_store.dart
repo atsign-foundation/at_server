@@ -234,9 +234,12 @@ class HiveAtKeyValueStore
       return;
     }
     logger.finest('Initializing _expiryKeysCache Map started');
-    for (int index = 0; index < getBox().length; index++) {
-      AtData atData = await (getBox() as LazyBox).getAt(index);
-      _updateMetadataCache(Utf7.decode(atData.key), atData.metaData);
+    final box = getBox() as LazyBox;
+    for (int index = 0; index < box.length; index++) {
+      final hiveKey = box.keyAt(index);
+      AtData atData = await box.getAt(index);
+      atData.key = hiveKey;
+      _updateMetadataCache(Utf7.decode(hiveKey), atData.metaData);
     }
     logger.finest('_expiryKeysCache initialization completed');
   }
@@ -248,6 +251,7 @@ class HiveAtKeyValueStore
     try {
       String hiveKey = HiveKeyStoreHelper.prepareKey(key);
       value = await (getBox() as LazyBox).get(hiveKey);
+      value?.key = hiveKey;
       // load metadata for hive_key
       // compare availableAt with time.now()
       //return only between ttl and ttb
@@ -692,7 +696,10 @@ class HiveAtKeyValueStore
         // A present key always maps to a non-null AtData — the store
         // never persists null. The guard only satisfies the type.
         final value = await box.get(hiveKey);
-        if (value != null) result[lowered] = value;
+        if (value != null) {
+          value.key = hiveKey;
+          result[lowered] = value;
+        }
       } on Exception catch (e) {
         logger.severe('HiveAtKeyValueStore getMany exception for "$raw": $e');
         throw DataStoreException('exception in getMany: ${e.toString()}');

@@ -248,7 +248,8 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
 
     await Future.forEach(keys, (key) async {
       var value = await getValue(key) as CommitEntry;
-      commitLogMap.putIfAbsent(key as int, () => value);
+      value.key = key as int;
+      commitLogMap.putIfAbsent(key, () => value);
     });
     return commitLogMap;
   }
@@ -366,7 +367,9 @@ abstract class BaseCommitLogKeyStore with HiveBase<CommitEntry?> {
 
   Future<CommitEntry?> get(int commitId) async {
     try {
-      return await getValue(commitId);
+      final entry = await getValue(commitId);
+      entry?.key = commitId;
+      return entry;
     } on Exception catch (e) {
       throw DataStoreException('Exception get entry:${e.toString()}');
     } on HiveError catch (e) {
@@ -468,11 +471,14 @@ class ClientCommitLogKeyStore extends CommitLogKeyStore {
       }
       var changes = <CommitEntry>[];
       var regexString = (regex != null) ? regex : '';
-      var values = (getBox() as Box).values;
+      var entries = (getBox() as Box).toMap();
       var startKey = sequenceNumber + 1;
-      limit ??= values.length + 1;
-      for (CommitEntry element in values) {
-        if (element.key >= startKey &&
+      limit ??= entries.length + 1;
+      for (final mapEntry in entries.entries) {
+        final boxKey = mapEntry.key as int;
+        final CommitEntry element = mapEntry.value;
+        element.key = boxKey;
+        if (boxKey >= startKey &&
             _shouldIncludeKeyInSyncResponse(element.atKey!, regexString) &&
             changes.length <= limit) {
           if (element.commitId == null) {

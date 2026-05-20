@@ -36,6 +36,16 @@ Major release: persistence-overhaul. Themes:
   extends `KeyValueStore` and adds the sync-coupled surface:
   the (nullable) `commitLog`, `putMeta` / `putAll` /
   `getMeta`, and `queryByPath` /  `supportsPathQueries`.
+- **Model classes decoupled from Hive.** `AtData`, `AtMetaData`,
+  `CommitEntry`, `AccessLogEntry` and `AtNotification` no longer
+  carry Hive's `@HiveType` / `@HiveField` annotations (they were
+  dead — no codegen) or `extends HiveObject`. The hand-written
+  `TypeAdapter`s moved to `lib/src/hive/adapters/` (re-exported by
+  the barrel; on-disk wire format unchanged). `AtData` and
+  `CommitEntry` keep a transient, non-serialized `key` field that
+  the keystore populates on read, replacing the `HiveObject.key`
+  that Hive used to auto-stamp. The five models are now plain Dart
+  objects — the seam a future SQLite/Postgres backend needs.
 - **`HiveAtKeyValueStore` value type tightened to non-null
   `AtData`.** The main keystore now implements
   `AtKeyValueStore<String, AtData, AtMetaData?>` (was

@@ -1,11 +1,16 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:hive/hive.dart';
 import 'package:at_utf7/at_utf7.dart';
 
-class AtData extends HiveObject {
+class AtData {
   String? data;
 
   AtMetaData? metaData;
+
+  /// The box key this AtData was read under, or `null` for an
+  /// instance that was not loaded from storage (e.g. one built via
+  /// [fromJson]). Transient — the keystore sets it on read; it is
+  /// not part of the serialized form.
+  String? key;
 
   @override
   String toString() {
@@ -14,11 +19,12 @@ class AtData extends HiveObject {
 
   Map toJson() {
     Map map = {};
-    // If this AtData has been constructed from json there is no 'key' in the AtData object, since
-    // [fromJson] does not set a key (indeed, it cannot set a key as HiveObject doesn't allow that).
-    // So we do a null check here to ensure we don't cause Utf7.decode to throw an exception
-    if (key != null) {
-      map['key'] = Utf7.decode(key);
+    // `key` is null for an AtData constructed via [fromJson] rather
+    // than loaded from storage; skip it so Utf7.decode isn't handed
+    // a null.
+    final k = key;
+    if (k != null) {
+      map['key'] = Utf7.decode(k);
     }
     map['data'] = data;
     map['metaData'] = metaData!.toJson();
