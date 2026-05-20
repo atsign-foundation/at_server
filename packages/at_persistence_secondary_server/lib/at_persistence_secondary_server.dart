@@ -16,3 +16,10 @@ export 'package:at_persistence_secondary_server/src/notification/at_notification
 export 'package:at_persistence_secondary_server/src/notification/hive_at_notification_keystore.dart';
 export 'package:at_persistence_secondary_server/src/utils/date_time_extensions.dart';
 export 'package:at_persistence_secondary_server/src/spec/spec.dart';
+// Hive type adapters — serialization concern, kept out of the model
+// classes. Re-exported here so the public symbols stay reachable.
+export 'package:at_persistence_secondary_server/src/hive/adapters/at_data_adapter.dart';
+export 'package:at_persistence_secondary_server/src/hive/adapters/at_meta_data_adapter.dart';
+export 'package:at_persistence_secondary_server/src/hive/adapters/commit_entry_adapter.dart';
+export 'package:at_persistence_secondary_server/src/hive/adapters/access_log_entry_adapter.dart';
+export 'package:at_persistence_secondary_server/src/hive/adapters/at_notification_adapter.dart';
