@@ -13,11 +13,12 @@
   `atServer.accessLog`, `atServer.secondaryKeyStore`.
   `StatsNotificationService.schedule()` takes its `AtCommitLog`
   parameter rather than fetching it lazily.
-  `SecondaryUtil.saveCookie` takes the `SecondaryKeyStore` parameter.
+  `SecondaryUtil.saveCookie` takes the `AtKeyValueStore` parameter.
 - refactor: `AbstractVerbHandler.keyValueStore` and
   `DefaultVerbHandlerManager.keyValueStore` are now typed
-  `AtKeyValueStore<String, AtData, AtMetaData?>` instead of the raw
-  `AtKeyValueStore`. This surfaced and fixed a set of latent
+  `AtKeyValueStore<String, AtData, AtMetaData?>` rather than a
+  raw, un-parameterised keystore type. This surfaced and fixed
+  a set of latent
   nullability gaps in the verb handlers that the raw type had been
   masking: unchecked `get()` results bound to a non-null `AtData`,
   `String?` keys passed into `get` / `remove` / `put`, and a
@@ -35,7 +36,7 @@
 - refactor: `AtConfig` (block-list configuration) moves here from
   `at_persistence_secondary_server` and now lives at
   `package:at_secondary/src/config/at_config.dart`. The class is
-  fully backend-agnostic — constructor takes a `SecondaryKeyStore`
+  fully backend-agnostic — constructor takes an `AtKeyValueStore`
   (not an `AtCommitLog`), reads / writes go through the abstract
   keystore, and writes pass `skipCommit: true` so block-list state
   no longer bumps the local `commitId`. Callers in

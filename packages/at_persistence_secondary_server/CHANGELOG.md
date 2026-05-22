@@ -7,16 +7,16 @@ Major release: persistence-overhaul. Themes:
   legacy `getInstance()` shim. Backend-pluggable by design.
 - **Hive concretes renamed; abstract interfaces freed.**
   `HiveAtCommitLog` / `HiveAtAccessLog` /
-  `HiveAtNotificationKeystore` / `HiveSecondaryKeyStore`
+  `HiveAtNotificationKeystore` / `HiveAtKeyValueStore`
   implement abstract `AtCommitLog` / `AtAccessLog` /
-  `AtNotificationKeystore` / `SecondaryKeyStore`. Bundles type
+  `AtNotificationKeystore` / `AtKeyValueStore`. Bundles type
   at the abstracts.
-- **Slim bundle + capability toggles.** `keyStore` /
-  `commitLog` are core; `accessLog?` / `notificationKeystore?`
-  / compactor fields are optional, gated by
-  `AtPersistenceConfig` toggles. `serverDefaults` opts into
-  every capability; `clientDefaults` opts into core only.
-- **`SecondaryKeyStore` widened with ten new primitives** for
+- **Slim bundle + capability toggles.** The bundle exposes
+  `keyValueStore` (core) plus `accessLog?` and
+  `notificationKeystore?` (optional capabilities gated by
+  `AtPersistenceConfig` toggles). `serverDefaults` opts into
+  every capability; `clientDefaults` opts into the keystore only.
+- **`AtKeyValueStore` widened with ten new primitives** for
   at_client adoption: `exists`, `scanKeys` (with
   `KeyPattern` + ordering + pagination), `getMany`,
   `removeMany`, `changes` stream, `transaction`,
@@ -129,9 +129,9 @@ Major release: persistence-overhaul. Themes:
   `iterate(fromCommitId, where: closure)`; the closure carries
   any caller-side filtering (regex, skipDeletesUntil, etc.).
 - **Keystore signatures tightened to remove `dynamic`.** CRUD
-  methods on `WritableKeystore` / `SynchronizableKeyStore` now
-  return `Future<int?>` (commit-log sequence number or `null`)
-  instead of `Future<dynamic>`. `Keystore.get` is `Future<V?>`
+  methods on `KeyValueStore` now return `Future<int?>`
+  (commit-log sequence number or `null`) instead of
+  `Future<dynamic>`. `KeyValueStore.get` is `Future<V?>`
   instead of `Future<V>?`. `LogKeyStore.add` returns
   `Future<int>` (Hive-assigned key); `update`/`remove` return
   `Future<void>`; `getFirstNEntries` returns `List<int>`;
@@ -140,10 +140,10 @@ Major release: persistence-overhaul. Themes:
   `Future<Map<String, int>>`. Pre/post-remove hook callbacks
   are `Future<void> Function(...)`. Call sites can drop
   `as int?` / `as AtData?` / `as Map` casts.
-- **`SecondaryKeyStore.deleteExpiredKeys` drops `skipCommit`.**
+- **`AtKeyValueStore.deleteExpiredKeys` drops `skipCommit`.**
   Expiry is treated as backend-local maintenance: the sweep
   never advances `commitId` and never propagates via sync.
-- **`SecondaryKeyStore.commitLog` typed `AtCommitLog?` rather
+- **`AtKeyValueStore.commitLog` typed `AtCommitLog?` rather
   than `AtLogType?`.** Callers no longer need `as AtCommitLog`
   at every access site.
 - **`HiveAtNotificationKeystore.commitLog` is a no-op
@@ -164,12 +164,12 @@ Major release: persistence-overhaul. Themes:
   boxes open.
 - **Dependency on `at_persistence_spec` dropped.** The
   interface types this package previously imported from
-  `at_persistence_spec` (`SecondaryKeyStore`,
-  `AtCompactionStrategy`, exceptions, the `@server`/`@client`
-  annotations, and the new Phase 3 types — `KeyEntry`,
-  `KeyPattern`, `KeyStoreChange`, `KeyStoreSnapshot`,
-  `KeyStoreStats`, `KeyStoreTxn`, `OrderByKey`, `Predicate`)
-  now live alongside the Hive implementation in this package.
+  `at_persistence_spec` (`AtKeyValueStore`, exceptions, the
+  `@server`/`@client` annotations, and the new Phase 3 types —
+  `KeyEntry`, `KeyPattern`, `KeyStoreChange`,
+  `KeyStoreSnapshot`, `KeyStoreStats`, `KeyStoreTxn`,
+  `OrderByKey`, `Predicate`) now live alongside the Hive
+  implementation in this package.
   Future backend packages depend on
   `at_persistence_secondary_server` for the interface types
   they need to satisfy.
