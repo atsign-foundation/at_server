@@ -7,12 +7,18 @@ overlap-version with deprecation shims.
 
 This guide has three sections; read the one(s) you need:
 
-1. **[What changed in `at_persistence_secondary_server`](#section-1--what-changed-in-at_persistence_secondary_server)**
+1. **[What changed in
+   `at_persistence_secondary_server`](#section-1--what-changed-in-at_persistence_secondary_server)
+   **
    — the 5.0.0 (this branch) vs 4.3.5 (trunk) delta, and why.
-2. **[What changed in the atServer](#section-2--what-changed-in-at_secondary_server)**
+2. *
+   *[What changed in the atServer](#section-2--what-changed-in-at_secondary_server)
+   **
    — how `at_secondary_server` was reworked to consume the new
    persistence package.
-3. **[Migrating the at_client package](#section-3--migrating-the-at_client-package)**
+3. *
+   *[Migrating the at_client package](#section-3--migrating-the-at_client-package)
+   **
    — a step-by-step guide for moving `at_client` onto 5.0.0 and a
    **commit-log-free** local keystore.
 
@@ -81,7 +87,9 @@ for the interfaces they implement.
 
 4.3.5 split the keystore contract across `Keystore` (read-only),
 `WritableKeystore`, and `SynchronizableKeyStore`, and named the main
-store `SecondaryKeyStore`. 5.0.0:
+store `SecondaryKeyStore`.
+
+5.0.0:
 
 - `SecondaryKeyStore` → **`AtKeyValueStore`**;
   `HiveSecondaryKeyStore` → **`HiveAtKeyValueStore`**. The bundle field
@@ -100,17 +108,17 @@ store `SecondaryKeyStore`. 5.0.0:
 `KeyValueStore` was **widened with ten new primitives** for at_client
 adoption — all additive, none of them break a 4.3.5 caller:
 
-| Primitive                       | Notes                                                          |
-|---------------------------------|----------------------------------------------------------------|
-| `exists(key)`                   | async existence check; replaces the removed sync `isKeyExists` |
-| `scanKeys(KeyPattern, …)`       | structured filtering + `OrderByKey` ordering + `limit`/`skip`  |
-| `getMany(keys)`                 | bulk fetch                                                     |
-| `removeMany(keys)`              | bulk delete                                                    |
-| `changes`                       | broadcast `Stream<KeyStoreChange>` of mutations                |
-| `transaction(body)`             | buffered all-or-nothing writes                                 |
-| `queryByPath` + `supportsPathQueries` | value-field predicate query (capability-gated)           |
-| `snapshot` + `supportsSnapshots`      | isolated read snapshot (capability-gated)                |
-| `stats()`                       | diagnostic counts                                              |
+| Primitive                             | Notes                                                          |
+|---------------------------------------|----------------------------------------------------------------|
+| `exists(key)`                         | async existence check; replaces the removed sync `isKeyExists` |
+| `scanKeys(KeyPattern, …)`             | structured filtering + `OrderByKey` ordering + `limit`/`skip`  |
+| `getMany(keys)`                       | bulk fetch                                                     |
+| `removeMany(keys)`                    | bulk delete                                                    |
+| `changes`                             | broadcast `Stream<KeyStoreChange>` of mutations                |
+| `transaction(body)`                   | buffered all-or-nothing writes                                 |
+| `queryByPath` + `supportsPathQueries` | value-field predicate query (capability-gated)                 |
+| `snapshot` + `supportsSnapshots`      | isolated read snapshot (capability-gated)                      |
+| `stats()`                             | diagnostic counts                                              |
 
 On Hive the capability flags (`supportsPathQueries`,
 `supportsSnapshots`) are `false` and consumers fall back; a future SQL
@@ -403,17 +411,17 @@ fallback (`local_secondary.dart`) — replace it with
 
 ### 3.3 Class renames and removed singletons
 
-| Removed / renamed (4.3.5)                              | 5.0.0 replacement                               |
-|--------------------------------------------------------|-------------------------------------------------|
-| `SecondaryPersistenceStoreFactory.getInstance()`       | `HiveAtPersistenceFactory()` + the `bundle`     |
-| `AtCommitLogManagerImpl.getInstance().getCommitLog(…)` | `bundle.keyValueStore.commitLog` (or `null`)    |
-| `AtAccessLogManagerImpl` / `AtAccessLogManager`        | server-only; not used by at_client              |
-| `HivePersistenceManager`                               | gone — factory owns box-opening                 |
-| `SecondaryKeyStoreManager`                             | gone — factory owns the keystore                |
-| `SecondaryKeyStore` (type)                             | `AtKeyValueStore`                               |
-| `HiveKeystore` (type)                                  | `HiveAtKeyValueStore`                           |
-| `isKeyExists(key)`                                     | `await exists(key)`                             |
-| `AtCommitLog.getEntries(…)`                            | `AtCommitLog.iterate({fromCommitId, where})`    |
+| Removed / renamed (4.3.5)                              | 5.0.0 replacement                            |
+|--------------------------------------------------------|----------------------------------------------|
+| `SecondaryPersistenceStoreFactory.getInstance()`       | `HiveAtPersistenceFactory()` + the `bundle`  |
+| `AtCommitLogManagerImpl.getInstance().getCommitLog(…)` | `bundle.keyValueStore.commitLog` (or `null`) |
+| `AtAccessLogManagerImpl` / `AtAccessLogManager`        | server-only; not used by at_client           |
+| `HivePersistenceManager`                               | gone — factory owns box-opening              |
+| `SecondaryKeyStoreManager`                             | gone — factory owns the keystore             |
+| `SecondaryKeyStore` (type)                             | `AtKeyValueStore`                            |
+| `HiveKeystore` (type)                                  | `HiveAtKeyValueStore`                        |
+| `isKeyExists(key)`                                     | `await exists(key)`                          |
+| `AtCommitLog.getEntries(…)`                            | `AtCommitLog.iterate({fromCommitId, where})` |
 
 `LocalSecondary.keyStore` is typed `SecondaryKeyStore?` — retype to
 `AtKeyValueStore<String, AtData, AtMetaData?>?`.
@@ -476,12 +484,12 @@ read-side scans (`getChangesSinceLastCommit`, `getEntry`, `isInSync`,
 `removeCommitEntry`) `@Deprecated` with no caller; delete them. The
 methods still live are all commit-log back-write / lookup:
 
-| Method                | Current role                                            | Commit-log-free disposition |
-|-----------------------|---------------------------------------------------------|-----------------------------|
-| `getCommitEntry`      | `_pullToLocal` finds the entry `executeVerb` appended   | remove — no entries exist   |
-| `updateCommitEntry`   | push + pull stamp the server commitId onto the entry    | remove — nothing to stamp   |
-| `getLastSyncedEntry`  | commitId high-water mark for downstream / functional tests | replace the high-water source (see below) |
-| `getLatestCommitEntry`| `_pushFromSyncQueue` finds the entry to stamp           | remove                      |
+| Method                 | Current role                                               | Commit-log-free disposition               |
+|------------------------|------------------------------------------------------------|-------------------------------------------|
+| `getCommitEntry`       | `_pullToLocal` finds the entry `executeVerb` appended      | remove — no entries exist                 |
+| `updateCommitEntry`    | push + pull stamp the server commitId onto the entry       | remove — nothing to stamp                 |
+| `getLastSyncedEntry`   | commitId high-water mark for downstream / functional tests | replace the high-water source (see below) |
+| `getLatestCommitEntry` | `_pushFromSyncQueue` finds the entry to stamp              | remove                                    |
 
 **`sync_service_impl.dart`** — drop the
 `AtCommitLogManagerImpl.getInstance().getCommitLog(atSign)` lookup and
