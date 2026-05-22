@@ -7,8 +7,8 @@ void main() {
   group('Keystore manager test', () {
     test('check keystore is redis keystore', () async {
       KeystoreManager manager = KeystoreManagerImpl();
-      var keyValueStore = manager.getKeyStore();
-      expect(keyValueStore is RedisKeystore, true);
+      var keyStore = manager.getKeyStore();
+      expect(keyStore is RedisKeystore, true);
     });
 
     test('check keystore type is root', () async {
