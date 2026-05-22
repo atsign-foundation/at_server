@@ -163,7 +163,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     // 'atSign'. In this scenario, set the lookupKey prefix to the requesting 'atSign'.
     var lookupKey = '${atConnectionMetadata.fromAtSign}:$keyAtAtSign';
     logger.finer('lookupKey in lookupVerbHandler : $lookupKey');
-    var lookupData = await keyValueStore.get(lookupKey);
+    var lookupData = await keyStore.get(lookupKey);
     var isActive = SecondaryUtil.isActiveKey(lookupData);
     if (!isActive) {
       response.data = null;
@@ -203,7 +203,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     // so, set the lookupKey prefix to "public:".
     var lookupKey = 'public:$keyAtAtSign';
     logger.finer('lookupKey in lookupVerbHandler : $lookupKey');
-    var lookupData = await keyValueStore.get(lookupKey);
+    var lookupData = await keyStore.get(lookupKey);
     var isActive = SecondaryUtil.isActiveKey(lookupData);
     if (!isActive) {
       response.data = null;
@@ -275,7 +275,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     } else {
       lookupKey = keyAtAtSign;
     }
-    var lookupValue = await keyValueStore.get(lookupKey);
+    var lookupValue = await keyStore.get(lookupKey);
     response.data = SecondaryUtil.prepareResponseData(operation, lookupValue);
     //Resolving value references to correct value
     if (response.data != null &&
@@ -327,11 +327,11 @@ class LookupVerbHandler extends AbstractVerbHandler {
         keyPrefix = '$keyPrefix:';
       }
       keyToResolve = keyPrefix + keyToResolve;
-      var lookupValue = await keyValueStore.get(keyToResolve);
+      var lookupValue = await keyStore.get(keyToResolve);
       value = lookupValue?.data ?? value;
       // If the value is null for a private key, searches on public namespace.
       keyToResolve = keyToResolve.replaceAll(keyPrefix, 'public:');
-      lookupValue = await keyValueStore.get(keyToResolve);
+      lookupValue = await keyStore.get(keyToResolve);
       value = lookupValue?.data ?? value;
       resolutionCount++;
     }

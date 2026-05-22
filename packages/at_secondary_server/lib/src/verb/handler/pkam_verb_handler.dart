@@ -59,7 +59,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
       publicKey = apkamResult.publicKey;
     } else {
       pkamAuthType = AuthType.pkamLegacy;
-      var publicKeyData = await keyValueStore.get(AtConstants.atPkamPublicKey);
+      var publicKeyData = await keyStore.get(AtConstants.atPkamPublicKey);
       publicKey = publicKeyData?.data;
     }
 
@@ -80,7 +80,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
       // We're good
       // remove the stored secret
       try {
-        await keyValueStore.remove(storedSecretId);
+        await keyStore.remove(storedSecretId);
       } catch (e) {
         logger.warning('Failed to immediately remove $storedSecretId');
       }
@@ -166,7 +166,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
     var signingAlgo = verbParams[AtConstants.atPkamSigningAlgo];
     var hashingAlgo = verbParams[AtConstants.atPkamHashingAlgo];
     bool isValidSignature = false;
-    var storedSecretData = await keyValueStore.get(storedSecretId);
+    var storedSecretData = await keyStore.get(storedSecretId);
     var storedSecret = storedSecretData?.data;
     if (signature == null || signature.isEmpty) {
       logger.severe('inputSignature is null/empty');

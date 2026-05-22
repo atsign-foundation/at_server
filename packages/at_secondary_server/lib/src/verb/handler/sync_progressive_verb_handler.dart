@@ -126,7 +126,7 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
   /// Drains the filtered [stream] of commit entries into [syncResponse],
   /// applying output-flow logic only:
   ///
-  ///   - For non-DELETE entries, fetch the value from [keyValueStore]; skip if
+  ///   - For non-DELETE entries, fetch the value from [keyStore]; skip if
   ///     missing (handles the TOCTOU window between filter-time and
   ///     fetch-time, where a concurrent delete can null the get).
   ///   - Stop adding once `syncResponse.length >= syncPageLimit`.
@@ -159,7 +159,7 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
         ..operation = entry.operation!;
 
       if (entry.operation != CommitOp.DELETE) {
-        final atData = await keyValueStore.get(entry.atKey!);
+        final atData = await keyStore.get(entry.atKey!);
         if (atData == null) {
           logger.info('atData is null for ${entry.atKey}');
           continue;

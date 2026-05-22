@@ -178,14 +178,14 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       return;
     }
 
-    var isKeyPresent = await keyValueStore.exists(cachedNotificationKey);
+    var isKeyPresent = await keyStore.exists(cachedNotificationKey);
     AtMetaData? atMetadata;
     // If atValue is not null, store a cached key
     if (atNotificationBuilder.atValue != null) {
       // If the cached key is already present, get the existing metadata
       // and update the new metadata.
       if (isKeyPresent) {
-        atMetadata = await keyValueStore.getMeta(cachedNotificationKey);
+        atMetadata = await keyStore.getMeta(cachedNotificationKey);
       }
       var metadata = AtMetadataBuilder(
               atSign: polConnectionMetadata.fromAtSign!,
@@ -262,24 +262,24 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     if (logger.isLoggable('info')) {
       logger.info('Cached $cachedKey :  $atMetaData');
     }
-    return await keyValueStore.put(cachedKey, atData);
+    return await keyStore.put(cachedKey, atData);
   }
 
   Future<int?> _updateMetadata(String cachedKey, AtMetaData? atMetaData) async {
     if (logger.isLoggable('info')) {
       logger.info('Updating the metadata of $cachedKey');
     }
-    return await keyValueStore.putMeta(cachedKey, atMetaData);
+    return await keyStore.putMeta(cachedKey, atMetaData);
   }
 
   ///Removes the cached key from the keystore.
   Future<int?> _removeCachedKey(String cachedKey) async {
-    var metadata = await keyValueStore.getMeta(cachedKey);
+    var metadata = await keyStore.getMeta(cachedKey);
     if (metadata != null && metadata.isCascade == true) {
       if (logger.isLoggable('info')) {
         logger.info('Removed cached key $cachedKey');
       }
-      return await keyValueStore.remove(cachedKey);
+      return await keyStore.remove(cachedKey);
     } else {
       return null;
     }

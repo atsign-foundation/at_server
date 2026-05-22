@@ -60,7 +60,7 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
       );
 
       // update the key in data store
-      var result = await keyValueStore.put(
+      var result = await keyStore.put(
         updatePreProcessResult.atKey,
         updatePreProcessResult.atData,
       );

@@ -49,7 +49,7 @@ class UpdateMetaVerbHandler extends AbstractUpdateVerbHandler {
       // update the key in data store
       logger.finer(
           'calling keyValueStore.putMeta(${updatePreProcessResult.atKey}, ${updatePreProcessResult.atData.metaData!}');
-      var result = await keyValueStore.putMeta(updatePreProcessResult.atKey,
+      var result = await keyStore.putMeta(updatePreProcessResult.atKey,
           updatePreProcessResult.atData.metaData!);
       response.data = result?.toString();
     } finally {

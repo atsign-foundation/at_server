@@ -93,7 +93,7 @@ class LocalLookupVerbHandler extends AbstractVerbHandler {
       }
     }
 
-    AtData? atData = await keyValueStore.get(key);
+    AtData? atData = await keyStore.get(key);
     var isActive = false;
     isActive = SecondaryUtil.isActiveKey(atData);
     if (isActive) {

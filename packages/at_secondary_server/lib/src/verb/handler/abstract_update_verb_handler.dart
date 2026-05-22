@@ -119,7 +119,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
         throw InvalidAtKeyException('You may not update keys of type $keyType');
     }
 
-    var existingAtMetaData = await keyValueStore.getMeta(atKey);
+    var existingAtMetaData = await keyStore.getMeta(atKey);
     var cacheRefreshMetaMap = hu.validateCacheMetadata(existingAtMetaData,
         updateParams.metadata!.ttr, updateParams.metadata!.ccd);
     updateParams.metadata!.ttr = cacheRefreshMetaMap[AtConstants.ttr];

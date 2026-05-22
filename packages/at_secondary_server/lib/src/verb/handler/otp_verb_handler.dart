@@ -110,7 +110,7 @@ class OtpVerbHandler extends AbstractVerbHandler {
 
   Future<void> savePasscode(String passcode,
       {required int ttl, required bool isSpp}) async {
-    await keyValueStore.put(
+    await keyStore.put(
         passcodeKey(passcode, isSpp: isSpp),
         AtData()
           ..data = passcode

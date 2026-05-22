@@ -274,7 +274,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       inboundConnectionMetadata.enrollmentId = newEnrollmentId;
       // store this apkam as default pkam public key for old clients
       // The keys with AT_PKAM_PUBLIC_KEY does not sync to client.
-      await keyValueStore.put(AtConstants.atPkamPublicKey,
+      await keyStore.put(AtConstants.atPkamPublicKey,
           AtData()..data = enrollParams.apkamPublicKey!,
           skipCommit: true);
       AtData enrollData = AtData()..data = jsonEncode(enrollmentValue.toJson());
@@ -367,7 +367,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (operation == 'approve') {
       // Fetch the existing data
       String ek = enMgr.buildEnrollmentKey(enId);
-      AtMetaData emd = await keyValueStore.getMeta(ek) ?? AtMetaData();
+      AtMetaData emd = await keyStore.getMeta(ek) ?? AtMetaData();
       // Update key with new data
       // Update ttl value to support auto expiry of APKAM keys
       emd.ttl = enVal.apkamKeysExpiryDuration.inMilliseconds;
@@ -437,7 +437,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (enrollParams.encPrivateKeyIV != null) {
       privateKeyJson['iv'] = enrollParams.encPrivateKeyIV;
     }
-    await keyValueStore.put(
+    await keyStore.put(
         enMgr.keyForPEK(newEnrollmentId),
         AtData()
           ..data = jsonEncode(privateKeyJson)
@@ -449,7 +449,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (enrollParams.selfEncKeyIV != null) {
       selfKeyJson['iv'] = enrollParams.selfEncKeyIV;
     }
-    await keyValueStore.put(
+    await keyStore.put(
         enMgr.keyForSEK(newEnrollmentId),
         AtData()
           ..data = jsonEncode(selfKeyJson)
@@ -589,7 +589,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   @visibleForTesting
   Future<void> preventDuplicateEnrollRequest(EnrollParams enrollParams) async {
     // Fetches all the enrollment keys from the keystore.
-    List<dynamic> enrollmentKeys = await (await keyValueStore.getKeys(
+    List<dynamic> enrollmentKeys = await (await keyStore.getKeys(
             regex: EnrollmentConstants.enrollmentsRegex))
         .toList();
 
@@ -598,7 +598,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     for (String key in enrollmentKeys) {
       AtData atData = AtData();
       try {
-        atData = (await keyValueStore.get(key))!;
+        atData = (await keyStore.get(key))!;
       } on KeyNotFoundException {
         logger.finest('An enrollment with $key does not exist or expired');
       }

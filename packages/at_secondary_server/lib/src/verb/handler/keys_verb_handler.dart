@@ -96,7 +96,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
       valueJson['encryptionKeyName'] =
           verbParams[AtConstants.encryptionKeyName];
       final atData = AtData()..data = jsonEncode(valueJson);
-      final result = await keyValueStore.put(keyName, atData, skipCommit: true);
+      final result = await keyStore.put(keyName, atData, skipCommit: true);
       response.data = result.toString();
     }
   }
@@ -111,7 +111,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
     final keyNameFromParams = verbParams[AtConstants.keyName];
     if (keyNameFromParams != null && keyNameFromParams.isNotEmpty) {
       try {
-        final value = (await keyValueStore.get(keyNameFromParams))!;
+        final value = (await keyStore.get(keyNameFromParams))!;
         response.data = value.data;
         return;
       } on KeyNotFoundException {
@@ -132,11 +132,11 @@ class KeysVerbHandler extends AbstractVerbHandler {
     final List<String> result = keyVisibility != null &&
             keyVisibility.isNotEmpty
         ? hasManageAccess
-            ? await (await keyValueStore.getKeys(
+            ? await (await keyStore.getKeys(
                     regex:
                         '.*$keyVisibility.*__global$atSign\$|.*$keyVisibility.*__manage$atSign\$'))
                 .toList()
-            : await (await keyValueStore.getKeys(
+            : await (await keyStore.getKeys(
                     regex: '.*__${keyVisibility}_keys.__global$atSign\$'))
                 .toList()
         : <String>[];
@@ -154,7 +154,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
     final keyString = keyMap[keyVisibility];
     if (keyString != null) {
       try {
-        final value = await keyValueStore.get(keyString);
+        final value = await keyStore.get(keyString);
         if (value?.data != null) {
           filteredKeys.add(keyString);
         }
@@ -171,8 +171,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
   ) async {
     final keyNameFromParams = verbParams[AtConstants.keyName]!;
     response.data =
-        (await keyValueStore.remove(keyNameFromParams, skipCommit: true))
-            .toString();
+        (await keyStore.remove(keyNameFromParams, skipCommit: true)).toString();
   }
 
   /// List only keys from current enrollment. Do not list keys from another enrollment.
@@ -180,7 +179,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
   /// If the enrollment in valueJson matches [enrollIdFromMetadata], then add [key] to [filteredKeys]
   Future<void> _addKeyIfEnrollmentIdMatches(List<dynamic> filteredKeys,
       String key, String enrollIdFromMetadata) async {
-    final value = await keyValueStore.get(key);
+    final value = await keyStore.get(key);
     final data = value?.data;
     if (data != null) {
       final valueJson = jsonDecode(data);
