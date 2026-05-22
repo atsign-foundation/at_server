@@ -7,18 +7,12 @@ overlap-version with deprecation shims.
 
 This guide has three sections; read the one(s) you need:
 
-1. **[What changed in
-   `at_persistence_secondary_server`](#section-1--what-changed-in-at_persistence_secondary_server)
-   **
-   — the 5.0.0 (this branch) vs 4.3.5 (trunk) delta, and why.
-2. *
-   *[What changed in the atServer](#section-2--what-changed-in-at_secondary_server)
-   **
-   — how `at_secondary_server` was reworked to consume the new
-   persistence package.
-3. *
-   *[Migrating the at_client package](#section-3--migrating-the-at_client-package)
-   **
+1. **[What changed in `at_persistence_secondary_server`](#section-1--what-changed-in-at_persistence_secondary_server)**
+   — the delat between 5.0.0 (this branch) and 4.3.5 (trunk), and why.
+2. **[What changed in the atServer](#section-2--what-changed-in-at_secondary_server)**
+   — how `at_secondary_server` was reworked to consume the new persistence 
+   package.
+3. **[Migrating the at_client package](#section-3--migrating-the-at_client-package)**
    — a step-by-step guide for moving `at_client` onto 5.0.0 and a
    **commit-log-free** local keystore.
 
