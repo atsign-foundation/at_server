@@ -1,14 +1,5 @@
 ## 3.1.0
 - feat: Add `preRemoveHook` and `postRemoveHook` to WritableKeyStore interface
-- refactor!: tighten `Keystore` / `WritableKeystore` /
-  `SynchronizableKeyStore` / `LogKeyStore` signatures to remove
-  `dynamic`. `put` / `create` / `remove` / `putMeta` / `putAll`
-  return `Future<int?>` (commit-log sequence number). `get`
-  returns `Future<V?>` instead of `Future<V>?`. `LogKeyStore.add`
-  returns `Future<int>`; `update` / `remove` return
-  `Future<void>`. `getFirstNEntries` returns `List<int>`;
-  `getExpired` returns `Future<List<K>>`. Pre/post-remove hook
-  function types tightened to `Future<void> Function(...)`.
 ## 3.0.0
 - feat!: major version change for simplified keystore interface
 ## 2.0.14

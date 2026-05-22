@@ -1,22 +1,29 @@
 /// Keystore represents a data store like a database which can store mapping between keys and values.
 abstract class LogKeyStore<K, V> {
-  /// Retrieves the value mapped to [key], or `null` if no mapping
-  /// exists.
-  Future<V?> get(K key);
-
-  /// Appends [value] to the log. Returns the auto-generated key
-  /// assigned to the new entry by the backend.
+  /// Retrieves a Future value for the key passed from the key store.
   ///
-  /// Throws a [DataStoreException] if the underlying store fails.
-  Future<int> add(V value);
+  /// @param key Key associated with a value.
+  /// @return Returns the value to which the specified key is mapped, or null if this map contains no mapping for the key or if key is not null.
+  Future<V> get(K key);
 
-  /// Updates the entry at [key] with [value].
-  Future<void> update(K key, V value);
-
-  /// Removes the entry at [key] if present.
+  /// Associates the specified value with the specified key.
+  /// If the key store previously contained a mapping for the key, the old value is replaced by the specified value.
   ///
-  /// Throws a [DataStoreException] if the underlying store fails.
-  Future<void> remove(K key);
+  /// @param key - Key associated with a value.
+  /// @param value - Value to be associated with the specified key.
+  /// @returns sequence number from commit log if put is success. null otherwise
+  /// Throws a [DataStoreException] if the the operation fails due to some issue with the data store.
+  Future<dynamic> add(V value);
+
+  /// Updates the existing key with the given value
+  Future<dynamic> update(K key, V value);
+
+  /// Removes the mapping for a key from this key store if it is present
+  ///
+  /// @param key - Key associated with a value.
+  /// @return - sequence number from commit log if remove is success. null otherwise
+  /// Throws an [DataStoreException] if the the operation fails due to some issue with the data store.
+  Future<dynamic> remove(K key);
 
   /// Removes the list of keys from storage.
   Future<void> removeAll(List<K> deleteKeysList);
@@ -25,13 +32,15 @@ abstract class LogKeyStore<K, V> {
   /// @return int Returns the total number of keys.
   int entriesCount();
 
-  /// Returns the first 'N' keys of the log instance, in
-  /// backend-natural order.
-  List<int> getFirstNEntries(int N);
+  /// Returns the first 'N' keys of the log instance.
+  /// @param N : Fetches first 'N' entries
+  /// @return List : Returns the list of keys.
+  List getFirstNEntries(int N);
 
-  /// Returns the keys whose entries expired more than
-  /// [expiryInDays] days ago.
-  Future<List<K>> getExpired(int expiryInDays);
+  ///Returns the list of expired keys
+  ///@param expiryInDays
+  ///@return `List<dynamic>`
+  Future<List<dynamic>> getExpired(int expiryInDays);
 
   /// Returns the size of the storage
   /// @return int Returns the storage size in integer type.
