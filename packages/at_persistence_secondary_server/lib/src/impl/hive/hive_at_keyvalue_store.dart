@@ -31,7 +31,11 @@ class HiveAtKeyValueStore
 
   HiveAtKeyValueStore(this.atSign);
 
-  late HiveAtCommitLog _commitLog;
+  /// The commit log for this keystore, or `null` for a commit-log-free
+  /// (client-side) keystore. Server bundles wire one in via
+  /// [commitLog]=; client bundles leave it `null`, in which case every
+  /// write returns `null` and [compact] yields nothing.
+  HiveAtCommitLog? _commitLog;
 
   @override
   List<Future<void> Function(String key, {required bool skipCommit})>
@@ -160,7 +164,7 @@ class HiveAtKeyValueStore
 
   @override
   set commitLog(log) {
-    _commitLog = log as HiveAtCommitLog;
+    _commitLog = log as HiveAtCommitLog?;
   }
 
   @override
@@ -170,9 +174,12 @@ class HiveAtKeyValueStore
   /// log's [HiveAtCommitLog.compact]. The keystore itself doesn't
   /// have its own compaction algorithm — the commit log is the
   /// thing that accumulates entries faster than it can shed them.
+  ///
+  /// A commit-log-free (client-side) keystore has nothing to
+  /// compact: the call is a no-op that yields nothing.
   @override
   Stream<int> compact(bool dryRun) {
-    return _commitLog.compact(dryRun);
+    return _commitLog?.compact(dryRun) ?? Stream<int>.empty();
   }
 
   @override
@@ -305,7 +312,9 @@ class HiveAtKeyValueStore
         if (skipCommit) {
           result = -1;
         } else {
-          result = await _commitLog.commit(hive_key, commitOp);
+          // `_commitLog` is null on a commit-log-free keystore — the
+          // write still succeeds, it just produces no sequence number.
+          result = await _commitLog?.commit(hive_key, commitOp);
         }
         _changesController.add(KeyUpdated(key));
       }
@@ -376,7 +385,9 @@ class HiveAtKeyValueStore
       if (skipCommit) {
         return -1;
       } else {
-        return await _commitLog.commit(hive_key, commitOp);
+        // `_commitLog` is null on a commit-log-free keystore — the
+        // write still succeeds, it just produces no sequence number.
+        return await _commitLog?.commit(hive_key, commitOp);
       }
     } on Exception catch (exception) {
       logger.severe('HiveAtKeyValueStore create exception: $exception');
@@ -397,23 +408,28 @@ class HiveAtKeyValueStore
       await hook(key, skipCommit: skipCommit);
     }
 
-    int retVal;
+    int? retVal;
     try {
       await getBox().delete(HiveKeyStoreHelper.prepareKey(key));
       // On deleting the key, remove it from the expiryKeyCache.
       _expiryKeysCache.remove(key);
+      final commitLog = _commitLog;
       if (skipCommit) {
         // When skipping commits, remove any existing commit entries for this
         // key from commitLog. This is critical for synchronization - during
         // sync, other commit entries for this key might be considered valid
-        // if we don't remove them.
-        CommitEntry? commitEntry = _commitLog.getLatestCommitEntry(key);
-        if (commitEntry != null) {
-          await _commitLog.commitLogKeyStore.remove(commitEntry.commitId!);
+        // if we don't remove them. (No-op on a commit-log-free keystore.)
+        if (commitLog != null) {
+          CommitEntry? commitEntry = commitLog.getLatestCommitEntry(key);
+          if (commitEntry != null) {
+            await commitLog.commitLogKeyStore.remove(commitEntry.commitId!);
+          }
         }
         retVal = -1;
       } else {
-        retVal = (await _commitLog.commit(key, CommitOp.DELETE))!;
+        // `commitLog` is null on a commit-log-free keystore — the
+        // delete still succeeds, it just produces no sequence number.
+        retVal = await commitLog?.commit(key, CommitOp.DELETE);
       }
       _changesController.add(KeyRemoved(key));
     } on Exception catch (exception) {
@@ -559,7 +575,9 @@ class HiveAtKeyValueStore
           .build();
       await getBox().put(hive_key, value);
       _updateMetadataCache(key, value.metaData);
-      result = await _commitLog.commit(hive_key, CommitOp.UPDATE_ALL);
+      // `_commitLog` is null on a commit-log-free keystore — the write
+      // still succeeds, it just produces no sequence number.
+      result = await _commitLog?.commit(hive_key, CommitOp.UPDATE_ALL);
       _changesController
           .add(existingData == null ? KeyAdded(key) : KeyUpdated(key));
       return result;
@@ -590,7 +608,9 @@ class HiveAtKeyValueStore
 
       await getBox().put(hive_key, newData);
       _updateMetadataCache(key, newData.metaData);
-      var result = await _commitLog.commit(hive_key, CommitOp.UPDATE_META);
+      // `_commitLog` is null on a commit-log-free keystore — the write
+      // still succeeds, it just produces no sequence number.
+      var result = await _commitLog?.commit(hive_key, CommitOp.UPDATE_META);
       _changesController
           .add(existingData == null ? KeyAdded(key) : KeyUpdated(key));
       return result;
@@ -642,18 +662,21 @@ class HiveAtKeyValueStore
       // 3. Single batched box delete.
       await box.deleteAll(preparedToDelete);
 
-      // 4. Per-key cache + commit-log bookkeeping.
+      // 4. Per-key cache + commit-log bookkeeping. The commit-log
+      //    steps are no-ops on a commit-log-free keystore.
+      final commitLog = _commitLog;
       for (final lowered in present) {
         _expiryKeysCache.remove(lowered);
+        if (commitLog == null) continue;
         if (skipCommit) {
           // Match remove(): purge any existing commit entries for this
           // key, otherwise sync may consider them valid post-delete.
-          CommitEntry? commitEntry = _commitLog.getLatestCommitEntry(lowered);
+          CommitEntry? commitEntry = commitLog.getLatestCommitEntry(lowered);
           if (commitEntry != null) {
-            await _commitLog.commitLogKeyStore.remove(commitEntry.commitId!);
+            await commitLog.commitLogKeyStore.remove(commitEntry.commitId!);
           }
         } else {
-          await _commitLog.commit(lowered, CommitOp.DELETE);
+          await commitLog.commit(lowered, CommitOp.DELETE);
         }
       }
     } on Exception catch (exception) {
