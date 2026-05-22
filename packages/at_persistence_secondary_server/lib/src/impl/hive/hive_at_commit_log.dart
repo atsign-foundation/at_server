@@ -88,13 +88,6 @@ class HiveAtCommitLog extends AtCommitLog {
     return _commitLogKeyStore.latestCommitId;
   }
 
-  /// Returns the first committed sequence number
-  @override
-  @server
-  int? firstCommittedSequenceNumber() {
-    return _commitLogKeyStore.firstCommittedSequenceNumber();
-  }
-
   /// Returns the total number of keys
   /// @return - int : Returns number of keys in access log
   @override

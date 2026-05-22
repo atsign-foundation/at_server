@@ -87,35 +87,12 @@ class HiveCommitLogKeyStore with HiveBase<CommitEntry?> {
     return c1.commitId.compareTo(c2.commitId);
   }
 
-  /// Returns the first committed sequence number
-  int? firstCommittedSequenceNumber() {
-    var firstCommittedSequenceNum =
-        getBox().keys.isNotEmpty ? getBox().keys.first : null;
-    return firstCommittedSequenceNum;
-  }
-
   /// Returns the total number of keys
   /// @return - int : Returns number of keys in access log
   int entriesCount() {
     int? totalKeys = 0;
     totalKeys = getBox().keys.length;
     return totalKeys;
-  }
-
-  /// Gets the first 'N' Hive-assigned integer keys from the commit
-  /// log, in insertion order.
-  List<int> getFirstNEntries(int N) {
-    List<int> entries;
-    try {
-      entries = List<int>.from(getBox().keys.toList().take(N).toList());
-    } on Exception catch (e) {
-      throw DataStoreException(
-          'Exception getting first N entries:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error adding to access log:${e.toString()}');
-    }
-    return entries;
   }
 
   Future<void> remove(int commitEntryIndex) async {
@@ -147,19 +124,6 @@ class HiveCommitLogKeyStore with HiveBase<CommitEntry?> {
         commitLogCache.remove(commitEntry.atKey!);
       }
     }
-  }
-
-  Future<Stream<int>> getExpired(int expiryInDays) async {
-    var expiredKeys = <int>[];
-    var now = DateTime.timestamp();
-    var commitLogMap = await toMap();
-    commitLogMap.forEach((key, value) {
-      if (value.opTime != null &&
-          value.opTime!.isBefore(now.subtract(Duration(days: expiryInDays)))) {
-        expiredKeys.add(key);
-      }
-    });
-    return Stream.fromIterable(expiredKeys);
   }
 
   Future<List<int>> getDuplicateEntries() async {
@@ -222,11 +186,6 @@ class HiveCommitLogKeyStore with HiveBase<CommitEntry?> {
       commitLogMap.putIfAbsent(key, () => value);
     });
     return commitLogMap;
-  }
-
-  ///Returns the total number of keys in commit log keystore.
-  int getEntriesCount() {
-    return getBox().length;
   }
 
   /// Removes entries with malformed keys

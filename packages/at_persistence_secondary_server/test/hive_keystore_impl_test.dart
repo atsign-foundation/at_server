@@ -367,7 +367,7 @@ void main() async {
       for (int i = 0; i <= 49; i++) {
         await keyValueStore.put('@bob:location.wavi@test_user_1', atData);
       }
-      expect(commitLogInstance.commitLogKeyStore.getEntriesCount(), 1);
+      expect(commitLogInstance.commitLogKeyStore.entriesCount(), 1);
     });
     tearDown(() async => await tearDownFunc(atSign));
   });

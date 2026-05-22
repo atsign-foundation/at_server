@@ -14,7 +14,6 @@ export 'commitlog/commit_entry.dart';
 export 'compaction/compactable.dart';
 export 'exception/exceptions.dart';
 export 'keystore/keystore.dart';
-export 'keystore/log_keystore.dart';
 export 'keystore/key_entry.dart';
 export 'keystore/key_pattern.dart';
 export 'keystore/keystore_change.dart';

@@ -173,6 +173,13 @@ Major release: persistence-overhaul. Themes:
   Future backend packages depend on
   `at_persistence_secondary_server` for the interface types
   they need to satisfy.
+- **Dead code removed.** Deleted the unused `StoreType` enum,
+  `AtCommitLog.firstCommittedSequenceNumber` (no callers), the
+  `NullCommitEntry` sentinel (the package returns `null`, never a
+  sentinel), and the vestigial `LogKeyStore` interface — one
+  implementer, no consumers — along with the orphaned keystore
+  methods it carried (`getExpired`, and the commit-log keystore's
+  `getFirstNEntries`).
 
 See [`MIGRATION.md`](MIGRATION.md) for the full migration guide:
 what changed in this package (5.0.0 vs 4.3.5), how

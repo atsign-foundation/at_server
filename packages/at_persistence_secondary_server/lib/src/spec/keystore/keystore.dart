@@ -173,7 +173,3 @@ abstract interface class KeyValueStore<K, V> {
   /// runtime decisions on a hot path.
   Future<KeyStoreStats> stats();
 }
-
-/// Enumeration indicating the store type.
-// ignore: constant_identifier_names
-enum StoreType { ROOT, SECONDARY }

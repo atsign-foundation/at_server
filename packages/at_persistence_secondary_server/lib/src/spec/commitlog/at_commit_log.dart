@@ -40,9 +40,6 @@ abstract class AtCommitLog implements Compactable {
   /// Latest assigned `commitId`, or `null` if the log is empty.
   int? lastCommittedSequenceNumber();
 
-  /// Earliest assigned `commitId`.
-  int? firstCommittedSequenceNumber();
-
   /// The latest [CommitEntry] for [key], or `null` if [key] has
   /// never been committed.
   CommitEntry? getLatestCommitEntry(String key);

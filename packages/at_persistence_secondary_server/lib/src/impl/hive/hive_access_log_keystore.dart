@@ -8,9 +8,7 @@ import 'package:hive/hive.dart';
 
 export 'package:at_persistence_secondary_server/src/spec/spec.dart';
 
-class HiveAccessLogKeyStore
-    with HiveBase<AccessLogEntry?>
-    implements LogKeyStore<int, AccessLogEntry?> {
+class HiveAccessLogKeyStore with HiveBase<AccessLogEntry?> {
   final String _currentAtSign;
   late String _boxName;
 
@@ -26,7 +24,6 @@ class HiveAccessLogKeyStore
     await super.openBox(_boxName);
   }
 
-  @override
   Future<int> add(AccessLogEntry? accessLogEntry) async {
     int result;
     try {
@@ -41,7 +38,6 @@ class HiveAccessLogKeyStore
     return result;
   }
 
-  @override
   Future<AccessLogEntry?> get(int key) async {
     try {
       var accessLogEntry = await getValue(key);
@@ -55,7 +51,6 @@ class HiveAccessLogKeyStore
     }
   }
 
-  @override
   Future<void> remove(int key) async {
     try {
       await _getBox().delete(key);
@@ -68,7 +63,6 @@ class HiveAccessLogKeyStore
     }
   }
 
-  @override
   Future<void> removeAll(List<int> deleteKeysList) async {
     if (deleteKeysList.isEmpty) {
       return;
@@ -78,39 +72,15 @@ class HiveAccessLogKeyStore
 
   /// Returns the total number of keys
   /// @return - int : Returns number of keys in access log
-  @override
   int entriesCount() {
     int? totalKeys = 0;
     totalKeys = _getBox().keys.length;
     return totalKeys;
   }
 
-  /// Returns the list of expired entry keys (Hive-assigned integer
-  /// box keys), older than [expiryInDays] days.
-  @override
-  Future<Stream<int>> getExpired(int expiryInDays) async {
-    var expiredKeys = <int>[];
-    var now = DateTime.timestamp();
-    var accessLogMap = await _toMap();
-    accessLogMap.forEach((key, value) {
-      if (value == null) {
-        expiredKeys.add(key);
-        return;
-      }
-      final requestDateTime = value.requestDateTime;
-      if (requestDateTime != null &&
-          requestDateTime
-              .isBefore(now.subtract(Duration(days: expiryInDays)))) {
-        expiredKeys.add(key);
-      }
-    });
-    return Stream.fromIterable(expiredKeys);
-  }
-
   /// Gets the first 'N' keys from the logs
   /// @param - N : The integer to get the first 'N'
   /// @return List of first 'N' keys from the log
-  @override
   List<int> getFirstNEntries(int N) {
     List<int> entries;
     try {
@@ -123,11 +93,6 @@ class HiveAccessLogKeyStore
           'Hive error adding to access log:${e.toString()}');
     }
     return entries;
-  }
-
-  @override
-  Future<void> update(int key, AccessLogEntry? value) {
-    throw UnimplementedError('AccessLogKeyStore.update is not supported');
   }
 
   /// Top [length] atSigns by `pol`-verb access-log entry count.

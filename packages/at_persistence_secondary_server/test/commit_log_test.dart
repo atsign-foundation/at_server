@@ -115,7 +115,7 @@ void main() async {
         for (int i = 0; i <= 50; i++) {
           await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
         }
-        expect(commitLogInstance.commitLogKeyStore.getEntriesCount(), 1);
+        expect(commitLogInstance.commitLogKeyStore.entriesCount(), 1);
       });
 
       test('Box has exactly 2 entries after 51 commits to two distinct atKeys',
@@ -125,7 +125,7 @@ void main() async {
           await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
           await commitLogInstance.commit('country@alice', CommitOp.UPDATE);
         }
-        expect(commitLogInstance.commitLogKeyStore.getEntriesCount(), 2);
+        expect(commitLogInstance.commitLogKeyStore.entriesCount(), 2);
       });
 
       test('dedupBoxToOnePerAtKey removes legacy duplicates on init', () async {
@@ -140,11 +140,11 @@ void main() async {
           entry.commitId = key;
           await box.put(key, entry);
         }
-        expect(commitLogInstance.commitLogKeyStore.getEntriesCount(), 5);
+        expect(commitLogInstance.commitLogKeyStore.entriesCount(), 5);
         // Repair triggers dedupBoxToOnePerAtKey.
         await commitLogInstance.commitLogKeyStore
             .repairCommitLogAndCreateCachedMap();
-        expect(commitLogInstance.commitLogKeyStore.getEntriesCount(), 1);
+        expect(commitLogInstance.commitLogKeyStore.entriesCount(), 1);
       });
 
       test('A test to verify old commit entry is removed when a key is updated',
