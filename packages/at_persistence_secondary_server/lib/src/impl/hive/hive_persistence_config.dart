@@ -26,6 +26,9 @@ class HivePersistenceConfig implements AtPersistenceConfig {
   @override
   final bool enableNotificationKeystore;
 
+  @override
+  final bool enableCommitLog;
+
   HivePersistenceConfig({
     required this.storagePath,
     required this.commitLogPath,
@@ -34,6 +37,7 @@ class HivePersistenceConfig implements AtPersistenceConfig {
     String? backendMarkerPath,
     this.enableAccessLog = true,
     this.enableNotificationKeystore = true,
+    this.enableCommitLog = true,
   }) : backendMarkerPath =
             backendMarkerPath ?? '$storagePath/.persistence_backend';
 
@@ -54,10 +58,13 @@ class HivePersistenceConfig implements AtPersistenceConfig {
         backendMarkerPath: backendMarkerPath,
         enableAccessLog: true,
         enableNotificationKeystore: true,
+        enableCommitLog: true,
       );
 
   /// Convenience constructor for at_client_sdk-shaped consumers:
-  /// opts in to keystore only.
+  /// opts in to the keystore only. The keystore is created
+  /// commit-log-free — clients no longer rely on a commit log — so
+  /// the `.unused_*` paths below are never opened.
   factory HivePersistenceConfig.clientDefaults({
     required String storagePath,
     String? backendMarkerPath,
@@ -70,5 +77,6 @@ class HivePersistenceConfig implements AtPersistenceConfig {
         backendMarkerPath: backendMarkerPath,
         enableAccessLog: false,
         enableNotificationKeystore: false,
+        enableCommitLog: false,
       );
 }

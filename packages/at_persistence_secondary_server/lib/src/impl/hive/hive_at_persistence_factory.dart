@@ -29,10 +29,15 @@ class HiveAtPersistenceFactory implements AtPersistenceFactory {
 
     _logger.info('Initialising Hive persistence for $atSign');
 
-    final HiveCommitLogKeyStore commitLogKeyStore =
-        HiveCommitLogKeyStore(atSign);
-    await commitLogKeyStore.init(config.commitLogPath, isLazy: false);
-    final HiveAtCommitLog commitLog = HiveAtCommitLog(commitLogKeyStore);
+    // 1. Commit log (optional capability). Server bundles append
+    //    every write to it for sync; commit-log-free client bundles
+    //    skip it entirely and never open `config.commitLogPath`.
+    HiveAtCommitLog? commitLog;
+    if (config.enableCommitLog) {
+      final commitLogKeyStore = HiveCommitLogKeyStore(atSign);
+      await commitLogKeyStore.init(config.commitLogPath, isLazy: false);
+      commitLog = HiveAtCommitLog(commitLogKeyStore);
+    }
 
     // 2. Access log (optional capability).
     HiveAtAccessLog? accessLog;
@@ -52,10 +57,9 @@ class HiveAtPersistenceFactory implements AtPersistenceFactory {
     // 4. Secondary keystore. Owns its own Hive box, encryption
     //    secret, and cron-driven key-expiry sweep (former roles
     //    of the now-retired HivePersistenceManager). The commit
-    //    log lives inside the keystore: every write appends to
-    //    it for sync. Server-side bundles always have one;
-    //    client-side bundles (no enableCommitId flag at all) may
-    //    not, in which case keyValueStore.commitLog is null.
+    //    log lives inside the keystore: when present, every write
+    //    appends to it for sync. Server bundles always have one;
+    //    commit-log-free client bundles leave `commitLog` null.
     final keyValueStore = HiveAtKeyValueStore(atSign);
     keyValueStore.commitLog = commitLog;
     await keyValueStore.init(config.storagePath);

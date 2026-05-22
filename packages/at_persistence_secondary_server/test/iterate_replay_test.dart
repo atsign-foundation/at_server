@@ -310,7 +310,8 @@ void main() {
       if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
     });
 
-    test('clientDefaults skips access log + notification keystore', () async {
+    test('clientDefaults skips access log, notification keystore + commit log',
+        () async {
       final bundle = await factory.initialize(
         '@alice',
         HivePersistenceConfig.clientDefaults(
@@ -319,9 +320,10 @@ void main() {
       );
       expect(bundle.accessLog, isNull);
       expect(bundle.notificationKeystore, isNull);
-      // Core capabilities are still populated.
-      expect(bundle.keyValueStore.commitLog!, isNotNull);
+      // The keystore itself is the only core capability; it is
+      // created commit-log-free under clientDefaults.
       expect(bundle.keyValueStore, isNotNull);
+      expect(bundle.keyValueStore.commitLog, isNull);
     });
 
     test('serverDefaults populates every optional capability', () async {

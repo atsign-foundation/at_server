@@ -8,9 +8,9 @@ enum AtPersistenceBackendId { hive }
 /// backends subclass to add backend-specific fields without breaking
 /// the [AtPersistenceFactory.initialize] signature.
 ///
-/// The bundle has a *core* (always present: keystore — which
-/// contains the commit log) plus *optional capabilities* (access
-/// log, notification keystore). The `enable*` flags select which
+/// The bundle has a *core* (always present: the keystore) plus
+/// *optional capabilities* (the keystore's commit log, the access
+/// log, the notification keystore). The `enable*` flags select which
 /// optional capabilities the factory should bring up. Server configs
 /// typically opt into all; client configs typically opt into the
 /// keystore only.
@@ -50,4 +50,11 @@ abstract class AtPersistenceConfig {
   /// persistence. Server-only — clients leave this `false` and
   /// handle notifications via the at_lookup connection instead.
   bool get enableNotificationKeystore;
+
+  /// Whether the keystore should be initialised with a commit log.
+  /// Server bundles set this `true` (every write appends to the
+  /// commit log for sync). Clients that no longer rely on a commit
+  /// log leave it `false`, in which case the keystore is created
+  /// commit-log-free and [commitLogPath] is never consulted.
+  bool get enableCommitLog;
 }
