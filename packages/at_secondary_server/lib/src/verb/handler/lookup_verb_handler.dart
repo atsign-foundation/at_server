@@ -24,7 +24,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
   final AtAccessLog accessLog;
 
   LookupVerbHandler(
-    super.keyValueStore,
+    super.keyStore,
     this.outboundClientManager,
     this.cacheManager,
     this.enMgr, {

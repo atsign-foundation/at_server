@@ -11,7 +11,7 @@ class NotifyRemoveVerbHandler extends AbstractVerbHandler {
   static NotifyRemove notifyRemove = NotifyRemove();
 
   NotifyRemoveVerbHandler(
-    super.keyValueStore,
+    super.keyStore,
     this.notifMgr,
   );
 

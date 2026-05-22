@@ -21,7 +21,7 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
   final NotificationManager notificationManager;
 
   NotifyAllVerbHandler(
-    super.keyValueStore,
+    super.keyStore,
     this.notificationManager,
   );
 

@@ -16,7 +16,7 @@ class StreamVerbHandler extends AbstractVerbHandler {
 
   final NotificationManager notificationManager;
 
-  StreamVerbHandler(super.keyValueStore, this.notificationManager);
+  StreamVerbHandler(super.keyStore, this.notificationManager);
 
   @override
   bool accept(String command) => command.startsWith(getName(VerbEnum.stream));

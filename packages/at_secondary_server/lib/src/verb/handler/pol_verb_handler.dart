@@ -25,8 +25,7 @@ class PolVerbHandler extends AbstractVerbHandler {
   final AtAccessLog accessLog;
   final _dummyInboundConnection = DummyInboundConnection();
 
-  PolVerbHandler(
-      super.keyValueStore, this.outboundClientManager, this.cacheManager,
+  PolVerbHandler(super.keyStore, this.outboundClientManager, this.cacheManager,
       {required this.accessLog});
 
   // Method to verify whether command is accepted or not

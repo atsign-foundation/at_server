@@ -12,7 +12,7 @@ class BatchVerbHandler extends AbstractVerbHandler {
   static Batch batch = Batch();
   final VerbHandlerManager verbHandlerManager;
 
-  BatchVerbHandler(super.keyValueStore, this.verbHandlerManager);
+  BatchVerbHandler(super.keyStore, this.verbHandlerManager);
 
   // Method to verify whether command is accepted or not
   // Input: command

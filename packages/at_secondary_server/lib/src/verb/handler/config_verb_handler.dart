@@ -32,7 +32,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
 
   final AtCommitLog commitLog;
 
-  ConfigVerbHandler(super.keyValueStore, {required this.commitLog});
+  ConfigVerbHandler(super.keyStore, {required this.commitLog});
 
   late AtConfig atConfigInstance;
   late ModifiableConfigs? setConfigName;

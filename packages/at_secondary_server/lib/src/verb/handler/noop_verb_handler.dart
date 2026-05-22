@@ -7,7 +7,7 @@ import 'package:at_server_spec/at_verb_spec.dart';
 class NoOpVerbHandler extends AbstractVerbHandler {
   static NoOp noOpVerb = NoOp();
 
-  NoOpVerbHandler(super.keyValueStore);
+  NoOpVerbHandler(super.keyStore);
 
   @override
   bool accept(String command) => command.startsWith('noop:');

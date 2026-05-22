@@ -23,7 +23,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
   final AtCacheManager cacheManager;
 
   ScanVerbHandler(
-      super.keyValueStore, this.outboundClientManager, this.cacheManager);
+      super.keyStore, this.outboundClientManager, this.cacheManager);
 
   /// Verifies whether command is accepted or not
   ///

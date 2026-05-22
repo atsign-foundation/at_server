@@ -8,7 +8,7 @@ class UpdateMetaVerbHandler extends AbstractUpdateVerbHandler {
   static UpdateMeta updateMeta = UpdateMeta();
 
   UpdateMetaVerbHandler(
-    super.keyValueStore,
+    super.keyStore,
     super.statsNotificationService,
     super.notificationManager,
     super.atSign,

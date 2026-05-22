@@ -10,7 +10,7 @@ import 'package:at_server_spec/at_server_spec.dart';
 /// verbHandler to write the commitId to SDK.
 abstract class ChangeVerbHandler extends AbstractVerbHandler {
   final StatsNotificationService statsNotificationService;
-  ChangeVerbHandler(super.keyValueStore, this.statsNotificationService);
+  ChangeVerbHandler(super.keyStore, this.statsNotificationService);
 
   Response? _responseInternal;
 

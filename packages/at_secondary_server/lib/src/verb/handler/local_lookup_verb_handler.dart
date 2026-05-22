@@ -15,7 +15,7 @@ class LocalLookupVerbHandler extends AbstractVerbHandler {
   static LocalLookup llookup = LocalLookup();
   final EnrollmentManager enMgr;
 
-  LocalLookupVerbHandler(super.keyValueStore, this.enMgr);
+  LocalLookupVerbHandler(super.keyStore, this.enMgr);
 
   @override
   bool accept(String command) =>

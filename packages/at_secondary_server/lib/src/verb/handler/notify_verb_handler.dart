@@ -23,7 +23,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
 
   final NotificationManager notifMgr;
 
-  NotifyVerbHandler(super.keyValueStore, this.notifMgr);
+  NotifyVerbHandler(super.keyStore, this.notifMgr);
 
   AtNotificationBuilder atNotificationBuilder = AtNotificationBuilder();
 

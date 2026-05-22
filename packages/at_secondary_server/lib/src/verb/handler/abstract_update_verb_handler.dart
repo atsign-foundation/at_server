@@ -34,7 +34,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   final String atSign;
 
   AbstractUpdateVerbHandler(
-    super.keyValueStore,
+    super.keyStore,
     super.statsNotificationService,
     this.notificationManager,
     this.atSign,

@@ -21,7 +21,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
   final NotificationManager notificationManager;
 
   DeleteVerbHandler(
-    super.keyValueStore,
+    super.keyStore,
     super.statsNotificationService,
     this.notificationManager,
   );

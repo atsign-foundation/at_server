@@ -24,7 +24,7 @@ class FromVerbHandler extends AbstractVerbHandler {
   final AtCommitLog commitLog;
   final AtAccessLog accessLog;
 
-  FromVerbHandler(super.keyValueStore,
+  FromVerbHandler(super.keyStore,
       {required this.commitLog, required this.accessLog}) {
     logger.level = 'info';
   }

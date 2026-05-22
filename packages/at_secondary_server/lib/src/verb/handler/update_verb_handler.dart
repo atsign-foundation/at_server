@@ -12,7 +12,7 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
   static Update update = Update();
 
   UpdateVerbHandler(
-    super.keyValueStore,
+    super.keyStore,
     super.statsNotificationService,
     super.notificationManager,
     super.atSign,

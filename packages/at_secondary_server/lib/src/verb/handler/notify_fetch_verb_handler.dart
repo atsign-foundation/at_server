@@ -14,7 +14,7 @@ import 'package:at_server_spec/at_verb_spec.dart';
 class NotifyFetchVerbHandler extends AbstractVerbHandler {
   static NotifyFetch notifyFetch = NotifyFetch();
 
-  NotifyFetchVerbHandler(super.keyValueStore, this.notifMgr);
+  NotifyFetchVerbHandler(super.keyStore, this.notifMgr);
 
   NotificationManager notifMgr;
 

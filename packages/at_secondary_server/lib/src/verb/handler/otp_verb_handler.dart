@@ -19,7 +19,7 @@ class OtpVerbHandler extends AbstractVerbHandler {
   @visibleForTesting
   static const Duration defaultOtpExpiry = Duration(minutes: 5);
 
-  OtpVerbHandler(super.keyValueStore);
+  OtpVerbHandler(super.keyStore);
 
   @override
   bool accept(String command) => command.startsWith('otp:');
