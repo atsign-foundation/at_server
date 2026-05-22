@@ -174,10 +174,11 @@ Major release: persistence-overhaul. Themes:
   `at_persistence_secondary_server` for the interface types
   they need to satisfy.
 
-See [`MIGRATION.md`](MIGRATION.md) for the full 4.3.5 → 5.0.0
-migration guide, including server / client tracks, per-primitive
-recipes (signatures, before/after examples, capability-flag
-callouts), and a worked-example appendix.
+See [`MIGRATION.md`](MIGRATION.md) for the full migration guide:
+what changed in this package (5.0.0 vs 4.3.5), how
+`at_secondary_server` was reworked to consume it, and a
+step-by-step guide for migrating `at_client` onto 5.0.0 and a
+commit-log-free local keystore.
 
 ## 4.3.5
 

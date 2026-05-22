@@ -1,1956 +1,537 @@
-# Migrating from 4.3.5 to 5.0.0
-
-> ## What's new in 5.0.0 (Phases 1, 2, 3, 3.5)
->
-> 5.0.0 is the single release that ships the persistence
-> overhaul: factory + bundle (Phase 1), abstract interfaces +
-> Hive renames (Phase 2), ten new `SecondaryKeyStore` primitives
-> for at_client_sdk (Phase 3, sub-phases 3a-3j), and the sync
-> handler bugfix + `getEntries` retirement (Phase 3.5). See
-> [Phase 3 sub-phases (additive primitives)](#phase-3-sub-phases-additive-primitives)
-> below for the per-primitive index.
+# Persistence overhaul — 5.0.0 migration guide
 
 `at_persistence_secondary_server` 5.0.0 is a major release that
-overhauls how persistence stores are constructed, named, and
-wired together. There is no overlap-version with deprecation
-shims — consumers move directly from 4.3.5 to 5.0.0.
+overhauls how persistence stores are constructed, named, typed, and
+wired together. It is a clean break from 4.3.5 — there is no
+overlap-version with deprecation shims.
 
-This guide is split into two tracks because the impact differs
-significantly between server-side consumers (such as
-`at_secondary_server`) and client-side consumers (such as
-`at_client_sdk`).
+This guide has three sections; read the one(s) you need:
 
-**If you are migrating `at_client_sdk`, read in this order:**
+1. **[What changed in `at_persistence_secondary_server`](#section-1--what-changed-in-at_persistence_secondary_server)**
+   — the 5.0.0 (this branch) vs 4.3.5 (trunk) delta, and why.
+2. **[What changed in the atServer](#section-2--what-changed-in-at_secondary_server)**
+   — how `at_secondary_server` was reworked to consume the new
+   persistence package.
+3. **[Migrating the at_client package](#section-3--migrating-the-at_client-package)**
+   — a step-by-step guide for moving `at_client` onto 5.0.0 and a
+   **commit-log-free** local keystore.
 
-1. [TL;DR](#tldr) — 1-minute overview of what changed.
-2. [What NOT to worry about (client track)](#client-track-what-not-to-worry-about)
-   — quick wins by elimination.
-3. [Step-by-step playbook (at_client_sdk)](#step-by-step-playbook-at_client_sdk)
-   — opinionated order of operations.
-4. The reference sections below as needed when you hit a specific
-   call site.
-5. [Verification: how to know you're done](#verification-how-to-know-youre-done).
-
-**If you are migrating a server-side consumer, read:**
-
-1. [TL;DR](#tldr).
-2. [Server-track migration](#server-track-migration).
-3. Reference sections as needed.
-4. [Verification](#verification-how-to-know-youre-done).
+Throughout: the package now ships **two barrels**. Import the
+abstract / spec surface from
+`package:at_persistence_secondary_server/at_persistence_secondary_server.dart`
+and the Hive implementation from
+`package:at_persistence_secondary_server/hive.dart`. A future SQLite /
+Postgres backend will be a separate package that depends on the spec
+barrel only.
 
 ---
 
-## Table of contents
+## Section 1 — What changed in `at_persistence_secondary_server`
 
-- [TL;DR](#tldr)
-- [Pubspec dependency bump](#pubspec-dependency-bump)
-- [What NOT to worry about (client track)](#client-track-what-not-to-worry-about)
-- [Step-by-step playbook (at_client_sdk)](#step-by-step-playbook-at_client_sdk)
-- [Server-track migration](#server-track-migration)
-- [Class renames](#class-renames)
-- [Bundle shape: slim core + optional capabilities](#bundle-shape-slim-core--optional-capabilities)
-- [New abstract interfaces](#new-abstract-interfaces)
-- [Migration / iteration primitives (additive)](#migration--iteration-primitives-additive)
-- [Constructor changes](#constructor-changes)
-- [Removed APIs](#removed-apis)
-- [Compaction](#compaction)
-- [New APIs](#new-apis)
-- [Test patterns](#test-patterns)
-- [Worked example: at_client_sdk's `LocalSecondary` and sync engine](#worked-example-at_client_sdks-localsecondary-and-sync-engine)
-- [Canonical example files](#canonical-example-files)
-- [Verification: how to know you're done](#verification-how-to-know-youre-done)
+5.0.0 vs 4.3.5. The themes below are ordered roughly by blast radius.
 
----
+### 1.1 Bootstrap is a factory + bundle, not singletons
 
-## TL;DR
+4.3.5 constructed every store through a process-global singleton:
+`SecondaryPersistenceStoreFactory.getInstance()`,
+`AtCommitLogManagerImpl.getInstance()`,
+`AtAccessLogManagerImpl.getInstance()`, plus a per-atSign
+`HivePersistenceManager`. Lifecycle was implicit and ownership
+diffuse.
 
-- **Bootstrap is now via a factory** (`HiveAtPersistenceFactory`),
-  not the various `*.getInstance()` singletons. The factory hands
-  back an `AtPersistenceBundle` that holds `keyStore`,
-  `commitLog`, optionally `accessLog` / `notificationKeystore` /
-  compactors, and lifecycle hooks.
-- **Class renames.** The Hive-backed concretes carry a `Hive`
-  prefix; the unprefixed names become abstract interfaces.
-- **`AtConfig` moved out** of `at_persistence_secondary_server`
-  into `package:at_secondary/src/config/at_config.dart`. Server-only
-  concern; client consumers were never affected.
-- **Deprecated `getInstance()` shims removed** outright. Every
-  call site moves to the factory.
-- **Constructor signature changes** for `AtCompactionJob`,
-  `AtCompactionStatsServiceImpl`, and `AtConfig` (see
-  [Constructor changes](#constructor-changes) below).
+5.0.0 replaces all of it with an injectable factory:
 
----
+- `AtPersistenceFactory.initialize(atSign, config)` → `AtPersistenceBundle`.
+  The factory owns the per-atSign lifecycle: calling `initialize`
+  twice for the same atSign returns the **same** bundle;
+  `factory.close()` tears everything down.
+- `HiveAtPersistenceFactory` is the Hive-backed implementation.
+- `AtPersistenceBundle` holds the per-atSign resources: `keyValueStore`
+  (core), `accessLog?` and `notificationKeystore?` (optional
+  capabilities), plus `clear()` and `close()`.
 
-## Pubspec dependency bump
+**Why:** the singleton web made the backend un-swappable and the
+lifecycle untestable. A factory that hands back a typed bundle lets
+`at_secondary_server` (and any consumer) be wired explicitly, and lets
+a future RDBMS backend slot in behind the same abstraction.
 
-In your downstream package's `pubspec.yaml`:
+Every `*.getInstance()` shim is **removed** — there is no deprecated
+bridge.
 
-```yaml
-dependencies:
-  at_persistence_secondary_server: ^5.0.0
-```
+### 1.2 Hive concretes renamed; abstract interfaces freed
 
-After bumping, run `dart pub get` (or `flutter pub get`) to
-refresh `pubspec.lock`. The first `dart analyze` after the bump
-will surface every breaking-change call site at once — work
-through them using the playbook and reference sections below.
+The unprefixed names are now backend-agnostic abstract interfaces; the
+Hive implementations carry a `Hive` prefix.
 
----
+| Abstract interface       | Hive implementation          |
+|--------------------------|------------------------------|
+| `AtCommitLog`            | `HiveAtCommitLog`            |
+| `AtAccessLog`            | `HiveAtAccessLog`            |
+| `AtNotificationKeystore` | `HiveAtNotificationKeystore` |
+| `AtKeyValueStore`        | `HiveAtKeyValueStore`        |
 
-## Client track: what NOT to worry about
+The `at_persistence_spec` dependency is **dropped**: the interface
+types that package used to provide (`AtKeyValueStore`, exceptions, the
+`@server` / `@client` annotations, and the new query types listed
+below) now live alongside the Hive implementation in this package.
+Future backend packages depend on `at_persistence_secondary_server`
+for the interfaces they implement.
 
-A lot of the 5.0.0 surface area is server-only. As an
-`at_client_sdk` (or downstream client app) maintainer you can
-**ignore** these entirely:
+### 1.3 Keystore type hierarchy collapsed and widened
 
-- **`AtConfig`** — server-only block-list config; client never
-  imported it. The fact that it moved from
-  `at_persistence_secondary_server` to `at_secondary` is invisible
-  to clients.
-- **`AtAccessLog`** — server-only audit trail. No client code
-  ever wrote to it.
-- **`AtNotificationKeystore`** (as a storage class) — server
-  uses it as a queue; client doesn't. The
-  `NotificationStatus` enum (a model type, not the storage class)
-  IS still used by clients and continues to be exported under
-  the same name from
-  `package:at_persistence_secondary_server/at_persistence_secondary_server.dart`.
-  No change needed there.
-- **`AtCompactionStrategy` for access log / keystore** — clients
-  only compact the commit log. The other two compactor fields on
-  the bundle are `null` under `clientDefaults`.
-- **Server-side `StatsNotificationService`** — lives in
-  `at_secondary`, not `at_persistence_secondary_server`. Clients
-  never imported it.
-- **Bundle escape hatches** (`secondaryPersistenceStore`,
-  `hivePersistenceManager` getters) — Phase 1c removed them; the
-  client never used them.
-- **`AtCommitLogManager` / `AtAccessLogManager`** abstract
-  interfaces in `at_persistence_secondary_server` — both were removed (they
-  were paired with the deleted impl classes), but `at_client_sdk`
-  used the impl-side getInstance shims, not the spec-side
-  interfaces. So this removal is invisible.
+4.3.5 split the keystore contract across `Keystore` (read-only),
+`WritableKeystore`, and `SynchronizableKeyStore`, and named the main
+store `SecondaryKeyStore`. 5.0.0:
 
-If you find yourself touching anything on this list during the
-migration, you're probably on the wrong track. Stop and re-read
-the playbook below.
+- `SecondaryKeyStore` → **`AtKeyValueStore`**;
+  `HiveSecondaryKeyStore` → **`HiveAtKeyValueStore`**. The bundle field
+  `keyStore` → **`keyValueStore`**.
+- The three read/write tiers collapse into a single
+  `KeyValueStore<K, V>` interface holding the full CRUD + rich surface.
+  `AtKeyValueStore<K, V, T>` extends it with the sync-coupled extras:
+  the (nullable) `commitLog`, the `putMeta` / `putAll` / `getMeta`
+  metadata triplet, and `queryByPath` / `supportsPathQueries`.
+- `HiveAtKeyValueStore` is now `AtKeyValueStore<String, AtData, AtMetaData?>`
+  — the value type tightened from `AtData?` to non-null `AtData`, so
+  `put` / `create` / `putAll` reject a null value at compile time
+  instead of crashing on an internal `value!`. `get` still returns
+  `Future<AtData?>` (`null` for an absent key).
 
----
+`KeyValueStore` was **widened with ten new primitives** for at_client
+adoption — all additive, none of them break a 4.3.5 caller:
 
-## Step-by-step playbook (at_client_sdk)
+| Primitive                       | Notes                                                          |
+|---------------------------------|----------------------------------------------------------------|
+| `exists(key)`                   | async existence check; replaces the removed sync `isKeyExists` |
+| `scanKeys(KeyPattern, …)`       | structured filtering + `OrderByKey` ordering + `limit`/`skip`  |
+| `getMany(keys)`                 | bulk fetch                                                     |
+| `removeMany(keys)`              | bulk delete                                                    |
+| `changes`                       | broadcast `Stream<KeyStoreChange>` of mutations                |
+| `transaction(body)`             | buffered all-or-nothing writes                                 |
+| `queryByPath` + `supportsPathQueries` | value-field predicate query (capability-gated)           |
+| `snapshot` + `supportsSnapshots`      | isolated read snapshot (capability-gated)                |
+| `stats()`                       | diagnostic counts                                              |
 
-This is the recommended order. Each step keeps the codebase in a
-buildable state — you can stop and run `dart analyze` after every
-step.
+On Hive the capability flags (`supportsPathQueries`,
+`supportsSnapshots`) are `false` and consumers fall back; a future SQL
+backend flips them to `true` and the same call site becomes an indexed
+query / real MVCC snapshot.
 
-### Step 1 — Bump the dep + run analyze
+### 1.4 The commit log is nullable, end to end
 
-Update `pubspec.yaml`:
+This is the headline change for client consumers.
 
-```yaml
-dependencies:
-  at_persistence_secondary_server: ^5.0.0
-```
+- `AtKeyValueStore.commitLog` is nullable. Server keystores hold a
+  non-null commit log (every write appends to it for sync); client
+  keystores hold `null`.
+- `AtPersistenceConfig.enableCommitLog` (default `true`) selects
+  which. `serverDefaults` → `true`; `clientDefaults` → `false`. When
+  `false`, the factory builds the keystore **commit-log-free** and
+  never opens a commit-log box.
+- `HiveAtKeyValueStore` honours a `null` commit log throughout:
+  `put` / `create` / `putAll` / `putMeta` / `remove` / `removeMany`
+  succeed and return `null` (no sequence number), and `compact()` is a
+  no-op that yields nothing.
+- `AtPersistenceBundle` no longer exposes the commit log directly —
+  `bundle.commitLog` is gone; reach it (server-side) as
+  `bundle.keyValueStore.commitLog`.
 
-Run `dart pub get`, then `dart analyze`. Expect a wall of errors;
-that's the migration surface. The errors are the to-do list.
+Related commit-log changes:
 
-### Step 2 — Class renames (mechanical)
+- **`AtCommitLog.getEntries` retired.** Use
+  `iterate({fromCommitId, where})` — a lazy box-walk; the `where`
+  closure carries any caller-side filtering (regex, skipDeletesUntil).
+- **One-entry-per-atKey by construction.** `CommitLogKeyStore.add()`
+  dedups inline, plus a one-time startup dedup migration.
+  `CommitLogCompactionService` / `CompactionSortedList` are retired.
+- **Migrator-friendly walks:** `replay(CommitEntry)` and
+  `iterate(…)` on `AtCommitLog`; `iterate()` on the access log and
+  notification keystore.
 
-Run the find-and-replace recipes from the [Class renames](#class-renames)
-section against `lib/` and `test/`:
+### 1.5 Model classes decoupled from Hive
 
-```bash
-perl -i -pe 's/\bClientAtCommitLog\b/HiveClientAtCommitLog/g; s/\bAtCommitLog\b/HiveAtCommitLog/g' \
-    $(find lib test -name '*.dart')
-perl -i -pe 's/\bAtAccessLog\b/HiveAtAccessLog/g' $(find lib test -name '*.dart')
-perl -i -pe 's/\bAtNotificationKeystore\b/HiveAtNotificationKeystore/g' \
-    $(find lib test -name '*.dart')
-perl -i -pe 's/\bHiveKeystore\b/HiveSecondaryKeyStore/g' $(find lib test -name '*.dart')
-```
+`AtData`, `AtMetaData`, `CommitEntry`, `AccessLogEntry` and
+`AtNotification` no longer carry Hive's `@HiveType` / `@HiveField`
+annotations or `extends HiveObject`. The hand-written `TypeAdapter`s
+moved to `lib/src/impl/hive/adapters/` (on-disk wire format
+unchanged). The five models are now plain Dart objects — the seam a
+future non-Hive backend needs.
 
-**Important:** the `\b` boundaries protect siblings —
-`BaseAtCommitLog`, `AtCommitLogManager`, `HiveKeyStoreHelper`
-will NOT be matched. If your codebase has subtypes of
-`BaseAtCommitLog`, those are now `extends AtCommitLog` instead;
-adjust by hand.
+### 1.6 Compaction is intrinsic; scheduling left the package
 
-After Step 2, mocks like `MockAtCommitLog extends Mock implements
-AtCommitLog` continue to work — the abstract `AtCommitLog` is the
-type they were already mocking against, just abstract now instead
-of concrete.
+The `Compactable` interface — one method, `Stream<Object> compact(bool dryRun)`
+— replaces the whole 4.3.5 strategy machinery (`AtCompactionStrategy`,
+`HiveCompactionStrategy`, `AtCompaction`, `AtLogType`,
+`AtCompactionConfig`, `AtCompactionStats`, `AtCompactionJob` — all
+**deleted**). `AtCommitLog`, `AtAccessLog`, `AtNotificationKeystore`
+and `AtKeyValueStore` all implement `Compactable`; `compact(false)`
+yields the items removed, `compact(true)` yields what would be removed.
 
-### Step 3 — Add a `persistenceBundle` getter on `AtClient`
+The persistence layer no longer **schedules** anything: the cron /
+timer that drives compaction (and the key-expiry sweep) now lives in
+`at_secondary_server` — see [Section 2](#section-2--what-changed-in-at_secondary_server).
 
-The factory pattern owns the bundle's lifecycle. The natural
-owner on the client side is `AtClientImpl`. Add a field and a
-getter:
+### 1.7 Async / streaming APIs; `dynamic` removed
 
-```dart
-// In AtClient (interface):
-AtPersistenceBundle get persistenceBundle;
+- `getKeys`, `getExpiredKeys` and `scanKeys` return
+  `Future<Stream<…>>`. The `Future` completes once the backend has
+  accepted the request (setup failures — store not open, invalid
+  regex — reject eagerly rather than mid-stream); the `Stream` then
+  yields results.
+- The synchronous `isKeyExists` is **removed** — use async `exists`.
+- CRUD methods return `Future<int?>` (commit-log sequence number, or
+  `null`) instead of `Future<dynamic>`; `get` is `Future<V?>`. Call
+  sites can drop their `as int?` / `as AtData?` / `as Map` casts.
+- `AtKeyValueStore.deleteExpiredKeys` drops its `skipCommit`
+  parameter — expiry is backend-local maintenance, never sync'd.
 
-// In AtClientImpl:
-late final HiveAtPersistenceFactory _persistenceFactory;
-late final AtPersistenceBundle _persistenceBundle;
+### 1.8 `AtConfig` moved out
 
-@override
-AtPersistenceBundle get persistenceBundle => _persistenceBundle;
-```
-
-Initialise in `AtClientImpl`'s init/start path (wherever Hive is
-currently being opened):
-
-```dart
-_persistenceFactory = HiveAtPersistenceFactory();
-_persistenceBundle = await _persistenceFactory.initialize(
-  _atSign,
-  HivePersistenceConfig.clientDefaults(
-    storagePath: <existing storage path>,
-    commitLogPath: <existing commit log path>,
-  ),
-);
-```
-
-`clientDefaults` sets `enableCommitId: false` internally — the
-client commit log uses commitIds assigned by the server during
-sync, not auto-incremented locally. **Don't override this.**
-
-Tear down in the matching close path:
-
-```dart
-await _persistenceFactory.close();
-```
-
-### Step 4 — Migrate the lib/ call sites
-
-Reference: [Removed APIs](#removed-apis) table.
-
-The four files in `at_client/lib/src/` that hold call sites:
-
-| File                                     | Pattern                                                                                                                                                                       | Replacement                                                                                             |
-|------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------|
-| `client/local_secondary.dart`            | `SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore(_atClient.getCurrentAtSign())!.getSecondaryKeyStore()`                                           | `_atClient.persistenceBundle.keyStore`                                                                  |
-| `client/at_client_impl.dart`             | `AtCompactionJob((await AtCommitLogManagerImpl.getInstance().getCommitLog(_atSign))!, SecondaryPersistenceStoreFactory.getInstance().getSecondaryPersistenceStore(_atSign)!)` | `AtCompactionJob(persistenceBundle.commitLogCompactor!)`                                                |
-| `manager/storage_manager.dart` (4 sites) | `SecondaryPersistenceStoreFactory.getInstance()...` chains                                                                                                                    | `_atClient.persistenceBundle.<X>` (keystore, commitLog, scheduleKeyExpireTask)                          |
-| `manager/preference_manager.dart`        | Same                                                                                                                                                                          | Same                                                                                                    |
-| `util/sync_util.dart` (7 sites)          | `await AtCommitLogManagerImpl.getInstance().getCommitLog(atSign)`                                                                                                             | `_atClient.persistenceBundle.commitLog` (helper takes `AtClient` or `AtPersistenceBundle` by parameter) |
-
-After this step, `git grep -nE 'getInstance' at_client/lib/`
-should return zero hits for the removed singletons (the only
-allowed `getInstance` left is `AtClientImpl.getInstance()` if it
-exists).
-
-### Step 5 — Migrate the test files
-
-The ~30 test sites can be migrated in batches. The recommended
-pattern:
-
-```dart
-// At top of file:
-late HiveAtPersistenceFactory testFactory;
-late AtPersistenceBundle testBundle;
-
-// In the file's setUpFunc (or equivalent):
-testFactory = HiveAtPersistenceFactory();
-testBundle = await testFactory.initialize(
-  atSign,
-  HivePersistenceConfig.clientDefaults(
-    storagePath: storageDir,
-    commitLogPath: storageDir,
-  ),
-);
-
-// Each test then references testBundle.X instead of the singleton chains.
-
-// In tearDownAll (NOT tearDown — see Test patterns below):
-await testFactory.close();
-```
-
-If a test relies on cross-test data leak (cram-style), keep the
-factory file-scoped and only call `bundle.clear()` in `setUp`
-when the test actually needs isolation. See
-[Test patterns](#test-patterns).
-
-### Step 6 — Run the suites
-
-```bash
-# in each package under at_client_sdk:
-dart test --concurrency=1
-```
-
-`--concurrency=1` is required for atsign repos because Hive boxes
-are process-global by atSign sha; parallel test runs collide.
-
-If the at_client_sdk has a functional test suite, run that too.
-
-### Step 7 — Verify
-
-See [Verification](#verification-how-to-know-youre-done).
+`AtConfig` (block-list configuration) is no longer in this package; it
+moved to `at_secondary_server` (`package:at_secondary/src/config/at_config.dart`).
+Client consumers never used it.
 
 ---
 
-## Server-track migration
+## Section 2 — What changed in `at_secondary_server`
 
-For consumers that run a full atSecondary (e.g.
-`at_secondary_server` itself, plus any downstream that runs its
-own secondary). These consumers use the **full** persistence
-surface.
+How the atServer (this branch, 3.14.0) was reworked to consume
+`at_persistence_secondary_server` 5.0.0. If you maintain a fork of the
+atServer or another full-secondary consumer, this is your checklist.
 
-The migration shape is similar to the client playbook above, with
-two differences:
+### 2.1 Bootstrap through the factory
 
-1. Use `HivePersistenceConfig.serverDefaults(...)` (opts into
-   every capability) rather than `clientDefaults`.
-2. After `factory.initialize(...)`, run a single
-   `_assertServerCapabilities(bundle)` helper at bootstrap to
-   confirm the optional capabilities are populated, then bind
-   them to non-nullable `late` fields. This keeps `!` litter out
-   of every verb handler. See
-   [Bundle shape](#bundle-shape-slim-core--optional-capabilities)
-   for the recommended pattern.
-
-The reference implementation lives at
-`packages/at_secondary_server/lib/src/server/at_secondary_impl.dart`
-in this repo (`_initializePersistentInstances`).
-
----
-
-## Class renames
-
-Phase 2 Commit 1 renames the Hive-backed concretes so the
-unprefixed names can be reused as the abstract interfaces
-introduced in Commit 2.
-
-| Old name (concrete)      | New name (concrete)          | Notes                                                                                              |
-|--------------------------|------------------------------|----------------------------------------------------------------------------------------------------|
-| `AtCommitLog`            | `HiveAtCommitLog`            | Server-flavour Hive impl. The unprefixed `AtCommitLog` becomes the abstract interface in Commit 2. |
-| `ClientAtCommitLog`      | `HiveClientAtCommitLog`      | Client-flavour Hive impl (extends `HiveAtCommitLog`).                                              |
-| `AtAccessLog`            | `HiveAtAccessLog`            | Hive impl. Unprefixed name will become abstract in Commit 2.                                       |
-| `AtNotificationKeystore` | `HiveAtNotificationKeystore` | Hive impl of the notification queue. Unprefixed name will become abstract in Commit 2.             |
-| `HiveKeystore`           | `HiveSecondaryKeyStore`      | Hive impl of the abstract `SecondaryKeyStore` (which already existed in `at_persistence_secondary_server`).    |
-
-The abstract `BaseAtCommitLog` (existing parent of the renamed
-`HiveAtCommitLog`) stays in place for now — Commit 2 will rename
-it to `AtCommitLog` and it will become the canonical abstract
-interface.
-
-**No deprecated re-exports under the old names.** 5.0.0 is a
-clean major break; downstream code updates to the new names.
-
-### Find-and-replace recipes
-
-These cover the in-repo migration; downstream consumers can use
-the same patterns.
-
-```bash
-# AtCommitLog → HiveAtCommitLog (whole-word, won't touch BaseAtCommitLog,
-# ClientAtCommitLog, or AtCommitLogManager)
-perl -i -pe 's/\bClientAtCommitLog\b/HiveClientAtCommitLog/g; s/\bAtCommitLog\b/HiveAtCommitLog/g' \
-    $(find . -name '*.dart')
-
-# AtAccessLog → HiveAtAccessLog (won't touch AtAccessLogManager)
-perl -i -pe 's/\bAtAccessLog\b/HiveAtAccessLog/g' $(find . -name '*.dart')
-
-# AtNotificationKeystore → HiveAtNotificationKeystore
-perl -i -pe 's/\bAtNotificationKeystore\b/HiveAtNotificationKeystore/g' \
-    $(find . -name '*.dart')
-
-# HiveKeystore → HiveSecondaryKeyStore (won't touch HiveKeyStoreHelper —
-# different spelling)
-perl -i -pe 's/\bHiveKeystore\b/HiveSecondaryKeyStore/g' $(find . -name '*.dart')
-```
-
-### Import path changes
-
-| Old path                                         | New path                                              |
-|--------------------------------------------------|-------------------------------------------------------|
-| `src/log/commitlog/at_commit_log.dart`           | `src/log/commitlog/hive_at_commit_log.dart`           |
-| `src/log/accesslog/at_access_log.dart`           | `src/log/accesslog/hive_at_access_log.dart`           |
-| `src/notification/at_notification_keystore.dart` | `src/notification/hive_at_notification_keystore.dart` |
-| `src/keystore/hive_keystore.dart`                | `src/keystore/hive_secondary_keystore.dart`           |
-
-The library export
-(`package:at_persistence_secondary_server/at_persistence_secondary_server.dart`)
-re-exports the renamed files at the new paths; consumers that
-import via the package URL only need the class-name updates.
-
----
-
-## Bundle shape: slim core + optional capabilities
-
-`AtPersistenceBundle` is now split into a *core* (always present)
-plus *optional capabilities* (nullable, populated based on config):
-
-**Core (non-nullable):**
-
-- `String atSign`
-- `AtPersistenceBackendId backendId`
-- `SecondaryKeyStore keyStore`
-- `AtCommitLog commitLog`
-- `void scheduleKeyExpireTask(...)`
-- `Future<void> close()`
-
-**Optional capabilities (nullable):**
-
-- `AtAccessLog? accessLog`
-- `AtNotificationKeystore? notificationKeystore`
-
-The optional capabilities are populated based on `enable*` toggles
-on the config. Two factory constructors cover the common shapes:
-
-```dart
-// Server-shaped: opts into all capabilities (matches 4.3.5 behaviour
-// for any consumer that ran a full atSecondary).
-HivePersistenceConfig.serverDefaults(
-  storagePath: ...,
-  commitLogPath: ...,
-  accessLogPath: ...,
-  notificationStoragePath: ...,
-);
-
-// Client-shaped: opts into core only (keystore + commit log +
-// scheduler). Suitable for at_client_sdk's local-secondary cache.
-HivePersistenceConfig.clientDefaults(
-  storagePath: ...,
-  commitLogPath: ...,
-);
-```
-
-The bundle's `accessLog` and `notificationKeystore` getters are
-nullable. **Server callers that previously read them as non-null
-need to bind via `!`** after asserting the capability is present.
-Recommended pattern, used in this repo's `AtSecondaryServerImpl`:
-
-```dart
-final bundle = await persistenceFactory.initialize(atSign, config);
-
-// Asserts that bundle.accessLog and bundle.notificationKeystore are
-// non-null; throws StateError if the config disabled them.
-_assertServerCapabilities(bundle);
-
-late AtAccessLog accessLog = bundle.accessLog!;
-late AtNotificationKeystore notificationKeystore =
-    bundle.notificationKeystore!;
-```
-
-This keeps `!` litter out of every verb handler — the unwrapping
-happens once at bootstrap.
-
-## New abstract interfaces
-
-The Hive concretes (renamed in Commit 1) now `implements` matching
-abstract interfaces under the unprefixed names:
-
-| Abstract                                                       | Hive concrete                |
-|----------------------------------------------------------------|------------------------------|
-| `AtCommitLog`                                                  | `HiveAtCommitLog`            |
-| `AtAccessLog`                                                  | `HiveAtAccessLog`            |
-| `AtNotificationKeystore`                                       | `HiveAtNotificationKeystore` |
-| `SecondaryKeyStore` (already existed in `at_persistence_secondary_server`) | `HiveSecondaryKeyStore`      |
-
-The bundle's fields are typed at the abstracts. Code that holds
-a `HiveAtCommitLog` (or other concrete) typed local variable from
-the bundle needs to relax the type to the abstract. Tests that
-declare `Mock implements AtCommitLog` are unaffected — the abstract
-name is the same as the type they were already mocking against.
-
-The legacy `BaseAtCommitLog` abstract has been replaced by
-`AtCommitLog` (which now lives at
-`src/log/commitlog/at_commit_log.dart`). Direct subclasses of
-`BaseAtCommitLog` (none found in the atsign repos) need to extend
-`AtCommitLog` instead.
-
-## Migration / iteration primitives (additive)
-
-Two new methods land on the abstract surfaces, in preparation for
-Phase 3's persistence-backend migrator:
-
-- `Future<void> AtCommitLog.replay(CommitEntry entry)` — write an
-  existing commit entry under its supplied `commitId` without
-  firing change-event listeners. Idempotent on
-  `(commitId, atKey, op)`. Throws `ArgumentError` if `entry.commitId`
-  is null.
-- `Stream<CommitEntry> AtCommitLog.iterate({int? fromCommitId})` —
-  iterate every commit entry in `commitId` order, optionally
-  starting from `fromCommitId`.
-- `Stream<AccessLogEntry> AtAccessLog.iterate()` — every access-log
-  entry, in insertion order.
-- `Stream<AtNotification> AtNotificationKeystore.iterate()` — every
-  pending notification.
-
-Most consumers won't call these directly; they exist to let a Phase
-3 backend migrator move data between any two backends without
-backend-specific casts.
-
-## Constructor changes
-
-These are the constructor signatures that changed between 4.3.5
-and 5.0.0. Only the **final** 5.0.0 signature is shown — some
-classes (`AtCompactionJob`) changed twice across the arc but the
-intermediate forms never shipped to consumers.
-
-- **`AtCompactionJob`**:
-  - 4.3.5: `AtCompactionJob(AtLogType logType, SecondaryPersistenceStore store)`
-  - 5.0.0: `AtCompactionJob(AtCompactionStrategy strategy, [AtCompactionStatsService? stats])`
-  - Migration: pass `bundle.commitLogCompactor!` (or
-    `accessLogCompactor!` / `keyStoreCompactor!`) as the
-    strategy. Stats writing is optional now — pass an
-    `AtCompactionStatsServiceImpl(<atLogType>, <keyStore>)` as
-    the second argument to keep the 4.3.5 stats-recording
-    behaviour.
-- **`AtCompactionStatsServiceImpl`**:
-  - 4.3.5: `(AtCompaction atCompaction, SecondaryPersistenceStore store)`
-  - 5.0.0: `(AtCompaction atCompaction, SecondaryKeyStore keyStore)`
-  - Migration: pass the keystore directly instead of the
-    persistence-store wrapper.
-- **`AtConfig`** (server-track only — `at_client_sdk` never imported it):
-  - 4.3.5: `AtConfig(AtCommitLog commitLog, String atSign)`
-  - 5.0.0: `AtConfig(SecondaryKeyStore keyStore, String atSign)`
-  - Also moved to `package:at_secondary/src/config/at_config.dart`.
-- **`HiveAtCommitLog`** / **`HiveClientAtCommitLog`** /
-  **`HiveAtAccessLog`** / **`HiveAtNotificationKeystore`**:
-  unchanged constructor signatures (just renamed; the args still
-  take the same `*KeyStore` / atSign as 4.3.5). These exist to
-  let `HiveAtPersistenceFactory.initialize` build them; downstream
-  consumers should construct via the factory, not directly.
-
-## Removed APIs
-
-The deprecated `getInstance()` shims that 4.x exposed are gone in
-5.0.0. Bootstrap via the factory pattern instead.
-
-| Removed                                                                 | Replacement                                                            |
-|-------------------------------------------------------------------------|------------------------------------------------------------------------|
-| `SecondaryPersistenceStoreFactory.getInstance()`                        | `HiveAtPersistenceFactory()` and the resulting `bundle`                |
-| `AtCommitLogManagerImpl.getInstance().getCommitLog(atSign)`             | `bundle.commitLog`                                                     |
-| `AtAccessLogManagerImpl.getInstance().getAccessLog(atSign)`             | `bundle.accessLog` (server-track only)                                 |
-| `AtCompactionService.getInstance()`                                     | `AtCompactionService()` (per-job)                                      |
-| `HiveKeyStoreHelper.getInstance().prepareKey(k)`                        | `HiveKeyStoreHelper.prepareKey(k)` (now static)                        |
-| `HiveKeyStoreHelper.getInstance().prepareDataForKeystoreOperation(...)` | `HiveKeyStoreHelper.prepareDataForKeystoreOperation(...)` (now static) |
-
-Removed alongside:
-
-- `AtCommitLogManagerImpl` class (its only purpose was the
-  singleton + per-atSign cache, both now provided by
-  `HiveAtPersistenceFactory`).
-- `AtAccessLogManagerImpl` class (same).
-- `AtCommitLogManager` and `AtAccessLogManager` abstract
-  interfaces in `at_persistence_secondary_server` (orphaned by the impl
-  deletion; nothing else implemented them).
-- The `clear()` lifecycle methods that were added in 4.x to
-  let `HiveAtPersistenceFactory` reset the deprecated singletons —
-  no longer needed.
-
-Server-track callers also lose:
-
-- `StatsNotificationService.getInstance()` (in `at_secondary_server`).
-  The class is now constructed and held by `AtSecondaryServerImpl`
-  as `statsNotificationService`. Tests that previously mocked the
-  singleton continue to work via the same `MockStatsNotificationService`
-  pattern; their construction now happens via `MockStatsNotificationService()`
-  directly, no `getInstance` call.
-
-### Bootstrap recipe (server)
-
-Old (4.3.5):
-
-```dart
-final commitLog = (await AtCommitLogManagerImpl.getInstance()
-    .getCommitLog(atSign, commitLogPath: commitLogPath))!;
-final accessLog = (await AtAccessLogManagerImpl.getInstance()
-    .getAccessLog(atSign, accessLogPath: accessLogPath))!;
-final store = SecondaryPersistenceStoreFactory.getInstance()
-    .getSecondaryPersistenceStore(atSign)!;
-await store.getHivePersistenceManager()!.init(storagePath);
-final keyStore = store.getSecondaryKeyStore()!;
-keyStore.commitLog = commitLog;
-await keyStore.initialize();
-```
-
-New (5.0.0):
+`AtSecondaryServerImpl._initializePersistentInstances` (and `start` /
+`stop`) no longer call `*.getInstance()`. They drive a
+`HiveAtPersistenceFactory`:
 
 ```dart
 final factory = HiveAtPersistenceFactory();
 final bundle = await factory.initialize(
   atSign,
   HivePersistenceConfig.serverDefaults(
-    storagePath: storagePath,
-    commitLogPath: commitLogPath,
-    accessLogPath: accessLogPath,
-    notificationStoragePath: notificationStoragePath,
+    storagePath: ...,
+    commitLogPath: ...,
+    accessLogPath: ...,
+    notificationStoragePath: ...,
   ),
 );
-// Use bundle.keyStore, bundle.commitLog, bundle.accessLog!,
-// bundle.notificationKeystore!, bundle.scheduleKeyExpireTask(...).
-// `factory.close()` tears everything down.
 ```
 
-### Compaction
-
-Phase 2 splits the compaction surface into a *strategy* (which
-the bundle owns) and a *scheduler* (`AtCompactionJob`).
-
-- New abstract `AtCompactionStrategy` with `setConfig(AtCompactionConfig)`
-  + `Future<AtCompactionStats> compact()`. Bundle exposes three
-  nullable strategy fields: `commitLogCompactor?`,
-  `accessLogCompactor?`, `keyStoreCompactor?`. Server config opts
-  in to all; client config opts in to commit-log-only.
-- `AtCompactionJob` constructor changed: takes
-  `(AtCompactionStrategy strategy, [AtCompactionStatsService? stats])`
-  rather than `(AtLogType logType, SecondaryKeyStore keyStore)`.
-- The deprecated `AtCompactionStrategy` *interface* (formerly
-  in `at_persistence_spec` in 4.x — the dependency has been
-  dropped in 5.0.0) is no longer implemented; it was already
-  `@Deprecated('use CompactionService')` and unimplemented.
-
-**Server-track recipe.** Server consumers (this repo's
-`at_secondary_server`) construct an `AtCompactionStatsServiceImpl`
-explicitly (the old constructor built one internally) and pull
-the strategy off the bundle:
+`serverDefaults` opts into every capability. The bootstrap then
+asserts the optional capabilities are present **once** and binds them
+to non-nullable `late` fields, so verb handlers never carry `!`:
 
 ```dart
-commitLogCompactionJobInstance = AtCompactionJob(
-    bundle.commitLogCompactor!,
-    AtCompactionStatsServiceImpl(commitLog, secondaryKeyStore));
-commitLogCompactionJobInstance.scheduleCompactionJob(
-    AtCompactionConfig()
-      ..compactionPercentage = 50
-      ..compactionFrequencyInMins = 30);
+// commitLog is nullable on the keystore; the server always has one.
+commitLog = bundle.keyValueStore.commitLog!;
+keyValueStore = bundle.keyValueStore;
+accessLog = bundle.accessLog!;
+notificationKeystore = bundle.notificationKeystore!;
 ```
 
-Same shape for `accessLogCompactor` and `keyStoreCompactor`.
+See `lib/src/server/at_secondary_impl.dart`.
 
-**Client-track recipe.** `at_client_sdk` previously did:
+### 2.2 Singletons removed from `lib/`; dependencies injected
 
-```dart
-AtCompactionJob atCompactionJob = AtCompactionJob(
-    (await AtCommitLogManagerImpl.getInstance().getCommitLog(_atSign))!,
-    SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(_atSign)!);
+Every `getInstance()` call onto the legacy persistence singletons is
+gone from `lib/`. Resources are now passed by constructor:
+
+- Verb handlers that need the commit log and/or access log
+  (`from`, `cram`, `lookup`, `pol`, `proxy_lookup`, `config`,
+  `sync_progressive`) take `AtCommitLog` / `AtAccessLog` constructor
+  parameters. `DefaultVerbHandlerManager` threads them in — its
+  constructor now takes `commitLog` and `accessLog` (before the
+  trailing `atSign` positional). **External code that constructs
+  `DefaultVerbHandlerManager` directly must pass these.**
+- `metrics_impl` reads `atServer.commitLog` / `atServer.accessLog` /
+  `atServer.secondaryKeyStore`.
+- `StatsNotificationService.schedule()` takes its `AtCommitLog`
+  parameter rather than fetching it lazily;
+  `StatsNotificationService.getInstance()` is gone — the instance is
+  constructed and held by `AtSecondaryServerImpl`.
+- `SecondaryUtil.saveCookie` takes a `SecondaryKeyStore` parameter.
+
+### 2.3 Verb-handler keystore is strongly typed
+
+`AbstractVerbHandler.keyValueStore` and
+`DefaultVerbHandlerManager.keyValueStore` are typed
+`AtKeyValueStore<String, AtData, AtMetaData?>` rather than a raw
+`AtKeyValueStore`. This surfaced and fixed a set of latent nullability
+gaps the raw type had masked — unchecked `get()` results bound to a
+non-null `AtData`, `String?` keys passed into `get` / `remove` /
+`put`, and a `bool?` metadata field (`isCascade`) used directly as a
+condition.
+
+### 2.4 `AtConfig` moved in
+
+`AtConfig` (block-list config) moved from `at_persistence_secondary_server`
+to `package:at_secondary/src/config/at_config.dart`. It is now
+fully backend-agnostic: the constructor takes a `SecondaryKeyStore`
+(not an `AtCommitLog`), reads/writes go through the abstract keystore,
+and writes pass `skipCommit: true` so block-list state no longer bumps
+the local `commitId`. Construction signature is `AtConfig(keyStore, atSign)`;
+`from_verb_handler` and `config_verb_handler` updated accordingly.
+
+### 2.5 Compaction + expiry scheduling moved into the atServer
+
+Because the persistence layer no longer schedules anything, the
+atServer now owns:
+
+- **Compaction** — three `Timer.periodic` ticks (commit log, access
+  log, notification keystore) with overlap guards, each calling
+  `compact(false)` on the resource. `AtCompactionStatsService.record()`
+  takes primitives (`label`, `start`, `compactedCount`, `duration`).
+- **Key-expiry sweep** — the cron that calls
+  `keyValueStore.deleteExpiredKeys()` moved out of the persistence
+  package into the atServer.
+- The compactor `enable*` flags moved from `AtPersistenceConfig` to
+  `AtSecondaryConfig` (`enableKeyStoreCompactor` →
+  `enableNotificationCompactor`, matching the resource it gates).
+
+### 2.6 Sync verb handler tracks the `iterate` API
+
+`SyncProgressiveVerbHandler` and `LatestCommitEntryOfEachKey` were
+updated to consume `AtCommitLog.iterate(…)` instead of the retired
+`getEntries`. This also fixed an **empty-response wedge**: when every
+entry in a requested range failed `isAuthorized`, the handler used to
+return `[]`, leaving the client unable to advance its `from`
+watermark. The `iterate(where:)` scan is unbounded, so the client
+always sees forward progress. No wire-format change.
+
+### 2.7 Tests
+
+`test/test_utils.dart`'s `verbTestsSetUp` / `verbTestsTearDown` drive a
+`HiveAtPersistenceFactory` instead of the per-singleton `getInstance()`
+paths. The `atServer.<field> = …` injection seam is preserved.
+
+---
+
+## Section 3 — Migrating the at_client package
+
+This section is a step-by-step guide for moving `at_client` from
+`at_persistence_secondary_server: ^4.3.5` to `^5.0.0`, **and** onto a
+commit-log-free local keystore. Call-site references are against the
+`gkc-fewer-connections` branch of `at_client_sdk`.
+
+### 3.0 The shape of the migration
+
+There are two distinct bodies of work:
+
+- **A — Mechanical churn.** Factory + bundle bootstrap, class renames,
+  removed singletons, async/streaming APIs. Required, and largely
+  recipe-driven (§3.2–§3.6).
+- **B — The commit-log-free transition.** at_client's local keystore
+  becomes commit-log-free (`HivePersistenceConfig.clientDefaults`).
+  Everything in at_client that still reads or writes the commit log
+  must be removed or re-pointed (§3.7). This is the headline work
+  item — the sync engine is the bulk of it.
+
+Good news from the current code: at_client's **push** path already
+drains `LocalSecondary`'s `AtSyncQueue`, not the commit log
+(`sync_util.dart` says so in its own header comment). The commit log
+is no longer at_client's source of truth for *what to push* — it
+survives only as (a) a commitId high-water mark, (b) the substrate for
+client-side commit-log compaction, and (c) back-write bookkeeping
+after each push/pull. Section B is therefore about removing those
+three residual uses, not rewriting the whole sync engine.
+
+### 3.1 Dependency bump
+
+`packages/at_client/pubspec.yaml`:
+
+```yaml
+dependencies:
+  at_persistence_secondary_server: ^5.0.0
 ```
 
-After 5.0.0:
+`at_client` is the only package that depends on it directly. Run
+`dart pub get`, then `dart analyze` — the error wall is the migration
+to-do list.
+
+### 3.2 Bootstrap: replace the singleton dance with the factory
+
+`StorageManager._initStorage` is the heart of the mechanical
+migration. Today (`storage_manager.dart`) it runs a nine-step dance
+across three singletons — get commit log, get `HivePersistenceManager`,
+`init`, get keystore, wire commit log, get keystore manager, `initialize`,
+assign. Replace the whole body:
 
 ```dart
-AtCompactionJob atCompactionJob =
-    AtCompactionJob(bundle.commitLogCompactor!);
-```
+// Before (4.3.5):
+var atCommitLog = await AtCommitLogManagerImpl.getInstance().getCommitLog(
+    currentAtSign, commitLogPath: commitLogPath, enableCommitId: false);
+var hivePersistenceManager = SecondaryPersistenceStoreFactory.getInstance()
+    .getSecondaryPersistenceStore(currentAtSign)!
+    .getHivePersistenceManager()!;
+await hivePersistenceManager.init(storagePath);
+var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
+    .getSecondaryPersistenceStore(currentAtSign)!
+    .getSecondaryKeyStore()!;
+hiveKeyStore.commitLog = atCommitLog;
+var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
+    .getSecondaryPersistenceStore(currentAtSign)!
+    .getSecondaryKeyStoreManager()!;
+await hiveKeyStore.initialize();
+keyStoreManager.keyStore = hiveKeyStore;
 
-(Stats writing is optional on the client, so the second arg is
-omitted. Pass an `AtCompactionStatsServiceImpl(commitLog, keyStore)`
-if the client wants to record metrics — same shape as server.)
-
-### Bootstrap recipe (client)
-
-Old (4.3.5) — the `at_client_sdk` flavour:
-
-```dart
-final commitLog = (await AtCommitLogManagerImpl.getInstance()
-    .getCommitLog(atSign,
-        commitLogPath: commitLogPath, enableCommitId: false))!;
-final store = SecondaryPersistenceStoreFactory.getInstance()
-    .getSecondaryPersistenceStore(atSign)!;
-await store.getHivePersistenceManager()!.init(storagePath);
-final keyStore = store.getSecondaryKeyStore()!;
-keyStore.commitLog = commitLog;
-await keyStore.initialize();
-```
-
-New (5.0.0):
-
-```dart
+// After (5.0.0): one factory call, commit-log-free.
 final factory = HiveAtPersistenceFactory();
 final bundle = await factory.initialize(
-  atSign,
-  HivePersistenceConfig.clientDefaults(
-    storagePath: storagePath,
-    commitLogPath: commitLogPath,
-  ),
+  currentAtSign,
+  HivePersistenceConfig.clientDefaults(storagePath: storagePath),
 );
-// Use bundle.keyStore, bundle.commitLog, bundle.scheduleKeyExpireTask(...).
-// bundle.accessLog and bundle.notificationKeystore are null on
-// the client config — they were never used by the client anyway.
 ```
 
-**Note on `enableCommitId`.** The client commit log uses
-commitIds assigned by the server (during sync), not auto-incremented
-locally. `HivePersistenceConfig.clientDefaults(...)` sets
-`enableCommitId: false` internally; this matches the explicit
-`enableCommitId: false` you'd see in the 4.3.5 bootstrap. You
-do not need to set it (or override it) when using `clientDefaults`.
+Notes:
 
-## New APIs
+- `clientDefaults` takes only `storagePath` — there is no
+  `commitLogPath` and no `enableCommitId`. The keystore it produces is
+  commit-log-free (`bundle.keyValueStore.commitLog == null`), and the
+  access log / notification keystore are off.
+- `HivePersistenceManager` and `SecondaryKeyStoreManager` no longer
+  exist — the factory owns box-opening and lifecycle.
+- The factory + bundle must be **owned** by `AtClientImpl` (the
+  natural lifecycle owner), with a `persistenceBundle` getter on the
+  `AtClient` interface so `LocalSecondary`, `StorageManager` and the
+  sync engine can reach `bundle.keyValueStore`. Tear down via
+  `factory.close()` on the matching close path.
 
-- `AtPersistenceFactory` / `AtPersistenceBundle` — factory-based
-  bootstrap (Phase 1).
-- `HiveAtPersistenceFactory` / `HiveAtPersistenceBundle` — Hive
-  concrete (Phase 1).
-- `HivePersistenceConfig.serverDefaults(...)` /
-  `HivePersistenceConfig.clientDefaults(...)` — opinionated config
-  factories for the two common shapes (this commit).
-- `AtCommitLog.replay(CommitEntry)`,
-  `AtCommitLog.iterate({int? fromCommitId})`,
-  `AtAccessLog.iterate()`,
-  `AtNotificationKeystore.iterate()` — migration / iteration
-  primitives.
-- `AtCompactionStrategy` interface +
-  `bundle.commitLogCompactor` / `accessLogCompactor` /
-  `keyStoreCompactor`. `AtCompactionJob` now takes a strategy
-  rather than a log+keystore pair.
-- `AtPersistenceBundle.clear()` — drops every entry from each
-  store while keeping the underlying boxes open. Cheap test
-  isolation primitive; production code uses `close()` instead.
+`LocalSecondary`'s constructor does the same singleton lookup as a
+fallback (`local_secondary.dart`) — replace it with
+`keyStore ??= _atClient.persistenceBundle.keyValueStore`.
 
-## Test patterns
+### 3.3 Class renames and removed singletons
 
-`bundle.clear()` (Phase 2 Commit 5) lets test files use a
-file-scoped factory + `tearDownAll` close + per-test `clear()` for
-isolation, instead of opening and closing the factory per test
-(which surfaces Hive lifecycle bugs that aren't representative of
-production behaviour).
+| Removed / renamed (4.3.5)                              | 5.0.0 replacement                               |
+|--------------------------------------------------------|-------------------------------------------------|
+| `SecondaryPersistenceStoreFactory.getInstance()`       | `HiveAtPersistenceFactory()` + the `bundle`     |
+| `AtCommitLogManagerImpl.getInstance().getCommitLog(…)` | `bundle.keyValueStore.commitLog` (or `null`)    |
+| `AtAccessLogManagerImpl` / `AtAccessLogManager`        | server-only; not used by at_client              |
+| `HivePersistenceManager`                               | gone — factory owns box-opening                 |
+| `SecondaryKeyStoreManager`                             | gone — factory owns the keystore                |
+| `SecondaryKeyStore` (type)                             | `AtKeyValueStore`                               |
+| `HiveKeystore` (type)                                  | `HiveAtKeyValueStore`                           |
+| `isKeyExists(key)`                                     | `await exists(key)`                             |
+| `AtCommitLog.getEntries(…)`                            | `AtCommitLog.iterate({fromCommitId, where})`    |
+
+`LocalSecondary.keyStore` is typed `SecondaryKeyStore?` — retype to
+`AtKeyValueStore<String, AtData, AtMetaData?>?`.
+
+### 3.4 Drop the private `hive_keystore.dart` import
+
+`local_secondary.dart` reaches into the package internals:
 
 ```dart
-late HiveAtPersistenceFactory factory;
-late AtPersistenceBundle bundle;
-
-setUpAll(() async {
-  factory = HiveAtPersistenceFactory();
-  bundle = await factory.initialize(
-    '@alice',
-    HivePersistenceConfig.serverDefaults(...),
-  );
-});
-
-setUp(() async => await bundle.clear()); // empty store before each test
-
-tearDownAll(() => factory.close());
+// ignore: implementation_imports
+import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart';
 ```
 
-The `at_secondary_server` test suite documents these conventions
-at the top of `test/test_utils.dart`. Downstream test suites
-(including the at_client_sdk migration) can adopt the same shape.
-
-## Worked example: at_client_sdk's `LocalSecondary` and sync engine
-
-The pre-Phase-2 sweep against `at_client_sdk` (gkc-at-collection-snagging
-branch) found 56 sites across 6 `lib/` files and ~30 test files. All
-patterns map to recipes already documented above. Two are illustrated
-here end-to-end as worked examples for the at_client_sdk migration.
-
-### `LocalSecondary` keystore bootstrap
-
-Before (`at_client/lib/src/client/local_secondary.dart`):
-
-```dart
-class LocalSecondary implements Secondary {
-  final AtClient _atClient;
-  SecondaryKeyStore? keyStore;
-
-  LocalSecondary(this._atClient, {this.keyStore}) {
-    keyStore ??= SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(_atClient.getCurrentAtSign())!
-        .getSecondaryKeyStore();
-  }
-}
-```
-
-After:
-
-```dart
-class LocalSecondary implements Secondary {
-  final AtClient _atClient;
-  SecondaryKeyStore? keyStore;
-
-  LocalSecondary(this._atClient, {this.keyStore}) {
-    // The bundle is owned by AtClientImpl; LocalSecondary just
-    // reads `bundle.keyStore`.
-    keyStore ??= _atClient.persistenceBundle.keyStore;
-  }
-}
-```
-
-The `AtClient` interface gains a `persistenceBundle` getter that
-exposes the bundle the at_client_sdk's `AtClientImpl` initialised
-at startup against `HivePersistenceConfig.clientDefaults(...)`.
-
-### Compaction job in `AtClientImpl.startCompactionJob`
-
-Before (`at_client/lib/src/client/at_client_impl.dart:364`):
-
-```dart
-AtCompactionJob atCompactionJob = AtCompactionJob(
-    (await AtCommitLogManagerImpl.getInstance().getCommitLog(_atSign))!,
-    SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(_atSign)!);
-
-_atClientCommitLogCompaction ??=
-    AtClientCommitLogCompaction.create(_atSign, atCompactionJob);
-```
-
-After:
-
-```dart
-AtCompactionJob atCompactionJob =
-    AtCompactionJob(persistenceBundle.commitLogCompactor!);
-
-_atClientCommitLogCompaction ??=
-    AtClientCommitLogCompaction.create(_atSign, atCompactionJob);
-```
-
-(Stats writing was implicit in the old constructor; clients that
-want to record compaction metrics should pass an
-`AtCompactionStatsServiceImpl(commitLog, keyStore)` as the second
-arg, same as the server-track recipe.)
-
-### Sync helpers in `at_client/lib/src/util/sync_util.dart`
-
-The seven `AtCommitLogManagerImpl.getInstance().getCommitLog(atSign)`
-sites all become `_atClient.persistenceBundle.commitLog` once the
-sync helpers take the AtClient (or just the bundle) by parameter.
-
-### Tests
-
-Test files (~30 sites across `local_secondary_test`,
-`sync_new_test`, `at_client_termination_test`,
-`apkam_authorization_test`, `encryption_service_test`,
-`delete_expired_keys_task_test`, `at_onboarding_cli_test`)
-mirror the `at_persistence_secondary_server`'s own test migration:
-top-of-file `late HiveAtPersistenceFactory factory; late
-AtPersistenceBundle bundle;` plus a `setUpFunc` that calls
-`factory.initialize(...)` and assigns. Each `*.getInstance()...`
-call site becomes a reference to `bundle.X`.
-
-The functional-test sites in `tests/at_functional_test/test/`
-(`commit_log_compaction_test`, `sync_multiple_client_test`,
-`atclient_sync_callback_test`) follow the same pattern, with
-`AtCompactionService.getInstance().executeCompaction(...)` →
-`bundle.commitLogCompactor!.compact()`.
-
-## Canonical example files
-
-When a worked example would help — point at concrete sources that
-exercise the new API rather than embed snippets that drift:
-
-- **Server bootstrap end-to-end:**
-  `packages/at_persistence_secondary_server/test/at_persistence_factory_test.dart`
-  — exhaustive tests of factory init / close / two-atSign isolation,
-  using `HivePersistenceConfig.serverDefaults(...)`.
-- **Bundle slimming + serverDefaults / clientDefaults:**
-  `packages/at_persistence_secondary_server/test/iterate_replay_test.dart`
-  ("Bundle slimming" group) — exercises both factory shapes side
-  by side.
-- **`replay` and `iterate` migration primitives:**
-  `packages/at_persistence_secondary_server/test/iterate_replay_test.dart`
-  — yield-order, idempotency, no-listener-fire on replay.
-- **`bundle.clear()` test isolation pattern:**
-  `packages/at_persistence_secondary_server/test/iterate_replay_test.dart`
-  ("Bundle clear" group) — populate every store, clear, verify
-  bundle is reusable.
-- **AtConfig (now in `at_secondary`):**
-  `packages/at_secondary_server/lib/src/config/at_config.dart`
-  — server-side block-list config wired through the new
-  `SecondaryKeyStore` constructor.
-- **Server-side compaction wiring:**
-  `packages/at_secondary_server/lib/src/server/at_secondary_impl.dart`
-  (search for `commitLogCompactionJobInstance`) — three jobs
-  constructed against `bundle.commitLogCompactor` /
-  `accessLogCompactor` / `keyStoreCompactor`.
-
----
-
-## Verification: how to know you're done
-
-After working through the playbook, the migration is complete
-when **all** of these hold:
-
-1. **No deprecated symbols in `lib/` or `test/`.** Run from the
-   downstream package's root:
-
-   ```bash
-   git grep -nE \
-     'SecondaryPersistenceStoreFactory\.getInstance|AtCommitLogManagerImpl\.getInstance|AtAccessLogManagerImpl\.getInstance|AtCompactionService\.getInstance|HiveKeyStoreHelper\.getInstance|StatsNotificationService\.getInstance|BaseAtCommitLog|AtNotificationCallback|getHivePersistenceManager\b' \
-     -- lib test
-   ```
-
-   Expected output: zero hits.
-
-2. **No bare unprefixed concrete-name uses.** Make sure the old
-   concrete names aren't being constructed directly (mocking the
-   abstract is fine — that's the SAME unprefixed name now):
-
-   ```bash
-   git grep -nE '\bAtCommitLog\(|\bClientAtCommitLog\(|\bAtAccessLog\(|\bAtNotificationKeystore\(|\bHiveKeystore\(' \
-     -- lib test
-   ```
-
-   Expected output: zero hits. (The `Hive`-prefixed names are
-   constructor calls of the renamed classes; if any test
-   constructs them directly, that's fine — the names are correct.)
-
-3. **`dart analyze` clean.** From every package's root:
-
-   ```bash
-   dart analyze
-   ```
-
-   Expected: `No issues found!`. If `info`-level hints remain
-   they're cosmetic and OK.
-
-4. **Tests green.** Use the `--concurrency=1` flag — atsign repos
-   share Hive box state by atSign sha across parallel runs:
-
-   ```bash
-   dart test --concurrency=1
-   ```
-
-5. **Functional / integration tests green** (if the package has
-   them — `at_client_sdk` does at `tests/at_functional_test/`).
-
-6. **No imports of removed files.** Confirm:
-
-   ```bash
-   git grep -nE \
-     'src/log/commitlog/at_commit_log\.dart|src/log/accesslog/at_access_log\.dart|src/notification/at_notification_keystore\.dart|src/keystore/hive_keystore\.dart|src/log/at_commit_log_manager\.dart|src/log/at_access_log_manager\.dart' \
-     -- lib test
-   ```
-
-   Expected output: zero hits.
-
-If all six pass, the migration is done. Open a PR; the diff
-should be entirely import / type / call-site updates, no
-behavioural changes.
-
-### Smoke-testing the runtime
-
-If you want to verify behavioural parity beyond passing tests:
-
-- **Sync flow:** create a key on one client, sync to the server,
-  pull from a second client. The commit log on each client
-  should still record the operation.
-- **Compaction:** populate the commit log to past the configured
-  threshold, wait for the cron tick, confirm `bundle.commitLog.entriesCount()`
-  drops.
-- **Local cache reads:** read a previously-synced key without
-  network access — should still come from `bundle.keyStore`.
-
-These exercise the parts of the bundle that unit tests don't
-fully cover.
-
----
-
-## Phase 3 sub-phases (additive primitives)
-
-This index lists the ten new primitives added by Phase 3 of the
-persistence overhaul (design source:
-`~/.claude/plans/better-cheaper-faster-at-client.md`). All ten
-ship in 5.0.0 alongside Phases 1, 2, and 3.5. Every addition is
-additive — Phase 3 itself broke nothing; the breaking changes
-in 5.0.0 come from Phases 1, 2, and 3.5.
-
-- [Sub-phase 3a — `exists(String key)`](#sub-phase-3a--existsstring-key)
-- [Sub-phase 3b — `KeyPattern` + `scanKeys`](#sub-phase-3b--keypattern--scankeys)
-- [Sub-phase 3c — `getMany`](#sub-phase-3c--getmany)
-- [Sub-phase 3d — `removeMany`](#sub-phase-3d--removemany)
-- [Sub-phase 3e — `KeyStoreChange` + `changes` stream](#sub-phase-3e--keystorechange--changes-stream)
-- [Sub-phase 3f — `KeyStoreTxn` + `transaction()`](#sub-phase-3f--keystoretxn--transaction)
-- [Sub-phase 3g — ordered + paginated `scanKeys`](#sub-phase-3g--ordered--paginated-scankeys)
-- [Sub-phase 3h — `queryByPath` + `supportsPathQueries`](#sub-phase-3h--querybypath--supportspathqueries)
-- [Sub-phase 3i — `KeyStoreSnapshot` + `snapshot()`](#sub-phase-3i--keystoresnapshot--snapshot)
-- [Sub-phase 3j — `KeyStoreStats` + `stats()`](#sub-phase-3j--keystorestats--stats)
-- [Phase 3.5 — refactor and simplify persistence interfaces and usage](#phase-35--refactor-and-simplify-persistence-interfaces-and-usage)
-- [Phase 3 overview — adopting the additive primitives](#phase-3-overview--adopting-the-additive-primitives)
-
-### Sub-phase 3a — `exists(String key)`
-
-**New on `SecondaryKeyStore`:**
-
-```dart
-abstract interface class SecondaryKeyStore<K, V, T> ... {
-  /// Returns `true` if the keystore currently contains [key],
-  /// else `false`. Async flavour of [isKeyExists] — backend-
-  /// agnostic consumers (e.g. at_client) should prefer this
-  /// so the same call site works against Hive, SQLite, and any
-  /// future backend.
-  Future<bool> exists(String key);
-}
-```
-
-The existing synchronous `bool isKeyExists(String key)` stays in
-place — it remains useful for in-process Hive-backed callers (the
-~15 sites in `at_secondary_server`'s verb handlers don't need
-`await`). Both methods coexist; pick the one that fits the call
-site.
-
-**Hive impl** (`HiveSecondaryKeyStore` and
-`HiveAtNotificationKeystore`): delegates to `isKeyExists`, which
-wraps `Box.containsKey` after `HiveKeyStoreHelper.prepareKey`
-(the standard utf7-encode + lowercase). O(1).
-
-**SQLite impl (Phase 4):** `SELECT 1 FROM keystore WHERE key = ?
-LIMIT 1`. Indexed.
-
-**Backward compat:** purely additive on the abstract. Existing
-`isKeyExists` callers unchanged. Backends that already extend
-`SecondaryKeyStore` (e.g. third-party impls) need to implement
-the new method — for sync-internal backends, the simplest impl
-is `Future<bool> exists(String key) async => isKeyExists(key);`.
-
-**Before / after** — the at_client adoption (lands separately in
-the at_client_sdk session) replaces existence probes that used to
-iterate the entire keystore:
-
-```dart
-// Before (4.x): O(box-size) per write — getKeys iterates
-// the whole keystore even for an exact-key regex.
-final keys = await keyStore.getKeys(regex: '^$exactKey\$');
-final exists = keys.isNotEmpty;
-
-// After (5.0.0+): O(1) on every backend.
-final exists = await keyStore.exists(exactKey);
-```
-
-The at_client adoption site is `AtCollection._selfKeyExists` in
-`packages/at_client/lib/src/collections/collections.dart` (called
-from `create()` and `update()`); the same recipe applies to any
-downstream consumer with a similar pattern.
-
-**Capability flag:** none. Every backend supports
-`exists` natively (no fallback path; no `supportsX` flag needed).
-
-### Sub-phase 3b — `KeyPattern` + `scanKeys`
-
-**New types** (in `at_persistence_secondary_server`):
-
-```dart
-class KeyPattern {
-  final String? sharedBy;     // owner, e.g. '@alice'
-  final String? sharedWith;   // recipient, e.g. '@bob'
-  final String? namespace;    // dot-suffix, e.g. 'wavi'
-  final String? idPrefix;     // leading id segment, e.g. 'phone'
-  const KeyPattern({this.sharedBy, this.sharedWith, this.namespace, this.idPrefix});
-  bool get isUnrestricted;
-}
-```
-
-**New on `SecondaryKeyStore`:**
-
-```dart
-abstract interface class SecondaryKeyStore<K, V, T> ... {
-  /// Stream the keys that match [pattern]. Backend-portable
-  /// successor to [getKeys] for callers that want structured
-  /// filtering rather than building regular expressions.
-  Stream<String> scanKeys(KeyPattern pattern, {bool includeExpired = false});
-}
-```
-
-Each non-null field on `KeyPattern` is an AND-combined filter; a
-`null` field means "any". An empty pattern (`KeyPattern()`) matches
-every available key — equivalent to `getKeys(regex: '.*')`.
-
-**Hive impl** (`HiveSecondaryKeyStore`): iterates the box once,
-`AtKey.fromString`-parses each key, filters by every non-null
-field on the pattern. Malformed keys (no `@`, contains a space)
-are skipped. Performance: O(box-size) — same as today's
-`getKeys(regex)`. The Hive perf characteristic is
-forward-compat-only; consumers that need O(matching) on Hive
-should keep using bespoke caches until SQLite ships.
-
-**Hive impl on the notification keystore**
-(`HiveAtNotificationKeystore`): notification keys are random ids,
-not atKey-shaped, so the structured fields don't apply. The impl
-honours an unrestricted pattern (yields every notification id)
-and `idPrefix` (leading-substring match on the id); `sharedBy`,
-`sharedWith`, and `namespace` filters return empty.
-
-**SQLite impl (Phase 4):** translates the pattern into
-`WHERE shared_by = ? AND shared_with = ? AND namespace = ? AND
-key LIKE ?` against composite indexes. O(matching).
-
-**Backward compat:** purely additive on the abstract.
-`getKeys(regex: ...)` stays in place and isn't deprecated in 5.0.0
-— that step waits until at_client_sdk's adoption of `scanKeys`
-removes the legacy callers (later sub-phase / separate session).
-
-**Before / after** — the at_client adoption (lands separately in
-the at_client_sdk session) replaces every regex-`getKeys` site:
-
-```dart
-// Before (4.x): build a regex describing the
-// shape, run it across the whole keystore, parse results.
-final regex = '^@bob:.*\\.tasks@alice\$';
-final keys = await keyStore.getKeys(regex: regex);
-
-// After (5.0.0+): structured filter; backend can push it down
-// to its native query plan.
-final keys = await keyStore
-    .scanKeys(KeyPattern(sharedWith: '@bob', namespace: 'tasks'))
-    .toList();
-```
-
-The at_client adoption sites are documented inline in
-`packages/at_client/lib/src/collections/collections.dart` —
-`_getKeysInternal`, `_cascadeFromParentDelete`,
-`_cleanupOrphansFromRoot`, `_cleanupOrphansFromSub`,
-`_uniqueItemId`'s collision check, and every per-event scan in
-`Query.watch().onUpdate`.
-
-**Capability flag:** none. Every backend supports
-`scanKeys` (Hive scans-and-filters, SQL backends index-and-select);
-the absence of a flag reflects that semantics are identical
-across backends — only performance differs.
-
-**Departure from source plan:** the source plan called for
-in-memory secondary indexes on the Hive side (sticking-plaster
-to make Hive O(matching)). 5.0.0 ships iterate-and-filter
-instead — simpler, no drift risk, no memory cost. Hive performance
-is what `getKeys(regex)` was. If at_client adoption surfaces a
-real bottleneck, a follow-up sub-phase can add the side index
-behind the same API. The decision is reversible because it lives
-entirely inside `HiveSecondaryKeyStore`.
-
-### Sub-phase 3c — `getMany`
-
-**New on `SecondaryKeyStore`:**
-
-```dart
-abstract interface class SecondaryKeyStore<K, V, T> ... {
-  /// Bulk fetch — returns the values for every key in [keys] that
-  /// is currently present in the keystore. Keys that are absent
-  /// are NOT included in the returned map.
-  Future<Map<K, V>> getMany(List<K> keys);
-}
-```
-
-The map's keys are the lowercased form of the input strings (the
-canonical form the keystore stores), matching the case-insensitive
-behaviour of [get]. Duplicates in the input list are
-de-duplicated (Map semantics — the same key gets one entry).
-
-**Hive impl** (`HiveSecondaryKeyStore`): iterates the input list,
-calls `box.containsKey(preparedKey)` on each, then `box.get` for
-the present ones. Cost: O(N) where N is the unique input keys —
-each is a LazyBox await. Cheaper than N independent `get()`
-calls because the `KeyNotFoundException`-throwing `get()` does
-extra bookkeeping that `getMany` skips for absent keys.
-
-**Hive impl on the notification keystore**
-(`HiveAtNotificationKeystore`): same pattern — iterate input,
-contains-check, fetch present ones via `getValue`. Map is
-loosely typed (`Map<dynamic, dynamic>`) because the notification
-keystore implements `SecondaryKeyStore` without explicit type
-parameters; callers cast at the use site.
-
-**SQLite impl (Phase 4):** `SELECT key, value, metadata FROM
-keystore WHERE key IN (?, ?, …)` — single round-trip, chunked at
-the parameter limit (~999 on SQLite).
-
-**Backward compat:** purely additive. `get(key)` stays in place
-and isn't deprecated — a single-key fetch is still legitimately
-expressed as `get` (cleaner than `getMany([k])`).
-
-**Before / after** — the at_client adoption (lands separately in
-the at_client_sdk session) replaces per-key get loops:
-
-```dart
-// Before (4.x): N round-trips for N keys.
-final values = <String, AtData?>{};
-for (final k in keys) {
-  values[k] = await atClient.get(k);
-}
-
-// After (5.0.0+): one bulk fetch, no per-key await.
-final values = await keyStore.getMany(keys);
-```
-
-The at_client adoption sites are
-`AtCollection.getItemsAsStream` (in `collections.dart` ~line 927
-— the 1000-read problem),
-`_cleanupOrphansFromRoot`/`_cleanupOrphansFromSub` ancestor walks,
-and `_cascadeFromParentDelete` envelope reads. Watch-setup cost
-on a 1000-item collection drops from "1 scan + 1000 reads" to
-"1 scan + 1 bulk-read".
-
-**Capability flag:** none. Every backend supports
-`getMany`. Performance characteristics differ (Hive: O(N) async
-LazyBox awaits; SQLite: single round-trip), but semantics are
-identical.
-
-### Sub-phase 3d — `removeMany`
-
-**New on `SecondaryKeyStore`:**
-
-```dart
-abstract interface class SecondaryKeyStore<K, V, T> ... {
-  /// Bulk delete. Returns the number of keys actually removed
-  /// (race-tolerant — absent keys don't contribute to the count).
-  /// `skipCommit: true` suppresses the per-key commit-log entry
-  /// AND scrubs any prior entries for the deleted keys (matches
-  /// `remove(skipCommit:)`'s behaviour) — for server-local
-  /// sweeps where the deletion shouldn't bump the local commitId.
-  /// Empty input is a no-op that returns 0.
-  Future<int> removeMany(List<K> keys, {bool skipCommit = false});
-}
-```
-
-**Hive impl** (`HiveSecondaryKeyStore`):
-
-1. Identifies which input keys are actually present (dedupes by
-   lowercased form along the way).
-2. Runs `preRemoveHooks` per present key.
-3. Single `Box.deleteAll` for all the prepared (utf7-encoded +
-   lowercased) keys.
-4. Per-key bookkeeping: removes from `_expiryKeysCache`; either
-   commits a `CommitOp.DELETE` entry OR (for `skipCommit: true`)
-   scrubs any latest commit entry for the key.
-5. Runs `postRemoveHooks` per present key.
-
-The single batched `Box.deleteAll` is the actual amortisation:
-deleting N keys via N `Box.delete` calls spends per-call dispatch
-overhead N times; `deleteAll` does it once. (Per-key commit-log
-writes still happen — there's no batch commit API.)
-
-**Hive impl on the notification keystore**
-(`HiveAtNotificationKeystore`): same shape minus the commit-log
-step (notification keystore has no commit log).
-
-**SQLite impl (Phase 4):** `DELETE FROM keystore WHERE key IN
-(?, ?, …)` inside a single transaction. Single round-trip.
-
-**Backward compat:** purely additive. `remove(key, skipCommit:)`
-stays — for single-key removal it remains the cleanest expression.
-
-**Before / after** — the at_client adoption (lands separately in
-the at_client_sdk session) replaces per-key delete loops while
-preserving per-key event emission upstream:
-
-```dart
-// Before (4.x): N round-trips for N deletes,
-// commit log notified N times.
-for (final k in keys) {
-  await keyStore.remove(k);
-}
-
-// After (5.0.0+): one batched delete, still emits one commit-log
-// DELETE entry per key (so sync sees each).
-final removed = await keyStore.removeMany(keys);
-```
-
-The at_client adoption sites are
-`LocalSecondary.deleteExpiredKeys` (mass expiry sweep —
-~500 round-trips → 1 on a heavy sweep), `_cascadeFromParentDelete`,
-and `updateSharedWith`'s "unshare" loop.
-
-**Capability flag:** none. Every backend supports
-`removeMany` (Hive batches via `deleteAll`, SQL backends use
-single-statement `DELETE WHERE IN`). Performance differs by
-backend; semantics are identical.
-
-### Sub-phase 3e — `KeyStoreChange` + `changes` stream
-
-**New types** (in `at_persistence_secondary_server`):
-
-```dart
-sealed class KeyStoreChange { final String key; }
-final class KeyAdded extends KeyStoreChange { ... }
-final class KeyUpdated extends KeyStoreChange { ... }
-final class KeyRemoved extends KeyStoreChange { ... }
-```
-
-**New on `SecondaryKeyStore`:**
-
-```dart
-abstract interface class SecondaryKeyStore<K, V, T> ... {
-  /// Broadcast stream of every successful mutation that changes
-  /// the key set or stored value.
-  Stream<KeyStoreChange> get changes;
-}
-```
-
-The stream is broadcast: late subscribers don't see prior
-events; multiple subscribers each get every event independently.
-
-**Emission rules:**
-
-- `create()` → `KeyAdded(key)`.
-- `put()` update path → `KeyUpdated(key)`.
-- `putAll()` / `putMeta()` → `KeyAdded(key)` if the key didn't
-  previously exist, `KeyUpdated(key)` otherwise.
-- `remove(key)` (when the key was present) → `KeyRemoved(key)`.
-- `removeMany(keys)` → one `KeyRemoved` per actually-removed key.
-- Failed writes (exceptions) do NOT emit.
-- Bulk wipes (`bundle.clear()` etc.) do NOT emit per-key events
-  — they avoid flooding subscribers.
-
-**Hive impl** (`HiveSecondaryKeyStore` and
-`HiveAtNotificationKeystore`): single
-`StreamController<KeyStoreChange>.broadcast()` per keystore;
-emit synchronously after the box mutation succeeds.
-
-**SQL impl (Phase 4):** change-log table written by triggers,
-plus an iterator that yields new rows since the last seen.
-(Or `pragma data_version` for simpler change detection.)
-
-**Backward compat:** purely additive. No prior surface changed.
-
-**Before / after** — the at_client adoption (lands separately in
-the at_client_sdk session) simplifies
-`LocalSecondary.dataEvents` from a self-managed broadcast (with
-counter + drain waiters, added in commit `7820f99b6`) to a
-filter/transform over the keystore's stream:
-
-```dart
-// Before (client-side broadcast managed inside LocalSecondary):
-class LocalSecondary {
-  final _events = StreamController<DataEvent>.broadcast();
-  Stream<DataEvent> get dataEvents => _events.stream;
-  // _emit machinery, counter, drain waiters, putValue silence...
-}
-
-// After (5.0.0+): pure transform over keystore's changes stream.
-class LocalSecondary {
-  Stream<DataEvent> get dataEvents =>
-      keyStore.changes
-          .where(_isUserVisible)
-          .map(_toDataEvent);
-}
-```
-
-Two follow-on consequences for the at_client_sdk session:
-1. The `_emit` counter + drain waiters can be deleted; the
-   stream-level pendingEmissions equivalent moves to the keystore.
-2. `putValue`'s silence (currently load-bearing — see Risk #6
-   of the previously-shipped LocalSecondary plan) becomes a
-   deliberate filter at the LocalSecondary layer, not a
-   write-path branch on the keystore. Callers that need
-   `putValue` writes to be visible can subscribe to
-   `keyStore.changes` upstream of LocalSecondary's filter.
-
-**Capability flag:** none. Every backend emits change
-events.
-
-### Sub-phase 3f — `KeyStoreTxn` + `transaction()`
-
-**New types** (in `at_persistence_secondary_server`):
-
-```dart
-abstract class KeyStoreTxn<K, V, T> {
-  Future<void> put(K key, V value, T metadata);
-  Future<void> remove(K key);
-  Future<V?> get(K key);
-  Future<bool> exists(K key);
-}
-```
-
-**New on `SecondaryKeyStore`:**
-
-```dart
-abstract interface class SecondaryKeyStore<K, V, T> ... {
-  /// Run [body] as a transaction. Buffered ops applied at commit;
-  /// dropped on body throw. `changes` events fire only on commit.
-  Future<R> transaction<R>(Future<R> Function(KeyStoreTxn<K, V, T>) body);
-}
-```
-
-**Semantics:**
-
-- During the body, mutations on the txn handle are buffered in
-  memory. Reads via the same handle (`txn.get` / `txn.exists`)
-  reflect the buffered state on top of the underlying keystore.
-- If the body returns normally, the buffered ops are applied to
-  the keystore in body order. Each op fires its own `changes`
-  event as it commits. The body's return value is the
-  `transaction()` return value.
-- If the body throws, buffered ops are dropped, no `changes`
-  events fire, and the exception propagates to the caller.
-- Within the buffer, the latest op for a given key wins. A
-  put-then-remove on the same key inside one body produces a
-  remove at commit time (matching what would happen without the
-  transaction).
-- The handle is valid only for the body's duration. Stashing it
-  for use after `transaction()` returns is undefined behaviour.
-
-**Hive impl** (best-effort atomicity):
-
-- Per-flush durability — once Hive has flushed the box, the ops
-  are persistent.
-- A process crash mid-commit may leave the keystore with a subset
-  of the buffered ops applied. There's no rollback log. Document
-  and accept; SQL backends in Phase 4 close this gap.
-- Single-isolate consistency — within the body, no other coroutine
-  in the same isolate can see the buffered ops until commit
-  (because Dart microtasks are cooperatively scheduled).
-
-**Hive impl on the notification keystore**: same shape; the
-notification keystore has no commit log so the commit phase is
-strictly box-write + post-hooks + `changes` emission per op.
-
-**SQL impl (Phase 4):** `BEGIN IMMEDIATE` / op / op / `COMMIT`
-inside SQLite. Real atomicity. The `KeyStoreTxn.get` / `exists`
-calls execute against a snapshot view (read-committed by default;
-repeatable-read available for stronger isolation).
-
-**Backward compat:** purely additive. Single-key write paths
-(`put`, `remove`, `putAll`) remain — `transaction()` is for
-multi-write paths that need all-or-nothing semantics.
-
-**Before / after** — the at_client adoption (lands separately in
-the at_client_sdk session) wraps multi-write paths that today
-use idempotent retry / compensating writes:
-
-```dart
-// Before (4.x): _update + commit-log write are
-// in two separate awaits; a crash between them leaves the
-// keystore with the new value but the commit log un-bumped (or
-// vice versa for reads of an externally-written key).
-await keyStore.put(key, data);
-await commitLog.commit(key, CommitOp.UPDATE);
-
-// After (5.0.0+): atomic. Both happen at commit time, or
-// neither.
-await keyStore.transaction((txn) async {
-  await txn.put(key, data, metadata);
-  // Commit-log entry for this put fires implicitly when the
-  // buffered put commits — same shape as before, just
-  // guaranteed-paired now.
-});
-```
-
-The at_client adoption sites are
-`LocalSecondary._update` (+ commit-log write),
-`_persistToSharedWith` (share-walk where N recipients should all
-succeed or none),
-`_cascadeFromParentDelete` (cascade-delete sequence), and
-`updateSharedWith`'s share/unshare diff. `LocalSecondary._update`'s
-emit also moves inside the transaction — the `changes` stream
-sees the commit-time event, not a half-committed state.
-
-**Capability flag:** none on the abstract. Hive's "best-effort"
-atomicity is a documented weakening; consumers that require
-hard atomicity (e.g. for financial ledgers — not the at_client
-case) wait for SQLite. Within the at_client use cases (sync
-invariants, share-walks), Hive's per-isolate guarantee is
-sufficient.
-
-### Sub-phase 3g — ordered + paginated `scanKeys`
-
-**New types** (in `at_persistence_secondary_server`):
-
-```dart
-enum OrderByKey { byKey, byCreatedAt, byExpiresAt }
-```
-
-**Extended on `SecondaryKeyStore`:**
-
-```dart
-abstract interface class SecondaryKeyStore<K, V, T> ... {
-  Stream<String> scanKeys(
-    KeyPattern pattern, {
-    bool includeExpired = false,
-    OrderByKey? orderBy,    // NEW (default: null, backend's natural order)
-    int? limit,              // NEW (default: no limit)
-    int? skip,               // NEW (default: no skip)
-  });
-}
-```
-
-The original 3-arg call site
-`keyStore.scanKeys(pattern, includeExpired: x)` remains
-source-compatible — the new parameters have null defaults.
-
-**Semantics:**
-
-- `orderBy: null` (default) — backend's natural order. On Hive
-  this is lexicographic ascending (the B-tree's internal
-  key-bytes order). On SQL backends it's primary-key order.
-- `OrderByKey.byKey` — explicit lexicographic ascending; on Hive
-  this is materialise-and-sort.
-- `OrderByKey.byCreatedAt` / `byExpiresAt` — sort by the entry's
-  AtMetaData field. Entries with no expiry sort last under
-  `byExpiresAt`. On Hive this requires materialising every
-  matching entry (one LazyBox await per match) and sorting in
-  memory: O(N log N). SQL backends use indexed ORDER BY for
-  O(log N + matching).
-- `skip` discards the first N keys after ordering and pattern
-  filtering; `limit` caps the number of keys yielded after skip.
-- `skip + limit` together yield a window for pagination.
-
-**Hive impl** (`HiveSecondaryKeyStore`):
-
-- `null` / `byKey` path: streams via the existing iterate-and-filter
-  loop; for `byKey`, materialises and sorts before applying
-  skip+limit.
-- `byCreatedAt` / `byExpiresAt` path: builds a `(key, sortField)`
-  tuple per match (one LazyBox await each), sorts, applies
-  skip+limit. The cost is the trade-off for not maintaining
-  side indexes on Hive (consistent with the 3b departure).
-
-**Hive impl on the notification keystore**: same pattern. For
-notifications, `byCreatedAt` sorts on `notificationDateTime` and
-`byExpiresAt` on `expiresAt`.
-
-**SQL impl (Phase 4):** all four orderings translate into
-indexed `ORDER BY` clauses; SQLite's query planner handles
-skip+limit natively.
-
-**Backward compat:** purely additive on the abstract. Callers
-using the existing 3-arg form continue to compile and behave
-identically.
-
-**Before / after** — the at_client adoption (lands separately in
-the at_client_sdk session) unblocks the paginated delta-path in
-`Query.watch()`. Today
-(`packages/at_client/lib/src/collections/collections.dart:3014`):
-
-```dart
-// Before: Query.watch() bails to a full-refresh when limit/skip
-// is set, because there's no keystore-side primitive to
-// determine the new pagination boundary after a single-item
-// update.
-final usesDeltaPath =
-    _spec.limitN == null && _spec.skipN == null;
-
-// After (5.0.0+): paginated delta-path works.
-//   On a CItemUpdated, refresh the result-set window via:
-final newWindow = await keyStore.scanKeys(
-  pattern,
-  orderBy: OrderByKey.byKey,
-  limit: _spec.limitN,
-  skip: _spec.skipN,
-).toList();
-//   Bounded work proportional to `limit`, not full collection size.
-```
-
-The `// TODO(post-stable): add Query.startAfter(CItem) cursor
-pagination` comment in `collections.dart` becomes implementable:
-cursor pagination is a `KeyPattern` + `startAfter` parameter on
-`scanKeys` (a follow-up that builds on this primitive).
-
-**Capability flag:** none. Every backend supports
-ordered + paginated `scanKeys`. Hive's metadata-ordered paths
-are O(N log N) (sticking-plaster); SQL backends will be
-O(matching).
-
-### Sub-phase 3h — `queryByPath` + `supportsPathQueries`
-
-**This is the first primitive with a capability flag.** The
-abstract API ships in 5.0.0 so consumers (the at_client_sdk
-session) can write the call site once; on Hive the flag is
-`false` and consumers fall back to today's full-scan behaviour;
-on Phase 4's SQLite backend the flag flips to `true` and the
-same call site executes as an indexed query.
-
-**New types** (in `at_persistence_secondary_server`):
-
-```dart
-sealed class Predicate {
-  const Predicate();
-}
-
-final class PathEquals extends Predicate {
-  final List<String> path;       // dot-style accessor
-  final Object? expected;
-  const PathEquals(this.path, this.expected);
-}
-
-final class And extends Predicate {
-  final List<Predicate> children;  // empty = vacuously true
-  const And(this.children);
-}
-
-final class Or extends Predicate {
-  final List<Predicate> children;  // empty = vacuously false
-  const Or(this.children);
-}
-
-class KeyEntry<K, V, T> {
-  final K key;
-  final V data;
-  final T metadata;
-  const KeyEntry(this.key, this.data, this.metadata);
-}
-```
-
-The AST is intentionally minimal — Phase 4's SQLite backend
-drives whatever extensions (range queries, regex, IN-set, etc.)
-the actual indexed-query schema needs.
-
-**New on `SecondaryKeyStore`:**
-
-```dart
-abstract interface class SecondaryKeyStore<K, V, T> ... {
-  /// `true` when this backend pushes path predicates down to a
-  /// native indexed query plan; `false` when consumers must
-  /// fall back to scanKeys + in-memory filter.
-  bool get supportsPathQueries;
-
-  Stream<KeyEntry<K, V, T>> queryByPath({
-    required KeyPattern keyPattern,
-    required Predicate predicate,
-    OrderByKey? orderBy,
-    int? limit,
-    int? skip,
-  });
-}
-```
-
-**Hive impls:** `supportsPathQueries == false`. `queryByPath`
-throws `UnsupportedError`. Consumers MUST gate on the flag —
-calling `queryByPath` without checking is a programming bug.
-
-**SQL impl (Phase 4):** `supportsPathQueries == true`. Translates
-the `Predicate` AST into a SQL `WHERE` over `json_extract(value,
-'$.<path>')`, with an index on each declared path. Schema
-migration to declare those indexes is owned by the SQL backend's
-`initialize()`.
-
-**Backward compat:** purely additive on the abstract.
-`getKeys(regex:)`, `scanKeys`, and existing `wherePath`-style
-filtering in at_client all continue to work — `queryByPath` is
-strictly opt-in.
-
-**Before / after** — the at_client adoption (lands separately in
-the at_client_sdk session) updates `Query.wherePath` to push
-down on backends that advertise support:
-
-```dart
-// Before (4.x): every Query.wherePath fetches
-// every matching atKey, materialises the AtData, runs the
-// PathField predicate in Dart. The bucketed-Invoice example in
-// collections_invoices.dart is materialise-everything-then-filter.
-final keys = await keyStore.getKeys(regex: '...');
-final values = await Future.wait(keys.map(keyStore.get));
-final filtered = values.where((v) => predicate.match(v)).toList();
-
-// After (5.0.0+): backend-aware push-down with fallback.
-if (keyStore.supportsPathQueries) {
-  // SQLite path — indexed; sub-second on millions of rows.
-  await for (final entry in keyStore.queryByPath(
-    keyPattern: keyPattern,
-    predicate: _toPersistencePredicate(query.wherePathExpr),
-  )) {
-    yield entry.data;
-  }
-} else {
-  // Hive path — today's full-scan + in-memory filter.
-  // (Same shape as before, but factored behind a single
-  // capability check for clean SQLite uplift later.)
-}
-```
-
-The `path: ['obj', 'amount']` metadata each `PathField` carries
-in at_client is the introspection vehicle: `_toPersistencePredicate`
-walks at_client's existing AST and emits the
-`at_persistence_secondary_server` AST.
-
-**Capability flag:** YES. `supportsPathQueries` is the first
-flag of its kind — consumers gate on it. The pattern repeats in
-sub-phase 3i (`snapshots`, with similar Hive-stub / SQL-real
-shape).
-
-### Sub-phase 3i — `KeyStoreSnapshot` + `snapshot()`
-
-**New types** (in `at_persistence_secondary_server`):
-
-```dart
-abstract class KeyStoreSnapshot<K, V, T> {
-  /// On supportsSnapshots == true: snapshot-creation-time view.
-  /// On supportsSnapshots == false: live-state pass-through.
-  Future<V?> get(K key);
-  Stream<K> scanKeys(KeyPattern pattern);
-  Future<void> release();
-}
-```
-
-**New on `SecondaryKeyStore`:**
-
-```dart
-abstract interface class SecondaryKeyStore<K, V, T> ... {
-  bool get supportsSnapshots;
-  Future<KeyStoreSnapshot<K, V, T>> snapshot();
-}
-```
-
-**Hive impls:** `supportsSnapshots == false`. `snapshot()` returns
-a best-effort handle (`_HiveBestEffortSnapshot`) that delegates
-every call to the live keystore — there's no real MVCC. Reads
-through the handle reflect the keystore's current state at call
-time, not at snapshot-creation time. Calling methods after
-`release()` throws `StateError`. `release()` itself is
-idempotent.
-
-**SQL impl (Phase 4):** `supportsSnapshots == true`. Snapshot
-materialised via `BEGIN`/`COMMIT` with read-committed isolation
-(or repeatable-read for stronger guarantees). Real MVCC.
-
-**Backward compat:** purely additive on the abstract.
-
-**Before / after** — the at_client adoption (lands separately
-in the at_client_sdk session) wraps `Query.fetch()` in a
-snapshot for consistency:
-
-```dart
-// Before (4.x): a Query.fetch() over 1000 items
-// can yield mixed-version results if writes interleave with the
-// scan. The mutex serialiser inside Query.watch() (commit
-// d6c845d03) is the only consistency lever today.
-final items = <CItem>[];
-await for (final entry in keyStore.scanKeys(pattern)) {
-  items.add(decode(await keyStore.get(entry)));  // values may shift mid-scan
-}
-
-// After (5.0.0+): wrap in a snapshot. Real isolation on SQLite;
-// behaviour unchanged on Hive (the handle just delegates to
-// live state). The mutex serialiser stays as a Hive-side
-// belt-and-braces.
-final snap = await keyStore.snapshot();
-try {
-  final items = <CItem>[];
-  await for (final key in snap.scanKeys(pattern)) {
-    items.add(decode(await snap.get(key)));
-  }
-  return items;
-} finally {
-  await snap.release();
-}
-```
-
-The mutex serialiser inside `Query.watch()` (`collections.dart`,
-added in commit `d6c845d03`) gets a stronger underpinning on
-SQLite — its purpose is exactly to avoid races between
-event-driven updates and an in-flight refresh, which a snapshot
-resolves at the storage layer. On Hive it remains the primary
-defence.
-
-**Capability flag:** YES. `supportsSnapshots` mirrors
-`supportsPathQueries` — same gate-and-fall-back pattern.
-
-### Sub-phase 3j — `KeyStoreStats` + `stats()`
-
-**New types** (in `at_persistence_secondary_server`):
-
-```dart
-class KeyStoreStats {
-  final int totalKeys;
-  final int ttlKeys;
-  final int ttbKeys;
-  final int sizeBytes;       // 0 = "not reported" (Hive)
-  final DateTime? oldestCreatedAt;
-  final DateTime? newestCreatedAt;
-  const KeyStoreStats({...});
-}
-```
-
-**New on `SecondaryKeyStore`:**
-
-```dart
-abstract interface class SecondaryKeyStore<K, V, T> ... {
-  /// Diagnostic snapshot of the keystore's state. Not load-bearing.
-  Future<KeyStoreStats> stats();
-}
-```
-
-**Hive impl** (`HiveSecondaryKeyStore`): iterates the box once,
-counts `totalKeys`, `ttlKeys`, `ttbKeys` from `metaData.ttl` /
-`metaData.ttb`, and tracks min/max `createdAt`. `sizeBytes` is
-left at 0 (Hive doesn't expose a cheap on-disk byte count without
-a filesystem `stat`). Cost: O(N) async LazyBox awaits per call.
-
-**Hive impl on the notification keystore**: same shape, but
-`ttbKeys` is hardcoded to 0 (notifications have no `ttb`
-concept — they're queued outbound, no "available at" semantics).
-`oldestCreatedAt` / `newestCreatedAt` track
-`AtNotification.notificationDateTime`.
-
-**SQL impl (Phase 4):** indexed aggregate query —
-`SELECT COUNT(*), SUM(CASE WHEN ttl IS NOT NULL THEN 1 ELSE 0
-END), ..., MIN(createdAt), MAX(createdAt) FROM keystore`. O(log N)
-or O(1) for cached counts.
-
-**Backward compat:** purely additive.
-
-**Before / after** — the at_client adoption (lands separately
-in the at_client_sdk session) exposes `stats()` via a debug
-surface:
-
-```dart
-// New on AtClient:
-Future<AtClientDiagnostics> diagnostics() async {
-  return AtClientDiagnostics(
-    keyStoreStats: await persistenceBundle.keyStore.stats(),
-    notificationStats: await persistenceBundle
-        .notificationKeystore?.stats(),
-    // … other diagnostic surfaces.
-  );
-}
-```
-
-Useful for "your atSign is approaching capacity" warnings,
-startup-time logging, performance reports. Not load-bearing —
-diagnostic only.
-
-**Capability flag:** none. Every backend supports
-`stats`. Performance differs (Hive: O(N), SQL: O(log N) or O(1));
-semantics are identical.
-
----
-
-## Phase 3.5 — refactor and simplify persistence interfaces and usage
-
-Phase 3.5 ships alongside Phases 1, 2, and 3 in 5.0.0. Unlike
-Phase 3 (purely additive), Phase 3.5 includes **breaking changes**
-to the commit-log abstract API.
-
-### What changed
-
-1. **`AtCommitLog.getEntries` is removed.** Migrate to
-   `iterate(fromCommitId, where: closure)`. The closure carries
-   any caller-side filtering (regex, skipDeletesUntil, etc.) —
-   those semantics moved out of the commit-log abstraction and
-   into the consumer.
-
-   Before:
-   ```dart
-   final iter = commitLog.getEntries(fromCommitId,
-       regex: 'foo', skipDeletesUntil: 25);
-   while (iter.moveNext()) {
-     final entry = iter.current.value;
-     // ...
-   }
-   ```
-   After:
-   ```dart
-   await for (final entry in commitLog.iterate(
-       fromCommitId: fromCommitId,
-       where: (e) => RegExp('foo').hasMatch(e.atKey ?? ''))) {
-     // ...
-   }
-   ```
-
-2. **`HiveAtCommitLog.iterate` is now lazy.** Walks
-   `getBox().keys.skipWhile(<fromCommitId)` directly instead of
-   materialising the full log via `toMap()+sort`. No semantic
-   change for existing callers; perf improves significantly on
-   large logs.
-
-3. **`AtCommitLog.iterate` gains an optional `where:` predicate.**
-   Synchronous `bool Function(CommitEntry)?`; entries for which
-   the predicate returns false are skipped. Default `null` =
-   no filter. Existing migrator-flavour callers (no `where:`)
-   are unaffected.
-
-4. **`CommitLogCompactionService` and `CompactionSortedList` are
-   removed.** Their job — async batch removal of duplicate
-   commit entries per atKey — is now done eagerly by
-   `CommitLogKeyStore.add()` itself (delete-old-on-write). The
-   commit-log box satisfies the "at most one entry per atKey"
-   invariant at all times. Server consumers that registered the
-   compaction service as a change-event listener can simply
-   delete those calls.
-
-5. **Startup dedup migration**. `repairCommitLogAndCreateCachedMap`
-   now removes any legacy duplicate entries on init (cleaning up
-   data that pre-dates the inline-dedup invariant or was left
-   behind by interrupted writes). Idempotent; safe to run on
-   already-deduped data. Operators upgrading from earlier
-   versions will see a one-time `'Commit log dedup migration:
-   removed N duplicate entries'` log line on first start.
-
-### Why this lands in 5.0.0
-
-Per the project's deferred-version-bump rule, the entire
-persistence overhaul (Phases 1, 2, 3, 3.5) ships as a single
-5.0.0 release rather than per-sub-phase minor bumps. Consumers
-moving from 4.3.5 to 5.0.0 see Phases 1/2/3.5 (breaking +
-infrastructural) and Phase 3 (additive primitives) together.
-
----
-
-## Phase 3 overview — adopting the additive primitives
-
-Phase 3 of the persistence overhaul widens the abstract
-`SecondaryKeyStore` with ten new primitives (sub-phases 3a-3j)
-and three capability flags. Every Phase 3 change is **additive** —
-no 4.x API was removed by Phase 3, and no semantics changed for
-existing callers. (The breaking changes in 5.0.0 come from
-Phases 1, 2, and 3.5; see those sections.)
-
-A consumer that pinned `at_persistence_secondary_server: ^4.3.5`
-and bumps to `^5.0.0` sees:
-
-- Every existing call site (`get`, `put`, `remove`, `getKeys`,
-  `putAll`, `putMeta`, `isKeyExists`, etc.) compiles and runs
-  unchanged.
-- The wider abstract surface available via the bundle's
-  `keyStore` and `notificationKeystore`.
-- Two new capability flags to gate optional features:
-  - `supportsPathQueries` (sub-phase 3h) — backend can push
-    value-field predicates down to a native indexed query plan.
-  - `supportsSnapshots` (sub-phase 3i) — backend produces real
-    isolated snapshots.
-  - Both are `false` on Hive; Phase 4's SQL backend flips them
-    to `true`.
-
-**Cumulative addition table** (all primitives ship in 5.0.0):
-
-| Primitive                | Sub-phase | Behaviour on Hive          |
-|--------------------------|-----------|----------------------------|
-| `exists(key)`            | 3a        | Real (delegates to `Box.containsKey`). |
-| `KeyPattern` + `scanKeys`| 3b        | Real but iterates the box (no side index). O(box-size). |
-| `getMany(keys)`          | 3c        | Real but per-key LazyBox await. O(N). |
-| `removeMany(keys)`       | 3d        | Real, batched via `Box.deleteAll`. |
-| `changes` stream         | 3e        | Real, `StreamController.broadcast` per keystore. |
-| `transaction(body)`      | 3f        | Best-effort atomicity (per-flush durable; mid-commit crash can leave partial). |
-| ordered + paginated `scanKeys` | 3g  | Real (insertion / lex / metadata-sort), O(N log N) for metadata sort. |
-| `queryByPath` + `supportsPathQueries`     | 3h        | Stub (`false` flag, `UnsupportedError` on call). |
-| `snapshot` + `supportsSnapshots`          | 3i        | Best-effort (delegates to live state, `false` flag). |
-| `stats()`                | 3j        | Real, iterates the box (O(N)). |
-
-**`pubspec.yaml` change**: bump
-`at_persistence_secondary_server: ^4.3.5` → `^5.0.0`. Run
-`dart pub get`; no other action required for read-only users
-of the existing API. (Read the Phases 1, 2, and 3.5 sections
-for the breaking-change actions you may need to take.)
-
-**Adoption order for at_client_sdk** (separate session, see the
-sibling plan at `~/.claude/plans/better-cheaper-faster-at-client.md`):
-
-1. Sub-phase 3a / `exists` → `_selfKeyExists` in
-   `collections.dart`. ~1 line per call site.
-2. Sub-phase 3b / `scanKeys` → every regex-`getKeys` site in
-   `collections.dart` and the cascade / orphan walks.
-3. Sub-phase 3c / `getMany` → `getItemsAsStream`'s 1000-read
-   pattern, cascade reads.
-4. Sub-phase 3d / `removeMany` → `LocalSecondary.deleteExpiredKeys`,
-   cascade deletes.
-5. Sub-phase 3e / `changes` → `LocalSecondary.dataEvents`
-   becomes a filter/transform (deletes the in-LocalSecondary
-   broadcast machinery + the `_emit` counter / drain waiters).
-6. Sub-phase 3f / `transaction` → atomicity in `_update` +
-   commit-log write, share-walk, cascade-delete.
-7. Sub-phase 3g / ordered `scanKeys` → `Query.watch()`
-   paginated delta-path.
-8. Sub-phase 3h / `queryByPath` → `Query.wherePath` push-down
-   (gated on `supportsPathQueries`; falls back on Hive).
-9. Sub-phase 3i / `snapshot` → `Query.fetch()` consistency wrap.
-10. Sub-phase 3j / `stats` → `AtClient.diagnostics()` debug surface.
-
-Pairs 1, 3, 4, 6 are independent; 7 requires 2; 8 requires 2 and
-benefits from 6; 5, 9, 10 are independent. The sibling plan
-documents the per-pair adoption details.
-
-**Hive sticking-plaster summary.** Several Phase 3 primitives
-have Hive impls that are sub-optimal on Hive but provide the
-right API surface:
-
-- `scanKeys` filtering: O(box-size) iterate-and-filter (rather
-  than secondary indexes).
-- `getMany` / `stats`: per-key LazyBox await loops.
-- `transaction`: best-effort atomicity (no real rollback log).
-- `queryByPath`: throws on Hive; consumers fall back.
-- `snapshot`: best-effort delegate to live state.
-
-Phase 4's SQLite backend resolves all of these natively.
-Consumers don't need to change call sites when the backend
-swaps — the abstract API is identical.
+— used for `is HiveKeystore` guards and `getExpiredKeys()` /
+`getExpiryKeysCache()` (an `@visibleForTesting` member). The path
+itself is dead (the file moved to `src/impl/hive/hive_at_keyvalue_store.dart`),
+but more importantly the **reason** for the private import is gone:
+`getExpiredKeys()` is now a public `KeyValueStore` method, and `exists`
+/ `scanKeys` / `stats` cover the structured access at_client was
+reaching for. Replace the `is HiveKeystore` guards + private calls
+with the public abstract API; delete the `implementation_imports`
+ignore and the file-level `invalid_use_of_visible_for_testing_member`
+ignore.
+
+### 3.5 Async / streaming API changes
+
+- `getKeys({regex})` and `getExpiredKeys()` now return
+  `Future<Stream<String>>` — `await` the future, then consume the
+  stream (`await (await keyStore.getKeys()).toList()`).
+- `isKeyExists` is removed — `await keyStore.exists(key)`.
+- CRUD methods return `Future<int?>`; on a commit-log-free keystore
+  the result is always `null`. Any at_client code that treats the
+  return as a commit sequence number (or `as int`) must stop doing so.
+
+### 3.6 Compaction is deleted, not migrated
+
+`AtCompactionJob`, `AtCompactionConfig`, `AtCompactionService` and
+`AtCompactionStats` are **deleted** in 5.0.0. at_client's
+`at_commit_log_compaction.dart` (`AtClientCommitLogCompaction`), the
+`AtClientImpl.startCompactionJob` path, and the `MockAtCompactionJob`
+test double therefore do not compile.
+
+In a commit-log-free at_client there is **nothing to compact** — there
+is no commit log. Delete `at_commit_log_compaction.dart`, the
+`startCompactionJob` / `stopCompactionJob` surface on `AtClientImpl`,
+and the related tests outright. (If at_client ever needs to shed
+keystore entries, that is a keystore concern — `AtKeyValueStore`
+implements `Compactable` — not a separate job class.)
+
+### 3.7 The commit-log-free transition (work item B)
+
+Everything below currently touches the commit log and must be removed
+or re-pointed. The cursors at_client's sync service actually runs on
+(`_highestPushedCommitId`, `lastReceivedServerCommitId`, the
+`AtSyncQueue`) do **not** depend on the commit log — these residual
+uses are bookkeeping around them.
+
+**`sync_util.dart`** — the file's own header already marks the
+read-side scans (`getChangesSinceLastCommit`, `getEntry`, `isInSync`,
+`removeCommitEntry`) `@Deprecated` with no caller; delete them. The
+methods still live are all commit-log back-write / lookup:
+
+| Method                | Current role                                            | Commit-log-free disposition |
+|-----------------------|---------------------------------------------------------|-----------------------------|
+| `getCommitEntry`      | `_pullToLocal` finds the entry `executeVerb` appended   | remove — no entries exist   |
+| `updateCommitEntry`   | push + pull stamp the server commitId onto the entry    | remove — nothing to stamp   |
+| `getLastSyncedEntry`  | commitId high-water mark for downstream / functional tests | replace the high-water source (see below) |
+| `getLatestCommitEntry`| `_pushFromSyncQueue` finds the entry to stamp           | remove                      |
+
+**`sync_service_impl.dart`** — drop the
+`AtCommitLogManagerImpl.getInstance().getCommitLog(atSign)` lookup and
+the `commitLogSeqNum` plumbing on queue entries. The push decision is
+already `AtSyncQueue`-driven; what remains is removing the commitId
+back-writes that follow a successful push/pull.
+
+**`local_secondary.dart`** — `_removeOrphanedCommitLogEntry` (and its
+`commitLogKeyStore.remove`) has no meaning without a commit log;
+delete it.
+
+**The high-water mark.** at_client's sync correctness needs a "what
+have I sync'd up to" marker. Today that is the commitId stamped on
+commit-log entries; `getLastSyncedEntry` reads it back. Commit-log-free,
+this marker must live somewhere else — a dedicated key in the keystore,
+or in-memory state owned by the sync service. **Designing that marker
+is at_client's call and is out of scope for this guide** — but it is
+the one piece of section B that is a genuine design decision rather
+than a deletion. Every other commit-log use above is removed outright.
+
+### 3.8 Tests
+
+The sweep is wide — ~19 `at_client/test/` files plus four functional
+tests import the package. Patterns:
+
+- Test fixtures that build a keystore via the singleton dance →
+  factory + `HivePersistenceConfig.clientDefaults`. Use a file-scoped
+  factory with `tearDownAll` close and per-test `bundle.clear()` for
+  isolation.
+- `sync_new_test.dart` casts to `HiveKeystore` and asserts on commit
+  entries (`getChanges`, `getEntry`, `lastCommittedSequenceNumber`) in
+  40+ places — these assert against a substrate that no longer exists.
+  They must be rewritten against the new sync-state model from §3.7,
+  or retired.
+- `commit_log_compaction_test.dart` (end2end + functional) tests a
+  feature that is being deleted — retire it.
+- Run with `dart test --concurrency=1` (atsign repos share Hive box
+  state by atSign across parallel runs).
+
+### 3.9 Verification
+
+The migration is done when:
+
+1. `git grep -nE 'getInstance\(\)|SecondaryKeyStoreManager|HivePersistenceManager|AtCompactionJob|implementation_imports' -- packages/at_client/lib`
+   returns nothing.
+2. No `lib/` reference to `commitLog`, `CommitEntry`, `getChanges`,
+   `commitLogKeyStore` survives outside the new sync-state model.
+3. `dart analyze` is clean across `at_client_sdk`.
+4. `dart test --concurrency=1` passes in every package.
+5. The functional test pack passes (`tests/at_functional_test/runLocal.sh`).
+6. Smoke test: a write on one client syncs to the server and pulls to
+   a second client — with `bundle.keyValueStore.commitLog == null` on
+   both.
