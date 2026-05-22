@@ -67,9 +67,17 @@ Major release: persistence-overhaul. Themes:
   yields the results. The synchronous `isKeyExists` is removed —
   use the async `exists` (the two were duplicates; `exists` is
   the backend-agnostic shape SQL backends need).
-- **`AtKeyValueStore.commitLog` is nullable.** Server bundles
-  hold a non-null commit log on the keystore; client bundles
-  hold `null` (sync via fsync or other mechanism). The server's
+- **`AtKeyValueStore.commitLog` is nullable, end to end.**
+  Server bundles hold a non-null commit log on the keystore;
+  client bundles hold `null` (sync via fsync or other
+  mechanism). `AtPersistenceConfig.enableCommitLog` (default
+  `true`; `serverDefaults` → `true`, `clientDefaults` → `false`)
+  selects which — when `false` the factory builds the keystore
+  commit-log-free and never opens the commit-log box.
+  `HiveAtKeyValueStore` honours a `null` commit log throughout:
+  `put` / `create` / `putAll` / `putMeta` / `remove` /
+  `removeMany` succeed and return `null` (no sequence number),
+  and `compact()` is a no-op that yields nothing. The server's
   bootstrap asserts non-null once and binds to a non-nullable
   local for downstream consumers.
 - **Bundle no longer exposes the commit log directly.**
