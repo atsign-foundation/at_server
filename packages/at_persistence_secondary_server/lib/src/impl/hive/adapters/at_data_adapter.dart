@@ -1,6 +1,6 @@
 import 'package:hive/hive.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/utils/type_adapter_util.dart';
+import 'package:at_persistence_secondary_server/src/impl/hive/adapters/type_adapter_util.dart';
 
 class AtDataAdapter extends TypeAdapter<AtData> {
   @override

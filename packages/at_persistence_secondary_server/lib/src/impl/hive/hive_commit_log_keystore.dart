@@ -1,19 +1,35 @@
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
+import 'package:at_persistence_secondary_server/hive.dart';
+import 'package:at_persistence_secondary_server/src/impl/hive/hive_base.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
 import 'package:meta/meta.dart';
 
 @server
-class CommitLogKeyStore extends BaseCommitLogKeyStore {
+class HiveCommitLogKeyStore with HiveBase<CommitEntry?> {
+  late String _boxName;
+  String currentAtSign;
   final _logger = AtSignLogger('CommitLogKeyStore');
-  late CommitLogCache commitLogCache;
+  late HiveCommitLogCache commitLogCache;
 
   int get latestCommitId => commitLogCache.latestCommitId;
 
-  CommitLogKeyStore(super.currentAtSign) {
-    commitLogCache = CommitLogCache(this);
+  HiveCommitLogKeyStore(this.currentAtSign) {
+    commitLogCache = HiveCommitLogCache(this);
+  }
+
+  Future<CommitEntry?> get(int commitId) async {
+    try {
+      final entry = await getValue(commitId);
+      entry?.key = commitId;
+      return entry;
+    } on Exception catch (e) {
+      throw DataStoreException('Exception get entry:${e.toString()}');
+    } on HiveError catch (e) {
+      throw DataStoreException(
+          'Hive error getting entry from commit log:${e.toString()}');
+    }
   }
 
   @override
@@ -102,10 +118,16 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     return entries;
   }
 
-  @override
   Future<void> remove(int commitEntryIndex) async {
     CommitEntry? commitEntry = (getBox() as Box).get(commitEntryIndex);
-    await super.remove(commitEntryIndex);
+    try {
+      await getBox().delete(commitEntryIndex);
+    } on Exception catch (e) {
+      throw DataStoreException('Exception deleting entry:${e.toString()}');
+    } on HiveError catch (e) {
+      throw DataStoreException(
+          'Hive error deleting entry from commit log:${e.toString()}');
+    }
     // On removing the entry from commit log keystore, remove the stale entries from
     // commit log cache map
     if (commitEntry != null) {
@@ -164,58 +186,6 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
     if (!isKeyLatest) {
       expiredKeys.add(entry);
     }
-  }
-
-  /// True if [atKey] should be included in a sync response for
-  /// [regex] (and, if non-null, [enrolledNamespace]). The atKey is
-  /// included when its namespace is authorised for the enrollment
-  /// AND it either matches the regex or is in the always-include
-  /// set (encryption-shared/-public keys, top-level public keys
-  /// without a namespace).
-  bool _shouldIncludeKeyInSyncResponse(String atKey, String regex,
-      {List<String>? enrolledNamespace}) {
-    return _isNamespaceAuthorised(atKey, enrolledNamespace) &&
-        (RegExp(regex).hasMatch(atKey) || _alwaysIncludeInSync(atKey));
-  }
-
-  /// True when the atKey's namespace is in [enrolledNamespace] (or
-  /// when authorisation is effectively unrestricted: caller passed
-  /// null/empty, or the atKey carries no namespace, or the
-  /// enrollment is a wildcard '*'). The bare 'configkey' is
-  /// always authorised — see github.com/atsign-foundation/at_server/issues/1570.
-  bool _isNamespaceAuthorised(
-      String atKeyAsString, List<String>? enrolledNamespace) {
-    if (atKeyAsString.toLowerCase() == 'configkey') {
-      return true;
-    }
-    late AtKey atKey;
-    try {
-      atKey = AtKey.fromString(atKeyAsString);
-    } on InvalidSyntaxException catch (_) {
-      _logger.warning(
-          '_isNamespaceAuthorised found an invalid key "$atKeyAsString" in the commit log. Returning false');
-      return false;
-    }
-    final keyNamespace = atKey.namespace;
-    if (enrolledNamespace == null ||
-        enrolledNamespace.isEmpty ||
-        keyNamespace == null ||
-        keyNamespace.isEmpty) {
-      return true;
-    }
-    return enrolledNamespace.contains('*') ||
-        enrolledNamespace.contains(keyNamespace);
-  }
-
-  /// AtKeys that are always included in sync responses regardless
-  /// of any caller-supplied regex: encryption shared keys,
-  /// encryption public keys, and top-level public keys without a
-  /// namespace (e.g. `public:phone@alice`).
-  bool _alwaysIncludeInSync(String atKey) {
-    return (atKey.contains(AtConstants.atEncryptionSharedKey) &&
-            RegexUtil.keyType(atKey, false) == KeyType.reservedKey) ||
-        atKey.startsWith(AtConstants.atEncryptionPublicKey) ||
-        (atKey.startsWith('public:') && !atKey.contains('.'));
   }
 
   /// Returns the latest commitEntry of the key.
@@ -359,189 +329,11 @@ class CommitLogKeyStore extends BaseCommitLogKeyStore {
   }
 }
 
-abstract class BaseCommitLogKeyStore with HiveBase<CommitEntry?> {
-  late String _boxName;
-  String currentAtSign;
-
-  BaseCommitLogKeyStore(this.currentAtSign);
-
-  Future<CommitEntry?> get(int commitId) async {
-    try {
-      final entry = await getValue(commitId);
-      entry?.key = commitId;
-      return entry;
-    } on Exception catch (e) {
-      throw DataStoreException('Exception get entry:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error getting entry from commit log:${e.toString()}');
-    }
-  }
-
-  Future<void> remove(int commitEntryIndex) async {
-    try {
-      await getBox().delete(commitEntryIndex);
-    } on Exception catch (e) {
-      throw DataStoreException('Exception deleting entry:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error deleting entry from commit log:${e.toString()}');
-    }
-  }
-
-  Future<void> update(int commitId, CommitEntry? commitEntry) {
-    throw UnimplementedError();
-  }
-
-  /// Returns the list of commit entries greater than [sequenceNumber]
-  /// throws [DataStoreException] if there is an exception getting the commit entries
-  Future<List<CommitEntry>> getChanges(int sequenceNumber,
-      {String? regex, int? limit}) async {
-    throw UnimplementedError();
-  }
-}
-
-@client
-class ClientCommitLogKeyStore extends CommitLogKeyStore {
-  /// Contains the entries that are last synced by the client SDK.
-
-  /// The key represents the regex and value represents the [CommitEntry]
-  final _lastSyncedEntryCacheMap = <String, CommitEntry>{};
-
-  ClientCommitLogKeyStore(super.currentAtSign);
-
-  /// Initializes the key store and makes it ready for the persistence
-  @override
-  Future<void> initialize() async {
-    _boxName = 'commit_log_${AtUtils.getShaForAtSign(currentAtSign)}';
-    if (!Hive.isAdapterRegistered(CommitEntryAdapter().typeId)) {
-      Hive.registerAdapter(CommitEntryAdapter());
-    }
-    if (!Hive.isAdapterRegistered(CommitOpAdapter().typeId)) {
-      Hive.registerAdapter(CommitOpAdapter());
-    }
-    await super.openBox(_boxName);
-    _logger.finer('Commit log key store is initialized');
-  }
-
-  /// Adds a [CommitEntry] to the commitlog
-  /// Returns numeric value generated as the key to persist the data
-  @override
-  Future<int> add(CommitEntry? commitEntry) async {
-    return await getBox().add(commitEntry);
-  }
-
-  /// Updates the [commitEntry.commitId] with the given [commitId].
-  ///
-  /// This method is only called by the client(s) because when a key is created on the
-  /// client side, a record is created in the [CommitLogKeyStore] with a null commitId.
-  /// At the time sync, a key is created/updated in cloud secondary server and generates
-  /// the commitId sends it back to client which the gets updated against the commitEntry
-  /// of the key synced.
-  ///
-  @override
-  Future<void> update(int commitId, CommitEntry? commitEntry) async {
-    try {
-      commitEntry!.commitId = commitId;
-      await getBox().put(commitEntry.key, commitEntry);
-      if (_lastSyncedEntryCacheMap.isEmpty) {
-        return;
-      }
-      // Iterate through the regex's in the _lastSyncedEntryCacheMap.
-      // Updates the commitEntry against the matching regexes.
-      for (var regex in _lastSyncedEntryCacheMap.keys) {
-        if (_shouldIncludeKeyInSyncResponse(commitEntry.atKey!, regex)) {
-          _lastSyncedEntryCacheMap[regex] = commitEntry;
-        }
-      }
-    } on Exception catch (e) {
-      throw DataStoreException('Exception updating entry:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error updating entry to commit log:${e.toString()}');
-    }
-  }
-
-  @override
-  Future<List<CommitEntry>> getChanges(int sequenceNumber,
-      {String? regex, int? limit}) async {
-    try {
-      if (getBox().isEmpty) {
-        return <CommitEntry>[];
-      }
-      var changes = <CommitEntry>[];
-      var regexString = (regex != null) ? regex : '';
-      var entries = (getBox() as Box).toMap();
-      var startKey = sequenceNumber + 1;
-      limit ??= entries.length + 1;
-      for (final mapEntry in entries.entries) {
-        final boxKey = mapEntry.key as int;
-        final CommitEntry element = mapEntry.value;
-        element.key = boxKey;
-        if (boxKey >= startKey &&
-            _shouldIncludeKeyInSyncResponse(element.atKey!, regexString) &&
-            changes.length <= limit) {
-          if (element.commitId == null) {
-            changes.add(element);
-          }
-        }
-      }
-      return changes;
-    } on Exception catch (e) {
-      throw DataStoreException('Exception getting changes:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error adding to commit log:${e.toString()}');
-    }
-  }
-
-  /// Returns the lastSyncedEntry to the local secondary commitLog keystore by the clients.
-  ///
-  /// Optionally accepts the regex. Matches the regex against the [CommitEntry.AtKey] and returns the
-  /// matching [CommitEntry]. Defaulted to accept all patterns.
-  ///
-  /// This is used by the clients which have local secondary keystore. Not used by the secondary server.
-  Future<CommitEntry?> lastSyncedEntry({String regex = '.*'}) async {
-    CommitEntry? lastSyncedEntry;
-    if (_lastSyncedEntryCacheMap.containsKey(regex)) {
-      lastSyncedEntry = _lastSyncedEntryCacheMap[regex];
-      _logger.finer(
-          'Returning the lastSyncedEntry matching regex $regex from cache. lastSyncedKey : ${lastSyncedEntry!.atKey} with commitId ${lastSyncedEntry.commitId}');
-      return lastSyncedEntry;
-    }
-    var values = (getBox() as Box).values.toList()..sort(_sortByCommitId);
-    if (values.isEmpty) {
-      return null;
-    }
-    // Returns the commitEntry with maximum commitId matching the given regex.
-    // otherwise returns NullCommitEntry
-    lastSyncedEntry = values.lastWhere(
-        (entry) => (_shouldIncludeKeyInSyncResponse(entry!.atKey!, regex) &&
-            (entry.commitId != null)),
-        orElse: () => NullCommitEntry());
-
-    if (lastSyncedEntry == null || lastSyncedEntry is NullCommitEntry) {
-      _logger.finer('Unable to fetch lastSyncedEntry. Returning null');
-      return null;
-    }
-
-    _logger.finer(
-        'Updating the lastSyncedEntry matching regex $regex to the cache. Returning lastSyncedEntry with key : ${lastSyncedEntry.atKey} and commitId ${lastSyncedEntry.commitId}');
-    _lastSyncedEntryCacheMap.putIfAbsent(regex, () => lastSyncedEntry!);
-    return lastSyncedEntry;
-  }
-
-  ///Not a part of API. Exposed for Unit test
-  List<CommitEntry> getLastSyncedEntryCacheMapValues() {
-    return _lastSyncedEntryCacheMap.values.toList();
-  }
-}
-
-class CommitLogCache {
+class HiveCommitLogCache {
   final _logger = AtSignLogger('CommitLogCache');
 
   // [CommitLogKeyStore] for which the cache is being maintained
-  CommitLogKeyStore commitLogKeyStore;
+  HiveCommitLogKeyStore commitLogKeyStore;
 
   // A Map implementing a LinkedHashMap to preserve the insertion order.
   // "{}" is collection literal to represent a LinkedHashMap.
@@ -553,7 +345,7 @@ class CommitLogCache {
 
   int get latestCommitId => _latestCommitId;
 
-  CommitLogCache(this.commitLogKeyStore);
+  HiveCommitLogCache(this.commitLogKeyStore);
 
   /// Initializes the CommitLogCache
   void initialize() {

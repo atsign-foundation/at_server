@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/hive.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -314,7 +315,6 @@ void main() {
         '@alice',
         HivePersistenceConfig.clientDefaults(
           storagePath: '${tempDir.path}/hive',
-          commitLogPath: '${tempDir.path}/commitLog',
         ),
       );
       expect(bundle.accessLog, isNull);

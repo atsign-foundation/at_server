@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/hive.dart';
 import 'package:test/expect.dart';
 import 'package:test/scaffolding.dart';
 
@@ -206,6 +207,6 @@ Future<HiveAtKeyValueStore> getKeystoreManager(
   atsign, {
   required bool optimizeCommits,
 }) =>
-    setUpTestKeyStore(atsign, storageDir: storageDir, enableCommitId: true);
+    setUpTestKeyStore(atsign, storageDir: storageDir);
 
 Future<void> tearDownFunc() => tearDownTestPersistence(storageDir: 'test/hive');

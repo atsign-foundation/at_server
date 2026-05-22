@@ -1,20 +1,20 @@
 import 'dart:collection';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
-import 'package:at_persistence_secondary_server/src/log/accesslog/access_entry.dart';
+import 'package:at_persistence_secondary_server/hive.dart';
+import 'package:at_persistence_secondary_server/src/impl/hive/hive_base.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
 
 export 'package:at_persistence_secondary_server/src/spec/spec.dart';
 
-class AccessLogKeyStore
+class HiveAccessLogKeyStore
     with HiveBase<AccessLogEntry?>
     implements LogKeyStore<int, AccessLogEntry?> {
   final String _currentAtSign;
   late String _boxName;
 
-  AccessLogKeyStore(this._currentAtSign);
+  HiveAccessLogKeyStore(this._currentAtSign);
 
   @override
   Future<void> initialize() async {

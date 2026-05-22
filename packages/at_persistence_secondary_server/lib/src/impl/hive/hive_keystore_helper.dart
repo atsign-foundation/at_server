@@ -1,5 +1,5 @@
-import 'package:at_persistence_secondary_server/src/model/at_data.dart';
-import 'package:at_persistence_secondary_server/src/model/at_metadata_builder.dart';
+import 'package:at_persistence_secondary_server/src/spec/keystore/at_data.dart';
+import 'package:at_persistence_secondary_server/src/spec/keystore/at_metadata_builder.dart';
 import 'package:at_utf7/at_utf7.dart';
 
 /// Pure utility functions used by the Hive-backed keystore. The

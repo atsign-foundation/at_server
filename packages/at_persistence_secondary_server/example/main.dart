@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/hive.dart';
 
 Future<void> main(List<String> arguments) async {
   final storageDir = '${Directory.current.path}/example/hive';

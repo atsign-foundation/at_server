@@ -3,7 +3,8 @@
 import 'dart:async';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_base.dart';
+import 'package:at_persistence_secondary_server/hive.dart';
+import 'package:at_persistence_secondary_server/src/impl/hive/hive_base.dart';
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:hive/hive.dart';
@@ -441,6 +442,7 @@ abstract class _NotifBufferedOp {
 class _NotifBufferedPut implements _NotifBufferedOp {
   final dynamic key;
   final dynamic value;
+
   _NotifBufferedPut(this.key, this.value);
 
   @override
@@ -451,6 +453,7 @@ class _NotifBufferedPut implements _NotifBufferedOp {
 
 class _NotifBufferedRemove implements _NotifBufferedOp {
   final dynamic key;
+
   _NotifBufferedRemove(this.key);
 
   @override

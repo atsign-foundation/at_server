@@ -1,24 +1,25 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/log/commitlog/commit_log_keystore.dart';
 import 'package:at_utf7/at_utf7.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
+
+import 'hive_commit_log_keystore.dart';
 
 /// Hive-backed implementation of [AtCommitLog] for the server side.
 @server
 class HiveAtCommitLog extends AtCommitLog {
   var logger = AtSignLogger('HiveAtCommitLog');
 
-  late CommitLogKeyStore _commitLogKeyStore;
+  late HiveCommitLogKeyStore _commitLogKeyStore;
 
   /// Per-pass percentage of entries to drop when compaction is
   /// invoked. Captured from `AtSecondaryConfig` at factory time;
   /// immutable per instance.
   final int compactionPercentage;
 
-  CommitLogKeyStore get commitLogKeyStore => _commitLogKeyStore;
+  HiveCommitLogKeyStore get commitLogKeyStore => _commitLogKeyStore;
 
-  HiveAtCommitLog(CommitLogKeyStore keyValueStore,
+  HiveAtCommitLog(HiveCommitLogKeyStore keyValueStore,
       {this.compactionPercentage = 30}) {
     _commitLogKeyStore = keyValueStore;
   }
@@ -114,7 +115,7 @@ class HiveAtCommitLog extends AtCommitLog {
     return _commitLogKeyStore.getLatestCommitEntry(key);
   }
 
-  /// Closes the [CommitLogKeyStore] instance.
+  /// Closes the [HiveServerCommitLogKeyStore] instance.
   @override
   @server
   Future<void> close() async {
@@ -151,79 +152,5 @@ class HiveAtCommitLog extends AtCommitLog {
   @override
   String toString() {
     return runtimeType.toString();
-  }
-
-  /// Returns the list of commit entries greater than [sequenceNumber]
-  /// throws [DataStoreException] if there is an exception getting the commit entries
-  @override
-  Future<Stream<CommitEntry>> getChanges(int? sequenceNumber, String? regex,
-      {int? limit}) async {
-    throw UnimplementedError('');
-  }
-}
-
-@client
-class HiveClientAtCommitLog extends HiveAtCommitLog {
-  HiveClientAtCommitLog(super.keyValueStore);
-
-  /// Returns the commit entry for a given commit sequence number
-  /// throws [DataStoreException] if there is an exception getting the commit entry
-  @override
-  Future<CommitEntry?> getEntry(int? sequenceNumber) async {
-    try {
-      var commitEntry = await _commitLogKeyStore.get(sequenceNumber!);
-      return commitEntry;
-    } on Exception catch (e) {
-      throw DataStoreException('Exception getting entry:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error adding to commit log:${e.toString()}');
-    }
-  }
-
-  @override
-  Future<void> update(CommitEntry commitEntry, int commitId) async {
-    try {
-      await _commitLogKeyStore.update(commitId, commitEntry);
-    } on Exception catch (e) {
-      throw DataStoreException('Exception updating entry:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error updating entry to commit log:${e.toString()}');
-    }
-  }
-
-  @override
-  Future<CommitEntry?> lastSyncedEntry() async {
-    return await (_commitLogKeyStore as ClientCommitLogKeyStore)
-        .lastSyncedEntry();
-  }
-
-  @override
-  Future<CommitEntry?> lastSyncedEntryWithRegex(String regex) async {
-    return await (_commitLogKeyStore as ClientCommitLogKeyStore)
-        .lastSyncedEntry(regex: regex);
-  }
-
-  /// Returns the list of commit entries greater than [sequenceNumber]
-  /// throws [DataStoreException] if there is an exception getting the commit entries
-  @override
-  Future<Stream<CommitEntry>> getChanges(int? sequenceNumber, String? regex,
-      {int? limit}) async {
-    List<CommitEntry> changes;
-    try {
-      changes = await _commitLogKeyStore.getChanges(sequenceNumber!,
-          regex: regex, limit: limit);
-    } on Exception catch (e) {
-      throw DataStoreException('Exception getting changes:${e.toString()}');
-    } on HiveError catch (e) {
-      throw DataStoreException(
-          'Hive error adding to commit log:${e.toString()}');
-    }
-    // ignore: unnecessary_null_comparison
-    if (changes == null) {
-      return const Stream.empty();
-    }
-    return Stream.fromIterable(changes);
   }
 }

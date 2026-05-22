@@ -3,10 +3,11 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/hive.dart';
 import 'package:at_secondary/src/compaction/at_compaction_stats_service_impl.dart';
 import 'package:test/test.dart';
 
-/// Unit-tests for [AtCompactionStatsServiceImpl] — the
+/// Unit-tests for [AtCompactionStatsService] — the
 /// at_secondary-shaped sink that persists per-compaction-pass
 /// metrics as atKeys in the keystore. The compaction itself is
 /// exercised on each resource's `compact()` method in
@@ -66,7 +67,7 @@ void main() {
       final count = await _runCompaction(_commitLog);
       final duration = DateTime.timestamp().difference(start);
 
-      await AtCompactionStatsServiceImpl(_keyValueStore).record(
+      await AtCompactionStatsService(_keyValueStore).record(
         label: 'commitLog',
         start: start,
         compactedCount: count,
@@ -96,7 +97,7 @@ void main() {
       final count = await _runCompaction(_accessLog);
       final duration = DateTime.timestamp().difference(start);
 
-      await AtCompactionStatsServiceImpl(_keyValueStore).record(
+      await AtCompactionStatsService(_keyValueStore).record(
         label: 'accessLog',
         start: start,
         compactedCount: count,
@@ -116,7 +117,7 @@ void main() {
 
     test('verify notificationKeyStore stats in keystore', () async {
       final start = DateTime.now();
-      await AtCompactionStatsServiceImpl(_keyValueStore).record(
+      await AtCompactionStatsService(_keyValueStore).record(
         label: 'notificationKeystore',
         start: start,
         compactedCount: 239,
@@ -134,11 +135,11 @@ void main() {
 
   group('Per-resource persistence key selection', () {
     test('label-to-key map covers all three resources', () {
-      expect(AtCompactionStatsServiceImpl.labelToKey['commitLog'],
+      expect(AtCompactionStatsService.labelToKey['commitLog'],
           AtConstants.commitLogCompactionKey);
-      expect(AtCompactionStatsServiceImpl.labelToKey['accessLog'],
+      expect(AtCompactionStatsService.labelToKey['accessLog'],
           AtConstants.accessLogCompactionKey);
-      expect(AtCompactionStatsServiceImpl.labelToKey['notificationKeystore'],
+      expect(AtCompactionStatsService.labelToKey['notificationKeystore'],
           AtConstants.notificationCompactionKey);
     });
   });

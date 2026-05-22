@@ -1,5 +1,3 @@
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart'
-    show AtCommitLog;
 import 'package:at_persistence_secondary_server/src/spec/spec.dart';
 
 /// The at_server-flavour key-value store. Extends [KeyValueStore]

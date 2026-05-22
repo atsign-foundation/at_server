@@ -1,7 +1,9 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/log/accesslog/access_log_keystore.dart';
-import 'package:at_persistence_secondary_server/src/log/commitlog/commit_log_keystore.dart';
+import 'package:at_persistence_secondary_server/hive.dart';
+import 'package:at_persistence_secondary_server/src/impl/hive/hive_commit_log_keystore.dart';
 import 'package:at_utils/at_logger.dart';
+
+import 'hive_access_log_keystore.dart';
 
 /// Hive-backed [AtPersistenceFactory]. Produces
 /// [HiveAtPersistenceBundle] instances and owns their lifecycle.
@@ -27,26 +29,15 @@ class HiveAtPersistenceFactory implements AtPersistenceFactory {
 
     _logger.info('Initialising Hive persistence for $atSign');
 
-    // 1. Commit log (always present — core capability). The
-    //    "client" flavour stores commitIds assigned by the server
-    //    side via update(...); the "server" flavour auto-assigns
-    //    on commit().
-    final HiveAtCommitLog commitLog;
-    final CommitLogKeyStore commitLogKeyStore;
-    if (config.enableCommitId) {
-      commitLogKeyStore = CommitLogKeyStore(atSign);
-      await commitLogKeyStore.init(config.commitLogPath, isLazy: false);
-      commitLog = HiveAtCommitLog(commitLogKeyStore);
-    } else {
-      commitLogKeyStore = ClientCommitLogKeyStore(atSign);
-      await commitLogKeyStore.init(config.commitLogPath, isLazy: false);
-      commitLog = HiveClientAtCommitLog(commitLogKeyStore);
-    }
+    final HiveCommitLogKeyStore commitLogKeyStore =
+        HiveCommitLogKeyStore(atSign);
+    await commitLogKeyStore.init(config.commitLogPath, isLazy: false);
+    final HiveAtCommitLog commitLog = HiveAtCommitLog(commitLogKeyStore);
 
     // 2. Access log (optional capability).
     HiveAtAccessLog? accessLog;
     if (config.enableAccessLog) {
-      final accessLogKeyStore = AccessLogKeyStore(atSign);
+      final accessLogKeyStore = HiveAccessLogKeyStore(atSign);
       await accessLogKeyStore.init(config.accessLogPath);
       accessLog = HiveAtAccessLog(accessLogKeyStore);
     }

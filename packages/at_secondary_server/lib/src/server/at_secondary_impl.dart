@@ -6,6 +6,7 @@ import 'dart:math';
 
 import 'package:at_commons/at_commons.dart' hide StringBuffer;
 import 'package:at_lookup/at_lookup.dart';
+import 'package:at_persistence_secondary_server/hive.dart';
 import 'package:cron/cron.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
@@ -239,7 +240,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // persistence layer): the Timer ticks, drains the resource's
     // compact(false) stream with an overlap guard, and records
     // primitives to a stats service.
-    final statsService = AtCompactionStatsServiceImpl(keyValueStore);
+    final statsService = AtCompactionStatsService(keyValueStore);
     if (AtSecondaryConfig.enableCommitLogCompactor) {
       _scheduleCompaction(
         commitLog,
@@ -503,7 +504,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           'inbound_max_limit change received. Modifying inbound_max_limit of server to $newSize');
     });
 
-    final statsService = AtCompactionStatsServiceImpl(keyValueStore);
+    final statsService = AtCompactionStatsService(keyValueStore);
 
     //subscriber for notification keystore compaction freq change
     logger.finest(

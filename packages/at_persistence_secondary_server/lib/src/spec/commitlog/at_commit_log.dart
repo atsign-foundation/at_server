@@ -1,4 +1,3 @@
-import 'package:at_persistence_secondary_server/src/log/commitlog/commit_entry.dart';
 import 'package:at_persistence_secondary_server/src/spec/spec.dart';
 
 /// Abstract contract for a commit log: an append-style record of
@@ -68,32 +67,4 @@ abstract class AtCommitLog implements Compactable {
   /// `VACUUM`) instead.
   @override
   Stream<int> compact(bool dryRun);
-
-  // ----- Client-flavour members (default-throwing) -----
-  //
-  // The client-side commit log differs from the server-side one in
-  // a few methods (commitId is assigned by the server and replayed
-  // locally, not auto-incremented). These methods throw by default;
-  // the client-flavour Hive impl overrides them.
-
-  Future<CommitEntry?> lastSyncedEntry() async {
-    throw UnimplementedError();
-  }
-
-  Future<CommitEntry?> lastSyncedEntryWithRegex(String regex) async {
-    throw UnimplementedError();
-  }
-
-  Future<CommitEntry?> getEntry(int? sequenceNumber) async {
-    throw UnimplementedError();
-  }
-
-  Future<void> update(CommitEntry commitEntry, int commitId) async {
-    throw UnimplementedError();
-  }
-
-  Future<Stream<CommitEntry>> getChanges(int? sequenceNumber, String? regex,
-      {int? limit}) async {
-    throw UnimplementedError();
-  }
 }

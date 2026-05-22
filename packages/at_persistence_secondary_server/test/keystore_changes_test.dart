@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/hive.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -82,7 +83,7 @@ void main() {
           'public:absent@alice',
         ]);
       });
-      // Two KeyRemoveds (for a and b); the absent key gets nothing.
+      // Two KeyRemoved items (for a and b); the absent key gets nothing.
       expect(events.length, 2);
       expect(events.every((e) => e is KeyRemoved), isTrue);
       expect(events.map((e) => e.key).toSet(),

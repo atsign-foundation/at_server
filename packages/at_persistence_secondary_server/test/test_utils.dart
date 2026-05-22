@@ -1,9 +1,9 @@
 import 'dart:io';
 import 'dart:math';
 
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/log/accesslog/access_log_keystore.dart';
-import 'package:at_persistence_secondary_server/src/log/commitlog/commit_log_keystore.dart';
+import 'package:at_persistence_secondary_server/hive.dart';
+import 'package:at_persistence_secondary_server/src/impl/hive/hive_access_log_keystore.dart';
+import 'package:at_persistence_secondary_server/src/impl/hive/hive_commit_log_keystore.dart';
 
 class TestUtils {
   static String generateRandomString(int length) {
@@ -51,20 +51,13 @@ final Map<String, HiveAtCommitLog> _testCommitLogs = {};
 Future<HiveAtCommitLog> testCommitLogFor(
   String atSign, {
   String? commitLogPath,
-  bool enableCommitId = true,
 }) async {
   if (_testCommitLogs.containsKey(atSign)) return _testCommitLogs[atSign]!;
   final HiveAtCommitLog log;
-  final CommitLogKeyStore ks;
-  if (enableCommitId) {
-    ks = CommitLogKeyStore(atSign);
-    if (commitLogPath != null) await ks.init(commitLogPath, isLazy: false);
-    log = HiveAtCommitLog(ks);
-  } else {
-    ks = ClientCommitLogKeyStore(atSign);
-    if (commitLogPath != null) await ks.init(commitLogPath, isLazy: false);
-    log = HiveClientAtCommitLog(ks);
-  }
+  final HiveCommitLogKeyStore ks;
+  ks = HiveCommitLogKeyStore(atSign);
+  if (commitLogPath != null) await ks.init(commitLogPath, isLazy: false);
+  log = HiveAtCommitLog(ks);
   _testCommitLogs[atSign] = log;
   return log;
 }
@@ -87,7 +80,7 @@ Future<HiveAtAccessLog> testAccessLogFor(
   int compactionPercentage = 30,
 }) async {
   if (_testAccessLogs.containsKey(atSign)) return _testAccessLogs[atSign]!;
-  final ks = AccessLogKeyStore(atSign);
+  final ks = HiveAccessLogKeyStore(atSign);
   if (accessLogPath != null) await ks.init(accessLogPath);
   final log = HiveAtAccessLog(ks, compactionPercentage: compactionPercentage);
   _testAccessLogs[atSign] = log;
@@ -118,10 +111,8 @@ Future<void> closeTestAccessLogs() async {
 Future<HiveAtKeyValueStore> setUpTestKeyStore(
   String atSign, {
   required String storageDir,
-  bool enableCommitId = true,
 }) async {
-  final commitLog = await testCommitLogFor(atSign,
-      commitLogPath: storageDir, enableCommitId: enableCommitId);
+  final commitLog = await testCommitLogFor(atSign, commitLogPath: storageDir);
   final keyValueStore = testKeyStoreFor(atSign);
   await keyValueStore.init(storageDir);
   keyValueStore.commitLog = commitLog;

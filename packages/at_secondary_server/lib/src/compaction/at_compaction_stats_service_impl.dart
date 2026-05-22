@@ -9,13 +9,12 @@ import 'package:meta/meta.dart';
 /// Persists compaction stats as atKeys in the secondary's keystore.
 /// One persistence-key per resource label
 /// (`commitLog` / `accessLog` / `notificationKeystore`). A
-/// different deployment could implement [AtCompactionStatsService]
-/// to push stats to Prometheus, drop them, etc.
-class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
+/// different deployment could push stats to Prometheus, etc
+class AtCompactionStatsService {
   final AtKeyValueStore _keyValueStore;
   final _logger = AtSignLogger("AtCompactionStats");
 
-  AtCompactionStatsServiceImpl(this._keyValueStore);
+  AtCompactionStatsService(this._keyValueStore);
 
   /// Resource-label → keystore atKey used to persist that resource's
   /// stats. Exposed for tests.
@@ -26,7 +25,6 @@ class AtCompactionStatsServiceImpl implements AtCompactionStatsService {
     'notificationKeystore': AtConstants.notificationCompactionKey,
   };
 
-  @override
   Future<void> record({
     required String label,
     required DateTime start,

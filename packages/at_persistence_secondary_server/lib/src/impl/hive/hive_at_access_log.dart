@@ -1,19 +1,19 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/log/accesslog/access_entry.dart';
-import 'package:at_persistence_secondary_server/src/log/accesslog/access_log_keystore.dart';
 import 'package:hive/hive.dart';
+
+import 'hive_access_log_keystore.dart';
 
 /// Hive-backed implementation of [AtAccessLog] for the secondary
 /// server's audit trail (from, cram, pol, lookup, plookup, pkam).
 class HiveAtAccessLog implements AtAccessLog {
-  late AccessLogKeyStore _accessLogKeyStore;
+  late HiveAccessLogKeyStore _accessLogKeyStore;
 
   /// Per-pass percentage of entries to drop when compaction is
   /// invoked. Captured from `AtSecondaryConfig` at factory time;
   /// immutable per instance.
   final int compactionPercentage;
 
-  HiveAtAccessLog(AccessLogKeyStore keyValueStore,
+  HiveAtAccessLog(HiveAccessLogKeyStore keyValueStore,
       {this.compactionPercentage = 30}) {
     _accessLogKeyStore = keyValueStore;
   }

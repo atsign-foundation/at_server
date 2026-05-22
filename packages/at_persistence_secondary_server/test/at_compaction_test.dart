@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/log/accesslog/access_entry.dart';
+import 'package:at_persistence_secondary_server/hive.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
@@ -9,9 +9,9 @@ import 'test_utils.dart';
 String storageDir = '${Directory.current.path}/test/hive';
 HiveAtCommitLog? atCommitLog;
 
-Future<void> setUpFunc({bool enableCommitId = true}) async {
-  final keyValueStore = await setUpTestKeyStore('@alice',
-      storageDir: storageDir, enableCommitId: enableCommitId);
+Future<void> setUpFunc() async {
+  final keyValueStore =
+      await setUpTestKeyStore('@alice', storageDir: storageDir);
   atCommitLog = keyValueStore.commitLog as HiveAtCommitLog;
 }
 
@@ -64,28 +64,6 @@ void main() {
     tearDown(() async {
       await tearDownFunc();
     });
-  });
-
-  group('A group of test to verify commit log compaction job on client', () {
-    setUp(() async {
-      // Setting enableCommitId to false to replicate the client side commit log
-      await setUpFunc(enableCommitId: false);
-    });
-    test(
-        'A test to verify commit log compaction on the client side does not remove null values',
-        () async {
-      await atCommitLog!.commitLogKeyStore.add(
-          CommitEntry('@bob:phone@alice', CommitOp.UPDATE, DateTime.now())
-            ..commitId = 1);
-      await atCommitLog!.commitLogKeyStore.add(
-          CommitEntry('@bob:phone@alice', CommitOp.UPDATE, DateTime.now())
-            ..commitId = 2);
-      await atCommitLog!.commitLogKeyStore.add(
-          CommitEntry('@bob:phone@alice', CommitOp.UPDATE, DateTime.now()));
-      await _runCompaction(atCommitLog!);
-      expect(atCommitLog!.entriesCount(), 2);
-    });
-    tearDown(() async => await tearDownFunc());
   });
 
   group('A group of test to verify access log compaction job', () {

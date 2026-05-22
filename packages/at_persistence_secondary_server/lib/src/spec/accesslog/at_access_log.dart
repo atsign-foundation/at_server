@@ -1,4 +1,3 @@
-import 'package:at_persistence_secondary_server/src/log/accesslog/access_entry.dart';
 import 'package:at_persistence_secondary_server/src/spec/spec.dart';
 
 /// Abstract contract for an access log: an append-only audit trail
