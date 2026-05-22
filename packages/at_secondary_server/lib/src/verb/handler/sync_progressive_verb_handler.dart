@@ -39,7 +39,6 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    final AtCommitLog atCommitLog = commitLog;
     final int fromCommitId =
         int.parse(verbParams[AtConstants.fromCommitSequence]!) + 1;
     final int? skipDeletesUntil =
@@ -59,7 +58,7 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
     // inside the iterate() where: closure can stay synchronous.
     final EnrollDataStoreValue? enroll =
         (enrollmentId == null) ? null : await resolveEnrollment(enrollmentId);
-    final int? latestCommitId = atCommitLog.lastCommittedSequenceNumber();
+    final int? latestCommitId = commitLog.lastCommittedSequenceNumber();
 
     bool whereFilter(CommitEntry entry) {
       final atKey = entry.atKey;
@@ -117,7 +116,7 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       capacity,
       syncLimit,
       syncResponse,
-      atCommitLog.iterate(fromCommitId: fromCommitId, where: whereFilter),
+      commitLog.iterate(fromCommitId: fromCommitId, where: whereFilter),
     );
 
     response.data = jsonEncode(syncResponse);
