@@ -36,6 +36,17 @@ Major release: persistence-overhaul. Themes:
   extends `KeyValueStore` and adds the sync-coupled surface:
   the (nullable) `commitLog`, `putMeta` / `putAll` /
   `getMeta`, and `queryByPath` /  `supportsPathQueries`.
+- **`scanKeys` / `KeyPattern` live on `AtKeyValueStore`, not
+  `KeyValueStore`.** Structured filtering (`KeyPattern`'s
+  `sharedBy` / `sharedWith` / `namespace` / `idPrefix`) is
+  atKey-shaped, so it belongs on the atKey-aware tier rather than
+  the generic key-value contract. `KeyValueStore.exists` and the
+  pre/post-remove hook callbacks are typed at the generic key `K`
+  (was `String`), since they don't carry the atKey assumption. A
+  new `AtKeyValueStoreSnapshot extends KeyStoreSnapshot` adds
+  `scanKeys` on top of the base snapshot for the same reason;
+  `HiveAtNotificationKeystore` (and its snapshot) no longer carry
+  the awkward `scanKeys` impl that only honoured `idPrefix`.
 - **Model classes decoupled from Hive.** `AtData`, `AtMetaData`,
   `CommitEntry`, `AccessLogEntry` and `AtNotification` no longer
   carry Hive's `@HiveType` / `@HiveField` annotations (they were

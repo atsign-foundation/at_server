@@ -7,6 +7,10 @@ import 'package:at_persistence_secondary_server/src/spec/spec.dart';
 ///   * a (possibly-null) [commitLog] that records every mutation
 ///   * the [putMeta] / [putAll] / [getMeta] metadata triplet that
 ///     `at_secondary_server` uses on the update / lookup paths
+///   * the structured-key [scanKeys] surface — [KeyPattern]
+///     filters by atKey shape (sharedBy / sharedWith / namespace /
+///     idPrefix), so it lives on the atKey-aware tier rather than
+///     the generic [KeyValueStore]
 ///   * the [queryByPath] / [supportsPathQueries] predicate-query
 ///     pair that lights up on a future SQL backend
 ///
@@ -49,6 +53,39 @@ abstract interface class AtKeyValueStore<K, V, T>
 
   /// Returns the metadata associated with [key].
   Future<T> getMeta(K key);
+
+  /// Stream the keystore keys that match [pattern]. Backend-
+  /// portable successor to [KeyValueStore.getKeys] for callers
+  /// that want structured filtering rather than building regular
+  /// expressions.
+  ///
+  /// The return type is `Stream<String>` (rather than `Stream<K>`):
+  /// [KeyPattern]'s fields — `sharedBy`, `sharedWith`, `namespace`,
+  /// `idPrefix` — are atKey-shaped, so the result is inherently a
+  /// stream of atKey strings.
+  ///
+  /// By default, expired or not-yet-born keys are excluded; pass
+  /// `includeExpired: true` to surface them.
+  ///
+  /// [orderBy] controls the result order. `null` (default) means
+  /// "the backend's natural order". [limit] caps the number of
+  /// keys yielded; [skip] discards the first N.
+  ///
+  /// The returned `Future` completes once the backend has accepted
+  /// the request; the `Stream` then yields the matching keys.
+  Future<Stream<String>> scanKeys(
+    KeyPattern pattern, {
+    bool includeExpired = false,
+    OrderByKey? orderBy,
+    int? limit,
+    int? skip,
+  });
+
+  /// Take a snapshot of the keystore's current state. Overrides
+  /// [KeyValueStore.snapshot] with the atKey-aware snapshot type
+  /// that surfaces [AtKeyValueStoreSnapshot.scanKeys].
+  @override
+  Future<AtKeyValueStoreSnapshot<K, V, T>> snapshot();
 
   /// `true` when this keystore can push value-field predicates
   /// down to its native query plan ([queryByPath] is then a real

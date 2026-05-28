@@ -312,84 +312,6 @@ class HiveAtNotificationKeystore
   }
 
   @override
-  Future<Stream<String>> scanKeys(
-    KeyPattern pattern, {
-    bool includeExpired = false,
-    OrderByKey? orderBy,
-    int? limit,
-    int? skip,
-  }) async {
-    // Notification keys are random ids, not atKey-shaped, so the
-    // structured fields on KeyPattern (sharedBy / sharedWith /
-    // namespace / idPrefix) don't apply here. We honour
-    // `isUnrestricted` (yields every notification id) and `idPrefix`
-    // (treated as a leading-substring match on the id), but
-    // sharedBy / sharedWith / namespace cannot match — return empty
-    // when those are set.
-    if (pattern.sharedBy != null ||
-        pattern.sharedWith != null ||
-        pattern.namespace != null) {
-      return const Stream.empty();
-    }
-
-    // Collect matching ids (and the entry, if we need it for sorting).
-    final matched = <String>[];
-    final entries = <String, AtNotification>{};
-    for (final key in _getBox().keys) {
-      final id = key as String;
-      AtNotification? entry;
-      if (!includeExpired || orderBy != null) {
-        entry = await getValue(id);
-        if (!includeExpired && entry != null && entry.isExpired()) continue;
-      }
-      if (pattern.idPrefix != null && !id.startsWith(pattern.idPrefix!)) {
-        continue;
-      }
-      matched.add(id);
-      if (entry != null) entries[id] = entry;
-    }
-
-    // Order.
-    switch (orderBy) {
-      case null:
-        // Backend's natural order — keys.iterator order from the box.
-        break;
-      case OrderByKey.byKey:
-        matched.sort();
-        break;
-      case OrderByKey.byCreatedAt:
-        matched.sort((a, b) => _compareNullableDate(
-              entries[a]?.notificationDateTime,
-              entries[b]?.notificationDateTime,
-            ));
-        break;
-      case OrderByKey.byExpiresAt:
-        matched.sort((a, b) =>
-            _compareNullableDate(entries[a]?.expiresAt, entries[b]?.expiresAt));
-        break;
-    }
-
-    // Skip + limit.
-    final skipN = skip ?? 0;
-    final result = <String>[];
-    int yielded = 0;
-    for (int i = skipN; i < matched.length; i++) {
-      if (limit != null && yielded >= limit) break;
-      result.add(matched[i]);
-      yielded++;
-    }
-    return Stream.fromIterable(result);
-  }
-
-  /// Sort comparator that puts `null` values last.
-  int _compareNullableDate(DateTime? a, DateTime? b) {
-    if (a == null && b == null) return 0;
-    if (a == null) return 1;
-    if (b == null) return -1;
-    return a.compareTo(b);
-  }
-
-  @override
   int entriesCount() {
     return _getBox().keys.length;
   }
@@ -507,12 +429,6 @@ class _HiveBestEffortNotifSnapshot
   Future<AtNotification?> get(key) async {
     if (_released) throw StateError('Snapshot has been released');
     return await _store.get(key);
-  }
-
-  @override
-  Stream<String> scanKeys(KeyPattern pattern) async* {
-    if (_released) throw StateError('Snapshot has been released');
-    yield* await _store.scanKeys(pattern);
   }
 
   @override

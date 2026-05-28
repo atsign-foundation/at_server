@@ -65,7 +65,8 @@ class HiveAtKeyValueStore
   bool get supportsSnapshots => false;
 
   @override
-  Future<KeyStoreSnapshot<String, AtData, AtMetaData?>> snapshot() async {
+  Future<AtKeyValueStoreSnapshot<String, AtData, AtMetaData?>>
+      snapshot() async {
     return _HiveBestEffortSnapshot(this);
   }
 
@@ -1106,7 +1107,7 @@ class _HiveAtKeyValueStoreTxn
 /// isolation. Documented in the abstract; consumers that require
 /// isolation gate on `supportsSnapshots`.
 class _HiveBestEffortSnapshot
-    implements KeyStoreSnapshot<String, AtData, AtMetaData?> {
+    implements AtKeyValueStoreSnapshot<String, AtData, AtMetaData?> {
   final HiveAtKeyValueStore _store;
   bool _released = false;
 

@@ -54,13 +54,13 @@ abstract interface class KeyValueStore<K, V> {
   /// Hooks invoked synchronously before a single-key remove. Each
   /// hook is awaited in order; if a hook throws, the remove is
   /// aborted and the exception propagates.
-  List<Future<void> Function(String key, {required bool skipCommit})>
+  List<Future<void> Function(K key, {required bool skipCommit})>
       get preRemoveHooks;
 
   /// Hooks invoked synchronously after a single-key remove. Each
   /// hook is awaited in order. Hook exceptions are propagated to
   /// the caller after the remove has already happened.
-  List<Future<void> Function(String key, {required bool skipCommit})>
+  List<Future<void> Function(K key, {required bool skipCommit})>
       get postRemoveHooks;
 
   // ---------------------------------------------------------------
@@ -98,30 +98,7 @@ abstract interface class KeyValueStore<K, V> {
   /// Should be O(1) on every backend that ships with this
   /// package (Hive uses `Box.containsKey`; SQL backends use an
   /// indexed `SELECT 1 ... LIMIT 1`).
-  Future<bool> exists(String key);
-
-  /// Stream the keystore keys that match [pattern]. Backend-
-  /// portable successor to [getKeys] — callers that want
-  /// structured filtering (by sharedBy / sharedWith / namespace /
-  /// idPrefix) should use this instead of building regular
-  /// expressions.
-  ///
-  /// By default, expired or not-yet-born keys are excluded; pass
-  /// `includeExpired: true` to surface them.
-  ///
-  /// [orderBy] controls the result order. `null` (default) means
-  /// "the backend's natural order". [limit] caps the number of
-  /// keys yielded; [skip] discards the first N.
-  ///
-  /// The returned `Future` completes once the backend has accepted
-  /// the request; the `Stream` then yields the matching keys.
-  Future<Stream<String>> scanKeys(
-    KeyPattern pattern, {
-    bool includeExpired = false,
-    OrderByKey? orderBy,
-    int? limit,
-    int? skip,
-  });
+  Future<bool> exists(K key);
 
   // ---------------------------------------------------------------
   // Bulk
