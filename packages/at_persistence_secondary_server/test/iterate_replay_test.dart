@@ -41,9 +41,10 @@ void main() {
 
       final entries = await bundle.keyValueStore.commitLog!.iterate().toList();
       expect(entries.length, 3);
-      // Commit IDs are monotonic.
-      expect(entries[0].commitId! <= entries[1].commitId!, isTrue);
-      expect(entries[1].commitId! <= entries[2].commitId!, isTrue);
+      // Commit IDs are strictly monotonic (Box.add returns a
+      // strictly-increasing sequence number per append).
+      expect(entries[0].commitId! < entries[1].commitId!, isTrue);
+      expect(entries[1].commitId! < entries[2].commitId!, isTrue);
       // Values round-trip.
       expect(entries.map((e) => e.atKey).toSet(),
           {'public:foo@alice', 'public:bar@alice', 'public:baz@alice'});
