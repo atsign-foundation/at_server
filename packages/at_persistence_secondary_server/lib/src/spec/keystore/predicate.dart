@@ -8,9 +8,9 @@
 /// when `supportsPathQueries` is `true` — Hive's default impl is
 /// `false` so the AST is never executed there).
 ///
-/// The type is intentionally minimal in the initial cut; Phase 4's
-/// SQLite-backed implementation will drive whatever extensions
-/// (range queries, regex, IN-set) the real query needs surface.
+/// The type is intentionally minimal in the initial cut; a future
+/// SQL-backed implementation will drive whatever extensions (range
+/// queries, regex, IN-set) the real query needs.
 sealed class Predicate {
   const Predicate();
 }

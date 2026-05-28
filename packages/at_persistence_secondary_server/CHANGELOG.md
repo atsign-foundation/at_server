@@ -21,9 +21,9 @@ Major release: persistence-overhaul. Themes:
   `KeyPattern` + ordering + pagination), `getMany`,
   `removeMany`, `changes` stream, `transaction`,
   `queryByPath` (+ `supportsPathQueries`), `snapshot`
-  (+ `supportsSnapshots`), and `stats`. Capability flags let
-  Phase 4 SQL backends light up native indexed query / MVCC
-  paths while Hive falls back gracefully.
+  (+ `supportsSnapshots`), and `stats`. Capability flags let a
+  future SQL backend light up native indexed query / MVCC paths
+  while Hive falls back gracefully.
 - **Keystore type hierarchy collapsed.**
   `SecondaryKeyStore` renamed to `AtKeyValueStore`;
   `HiveSecondaryKeyStore` renamed to `HiveAtKeyValueStore`.
@@ -165,11 +165,11 @@ Major release: persistence-overhaul. Themes:
 - **Dependency on `at_persistence_spec` dropped.** The
   interface types this package previously imported from
   `at_persistence_spec` (`AtKeyValueStore`, exceptions, the
-  `@server`/`@client` annotations, and the new Phase 3 types —
-  `KeyEntry`, `KeyPattern`, `KeyStoreChange`,
-  `KeyStoreSnapshot`, `KeyStoreStats`, `KeyStoreTxn`,
-  `OrderByKey`, `Predicate`) now live alongside the Hive
-  implementation in this package.
+  `@server`/`@client` annotations, and the new query /
+  change-stream types — `KeyEntry`, `KeyPattern`, `KeyStoreChange`,
+  `KeyStoreSnapshot`, `KeyStoreStats`, `KeyStoreTxn`, `OrderByKey`,
+  `Predicate`) now live alongside the Hive implementation in this
+  package.
   Future backend packages depend on
   `at_persistence_secondary_server` for the interface types
   they need to satisfy.

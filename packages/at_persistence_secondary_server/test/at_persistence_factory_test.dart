@@ -111,15 +111,15 @@ void main() {
 
     test('two factory instances coexist when initialised for different atSigns',
         () async {
-      // Phase 3's migration scenario keeps a "source" factory (e.g. hive)
-      // and a "destination" factory (e.g. postgres) alive concurrently.
-      // The factory-level lifecycle is independent here even though we
-      // only ship the Hive backend in Phase 1; we exercise that with two
-      // factory instances over two different atSigns. (Two factories
-      // sharing the same atSign with Hive specifically can't be
-      // independent because Hive boxes are keyed by sha(atSign)
-      // globally — that's a Hive constraint, not a factory constraint,
-      // and Phase 3's source/dest factories use different backends so
+      // A backend-migration scenario keeps a "source" factory (e.g.
+      // hive) and a "destination" factory (e.g. postgres) alive
+      // concurrently. Factory-level lifecycle is independent — we
+      // exercise that with two factory instances over two different
+      // atSigns, even though only the Hive backend ships today.
+      // (Two factories sharing the same atSign with Hive specifically
+      // can't be independent because Hive boxes are keyed by
+      // sha(atSign) globally — a Hive constraint, not a factory
+      // constraint; a real migration uses different backends so
       // they don't collide.)
       final aliceCfg = await _newConfig('coexist-alice');
       final bobCfg = await _newConfig('coexist-bob');

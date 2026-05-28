@@ -435,10 +435,10 @@ void main() async {
         expect(commitEntryInCache?.commitId, thirdCommitId);
       });
       // Tests for regex/alwaysIncludeInSync and skipDeletesUntil semantics
-      // were retired alongside getEntries (Phase 3.5f). Those behaviours
-      // now live in SyncProgressiveVerbHandler's iterate(where:) closure
-      // and are exercised by tests in sync_verb_test.dart and the
-      // functional suite.
+      // were retired alongside getEntries. Those behaviours now live in
+      // SyncProgressiveVerbHandler's iterate(where:) closure and are
+      // exercised by tests in sync_verb_test.dart and the functional
+      // suite.
     });
     tearDown(() async => await tearDownFunc());
   });

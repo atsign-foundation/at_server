@@ -1,9 +1,8 @@
-// Persistence-spec types, copied into at_persistence_secondary_server
-// (Phase 3.6 of the persistence overhaul). Originally these lived in the
-// separate at_persistence_spec package; the wiggly plan called for them
-// to live alongside their Hive implementation here, with future backend
-// packages (Phase 4) taking a dependency on this package for the
-// interface types.
+// Persistence-spec types. Originally these lived in the separate
+// at_persistence_spec package; the overhaul moved them alongside
+// their Hive implementation here, so future backend packages can
+// depend on this package for the interface types they need to
+// satisfy.
 //
 // Ships as the public surface via at_persistence_secondary_server.dart.
 export 'accesslog/at_access_log.dart';

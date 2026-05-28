@@ -143,8 +143,9 @@ void main() {
     test(
         'iterate yields one entry per atKey under stream of commits to same atKey',
         () async {
-      // Phase 3.5a's invariant in action: even after multiple commits to
-      // the same atKey, iterate yields exactly one entry (the latest).
+      // The one-entry-per-atKey invariant in action: even after
+      // multiple commits to the same atKey, iterate yields exactly
+      // one entry (the latest).
       for (int i = 0; i < 10; i++) {
         await bundle.keyValueStore.commitLog!
             .commit('public:hot@alice', CommitOp.UPDATE);

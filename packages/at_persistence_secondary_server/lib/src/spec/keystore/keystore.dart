@@ -151,8 +151,8 @@ abstract interface class KeyValueStore<K, V> {
   /// order on successful completion; if the body throws, the
   /// buffer is dropped and the exception propagates.
   ///
-  /// Hive impls provide best-effort atomicity; SQL impls (Phase 4)
-  /// provide true atomicity.
+  /// Hive impls provide best-effort atomicity; a future SQL impl
+  /// will provide true atomicity.
   Future<R> transaction<R>(
       Future<R> Function(KeyStoreTxn<K, V, dynamic> txn) body);
 

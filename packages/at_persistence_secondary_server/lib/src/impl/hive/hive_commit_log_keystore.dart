@@ -160,8 +160,9 @@ class HiveCommitLogKeyStore with HiveBase<CommitEntry?> {
   /// Lazy stream over every commit entry with `commitId >= [fromCommitId]`
   /// (or all entries if [fromCommitId] is null), in commit-id order.
   /// If [where] is provided, only entries for which `where(entry)` returns
-  /// true are yielded. After Phase 3.5a's invariant, the box has at most
-  /// one entry per atKey, so this yields one entry per atKey naturally.
+  /// true are yielded. The box's one-entry-per-atKey invariant
+  /// (enforced inline by [add] and by the startup dedup migration)
+  /// means this yields one entry per atKey naturally.
   Stream<CommitEntry> iterate({
     int? fromCommitId,
     bool Function(CommitEntry)? where,

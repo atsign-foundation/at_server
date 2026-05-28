@@ -115,8 +115,8 @@ class HiveAtKeyValueStore
     throw UnsupportedError(
       'HiveAtKeyValueStore does not support push-down path queries. '
       'Check `supportsPathQueries` before calling; on Hive, fall back '
-      'to `scanKeys + getMany + in-memory filter`. SQL backends in '
-      'Phase 4 flip the flag to true and execute the predicate via '
+      'to `scanKeys + getMany + in-memory filter`. A future SQL '
+      'backend flips the flag to true and executes the predicate via '
       'indexed `WHERE` clauses.',
     );
   }

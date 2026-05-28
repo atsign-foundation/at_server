@@ -1,10 +1,10 @@
 /// Identifies which persistence backend an [AtPersistenceFactory]
-/// produces. Phase 1 only ships [hive]; Phase 3 will add others
-/// (e.g. SQLite, Postgres) without changing the enum's existing
+/// produces. Only [hive] ships today; future backends (e.g. SQLite,
+/// Postgres) will add others without changing the enum's existing
 /// values.
 enum AtPersistenceBackendId { hive }
 
-/// Open base class for backend-specific configuration. Phase 2/3
+/// Open base class for backend-specific configuration. Future
 /// backends subclass to add backend-specific fields without breaking
 /// the [AtPersistenceFactory.initialize] signature.
 ///
@@ -37,9 +37,10 @@ abstract class AtPersistenceConfig {
   /// [enableNotificationKeystore] is `true`.
   String get notificationStoragePath;
 
-  /// Where the marker file lives. Phase 3 will use this to detect
-  /// backend changes between restarts. Phase 1 doesn't read it; it's
-  /// declared here so the field is part of the contract from day one.
+  /// Where the marker file lives. A future backend-aware factory
+  /// will use this to detect backend changes between restarts; the
+  /// current implementation doesn't read it, it's declared here so
+  /// the field is part of the contract from day one.
   String get backendMarkerPath;
 
   /// Whether the access log should be initialised. Server-only —

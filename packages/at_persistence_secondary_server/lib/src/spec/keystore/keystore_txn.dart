@@ -8,8 +8,8 @@
 ///
 /// Hive's atomicity is best-effort: writes are durable per
 /// underlying box flush, but a process crash mid-commit can leave
-/// the keystore with a subset of the buffered ops applied. SQL
-/// backends (Phase 4) provide true atomicity via
+/// the keystore with a subset of the buffered ops applied. A
+/// future SQL backend will provide true atomicity via
 /// `BEGIN IMMEDIATE` / `COMMIT`.
 ///
 /// Lifetime: the handle is valid only for the duration of the body

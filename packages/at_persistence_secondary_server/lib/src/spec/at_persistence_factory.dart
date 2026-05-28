@@ -3,8 +3,8 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 /// Builds and owns the lifecycle of all per-atSign persistence
 /// resources for an at_server.
 ///
-/// The Phase 1 design intentionally hides the choice of backend
-/// (Hive today, RDBMS tomorrow) behind a single abstraction so
+/// The design intentionally hides the choice of backend (Hive
+/// today, RDBMS tomorrow) behind a single abstraction so
 /// `AtSecondaryServerImpl` can be wired up without reaching for
 /// a `getInstance()` of any particular implementation.
 abstract class AtPersistenceFactory {

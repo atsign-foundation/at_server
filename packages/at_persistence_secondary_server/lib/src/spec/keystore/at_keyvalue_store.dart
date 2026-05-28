@@ -8,7 +8,7 @@ import 'package:at_persistence_secondary_server/src/spec/spec.dart';
 ///   * the [putMeta] / [putAll] / [getMeta] metadata triplet that
 ///     `at_secondary_server` uses on the update / lookup paths
 ///   * the [queryByPath] / [supportsPathQueries] predicate-query
-///     pair that lights up on SQL backends in Phase 4
+///     pair that lights up on a future SQL backend
 ///
 /// The commit log is nullable: server-side bundles always have one
 /// (writes append to it for sync); client-side bundles may not
@@ -56,9 +56,8 @@ abstract interface class AtKeyValueStore<K, V, T>
   /// and consumers must fall back to a `scanKeys` + in-memory
   /// filter.
   ///
-  /// Hive backends return `false`. SQL backends (Phase 4) flip
-  /// this to `true` once they've defined the indexed-query
-  /// schema.
+  /// Hive backends return `false`. A future SQL backend flips
+  /// this to `true` once it has defined the indexed-query schema.
   bool get supportsPathQueries;
 
   /// Stream every (key, value, metadata) entry matching
