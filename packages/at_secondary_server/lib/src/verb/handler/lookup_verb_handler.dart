@@ -51,7 +51,6 @@ class LookupVerbHandler extends AbstractVerbHandler {
     var atConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
     var thisServersAtSign = cacheManager.atSign;
-    final atAccessLog = accessLog;
     String keyOwnersAtSign = verbParams[AtConstants.atSign]!;
     keyOwnersAtSign = AtUtils.fixAtSign(keyOwnersAtSign);
     var entity = verbParams[AtConstants.atKey];
@@ -77,21 +76,14 @@ class LookupVerbHandler extends AbstractVerbHandler {
     logger.finer(
         'fromAtSign : ${atConnectionMetadata.fromAtSign} \n atSign : ${keyOwnersAtSign.toString()} \n key : $keyAtAtSign');
     if (atConnectionMetadata.isAuthenticated) {
-      await _handleAuthenticatedConnection(
-          keyOwnersAtSign,
-          thisServersAtSign,
-          keyAtAtSign,
-          atConnection,
-          response,
-          operation,
-          atAccessLog,
-          byPassCacheStr);
+      await _handleAuthenticatedConnection(keyOwnersAtSign, thisServersAtSign,
+          keyAtAtSign, atConnection, response, operation, byPassCacheStr);
     } else if (atConnectionMetadata.isPolAuthenticated) {
       await _handlePolAuthConnection(atConnectionMetadata, keyAtAtSign,
-          response, operation, atAccessLog, keyOwnersAtSign);
+          response, operation, keyOwnersAtSign);
     } else {
       await _handleUnAuthenticatedConnection(
-          keyAtAtSign, response, atAccessLog, keyOwnersAtSign, operation);
+          keyAtAtSign, response, keyOwnersAtSign, operation);
     }
   }
 
@@ -113,7 +105,6 @@ class LookupVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection,
       Response response,
       String? operation,
-      AtAccessLog? atAccessLog,
       String? byPassCacheStr) async {
     String lookupKey;
     // Just a bit of convenience here for those of us who frequently
@@ -132,7 +123,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     if (keyOwnersAtSign == thisServersAtSign) {
       // We're looking up data owned by this server's atSign
       await _fetchDataOwnedByThisAtSign(thisServersAtSign, keyAtAtSign,
-          atConnection, response, operation, atAccessLog, keyOwnersAtSign);
+          atConnection, response, operation, keyOwnersAtSign);
     } else {
       // keyOwnersAtSign != thisServersAtSign
       // We're looking up data owned by another atSign.
@@ -153,7 +144,6 @@ class LookupVerbHandler extends AbstractVerbHandler {
       String keyAtAtSign,
       Response response,
       String? operation,
-      AtAccessLog? atAccessLog,
       String keyOwnersAtSign) async {
     if (atConnectionMetadata.fromAtSign == null ||
         atConnectionMetadata.fromAtSign!.isEmpty) {
@@ -179,8 +169,8 @@ class LookupVerbHandler extends AbstractVerbHandler {
     //Omit all keys starting with '_' to record in access log
     if (!keyAtAtSign.startsWith('_')) {
       try {
-        await atAccessLog!
-            .insert(keyOwnersAtSign, lookup.name(), lookupKey: keyAtAtSign);
+        await accessLog.insert(keyOwnersAtSign, lookup.name(),
+            lookupKey: keyAtAtSign);
       } on DataStoreException catch (e) {
         logger.severe('Hive error adding to access log:${e.toString()}');
       }
@@ -193,12 +183,8 @@ class LookupVerbHandler extends AbstractVerbHandler {
   ///     to fetch public keys from the storage associated with the current "atSign".
   ///     For instance, if the current atSign is "alice", then using "lookup:phone.wavi@alice"
   ///     yields the corresponding value of the key "public:phone.wavi@alice".
-  _handleUnAuthenticatedConnection(
-      String keyAtAtSign,
-      Response response,
-      AtAccessLog? atAccessLog,
-      String keyOwnersAtSign,
-      String? operation) async {
+  _handleUnAuthenticatedConnection(String keyAtAtSign, Response response,
+      String keyOwnersAtSign, String? operation) async {
     // In the case of an unauthenticated connection, only public keys are accessible.
     // so, set the lookupKey prefix to "public:".
     var lookupKey = 'public:$keyAtAtSign';
@@ -218,8 +204,8 @@ class LookupVerbHandler extends AbstractVerbHandler {
     //Omit all keys starting with '_' to record in access log
     if (!keyAtAtSign.startsWith('_')) {
       try {
-        await atAccessLog!
-            .insert(keyOwnersAtSign, lookup.name(), lookupKey: keyAtAtSign);
+        await accessLog.insert(keyOwnersAtSign, lookup.name(),
+            lookupKey: keyAtAtSign);
       } on DataStoreException catch (e) {
         logger.severe('Hive error adding to access log:${e.toString()}');
       }
@@ -265,7 +251,6 @@ class LookupVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection,
       Response response,
       String? operation,
-      AtAccessLog? atAccessLog,
       String keyOwnersAtSign) async {
     String lookupKey;
     // Just a bit of convenience here for those of us who frequently
@@ -284,8 +269,8 @@ class LookupVerbHandler extends AbstractVerbHandler {
           response.data.toString(), thisServersAtSign);
     }
     try {
-      await atAccessLog!
-          .insert(keyOwnersAtSign, lookup.name(), lookupKey: keyAtAtSign);
+      await accessLog.insert(keyOwnersAtSign, lookup.name(),
+          lookupKey: keyAtAtSign);
     } on DataStoreException catch (e) {
       logger.severe('Hive error adding to access log:${e.toString()}');
     }
