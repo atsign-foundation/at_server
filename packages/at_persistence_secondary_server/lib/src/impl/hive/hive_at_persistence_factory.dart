@@ -24,8 +24,16 @@ class HiveAtPersistenceFactory implements AtPersistenceFactory {
           'got ${config.runtimeType}');
     }
 
+    // Reuse an open bundle if we already have one. A closed entry
+    // is treated as absent — drop the stale reference and build a
+    // fresh bundle below. Covers the case where a caller closed
+    // the bundle directly via [AtPersistenceBundle.close] without
+    // going through [closeFor] / [close].
     final existing = _bundles[atSign];
-    if (existing != null) return existing;
+    if (existing != null) {
+      if (!existing.isClosed) return existing;
+      _bundles.remove(atSign);
+    }
 
     _logger.info('Initialising Hive persistence for $atSign');
 
@@ -75,7 +83,29 @@ class HiveAtPersistenceFactory implements AtPersistenceFactory {
   }
 
   @override
-  AtPersistenceBundle? bundleFor(String atSign) => _bundles[atSign];
+  AtPersistenceBundle? bundleFor(String atSign) {
+    final bundle = _bundles[atSign];
+    if (bundle == null) return null;
+    if (bundle.isClosed) {
+      // Lazy cleanup: a caller closed the bundle directly. Drop the
+      // stale entry so subsequent `initialize` / `bundleFor` calls
+      // see a clean slate.
+      _bundles.remove(atSign);
+      return null;
+    }
+    return bundle;
+  }
+
+  @override
+  Future<void> closeFor(String atSign) async {
+    final bundle = _bundles.remove(atSign);
+    if (bundle == null) return;
+    try {
+      await bundle.close();
+    } catch (e, st) {
+      _logger.warning('Error closing bundle for $atSign: $e\n$st');
+    }
+  }
 
   @override
   Future<void> close() async {
@@ -114,6 +144,9 @@ class HiveAtPersistenceBundle implements AtPersistenceBundle {
   final HiveAtNotificationKeystore? notificationKeystore;
 
   bool _closed = false;
+
+  @override
+  bool get isClosed => _closed;
 
   HiveAtPersistenceBundle._({
     required this.atSign,

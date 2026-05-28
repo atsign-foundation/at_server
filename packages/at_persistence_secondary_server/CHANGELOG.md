@@ -184,6 +184,15 @@ Major release: persistence-overhaul. Themes:
   Future backend packages depend on
   `at_persistence_secondary_server` for the interface types
   they need to satisfy.
+- **Factory close-and-reuse hardened.** `AtPersistenceBundle`
+  exposes `bool get isClosed`. `AtPersistenceFactory` gains
+  `Future<void> closeFor(String atSign)` — closes a single bundle
+  and drops the factory's reference. `initialize` and `bundleFor`
+  now treat a closed entry as absent (a closed bundle is dropped
+  and rebuilt on next `initialize`, and `bundleFor` returns
+  `null`), so a caller closing a bundle directly via
+  `bundle.close()` can no longer cause the factory to hand out a
+  stale closed reference.
 - **Dead code removed.** Deleted the unused `StoreType` enum,
   `AtCommitLog.firstCommittedSequenceNumber` (no callers), the
   `NullCommitEntry` sentinel (the package returns `null`, never a

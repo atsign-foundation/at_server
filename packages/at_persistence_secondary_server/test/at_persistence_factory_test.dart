@@ -175,6 +175,55 @@ void main() {
       expect(() => factory.initialize('@alice', _NotHiveConfig()),
           throwsA(isA<ArgumentError>()));
     });
+
+    test('closing a bundle directly removes it from factory bookkeeping',
+        () async {
+      final cfg = await _newConfig('direct-close');
+      final factory = HiveAtPersistenceFactory();
+      try {
+        final first = await factory.initialize('@alice', cfg.config);
+        expect(first.isClosed, isFalse);
+        expect(factory.bundleFor('@alice'), same(first));
+
+        // Caller closes the bundle directly, bypassing factory.close /
+        // factory.closeFor. The factory must not keep handing out the
+        // closed reference, and initialize must rebuild.
+        await first.close();
+        expect(first.isClosed, isTrue);
+        expect(factory.bundleFor('@alice'), isNull);
+
+        final second = await factory.initialize('@alice', cfg.config);
+        expect(identical(first, second), isFalse);
+        expect(second.isClosed, isFalse);
+      } finally {
+        await factory.close();
+        await cfg.tmp.delete(recursive: true);
+      }
+    });
+
+    test('closeFor closes a single bundle and drops the reference', () async {
+      final cfgA = await _newConfig('closeFor-alice');
+      final cfgB = await _newConfig('closeFor-bob');
+      final factory = HiveAtPersistenceFactory();
+      try {
+        final alice = await factory.initialize('@alice', cfgA.config);
+        final bob = await factory.initialize('@bob', cfgB.config);
+
+        await factory.closeFor('@alice');
+        expect(alice.isClosed, isTrue);
+        expect(factory.bundleFor('@alice'), isNull);
+        // Bob is untouched.
+        expect(bob.isClosed, isFalse);
+        expect(factory.bundleFor('@bob'), same(bob));
+
+        // closeFor on an unknown atSign is a no-op.
+        await factory.closeFor('@nobody');
+      } finally {
+        await factory.close();
+        await cfgA.tmp.delete(recursive: true);
+        await cfgB.tmp.delete(recursive: true);
+      }
+    });
   });
 
   group('HivePersistenceConfig', () {

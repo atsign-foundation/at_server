@@ -17,16 +17,26 @@ abstract class AtPersistenceFactory {
   /// bundle — the factory owns the per-atSign lifecycle. Callers
   /// should not try to manage it themselves.
   ///
+  /// If a previous bundle for [atSign] has been closed (whether
+  /// directly via [AtPersistenceBundle.close] or via [closeFor]),
+  /// the stale entry is dropped and a fresh bundle is built.
+  ///
   /// Throws [ArgumentError] if [config] does not match
   /// [backendId].
   Future<AtPersistenceBundle> initialize(
       String atSign, AtPersistenceConfig config);
 
-  /// Returns the bundle if [initialize] has been called for [atSign],
-  /// otherwise null. Useful for code paths that should be no-ops
-  /// when persistence is not yet wired (e.g. metrics on a
-  /// not-yet-started secondary).
+  /// Returns the open bundle if [initialize] has been called for
+  /// [atSign] and the bundle is not closed; otherwise `null`.
+  /// Useful for code paths that should be no-ops when persistence
+  /// is not yet wired (e.g. metrics on a not-yet-started secondary).
   AtPersistenceBundle? bundleFor(String atSign);
+
+  /// Close the bundle for [atSign] and drop the factory's reference
+  /// to it. Safe to call when no bundle exists for [atSign] — the
+  /// call is a no-op. After [closeFor], [bundleFor] returns `null`
+  /// and [initialize] builds a fresh bundle on next call.
+  Future<void> closeFor(String atSign);
 
   /// Close every bundle this factory has produced. Idempotent —
   /// calling twice does not throw, and calling [initialize] after
@@ -77,4 +87,10 @@ abstract class AtPersistenceBundle {
 
   /// Close all underlying resources. Idempotent.
   Future<void> close();
+
+  /// `true` after [close] has been called (whether directly on the
+  /// bundle or via the owning factory). Once closed, methods on the
+  /// bundle are undefined; the producing factory's [bundleFor]
+  /// returns `null` and [AtPersistenceFactory.initialize] rebuilds.
+  bool get isClosed;
 }
