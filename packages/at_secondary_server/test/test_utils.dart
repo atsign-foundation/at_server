@@ -14,9 +14,8 @@
 //
 // 2. **File-scoped factory + cross-test data leak.**
 //    Best when a setUp seeds shared baseline data and the tests
-//    assume it's still there (cram_verb_test relied on this
-//    pre-Phase-1; converted to pattern 1 in Phase 2 Commit 5).
-//    Same factory shape, no per-test clear.
+//    assume it's still there. Same factory shape, no per-test
+//    clear.
 //
 // Avoid `tearDown` (per-test) factory close — it forces a box
 // reopen on every test and surfaces Hive lifecycle bugs that aren't
@@ -259,10 +258,9 @@ verbTestsSetUpAll() async {
 
 verbTestsSetUp() async {
   verbTestsSetUpLogging();
-  // Wire up persistence through the new factory rather than the legacy
-  // singletons. The factory routes through the singletons internally
-  // (Phase 1 wiring) so any test that still calls
-  // *.getInstance() sees the same per-atSign instances.
+  // Wire up persistence through the factory. The factory owns the
+  // per-atSign lifecycle; the legacy `*.getInstance()` singletons
+  // have been removed.
   final factory = atServer.persistenceFactory = HiveAtPersistenceFactory();
   final config = HivePersistenceConfig(
     storagePath: storageDir,

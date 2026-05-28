@@ -420,8 +420,8 @@ class LatestCommitEntryOfEachKey extends MetricProvider {
   getMetrics({String? regex = '.*'}) async {
     final responseMap = <String, List<dynamic>>{};
     final atCommitLog = atServer.commitLog;
-    // Phase 3.5a's box invariant guarantees one entry per atKey, so a
-    // single walk yields the latest entry for every atKey.
+    // The commit-log box's one-entry-per-atKey invariant guarantees
+    // a single walk yields the latest entry for every atKey.
     final hasRegex = regex != null && regex.isNotEmpty && regex != '.*';
     final pattern = hasRegex ? RegExp(regex) : null;
     await for (final commitEntry in atCommitLog.iterate(

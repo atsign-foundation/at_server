@@ -421,8 +421,7 @@ void main() {
     });
   });
 
-  group(
-      'A group of regression tests for the auth-filter empty-response wedge (Phase 3.5d)',
+  group('A group of regression tests for the auth-filter empty-response wedge',
       () {
     late String enrollmentId;
 
