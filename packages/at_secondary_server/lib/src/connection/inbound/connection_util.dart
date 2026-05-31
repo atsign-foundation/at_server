@@ -248,7 +248,7 @@ class InboundCommandValidator {
     final AtVerb? verb = AtVerb.tryParse(rawVerb);
     if (verb == null) {
       String exMsg = 'Received invalid verb that does not match protocol spec';
-      logger.severe('$exMsg. rawVerb: $rawVerb command: $command');
+      logger.warning('$exMsg. rawVerb: $rawVerb command: $command');
       throw InvalidSyntaxException(exMsg);
     }
 
