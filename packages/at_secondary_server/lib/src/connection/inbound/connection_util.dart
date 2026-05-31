@@ -6,6 +6,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_utils/at_logger.dart' show AtSignLogger;
 
 import 'inbound_connection_pool.dart';
 
@@ -190,6 +191,8 @@ class InboundIdleChecker {
 }
 
 class InboundCommandValidator {
+  static final AtSignLogger logger = AtSignLogger('InboundCommandValidator');
+
   /// We only need enough of the buffer to identify the verb name (capped at 64
   /// chars below) and the optional subcommand, so for very long commands (e.g.
   /// large `update` values) we cap the decode here to a small prefix instead
@@ -242,9 +245,12 @@ class InboundCommandValidator {
     }
 
     // what verb is this?
-    final verb = AtVerb.tryParse(rawVerb) ??
-        (throw InvalidSyntaxException(
-            'Received invalid verb that does not match protocol spec'));
+    final AtVerb? verb = AtVerb.tryParse(rawVerb);
+    if (verb == null) {
+      String exMsg = 'Received invalid verb that does not match protocol spec';
+      logger.warning('$exMsg. rawVerb: $rawVerb command: $command');
+      throw InvalidSyntaxException(exMsg);
+    }
 
     // determine auth requirement - may be overridden if verb has subcommands
     bool requiresAuth = verb.requiresAuth;
