@@ -15,6 +15,7 @@ import 'test_utils.dart';
 StreamController<String> sc = StreamController<String>();
 
 void streamCallBack(List<int> data, InboundConnection connection) {}
+
 Future<void> callback(String value, InboundConnection connection) async {
   sc.add(value);
 }
@@ -180,12 +181,6 @@ void main() async {
       );
     });
 
-    // -----------------------------------------------------------------
-    // Coverage gaps — each test below closes a specific validate()
-    // branch that wasn't otherwise exercised.
-    // -----------------------------------------------------------------
-
-    // Gap 1a: the rawVerb.length > 64 branch.
     test('rawVerb longer than 64 chars throws InvalidSyntaxException', () {
       when(() => connection.metaData).thenReturn(authenticatedMetadata);
       expect(
@@ -195,8 +190,6 @@ void main() async {
       );
     });
 
-    // Gap 1b: boundary — 64 chars exactly is NOT rejected by the
-    // length check, it falls through to tryParse-null.
     test('rawVerb of exactly 64 chars falls through to tryParse-null', () {
       when(() => connection.metaData).thenReturn(authenticatedMetadata);
       expect(
@@ -206,8 +199,6 @@ void main() async {
       );
     });
 
-    // Gap 2a/b: the isPolAuthenticated half of the auth OR — a
-    // pol-authenticated connection must satisfy auth-required verbs.
     test('pol-authenticated connection passes auth-required top-level verbs',
         () {
       final pol = InboundConnectionMetadata()..isPolAuthenticated = true;
@@ -220,8 +211,6 @@ void main() async {
       _expectCommandsToValidate(subcommandsRequiringAuth, connection);
     });
 
-    // Gap 3: Subcommand.tryParse null + verb.requiresAuth=false
-    // fallback (the unauth-default branch of the `??` operator).
     test('unknown enroll subcommand falls back to verb.requiresAuth=false', () {
       when(() => connection.metaData).thenReturn(unAuthenticatedMetadata);
       expect(
@@ -231,10 +220,6 @@ void main() async {
       );
     });
 
-    // Gap 4a/b: hasSubcommands verb arriving with no colon at all.
-    // The secondColon lookup returns -1 and rawSubcommand is the verb
-    // name itself; Subcommand.tryParse returns null and we fall back
-    // to verb.requiresAuth.
     test('enroll without colon falls back to verb.requiresAuth=false', () {
       when(() => connection.metaData).thenReturn(unAuthenticatedMetadata);
       expect(
@@ -243,6 +228,7 @@ void main() async {
         returnsNormally,
       );
     });
+
     test('notify without colon throws UnAuth (fallback to verb.requiresAuth)',
         () {
       when(() => connection.metaData).thenReturn(unAuthenticatedMetadata);
@@ -253,7 +239,6 @@ void main() async {
       );
     });
 
-    // Gap 5: empty bytes — empty rawVerb, tryParse('') is null.
     test('empty bytes throws InvalidSyntaxException', () {
       when(() => connection.metaData).thenReturn(authenticatedMetadata);
       expect(
@@ -262,7 +247,6 @@ void main() async {
       );
     });
 
-    // Gap 6a/b/c: trim-related edge cases.
     test('whitespace-only input throws InvalidSyntaxException', () {
       when(() => connection.metaData).thenReturn(authenticatedMetadata);
       expect(
@@ -271,6 +255,7 @@ void main() async {
         throwsA(isA<InvalidSyntaxException>()),
       );
     });
+
     test('leading whitespace is stripped before parsing', () {
       when(() => connection.metaData).thenReturn(unAuthenticatedMetadata);
       expect(
@@ -280,6 +265,7 @@ void main() async {
         returnsNormally,
       );
     });
+
     test('leading colon produces empty rawVerb and throws', () {
       when(() => connection.metaData).thenReturn(authenticatedMetadata);
       expect(
@@ -289,7 +275,6 @@ void main() async {
       );
     });
 
-    // Gap 7a/b: the prefixLen cap at _maxBytesForValidation (256).
     test('valid verb with >256 trailing bytes still validates from prefix', () {
       when(() => connection.metaData).thenReturn(authenticatedMetadata);
       final big = 'update:public:phone@alice ${'x' * 400}\n';
@@ -299,6 +284,7 @@ void main() async {
         returnsNormally,
       );
     });
+
     test('>256 bytes of unrecognised junk throws based on the prefix', () {
       when(() => connection.metaData).thenReturn(authenticatedMetadata);
       expect(
@@ -308,9 +294,6 @@ void main() async {
       );
     });
 
-    // Gap 8: malformed UTF-8 — the allowMalformed decoder should
-    // produce replacement chars that the validator then rejects as a
-    // non-protocol verb. The point is no FormatException leaks.
     test('malformed UTF-8 bytes do not leak FormatException', () {
       when(() => connection.metaData).thenReturn(authenticatedMetadata);
       expect(
@@ -320,16 +303,11 @@ void main() async {
       );
     });
 
-    // Gap 9: requiresAuth=true subcommands pass when authenticated
-    // (mirror of the existing unauth test).
     test('subcommandsRequiringAuth pass when authenticated', () {
       when(() => connection.metaData).thenReturn(authenticatedMetadata);
       _expectCommandsToValidate(subcommandsRequiringAuth, connection);
     });
 
-    // Gap 10: the `scan `/`monitor ` substring short-circuit is now
-    // anchored to startsWith — values that contain those tokens no
-    // longer let an unauthenticated client bypass the auth check.
     test(
         '`scan `/`monitor ` substring inside a value does NOT bypass auth check',
         () {
