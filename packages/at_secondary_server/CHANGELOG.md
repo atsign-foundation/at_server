@@ -8,6 +8,13 @@
   on the first flow, was sent an `error:` frame, had its buffer
   cleared, and was rejected again on the second flow — two error
   frames written to the client for one command
+- fix: anchor `InboundCommandValidator`'s `scan`/`monitor`
+  short-circuit to `startsWith` (was `contains`). A value containing
+  the substring `scan ` or `monitor ` no longer skips the verb-parse
+  + auth-check path; previously, an unauthenticated client could send
+  e.g. `update:public:phone@alice scan some-text\n` and the validator
+  would early-return without enforcing the `update` verb's auth
+  requirement.
 
 # 3.13.1
 

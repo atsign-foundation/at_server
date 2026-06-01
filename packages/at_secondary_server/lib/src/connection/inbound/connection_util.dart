@@ -246,8 +246,13 @@ class InboundCommandValidator {
     var isAuthenticated = connection.metaData.isAuthenticated ||
         connection.metaData.isPolAuthenticated;
 
-    // why does scan delimit with a space....
-    if (command.contains('scan ') || command.contains('monitor ')) {
+    // `scan` and `monitor` are the two verbs whose arguments are
+    // delimited by a space rather than `:`, so the verb-then-colon
+    // split below can't parse them. Anchor the match to the start of
+    // the command — `contains` would also match a `scan ` or
+    // `monitor ` substring inside an `update` value, letting an
+    // unauthenticated client bypass the auth check on `update`.
+    if (command.startsWith('scan ') || command.startsWith('monitor ')) {
       return;
     }
 
