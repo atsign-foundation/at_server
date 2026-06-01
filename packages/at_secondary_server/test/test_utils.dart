@@ -66,6 +66,13 @@ class MockInboundConnection extends Mock implements InboundConnection {}
 class FakeInboundConnection extends Fake implements InboundConnectionImpl {
   final FakeSocket socket;
   final InboundConnectionMetadata metadata;
+
+  /// Records every write the server-side code performs on this
+  /// connection. Tests can inspect this to assert that the connection
+  /// was (or wasn't) written to — e.g. that no `error:…\n@` frame was
+  /// sent on a path that should have succeeded.
+  final writes = <String>[];
+
   FakeInboundConnection(this.socket, this.metadata);
 
   @override
@@ -77,6 +84,11 @@ class FakeInboundConnection extends Fake implements InboundConnectionImpl {
   @override
   bool isInValid() {
     return false;
+  }
+
+  @override
+  Future<void> write(String data) async {
+    writes.add(data);
   }
 
   @override

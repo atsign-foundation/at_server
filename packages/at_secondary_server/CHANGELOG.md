@@ -1,3 +1,14 @@
+# 3.13.2
+
+- fix: defer `InboundCommandValidator.validate` until the buffer ends
+  with `\n` or has at least 16 bytes (the length of the longest
+  verb+subcommand, `enroll:unrevoke`, plus 1). Previously, a command arriving
+  in two TCP flows where the first carried fewer bytes than the verb
+  name (e.g. `'loo'` then `'kup:publickey@alice\n'`) failed validation
+  on the first flow, was sent an `error:` frame, had its buffer
+  cleared, and was rejected again on the second flow — two error
+  frames written to the client for one command
+
 # 3.13.1
 
 - fix: log the offending rawVerb and command when

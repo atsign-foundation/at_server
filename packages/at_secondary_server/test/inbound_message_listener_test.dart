@@ -267,5 +267,67 @@ void main() async {
       }
       await streamFuture;
     });
+
+    test(
+        'lookup arriving in two TCP flows ("loo" + "kup:publickey@alice\\n") '
+        'reassembles into one command emission and no error frames', () async {
+      // Reproducer for a production bug. When a command's bytes arrive
+      // in two TCP flows AND the first flow's bytes are shorter than
+      // the verb name, InboundCommandValidator.validate runs against
+      // the partial prefix on the first flow, fails (AtVerb.tryParse
+      // returns null for 'loo'), the buffer is cleared, and the
+      // second flow is then validated alone (also rejected). The
+      // client sees two `error:…\n@` frames written to its connection
+      // instead of the single successful response it should get.
+      //
+      // The expected behaviour: the listener should reassemble the
+      // two flows into one command, emit it once via the callback,
+      // and write nothing to the connection in this layer.
+      var listener = InboundMessageListener(fakeConnection);
+      final emissions = <String>[];
+      final sub = sc.stream.listen(emissions.add);
+      listener.listen(callback, streamCallBack);
+
+      // GlobalExceptionHandler's _getPrompt reads
+      // AtSecondaryServerImpl.getInstance().currentAtSign — set it
+      // so that the error-handling path can actually write to the
+      // connection (otherwise it throws an unrelated `late field`
+      // error, the catch-on-Exception in the buffer listener doesn't
+      // catch the Error, and `_buffer.clear()` never runs — masking
+      // the bug as a successful reassembly).
+      AtSecondaryServerImpl.getInstance().currentAtSign = '@alice'.toAtsign();
+
+      const cmd = 'lookup:publickey@alice\n';
+      fakeConnection.socket.addData(cmd.substring(0, 3)); // 'loo'
+      // Yield to the event loop so the message + buffer listeners
+      // process the first flow BEFORE the second arrives — mirroring
+      // a real TCP flow gap. Without this, both flows land in the
+      // buffer before any listener fires and the validator sees the
+      // already-reassembled command, hiding the bug.
+      await Future.delayed(Duration(milliseconds: 10));
+      fakeConnection.socket
+          .addData(cmd.substring(3)); //    'kup:publickey@alice\n'
+
+      // Drain microtasks + give the listener a moment to process.
+      await Future.delayed(Duration(milliseconds: 50));
+      await sub.cancel();
+
+      // Pin both the emission count and the contents (per the
+      // count-emissions-not-just-the-last rule).
+      expect(emissions, [cmd.trim()],
+          reason: 'Expected one command emission with the reassembled '
+              'lookup. With the current validate-on-first-flow logic, '
+              'the prefix "loo" fails validation, the buffer is '
+              'cleared, and zero commands are emitted.');
+
+      // The listener layer shouldn't write to the connection on the
+      // success path. Any writes here indicate a `GlobalExceptionHandler`
+      // `error:…\n@` frame leaking out — the double-write the
+      // production logs show.
+      expect(fakeConnection.writes, isEmpty,
+          reason: 'Expected no error frames written; the connection saw '
+              '${fakeConnection.writes.length} write(s): '
+              '${fakeConnection.writes}');
+    });
   });
 }
