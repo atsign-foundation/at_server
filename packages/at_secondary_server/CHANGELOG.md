@@ -43,6 +43,24 @@
   `from_verb_handler` and `config_verb_handler` updated; the
   construction signature is now `AtConfig(keyStore, atSign)`.
 
+# 3.13.2
+
+- fix: defer `InboundCommandValidator.validate` until the buffer ends
+  with `\n` or has at least 16 bytes (the length of the longest
+  verb+subcommand, `enroll:unrevoke`, plus 1). Previously, a command arriving
+  in two TCP flows where the first carried fewer bytes than the verb
+  name (e.g. `'loo'` then `'kup:publickey@alice\n'`) failed validation
+  on the first flow, was sent an `error:` frame, had its buffer
+  cleared, and was rejected again on the second flow — two error
+  frames written to the client for one command
+- fix: anchor `InboundCommandValidator`'s `scan`/`monitor`
+  short-circuit to `startsWith` (was `contains`). A value containing
+  the substring `scan ` or `monitor ` no longer skips the verb-parse
+  + auth-check path; previously, an unauthenticated client could send
+  e.g. `update:public:phone@alice scan some-text\n` and the validator
+  would early-return without enforcing the `update` verb's auth
+  requirement.
+
 # 3.13.1
 
 - fix: log the offending rawVerb and command when

@@ -199,6 +199,29 @@ class InboundCommandValidator {
   /// of decoding the entire payload twice (validator + listener).
   static const int _maxBytesForValidation = 256;
 
+  /// Lower bound below which the buffer is too short to make a reliable
+  /// verb / subcommand decision: validation must be deferred until either
+  /// a terminating `\n` arrives or at least this many bytes have been
+  /// accumulated.
+  ///
+  /// Computed as `max(verb.length + 1 + max_subcommand_length + 1)` across
+  /// every [AtVerb] with `hasSubcommands == true`, where the candidate
+  /// subcommands are the [Subcommand] enum values that the validator can
+  /// match — the longest is `unrevoke` (8). The bound is
+  /// `enroll:unrevoke` (6 + 1 + 8 + 1 = 16). Verbs without subcommands and
+  /// the longest verb name (`llookup`/`plookup`/`monitor`, 7 chars) fit
+  /// inside this bound.
+  ///
+  /// Below this bound, validating against a partial prefix would
+  ///  (a) reject the legitimate first half of a fragmented command (e.g.
+  ///      `'loo'` followed in a later TCP flow by `'kup:publickey@alice\n'`)
+  ///      — `AtVerb.tryParse('loo')` returns null and we'd send a
+  ///      spurious `error:` frame plus clear the buffer; and
+  ///  (b) make the auth-required decision against a truncated subcommand
+  ///      (e.g. `'enroll:revo'` would auth-pass before the `unrevoke`
+  ///      subcommand's `requiresAuth: true` was observed).
+  static const int minBytesForValidation = 16;
+
   static final Utf8Decoder _allowMalformedUtf8 =
       Utf8Decoder(allowMalformed: true);
 
@@ -223,8 +246,13 @@ class InboundCommandValidator {
     var isAuthenticated = connection.metaData.isAuthenticated ||
         connection.metaData.isPolAuthenticated;
 
-    // why does scan delimit with a space....
-    if (command.contains('scan ') || command.contains('monitor ')) {
+    // `scan` and `monitor` are the two verbs whose arguments are
+    // delimited by a space rather than `:`, so the verb-then-colon
+    // split below can't parse them. Anchor the match to the start of
+    // the command — `contains` would also match a `scan ` or
+    // `monitor ` substring inside an `update` value, letting an
+    // unauthenticated client bypass the auth check on `update`.
+    if (command.startsWith('scan ') || command.startsWith('monitor ')) {
       return;
     }
 
