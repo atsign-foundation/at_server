@@ -62,7 +62,7 @@ void main() {
     test('test update meta handler processVerb with ttb', () async {
       //Update Verb
       var updateVerbHandler = UpdateVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         statsNotificationService,
         notificationManager,
         alice,
@@ -81,7 +81,7 @@ void main() {
       int ttb = 100; // ttb, in milliseconds
       //Update Meta
       var upMetaHandler = UpdateMetaVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         statsNotificationService,
         notificationManager,
         alice,
@@ -96,8 +96,7 @@ void main() {
 
       // Look Up verb
       var localLookUpResponse = Response();
-      var localLookupVerbHandler =
-          LocalLookupVerbHandler(secondaryKeyStore, enMgr);
+      var localLookupVerbHandler = LocalLookupVerbHandler(keyValueStore, enMgr);
       var localLookVerbParam = HashMap<String, String>();
       localLookVerbParam.putIfAbsent('atSign', () => alice);
       localLookVerbParam.putIfAbsent('forAtSign', () => bob);
@@ -116,7 +115,7 @@ void main() {
     test('test update meta handler processVerb with ttl', () async {
       //Update Verb
       var updateVerbHandler = UpdateVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         statsNotificationService,
         notificationManager,
         alice,
@@ -135,7 +134,7 @@ void main() {
 
       //Update Meta
       var updateMetaVerbHandler = UpdateMetaVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         statsNotificationService,
         notificationManager,
         alice,
@@ -152,8 +151,7 @@ void main() {
 
       // Look Up verb
       var localLookUpResponse = Response();
-      var localLookupVerbHandler =
-          LocalLookupVerbHandler(secondaryKeyStore, enMgr);
+      var localLookupVerbHandler = LocalLookupVerbHandler(keyValueStore, enMgr);
       var localLookVerbParam = HashMap<String, String>();
       localLookVerbParam.putIfAbsent('atSign', () => alice);
       localLookVerbParam.putIfAbsent('forAtSign', () => bob);

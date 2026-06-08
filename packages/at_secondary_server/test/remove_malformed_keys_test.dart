@@ -3,30 +3,22 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
-import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart';
 
 import 'test_utils.dart';
 
 HashMap<String, String> dummyKeyStore = HashMap();
 
-class MockHiveKeyStore extends Mock implements HiveKeystore {
+class MockAtKeyValueStore extends Mock
+    implements AtKeyValueStore<String, AtData, AtMetaData?> {
   @override
-  List<String> getKeys({String? regex}) {
-    return dummyKeyStore.keys.toList();
+  Future<Stream<String>> getKeys({String? regex}) async {
+    return Stream.fromIterable(dummyKeyStore.keys.toList());
   }
 
   @override
   Future<int?> remove(String key, {bool skipCommit = false}) async {
     dummyKeyStore.remove(key);
     return 1;
-  }
-}
-
-class MockSecondaryPersistenceStore extends Mock
-    implements SecondaryPersistenceStore {
-  @override
-  HiveKeystore? getSecondaryKeyStore() {
-    return MockHiveKeyStore();
   }
 }
 
@@ -44,8 +36,7 @@ void main() {
       dummyKeyStore.putIfAbsent('$alice:phone@bob', () => 'dummy_value');
     });
     test('A test to verify only malformed keys are removed', () async {
-      AtSecondaryServerImpl.getInstance().secondaryPersistenceStore =
-          MockSecondaryPersistenceStore();
+      AtSecondaryServerImpl.getInstance().keyValueStore = MockAtKeyValueStore();
       await AtSecondaryServerImpl.getInstance().removeMalformedKeys();
       expect(dummyKeyStore.length, 2);
       expect(dummyKeyStore.containsKey('public:publickey$alice'), true);

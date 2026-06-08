@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
-import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -34,8 +33,8 @@ void main() {
 
     test('test delete getVerb', () {
       var handler = DeleteVerbHandler(
-        secondaryKeyStore,
-        StatsNotificationService.getInstance(),
+        keyValueStore,
+        statsNotificationService,
         notificationManager,
       );
       var verb = handler.getVerb();
@@ -45,8 +44,8 @@ void main() {
     test('test delete command accept test', () {
       var command = 'delete:@bob:email@colin';
       var handler = DeleteVerbHandler(
-        secondaryKeyStore,
-        StatsNotificationService.getInstance(),
+        keyValueStore,
+        statsNotificationService,
         notificationManager,
       );
       var result = handler.accept(command);
@@ -57,8 +56,8 @@ void main() {
       var command = 'DEL ETE:@bob:email@colin';
       command = SecondaryUtil.convertCommand(command);
       var handler = DeleteVerbHandler(
-        secondaryKeyStore,
-        StatsNotificationService.getInstance(),
+        keyValueStore,
+        statsNotificationService,
         notificationManager,
       );
       var result = handler.accept(command);
@@ -117,8 +116,8 @@ void main() {
     setUp(() async {
       await verbTestsSetUp();
       handler = DeleteVerbHandler(
-        secondaryKeyStore,
-        StatsNotificationService.getInstance(),
+        keyValueStore,
+        statsNotificationService,
         notificationManager,
       );
     });
@@ -208,13 +207,13 @@ void main() {
 
       inboundConnection.metaData.isAuthenticated = true;
       deleteHandler = DeleteVerbHandler(
-        secondaryKeyStore,
-        StatsNotificationService.getInstance(),
+        keyValueStore,
+        statsNotificationService,
         notificationManager,
       );
       updateHandler = UpdateVerbHandler(
-        secondaryKeyStore,
-        StatsNotificationService.getInstance(),
+        keyValueStore,
+        statsNotificationService,
         notificationManager,
         alice,
       );
@@ -222,7 +221,7 @@ void main() {
 
     test('delete immutable record without force flag', () async {
       String key = 'immutable1.wavi$alice';
-      await secondaryKeyStore.remove(key);
+      await keyValueStore.remove(key);
       await updateHandler.process(
         'update:immutable:true:$key Some data',
         inboundConnection,
@@ -234,42 +233,42 @@ void main() {
     });
     test('delete immutable record with force flag', () async {
       String key = 'immutable2.wavi$alice';
-      await secondaryKeyStore.remove(key);
+      await keyValueStore.remove(key);
       await updateHandler.process(
         'update:immutable:true:$key Some data',
         inboundConnection,
       );
       await deleteHandler.process('delete:force:$key', inboundConnection);
       await expectLater(
-        secondaryKeyStore.get(key),
+        keyValueStore.get(key),
         throwsA(isA<KeyNotFoundException>()),
       );
     });
     test('delete immutable cached record without force flag', () async {
       String key = 'cached:$alice:immutable3.wavi@bob';
-      await secondaryKeyStore.remove(key);
-      await secondaryKeyStore.put(
+      await keyValueStore.remove(key);
+      await keyValueStore.put(
           key,
           AtData()
             ..data = 'some data'
             ..metaData = (AtMetaData()..immutable = true));
       await deleteHandler.process('delete:$key', inboundConnection);
       await expectLater(
-        secondaryKeyStore.get(key),
+        keyValueStore.get(key),
         throwsA(isA<KeyNotFoundException>()),
       );
     });
     test('delete immutable cached record with force flag', () async {
       String key = 'cached:$alice:immutable3.wavi@bob';
-      await secondaryKeyStore.remove(key);
-      await secondaryKeyStore.put(
+      await keyValueStore.remove(key);
+      await keyValueStore.put(
           key,
           AtData()
             ..data = 'some data'
             ..metaData = (AtMetaData()..immutable = true));
       await deleteHandler.process('delete:force:$key', inboundConnection);
       await expectLater(
-        secondaryKeyStore.get(key),
+        keyValueStore.get(key),
         throwsA(isA<KeyNotFoundException>()),
       );
     });
@@ -335,14 +334,13 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
-          keyName, AtData()..data = jsonEncode(enrollJson));
+      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
       // Delete a key with wavi namespace
       String deleteCommand = 'delete:$alice:phone.wavi$alice';
       HashMap<String, String?> deleteVerbParams =
           getVerbParam(VerbSyntax.delete, deleteCommand);
       DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         statsNotificationService,
         notificationManager,
       );
@@ -353,7 +351,7 @@ void main() {
       deleteCommand = 'delete:$alice:phone.buzz$alice';
       deleteVerbParams = getVerbParam(VerbSyntax.delete, deleteCommand);
       deleteVerbHandler = DeleteVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         statsNotificationService,
         notificationManager,
       );
@@ -379,14 +377,13 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
-          keyName, AtData()..data = jsonEncode(enrollJson));
+      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
 
       String deleteCommand = 'delete:dummykey.wavi$alice';
       HashMap<String, String?> deleteVerbParams =
           getVerbParam(VerbSyntax.delete, deleteCommand);
       DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         statsNotificationService,
         notificationManager,
       );
@@ -416,14 +413,13 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
-          keyName, AtData()..data = jsonEncode(enrollJson));
+      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
 
       String deleteCommand = 'delete:dummykey.wavi$alice';
       HashMap<String, String?> deleteVerbParams =
           getVerbParam(VerbSyntax.delete, deleteCommand);
       DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         statsNotificationService,
         notificationManager,
       );
@@ -450,7 +446,7 @@ void main() {
       HashMap<String, String?> deleteVerbParams =
           getVerbParam(VerbSyntax.delete, deleteCommand);
       DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         statsNotificationService,
         notificationManager,
       );
@@ -476,13 +472,12 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
-          keyName, AtData()..data = jsonEncode(enrollJson));
+      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
       String deleteCommand = 'delete:$bob:shared_key$alice';
       HashMap<String, String?> deleteVerbParams =
           getVerbParam(VerbSyntax.delete, deleteCommand);
       DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         statsNotificationService,
         notificationManager,
       );
@@ -508,13 +503,12 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
-          keyName, AtData()..data = jsonEncode(enrollJson));
+      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
       String deleteCommand = 'delete:$alice:secretdata$alice';
       HashMap<String, String?> deleteVerbParams =
           getVerbParam(VerbSyntax.delete, deleteCommand);
       DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         statsNotificationService,
         notificationManager,
       );
@@ -540,13 +534,12 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
-          keyName, AtData()..data = jsonEncode(enrollJson));
+      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
       String deleteCommand = 'delete:$alice:secretdata$alice';
       HashMap<String, String?> deleteVerbParams =
           getVerbParam(VerbSyntax.delete, deleteCommand);
       DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         statsNotificationService,
         notificationManager,
       );
@@ -587,15 +580,14 @@ void main() {
           'requestType': 'newEnrollment',
           'approval': {'state': operation}
         };
-        await secondaryKeyStore.put(
-            '$enrollmentId.new.enrollments.__manage$alice',
+        await keyValueStore.put('$enrollmentId.new.enrollments.__manage$alice',
             AtData()..data = jsonEncode(enrollJson));
         inboundConnection.metadata.enrollmentId = enrollmentId;
         String deleteCommand = 'delete:$alice:dummykey.wavi$alice';
         HashMap<String, String?> deleteVerbParams =
             getVerbParam(VerbSyntax.delete, deleteCommand);
         DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
-          secondaryKeyStore,
+          keyValueStore,
           statsNotificationService,
           notificationManager,
         );
@@ -635,7 +627,7 @@ void main() {
       enrollDataStoreValue.apkamKeysExpiryDuration = Duration(milliseconds: 1);
 
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           keyName,
           AtData()
             ..data = jsonEncode(enrollDataStoreValue.toJson())
@@ -646,7 +638,7 @@ void main() {
       String deleteCommand = 'delete:$alice:phone.wavi$alice';
 
       DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         statsNotificationService,
         notificationManager,
       );

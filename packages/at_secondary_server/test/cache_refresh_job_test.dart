@@ -73,13 +73,13 @@ void main() {
     test('Run with some records to refresh which have ttr > 0 not yet reached',
         () async {
       await createRandomKeyStoreEntry(
-          '@bob', 'cached:$alice:1.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:1.key.app@bob', keyValueStore,
           commonsMetadata: Metadata()..ttr = 1);
       await createRandomKeyStoreEntry(
-          '@bob', 'cached:$alice:2.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:2.key.app@bob', keyValueStore,
           commonsMetadata: Metadata()..ttr = 2);
       await createRandomKeyStoreEntry(
-          '@bob', 'cached:$alice:3.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:3.key.app@bob', keyValueStore,
           commonsMetadata: Metadata()..ttr = 3);
       AtCacheRefreshJob job = AtCacheRefreshJob(alice, cacheManager);
       Map result = await job.refreshNow();
@@ -96,13 +96,13 @@ void main() {
         () async {
       DateTime past = DateTime.now().toUtc().subtract(Duration(seconds: 1));
       await createRandomKeyStoreEntry(
-          '@bob', 'cached:$alice:1.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:1.key.app@bob', keyValueStore,
           commonsMetadata: Metadata()..ttr = null, refreshAt: past);
       await createRandomKeyStoreEntry(
-          '@bob', 'cached:$alice:2.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:2.key.app@bob', keyValueStore,
           commonsMetadata: Metadata()..ttr = 1);
       await createRandomKeyStoreEntry(
-          '@bob', 'cached:$alice:3.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:3.key.app@bob', keyValueStore,
           commonsMetadata: Metadata()..ttr = null, refreshAt: past);
 
       List<String> toRefresh = await cacheManager.getKeyNamesToRefresh();
@@ -124,15 +124,15 @@ void main() {
         () async {
       DateTime past = DateTime.now().toUtc().subtract(Duration(seconds: 1));
       await createRandomKeyStoreEntry(
-          '@bob', 'cached:$alice:1.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:1.key.app@bob', keyValueStore,
           data: 'value 1 old',
           commonsMetadata: Metadata()..ttr = null,
           refreshAt: past);
       await createRandomKeyStoreEntry(
-          '@bob', 'cached:$alice:2.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:2.key.app@bob', keyValueStore,
           data: 'value 2 old', commonsMetadata: Metadata()..ttr = 1);
       await createRandomKeyStoreEntry(
-          '@bob', 'cached:$alice:3.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:3.key.app@bob', keyValueStore,
           data: 'value 3 old',
           commonsMetadata: Metadata()..ttr = null,
           refreshAt: past);
@@ -169,27 +169,27 @@ void main() {
         () async {
       DateTime past = DateTime.now().toUtc().subtract(Duration(seconds: 1));
       await createRandomKeyStoreEntry(
-          '@bob', 'cached:$alice:1.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:1.key.app@bob', keyValueStore,
           data: 'value 1 old',
           commonsMetadata: Metadata()..ttr = null,
           refreshAt: past);
 
       await createRandomKeyStoreEntry(
-          '@bob', 'cached:$alice:2.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:2.key.app@bob', keyValueStore,
           data: 'value 2 old', commonsMetadata: Metadata()..ttr = 5);
 
       AtData data3 = await createRandomKeyStoreEntry(
-          '@bob', 'cached:$alice:3.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:3.key.app@bob', keyValueStore,
           data: 'value 3 old', commonsMetadata: Metadata()..ttr = 1);
 
       AtData data4 = await createRandomKeyStoreEntry(
-          '@bob', 'cached:$alice:4.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:4.key.app@bob', keyValueStore,
           data: 'value 4 old',
           commonsMetadata: Metadata()..ttr = null,
           refreshAt: past);
 
       await createRandomKeyStoreEntry(
-          '@bob', 'cached:$alice:5.key.app@bob', secondaryKeyStore,
+          '@bob', 'cached:$alice:5.key.app@bob', keyValueStore,
           data: 'value 5 old', commonsMetadata: Metadata()..ttr = 1);
 
       await Future.delayed(Duration(milliseconds: 1001));

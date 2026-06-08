@@ -35,3 +35,13 @@ doc/api/
 */certs/*
 .vscode/
 storage
+
+
+packages/at_root_server/certs
+packages/at_root_server/redis.log
+packages/at_root_server/root
+packages/at_root_server/runLocal.sh
+packages/at_secondary_server/bin/create_ws_to_at_server.dart
+packages/at_secondary_server/secondary
+tests/at_end2end_test/config/config.yaml
+

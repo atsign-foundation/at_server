@@ -17,8 +17,8 @@ import 'package:uuid/uuid.dart';
 import 'test_utils.dart';
 
 void main() async {
-  SecondaryKeyStore<String, AtData?, AtMetaData?> mockKeyStore =
-      MockSecondaryKeyStore();
+  AtKeyValueStore<String, AtData, AtMetaData?> mockKeyStore =
+      MockAtKeyValueStore();
 
   verbTestsSetUpLogging();
 
@@ -195,7 +195,7 @@ void main() async {
       enrollDataStoreValue.apkamKeysExpiryDuration = Duration(milliseconds: 1);
 
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           keyName,
           AtData()
             ..data = jsonEncode(enrollDataStoreValue.toJson())
@@ -207,7 +207,7 @@ void main() async {
       HashMap<String, String?> pkamVerbParams =
           getVerbParam(VerbSyntax.pkam, pkamCommand);
 
-      PkamVerbHandler pkamVerbHandler = PkamVerbHandler(secondaryKeyStore);
+      PkamVerbHandler pkamVerbHandler = PkamVerbHandler(keyValueStore);
       await pkamVerbHandler.processVerb(
           response, pkamVerbParams, inboundConnection);
       expect(response.isError, true);

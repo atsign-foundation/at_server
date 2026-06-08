@@ -23,21 +23,14 @@ class SecondaryUtil {
   }
 
   static Future<void> saveCookie(
-      String key, String value, String? atSign) async {
+      String key, String value, AtKeyValueStore keyValueStore) async {
     logger.finer('In Secondary Util saveCookie');
     logger.finer('saveCookie key : $key');
     logger.finer('signed challenge : $value');
     var atData = AtData();
     atData.data = value;
-
-    var secondaryPersistenceStore =
-        SecondaryPersistenceStoreFactory.getInstance()
-            .getSecondaryPersistenceStore(atSign)!;
-    var keystoreManager =
-        secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
-    SecondaryKeyStore keyStore = keystoreManager.getKeyStore();
     atData.metaData = AtMetaData()..ttl = 60 * 1000;
-    await keyStore.put('public:$key', atData); //expire in 1 min
+    await keyValueStore.put('public:$key', atData); //expire in 1 min
   }
 
   static List<String> getSecondaryInfo(String url) {

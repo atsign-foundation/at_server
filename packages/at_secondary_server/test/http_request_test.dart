@@ -27,7 +27,7 @@ void main() async {
     AtData d = AtData()
       ..data = value
       ..metaData = atMetaData;
-    await secondaryKeyStore.put(key, d);
+    await keyValueStore.put(key, d);
     mdMap[key] = SecondaryUtil.removeNulls(atMetaData.toJson())!;
   }
 
@@ -43,7 +43,7 @@ void main() async {
     AtData d = AtData()
       ..data = Base2e15.encode(value)
       ..metaData = atMetaData;
-    await secondaryKeyStore.put(key, d);
+    await keyValueStore.put(key, d);
     mdMap[key] = SecondaryUtil.removeNulls(atMetaData.toJson())!;
   }
 
@@ -72,7 +72,7 @@ void main() async {
 
   setUp(() async {
     await verbTestsSetUp();
-    handler = AtServerHttpRequestHandler(alice, secondaryKeyStore);
+    handler = AtServerHttpRequestHandler(alice, keyValueStore);
     handler.logger.level = 'warning';
     await putText(keyFoo, keyFoo);
     await putText(keyFooBar, keyFooBar);

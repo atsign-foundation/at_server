@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/hive.dart';
+import 'package:at_secondary/src/config/at_config.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -14,17 +16,17 @@ import 'package:test/test.dart';
 import 'test_utils.dart';
 
 void main() async {
-  late SecondaryKeyStore mockKeyStore;
+  late AtKeyValueStore<String, AtData, AtMetaData?> mockKeyStore;
   late FakeSocket mockSocket;
 
   verbTestsSetUpLogging();
 
   var storageDir = '${Directory.current.path}/test/hive';
-  late SecondaryKeyStoreManager keyStoreManager;
+  late AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore;
   setUp(() async {
-    mockKeyStore = MockSecondaryKeyStore();
+    mockKeyStore = MockAtKeyValueStore();
     mockSocket = FakeSocket();
-    keyStoreManager = await setUpFunc(storageDir);
+    keyValueStore = await setUpFunc(storageDir);
   });
   group('A group of from verb regex test', () {
     test('test from correct syntax with @', () {
@@ -73,18 +75,21 @@ void main() async {
   group('A group of from verb accept test', () {
     test('test from accept', () {
       var command = 'from:$alice';
-      var handler = FromVerbHandler(mockKeyStore);
+      var handler = FromVerbHandler(mockKeyStore,
+          commitLog: atCommitLog, accessLog: atAccessLog);
       expect(handler.accept(command), true);
     });
     test('test from accept invalid keyword', () {
       var command = 'to:$alice';
-      var handler = FromVerbHandler(mockKeyStore);
+      var handler = FromVerbHandler(mockKeyStore,
+          commitLog: atCommitLog, accessLog: atAccessLog);
       expect(handler.accept(command), false);
     });
     test('test from verb upper case', () {
       var command = 'FROM:$alice';
       command = SecondaryUtil.convertCommand(command);
-      var handler = FromVerbHandler(mockKeyStore);
+      var handler = FromVerbHandler(mockKeyStore,
+          commitLog: atCommitLog, accessLog: atAccessLog);
       expect(handler.accept(command), true);
     });
   });
@@ -102,13 +107,15 @@ void main() async {
 
   group('A group of from verb handler tests', () {
     test('test from verb handler getVerb', () {
-      var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
+      var verbHandler = FromVerbHandler(keyValueStore,
+          commitLog: atCommitLog, accessLog: atAccessLog);
       var verb = verbHandler.getVerb();
       expect(verb is From, true);
     });
 
     test('test from verb handler from atsign contains @', () async {
-      var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
+      var verbHandler = FromVerbHandler(keyValueStore,
+          commitLog: atCommitLog, accessLog: atAccessLog);
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -123,7 +130,8 @@ void main() async {
     });
 
     test('test from verb handler from atsign does not contain @', () async {
-      var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
+      var verbHandler = FromVerbHandler(keyValueStore,
+          commitLog: atCommitLog, accessLog: atAccessLog);
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -141,7 +149,7 @@ void main() async {
     /*test(
         'test from verb handler - from atsign is different from current atsign',
         () async {
-      var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
+      var verbHandler = FromVerbHandler(keyValueStore, commitLog: atCommitLog, accessLog: atAccessLog);
       AtSecondaryServerImpl().currentAtSign = '@tokyo';
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(null, inBoundSessionId);
@@ -158,11 +166,10 @@ void main() async {
 
   group('A group of from verb handler with configuration test', () {
     test('test from verb handler to allow fromAtSign ', () async {
-      var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
-      var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-          .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign);
-      await AtConfig(commitLogInstance!,
-              AtSecondaryServerImpl.getInstance().currentAtSign)
+      var verbHandler = FromVerbHandler(keyValueStore,
+          commitLog: atCommitLog, accessLog: atAccessLog);
+      await AtConfig(
+              keyValueStore, AtSecondaryServerImpl.getInstance().currentAtSign)
           .addToBlockList({'@bob'});
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '123';
@@ -179,11 +186,10 @@ void main() async {
     });
 
     test('test from verb handler to block fromAtSign ', () async {
-      var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
+      var verbHandler = FromVerbHandler(keyValueStore,
+          commitLog: atCommitLog, accessLog: atAccessLog);
       await AtConfig(
-              await AtCommitLogManagerImpl.getInstance().getCommitLog(
-                  AtSecondaryServerImpl.getInstance().currentAtSign),
-              AtSecondaryServerImpl.getInstance().currentAtSign)
+              keyValueStore, AtSecondaryServerImpl.getInstance().currentAtSign)
           .addToBlockList({'@bob'});
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '123';
@@ -199,7 +205,7 @@ void main() async {
 
     /*test('test from verb handler to block fromAtSign first and then allow',
         () async {
-      var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
+      var verbHandler = FromVerbHandler(keyValueStore, commitLog: atCommitLog, accessLog: atAccessLog);
       AtSecondaryServerImpl().currentAtSign = alice;
       await AtConfig.getInstance().addToBlockList({'@bob'});
       var inBoundSessionId = '123';
@@ -223,7 +229,7 @@ void main() async {
 
     test('test from verb handler to allow fromAtSign first and then block',
         () async {
-      var verbHandler = FromVerbHandler(keyStoreManager.getKeyStore());
+      var verbHandler = FromVerbHandler(keyValueStore, commitLog: atCommitLog, accessLog: atAccessLog);
       AtSecondaryServerImpl().currentAtSign = alice;
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(null, inBoundSessionId);
@@ -245,38 +251,37 @@ void main() async {
     });*/
   });
 
-  tearDown(() async => await tearDownFunc());
+  tearDownAll(() async => await tearDownFunc());
 
   if (Directory(storageDir).existsSync()) {
     Directory(storageDir).deleteSync(recursive: true);
   }
 }
 
-Future<SecondaryKeyStoreManager> setUpFunc(storageDir) async {
-  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore(alice)!;
-  var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog(alice, commitLogPath: storageDir);
-  var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init(storageDir);
-//  persistenceManager.scheduleKeyExpireTask(1); //commented this line for coverage test
-  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
-  hiveKeyStore.commitLog = commitLogInstance;
-  var keyStoreManager =
-      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
-  keyStoreManager.keyStore = hiveKeyStore;
+final HiveAtPersistenceFactory _fromTestFactory = HiveAtPersistenceFactory();
+
+Future<AtKeyValueStore<String, AtData, AtMetaData?>> setUpFunc(
+    storageDir) async {
+  final bundle = await _fromTestFactory.initialize(
+    alice,
+    HivePersistenceConfig(
+      storagePath: storageDir,
+      commitLogPath: storageDir,
+      accessLogPath: storageDir,
+      notificationStoragePath: storageDir,
+    ),
+  );
+
   AtSecondaryServerImpl.getInstance().currentAtSign = alice;
-  AtConfig(
-      await AtCommitLogManagerImpl.getInstance()
-          .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign),
-      AtSecondaryServerImpl.getInstance().currentAtSign);
-  await AtAccessLogManagerImpl.getInstance()
-      .getAccessLog(alice, accessLogPath: storageDir);
-  return keyStoreManager;
+  atCommitLog = bundle.keyValueStore.commitLog!;
+  atAccessLog = bundle.accessLog!;
+  AtSecondaryServerImpl.getInstance().commitLog = atCommitLog;
+  AtSecondaryServerImpl.getInstance().accessLog = atAccessLog;
+  return bundle.keyValueStore;
 }
 
 Future<void> tearDownFunc() async {
+  await _fromTestFactory.close();
   var isExists = await Directory('test/hive').exists();
   if (isExists) {
     Directory('test/hive').deleteSync(recursive: true);

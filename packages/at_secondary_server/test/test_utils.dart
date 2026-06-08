@@ -1,3 +1,29 @@
+// =====================================================================
+// Test setup conventions
+// =====================================================================
+//
+// Each test file in this package opens persistence stores against a
+// per-process Hive box keyed by `sha-of-atSign`. Two patterns work:
+//
+// 1. **File-scoped factory + per-test isolation via `bundle.clear()`.**
+//    Best when tests overlap on stored data and want a clean slate
+//    between cases. Open the factory once in `setUpAll`, call
+//    `bundle.clear()` in `setUp`, close the factory in `tearDownAll`.
+//    Cheap (no box reopen per test), but requires every test to
+//    expect an empty store.
+//
+// 2. **File-scoped factory + cross-test data leak.**
+//    Best when a setUp seeds shared baseline data and the tests
+//    assume it's still there. Same factory shape, no per-test
+//    clear.
+//
+// Avoid `tearDown` (per-test) factory close — it forces a box
+// reopen on every test and surfaces Hive lifecycle bugs that aren't
+// representative of production behaviour. Stick to `tearDownAll`
+// (per-file) for the close.
+//
+// =====================================================================
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -7,6 +33,7 @@ import 'dart:typed_data';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart' as at_lookup;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/hive.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
@@ -28,8 +55,12 @@ import 'package:crypton/crypton.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:uuid/uuid.dart';
 
-class MockSecondaryKeyStore extends Mock
-    implements SecondaryKeyStore<String, AtData?, AtMetaData?> {
+class MockAtCommitLog extends Mock implements AtCommitLog {}
+
+class MockAtAccessLog extends Mock implements AtAccessLog {}
+
+class MockAtKeyValueStore extends Mock
+    implements AtKeyValueStore<String, AtData, AtMetaData?> {
   @override
   List<Future Function(String key, {required bool skipCommit})> preRemoveHooks =
       [];
@@ -39,7 +70,7 @@ class MockSecondaryKeyStore extends Mock
 }
 
 class MockAtNotificationKeystore extends Mock
-    implements AtNotificationKeystore {}
+    implements HiveAtNotificationKeystore {}
 
 class MockNotifyConnectionsPool extends Mock implements NotifyConnectionsPool {}
 
@@ -170,7 +201,7 @@ late String bobOriginalPublicKeyAsJson;
 
 var cachedBobsPublicKeyName = 'cached:public:publickey@bob';
 
-late SecondaryKeyStore<String, AtData?, AtMetaData?> secondaryKeyStore;
+late AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore;
 late AtCacheManager cacheManager;
 late MockOutboundClientManager mockOutboundClientManager;
 late OutboundClient outboundClientWithHandshake;
@@ -192,8 +223,12 @@ late Function() socketOnDoneFn;
 late Function(Exception e, StackTrace st) socketOnErrorFn;
 
 String storageDir = '${Directory.current.path}/unit_test_storage';
-late SecondaryPersistenceStore secondaryPersistenceStore;
-late AtCommitLog atCommitLog;
+// Default to bare mocks so handler-construction tests that never run
+// `verbTestsSetUp` (e.g. accept()/syntax tests on a mock keystore)
+// still have a non-null commit/access log to inject. `verbTestsSetUp`
+// overwrites both with the real bundle-backed instances.
+AtCommitLog atCommitLog = MockAtCommitLog();
+AtAccessLog atAccessLog = MockAtAccessLog();
 
 /// Creates and persists a new approved enrollment
 /// NB: Does not go through enroll verb handler, so
@@ -214,11 +249,11 @@ Future<String> createAndPersistAnEnrollment(
     'requestType': 'newEnrollment',
     'approval': {'state': 'approved'}
   };
-  await secondaryPersistenceStore.getSecondaryKeyStore()?.put(
-        key,
-        AtData()..data = jsonEncode(enrollJson),
-        skipCommit: true,
-      );
+  await keyValueStore.put(
+    key,
+    AtData()..data = jsonEncode(enrollJson),
+    skipCommit: true,
+  );
   return id;
 }
 
@@ -231,24 +266,25 @@ void verbTestsSetUpLogging() {
 
 verbTestsSetUpAll() async {
   verbTestsSetUpLogging();
-  await AtAccessLogManagerImpl.getInstance()
-      .getAccessLog(alice, accessLogPath: storageDir);
 }
 
 verbTestsSetUp() async {
   verbTestsSetUpLogging();
-  // Initialize secondary persistent store
-  atServer.secondaryPersistenceStore = secondaryPersistenceStore =
-      SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(alice)!;
-  // Initialize commit log
-  atServer.commitLog = atCommitLog = (await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog(alice, commitLogPath: storageDir, enableCommitId: true))!;
-  secondaryPersistenceStore.getSecondaryKeyStore()?.commitLog = atCommitLog;
-  // Init the hive instances
-  await secondaryPersistenceStore.getHivePersistenceManager()!.init(storageDir);
+  // Wire up persistence through the factory. The factory owns the
+  // per-atSign lifecycle; the legacy `*.getInstance()` singletons
+  // have been removed.
+  final factory = atServer.persistenceFactory = HiveAtPersistenceFactory();
+  final config = HivePersistenceConfig(
+    storagePath: storageDir,
+    commitLogPath: storageDir,
+    accessLogPath: storageDir,
+    notificationStoragePath: storageDir,
+  );
+  final bundle = await factory.initialize(alice, config);
 
-  secondaryKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
+  atServer.commitLog = atCommitLog = bundle.keyValueStore.commitLog!;
+  atServer.accessLog = atAccessLog = bundle.accessLog!;
+  keyValueStore = bundle.keyValueStore;
 
   mockSecondaryAddressFinder = MockSecondaryAddressFinder();
   when(() => mockSecondaryAddressFinder.findSecondary(bob))
@@ -334,8 +370,7 @@ verbTestsSetUp() async {
     return MockStreamSubscription();
   });
 
-  notifStore = atServer.notificationKeystore = AtNotificationKeystore(alice);
-  await notifStore.init(storageDir);
+  notifStore = atServer.notificationKeystore = bundle.notificationKeystore!;
 
   notificationManager = atServer.notificationManager = NotificationManager(
       alice,
@@ -346,12 +381,12 @@ verbTestsSetUp() async {
 
   cacheManager = atServer.cacheManager = AtCacheManager(
     alice,
-    secondaryKeyStore,
+    keyValueStore,
     mockOutboundClientManager,
     notificationManager,
   );
 
-  AtSecondaryServerImpl.getInstance().secondaryKeyStore = secondaryKeyStore;
+  AtSecondaryServerImpl.getInstance().keyValueStore = keyValueStore;
   AtSecondaryServerImpl.getInstance().outboundClientManager =
       mockOutboundClientManager;
   AtSecondaryServerImpl.getInstance().currentAtSign = alice;
@@ -359,9 +394,9 @@ verbTestsSetUp() async {
       bobServerSigningKeypair.privateKey.toString();
 
   AtSecondaryServerImpl.getInstance().enrollmentManager =
-      enMgr = EnrollmentManager(secondaryKeyStore, alice);
+      enMgr = EnrollmentManager(keyValueStore, alice);
   enMgr.logger.level = 'shout';
-  secondaryKeyStore.preRemoveHooks.add(enMgr.preRemoveHook);
+  keyValueStore.preRemoveHooks.add(enMgr.preRemoveHook);
 
   DateTime now = DateTime.now().toUtcMillisecondsPrecision();
   bobOriginalPublicKeyAtData = AtData();
@@ -402,11 +437,12 @@ verbTestsSetUp() async {
 }
 
 Future<void> verbTestsTearDown() async {
-  secondaryKeyStore.preRemoveHooks.clear();
-  secondaryKeyStore.postRemoveHooks.clear();
-  await SecondaryPersistenceStoreFactory.getInstance().close();
-  await AtCommitLogManagerImpl.getInstance().close();
-  await notifStore.close();
+  keyValueStore.preRemoveHooks.clear();
+  keyValueStore.postRemoveHooks.clear();
+  // factory.close() cascades to commit log, access log, notification
+  // keystore and the Hive persistence manager, and clears the legacy
+  // singletons' caches.
+  await atServer.persistenceFactory.close();
   var isExists = await Directory(storageDir).exists();
   if (isExists) {
     Directory(storageDir).deleteSync(recursive: true);
@@ -426,12 +462,12 @@ List decodeResponseAsList(String serverResponse) {
 }
 
 Future<AtData> createRandomKeyStoreEntry(String owner, String keyName,
-    SecondaryKeyStore<String, AtData?, AtMetaData?> secondaryKeyStore,
+    AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore,
     {String? data, Metadata? commonsMetadata, DateTime? refreshAt}) async {
   AtData entry = createRandomAtData(owner,
       data: data, commonsMetadata: commonsMetadata, refreshAt: refreshAt);
-  await secondaryKeyStore.put(keyName, entry);
-  return (await secondaryKeyStore.get(keyName))!;
+  await keyValueStore.put(keyName, entry);
+  return (await keyValueStore.get(keyName))!;
 }
 
 AtData createRandomAtData(String owner,

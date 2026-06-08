@@ -60,7 +60,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
     } else {
       pkamAuthType = AuthType.pkamLegacy;
       var publicKeyData = await keyStore.get(AtConstants.atPkamPublicKey);
-      publicKey = publicKeyData.data;
+      publicKey = publicKeyData?.data;
     }
 
     if (publicKey == null || publicKey.isEmpty) {
@@ -166,8 +166,8 @@ class PkamVerbHandler extends AbstractVerbHandler {
     var signingAlgo = verbParams[AtConstants.atPkamSigningAlgo];
     var hashingAlgo = verbParams[AtConstants.atPkamHashingAlgo];
     bool isValidSignature = false;
-    var storedSecret = await keyStore.get(storedSecretId);
-    storedSecret = storedSecret?.data;
+    var storedSecretData = await keyStore.get(storedSecretId);
+    var storedSecret = storedSecretData?.data;
     if (signature == null || signature.isEmpty) {
       logger.severe('inputSignature is null/empty');
       return false;

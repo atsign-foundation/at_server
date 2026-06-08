@@ -11,6 +11,13 @@ import 'test_utils.dart';
 void main() async {
   // verbTestsSetUpLogging();
 
+  // The notification keystore is now typed KeyValueStore<String,
+  // AtNotification>, so mocktail's `any()` on a `put` value argument
+  // needs a registered fallback for the non-primitive AtNotification.
+  setUpAll(() {
+    registerFallbackValue(AtNotificationBuilder().build());
+  });
+
   NotificationManager makeMgr() {
     var nm = NotificationManager(
       alice,

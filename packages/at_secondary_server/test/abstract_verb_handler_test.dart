@@ -35,13 +35,12 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
-          keyName, AtData()..data = jsonEncode(enrollJson));
+      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
     });
     test(
         'test isAuthorized command with namespace in atKey and namespace  passed with identical value',
         () async {
-      var handler = TestUpdateVerbHandler(secondaryKeyStore);
+      var handler = TestUpdateVerbHandler(keyValueStore);
       var atKey = AtKey()
         ..sharedBy = alice
         ..sharedWith = '@bob'
@@ -55,7 +54,7 @@ void main() {
     test(
         'test isAuthorized command with at_contact.buzz namespace in atKey and  buzz namespace passes',
         () async {
-      var handler = TestUpdateVerbHandler(secondaryKeyStore);
+      var handler = TestUpdateVerbHandler(keyValueStore);
       var atKey = AtKey()
         ..sharedBy = alice
         ..sharedWith = '@bob'
@@ -69,7 +68,7 @@ void main() {
     test(
         'test isAuthorized command with persona.buzz namespace in atKey and  buzz namespace passes',
         () async {
-      var handler = TestUpdateVerbHandler(secondaryKeyStore);
+      var handler = TestUpdateVerbHandler(keyValueStore);
       var atKey = AtKey()
         ..sharedBy = alice
         ..sharedWith = '@bob'
@@ -83,7 +82,7 @@ void main() {
     test(
         'test isAuthorized command with namespace in atKey and namespace passed with different values',
         () async {
-      var handler = TestUpdateVerbHandler(secondaryKeyStore);
+      var handler = TestUpdateVerbHandler(keyValueStore);
       var atKey = AtKey()
         ..sharedBy = alice
         ..sharedWith = '@bob'
@@ -139,7 +138,7 @@ void main() {
 }
 
 class TestUpdateVerbHandler extends AbstractVerbHandler {
-  TestUpdateVerbHandler(super.keyStore);
+  TestUpdateVerbHandler(super.keyValueStore);
 
   @override
   bool accept(String command) {

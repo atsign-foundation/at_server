@@ -1,10 +1,9 @@
-import 'package:at_persistence_spec/at_persistence_spec.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
-import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -18,7 +17,8 @@ import 'package:test/test.dart';
 import 'test_utils.dart';
 
 void main() async {
-  SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+  AtKeyValueStore<String, AtData, AtMetaData?> mockKeyStore =
+      MockAtKeyValueStore();
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
   AtCacheManager mockAtCacheManager = MockAtCacheManager();
   FakeSocket mockSocket = FakeSocket();
@@ -31,7 +31,8 @@ void main() async {
 
   test('test pol Verb', () {
     var handler = PolVerbHandler(
-        mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
+        mockKeyStore, mockOutboundClientManager, mockAtCacheManager,
+        accessLog: atAccessLog);
     var verb = handler.getVerb();
     expect(verb is Pol, true);
   });
@@ -39,7 +40,8 @@ void main() async {
   test('test pol command accept test', () {
     var command = 'pol';
     var handler = PolVerbHandler(
-        mockKeyStore, mockOutboundClientManager, mockAtCacheManager);
+        mockKeyStore, mockOutboundClientManager, mockAtCacheManager,
+        accessLog: atAccessLog);
     var result = handler.accept(command);
     expect(result, true);
   });
@@ -64,10 +66,12 @@ void main() async {
       mockKeyStore,
       mockOutboundClientManager,
       mockAtCacheManager,
-      StatsNotificationService.getInstance(),
+      MockStatsNotificationService(),
       mockNotificationManager,
       mockEnrollmentManager,
       alice,
+      commitLog: atCommitLog,
+      accessLog: atAccessLog,
     );
 
     expect(

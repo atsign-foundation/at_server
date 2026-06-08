@@ -589,15 +589,16 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   @visibleForTesting
   Future<void> preventDuplicateEnrollRequest(EnrollParams enrollParams) async {
     // Fetches all the enrollment keys from the keystore.
-    List<dynamic> enrollmentKeys =
-        keyStore.getKeys(regex: EnrollmentConstants.enrollmentsRegex);
+    List<dynamic> enrollmentKeys = await (await keyStore.getKeys(
+            regex: EnrollmentConstants.enrollmentsRegex))
+        .toList();
 
     // Iterate through the existing enrollments and verify that there is no enrollment with the same
     // appName and deviceName combination, and a status of 'pending' or 'approved'
     for (String key in enrollmentKeys) {
       AtData atData = AtData();
       try {
-        atData = await keyStore.get(key);
+        atData = (await keyStore.get(key))!;
       } on KeyNotFoundException {
         logger.finest('An enrollment with $key does not exist or expired');
       }

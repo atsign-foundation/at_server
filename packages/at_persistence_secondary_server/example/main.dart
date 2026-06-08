@@ -1,32 +1,36 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/hive.dart';
 
 Future<void> main(List<String> arguments) async {
-  // keystore
-  var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore('@alice')!;
-  var keyStore = keyStoreManager.getSecondaryKeyStore()!;
-  var atData = AtData();
-  atData.data = '123';
-  var result = await keyStore.create('phone@alice', atData);
+  final storageDir = '${Directory.current.path}/example/hive';
+  final factory = HiveAtPersistenceFactory();
+
+  // Bring up persistence for @alice with all server-side capabilities
+  // (keystore + commit log + access log + notification keystore).
+  final bundle = await factory.initialize(
+    '@alice',
+    HivePersistenceConfig.serverDefaults(
+      storagePath: '$storageDir/keys',
+      commitLogPath: '$storageDir/commitLog',
+      accessLogPath: '$storageDir/accessLog',
+      notificationStoragePath: '$storageDir/notifications',
+    ),
+  );
+
+  // Keystore
+  final atData = AtData()..data = '123';
+  final result = await bundle.keyValueStore.create('phone@alice', atData);
   print(result);
 
-  //commitLog keystore
-  var commitLogInstance = await (AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@alice') as FutureOr<AtCommitLog>);
-  var hiveKey =
-      await commitLogInstance.commit('location@alice', CommitOp.UPDATE);
-  var committedEntry = await commitLogInstance.getEntry(hiveKey);
-  print(committedEntry);
+  // Commit log lives inside the keystore.
+  final hiveKey = await bundle.keyValueStore.commitLog!
+      .commit('location@alice', CommitOp.UPDATE);
+  print(hiveKey);
 
-  //Notification keystore
-  var storageDir = '${Directory.current.path}/example/hive';
-  var notificationKeyStore = AtNotificationKeystore('@alice');
-  await notificationKeyStore.init(storageDir);
-
-  var atNotification = (AtNotificationBuilder()
+  // Notification keystore
+  final atNotification = (AtNotificationBuilder()
         ..id = '123'
         ..fromAtSign = '@alice'
         ..notificationDateTime = DateTime.now().toUtcMillisecondsPrecision()
@@ -35,7 +39,9 @@ Future<void> main(List<String> arguments) async {
         ..type = NotificationType.received
         ..opType = OperationType.update)
       .build();
-  await notificationKeyStore.put('@alice', atNotification);
-  var notificationEntry = await notificationKeyStore.get('@alice');
+  await bundle.notificationKeystore!.put('@alice', atNotification);
+  final notificationEntry = await bundle.notificationKeystore!.get('@alice');
   print(notificationEntry);
+
+  await factory.close();
 }

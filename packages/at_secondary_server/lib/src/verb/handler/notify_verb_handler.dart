@@ -4,7 +4,6 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
-import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -179,7 +178,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       return;
     }
 
-    var isKeyPresent = keyStore.isKeyExists(cachedNotificationKey);
+    var isKeyPresent = await keyStore.exists(cachedNotificationKey);
     AtMetaData? atMetadata;
     // If atValue is not null, store a cached key
     if (atNotificationBuilder.atValue != null) {
@@ -255,7 +254,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   /// key Key to cache.
   /// AtMetadata metadata of the key.
   /// atValue value of the key to cache.
-  Future<int> _storeCachedKey(String? cachedKey, AtMetaData? atMetaData,
+  Future<int?> _storeCachedKey(String cachedKey, AtMetaData? atMetaData,
       {String? atValue}) async {
     var atData = AtData();
     atData.data = atValue;
@@ -266,7 +265,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     return await keyStore.put(cachedKey, atData);
   }
 
-  Future<int> _updateMetadata(String cachedKey, AtMetaData? atMetaData) async {
+  Future<int?> _updateMetadata(String cachedKey, AtMetaData? atMetaData) async {
     if (logger.isLoggable('info')) {
       logger.info('Updating the metadata of $cachedKey');
     }
@@ -276,7 +275,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   ///Removes the cached key from the keystore.
   Future<int?> _removeCachedKey(String cachedKey) async {
     var metadata = await keyStore.getMeta(cachedKey);
-    if (metadata != null && metadata.isCascade) {
+    if (metadata != null && metadata.isCascade == true) {
       if (logger.isLoggable('info')) {
         logger.info('Removed cached key $cachedKey');
       }
@@ -296,8 +295,11 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   ///Sends the latest commitId to the StatsNotificationService
   void _writeStats(int? cachedKeyCommitId, String? operationType) {
     if (cachedKeyCommitId != null) {
-      StatsNotificationService.getInstance().writeStatsToMonitor(
-          latestCommitID: '$cachedKeyCommitId', operationType: operationType);
+      AtSecondaryServerImpl.getInstance()
+          .statsNotificationService
+          .writeStatsToMonitor(
+              latestCommitID: '$cachedKeyCommitId',
+              operationType: operationType);
     }
   }
 

@@ -1,3 +1,48 @@
+# 3.14.0
+
+- refactor: the persistence layer is now wired through the new
+  `AtPersistenceFactory` injected into `AtSecondaryServerImpl`,
+  replacing direct `*.getInstance()` calls in the bootstrap path
+  (`_initializePersistentInstances`, `start`, `stop`).
+- refactor: every `getInstance()` call onto the legacy persistence
+  singletons has been removed from `lib/`. Verb handlers
+  (`from`, `cram`, `lookup`, `pol`, `proxy_lookup`, `config`,
+  `sync_progressive`) take their needed `AtCommitLog` and/or
+  `AtAccessLog` via constructor; `DefaultVerbHandlerManager`
+  threads them in. `metrics_impl` reads from `atServer.commitLog`,
+  `atServer.accessLog`, `atServer.secondaryKeyStore`.
+  `StatsNotificationService.schedule()` takes its `AtCommitLog`
+  parameter rather than fetching it lazily.
+  `SecondaryUtil.saveCookie` takes the `AtKeyValueStore` parameter.
+- refactor: `AbstractVerbHandler.keyValueStore` and
+  `DefaultVerbHandlerManager.keyValueStore` are now typed
+  `AtKeyValueStore<String, AtData, AtMetaData?>` rather than a
+  raw, un-parameterised keystore type. This surfaced and fixed
+  a set of latent
+  nullability gaps in the verb handlers that the raw type had been
+  masking: unchecked `get()` results bound to a non-null `AtData`,
+  `String?` keys passed into `get` / `remove` / `put`, and a
+  `bool?` metadata field (`isCascade`) used directly as a condition.
+- chore: `_accessLog` field on `AtSecondaryServerImpl` is now
+  publicly named `accessLog`.
+- chore: `DefaultVerbHandlerManager`'s constructor now takes
+  `commitLog` and `accessLog` parameters (placed before the trailing
+  `atSign` positional). External consumers that construct it
+  directly will need to pass these.
+- test: `test_utils.dart`'s `verbTestsSetUp` / `verbTestsTearDown`
+  now drive a `HiveAtPersistenceFactory` instead of calling the
+  per-singleton `getInstance()` paths. The `atServer.<field> = …`
+  injection seam is preserved.
+- refactor: `AtConfig` (block-list configuration) moves here from
+  `at_persistence_secondary_server` and now lives at
+  `package:at_secondary/src/config/at_config.dart`. The class is
+  fully backend-agnostic — constructor takes an `AtKeyValueStore`
+  (not an `AtCommitLog`), reads / writes go through the abstract
+  keystore, and writes pass `skipCommit: true` so block-list state
+  no longer bumps the local `commitId`. Callers in
+  `from_verb_handler` and `config_verb_handler` updated; the
+  construction signature is now `AtConfig(keyStore, atSign)`.
+
 # 3.13.2
 
 - fix: defer `InboundCommandValidator.validate` until the buffer ends

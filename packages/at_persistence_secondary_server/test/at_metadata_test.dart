@@ -3,8 +3,11 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/hive.dart';
 import 'package:collection/collection.dart';
 import 'package:test/test.dart';
+
+import 'test_utils.dart';
 
 void main() async {
   var storageDir = '${Directory.current.path}/test/hive';
@@ -25,13 +28,11 @@ void main() async {
     test('A test to default field in metadata is set on a new key creation',
         () async {
       var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(atSign)!
-          .getSecondaryKeyStore();
+      var hiveKeyStore = testKeyStoreFor(atSign);
       var key = '@bob:phone@alice';
       var value = '9878123321';
-      await hiveKeyStore?.put(key, AtData()..data = value);
-      var atData = await hiveKeyStore?.get(key);
+      await hiveKeyStore.put(key, AtData()..data = value);
+      var atData = await hiveKeyStore.get(key);
       expect(atData?.data, value);
       expect(
           atData!.metaData!.createdAt!.millisecondsSinceEpoch >=
@@ -57,16 +58,14 @@ void main() async {
         'A test to verify version field in metadata is set to 1 on updating the existing key',
         () async {
       var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(atSign)!
-          .getSecondaryKeyStore();
+      var hiveKeyStore = testKeyStoreFor(atSign);
       var key = '@bob:mobile@alice';
       var value = '9878123321';
-      await hiveKeyStore?.put(key, AtData()..data = value);
+      await hiveKeyStore.put(key, AtData()..data = value);
       // Update the same key
       var updateKeyDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      await hiveKeyStore?.put(key, AtData()..data = '9878123322');
-      var atData = await hiveKeyStore?.get(key);
+      await hiveKeyStore.put(key, AtData()..data = '9878123322');
+      var atData = await hiveKeyStore.get(key);
       expect(atData?.data, '9878123322');
       expect(
           atData!.metaData!.createdAt!.millisecondsSinceEpoch >=
@@ -84,16 +83,14 @@ void main() async {
         'A test to verify version field in metadata is set to 1 when updating metadata using putMeta method',
         () async {
       var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(atSign)!
-          .getSecondaryKeyStore();
+      var hiveKeyStore = testKeyStoreFor(atSign);
       var key = '@bob:country@alice';
       var value = '9878123321';
-      await hiveKeyStore?.put(key, AtData()..data = value);
+      await hiveKeyStore.put(key, AtData()..data = value);
       // Update the same key
       var updateKeyDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      await hiveKeyStore?.putMeta(key, AtMetaData()..ttl = 10000);
-      var atData = await hiveKeyStore?.get(key);
+      await hiveKeyStore.putMeta(key, AtMetaData()..ttl = 10000);
+      var atData = await hiveKeyStore.get(key);
       expect(atData?.data, value);
       expect(
           atData!.metaData!.createdAt!.millisecondsSinceEpoch >=
@@ -111,17 +108,15 @@ void main() async {
         'A test to verify version field in metadata is set to 1 when using putAll method',
         () async {
       var keyCreationDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      var hiveKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-          .getSecondaryPersistenceStore(atSign)!
-          .getSecondaryKeyStore();
+      var hiveKeyStore = testKeyStoreFor(atSign);
       var key = '@bob:city@alice';
-      await hiveKeyStore?.putAll(
+      await hiveKeyStore.putAll(
           key, AtData()..data = '9878123322', AtMetaData());
       // Update the same key
       var updateKeyDateTime = DateTime.now().toUtcMillisecondsPrecision();
-      await hiveKeyStore?.putAll(
+      await hiveKeyStore.putAll(
           key, AtData()..data = '9878123322', AtMetaData()..ttl = 10000);
-      var atData = await hiveKeyStore?.get(key);
+      var atData = await hiveKeyStore.get(key);
       expect(atData?.data, '9878123322');
       expect(
           atData!.metaData!.createdAt!.millisecondsSinceEpoch >=
@@ -242,28 +237,8 @@ void main() async {
   });
 }
 
-Future<SecondaryKeyStoreManager> setUpFunc(storageDir,
-    {bool enableCommitId = true}) async {
-  var commitLogInstance = await AtCommitLogManagerImpl.getInstance()
-      .getCommitLog('@alice',
-          commitLogPath: storageDir, enableCommitId: enableCommitId);
-  var secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-      .getSecondaryPersistenceStore('@alice')!;
-  var persistenceManager =
-      secondaryPersistenceStore.getHivePersistenceManager()!;
-  await persistenceManager.init(storageDir);
-  var hiveKeyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
-  hiveKeyStore.commitLog = commitLogInstance;
-  var keyStoreManager =
-      secondaryPersistenceStore.getSecondaryKeyStoreManager()!;
-  keyStoreManager.keyStore = hiveKeyStore;
-  return keyStoreManager;
-}
+Future<HiveAtKeyValueStore> setUpFunc(storageDir,
+        {bool enableCommitId = true}) =>
+    setUpTestKeyStore('@alice', storageDir: storageDir);
 
-Future<void> tearDownFunc() async {
-  await AtCommitLogManagerImpl.getInstance().close();
-  var isExists = await Directory('test/hive/').exists();
-  if (isExists) {
-    Directory('test/hive').deleteSync(recursive: true);
-  }
-}
+Future<void> tearDownFunc() => tearDownTestPersistence(storageDir: 'test/hive');

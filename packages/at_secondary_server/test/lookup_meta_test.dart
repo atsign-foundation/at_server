@@ -1,4 +1,4 @@
-import 'package:at_persistence_spec/at_persistence_spec.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
@@ -11,7 +11,8 @@ import 'package:at_commons/at_commons.dart';
 import 'test_utils.dart';
 
 void main() {
-  SecondaryKeyStore mockKeyStore = MockSecondaryKeyStore();
+  AtKeyValueStore<String, AtData, AtMetaData?> mockKeyStore =
+      MockAtKeyValueStore();
   OutboundClientManager mockOutboundClientManager = MockOutboundClientManager();
   AtCacheManager mockAtCacheManager = MockAtCacheManager();
   EnrollmentManager enMgr = MockEnrollmentManager();
@@ -50,7 +51,8 @@ void main() {
     test('test lookup meta command accept test without operation', () {
       var command = 'lookup:location$alice';
       var handler = LookupVerbHandler(
-          mockKeyStore, mockOutboundClientManager, mockAtCacheManager, enMgr);
+          mockKeyStore, mockOutboundClientManager, mockAtCacheManager, enMgr,
+          accessLog: atAccessLog);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -58,7 +60,8 @@ void main() {
     test('test lookup meta command accept test for meta', () {
       var command = 'lookup:meta:location$alice';
       var handler = LookupVerbHandler(
-          mockKeyStore, mockOutboundClientManager, mockAtCacheManager, enMgr);
+          mockKeyStore, mockOutboundClientManager, mockAtCacheManager, enMgr,
+          accessLog: atAccessLog);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -66,7 +69,8 @@ void main() {
     test('test lookup meta command accept test for all', () {
       var command = 'lookup:all:location$alice';
       var handler = LookupVerbHandler(
-          mockKeyStore, mockOutboundClientManager, mockAtCacheManager, enMgr);
+          mockKeyStore, mockOutboundClientManager, mockAtCacheManager, enMgr,
+          accessLog: atAccessLog);
       var result = handler.accept(command);
       expect(result, true);
     });
