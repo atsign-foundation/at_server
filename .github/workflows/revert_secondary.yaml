@@ -22,7 +22,7 @@ jobs:
     if: ${{ github.event.inputs.rollback_prod_secondary_image == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       # Extract version for docker tag
       - name: Get version
@@ -65,7 +65,7 @@ jobs:
     if: ${{ github.event.inputs.rollback_canary_secondary_image == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       # Extract version for docker tag
       - name: Get version
