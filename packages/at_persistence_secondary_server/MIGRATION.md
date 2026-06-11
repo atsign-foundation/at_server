@@ -99,7 +99,7 @@ store `SecondaryKeyStore`.
   instead of crashing on an internal `value!`. `get` still returns
   `Future<AtData?>` (`null` for an absent key).
 
-`KeyValueStore` was **widened with ten new primitives** for at_client
+`KeyValueStore` was **widened with new primitives** for at_client
 adoption — all additive, none of them break a 4.3.5 caller:
 
 | Primitive                             | Notes                                                          |
@@ -113,6 +113,19 @@ adoption — all additive, none of them break a 4.3.5 caller:
 | `queryByPath` + `supportsPathQueries` | value-field predicate query (capability-gated)                 |
 | `snapshot` + `supportsSnapshots`      | isolated read snapshot (capability-gated)                      |
 | `stats()`                             | diagnostic counts                                              |
+| `nextExpiresAt()`                     | smallest expiry instant (`null` if none) — timer wake-up       |
+| `peekExpired({asOf, limit})`          | bounded, ascending-expiry drain; `limit: 1` = "next to expire" |
+
+`AtKeyValueStore` additionally gains the TTB analogues:
+
+| Primitive                                  | Notes                                                       |
+|--------------------------------------------|-------------------------------------------------------------|
+| `nextAvailableAt({asOf})`                  | smallest not-yet-born `availableAt`, or `null`              |
+| `peekNewlyAvailable({since, asOf, limit})` | `availableAt` in `(since, asOf]`; caller-side watermark     |
+
+These four matter for at_client specifically: they make the TTL/TTB
+timer machinery at_client currently hand-rolls against private Hive
+internals a first-class, backend-agnostic surface — see §3.4.
 
 On Hive the capability flags (`supportsPathQueries`,
 `supportsSnapshots`) are `false` and consumers fall back; a future SQL
@@ -149,6 +162,11 @@ Related commit-log changes:
 - **Migrator-friendly walks:** `replay(CommitEntry)` and
   `iterate(…)` on `AtCommitLog`; `iterate()` on the access log and
   notification keystore.
+- **The log's floor is exposed.** `firstCommittedSequenceNumber()`
+  pairs with `lastCommittedSequenceNumber()` so a sync consumer can
+  detect "the server no longer retains the delta I need" (client
+  commit state below the floor → full-sync). `null` iff the log is
+  empty; the value only ever rises.
 
 ### 1.5 Model classes decoupled from Hive
 
@@ -284,9 +302,12 @@ atServer now owns:
   log, notification keystore) with overlap guards, each calling
   `compact(false)` on the resource. `AtCompactionStatsService.record()`
   takes primitives (`label`, `start`, `compactedCount`, `duration`).
-- **Key-expiry sweep** — the cron that calls
-  `keyValueStore.deleteExpiredKeys()` moved out of the persistence
-  package into the atServer.
+- **Key-expiry sweep** — moved out of the persistence package into
+  the atServer, and no longer a fixed-cadence cron: a one-shot timer
+  computes its wake-up from `keyValueStore.nextExpiresAt()`, sleeps
+  until the next key actually expires (clamped to
+  `[10s, expiringRunFreqMins]` + jitter), runs
+  `deleteExpiredKeys()`, and re-arms.
 - The compactor `enable*` flags moved from `AtPersistenceConfig` to
   `AtSecondaryConfig` (`enableKeyStoreCompactor` →
   `enableNotificationCompactor`, matching the resource it gates).
@@ -313,8 +334,11 @@ paths. The `atServer.<field> = …` injection seam is preserved.
 
 This section is a step-by-step guide for moving `at_client` from
 `at_persistence_secondary_server: ^4.3.5` to `^5.0.0`, **and** onto a
-commit-log-free local keystore. Call-site references are against the
-`gkc-fewer-connections` branch of `at_client_sdk`.
+commit-log-free local keystore. Call-site references re-verified
+2026-06-11 against `at_client_sdk` branch `gkc-alice-to-alice`
+(current working tree; supersedes the original `gkc-fewer-connections`
+references — every claim below was re-checked, with drift corrected
+in §3.4, §3.6, §3.7 and §3.8).
 
 ### 3.0 The shape of the migration
 
@@ -420,7 +444,7 @@ fallback (`local_secondary.dart`) — replace it with
 `LocalSecondary.keyStore` is typed `SecondaryKeyStore?` — retype to
 `AtKeyValueStore<String, AtData, AtMetaData?>?`.
 
-### 3.4 Drop the private `hive_keystore.dart` import
+### 3.4 Drop the private `hive_keystore.dart` import — the TTL/TTB timers go first-class
 
 `local_secondary.dart` reaches into the package internals:
 
@@ -429,22 +453,60 @@ fallback (`local_secondary.dart`) — replace it with
 import 'package:at_persistence_secondary_server/src/keystore/hive_keystore.dart';
 ```
 
-— used for `is HiveKeystore` guards and `getExpiredKeys()` /
-`getExpiryKeysCache()` (an `@visibleForTesting` member). The path
-itself is dead (the file moved to `src/impl/hive/hive_at_keyvalue_store.dart`),
-but more importantly the **reason** for the private import is gone:
-`getExpiredKeys()` is now a public `KeyValueStore` method, and `exists`
-/ `scanKeys` / `stats` cover the structured access at_client was
-reaching for. Replace the `is HiveKeystore` guards + private calls
-with the public abstract API; delete the `implementation_imports`
-ignore and the file-level `invalid_use_of_visible_for_testing_member`
-ignore.
+The path itself is dead (the file moved to
+`src/impl/hive/hive_at_keyvalue_store.dart`), but more importantly
+the **reason** for the private import is gone. What the import feeds
+today is at_client's event-driven TTL/TTB timer machinery — three
+hand-rolled members on `LocalSecondary` that scan
+`getExpiryKeysCache()` (an `@visibleForTesting` member) behind
+`is HiveKeystore` guards. Each now has a first-class,
+backend-agnostic equivalent on the interface:
+
+- `nextExpiryAt()` (min-scan of the cache's `expiresAt`) →
+  `await keyStore.nextExpiresAt()`. Same semantics, no cast.
+- `nextAvailableAt()` (min-scan of `availableAt`, filtered by the
+  `_firedAvailableAt` map) → `await keyStore.nextAvailableAt()`,
+  which has the strictly-in-the-future filter built in.
+- `keysWithAvailableAtAtOrBefore(cutoff)` (drives
+  `_onAvailableFire`'s visibility-onset sweep) →
+  `await keyStore.peekNewlyAvailable(since: …, asOf: cutoff)`.
+- `deleteExpiredKeys()`'s `ks.getExpiredKeys()` list →
+  `getExpiredKeys()` is public on `KeyValueStore` (now
+  `Future<Stream<String>>` — see §3.5); use `peekExpired` where a
+  bounded / expiry-ordered drain is wanted.
+
+One genuine semantic delta to decide deliberately: at_client's TTB
+dedup is a **per-key fired-timestamp map** (`_firedAvailableAt` —
+"don't re-fire unless this key's `availableAt` changed"), while
+`peekNewlyAvailable` uses a **caller-side `(since, asOf]` watermark**
+("give me keys that crossed the threshold since I last looked").
+For forward-moving `availableAt` values the two agree. They differ
+when a key's TTB is re-written to an instant **at or before** the
+current watermark: the fired-map fires it on the next sweep, the
+watermark window never contains it. If that re-write case matters,
+keep the fired-map as a thin filter on top of
+`peekNewlyAvailable(since: epoch, …)`; otherwise drop it and thread
+the watermark (last sweep's `asOf`) — simpler state, and the same
+pattern the atServer's expiry timer now uses.
+
+`AtClientImpl`'s timer-arming code (`_armExpiryTimer` /
+`_onExpiryFire` / `_expirySweepInFlight`, and the TTB twin) carries
+over unchanged — only the `LocalSecondary` members it calls become
+interface calls. Then delete the `implementation_imports` ignore and
+the file-level `invalid_use_of_visible_for_testing_member` ignore,
+and let the `is! HiveKeystore → return 0 / null` early-outs go: the
+interface methods work on every backend.
 
 ### 3.5 Async / streaming API changes
 
-- `getKeys({regex})` and `getExpiredKeys()` now return
-  `Future<Stream<String>>` — `await` the future, then consume the
-  stream (`await (await keyStore.getKeys()).toList()`).
+- `getKeys({regex})`, `getExpiredKeys()`, `peekExpired(…)` and
+  `peekNewlyAvailable(…)` return `Future<Stream<String>>` — `await`
+  the future, then consume the stream
+  (`await (await keyStore.getKeys()).toList()`). Concretely in
+  at_client: `LocalSecondary.deleteExpiredKeys()` does
+  `final expired = await ks.getExpiredKeys(); if (expired.isEmpty) …`
+  against the 4.3.5 `Future<List<String>>` shape — that becomes
+  `final expired = await (await ks.getExpiredKeys()).toList();`.
 - `isKeyExists` is removed — `await keyStore.exists(key)`.
 - CRUD methods return `Future<int?>`; on a commit-log-free keystore
   the result is always `null`. Any at_client code that treats the
@@ -454,14 +516,17 @@ ignore.
 
 `AtCompactionJob`, `AtCompactionConfig`, `AtCompactionService` and
 `AtCompactionStats` are **deleted** in 5.0.0. at_client's
-`at_commit_log_compaction.dart` (`AtClientCommitLogCompaction`), the
-`AtClientImpl.startCompactionJob` path, and the `MockAtCompactionJob`
-test double therefore do not compile.
+`lib/src/compaction/at_commit_log_compaction.dart`
+(`AtClientCommitLogCompaction`), the `startCompactionJob` path —
+declared on the `AtClient` interface in `at_client_spec.dart` and
+implemented in `at_client_impl.dart` — and the `MockAtCompactionJob`
+test double (`test/at_client_impl_test.dart`) therefore do not
+compile.
 
 In a commit-log-free at_client there is **nothing to compact** — there
 is no commit log. Delete `at_commit_log_compaction.dart`, the
-`startCompactionJob` / `stopCompactionJob` surface on `AtClientImpl`,
-and the related tests outright. (If at_client ever needs to shed
+`startCompactionJob` / `stopCompactionJob` surface on **both**
+`AtClient` (spec) and `AtClientImpl`, and the related tests outright. (If at_client ever needs to shed
 keystore entries, that is a keystore concern — `AtKeyValueStore`
 implements `Compactable` — not a separate job class.)
 
@@ -478,12 +543,14 @@ read-side scans (`getChangesSinceLastCommit`, `getEntry`, `isInSync`,
 `removeCommitEntry`) `@Deprecated` with no caller; delete them. The
 methods still live are all commit-log back-write / lookup:
 
-| Method                 | Current role                                               | Commit-log-free disposition               |
-|------------------------|------------------------------------------------------------|-------------------------------------------|
-| `getCommitEntry`       | `_pullToLocal` finds the entry `executeVerb` appended      | remove — no entries exist                 |
-| `updateCommitEntry`    | push + pull stamp the server commitId onto the entry       | remove — nothing to stamp                 |
-| `getLastSyncedEntry`   | commitId high-water mark for downstream / functional tests | replace the high-water source (see below) |
-| `getLatestCommitEntry` | `_pushFromSyncQueue` finds the entry to stamp              | remove                                    |
+| Method                    | Current role                                               | Commit-log-free disposition               |
+|---------------------------|------------------------------------------------------------|-------------------------------------------|
+| `getCommitEntry`          | `_pullToLocal` finds the entry `executeVerb` appended      | remove — no entries exist                 |
+| `updateCommitEntry`       | push + pull stamp the server commitId onto the entry       | remove — nothing to stamp                 |
+| `getLastSyncedEntry`      | commitId high-water mark for downstream / functional tests | replace the high-water source (see below) |
+| `getLatestCommitEntry`    | `_pushFromSyncQueue` finds the entry to stamp              | remove                                    |
+| `getLatestServerCommitId` | asks the remote secondary via `stats:3`; not the local log | keep unchanged                            |
+| `shouldSync`              | static key filter (PKAM / private keys never sync)         | keep unchanged                            |
 
 **`sync_service_impl.dart`** — drop the
 `AtCommitLogManagerImpl.getInstance().getCommitLog(atSign)` lookup and
@@ -504,18 +571,26 @@ is at_client's call and is out of scope for this guide** — but it is
 the one piece of section B that is a genuine design decision rather
 than a deletion. Every other commit-log use above is removed outright.
 
+One input to that design: the server-side `AtCommitLog` now exposes
+`firstCommittedSequenceNumber()` (the log's floor) alongside the
+ceiling. Whatever shape the client-side marker takes, the protocol
+gains the ability to answer "is my marker still within the server's
+retained range, or must I full-sync?" — worth keeping the marker a
+plain server-commitId so that comparison stays trivial.
+
 ### 3.8 Tests
 
-The sweep is wide — ~19 `at_client/test/` files plus four functional
-tests import the package. Patterns:
+The sweep is wide — 17 `at_client/test/` files plus 5 files under
+`at_client_sdk/tests/` import the package (counts as of 2026-06-11).
+Patterns:
 
 - Test fixtures that build a keystore via the singleton dance →
   factory + `HivePersistenceConfig.clientDefaults`. Use a file-scoped
   factory with `tearDownAll` close and per-test `bundle.clear()` for
   isolation.
-- `sync_new_test.dart` casts to `HiveKeystore` and asserts on commit
+- `sync_new_test.dart` references `HiveKeystore` and asserts on commit
   entries (`getChanges`, `getEntry`, `lastCommittedSequenceNumber`) in
-  40+ places — these assert against a substrate that no longer exists.
+  ~50 places — these assert against a substrate that no longer exists.
   They must be rewritten against the new sync-state model from §3.7,
   or retired.
 - `commit_log_compaction_test.dart` (end2end + functional) tests a
