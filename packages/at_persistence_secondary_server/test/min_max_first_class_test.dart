@@ -2,7 +2,8 @@
 //   KeyValueStore.nextExpiresAt / peekExpired
 //   AtKeyValueStore.nextAvailableAt / peekNewlyAvailable
 //   AtCommitLog.firstCommittedSequenceNumber
-// plus the commit-log cache-eviction guard (audit §4.5).
+// plus the commit-log cache-eviction guard (deleting an older
+// duplicate entry must not evict the newer live cache entry).
 //
 // Isolation: per-test. Each setUp opens fresh storage under a
 // uuid-suffixed dir; tearDown closes and wipes it.
@@ -350,7 +351,7 @@ void main() {
 
     test(
         'compacting a legacy duplicate raises the floor and leaves the '
-        'cache serving the live entry (audit §4.5 guard)', () async {
+        'cache serving the live entry (eviction guard)', () async {
       const key = 'dup.wavi$atSign';
       // Plant a legacy duplicate the way pre-dedup data looks on disk:
       // replay() writes straight to the box without touching the cache.

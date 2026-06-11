@@ -73,10 +73,10 @@ abstract interface class AtKeyValueStore<K, V, T>
   /// watermark. A key whose `availableAt == since` is NOT yielded;
   /// one whose `availableAt == asOf` IS.
   ///
-  /// The watermark is deliberately caller-side state — see the
-  /// audit's §4.3: it adds no per-entry server state and composes
-  /// with multiple independent readers. If a future caller needs
-  /// server-side "processed" tracking instead, revisit this
+  /// The watermark is deliberately caller-side state: it adds no
+  /// per-entry server state and composes with multiple independent
+  /// readers, each holding its own watermark. If a future caller
+  /// needs server-side "processed" tracking instead, revisit this
   /// contract before building around it.
   Future<Stream<K>> peekNewlyAvailable({
     required DateTime since,
