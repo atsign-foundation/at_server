@@ -15,6 +15,20 @@ class HiveCommitLogKeyStore with HiveBase<CommitEntry?> {
 
   int get latestCommitId => commitLogCache.latestCommitId;
 
+  /// Smallest commitId still retained in the box, or `null` when the
+  /// box is empty.
+  ///
+  /// Read straight from the box (not the cache) — correct because
+  /// (1) the box's hive-internal key IS the commitId ([add] assigns
+  /// `commitId = internalKey`; [repairNullCommitIDs] backfills legacy
+  /// nulls at init), and (2) Hive iterates box keys in ascending
+  /// sorted order, so `keys.first` is the floor regardless of
+  /// insertion or compaction history. See commit message body.
+  int? get firstCommitId {
+    final keys = getBox().keys;
+    return keys.isEmpty ? null : keys.first as int;
+  }
+
   HiveCommitLogKeyStore(this.currentAtSign) {
     commitLogCache = HiveCommitLogCache(this);
   }
@@ -105,10 +119,12 @@ class HiveCommitLogKeyStore with HiveBase<CommitEntry?> {
       throw DataStoreException(
           'Hive error deleting entry from commit log:${e.toString()}');
     }
-    // On removing the entry from commit log keystore, remove the stale entries from
-    // commit log cache map
-    if (commitEntry != null) {
-      commitLogCache.remove(commitEntry.atKey!);
+    // On removing the entry from commit log keystore, remove the stale
+    // entry from the commit log cache map — but only when the cache's
+    // entry for this atKey is the one being deleted. Removing an older
+    // duplicate must not evict the newer live entry.
+    if (commitEntry?.atKey != null) {
+      _evictFromCacheIfCurrent(commitEntry!.atKey!, commitEntryIndex);
     }
   }
 
@@ -116,13 +132,29 @@ class HiveCommitLogKeyStore with HiveBase<CommitEntry?> {
     if (deleteKeysList.isEmpty) {
       return;
     }
+    // Capture (boxKey → atKey) BEFORE deleteAll — afterwards the
+    // entries are gone and their atKeys unrecoverable.
+    final toEvict = <int, String>{};
+    for (final key in deleteKeysList) {
+      final CommitEntry? entry = (getBox() as Box).get(key);
+      if (entry?.atKey != null) {
+        toEvict[key] = entry!.atKey!;
+      }
+    }
     await getBox().deleteAll(deleteKeysList);
     // Removes stale entries from the commit log cache map
-    for (int key in deleteKeysList) {
-      CommitEntry? commitEntry = (getBox() as Box).get(key);
-      if (commitEntry != null) {
-        commitLogCache.remove(commitEntry.atKey!);
-      }
+    toEvict.forEach((boxKey, atKey) {
+      _evictFromCacheIfCurrent(atKey, boxKey);
+    });
+  }
+
+  /// Removes [atKey]'s cache entry iff the cache currently points at
+  /// [deletedCommitId]. When the deleted box entry was an older
+  /// duplicate, the cache holds a newer entry for the same atKey
+  /// which must stay.
+  void _evictFromCacheIfCurrent(String atKey, int deletedCommitId) {
+    if (commitLogCache.getEntry(atKey)?.commitId == deletedCommitId) {
+      commitLogCache.remove(atKey);
     }
   }
 

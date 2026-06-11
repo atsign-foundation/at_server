@@ -41,6 +41,49 @@ abstract interface class AtKeyValueStore<K, V, T>
   /// construction; client-side bundles leave it `null`.
   set commitLog(AtCommitLog? log) {}
 
+  /// Smallest non-null `availableAt` among entries that have not
+  /// yet become available (`availableAt > asOf`, [asOf] defaulting
+  /// to now), or `null` if there are none. Drives a TTB-sweep
+  /// wake-up timer.
+  ///
+  /// Note the strict-greater-than filter: keys that are already
+  /// born are excluded. TTB doesn't have TTL's "becomes actionable
+  /// when crossed → deleted soon after" lifecycle — a born key
+  /// stays in the store, so only the not-yet-born subset is
+  /// interesting for a wake-up timer.
+  ///
+  /// Snapshot semantics: best-effort with respect to concurrent
+  /// mutations, as for [KeyValueStore.nextExpiresAt].
+  ///
+  /// MUST be O(1)-or-better than a full-store scan on any backend
+  /// bundled with this package.
+  Future<DateTime?> nextAvailableAt({DateTime? asOf});
+
+  /// Up to [limit] keys whose `availableAt` is in `(since, asOf]` —
+  /// keys that crossed the born threshold since the caller's last
+  /// sweep watermark. Ascending-`availableAt` order; [asOf]
+  /// defaults to now.
+  ///
+  /// The watermark pattern: born keys are persistent (unlike
+  /// expired keys, which a sweep drains), so "all born keys" is
+  /// useless as a trigger signal — every call would return the
+  /// same set. Callers MUST track the largest `availableAt` they
+  /// have already processed and pass it as [since] (exclusive).
+  /// The first sweep may pass `DateTime(0)` or a persisted
+  /// watermark. A key whose `availableAt == since` is NOT yielded;
+  /// one whose `availableAt == asOf` IS.
+  ///
+  /// The watermark is deliberately caller-side state — see the
+  /// audit's §4.3: it adds no per-entry server state and composes
+  /// with multiple independent readers. If a future caller needs
+  /// server-side "processed" tracking instead, revisit this
+  /// contract before building around it.
+  Future<Stream<K>> peekNewlyAvailable({
+    required DateTime since,
+    DateTime? asOf,
+    int? limit,
+  });
+
   /// Updates the metadata for [key] without touching its value.
   /// Returns the commit-log sequence number assigned to this
   /// write, or `null` if no sequence number was produced.

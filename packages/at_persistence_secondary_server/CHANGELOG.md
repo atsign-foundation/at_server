@@ -16,6 +16,23 @@ Major release: persistence-overhaul. Themes:
   `notificationKeystore?` (optional capabilities gated by
   `AtPersistenceConfig` toggles). `serverDefaults` opts into
   every capability; `clientDefaults` opts into the keystore only.
+- **First-class min/max/floor query surface.**
+  `KeyValueStore` gains `nextExpiresAt` / `peekExpired` (expiry
+  wake-up + bounded ascending-order drain, on both the main and
+  notification keystores); `AtKeyValueStore` gains
+  `nextAvailableAt` / `peekNewlyAvailable` (TTB wake-up + a
+  caller-side-watermark sweep window); `AtCommitLog` gains
+  `firstCommittedSequenceNumber` (the log's floor, pairing with
+  `lastCommittedSequenceNumber` so sync clients can detect
+  "server no longer retains my delta"). The Hive notification
+  keystore now maintains an in-memory effective-expiry index
+  (folding `expiresAt`, the `notificationDateTime + maxTtl`
+  guard, and already-expired-by-shape entries into one
+  comparable instant), which also backs `getExpiredKeys`
+  without a full-box deserialise. Fixed: bulk commit-log
+  removal left stale entries in the commit-log cache; cache
+  eviction is now guarded so deleting an older duplicate never
+  evicts the newer live entry.
 - **`AtKeyValueStore` widened with ten new primitives** for
   at_client adoption: `exists`, `scanKeys` (with
   `KeyPattern` + ordering + pagination), `getMany`,
