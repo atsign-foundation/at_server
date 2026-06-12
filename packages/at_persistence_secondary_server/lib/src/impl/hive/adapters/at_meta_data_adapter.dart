@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:at_commons/at_commons.dart';
 import 'package:hive/hive.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -39,13 +41,23 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..skeEncKeyName = fields[22]
       ..skeEncAlgo = fields[23]
       ..pubKeyHash = fields[24]
-      ..immutable = fields[25];
+      ..immutable = fields[25]
+      // Stored as a JSON-encoded String (field 26) rather than via a
+      // dedicated TypeAdapter, so no new typeId is consumed. Records
+      // written before this field existed read back as null here —
+      // the fields map simply has no entry for 26.
+      ..appMetadata = _decodeAppMetadata(fields[26]);
+  }
+
+  static AppMetadata? _decodeAppMetadata(dynamic stored) {
+    if (stored == null) return null;
+    return AppMetadata.fromJson(jsonDecode(stored as String));
   }
 
   @override
   void write(BinaryWriter writer, AtMetaData obj) {
     writer
-      ..writeByte(26)
+      ..writeByte(27)
       ..writeByte(0)
       ..write(obj.createdBy)
       ..writeByte(1)
@@ -97,7 +109,11 @@ class AtMetaDataAdapter extends TypeAdapter<AtMetaData> {
       ..writeByte(24)
       ..write(obj.pubKeyHash)
       ..writeByte(25)
-      ..write(obj.immutable);
+      ..write(obj.immutable)
+      ..writeByte(26)
+      ..write(obj.appMetadata == null
+          ? null
+          : jsonEncode(obj.appMetadata!.toJson()));
   }
 }
 

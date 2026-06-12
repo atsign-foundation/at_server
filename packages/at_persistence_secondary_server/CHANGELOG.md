@@ -2,6 +2,15 @@
 
 Major release: persistence-overhaul. Themes:
 
+- **`AtMetaData.appMetadata`** — new persistence field carrying the
+  provider-owned `AppMetadata` from at_commons (opaque to the
+  server). Stored by `AtMetaDataAdapter` as a JSON-encoded string
+  (hive field 26); records written before the field existed read
+  back with `appMetadata == null`. Mapped in
+  `fromCommonsMetadata` / `toCommonsMetadata` and `toJson` /
+  `fromJson` (the latter accepts both the Map and base64 wire
+  forms). Requires at_commons from the `xl-pluggable` branch
+  (dependency override) until it is published.
 - **Bootstrap is now factory + bundle, not singletons.**
   `AtPersistenceFactory` / `AtPersistenceBundle` replace every
   legacy `getInstance()` shim. Backend-pluggable by design.
