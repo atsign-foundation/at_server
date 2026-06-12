@@ -1,4 +1,4 @@
-FROM dart:3.12.2@sha256:4cfa15b34490a79b124d6b79a41263db43c86d8f8fc81fb96c728dfeefea6963 AS buildimage
+FROM dart:3.12.2@sha256:4380ee999fb926f00881ea01f9ef849b753a94d1fb10268d8c2277a515b53054 AS buildimage
 ENV USER_ID=1024
 ENV GROUP_ID=1024
 WORKDIR /app
@@ -24,7 +24,7 @@ RUN \
   dart pub update ; \
   dart compile exe bin/at_activate.dart -o at_activate
 
-FROM debian:stable-20260518-slim@sha256:5012d0517aa0075a7150a45aae67586641e898913b7af3b08228108565b5f90c
+FROM debian:stable-20260610-slim@sha256:34363c20bd149e41365fc77b086da067ed13ab2dff4cd0612788e12e6d52c44c
 # was debian:stable-20221114-slim
 USER root
 
