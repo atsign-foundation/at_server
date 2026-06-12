@@ -11,6 +11,15 @@ environment:
 dependency_overrides:
   at_persistence_secondary_server:
     path: ../at_persistence_secondary_server
+  at_server_spec:
+    path: ../at_server_spec
+  # appMetadata support (Metadata.appMetadata, AtConstants.appMetadata)
+  # is on the xl-pluggable branch; not yet published to pub.dev.
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_client_sdk.git
+      ref: xl-pluggable
+      path: packages/at_commons
 
 dependencies:
   args: ^2.7.0

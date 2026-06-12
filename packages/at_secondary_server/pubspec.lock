@@ -68,10 +68,11 @@ packages:
   at_commons:
     dependency: "direct main"
     description:
-      name: at_commons
-      sha256: ae9be3918d75eabf342de86adf87af40120f80e3521c59f2cb166d340fd0a9e6
-      url: "https://pub.dev"
-    source: hosted
+      path: "packages/at_commons"
+      ref: xl-pluggable
+      resolved-ref: cc4e39107e9acddef31d0af095573a486dd7f105
+      url: "https://github.com/atsign-foundation/at_client_sdk.git"
+    source: git
     version: "5.10.0"
   at_lookup:
     dependency: "direct main"
@@ -88,13 +89,19 @@ packages:
       relative: true
     source: path
     version: "5.0.0"
+  at_persistence_spec:
+    dependency: "direct overridden"
+    description:
+      path: "../at_persistence_spec"
+      relative: true
+    source: path
+    version: "3.1.0"
   at_server_spec:
     dependency: "direct main"
     description:
-      name: at_server_spec
-      sha256: c128bc00c8bde819ff547b2a7baf9788723f9d87c36eddc30fd18042c64060cf
-      url: "https://pub.dev"
-    source: hosted
+      path: "../at_server_spec"
+      relative: true
+    source: path
     version: "5.1.0"
   at_utf7:
     dependency: transitive
