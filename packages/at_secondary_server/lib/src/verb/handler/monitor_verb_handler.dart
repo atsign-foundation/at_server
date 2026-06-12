@@ -217,6 +217,9 @@ extension MapForClient on AtNotification {
           "pubKeyHash": atMetadata?.pubKeyHash != null
               ? jsonEncode(atMetadata?.pubKeyHash?.toJson())
               : null,
+          // The client parses this with Metadata.decodeAppMetadata,
+          // which accepts a Map (emitted here) or a base64 string.
+          AtConstants.appMetadata: atMetadata?.appMetadata?.toJson(),
         }
       };
 }

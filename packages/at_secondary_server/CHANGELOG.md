@@ -1,5 +1,16 @@
 # 3.14.0
 
+- feat: `appMetadata` support on `update`, `update:meta` and `notify`
+  (at_commons `xl-pluggable` branch). The base64(JSON)
+  `:appMetadata:` fragment is parsed into
+  `AtMetaData.appMetadata`, persisted, returned by
+  `llookup:all` / `llookup:meta`, retained across updates that
+  don't mention it (like other typed metadata fields), carried on
+  stored notifications, forwarded in the server-to-server notify
+  command body, delivered in the monitor payload
+  (`metadata.appMetadata`), and emitted base64-encoded in sync
+  responses (matching `Metadata.decodeAppMetadata` on the client).
+  Malformed values are rejected as invalid syntax.
 - refactor: the persistence layer is now wired through the new
   `AtPersistenceFactory` injected into `AtSecondaryServerImpl`,
   replacing direct `*.getInstance()` calls in the bootstrap path

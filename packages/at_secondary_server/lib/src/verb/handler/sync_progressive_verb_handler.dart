@@ -205,6 +205,16 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
         metaDataMap[itr.current.key] = jsonEncode(itr.current.value);
         continue;
       }
+      // Like pubKeyHash, appMetadata is structured — toString() would
+      // emit a Dart-Map literal the client can't parse. The client's
+      // sync path decodes this with Metadata.decodeAppMetadata, whose
+      // String form is base64(JSON) — so emit exactly that.
+      if (itr.current.key == AtConstants.appMetadata &&
+          itr.current.value != null) {
+        metaDataMap[itr.current.key] =
+            Metadata.encodeAppMetadata(metaData.appMetadata!);
+        continue;
+      }
       if (itr.current.value != null) {
         metaDataMap[itr.current.key] = itr.current.value.toString();
       }

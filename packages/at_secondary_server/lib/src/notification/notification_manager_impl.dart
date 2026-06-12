@@ -257,6 +257,12 @@ class NotificationManager {
     }
     var atMetaData = atNotification.atMetadata;
     if (atMetaData != null) {
+      // appMetadata is the LAST group in VerbSyntax.metadataFragment;
+      // since this body is built back-to-front, it is prepended first.
+      if (atNotification.atMetadata!.appMetadata != null) {
+        commandBody =
+            '${AtConstants.appMetadata}:${Metadata.encodeAppMetadata(atNotification.atMetadata!.appMetadata!)}:$commandBody';
+      }
       if (atNotification.atMetadata!.immutable == true) {
         commandBody = '${AtConstants.immutable}:true:$commandBody';
       }
