@@ -88,6 +88,15 @@ class HiveAtCommitLog extends AtCommitLog {
     return _commitLogKeyStore.latestCommitId;
   }
 
+  /// Smallest `commitId` still retained in the log, or `null` if
+  /// the log is empty. See [HiveCommitLogKeyStore.firstCommitId]
+  /// for why the box read is correct.
+  @override
+  @server
+  int? firstCommittedSequenceNumber() {
+    return _commitLogKeyStore.firstCommitId;
+  }
+
   /// Returns the total number of keys
   /// @return - int : Returns number of keys in access log
   @override

@@ -35,6 +35,32 @@ class HiveAtNotificationKeystore
   final StreamController<KeyStoreChange> _changesController =
       StreamController<KeyStoreChange>.broadcast();
 
+  /// In-memory expiry index: notification id → effective expiry
+  /// instant (see [_effectiveExpiry]). Populated once in
+  /// [initialize]; maintained on every mutation path — [put],
+  /// [remove], [removeMany], [compact], [clear]. Backs
+  /// [nextExpiresAt] / [peekExpired] / [getExpiredKeys] without a
+  /// full-box deserialise.
+  final Map<String, DateTime> _expiryIndex = {};
+
+  /// The instant at which [n] is (or becomes) expired, folding all
+  /// of [AtNotification.isExpired]'s branches into one comparable
+  /// value: entries that are already expired by shape (status
+  /// `expired`, null `expiresAt`, null `notificationDateTime`) are
+  /// pinned to the epoch so every min/peek sees them immediately;
+  /// otherwise the earlier of `expiresAt` and the
+  /// `notificationDateTime + maxTtl` anti-bad-data cutoff.
+  /// `n.isExpired()` is exactly `_effectiveExpiry(n) < now`.
+  static DateTime _effectiveExpiry(AtNotification n) {
+    if (n.notificationStatus == NotificationStatus.expired ||
+        n.expiresAt == null ||
+        n.notificationDateTime == null) {
+      return DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+    }
+    final maxTtlCutoff = n.notificationDateTime!.add(AtNotification.maxTtl);
+    return n.expiresAt!.isBefore(maxTtlCutoff) ? n.expiresAt! : maxTtlCutoff;
+  }
+
   @override
   Stream<KeyStoreChange> get changes => _changesController.stream;
 
@@ -108,6 +134,18 @@ class HiveAtNotificationKeystore
   Future<void> initialize() async {
     _boxName = 'notifications_${AtUtils.getShaForAtSign(currentAtSign)}';
     await super.openBox(_boxName);
+    await _populateExpiryIndex();
+  }
+
+  /// One-time full scan that seeds [_expiryIndex] from the box.
+  /// Same cost pattern as the main keystore's expiry-cache init.
+  Future<void> _populateExpiryIndex() async {
+    _expiryIndex.clear();
+    for (final key in _getBox().keys) {
+      final entry = await getValue(key);
+      if (entry == null) continue;
+      _expiryIndex[key] = _effectiveExpiry(entry);
+    }
   }
 
   /// You **must** subsequently call [init]
@@ -158,6 +196,7 @@ class HiveAtNotificationKeystore
     }
     final wasPresent = await exists(key);
     await _getBox().put(key, value);
+    _expiryIndex[key] = _effectiveExpiry(value);
     _changesController.add(wasPresent ? KeyUpdated(key) : KeyAdded(key));
     return null;
   }
@@ -195,22 +234,38 @@ class HiveAtNotificationKeystore
 
   @override
   Future<Stream<String>> getExpiredKeys() async {
-    List<String> expiredKeys = <String>[];
-    try {
-      for (final key in _getBox().keys) {
-        var value = await get(key);
-        if (value != null && value.isExpired()) {
-          expiredKeys.add(Utf7.encode(key));
-        }
+    // Answered from _expiryIndex — _effectiveExpiry(n) < now is
+    // exactly n.isExpired(), without deserialising every entry.
+    final now = DateTime.timestamp();
+    final expiredKeys = <String>[];
+    _expiryIndex.forEach((key, expiry) {
+      if (expiry.isBefore(now)) {
+        expiredKeys.add(Utf7.encode(key));
       }
-    } on Exception catch (e) {
-      _logger.severe('exception in hive get expired keys:${e.toString()}');
-      throw DataStoreException('exception in getExpiredKeys: ${e.toString()}');
-    } on HiveError catch (error) {
-      _logger.severe('HiveAtKeyValueStore get error: $error');
-      throw DataStoreException(error.message);
-    }
+    });
     return Stream.fromIterable(expiredKeys);
+  }
+
+  @override
+  Future<DateTime?> nextExpiresAt() async {
+    DateTime? min;
+    for (final expiry in _expiryIndex.values) {
+      if (min == null || expiry.isBefore(min)) min = expiry;
+    }
+    return min;
+  }
+
+  @override
+  Future<Stream<String>> peekExpired({DateTime? asOf, int? limit}) async {
+    final cutoff = asOf ?? DateTime.timestamp();
+    if (limit != null && limit <= 0) return const Stream.empty();
+    final hits = <MapEntry<String, DateTime>>[];
+    _expiryIndex.forEach((key, expiry) {
+      if (!expiry.isAfter(cutoff)) hits.add(MapEntry(key, expiry));
+    });
+    hits.sort((a, b) => a.value.compareTo(b.value));
+    final limited = limit == null ? hits : hits.take(limit);
+    return Stream.fromIterable(limited.map((e) => Utf7.encode(e.key)));
   }
 
   @override
@@ -240,6 +295,7 @@ class HiveAtNotificationKeystore
     }
     final wasPresent = await exists(key);
     await _getBox().delete(key);
+    _expiryIndex.remove(key);
 
     for (final hook in postRemoveHooks) {
       await hook(key, skipCommit: skipCommit);
@@ -287,6 +343,9 @@ class HiveAtNotificationKeystore
       }
     }
     await box.deleteAll(present);
+    for (final k in present) {
+      _expiryIndex.remove(k);
+    }
     // postRemoveHooks per present key.
     for (final k in present) {
       for (final hook in postRemoveHooks) {
@@ -330,6 +389,7 @@ class HiveAtNotificationKeystore
     }
     await _getBox().deleteAll(expired);
     for (final key in expired) {
+      _expiryIndex.remove(key);
       yield key;
     }
   }
@@ -350,10 +410,12 @@ class HiveAtNotificationKeystore
     }
   }
 
-  /// Drop every entry from the underlying box without closing it.
-  /// Used by [AtPersistenceBundle.clear] for cheap test isolation.
+  /// Drop every entry from the underlying box AND the in-memory
+  /// expiry index, without closing the box. Used by
+  /// [AtPersistenceBundle.clear] for cheap test isolation.
   Future<void> clear() async {
     await _getBox().clear();
+    _expiryIndex.clear();
   }
 }
 

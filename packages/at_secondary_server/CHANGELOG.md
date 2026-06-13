@@ -11,6 +11,14 @@
   (`metadata.appMetadata`), and emitted base64-encoded in sync
   responses (matching `Metadata.decodeAppMetadata` on the client).
   Malformed values are rejected as invalid syntax.
+- feat: the key-expiry sweep is now scheduled from
+  `AtKeyValueStore.nextExpiresAt()` — a one-shot timer that sleeps
+  until the next key actually expires (clamped to
+  `[10s, expiringRunFreqMins]`, plus 0-30s co-hosting jitter) and
+  reschedules itself after every sweep, replacing the fixed-cadence
+  `cron` schedule. Worst case matches the old cadence; common case
+  is a sweep within seconds of the next expiry. `cron` is no longer
+  imported by `at_secondary_impl.dart`.
 - refactor: the persistence layer is now wired through the new
   `AtPersistenceFactory` injected into `AtSecondaryServerImpl`,
   replacing direct `*.getInstance()` calls in the bootstrap path

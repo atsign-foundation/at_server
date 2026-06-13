@@ -7,7 +7,6 @@ import 'dart:math';
 import 'package:at_commons/at_commons.dart' hide StringBuffer;
 import 'package:at_lookup/at_lookup.dart';
 import 'package:at_persistence_secondary_server/hive.dart';
-import 'package:cron/cron.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/caching/cache_refresh_job.dart';
@@ -123,11 +122,18 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// resource's `compact(false)` stream with an overlap guard.
   final List<Timer> _compactionTimers = [];
 
-  /// Cron driving the periodic key-expiry sweep. Owned by the
-  /// secondary (not the persistence layer): the application picks
-  /// the schedule, the keystore just exposes
+  /// One-shot timer driving the key-expiry sweep, rescheduled after
+  /// every sweep from [AtKeyValueStore.nextExpiresAt] — the server
+  /// sleeps until the next key actually expires instead of polling
+  /// on a fixed cadence. Owned by the secondary (not the
+  /// persistence layer): the application picks the schedule, the
+  /// keystore exposes [AtKeyValueStore.nextExpiresAt] and
   /// [AtKeyValueStore.deleteExpiredKeys].
-  Cron? _keyExpiryCron;
+  Timer? _keyExpiryTimer;
+
+  /// Floor for the expiry-sweep sleep — stops a burst of
+  /// near-future expiries from re-running the sweep back-to-back.
+  static const Duration _minExpirySleep = Duration(seconds: 10);
   @visibleForTesting
   AtCertificateValidationJob? certificateReloadJob;
   late AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore;
@@ -211,30 +217,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // We add a hook here to handle deletion of enrollments.
     keyValueStore.preRemoveHooks.add(enrollmentManager.preRemoveHook);
 
-    // Schedule the periodic key-expiry sweep. Frequency is in
-    // [expiringRunFreqMins-2, expiringRunFreqMins+5] mins (default
-    // 8-15) so independent secondaries on the same host don't all
-    // sweep at the same wall-clock minute. A 0-30s jitter inside
-    // each tick spreads the disk load further when multiple atSigns
-    // are co-hosted.
-    final expiryRunRandomMins =
-        (expiringRunFreqMins! - 2) + Random().nextInt(8);
-    logger.finest('Scheduling key expiry job every $expiryRunRandomMins mins');
-    _keyExpiryCron = Cron();
-    _keyExpiryCron!.schedule(
-      Schedule.parse('*/$expiryRunRandomMins * * * *'),
-      () async {
-        await Future.delayed(Duration(seconds: Random().nextInt(30)));
-        if (_persistenceBundle == null) return;
-        try {
-          await keyValueStore.deleteExpiredKeys();
-        } on Exception catch (e) {
-          logger.warning('Key expiry sweep failed: $e');
-        }
-      },
-    );
-
+    // Startup sweep, then schedule the next one from
+    // nextExpiresAt() — see _scheduleNextExpirySweep for the
+    // sleep-until-next-expiry shape and its staleness bound.
     await keyValueStore.deleteExpiredKeys();
+    await _scheduleNextExpirySweep();
 
     // Compaction is scheduled at the secondary level (not by the
     // persistence layer): the Timer ticks, drains the resource's
@@ -456,6 +443,57 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
     _compactionTimers.clear();
     _scheduleCompaction(resource, newFrequency, label, statsService);
+  }
+
+  /// Computes the next expiry-sweep wake-up from
+  /// [AtKeyValueStore.nextExpiresAt] and arms [_keyExpiryTimer].
+  ///
+  /// Sleep is clamped to `[_minExpirySleep, expiringRunFreqMins]`.
+  /// The ceiling matters for correctness, not just hygiene:
+  /// `nextExpiresAt()` is a snapshot, and a put with a sooner
+  /// expiry while we sleep would otherwise go un-swept until the
+  /// (stale) wake-up. Capping the sleep bounds that staleness at
+  /// one old-style poll interval — the worst case is exactly
+  /// today's fixed-cadence behaviour, the common case is a sweep
+  /// within seconds of the next key actually expiring. The same
+  /// ceiling doubles as the idle re-check period when no key has
+  /// a ttl at all.
+  ///
+  /// A 0-30s jitter spreads the disk load when multiple co-hosted
+  /// atSigns have expiries clustered at the same wall-clock minute.
+  Future<void> _scheduleNextExpirySweep() async {
+    if (_persistenceBundle == null) {
+      return;
+    }
+    final maxSleep = Duration(minutes: expiringRunFreqMins!);
+    Duration sleep;
+    try {
+      final DateTime? next = await keyValueStore.nextExpiresAt();
+      if (next == null) {
+        sleep = maxSleep;
+      } else {
+        final untilNext = next.difference(DateTime.timestamp());
+        sleep = untilNext < _minExpirySleep
+            ? _minExpirySleep
+            : (untilNext > maxSleep ? maxSleep : untilNext);
+      }
+    } on Exception catch (e) {
+      logger.warning('Failed to compute next expiry wake-up: $e');
+      sleep = maxSleep;
+    }
+    sleep += Duration(seconds: Random().nextInt(30));
+    logger.finest('Next key expiry sweep in $sleep');
+    _keyExpiryTimer = Timer(sleep, () async {
+      if (_persistenceBundle == null) {
+        return;
+      }
+      try {
+        await keyValueStore.deleteExpiredKeys();
+      } on Exception catch (e) {
+        logger.warning('Key expiry sweep failed: $e');
+      }
+      await _scheduleNextExpirySweep();
+    });
   }
 
   /// Schedule a periodic compaction tick for [resource]. The tick
@@ -771,9 +809,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       keyValueStore.preRemoveHooks.clear();
       keyValueStore.postRemoveHooks.clear();
 
-      logger.shout("Stopping key expiry cron");
-      await _keyExpiryCron?.close();
-      _keyExpiryCron = null;
+      logger.shout("Stopping key expiry timer");
+      _keyExpiryTimer?.cancel();
+      _keyExpiryTimer = null;
 
       logger.shout('Closing persistence (commit log, access log, '
           'notification keystore, secondary keystore)');
