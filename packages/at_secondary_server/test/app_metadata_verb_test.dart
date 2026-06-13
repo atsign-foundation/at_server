@@ -12,13 +12,20 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
+import 'package:at_secondary/src/utils/secondary_util.dart';
+import 'package:at_secondary/src/verb/handler/abstract_update_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/proxy_lookup_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
@@ -167,6 +174,152 @@ void main() {
           getVerbParam(Notify().syntax(), 'notify:$commandBody');
       expect(Metadata.decodeAppMetadata(reParsed[AtConstants.appMetadata]),
           sampleAppMetadata());
+    });
+  });
+
+  group('appMetadata on every read / delivery path', () {
+    test('unauthenticated lookup:all of a public key returns appMetadata',
+        () async {
+      // Seed a public key carrying appMetadata, as the owner.
+      inboundConnection.metadata.isAuthenticated = true;
+      final updateHandler = UpdateVerbHandler(
+          keyValueStore, statsNotificationService, notificationManager, alice);
+      await updateHandler.process(
+          'update:appMetadata:${encoded()}:public:city.wavi$alice tokyo',
+          inboundConnection);
+
+      // Look it up over a fresh, unauthenticated connection.
+      final unauthConnection = DummyInboundConnection();
+      final lookupHandler = LookupVerbHandler(
+          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+          accessLog: atAccessLog);
+      await lookupHandler.process(
+          'lookup:all:city.wavi$alice', unauthConnection);
+
+      final mapSentToClient = decodeResponse(unauthConnection.lastWrittenData!);
+      final metadata =
+          AtMetaData.fromJson(mapSentToClient['metaData']).toCommonsMetadata();
+      expect(metadata.appMetadata, sampleAppMetadata());
+    });
+
+    test(
+        'lookup of another atSign\'s shared key preserves appMetadata in '
+        'the response AND in the cached copy', () async {
+      inboundConnection.metadata.isAuthenticated = true;
+      const keyName = 'some_key.some_namespace@bob';
+
+      final AtData bobData = createRandomAtData(bob);
+      bobData.metaData!.ttr = 10;
+      bobData.metaData!.ttb = null;
+      bobData.metaData!.ttl = null;
+      bobData.metaData!.appMetadata = sampleAppMetadata();
+      final String bobDataAsJsonWithKey = SecondaryUtil.prepareResponseData(
+          'all', bobData,
+          key: '$alice:$keyName')!;
+
+      when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
+          .thenAnswer((Invocation invocation) async {
+        socketOnDataFn("data:$bobDataAsJsonWithKey\n$alice@".codeUnits);
+      });
+
+      final lookupHandler = LookupVerbHandler(
+          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+          accessLog: atAccessLog);
+      await lookupHandler.process('lookup:all:$keyName', inboundConnection);
+
+      final mapSentToClient =
+          decodeResponse(inboundConnection.lastWrittenData!);
+      final metadata =
+          AtMetaData.fromJson(mapSentToClient['metaData']).toCommonsMetadata();
+      expect(metadata.appMetadata, sampleAppMetadata());
+
+      // The cached copy persisted appMetadata too.
+      final cached = await keyValueStore.get('cached:$alice:$keyName');
+      expect(cached!.metaData!.appMetadata, sampleAppMetadata());
+    });
+
+    test('plookup of a public key preserves appMetadata', () async {
+      inboundConnection.metadata.isAuthenticated = true;
+      const keyName = 'first_name.wavi@bob';
+
+      final AtData bobData = createRandomAtData(bob);
+      bobData.metaData!.ttr = 10;
+      bobData.metaData!.ttb = null;
+      bobData.metaData!.ttl = null;
+      bobData.metaData!.appMetadata = sampleAppMetadata();
+      final String bobDataAsJson = SecondaryUtil.prepareResponseData(
+          'all', bobData,
+          key: 'public:$keyName')!;
+
+      when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
+          .thenAnswer((Invocation invocation) async {
+        socketOnDataFn("data:$bobDataAsJson\n$alice@".codeUnits);
+      });
+
+      final plookupHandler = ProxyLookupVerbHandler(
+          keyValueStore, mockOutboundClientManager, cacheManager,
+          accessLog: atAccessLog);
+      await plookupHandler.process('plookup:all:$keyName', inboundConnection);
+
+      final mapSentToClient =
+          decodeResponse(inboundConnection.lastWrittenData!);
+      final metadata =
+          AtMetaData.fromJson(mapSentToClient['metaData']).toCommonsMetadata();
+      expect(metadata.appMetadata, sampleAppMetadata());
+    });
+
+    test(
+        'autoNotify: an update of a key shared with another atSign creates '
+        'a notification carrying appMetadata', () async {
+      inboundConnection.metadata.isAuthenticated = true;
+      AbstractUpdateVerbHandler.setAutoNotify(true);
+      try {
+        final updateHandler = UpdateVerbHandler(keyValueStore,
+            statsNotificationService, notificationManager, alice);
+        await updateHandler.process(
+            'update:appMetadata:${encoded()}:$bob:auto-notified.wavi$alice hi',
+            inboundConnection);
+
+        // Find the notification the update generated.
+        AtNotification? generated;
+        for (final id in await (await notifStore.getKeys()).toList()) {
+          final n = await notifStore.get(id);
+          if (n != null && n.notification!.contains('auto-notified.wavi')) {
+            generated = n;
+            break;
+          }
+        }
+        expect(generated, isNotNull,
+            reason: 'autoNotify should have stored a notification');
+        expect(generated!.atMetadata?.appMetadata, sampleAppMetadata());
+      } finally {
+        AbstractUpdateVerbHandler.setAutoNotify(false);
+      }
+    });
+
+    test(
+        'sync response metadata carries appMetadata, base64-encoded as '
+        'Metadata.decodeAppMetadata expects', () async {
+      inboundConnection.metadata.isAuthenticated = true;
+      await keyValueStore.put(
+          'synced.wavi$alice',
+          AtData()
+            ..data = 'sync-me'
+            ..metaData = (AtMetaData()..appMetadata = sampleAppMetadata()));
+
+      final syncHandler =
+          SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
+      final response = Response();
+      final verbParams = HashMap<String, String?>();
+      verbParams[AtConstants.fromCommitSequence] = '-1';
+      await syncHandler.processVerb(response, verbParams, inboundConnection);
+
+      final List syncResponse = jsonDecode(response.data!);
+      final Map entry = syncResponse
+          .firstWhere((e) => e['atKey'] == 'synced.wavi$alice') as Map;
+      final encodedOnWire = entry['metadata'][AtConstants.appMetadata];
+      expect(encodedOnWire, isA<String>());
+      expect(Metadata.decodeAppMetadata(encodedOnWire), sampleAppMetadata());
     });
   });
 }
