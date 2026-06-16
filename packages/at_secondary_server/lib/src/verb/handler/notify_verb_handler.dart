@@ -409,6 +409,15 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       atMetadata.immutable =
           SecondaryUtil.getBoolFromString(verbParams[AtConstants.immutable]);
     }
+    // Arrives base64(JSON)-encoded on the wire; decodeAppMetadata also
+    // maps an absent param (or the literal 'null') to null.
+    try {
+      atMetadata.appMetadata =
+          Metadata.decodeAppMetadata(verbParams[AtConstants.appMetadata]);
+    } on FormatException catch (e) {
+      throw InvalidSyntaxException(
+          'invalid ${AtConstants.appMetadata}: ${e.message}');
+    }
     atMetadata.isEncrypted = getIsEncrypted(
         getMessageType(verbParams[AtConstants.messageType]),
         verbParams[AtConstants.atKey]!,

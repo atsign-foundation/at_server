@@ -54,6 +54,11 @@ class AtMetaData {
 
   bool? immutable;
 
+  /// Provider-owned plaintext metadata, opaque to the server. See
+  /// [AppMetadata] in at_commons — the server stores and returns it
+  /// verbatim; it never interprets the contents.
+  AppMetadata? appMetadata;
+
   @override
   String toString() {
     return toJson().toString();
@@ -79,7 +84,8 @@ class AtMetaData {
       ..skeEncKeyName = skeEncKeyName
       ..skeEncAlgo = skeEncAlgo
       ..pubKeyHash = pubKeyHash
-      ..immutable = immutable ?? false;
+      ..immutable = immutable ?? false
+      ..appMetadata = appMetadata;
   }
 
   factory AtMetaData.fromCommonsMetadata(Metadata metadata, String atSign) {
@@ -101,7 +107,8 @@ class AtMetaData {
       ..skeEncKeyName = metadata.skeEncKeyName
       ..skeEncAlgo = metadata.skeEncAlgo
       ..pubKeyHash = metadata.pubKeyHash
-      ..immutable = metadata.immutable;
+      ..immutable = metadata.immutable
+      ..appMetadata = metadata.appMetadata;
     return AtMetadataBuilder(atSign: atSign, newAtMetaData: atMetadata).build();
   }
 
@@ -134,6 +141,7 @@ class AtMetaData {
     map[AtConstants.sharedKeyEncryptedEncryptingAlgo] = skeEncAlgo;
     map[AtConstants.sharedWithPublicKeyHash] = pubKeyHash?.toJson();
     map[AtConstants.immutable] = immutable;
+    map[AtConstants.appMetadata] = appMetadata?.toJson();
     return map;
   }
 
@@ -191,6 +199,9 @@ class AtMetaData {
     pubKeyHash =
         PublicKeyHash.fromJson(json[AtConstants.sharedWithPublicKeyHash]);
     immutable = json[AtConstants.immutable];
+    // Handles a Map (our own toJson), a base64-encoded string (the
+    // wire form), or null.
+    appMetadata = Metadata.decodeAppMetadata(json[AtConstants.appMetadata]);
 
     return this;
   }
@@ -225,7 +236,8 @@ class AtMetaData {
           skeEncKeyName == other.skeEncKeyName &&
           skeEncAlgo == other.skeEncAlgo &&
           pubKeyHash == other.pubKeyHash &&
-          immutable == other.immutable;
+          immutable == other.immutable &&
+          appMetadata == other.appMetadata;
 
   @override
   int get hashCode =>
@@ -254,5 +266,6 @@ class AtMetaData {
       skeEncKeyName.hashCode ^
       skeEncAlgo.hashCode ^
       pubKeyHash.hashCode ^
-      immutable.hashCode;
+      immutable.hashCode ^
+      appMetadata.hashCode;
 }
