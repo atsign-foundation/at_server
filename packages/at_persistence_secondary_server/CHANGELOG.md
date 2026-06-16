@@ -1,8 +1,6 @@
-## 5.0.0
+## 5.1.0
 
-Major release: persistence-overhaul. Themes:
-
-- **`AtMetaData.appMetadata`** — new persistence field carrying the
+- feat: new persistence field `AtMetaData.appMetadata` carrying the
   provider-owned `AppMetadata` from at_commons (opaque to the
   server). Stored by `AtMetaDataAdapter` as a JSON-encoded string
   (hive field 26); records written before the field existed read
@@ -10,6 +8,11 @@ Major release: persistence-overhaul. Themes:
   `fromCommonsMetadata` / `toCommonsMetadata` and `toJson` /
   `fromJson` (the latter accepts both the Map and base64 wire
   forms).
+
+## 5.0.0
+
+Major release: persistence-overhaul. Themes:
+
 - **Bootstrap is now factory + bundle, not singletons.**
   `AtPersistenceFactory` / `AtPersistenceBundle` replace every
   legacy `getInstance()` shim. Backend-pluggable by design.
