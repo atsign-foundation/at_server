@@ -131,6 +131,29 @@ void main() {
       expect(inboundConnection.lastWrittenData, startsWith('data:hello'));
     });
 
+    test('a subsequent update:meta changing other fields retains appMetadata',
+        () async {
+      // Establish appMetadata.
+      await updateHandler.process(
+          'update:appMetadata:${encoded()}:@bob:phone.wavi$alice hello',
+          inboundConnection);
+
+      // update:meta touching only OTHER metadata fields (ttl + encKeyName),
+      // not appMetadata.
+      final updateMetaHandler = UpdateMetaVerbHandler(
+          keyValueStore, statsNotificationService, notificationManager, alice);
+      await updateMetaHandler.process(
+          'update:meta:@bob:phone.wavi$alice:ttl:60000:encKeyName:some_key',
+          inboundConnection);
+
+      final metadata = await llookupAllMetadata('@bob:phone.wavi$alice');
+      // The changed fields took effect...
+      expect(metadata.ttl, 60000);
+      expect(metadata.encKeyName, 'some_key');
+      // ...and appMetadata, which the command didn't mention, was retained.
+      expect(metadata.appMetadata, sampleAppMetadata());
+    });
+
     test('malformed appMetadata is rejected as invalid syntax', () async {
       await expectLater(
           updateHandler.process(
@@ -174,6 +197,19 @@ void main() {
           getVerbParam(Notify().syntax(), 'notify:$commandBody');
       expect(Metadata.decodeAppMetadata(reParsed[AtConstants.appMetadata]),
           sampleAppMetadata());
+    });
+
+    test('notify with malformed appMetadata is rejected as invalid syntax',
+        () async {
+      inboundConnection.metadata.isAuthenticated = true;
+      final notifyHandler =
+          NotifyVerbHandler(keyValueStore, notificationManager);
+      await expectLater(
+          notifyHandler.process(
+              'notify:id:bad-app-meta:notifier:system'
+              ':appMetadata:not-valid-base64!:@bob:phone.wavi$alice',
+              inboundConnection),
+          throwsA(isA<InvalidSyntaxException>()));
     });
   });
 
