@@ -80,6 +80,41 @@ abstract interface class KeyValueStore<K, V> {
   /// keys independently using their own TTL bookkeeping.
   Future<bool> deleteExpiredKeys();
 
+  /// Smallest non-null expiry instant across all entries, or `null`
+  /// if no entry has one set. Drives expiry-cron wake-up: a caller
+  /// can sleep until the returned time, then call [peekExpired] or
+  /// [deleteExpiredKeys] to drain.
+  ///
+  /// The returned instant may be in the past (there are
+  /// already-expired keys awaiting a sweep); callers driving a
+  /// timer should clamp to `max(returned, now)`.
+  ///
+  /// Snapshot semantics: best-effort with respect to concurrent
+  /// mutations — the returned value reflects state at some point
+  /// during the call, with no serialisation guarantee.
+  ///
+  /// MUST be O(1)-or-better than a full-store scan on any backend
+  /// bundled with this package (Hive backends answer from an
+  /// in-memory expiry index; SQL backends index the expiry column
+  /// and answer with `SELECT MIN(...)`).
+  Future<DateTime?> nextExpiresAt();
+
+  /// Up to [limit] keys whose expiry instant is at-or-before [asOf]
+  /// (default: now), in ascending-expiry order. `limit: 1` answers
+  /// "which key is next to expire". `limit: null` means no limit —
+  /// the same set as [getExpiredKeys], but with guaranteed
+  /// ascending-expiry ordering. Ties (same expiry instant) are
+  /// yielded in implementation-defined order.
+  ///
+  /// Bounded counterpart to [getExpiredKeys] — use this for
+  /// next-up probes and batched sweeps; the unbounded variant
+  /// stays for the "drain everything" caller.
+  ///
+  /// The returned `Future` completes once the backend has accepted
+  /// the request; the `Stream` then yields the keys (empty stream
+  /// if none match). Snapshot semantics as for [nextExpiresAt].
+  Future<Stream<K>> peekExpired({DateTime? asOf, int? limit});
+
   // ---------------------------------------------------------------
   // Listing / existence
   // ---------------------------------------------------------------

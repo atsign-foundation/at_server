@@ -498,6 +498,72 @@ class HiveAtKeyValueStore
     return Stream.fromIterable(expiredKeys);
   }
 
+  @override
+  @server
+  @client
+  Future<DateTime?> nextExpiresAt() async {
+    DateTime? min;
+    for (final fields in _expiryKeysCache.values) {
+      final exp = fields[expiresAt];
+      if (exp == null) continue;
+      if (min == null || exp.isBefore(min)) min = exp;
+    }
+    return min;
+  }
+
+  @override
+  @server
+  @client
+  Future<Stream<String>> peekExpired({DateTime? asOf, int? limit}) async {
+    final cutoff = asOf ?? DateTime.timestamp();
+    return Stream.fromIterable(
+        _collectAscending(expiresAt, limit, (t) => !t.isAfter(cutoff)));
+  }
+
+  @override
+  @server
+  @client
+  Future<DateTime?> nextAvailableAt({DateTime? asOf}) async {
+    final cutoff = asOf ?? DateTime.timestamp();
+    DateTime? min;
+    for (final fields in _expiryKeysCache.values) {
+      final avail = fields[availableAt];
+      // Strictly after the cutoff: already-born keys are excluded.
+      if (avail == null || !avail.isAfter(cutoff)) continue;
+      if (min == null || avail.isBefore(min)) min = avail;
+    }
+    return min;
+  }
+
+  @override
+  @server
+  @client
+  Future<Stream<String>> peekNewlyAvailable({
+    required DateTime since,
+    DateTime? asOf,
+    int? limit,
+  }) async {
+    final cutoff = asOf ?? DateTime.timestamp();
+    return Stream.fromIterable(_collectAscending(
+        availableAt, limit, (t) => t.isAfter(since) && !t.isAfter(cutoff)));
+  }
+
+  /// Walks `_expiryKeysCache`, keeps keys whose [field] value
+  /// satisfies [matches], and returns up to [limit] of them in
+  /// ascending-[field] order.
+  List<String> _collectAscending(
+      String field, int? limit, bool Function(DateTime) matches) {
+    if (limit != null && limit <= 0) return const [];
+    final hits = <MapEntry<String, DateTime>>[];
+    _expiryKeysCache.forEach((key, fields) {
+      final t = fields[field];
+      if (t != null && matches(t)) hits.add(MapEntry(key, t));
+    });
+    hits.sort((a, b) => a.value.compareTo(b.value));
+    final limited = limit == null ? hits : hits.take(limit);
+    return limited.map((e) => e.key).toList();
+  }
+
   /// Returns list of keys from the secondary storage.
   /// @param - regex : Optional parameter to filter keys on regular expression.
   /// @return - `List<String>` : List of keys from secondary storage.

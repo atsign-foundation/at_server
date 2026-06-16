@@ -40,6 +40,22 @@ abstract class AtCommitLog implements Compactable {
   /// Latest assigned `commitId`, or `null` if the log is empty.
   int? lastCommittedSequenceNumber();
 
+  /// Smallest `commitId` still retained in the log, or `null` if
+  /// the log is empty. Pairs with [lastCommittedSequenceNumber] to
+  /// expose the log's `[floor, ceiling]` to sync clients.
+  ///
+  /// MUST return the smallest commitId still present in the
+  /// underlying log (not a cached approximation). The value never
+  /// decreases over time: entries leave the log only via update
+  /// dedup and compaction, both of which can only raise the floor.
+  ///
+  /// A sync client whose own commit state is below the floor cannot
+  /// be incrementally caught up — the server no longer retains the
+  /// entries the client would need — and must full-sync instead.
+  ///
+  /// O(1) on every backend in this package.
+  int? firstCommittedSequenceNumber();
+
   /// The latest [CommitEntry] for [key], or `null` if [key] has
   /// never been committed.
   CommitEntry? getLatestCommitEntry(String key);
@@ -59,9 +75,12 @@ abstract class AtCommitLog implements Compactable {
   /// deletion. If `false`, performs the compaction and yields each
   /// commit-id as it is removed.
   ///
-  /// The Hive impl drops the oldest configured percentage of
-  /// entries; SQL backends will do a `DELETE WHERE` (and possibly
-  /// `VACUUM`) instead.
+  /// The Hive impl prunes duplicate entries — same atKey, older
+  /// commitId. Under the one-entry-per-atKey invariant (enforced
+  /// inline on commit and by the startup dedup migration) that set
+  /// is empty in practice, so this is a legacy-data safety net.
+  /// SQL backends will do a `DELETE WHERE` (and possibly `VACUUM`)
+  /// instead.
   @override
   Stream<int> compact(bool dryRun);
 }
