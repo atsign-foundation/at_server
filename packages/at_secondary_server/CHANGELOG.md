@@ -1,7 +1,7 @@
 # 3.14.0
 
 - feat: `appMetadata` support on `update`, `update:meta` and `notify`
-  (at_commons `xl-pluggable` branch). The base64(JSON)
+  (at_commons 5.11.0). The base64(JSON)
   `:appMetadata:` fragment is parsed into
   `AtMetaData.appMetadata`, persisted, returned by
   `llookup:all` / `llookup:meta`, retained across updates that
