@@ -7,15 +7,6 @@ homepage: https://docs.atsign.com/
 environment:
   sdk: ">=3.0.0 <4.0.0"
 
-dependency_overrides:
-  # appMetadata support (Metadata.appMetadata, AtConstants.appMetadata)
-  # is on the xl-pluggable branch; not yet published to pub.dev.
-  at_commons:
-    git:
-      url: https://github.com/atsign-foundation/at_client_sdk.git
-      ref: xl-pluggable
-      path: packages/at_commons
-
 dependencies:
   path: ^1.8.2
   hive: ^2.2.3
@@ -23,7 +14,7 @@ dependencies:
   crypto: ^3.0.3
   uuid: ^4.0.0
   at_utf7: ^1.0.0
-  at_commons: ^5.5.0
+  at_commons: ^5.11.0
   at_utils: ^3.0.19
   meta: ^1.8.0
 

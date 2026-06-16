@@ -9,8 +9,7 @@ Major release: persistence-overhaul. Themes:
   back with `appMetadata == null`. Mapped in
   `fromCommonsMetadata` / `toCommonsMetadata` and `toJson` /
   `fromJson` (the latter accepts both the Map and base64 wire
-  forms). Requires at_commons from the `xl-pluggable` branch
-  (dependency override) until it is published.
+  forms).
 - **Bootstrap is now factory + bundle, not singletons.**
   `AtPersistenceFactory` / `AtPersistenceBundle` replace every
   legacy `getInstance()` shim. Backend-pluggable by design.
