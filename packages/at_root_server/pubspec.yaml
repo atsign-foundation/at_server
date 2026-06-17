@@ -8,14 +8,6 @@ publish_to: none
 environment:
   sdk: '>=3.0.0 <4.0.0'
 
-dependency_overrides:
-  at_persistence_root_server:
-    path: ../at_persistence_root_server
-  at_persistence_spec:
-    path: ../at_persistence_spec
-  at_server_spec:
-    path: ../at_server_spec
-
 dependencies:
   args: ^2.7.0
   uuid: ^4.5.2
@@ -23,7 +15,12 @@ dependencies:
   at_commons: ^5.11.0
   at_utils: ^3.4.0
   at_server_spec: ^5.1.0
-  at_persistence_root_server: ^2.0.7
+  at_persistence_root_server:
+    git:
+      url: https://github.com/atsign-foundation/at_server.git
+      path: packages/at_persistence_root_server
+      ref: trunk
+      version: ^2.0.7
   meta: ^1.17.0
 
 dev_dependencies:
