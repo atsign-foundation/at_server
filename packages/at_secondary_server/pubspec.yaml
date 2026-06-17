@@ -8,12 +8,6 @@ publish_to: none
 environment:
   sdk: ">=3.0.0 <4.0.0"
 
-dependency_overrides:
-  at_persistence_secondary_server:
-    path: ../at_persistence_secondary_server
-  at_server_spec:
-    path: ../at_server_spec
-
 dependencies:
   args: ^2.7.0
   uuid: ^4.5.3
@@ -30,7 +24,7 @@ dependencies:
   at_chops: ^3.0.0
   at_lookup: ^3.5.0
   at_server_spec: ^5.1.0
-  at_persistence_secondary_server: ^4.3.5
+  at_persistence_secondary_server: ^5.1.0
   intl: ^0.20.2
   json_annotation: ^4.12.0
   version: ^3.0.2
