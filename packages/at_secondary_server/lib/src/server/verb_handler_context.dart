@@ -1,4 +1,5 @@
 import 'package:at_commons/at_commons.dart';
+import 'package:at_secondary/src/connection/stream_manager.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/verb/manager/response_handler_manager.dart';
 
@@ -22,9 +23,14 @@ class VerbHandlerContext {
   /// `GlobalExceptionHandler` singleton).
   final GlobalExceptionHandler exceptionHandler;
 
+  /// Registry of active stream sender/receiver sockets (formerly the
+  /// `StreamManager` singleton's static maps).
+  final StreamManager streamManager;
+
   VerbHandlerContext({
     required this.currentAtSign,
     required this.responseManager,
     required this.exceptionHandler,
+    required this.streamManager,
   });
 }

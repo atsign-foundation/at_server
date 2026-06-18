@@ -43,6 +43,7 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
+import 'package:at_secondary/src/connection/stream_manager.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
@@ -203,6 +204,7 @@ final verbHandlerContext = VerbHandlerContext(
   currentAtSign: alice,
   responseManager: DefaultResponseHandlerManager(),
   exceptionHandler: GlobalExceptionHandler(alice),
+  streamManager: StreamManager(),
 );
 var bobHost = "domain.testing.bob.bob.bob";
 var bobPort = 12345;

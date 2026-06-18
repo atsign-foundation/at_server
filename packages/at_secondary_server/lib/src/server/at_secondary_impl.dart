@@ -109,6 +109,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   bool _isRunning = false;
   late Atsign currentAtSign;
   late GlobalExceptionHandler globalExceptionHandler;
+  final StreamManager streamManager = StreamManager();
   late AtCommitLog commitLog;
   late AtAccessLog accessLog;
   var signingKey;
@@ -312,6 +313,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       currentAtSign: currentAtSign,
       responseManager: DefaultResponseHandlerManager(),
       exceptionHandler: globalExceptionHandler,
+      streamManager: streamManager,
     );
 
     // We may have had a VerbHandlerManager set via setVerbHandlerManager()
@@ -791,7 +793,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       return;
     }
     if (streamId != null) {
-      StreamManager.receiverSocketMap[streamId]!.underlying.add(data);
+      streamManager.receiverSocketMap[streamId]!.underlying.add(data);
     }
   }
 

@@ -1,7 +1,6 @@
 import 'dart:collection';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/connection/stream_manager.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
@@ -43,8 +42,8 @@ class StreamVerbHandler extends AbstractVerbHandler {
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     switch (operation) {
       case 'receive':
-        StreamManager.receiverSocketMap[streamId] = atConnection;
-        var senderConnection = StreamManager.senderSocketMap[streamId];
+        context.streamManager.receiverSocketMap[streamId] = atConnection;
+        var senderConnection = context.streamManager.senderSocketMap[streamId];
         if (senderConnection == null) {
           logger.severe('sender connection is null for stream id:$streamId');
           throw UnAuthenticatedException('Invalid stream id');
@@ -56,13 +55,14 @@ class StreamVerbHandler extends AbstractVerbHandler {
         senderConnection.underlying.write('stream:ack $streamId\n');
         break;
       case 'done':
-        var senderConnection = StreamManager.senderSocketMap[streamId];
+        var senderConnection = context.streamManager.senderSocketMap[streamId];
         if (senderConnection == null) {
           logger.severe('sender connection is null for stream id:$streamId');
           throw UnAuthenticatedException('Invalid stream id');
         }
-        await StreamManager.senderSocketMap[streamId]!.write('stream:done'
-            ' $streamId\n');
+        await context.streamManager.senderSocketMap[streamId]!
+            .write('stream:done'
+                ' $streamId\n');
         _cleanUp(streamId);
         break;
       case 'init':
@@ -90,7 +90,7 @@ class StreamVerbHandler extends AbstractVerbHandler {
 
         await _notify(receiver,
             AtSecondaryServerImpl.getInstance().currentAtSign, notificationKey);
-        StreamManager.senderSocketMap[streamId] = atConnection;
+        context.streamManager.senderSocketMap[streamId] = atConnection;
         break;
       case 'resume':
         var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
@@ -120,15 +120,16 @@ class StreamVerbHandler extends AbstractVerbHandler {
   }
 
   void _cleanUp(String streamId) {
-    final receiverConnection = StreamManager.receiverSocketMap[streamId];
+    final receiverConnection =
+        context.streamManager.receiverSocketMap[streamId];
     if (receiverConnection != null) {
       receiverConnection.underlying.destroy();
     }
-    final senderConnection = StreamManager.senderSocketMap[streamId];
+    final senderConnection = context.streamManager.senderSocketMap[streamId];
     if (senderConnection != null) {
       senderConnection.underlying.destroy();
     }
-    StreamManager.receiverSocketMap.remove(streamId);
-    StreamManager.senderSocketMap.remove(streamId);
+    context.streamManager.receiverSocketMap.remove(streamId);
+    context.streamManager.senderSocketMap.remove(streamId);
   }
 }
