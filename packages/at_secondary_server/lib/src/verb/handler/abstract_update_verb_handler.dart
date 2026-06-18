@@ -15,6 +15,10 @@ import 'package:at_utils/at_utils.dart';
 import 'package:mutex/mutex.dart';
 
 abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
+  // Static by design (deliberate): a process-wide runtime-config flag toggled
+  // via `config:set` (mirrors AtSecondaryConfig.autoNotify) and shared across
+  // all update/delete handlers. Part of the AtSecondaryConfig concern, not
+  // per-handler state.
   static bool _autoNotify = AtSecondaryConfig.autoNotify;
   final NotificationManager notificationManager;
   static const int maxKeyLength = 255;

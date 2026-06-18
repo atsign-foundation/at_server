@@ -3,7 +3,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:at_utils/at_utils.dart';
 
-var logger = AtSignLogger('RegexUtil');
+final logger = AtSignLogger('RegexUtil');
 
 Iterable<RegExpMatch> getMatches(RegExp regex, String command) {
   var matches = regex.allMatches(command);

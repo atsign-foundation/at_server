@@ -57,6 +57,9 @@ final Map statsMap = {
 };
 
 class StatsVerbHandler extends AbstractVerbHandler {
+  // Composition-root access (deliberate): the stats metrics operate over
+  // server-wide state, so each Metric implementation below takes the whole
+  // server instance.
   AtSecondaryServerImpl atServer = AtSecondaryServerImpl.getInstance();
   static Stats stats = Stats();
 

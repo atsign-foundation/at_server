@@ -8,9 +8,9 @@ import 'package:at_utils/at_logger.dart';
 import 'package:version/version.dart';
 
 /// GlobalExceptionHandler class is used to handle all the exceptions in the system.
-var logger = AtSignLogger('GlobalExceptionHandler');
-
 class GlobalExceptionHandler {
+  final AtSignLogger logger = AtSignLogger('GlobalExceptionHandler');
+
   /// The atSign this server hosts; used to build the connection prompt.
   final Atsign currentAtSign;
 
