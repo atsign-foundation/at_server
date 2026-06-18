@@ -385,6 +385,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
   Future<void> _dropRevokedClientConnection(String enrollmentId, bool forceFlag,
       InboundConnection currentInboundConnection, responseJson) async {
+    // Composition-root access (deliberate): the InboundConnectionManager is
+    // created after the verb-handler context (during start()), and its live
+    // connection pool is server lifecycle state read at request time — not
+    // constructor-injectable into this handler.
     final inboundPool =
         AtSecondaryServerImpl.getInstance().inboundConnectionManager.pool;
     List<InboundConnection> connectionsToRemove = [];

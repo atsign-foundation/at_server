@@ -84,6 +84,9 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
     }
 
     var resultMap = <String, String?>{};
+    // Composition-root access (deliberate): signingKey is loaded asynchronously
+    // during server startup, after the verb-handler context is built, and read
+    // here at request time — so it cannot be constructor-injected into handlers.
     var dataSignature = SecondaryUtil.signChallenge(
         key, AtSecondaryServerImpl.getInstance().signingKey);
     var forAtSignList = verbParams[AtConstants.forAtSign]
