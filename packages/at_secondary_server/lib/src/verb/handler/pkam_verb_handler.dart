@@ -7,7 +7,6 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -40,7 +39,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
         atConnection.metaData as InboundConnectionMetadata;
     var enrollId = verbParams[AtConstants.enrollmentId];
     var sessionID = atConnectionMetadata.sessionID;
-    var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+    var atSign = context.currentAtSign;
     AuthType pkamAuthType;
     String? publicKey;
 
@@ -103,8 +102,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
     late final EnrollDataStoreValue enVal;
     ApkamVerificationResult apkamResult = ApkamVerificationResult();
     EnrollmentStatus? enrollStatus;
-    EnrollmentManager enMgr =
-        AtSecondaryServerImpl.getInstance().enrollmentManager;
+    EnrollmentManager enMgr = context.enrollmentManager;
     try {
       enVal = await enMgr.getEnrollmentById(enId);
       enrollStatus = EnrollmentStatus.values.byName(enVal.approval!.state);

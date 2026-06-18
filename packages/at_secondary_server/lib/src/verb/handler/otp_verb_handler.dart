@@ -4,7 +4,6 @@ import 'dart:math';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:meta/meta.dart';
@@ -51,7 +50,7 @@ class OtpVerbHandler extends AbstractVerbHandler {
         // Only client connection which has access to __manage access are allowed to store the semi permanent pass codes
         if (!(await _isClientAuthorizedToStoreSPP(
             atConnection.metaData as InboundConnectionMetadata,
-            AtSecondaryServerImpl.getInstance().currentAtSign))) {
+            context.currentAtSign))) {
           throw InvalidRequestException(
               'Client not allowed to not store semi permanent pass code');
         }
@@ -100,18 +99,20 @@ class OtpVerbHandler extends AbstractVerbHandler {
     return otp;
   }
 
-  static String passcodeKey(String passcode, {required bool isSpp}) {
+  static String passcodeKey(String passcode,
+      {required bool isSpp, required Atsign currentAtSign}) {
     return isSpp
         ? 'private:spp.$otpNamespace'
-            '${AtSecondaryServerImpl.getInstance().currentAtSign}'
+            '$currentAtSign'
         : 'private:${passcode.toLowerCase()}.$otpNamespace'
-            '${AtSecondaryServerImpl.getInstance().currentAtSign}';
+            '$currentAtSign';
   }
 
   Future<void> savePasscode(String passcode,
       {required int ttl, required bool isSpp}) async {
     await keyStore.put(
-        passcodeKey(passcode, isSpp: isSpp),
+        passcodeKey(passcode,
+            isSpp: isSpp, currentAtSign: context.currentAtSign),
         AtData()
           ..data = passcode
           ..metaData = (AtMetaData()..ttl = ttl));

@@ -45,7 +45,7 @@ class FromVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+    var currentAtSign = context.currentAtSign;
     atConfigInstance = AtConfig(keyStore, currentAtSign);
     atConnection.initiatedBy = currentAtSign;
     var atConnectionMetadata =
@@ -74,7 +74,7 @@ class FromVerbHandler extends AbstractVerbHandler {
       throw BlockedConnectionException('Unable to connect');
     }
 
-    if (fromAtSign != AtSecondaryServerImpl.getInstance().currentAtSign &&
+    if (fromAtSign != context.currentAtSign &&
         AtSecondaryConfig.clientCertificateRequired) {
       var result = await _verifyFromAtSign(fromAtSign, atConnection);
       logger.finer('_verifyFromAtSign result : $result');

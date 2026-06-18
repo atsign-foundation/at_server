@@ -80,6 +80,9 @@ void main() async {
           enMgr = EnrollmentManager(mockKeyStore, alice);
       enMgr.logger.level = 'shout';
       mockKeyStore.preRemoveHooks.add(enMgr.preRemoveHook);
+      // Handlers read context.enrollmentManager, so point the context at the
+      // mockKeyStore-backed enMgr this group sets up.
+      verbHandlerContext = verbHandlerContextWith(enrollmentManager: enMgr);
       pkamVerbHandler = PkamVerbHandler(mockKeyStore, verbHandlerContext);
     });
 

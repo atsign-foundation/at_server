@@ -6,7 +6,6 @@ import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -61,7 +60,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
         verbParams[AtConstants.showHidden] == 'true' ? true : false;
 
     try {
-      var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+      var currentAtSign = context.currentAtSign;
       // If forAtSign is set, fetch keys that are sharedBy the "forAtSign" to the currentAtSign
       // If currentAtSign is @alice and forAtSign is @bob, fetch all the keys that @bob has
       // created for @alice.
@@ -192,8 +191,7 @@ class ScanVerbHandler extends AbstractVerbHandler {
       String currentAtSign) async {
     // NOTE: The atConnectionMetadata.enrollmentId is verified for null check in the caller of this method - getLocalKeys
     // Therefore, added non-null assertation operator.
-    var enrollNamespaces = (await AtSecondaryServerImpl.getInstance()
-            .enrollmentManager
+    var enrollNamespaces = (await context.enrollmentManager
             .getEnrollmentById(atConnectionMetadata.enrollmentId!))
         .namespaces;
 

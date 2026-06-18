@@ -5,7 +5,6 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/verb_handler_context.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as handler_util;
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -106,10 +105,9 @@ abstract class AbstractVerbHandler implements VerbHandler {
       return (true, response);
     }
     try {
-      EnrollDataStoreValue enrollDataStoreValue =
-          await AtSecondaryServerImpl.getInstance()
-              .enrollmentManager
-              .getEnrollmentById(atConnectionMetadata.enrollmentId!);
+      EnrollDataStoreValue enrollDataStoreValue = await context
+          .enrollmentManager
+          .getEnrollmentById(atConnectionMetadata.enrollmentId!);
       // If the enrollment status is expired, then the enrollment is not active. Return false.
       if (enrollDataStoreValue.approval?.state ==
           EnrollmentStatus.expired.name) {
@@ -212,9 +210,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// this method, then call [isAuthorizedSync] in a sync inner loop.
   Future<EnrollDataStoreValue?> resolveEnrollment(String enrollmentId) async {
     try {
-      return await AtSecondaryServerImpl.getInstance()
-          .enrollmentManager
-          .getEnrollmentById(enrollmentId);
+      return await context.enrollmentManager.getEnrollmentById(enrollmentId);
     } on KeyNotFoundException {
       logger.severe('Could not retrieve enrollment data for $enrollmentId');
       return null;
@@ -457,12 +453,12 @@ abstract class AbstractVerbHandler implements VerbHandler {
     // 1. Check if user has configured an SPP(Semi-Permanent Pass-code).
     // If SPP key is available, check if the otp sent is a valid pass code.
     // If yes, return true, else check it is a valid OTP.
-    String passcodeKey = OtpVerbHandler.passcodeKey(passcode, isSpp: true);
+    String passcodeKey = OtpVerbHandler.passcodeKey(passcode,
+        isSpp: true, currentAtSign: context.currentAtSign);
     if (!await keyStore.exists(passcodeKey)) {
       // if new SPPKey does not exist in keystore, check for SPP data against legacy SPP key
       // New SPP key has __otp namespace, legacy key does NOT have any namespace
-      passcodeKey =
-          'private:spp${AtSecondaryServerImpl.getInstance().currentAtSign}';
+      passcodeKey = 'private:spp${context.currentAtSign}';
     }
     try {
       AtData? sppAtData = await keyStore.get(passcodeKey);
@@ -483,12 +479,12 @@ abstract class AbstractVerbHandler implements VerbHandler {
     }
 
     // 2. If not a valid SPP, then check against OTP keys
-    String otpKey = OtpVerbHandler.passcodeKey(passcode, isSpp: false);
+    String otpKey = OtpVerbHandler.passcodeKey(passcode,
+        isSpp: false, currentAtSign: context.currentAtSign);
     if (!await keyStore.exists(otpKey)) {
       // if new OTPKey does not exist in keystore, check for OTP data against legacy OTPKey
       // New OTP key has __otp namespace, legacy key does not have namespace
-      otpKey =
-          'private:${passcode.toLowerCase()}${AtSecondaryServerImpl.getInstance().currentAtSign}';
+      otpKey = 'private:${passcode.toLowerCase()}${context.currentAtSign}';
     }
 
     AtData? otpAtData;

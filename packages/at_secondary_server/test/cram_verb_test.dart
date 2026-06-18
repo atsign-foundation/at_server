@@ -64,6 +64,12 @@ void main() {
   });
 
   group('A group of cram verb handler tests', () {
+    setUp(() {
+      // These tests run the from/cram flow as @test_user_1, so the handlers'
+      // context must report that atSign (handlers read context.currentAtSign).
+      verbHandlerContext =
+          verbHandlerContextWith(currentAtSign: '@test_user_1'.toAtsign());
+    });
     test('test cram verb handler getVerb', () {
       var verbHandler = CramVerbHandler(keyValueStore, verbHandlerContext,
           accessLog: atAccessLog);

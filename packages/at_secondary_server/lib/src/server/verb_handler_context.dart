@@ -1,6 +1,8 @@
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/stream_manager.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
+import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/verb/manager/response_handler_manager.dart';
 
 /// Server-scoped collaborators injected into every verb handler at construction
@@ -27,10 +29,19 @@ class VerbHandlerContext {
   /// `StreamManager` singleton's static maps).
   final StreamManager streamManager;
 
+  /// Manages APKAM enrollments (formerly reached via the god-class singleton).
+  final EnrollmentManager enrollmentManager;
+
+  /// Publishes server stats to monitor connections (formerly reached via the
+  /// god-class singleton).
+  final StatsNotificationService statsNotificationService;
+
   VerbHandlerContext({
     required this.currentAtSign,
     required this.responseManager,
     required this.exceptionHandler,
     required this.streamManager,
+    required this.enrollmentManager,
+    required this.statsNotificationService,
   });
 }

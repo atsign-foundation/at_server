@@ -308,7 +308,8 @@ void main() {
       await Future.delayed(Duration(milliseconds: 2));
       expect(await otpVerbHandler.isPasscodeValid(passcode), true);
 
-      String sppKey = OtpVerbHandler.passcodeKey(passcode, isSpp: true);
+      String sppKey = OtpVerbHandler.passcodeKey(passcode,
+          isSpp: true, currentAtSign: alice);
       var atData = await keyValueStore.get(sppKey);
       expect(atData?.metaData?.ttl, -1);
     });

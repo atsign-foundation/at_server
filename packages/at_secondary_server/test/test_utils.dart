@@ -200,12 +200,35 @@ Atsign bob = '@bob'.toAtsign();
 /// injected into handlers at construction time. The response manager is
 /// stateless and `alice` is the default test atSign, so a single shared
 /// instance is safe across tests.
-final verbHandlerContext = VerbHandlerContext(
+VerbHandlerContext verbHandlerContext = VerbHandlerContext(
   currentAtSign: alice,
   responseManager: DefaultResponseHandlerManager(),
   exceptionHandler: GlobalExceptionHandler(alice),
   streamManager: StreamManager(),
+  enrollmentManager: EnrollmentManager(MockAtKeyValueStore(), alice),
+  statsNotificationService: MockStatsNotificationService(),
 );
+
+/// Returns a copy of [verbHandlerContext] with selected fields overridden, for
+/// tests that need a non-default atSign / enrollment manager etc.
+VerbHandlerContext verbHandlerContextWith({
+  Atsign? currentAtSign,
+  ResponseHandlerManager? responseManager,
+  GlobalExceptionHandler? exceptionHandler,
+  StreamManager? streamManager,
+  EnrollmentManager? enrollmentManager,
+  StatsNotificationService? statsNotificationService,
+}) =>
+    VerbHandlerContext(
+      currentAtSign: currentAtSign ?? verbHandlerContext.currentAtSign,
+      responseManager: responseManager ?? verbHandlerContext.responseManager,
+      exceptionHandler: exceptionHandler ?? verbHandlerContext.exceptionHandler,
+      streamManager: streamManager ?? verbHandlerContext.streamManager,
+      enrollmentManager:
+          enrollmentManager ?? verbHandlerContext.enrollmentManager,
+      statsNotificationService: statsNotificationService ??
+          verbHandlerContext.statsNotificationService,
+    );
 var bobHost = "domain.testing.bob.bob.bob";
 var bobPort = 12345;
 var bobServerSigningKeypair = RSAKeypair.fromRandom();
@@ -451,6 +474,19 @@ verbTestsSetUp() async {
   });
 
   statsNotificationService = MockStatsNotificationService();
+
+  // Rebuild the shared verb-handler context with the real test collaborators now
+  // that enMgr and statsNotificationService exist, so handlers that read
+  // context.enrollmentManager / context.statsNotificationService use the same
+  // instances the tests set up.
+  verbHandlerContext = VerbHandlerContext(
+    currentAtSign: alice,
+    responseManager: DefaultResponseHandlerManager(),
+    exceptionHandler: GlobalExceptionHandler(alice),
+    streamManager: StreamManager(),
+    enrollmentManager: enMgr,
+    statsNotificationService: statsNotificationService,
+  );
 }
 
 Future<void> verbTestsTearDown() async {

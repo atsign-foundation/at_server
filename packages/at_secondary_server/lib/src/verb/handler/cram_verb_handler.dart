@@ -3,7 +3,6 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -37,7 +36,7 @@ class CramVerbHandler extends AbstractVerbHandler {
       throw UnAuthenticatedException('Authentication Failed');
     }
 
-    var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+    var atSign = context.currentAtSign;
     AtData? internalSecret = await keyStore.get('privatekey:at_secret');
 
     // If there is no secret in keystore then return error

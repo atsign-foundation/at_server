@@ -6,7 +6,6 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
@@ -33,7 +32,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
     InboundConnection atConnection,
   ) async {
     final keyVisibility = verbParams[AtConstants.visibility];
-    final atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+    final atSign = context.currentAtSign;
     bool hasManageAccess = false;
     var connectionMetadata = atConnection.metaData as InboundConnectionMetadata;
     final enrollIdFromMetadata = connectionMetadata.enrollmentId;
@@ -44,10 +43,9 @@ class KeysVerbHandler extends AbstractVerbHandler {
     logger.finer('enrollIdFromMetadata:$enrollIdFromMetadata');
 
     try {
-      EnrollDataStoreValue enrollDataStoreValue =
-          await AtSecondaryServerImpl.getInstance()
-              .enrollmentManager
-              .getEnrollmentById(connectionMetadata.enrollmentId!);
+      EnrollDataStoreValue enrollDataStoreValue = await context
+          .enrollmentManager
+          .getEnrollmentById(connectionMetadata.enrollmentId!);
 
       if (enrollDataStoreValue.approval?.state != 'approved') {
         throw AtEnrollmentException(

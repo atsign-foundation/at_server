@@ -61,7 +61,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
     logger.finer('verb params: $verbParams');
     final operation = verbParams['operation'];
-    final currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+    final currentAtSign = context.currentAtSign;
     // Approve, deny, revoke or list enrollments only on authenticated connections
     if (operation != 'request' && !atConnection.metaData.isAuthenticated) {
       throw UnAuthenticatedException(

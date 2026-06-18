@@ -5,7 +5,6 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -32,13 +31,13 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   /// A hashmap which holds the AtMetadata objects.
   /// The key represents if the notification text is encrypted or not
   /// The value represents the AtMetadata object where isEncrypted flag set to appropriate state.
-  final Map<bool, AtMetaData> _atMetadataPool = {
+  late final Map<bool, AtMetaData> _atMetadataPool = {
     true: AtMetaData()
       ..isEncrypted = true
-      ..createdBy = AtSecondaryServerImpl.getInstance().currentAtSign,
+      ..createdBy = context.currentAtSign,
     false: AtMetaData()
       ..isEncrypted = false
-      ..createdBy = AtSecondaryServerImpl.getInstance().currentAtSign
+      ..createdBy = context.currentAtSign
   };
 
   @override
@@ -69,7 +68,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       var atConnectionMetadata =
           atConnection.metaData as InboundConnectionMetadata;
       _validateNotifyVerbParams(verbParams);
-      var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+      var currentAtSign = context.currentAtSign;
       // If '@' is missing before an atSign, the formatAtSign method prefixes '@' before atSign.
       if (verbParams[AtConstants.forAtSign] != null) {
         verbParams[AtConstants.forAtSign] =
@@ -295,11 +294,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   ///Sends the latest commitId to the StatsNotificationService
   void _writeStats(int? cachedKeyCommitId, String? operationType) {
     if (cachedKeyCommitId != null) {
-      AtSecondaryServerImpl.getInstance()
-          .statsNotificationService
-          .writeStatsToMonitor(
-              latestCommitID: '$cachedKeyCommitId',
-              operationType: operationType);
+      context.statsNotificationService.writeStatsToMonitor(
+          latestCommitID: '$cachedKeyCommitId', operationType: operationType);
     }
   }
 
@@ -336,7 +332,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       ..atMetaData = _getAtMetadataForNotification(verbParams)
       ..type = _getNotificationType(
           AtUtils.fixAtSign(verbParams[AtConstants.forAtSign] ?? ''),
-          AtSecondaryServerImpl.getInstance().currentAtSign)
+          context.currentAtSign)
       ..ttl =
           getNotificationExpiryInMillis(verbParams[AtConstants.ttlNotification])
       ..atValue = verbParams[AtConstants.atValue];
@@ -357,8 +353,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   /// Gets the metadata from the verbParams
   AtMetaData _getAtMetadataForNotification(
       HashMap<String, String?> verbParams) {
-    var atMetadata = AtMetaData()
-      ..createdBy = AtSecondaryServerImpl.getInstance().currentAtSign;
+    var atMetadata = AtMetaData()..createdBy = context.currentAtSign;
     // If operation type is update, set value and ttr to cache a key
     // If operation type is delete, set ttr when not null to delete the cached key.
     int? ttrMillis = _getTimeToRefresh(verbParams[AtConstants.ttr]);

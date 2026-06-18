@@ -2,7 +2,6 @@ import 'dart:collection';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
@@ -39,7 +38,7 @@ class StreamVerbHandler extends AbstractVerbHandler {
     var namespace = verbParams['namespace'];
     var startByte = verbParams['startByte'];
     streamId = streamId.trim();
-    var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+    var currentAtSign = context.currentAtSign;
     switch (operation) {
       case 'receive':
         context.streamManager.receiverSocketMap[streamId] = atConnection;
@@ -88,12 +87,11 @@ class StreamVerbHandler extends AbstractVerbHandler {
         var notificationKey =
             '@$receiver:$streamKey $currentAtSign:$streamId:$fileName:$fileLength';
 
-        await _notify(receiver,
-            AtSecondaryServerImpl.getInstance().currentAtSign, notificationKey);
+        await _notify(receiver, context.currentAtSign, notificationKey);
         context.streamManager.senderSocketMap[streamId] = atConnection;
         break;
       case 'resume':
-        var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+        var currentAtSign = context.currentAtSign;
         //receiver = AtUtils.formatAtSign(receiver);
         final sender = receiver;
         var notificationKey = '@$sender:stream_resume $streamId:$startByte';

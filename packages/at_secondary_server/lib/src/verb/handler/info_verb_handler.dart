@@ -5,7 +5,6 @@ import 'dart:io';
 import 'package:at_commons/at_commons.dart' hide StringBuffer;
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 
@@ -45,8 +44,7 @@ class InfoVerbHandler extends AbstractVerbHandler {
       infoMap['uptimeAsWords'] = uptimeAsWords;
       if (atConnectionMetadata.isAuthenticated &&
           atConnectionMetadata.enrollmentId != null) {
-        infoMap['apkam_metadata'] = await AtSecondaryServerImpl.getInstance()
-            .enrollmentManager
+        infoMap['apkam_metadata'] = await context.enrollmentManager
             .getEnrollmentById(atConnectionMetadata.enrollmentId!);
       }
     } else {

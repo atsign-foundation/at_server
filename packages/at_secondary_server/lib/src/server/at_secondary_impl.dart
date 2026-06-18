@@ -314,6 +314,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       responseManager: DefaultResponseHandlerManager(),
       exceptionHandler: globalExceptionHandler,
       streamManager: streamManager,
+      enrollmentManager: enrollmentManager,
+      statsNotificationService: statsNotificationService,
     );
 
     // We may have had a VerbHandlerManager set via setVerbHandlerManager()
