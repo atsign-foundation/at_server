@@ -1,14 +1,7 @@
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 
 class AtSecurityContextImpl {
-  static final AtSecurityContextImpl _singleton =
-      AtSecurityContextImpl._internal();
-
-  factory AtSecurityContextImpl() {
-    return _singleton;
-  }
-
-  AtSecurityContextImpl._internal();
+  AtSecurityContextImpl();
 
   /// Returns path of the public key of the server cert presented to clients.
   String get publicKeyPath => AtSecondaryConfig.certificateChainLocation;
