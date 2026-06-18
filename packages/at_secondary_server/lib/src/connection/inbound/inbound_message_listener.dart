@@ -6,7 +6,6 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_commons/at_commons.dart' as at_commons;
 import 'package:at_secondary/src/connection/base_connection.dart';
 import 'package:at_secondary/src/connection/inbound/connection_util.dart';
-import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -44,7 +43,8 @@ class InboundMessageListener {
               connection.metaData,
               e.toString(),
             ));
-            await GlobalExceptionHandler.getInstance()
+            await AtSecondaryServerImpl.getInstance()
+                .globalExceptionHandler
                 .handle(e, atConnection: connection);
             _buffer.clear();
             return;
@@ -113,7 +113,7 @@ class InboundMessageListener {
       _buffer.append(data);
     } else {
       _buffer.clear();
-      await GlobalExceptionHandler.getInstance().handle(
+      await AtSecondaryServerImpl.getInstance().globalExceptionHandler.handle(
           BufferOverFlowException('InboundBuffer overflow: server received'
               ' request which exceeded the buffer size limit.'
               ' Terminating the connection.'),

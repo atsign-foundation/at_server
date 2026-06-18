@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:version/version.dart';
@@ -12,14 +11,10 @@ import 'package:version/version.dart';
 var logger = AtSignLogger('GlobalExceptionHandler');
 
 class GlobalExceptionHandler {
-  static final GlobalExceptionHandler _singleton =
-      GlobalExceptionHandler._internal();
+  /// The atSign this server hosts; used to build the connection prompt.
+  final Atsign currentAtSign;
 
-  GlobalExceptionHandler._internal();
-
-  factory GlobalExceptionHandler.getInstance() {
-    return _singleton;
-  }
+  GlobalExceptionHandler(this.currentAtSign);
 
   /// handle method will perform required action based on the exception
   /// params: AtException, AtConnection
@@ -138,7 +133,7 @@ class GlobalExceptionHandler {
 
   String _getPrompt(AtConnection atConnection) {
     var isAuthenticated = atConnection.metaData.isAuthenticated;
-    var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+    var atSign = currentAtSign;
     var prompt = isAuthenticated ? '$atSign@' : '@';
     return prompt;
   }

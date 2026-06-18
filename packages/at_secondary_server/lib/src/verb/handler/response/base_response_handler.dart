@@ -1,6 +1,5 @@
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/response/response_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -39,7 +38,8 @@ abstract class BaseResponseHandler implements ResponseHandler {
       await connection.write(responseMessage);
     } on Exception catch (e, st) {
       logger.severe('exception in writing response to socket:${e.toString()}');
-      await GlobalExceptionHandler.getInstance()
+      await AtSecondaryServerImpl.getInstance()
+          .globalExceptionHandler
           .handle(e, stackTrace: st, atConnection: connection);
     }
   }

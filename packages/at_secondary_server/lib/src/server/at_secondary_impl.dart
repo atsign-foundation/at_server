@@ -108,6 +108,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   dynamic _serverSocket;
   bool _isRunning = false;
   late Atsign currentAtSign;
+  late GlobalExceptionHandler globalExceptionHandler;
   late AtCommitLog commitLog;
   late AtAccessLog accessLog;
   var signingKey;
@@ -195,6 +196,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     currentAtSign = serverContext!.currentAtSign!.toAtsign();
     logger.shout('start(): currentAtSign : $currentAtSign');
+    globalExceptionHandler = GlobalExceptionHandler(currentAtSign);
 
     // Initialize persistent storage
     await _initializePersistentInstances();
@@ -309,6 +311,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     final verbHandlerContext = VerbHandlerContext(
       currentAtSign: currentAtSign,
       responseManager: DefaultResponseHandlerManager(),
+      exceptionHandler: globalExceptionHandler,
     );
 
     // We may have had a VerbHandlerManager set via setVerbHandlerManager()
@@ -624,8 +627,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
       await connection.write('@');
     } on InboundConnectionLimitException catch (e) {
-      await GlobalExceptionHandler.getInstance()
-          .handle(e, atConnection: connection, clientSocket: ws);
+      await globalExceptionHandler.handle(e,
+          atConnection: connection, clientSocket: ws);
     }
   }
 
@@ -677,8 +680,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
           await connection.write('@');
         } on InboundConnectionLimitException catch (e) {
-          await GlobalExceptionHandler.getInstance()
-              .handle(e, atConnection: connection, clientSocket: clientSocket);
+          await globalExceptionHandler.handle(e,
+              atConnection: connection, clientSocket: clientSocket);
         }
       } else {
         // ALPN support
@@ -753,7 +756,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
     try {
       if (_isPaused) {
-        await GlobalExceptionHandler.getInstance().handle(
+        await globalExceptionHandler.handle(
             ServerIsPausedException(
                 'Server is temporarily paused and should be available again shortly'),
             atConnection: connection);
@@ -765,18 +768,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       // logger.finer('after conversion : $command');
       await executor!.execute(command, connection, verbHandlerManager!);
     } on Exception catch (e, st) {
-      await GlobalExceptionHandler.getInstance()
-          .handle(e, stackTrace: st, atConnection: connection);
+      await globalExceptionHandler.handle(e,
+          stackTrace: st, atConnection: connection);
     } on Error catch (e, st) {
-      await GlobalExceptionHandler.getInstance().handle(
-          InternalServerError(e.toString()),
-          stackTrace: st,
-          atConnection: connection);
+      await globalExceptionHandler.handle(InternalServerError(e.toString()),
+          stackTrace: st, atConnection: connection);
     } catch (e, st) {
-      await GlobalExceptionHandler.getInstance().handle(
-          InternalServerError(e.toString()),
-          stackTrace: st,
-          atConnection: connection);
+      await globalExceptionHandler.handle(InternalServerError(e.toString()),
+          stackTrace: st, atConnection: connection);
     }
   }
 
@@ -785,7 +784,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     logger.finer(logger.getAtConnectionLogMessage(
         sender.metaData, 'stream id:$streamId'));
     if (_isPaused) {
-      GlobalExceptionHandler.getInstance().handle(
+      globalExceptionHandler.handle(
           ServerIsPausedException(
               'Server is temporarily paused and should be available again shortly'),
           atConnection: sender);

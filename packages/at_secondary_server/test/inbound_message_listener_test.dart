@@ -5,6 +5,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/inbound/connection_util.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_message_listener.dart';
+import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:mocktail/mocktail.dart';
@@ -79,6 +80,8 @@ void main() async {
     when(() => mockManager.pool).thenReturn(mockPool);
     when(() => mockPool.remove(fakeConnection)).thenReturn(null);
     AtSecondaryServerImpl.getInstance().inboundConnectionManager = mockManager;
+    AtSecondaryServerImpl.getInstance().globalExceptionHandler =
+        GlobalExceptionHandler(alice);
   });
 
   // testing InboundConnectionValidator.validate(), mainly focusing on what it throws and when

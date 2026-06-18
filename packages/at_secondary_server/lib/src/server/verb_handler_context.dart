@@ -1,4 +1,5 @@
 import 'package:at_commons/at_commons.dart';
+import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/verb/manager/response_handler_manager.dart';
 
 /// Server-scoped collaborators injected into every verb handler at construction
@@ -17,8 +18,13 @@ class VerbHandlerContext {
   /// `DefaultResponseHandlerManager` singleton).
   final ResponseHandlerManager responseManager;
 
+  /// Handles/serialises exceptions raised while processing a verb (formerly the
+  /// `GlobalExceptionHandler` singleton).
+  final GlobalExceptionHandler exceptionHandler;
+
   VerbHandlerContext({
     required this.currentAtSign,
     required this.responseManager,
+    required this.exceptionHandler,
   });
 }

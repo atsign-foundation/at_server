@@ -1,7 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
-import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
@@ -58,10 +57,9 @@ class BatchVerbHandler extends AbstractVerbHandler {
           batchResponses.add(batchResponse);
         } on Exception catch (e) {
           var response = Response();
-          response.errorCode =
-              GlobalExceptionHandler.getInstance().getErrorCode(e);
+          response.errorCode = context.exceptionHandler.getErrorCode(e);
           if (response.errorCode != null) {
-            response.errorMessage = GlobalExceptionHandler.getInstance()
+            response.errorMessage = context.exceptionHandler
                 .getErrorDescription(response.errorCode);
             var batchResponse = BatchResponse(batchId, response);
             batchResponses.add(batchResponse);

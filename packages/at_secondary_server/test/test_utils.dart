@@ -44,6 +44,7 @@ import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
+import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
@@ -201,6 +202,7 @@ Atsign bob = '@bob'.toAtsign();
 final verbHandlerContext = VerbHandlerContext(
   currentAtSign: alice,
   responseManager: DefaultResponseHandlerManager(),
+  exceptionHandler: GlobalExceptionHandler(alice),
 );
 var bobHost = "domain.testing.bob.bob.bob";
 var bobPort = 12345;
@@ -401,6 +403,8 @@ verbTestsSetUp() async {
   AtSecondaryServerImpl.getInstance().outboundClientManager =
       mockOutboundClientManager;
   AtSecondaryServerImpl.getInstance().currentAtSign = alice;
+  AtSecondaryServerImpl.getInstance().globalExceptionHandler =
+      GlobalExceptionHandler(alice);
   AtSecondaryServerImpl.getInstance().signingKey =
       bobServerSigningKeypair.privateKey.toString();
 
