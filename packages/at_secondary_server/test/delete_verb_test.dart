@@ -34,6 +34,7 @@ void main() {
     test('test delete getVerb', () {
       var handler = DeleteVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
       );
@@ -45,6 +46,7 @@ void main() {
       var command = 'delete:@bob:email@colin';
       var handler = DeleteVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
       );
@@ -57,6 +59,7 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       var handler = DeleteVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
       );
@@ -117,6 +120,7 @@ void main() {
       await verbTestsSetUp();
       handler = DeleteVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
       );
@@ -208,11 +212,13 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       deleteHandler = DeleteVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
       );
       updateHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -341,6 +347,7 @@ void main() {
           getVerbParam(VerbSyntax.delete, deleteCommand);
       DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
       );
@@ -352,6 +359,7 @@ void main() {
       deleteVerbParams = getVerbParam(VerbSyntax.delete, deleteCommand);
       deleteVerbHandler = DeleteVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
       );
@@ -384,6 +392,7 @@ void main() {
           getVerbParam(VerbSyntax.delete, deleteCommand);
       DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
       );
@@ -420,6 +429,7 @@ void main() {
           getVerbParam(VerbSyntax.delete, deleteCommand);
       DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
       );
@@ -447,6 +457,7 @@ void main() {
           getVerbParam(VerbSyntax.delete, deleteCommand);
       DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
       );
@@ -478,6 +489,7 @@ void main() {
           getVerbParam(VerbSyntax.delete, deleteCommand);
       DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
       );
@@ -509,6 +521,7 @@ void main() {
           getVerbParam(VerbSyntax.delete, deleteCommand);
       DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
       );
@@ -540,6 +553,7 @@ void main() {
           getVerbParam(VerbSyntax.delete, deleteCommand);
       DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
       );
@@ -588,6 +602,7 @@ void main() {
             getVerbParam(VerbSyntax.delete, deleteCommand);
         DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
           keyValueStore,
+          verbHandlerContext,
           statsNotificationService,
           notificationManager,
         );
@@ -639,6 +654,7 @@ void main() {
 
       DeleteVerbHandler deleteVerbHandler = DeleteVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
       );

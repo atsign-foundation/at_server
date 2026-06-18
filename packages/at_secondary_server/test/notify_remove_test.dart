@@ -18,7 +18,8 @@ void main() {
 
   group('A group of test to verify NotifyDeleteVerb', () {
     test('Test to verify notify delete getVerb', () {
-      var handler = NotifyRemoveVerbHandler(keyValueStore, notificationManager);
+      var handler = NotifyRemoveVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
       var verb = handler.getVerb();
       expect(verb is NotifyRemove, true);
     });
@@ -44,8 +45,8 @@ void main() {
           ..isAuthenticated = true);
       var response = Response();
       // Verify Notification is inserted into keystore
-      var notifyListVerbHandler =
-          NotifyListVerbHandler(keyValueStore, notificationManager);
+      var notifyListVerbHandler = NotifyListVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
       var notifyListParams = getVerbParam(NotifyList().syntax(), 'notify:list');
       await notifyListVerbHandler.processVerb(
           response, notifyListParams, atConnection);
@@ -53,6 +54,7 @@ void main() {
       //Notify delete verb handler
       var notifyDeleteHandler = NotifyRemoveVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         notificationManager,
       );
 

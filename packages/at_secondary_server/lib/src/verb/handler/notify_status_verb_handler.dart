@@ -12,7 +12,7 @@ import 'package:at_server_spec/at_server_spec.dart';
 class NotifyStatusVerbHandler extends AbstractVerbHandler {
   static NotifyStatus notifyStatus = NotifyStatus();
 
-  NotifyStatusVerbHandler(super.keyStore, this.notifMgr);
+  NotifyStatusVerbHandler(super.keyStore, super.context, this.notifMgr);
 
   NotificationManager notifMgr;
 

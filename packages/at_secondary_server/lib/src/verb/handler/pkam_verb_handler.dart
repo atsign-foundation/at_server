@@ -22,7 +22,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
   static const String _sha512 = 'sha512';
   AtChops? atChops;
 
-  PkamVerbHandler(super.keyStore);
+  PkamVerbHandler(super.keyStore, super.context);
 
   @override
   bool accept(String command) =>

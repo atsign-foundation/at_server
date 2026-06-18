@@ -27,14 +27,16 @@ void main() async {
 
   group('A group of notify list verb tests', () {
     test('test notify getVerb', () {
-      var handler = NotifyListVerbHandler(keyValueStore, notificationManager);
+      var handler = NotifyListVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
       var verb = handler.getVerb();
       expect(verb is NotifyList, true);
     });
 
     test('test notify command accept test', () {
       var command = 'notify:list .me:2021-01-01:2021-01-12';
-      var handler = NotifyListVerbHandler(keyValueStore, notificationManager);
+      var handler = NotifyListVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -81,8 +83,8 @@ void main() async {
 
   group('A group of tests on date time', () {
     test('A test to verify from date', () async {
-      var notifyListVerbHandler =
-          NotifyListVerbHandler(keyValueStore, notificationManager);
+      var notifyListVerbHandler = NotifyListVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
       var notification1 = (AtNotificationBuilder()
             ..id = '122'
             ..fromAtSign = '@test_user_1'
@@ -149,8 +151,8 @@ void main() async {
     });
 
     test('A test to verify from and to date', () async {
-      var notifyListVerbHandler =
-          NotifyListVerbHandler(keyValueStore, notificationManager);
+      var notifyListVerbHandler = NotifyListVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
       var notification1 = (AtNotificationBuilder()
             ..id = '121'
             ..fromAtSign = '@test_user_1'
@@ -281,8 +283,8 @@ void main() async {
           .build();
 
       await notifStore.put(testNotificationId, notification);
-      NotifyListVerbHandler notifyListVerbHandler =
-          NotifyListVerbHandler(keyValueStore, notificationManager);
+      NotifyListVerbHandler notifyListVerbHandler = NotifyListVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
       InboundConnectionMetadata inboundConnectionMetadata =
           InboundConnectionMetadata()
             ..fromAtSign = testFromAtsign.toAtsign()
@@ -313,8 +315,8 @@ void main() async {
         'A test to verify notify list does not return expired entries - 1 expired entry',
         () async {
       var ttl = 100;
-      var notifyListVerbHandler =
-          NotifyListVerbHandler(keyValueStore, notificationManager);
+      var notifyListVerbHandler = NotifyListVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
       var notification1 = (AtNotificationBuilder()
             ..id = '122'
             ..fromAtSign = '@test_user_1'
@@ -381,8 +383,8 @@ void main() async {
 
     test('A test to verify notify list expired entries - No expired entry',
         () async {
-      var notifyListVerbHandler =
-          NotifyListVerbHandler(keyValueStore, notificationManager);
+      var notifyListVerbHandler = NotifyListVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
       var notification1 = (AtNotificationBuilder()
             ..id = '122'
             ..fromAtSign = '@test_user_1'
@@ -476,8 +478,8 @@ void main() async {
 
       await notifStore.put(testNotificationId, notification);
 
-      NotifyListVerbHandler notifyListVerbHandler =
-          NotifyListVerbHandler(keyValueStore, notificationManager);
+      NotifyListVerbHandler notifyListVerbHandler = NotifyListVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
       InboundConnectionMetadata inboundConnectionMetadata =
           InboundConnectionMetadata()
             ..fromAtSign = testFromAtsign.toAtsign()
@@ -533,8 +535,8 @@ void main() async {
 
       await notifStore.put(testNotificationId, notification);
 
-      NotifyListVerbHandler notifyListVerbHandler =
-          NotifyListVerbHandler(keyValueStore, notificationManager);
+      NotifyListVerbHandler notifyListVerbHandler = NotifyListVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
       InboundConnectionMetadata inboundConnectionMetadata =
           InboundConnectionMetadata()
             ..fromAtSign = testFromAtsign.toAtsign()
@@ -562,8 +564,8 @@ void main() async {
 
   group('A group of test to verify notify fetch', () {
     test('test to fetch notification using notification-id', () async {
-      var notifyFetchVerbHandler =
-          NotifyFetchVerbHandler(keyValueStore, notificationManager);
+      var notifyFetchVerbHandler = NotifyFetchVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
       var dateTimeNow = DateTime.now();
       var notification1 = (AtNotificationBuilder()
             ..id = '122'
@@ -609,8 +611,8 @@ void main() async {
 
     test('test to fetch a non existent notification using notification-id',
         () async {
-      var notifyFetchVerbHandler =
-          NotifyFetchVerbHandler(keyValueStore, notificationManager);
+      var notifyFetchVerbHandler = NotifyFetchVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
       var verbParams = getVerbParam(NotifyFetch().syntax(), 'notify:fetch:123');
       var inBoundSessionId = '123';
       var metadata = InboundConnectionMetadata()

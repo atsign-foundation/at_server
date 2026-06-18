@@ -25,6 +25,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
 
   LookupVerbHandler(
     super.keyStore,
+    super.context,
     this.outboundClientManager,
     this.cacheManager,
     this.enMgr, {

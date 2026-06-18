@@ -77,9 +77,10 @@ void main() {
     late LocalLookupVerbHandler llookupHandler;
 
     setUp(() {
-      updateHandler = UpdateVerbHandler(
-          keyValueStore, statsNotificationService, notificationManager, alice);
-      llookupHandler = LocalLookupVerbHandler(keyValueStore, enMgr);
+      updateHandler = UpdateVerbHandler(keyValueStore, verbHandlerContext,
+          statsNotificationService, notificationManager, alice);
+      llookupHandler =
+          LocalLookupVerbHandler(keyValueStore, verbHandlerContext, enMgr);
       inboundConnection.metadata.isAuthenticated = true;
     });
 
@@ -117,7 +118,11 @@ void main() {
           'update:@bob:phone.wavi$alice hello', inboundConnection);
 
       final updateMetaHandler = UpdateMetaVerbHandler(
-          keyValueStore, statsNotificationService, notificationManager, alice);
+          keyValueStore,
+          verbHandlerContext,
+          statsNotificationService,
+          notificationManager,
+          alice);
       await updateMetaHandler.process(
           'update:meta:@bob:phone.wavi$alice:appMetadata:${encoded()}',
           inboundConnection);
@@ -141,7 +146,11 @@ void main() {
       // update:meta touching only OTHER metadata fields (ttl + encKeyName),
       // not appMetadata.
       final updateMetaHandler = UpdateMetaVerbHandler(
-          keyValueStore, statsNotificationService, notificationManager, alice);
+          keyValueStore,
+          verbHandlerContext,
+          statsNotificationService,
+          notificationManager,
+          alice);
       await updateMetaHandler.process(
           'update:meta:@bob:phone.wavi$alice:ttl:60000:encKeyName:some_key',
           inboundConnection);
@@ -169,8 +178,8 @@ void main() {
         'the monitor map carries it, and the outbound command '
         're-parses with it intact', () async {
       inboundConnection.metadata.isAuthenticated = true;
-      final notifyHandler =
-          NotifyVerbHandler(keyValueStore, notificationManager);
+      final notifyHandler = NotifyVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
 
       await notifyHandler.process(
           'notify:id:app-meta-notify-1:notifier:system'
@@ -202,8 +211,8 @@ void main() {
     test('notify with malformed appMetadata is rejected as invalid syntax',
         () async {
       inboundConnection.metadata.isAuthenticated = true;
-      final notifyHandler =
-          NotifyVerbHandler(keyValueStore, notificationManager);
+      final notifyHandler = NotifyVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
       await expectLater(
           notifyHandler.process(
               'notify:id:bad-app-meta:notifier:system'
@@ -218,16 +227,16 @@ void main() {
         () async {
       // Seed a public key carrying appMetadata, as the owner.
       inboundConnection.metadata.isAuthenticated = true;
-      final updateHandler = UpdateVerbHandler(
-          keyValueStore, statsNotificationService, notificationManager, alice);
+      final updateHandler = UpdateVerbHandler(keyValueStore, verbHandlerContext,
+          statsNotificationService, notificationManager, alice);
       await updateHandler.process(
           'update:appMetadata:${encoded()}:public:city.wavi$alice tokyo',
           inboundConnection);
 
       // Look it up over a fresh, unauthenticated connection.
       final unauthConnection = DummyInboundConnection();
-      final lookupHandler = LookupVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+      final lookupHandler = LookupVerbHandler(keyValueStore, verbHandlerContext,
+          mockOutboundClientManager, cacheManager, enMgr,
           accessLog: atAccessLog);
       await lookupHandler.process(
           'lookup:all:city.wavi$alice', unauthConnection);
@@ -258,8 +267,8 @@ void main() {
         socketOnDataFn("data:$bobDataAsJsonWithKey\n$alice@".codeUnits);
       });
 
-      final lookupHandler = LookupVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+      final lookupHandler = LookupVerbHandler(keyValueStore, verbHandlerContext,
+          mockOutboundClientManager, cacheManager, enMgr,
           accessLog: atAccessLog);
       await lookupHandler.process('lookup:all:$keyName', inboundConnection);
 
@@ -292,8 +301,8 @@ void main() {
         socketOnDataFn("data:$bobDataAsJson\n$alice@".codeUnits);
       });
 
-      final plookupHandler = ProxyLookupVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager,
+      final plookupHandler = ProxyLookupVerbHandler(keyValueStore,
+          verbHandlerContext, mockOutboundClientManager, cacheManager,
           accessLog: atAccessLog);
       await plookupHandler.process('plookup:all:$keyName', inboundConnection);
 
@@ -310,8 +319,12 @@ void main() {
       inboundConnection.metadata.isAuthenticated = true;
       AbstractUpdateVerbHandler.setAutoNotify(true);
       try {
-        final updateHandler = UpdateVerbHandler(keyValueStore,
-            statsNotificationService, notificationManager, alice);
+        final updateHandler = UpdateVerbHandler(
+            keyValueStore,
+            verbHandlerContext,
+            statsNotificationService,
+            notificationManager,
+            alice);
         await updateHandler.process(
             'update:appMetadata:${encoded()}:$bob:auto-notified.wavi$alice hi',
             inboundConnection);
@@ -343,8 +356,9 @@ void main() {
             ..data = 'sync-me'
             ..metaData = (AtMetaData()..appMetadata = sampleAppMetadata()));
 
-      final syncHandler =
-          SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
+      final syncHandler = SyncProgressiveVerbHandler(
+          keyValueStore, verbHandlerContext,
+          commitLog: atCommitLog);
       final response = Response();
       final verbParams = HashMap<String, String?>();
       verbParams[AtConstants.fromCommitSequence] = '-1';

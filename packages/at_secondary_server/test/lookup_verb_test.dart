@@ -37,8 +37,8 @@ void main() {
 
     setUp(() async {
       await verbTestsSetUp();
-      lookupVerbHandler = LookupVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+      lookupVerbHandler = LookupVerbHandler(keyValueStore, verbHandlerContext,
+          mockOutboundClientManager, cacheManager, enMgr,
           accessLog: atAccessLog);
     });
 
@@ -534,8 +534,8 @@ void main() {
     });
 
     test('test lookup getVerb', () {
-      var handler = LookupVerbHandler(
-          mockKeyStore, mockOutboundClientManager, mockAtCacheManager, enMgr,
+      var handler = LookupVerbHandler(mockKeyStore, verbHandlerContext,
+          mockOutboundClientManager, mockAtCacheManager, enMgr,
           accessLog: atAccessLog);
       var verb = handler.getVerb();
       expect(verb is Lookup, true);
@@ -543,8 +543,8 @@ void main() {
 
     test('test lookup command accept test', () {
       var command = 'lookup:location$alice';
-      var handler = LookupVerbHandler(
-          mockKeyStore, mockOutboundClientManager, mockAtCacheManager, enMgr,
+      var handler = LookupVerbHandler(mockKeyStore, verbHandlerContext,
+          mockOutboundClientManager, mockAtCacheManager, enMgr,
           accessLog: atAccessLog);
       var result = handler.accept(command);
       expect(result, true);
@@ -658,15 +658,15 @@ void main() {
 
       Map mapSentToClient;
 
-      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(keyValueStore,
+          verbHandlerContext, mockOutboundClientManager, cacheManager, enMgr,
           accessLog: atAccessLog);
       await lookupVerbHandler.process('lookup:all:$waviKey', inboundConnection);
       mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
       expect(mapSentToClient['data'], bobWaviData.data);
 
-      lookupVerbHandler = LookupVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+      lookupVerbHandler = LookupVerbHandler(keyValueStore, verbHandlerContext,
+          mockOutboundClientManager, cacheManager, enMgr,
           accessLog: atAccessLog);
       await lookupVerbHandler.process('lookup:all:$buzzKey', inboundConnection);
       mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
@@ -715,8 +715,8 @@ void main() {
 
       Map mapSentToClient;
 
-      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(keyValueStore,
+          verbHandlerContext, mockOutboundClientManager, cacheManager, enMgr,
           accessLog: atAccessLog);
       await lookupVerbHandler.process('lookup:all:$keyName', inboundConnection);
 
@@ -769,8 +769,8 @@ void main() {
       // Insert a cached key
       await keyValueStore.put(cachedKeyName, bobData);
 
-      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(keyValueStore,
+          verbHandlerContext, mockOutboundClientManager, cacheManager, enMgr,
           accessLog: atAccessLog);
       await lookupVerbHandler.process('lookup:all:$keyName', inboundConnection);
 
@@ -805,8 +805,8 @@ void main() {
       // Insert a key
       await keyValueStore.put('$alice:$keyName', aliceData);
 
-      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(keyValueStore,
+          verbHandlerContext, mockOutboundClientManager, cacheManager, enMgr,
           accessLog: atAccessLog);
       await lookupVerbHandler.process('lookup:all:$keyName', inboundConnection);
       var mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
@@ -837,8 +837,8 @@ void main() {
       // Insert a key
       await keyValueStore.put('$alice:$keyName', aliceData);
 
-      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(keyValueStore,
+          verbHandlerContext, mockOutboundClientManager, cacheManager, enMgr,
           accessLog: atAccessLog);
       expect(
           () async => await lookupVerbHandler.process(
@@ -870,8 +870,8 @@ void main() {
       // some key sharedBy @bob
       keyName = 'some_key.buzz$bob';
 
-      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(keyValueStore,
+          verbHandlerContext, mockOutboundClientManager, cacheManager, enMgr,
           accessLog: atAccessLog);
       expect(
           () async => await lookupVerbHandler.process(
@@ -897,8 +897,8 @@ void main() {
         socketOnDataFn("data:$bobAtDataAsJsonWithKey\n$alice@".codeUnits);
       });
 
-      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(keyValueStore,
+          verbHandlerContext, mockOutboundClientManager, cacheManager, enMgr,
           accessLog: atAccessLog);
       String lookupCommand = 'lookup:all:$sharedKeyForThem';
       expect(
@@ -918,8 +918,8 @@ void main() {
       inboundConnection.metadata.isAuthenticated = true;
       String sharedKeyForMe = 'shared_key.alice$bob';
 
-      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(keyValueStore,
+          verbHandlerContext, mockOutboundClientManager, cacheManager, enMgr,
           accessLog: atAccessLog);
       expect(
           await lookupVerbHandler.isAuthorized(inboundConnection.metadata,
@@ -958,8 +958,8 @@ void main() {
         socketOnDataFn("data:$bobWaviDataAsJsonWithKey\n$alice@".codeUnits);
       });
 
-      LookupVerbHandler lookupVerb = LookupVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+      LookupVerbHandler lookupVerb = LookupVerbHandler(keyValueStore,
+          verbHandlerContext, mockOutboundClientManager, cacheManager, enMgr,
           accessLog: atAccessLog);
       String lookupCommand = 'lookup:all:$reservedKey';
       expect(
@@ -997,8 +997,8 @@ void main() {
       AtData aliceWaviData = createRandomAtData(alice)..metaData!.ttr = 100;
       await keyValueStore.put('$alice:$testKey', aliceWaviData);
 
-      LookupVerbHandler lookupVerb = LookupVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+      LookupVerbHandler lookupVerb = LookupVerbHandler(keyValueStore,
+          verbHandlerContext, mockOutboundClientManager, cacheManager, enMgr,
           accessLog: atAccessLog);
       String lookupCommand = 'lookup:all:$testKey';
 
@@ -1034,8 +1034,8 @@ void main() {
 
       String testKey = 'test_key_no_namespace_1$alice';
 
-      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(keyValueStore,
+          verbHandlerContext, mockOutboundClientManager, cacheManager, enMgr,
           accessLog: atAccessLog);
       String lookupCommand = 'lookup:all:$testKey';
       expect(
@@ -1088,8 +1088,8 @@ void main() {
         String llookupCommand = 'lookup:dummykey.wavi$bob';
         HashMap<String, String?> lookupVerbParams =
             getVerbParam(VerbSyntax.lookup, llookupCommand);
-        LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
-            keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+        LookupVerbHandler lookupVerbHandler = LookupVerbHandler(keyValueStore,
+            verbHandlerContext, mockOutboundClientManager, cacheManager, enMgr,
             accessLog: atAccessLog);
         expect(
             () async => await lookupVerbHandler.processVerb(
@@ -1144,8 +1144,8 @@ void main() {
 
       Map mapSentToClient;
 
-      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+      LookupVerbHandler lookupVerbHandler = LookupVerbHandler(keyValueStore,
+          verbHandlerContext, mockOutboundClientManager, cacheManager, enMgr,
           accessLog: atAccessLog);
       await lookupVerbHandler.process(
           'lookup:all:$sharedKey', inboundConnection);

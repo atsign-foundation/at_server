@@ -29,8 +29,8 @@ void main() {
 
     setUp(() async {
       await verbTestsSetUp();
-      lookupVerbHandler = LookupVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+      lookupVerbHandler = LookupVerbHandler(keyValueStore, verbHandlerContext,
+          mockOutboundClientManager, cacheManager, enMgr,
           accessLog: atAccessLog);
     });
 
@@ -252,7 +252,8 @@ void main() {
       pkamMC.metaData.authType = AuthType.pkamLegacy;
       pkamMC.metaData.isAuthenticated = true;
       pkamMC.metaData.sessionID = 'legacy_pkam_monitor_session';
-      await MonitorVerbHandler(keyValueStore, notificationManager)
+      await MonitorVerbHandler(
+              keyValueStore, verbHandlerContext, notificationManager)
           .processVerb(Response(), mvp, pkamMC);
 
       // Make a public key change

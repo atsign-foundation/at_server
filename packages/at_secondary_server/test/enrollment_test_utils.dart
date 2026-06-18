@@ -24,20 +24,22 @@ class ETU {
   late String primaryEnId;
 
   Future<void> init() async {
-    evh = EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
-    ovh = OtpVerbHandler(keyValueStore);
+    evh = EnrollVerbHandler(
+        keyValueStore, verbHandlerContext, enMgr, notificationManager);
+    ovh = OtpVerbHandler(keyValueStore, verbHandlerContext);
     uvh = UpdateVerbHandler(
       keyValueStore,
+      verbHandlerContext,
       statsNotificationService,
       notificationManager,
       alice,
     );
-    lvh = LookupVerbHandler(
-        keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+    lvh = LookupVerbHandler(keyValueStore, verbHandlerContext,
+        mockOutboundClientManager, cacheManager, enMgr,
         accessLog: atAccessLog);
-    llvh = LocalLookupVerbHandler(keyValueStore, enMgr);
-    plvh = ProxyLookupVerbHandler(
-        keyValueStore, mockOutboundClientManager, cacheManager,
+    llvh = LocalLookupVerbHandler(keyValueStore, verbHandlerContext, enMgr);
+    plvh = ProxyLookupVerbHandler(keyValueStore, verbHandlerContext,
+        mockOutboundClientManager, cacheManager,
         accessLog: atAccessLog);
     primaryEnId = await createPrimaryEnrollment();
   }

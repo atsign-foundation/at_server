@@ -48,8 +48,8 @@ void main() {
 
     test('test plookup meta command accept test without operation', () {
       var command = 'plookup:location$alice';
-      var handler = ProxyLookupVerbHandler(
-          mockKeyStore, mockOutboundClientManager, mockAtCacheManager,
+      var handler = ProxyLookupVerbHandler(mockKeyStore, verbHandlerContext,
+          mockOutboundClientManager, mockAtCacheManager,
           accessLog: atAccessLog);
       var result = handler.accept(command);
       expect(result, true);
@@ -57,8 +57,8 @@ void main() {
 
     test('test plookup meta command accept test for meta', () {
       var command = 'plookup:meta:location$alice';
-      var handler = ProxyLookupVerbHandler(
-          mockKeyStore, mockOutboundClientManager, mockAtCacheManager,
+      var handler = ProxyLookupVerbHandler(mockKeyStore, verbHandlerContext,
+          mockOutboundClientManager, mockAtCacheManager,
           accessLog: atAccessLog);
       var result = handler.accept(command);
       expect(result, true);
@@ -66,8 +66,8 @@ void main() {
 
     test('test plookup meta command accept test for all', () {
       var command = 'plookup:all:location$alice';
-      var handler = ProxyLookupVerbHandler(
-          mockKeyStore, mockOutboundClientManager, mockAtCacheManager,
+      var handler = ProxyLookupVerbHandler(mockKeyStore, verbHandlerContext,
+          mockOutboundClientManager, mockAtCacheManager,
           accessLog: atAccessLog);
       var result = handler.accept(command);
       expect(result, true);

@@ -5,6 +5,7 @@ import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dar
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
+import 'package:at_secondary/src/server/verb_handler_context.dart';
 import 'package:at_secondary/src/verb/handler/batch_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/config_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
@@ -48,6 +49,7 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
   final AtCommitLog commitLog;
   final AtAccessLog accessLog;
   late final Atsign atSign;
+  final VerbHandlerContext context;
 
   DefaultVerbHandlerManager(
     this.keyStore,
@@ -59,6 +61,7 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     String atSign, {
     required this.commitLog,
     required this.accessLog,
+    required this.context,
   }) {
     this.atSign = atSign.toAtsign();
     _loadVerbHandlers();
@@ -81,31 +84,36 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
 
   List<VerbHandler> _loadVerbHandlers() {
     _verbHandlers = [];
-    _verbHandlers.add(
-        FromVerbHandler(keyStore, commitLog: commitLog, accessLog: accessLog));
-    _verbHandlers.add(CramVerbHandler(keyStore, accessLog: accessLog));
-    _verbHandlers.add(PkamVerbHandler(keyStore));
+    _verbHandlers.add(FromVerbHandler(keyStore, context,
+        commitLog: commitLog, accessLog: accessLog));
+    _verbHandlers.add(CramVerbHandler(keyStore, context, accessLog: accessLog));
+    _verbHandlers.add(PkamVerbHandler(keyStore, context));
     _verbHandlers.add(UpdateVerbHandler(
       keyStore,
+      context,
       statsNotificationService,
       notificationManager,
       atSign,
     ));
     _verbHandlers.add(UpdateMetaVerbHandler(
       keyStore,
+      context,
       statsNotificationService,
       notificationManager,
       atSign,
     ));
-    _verbHandlers.add(LocalLookupVerbHandler(keyStore, enrollmentManager));
+    _verbHandlers
+        .add(LocalLookupVerbHandler(keyStore, context, enrollmentManager));
     _verbHandlers.add(ProxyLookupVerbHandler(
       keyStore,
+      context,
       outboundClientManager,
       cacheManager,
       accessLog: accessLog,
     ));
     _verbHandlers.add(LookupVerbHandler(
       keyStore,
+      context,
       outboundClientManager,
       cacheManager,
       enrollmentManager,
@@ -113,42 +121,55 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     ));
     _verbHandlers.add(ScanVerbHandler(
       keyStore,
+      context,
       outboundClientManager,
       cacheManager,
     ));
     _verbHandlers.add(PolVerbHandler(
       keyStore,
+      context,
       outboundClientManager,
       cacheManager,
       accessLog: accessLog,
     ));
     _verbHandlers.add(DeleteVerbHandler(
       keyStore,
+      context,
       statsNotificationService,
       notificationManager,
     ));
-    _verbHandlers.add(StatsVerbHandler(keyStore));
-    _verbHandlers.add(ConfigVerbHandler(keyStore, commitLog: commitLog));
-    _verbHandlers.add(MonitorVerbHandler(keyStore, notificationManager));
-    _verbHandlers.add(StreamVerbHandler(keyStore, notificationManager));
-    _verbHandlers.add(NotifyVerbHandler(keyStore, notificationManager));
+    _verbHandlers.add(StatsVerbHandler(keyStore, context));
+    _verbHandlers
+        .add(ConfigVerbHandler(keyStore, context, commitLog: commitLog));
+    _verbHandlers
+        .add(MonitorVerbHandler(keyStore, context, notificationManager));
+    _verbHandlers
+        .add(StreamVerbHandler(keyStore, context, notificationManager));
+    _verbHandlers
+        .add(NotifyVerbHandler(keyStore, context, notificationManager));
     _verbHandlers.add(NotifyListVerbHandler(
       keyStore,
+      context,
       notificationManager,
     ));
-    _verbHandlers.add(BatchVerbHandler(keyStore, this));
-    _verbHandlers.add(NotifyStatusVerbHandler(keyStore, notificationManager));
-    _verbHandlers.add(NotifyAllVerbHandler(keyStore, notificationManager));
+    _verbHandlers.add(BatchVerbHandler(keyStore, context, this));
     _verbHandlers
-        .add(SyncProgressiveVerbHandler(keyStore, commitLog: commitLog));
-    _verbHandlers.add(InfoVerbHandler(keyStore));
-    _verbHandlers.add(NoOpVerbHandler(keyStore));
-    _verbHandlers.add(NotifyRemoveVerbHandler(keyStore, notificationManager));
-    _verbHandlers.add(NotifyFetchVerbHandler(keyStore, notificationManager));
+        .add(NotifyStatusVerbHandler(keyStore, context, notificationManager));
+    _verbHandlers
+        .add(NotifyAllVerbHandler(keyStore, context, notificationManager));
     _verbHandlers.add(
-        EnrollVerbHandler(keyStore, enrollmentManager, notificationManager));
-    _verbHandlers.add(OtpVerbHandler(keyStore));
-    _verbHandlers.add(KeysVerbHandler(keyStore, enrollmentManager, atSign));
+        SyncProgressiveVerbHandler(keyStore, context, commitLog: commitLog));
+    _verbHandlers.add(InfoVerbHandler(keyStore, context));
+    _verbHandlers.add(NoOpVerbHandler(keyStore, context));
+    _verbHandlers
+        .add(NotifyRemoveVerbHandler(keyStore, context, notificationManager));
+    _verbHandlers
+        .add(NotifyFetchVerbHandler(keyStore, context, notificationManager));
+    _verbHandlers.add(EnrollVerbHandler(
+        keyStore, context, enrollmentManager, notificationManager));
+    _verbHandlers.add(OtpVerbHandler(keyStore, context));
+    _verbHandlers
+        .add(KeysVerbHandler(keyStore, context, enrollmentManager, atSign));
     return _verbHandlers;
   }
 }

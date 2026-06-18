@@ -6,6 +6,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/server/verb_handler_context.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as handler_util;
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
@@ -20,14 +21,17 @@ final String paramFullCommandAsReceived = 'FullCommandAsReceived';
 abstract class AbstractVerbHandler implements VerbHandler {
   final AtKeyValueStore<String, AtData, AtMetaData?> keyStore;
 
+  /// Server-scoped collaborators injected at construction time.
+  final VerbHandlerContext context;
+
   late AtSignLogger logger;
-  ResponseHandlerManager responseManager =
-      DefaultResponseHandlerManager.getInstance();
+
+  ResponseHandlerManager get responseManager => context.responseManager;
 
   RegExp perEnrollmentRegex =
       RegExp(EnrollmentConstants.regexForPerEnrollmentNamespaces);
 
-  AbstractVerbHandler(this.keyStore) {
+  AbstractVerbHandler(this.keyStore, this.context) {
     logger = AtSignLogger(runtimeType.toString());
   }
 

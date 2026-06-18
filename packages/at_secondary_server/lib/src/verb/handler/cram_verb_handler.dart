@@ -15,7 +15,7 @@ class CramVerbHandler extends AbstractVerbHandler {
 
   final AtAccessLog accessLog;
 
-  CramVerbHandler(super.keyStore, {required this.accessLog});
+  CramVerbHandler(super.keyStore, super.context, {required this.accessLog});
 
   @override
   bool accept(String command) =>

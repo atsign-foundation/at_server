@@ -19,8 +19,8 @@ class ProxyLookupVerbHandler extends AbstractVerbHandler {
   final AtCacheManager cacheManager;
   final AtAccessLog accessLog;
 
-  ProxyLookupVerbHandler(
-      super.keyStore, this.outboundClientManager, this.cacheManager,
+  ProxyLookupVerbHandler(super.keyStore, super.context,
+      this.outboundClientManager, this.cacheManager,
       {required this.accessLog});
 
   // Method to verify whether command is accepted or not

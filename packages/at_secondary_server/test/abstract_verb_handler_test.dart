@@ -40,7 +40,7 @@ void main() {
     test(
         'test isAuthorized command with namespace in atKey and namespace  passed with identical value',
         () async {
-      var handler = TestUpdateVerbHandler(keyValueStore);
+      var handler = TestUpdateVerbHandler(keyValueStore, verbHandlerContext);
       var atKey = AtKey()
         ..sharedBy = alice
         ..sharedWith = '@bob'
@@ -54,7 +54,7 @@ void main() {
     test(
         'test isAuthorized command with at_contact.buzz namespace in atKey and  buzz namespace passes',
         () async {
-      var handler = TestUpdateVerbHandler(keyValueStore);
+      var handler = TestUpdateVerbHandler(keyValueStore, verbHandlerContext);
       var atKey = AtKey()
         ..sharedBy = alice
         ..sharedWith = '@bob'
@@ -68,7 +68,7 @@ void main() {
     test(
         'test isAuthorized command with persona.buzz namespace in atKey and  buzz namespace passes',
         () async {
-      var handler = TestUpdateVerbHandler(keyValueStore);
+      var handler = TestUpdateVerbHandler(keyValueStore, verbHandlerContext);
       var atKey = AtKey()
         ..sharedBy = alice
         ..sharedWith = '@bob'
@@ -82,7 +82,7 @@ void main() {
     test(
         'test isAuthorized command with namespace in atKey and namespace passed with different values',
         () async {
-      var handler = TestUpdateVerbHandler(keyValueStore);
+      var handler = TestUpdateVerbHandler(keyValueStore, verbHandlerContext);
       var atKey = AtKey()
         ..sharedBy = alice
         ..sharedWith = '@bob'
@@ -138,7 +138,7 @@ void main() {
 }
 
 class TestUpdateVerbHandler extends AbstractVerbHandler {
-  TestUpdateVerbHandler(super.keyValueStore);
+  TestUpdateVerbHandler(super.keyValueStore, super.context);
 
   @override
   bool accept(String command) {

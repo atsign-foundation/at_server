@@ -42,12 +42,14 @@ void main() {
 
     test('test cram accept', () {
       var command = 'cram:abc123';
-      var handler = CramVerbHandler(mockKeyStore, accessLog: atAccessLog);
+      var handler = CramVerbHandler(mockKeyStore, verbHandlerContext,
+          accessLog: atAccessLog);
       expect(handler.accept(command), true);
     });
     test('test from accept invalid keyword', () {
       var command = 'cramer:';
-      var handler = CramVerbHandler(mockKeyStore, accessLog: atAccessLog);
+      var handler = CramVerbHandler(mockKeyStore, verbHandlerContext,
+          accessLog: atAccessLog);
       expect(handler.accept(command), false);
     });
     test('test cram  without digest', () {
@@ -63,7 +65,8 @@ void main() {
 
   group('A group of cram verb handler tests', () {
     test('test cram verb handler getVerb', () {
-      var verbHandler = CramVerbHandler(keyValueStore, accessLog: atAccessLog);
+      var verbHandler = CramVerbHandler(keyValueStore, verbHandlerContext,
+          accessLog: atAccessLog);
       var verb = verbHandler.getVerb();
       expect(verb is Cram, true);
     });
@@ -73,7 +76,7 @@ void main() {
       secretData.data =
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyValueStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(keyValueStore,
+      var fromVerbHandler = FromVerbHandler(keyValueStore, verbHandlerContext,
           commitLog: atCommitLog, accessLog: atAccessLog);
       AtSecondaryServerImpl.getInstance().currentAtSign =
           '@test_user_1'.toAtsign();
@@ -89,7 +92,8 @@ void main() {
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
-      var verbHandler = CramVerbHandler(keyValueStore, accessLog: atAccessLog);
+      var verbHandler = CramVerbHandler(keyValueStore, verbHandlerContext,
+          accessLog: atAccessLog);
       var cramResponse = Response();
       await verbHandler.processVerb(cramResponse, cramVerbParams, atConnection);
       var connectionMetadata =
@@ -103,7 +107,7 @@ void main() {
       secretData.data =
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyValueStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(keyValueStore,
+      var fromVerbHandler = FromVerbHandler(keyValueStore, verbHandlerContext,
           commitLog: atCommitLog, accessLog: atAccessLog);
       AtSecondaryServerImpl.getInstance().currentAtSign =
           '@test_user_1'.toAtsign();
@@ -118,7 +122,8 @@ void main() {
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
-      var verbHandler = CramVerbHandler(keyValueStore, accessLog: atAccessLog);
+      var verbHandler = CramVerbHandler(keyValueStore, verbHandlerContext,
+          accessLog: atAccessLog);
       var cramResponse = Response();
       var connectionMetadata =
           atConnection.metaData as InboundConnectionMetadata;
@@ -130,7 +135,7 @@ void main() {
     });
 
     test('test cram verb handler processVerb no secret in keystore', () async {
-      var fromVerbHandler = FromVerbHandler(keyValueStore,
+      var fromVerbHandler = FromVerbHandler(keyValueStore, verbHandlerContext,
           commitLog: atCommitLog, accessLog: atAccessLog);
       AtSecondaryServerImpl.getInstance().currentAtSign =
           '@test_user_1'.toAtsign();
@@ -145,7 +150,8 @@ void main() {
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
-      var verbHandler = CramVerbHandler(keyValueStore, accessLog: atAccessLog);
+      var verbHandler = CramVerbHandler(keyValueStore, verbHandlerContext,
+          accessLog: atAccessLog);
       var cramResponse = Response();
       var connectionMetadata =
           atConnection.metaData as InboundConnectionMetadata;

@@ -9,6 +9,7 @@ class UpdateMetaVerbHandler extends AbstractUpdateVerbHandler {
 
   UpdateMetaVerbHandler(
     super.keyStore,
+    super.context,
     super.statsNotificationService,
     super.notificationManager,
     super.atSign,

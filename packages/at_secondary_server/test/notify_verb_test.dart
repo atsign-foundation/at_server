@@ -66,35 +66,40 @@ void main() {
     AtSecondaryServerImpl.getInstance().currentAtSign = alice;
     test('test notify command accept test', () {
       var command = 'notify:@colin:location@colin';
-      var handler = NotifyVerbHandler(mockKeyStore, mockNotificationManager);
+      var handler = NotifyVerbHandler(
+          mockKeyStore, verbHandlerContext, mockNotificationManager);
       var result = handler.accept(command);
       expect(result, true);
     });
 
     test('test notify command accept test for different atsign', () {
       var command = 'notify:@bob:location@colin';
-      var handler = NotifyVerbHandler(mockKeyStore, mockNotificationManager);
+      var handler = NotifyVerbHandler(
+          mockKeyStore, verbHandlerContext, mockNotificationManager);
       var result = handler.accept(command);
       expect(result, true);
     });
 
     test('test notify command accept negative test without WhomToNotify', () {
       var command = 'notify location@colin';
-      var handler = NotifyVerbHandler(mockKeyStore, mockNotificationManager);
+      var handler = NotifyVerbHandler(
+          mockKeyStore, verbHandlerContext, mockNotificationManager);
       var result = handler.accept(command);
       expect(result, false);
     });
 
     test('test notify command accept negative test without from AtSign', () {
       var command = 'notify:@colin:location';
-      var handler = NotifyVerbHandler(mockKeyStore, mockNotificationManager);
+      var handler = NotifyVerbHandler(
+          mockKeyStore, verbHandlerContext, mockNotificationManager);
       var result = handler.accept(command);
       expect(result, true);
     });
 
     test('test notify command accept negative test without what to notify', () {
       var command = 'notify:@bob:@colin';
-      var handler = NotifyVerbHandler(mockKeyStore, mockNotificationManager);
+      var handler = NotifyVerbHandler(
+          mockKeyStore, verbHandlerContext, mockNotificationManager);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -103,7 +108,8 @@ void main() {
         'test to verify unauthorized exception is thrown when sharedBy atSign is not currentAtSign',
         () {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
-      var notifyVerb = NotifyVerbHandler(mockKeyStore, mockNotificationManager);
+      var notifyVerb = NotifyVerbHandler(
+          mockKeyStore, verbHandlerContext, mockNotificationManager);
       var inboundConnection = InboundConnectionImpl(mockSocket, '123');
       inboundConnection.metaData = InboundConnectionMetadata()
         ..isAuthenticated = true;
@@ -172,7 +178,8 @@ void main() {
 
     test('test notify verb - invalid ttl value', () {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
-      var notifyVerb = NotifyVerbHandler(mockKeyStore, mockNotificationManager);
+      var notifyVerb = NotifyVerbHandler(
+          mockKeyStore, verbHandlerContext, mockNotificationManager);
       var inboundConnection = InboundConnectionImpl(mockSocket, '123');
       inboundConnection.metaData = InboundConnectionMetadata()
         ..isAuthenticated = true;
@@ -191,7 +198,8 @@ void main() {
 
     test('test notify verb - invalid ttb value', () {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
-      var notifyVerb = NotifyVerbHandler(mockKeyStore, mockNotificationManager);
+      var notifyVerb = NotifyVerbHandler(
+          mockKeyStore, verbHandlerContext, mockNotificationManager);
       var inboundConnection = InboundConnectionImpl(mockSocket, '123');
       inboundConnection.metaData = InboundConnectionMetadata()
         ..isAuthenticated = true;
@@ -209,7 +217,8 @@ void main() {
 
     test('test notify verb - ttr = -2 invalid value ', () {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
-      var notifyVerb = NotifyVerbHandler(mockKeyStore, mockNotificationManager);
+      var notifyVerb = NotifyVerbHandler(
+          mockKeyStore, verbHandlerContext, mockNotificationManager);
       var inboundConnection = InboundConnectionImpl(mockSocket, '123');
       inboundConnection.metaData = InboundConnectionMetadata()
         ..isAuthenticated = true;
@@ -227,16 +236,16 @@ void main() {
 
     test('test notify key- invalid command', () {
       var command = 'notify:location$alice';
-      AbstractVerbHandler handler =
-          NotifyVerbHandler(mockKeyStore, mockNotificationManager);
+      AbstractVerbHandler handler = NotifyVerbHandler(
+          mockKeyStore, verbHandlerContext, mockNotificationManager);
       expect(() => handler.parse(command),
           throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
 
     test('test notify key- invalid ccd value', () {
       var command = 'notify:update:ttr:1000:ccd:test:location$alice';
-      AbstractVerbHandler handler =
-          NotifyVerbHandler(mockKeyStore, mockNotificationManager);
+      AbstractVerbHandler handler = NotifyVerbHandler(
+          mockKeyStore, verbHandlerContext, mockNotificationManager);
       expect(() => handler.parse(command),
           throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
@@ -253,8 +262,8 @@ void main() {
       var command = 'notify:update:messagetype:text:@bob:hello';
       var regex = verb.syntax();
 
-      var notifyVerbHandler =
-          NotifyVerbHandler(mockKeyStore, mockNotificationManager);
+      var notifyVerbHandler = NotifyVerbHandler(
+          mockKeyStore, verbHandlerContext, mockNotificationManager);
       var notifyResponse = Response();
       var notifyVerbParams = getVerbParam(regex, command);
       expect(
@@ -331,8 +340,8 @@ void main() {
       atConnection.metaData.isAuthenticated = true;
 
       //Notify Verb
-      var notifyVerbHandler =
-          NotifyVerbHandler(keyValueStore, notificationManager);
+      var notifyVerbHandler = NotifyVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('operation', () => 'update');
@@ -343,8 +352,8 @@ void main() {
           notifyResponse, notifyVerbParams, atConnection);
 
       //Notify list verb handler
-      var notifyListVerbHandler =
-          NotifyListVerbHandler(keyValueStore, notificationManager);
+      var notifyListVerbHandler = NotifyListVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
       var notifyListResponse = Response();
       var notifyListVerbParams = HashMap<String, String>();
       await notifyListVerbHandler.processVerb(
@@ -363,8 +372,8 @@ void main() {
       atConnection.metaData.isAuthenticated = true;
 
       //Notify Verb
-      var notifyVerbHandler =
-          NotifyVerbHandler(keyValueStore, notificationManager);
+      var notifyVerbHandler = NotifyVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
       var notifyResponse = Response();
 
       var notifyVerbParams = HashMap<String, String>.from({
@@ -376,8 +385,8 @@ void main() {
       await notifyVerbHandler.processVerb(
           notifyResponse, notifyVerbParams, atConnection);
       //Notify list verb handler
-      var notifyListVerbHandler =
-          NotifyListVerbHandler(keyValueStore, notificationManager);
+      var notifyListVerbHandler = NotifyListVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
       var notifyListResponse = Response();
       var notifyListVerbParams = HashMap<String, String>();
       await notifyListVerbHandler.processVerb(
@@ -403,8 +412,8 @@ void main() {
       var command = 'notify:update:messagetype:text:@bob:hello';
       var regex = verb.syntax();
 
-      var notifyVerbHandler =
-          NotifyVerbHandler(keyValueStore, notificationManager);
+      var notifyVerbHandler = NotifyVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
       var notifyResponse = Response();
       var notifyVerbParams = getVerbParam(regex, command);
       await notifyVerbHandler.processVerb(
@@ -419,7 +428,8 @@ void main() {
     });
     test('test for max key length check for cached key', () async {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
-      var notifyVerb = NotifyVerbHandler(keyValueStore, notificationManager);
+      var notifyVerb = NotifyVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
       var inboundConnection = InboundConnectionImpl(mockSocket, '123');
       inboundConnection.metaData = InboundConnectionMetadata()
         ..isPolAuthenticated = true
@@ -449,7 +459,8 @@ void main() {
 
     test('notify command accept test for pubKeyCS and sharedKeyEnc', () {
       var command = 'notify:sharedKeyEnc:abc:pubKeyCS:123@bob:location@colin';
-      var handler = NotifyVerbHandler(mockKeyStore, notificationManager);
+      var handler = NotifyVerbHandler(
+          mockKeyStore, verbHandlerContext, notificationManager);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -508,9 +519,11 @@ void main() {
 
     setUp(() async {
       await verbTestsSetUp();
-      notifyVerbHandler = NotifyVerbHandler(keyValueStore, notificationManager);
+      notifyVerbHandler = NotifyVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
       notifyResponse = Response();
-      notifyFetch = NotifyFetchVerbHandler(keyValueStore, notificationManager);
+      notifyFetch = NotifyFetchVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
 
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
       atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -591,6 +604,7 @@ void main() {
       await verbTestsSetUp();
       notifyVerbHandler = NotifyVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         notificationManager,
       );
     });
@@ -687,10 +701,12 @@ void main() {
       await verbTestsSetUp();
       notifyVerbHandler = NotifyVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         notificationManager,
       );
       notifyAllVerbHandler = NotifyAllVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         notificationManager,
       );
       inboundConnection = DummyInboundConnection();
@@ -954,14 +970,16 @@ void main() {
       await verbTestsSetUp();
       notifyVerbHandler = NotifyVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         notificationManager,
       );
-      notifyFetchVerbHandler =
-          NotifyFetchVerbHandler(keyValueStore, notificationManager);
-      notifyStatusVerbHandler =
-          NotifyStatusVerbHandler(keyValueStore, notificationManager);
+      notifyFetchVerbHandler = NotifyFetchVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
+      notifyStatusVerbHandler = NotifyStatusVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
       notifyRemoveVerbHandler = NotifyRemoveVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         notificationManager,
       );
       inboundConnection = DummyInboundConnection();
@@ -1324,10 +1342,11 @@ void main() {
       await verbTestsSetUp();
       notifyVerbHandler = NotifyVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         notificationManager,
       );
-      notifyListVerbHandler =
-          NotifyListVerbHandler(keyValueStore, notificationManager);
+      notifyListVerbHandler = NotifyListVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
       inboundConnection = DummyInboundConnection();
       AtSecondaryServerImpl.getInstance().enrollmentManager =
           EnrollmentManager(keyValueStore, alice);
@@ -1437,6 +1456,7 @@ void main() {
       await verbTestsSetUp();
       notifyVerbHandler = NotifyVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         notificationManager,
       );
       inboundConnection = DummyInboundConnection();

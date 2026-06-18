@@ -29,16 +29,16 @@ void main() {
       await verbTestsSetUp();
     });
     test('test scan getVerb', () {
-      var handler = ScanVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager);
+      var handler = ScanVerbHandler(keyValueStore, verbHandlerContext,
+          mockOutboundClientManager, cacheManager);
       var verb = handler.getVerb();
       expect(verb is Scan, true);
     });
 
     test('test scan command accept test', () {
       var command = 'scan';
-      var handler = ScanVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager);
+      var handler = ScanVerbHandler(keyValueStore, verbHandlerContext,
+          mockOutboundClientManager, cacheManager);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -56,8 +56,8 @@ void main() {
     test('test scan verb - upper case', () {
       var command = 'SCAN';
       command = SecondaryUtil.convertCommand(command);
-      var handler = ScanVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager);
+      var handler = ScanVerbHandler(keyValueStore, verbHandlerContext,
+          mockOutboundClientManager, cacheManager);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -86,7 +86,8 @@ void main() {
           enMgr,
           alice,
           commitLog: atCommitLog,
-          accessLog: atAccessLog);
+          accessLog: atAccessLog,
+          context: verbHandlerContext);
 
       expect(
           () => defaultVerbExecutor.execute(
@@ -122,9 +123,10 @@ void main() {
     late LocalLookupVerbHandler llookupVH;
     setUp(() async {
       await verbTestsSetUp();
-      scanVerbHandler = ScanVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager);
-      llookupVH = LocalLookupVerbHandler(keyValueStore, enMgr);
+      scanVerbHandler = ScanVerbHandler(keyValueStore, verbHandlerContext,
+          mockOutboundClientManager, cacheManager);
+      llookupVH =
+          LocalLookupVerbHandler(keyValueStore, verbHandlerContext, enMgr);
     });
     test('A test to verify all keys are returned for a simple scan', () async {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
@@ -265,8 +267,8 @@ void main() {
     late ScanVerbHandler scanVerbHandler;
     setUp(() async {
       await verbTestsSetUp();
-      scanVerbHandler = ScanVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager);
+      scanVerbHandler = ScanVerbHandler(keyValueStore, verbHandlerContext,
+          mockOutboundClientManager, cacheManager);
     });
 
     test(
@@ -325,8 +327,8 @@ void main() {
     late ScanVerbHandler scanVerbHandler;
     setUp(() async {
       await verbTestsSetUp();
-      scanVerbHandler = ScanVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager);
+      scanVerbHandler = ScanVerbHandler(keyValueStore, verbHandlerContext,
+          mockOutboundClientManager, cacheManager);
     });
     test(
         'A test to verify scan to forAtSign cannot be executed on unauthenticated connection',
@@ -387,8 +389,8 @@ void main() {
       await keyValueStore.put(
           'public:firstName.wavi$alice', AtData()..data = 'alice');
 
-      scanVerbHandler = ScanVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager);
+      scanVerbHandler = ScanVerbHandler(keyValueStore, verbHandlerContext,
+          mockOutboundClientManager, cacheManager);
       // Set enrollmentId to the inboundConnection to mimic the APKAM auth
       inboundConnection.metaData.enrollmentId = enrollmentId;
       await scanVerbHandler.process('scan', inboundConnection);
@@ -425,8 +427,8 @@ void main() {
       await keyValueStore.put(
           'mobileNumber.buzz$alice', AtData()..data = '+1 434 543 3232');
 
-      scanVerbHandler = ScanVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager);
+      scanVerbHandler = ScanVerbHandler(keyValueStore, verbHandlerContext,
+          mockOutboundClientManager, cacheManager);
       // Set enrollmentId to the inboundConnection to mimic the APKAM auth
       inboundConnection.metaData.enrollmentId = enrollmentId;
       await scanVerbHandler.process('scan', inboundConnection);
@@ -457,8 +459,8 @@ void main() {
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
 
-      scanVerbHandler = ScanVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager);
+      scanVerbHandler = ScanVerbHandler(keyValueStore, verbHandlerContext,
+          mockOutboundClientManager, cacheManager);
       await scanVerbHandler.process('scan', inboundConnection);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
           .split('\n')[0]
@@ -487,8 +489,8 @@ void main() {
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
 
-      scanVerbHandler = ScanVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager);
+      scanVerbHandler = ScanVerbHandler(keyValueStore, verbHandlerContext,
+          mockOutboundClientManager, cacheManager);
       await scanVerbHandler.process('scan', inboundConnection);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
           .split('\n')[0]
@@ -524,8 +526,8 @@ void main() {
       await keyValueStore.put(
           'mobile.buzz$alice', AtData()..data = '+878 787 7679');
 
-      scanVerbHandler = ScanVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager);
+      scanVerbHandler = ScanVerbHandler(keyValueStore, verbHandlerContext,
+          mockOutboundClientManager, cacheManager);
       await scanVerbHandler.process('scan', inboundConnection);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
           .split('\n')[0]
@@ -571,8 +573,8 @@ void main() {
       await keyValueStore.put(
           'firstname.atmosphere$alice', AtData()..data = 'alice');
 
-      scanVerbHandler = ScanVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager);
+      scanVerbHandler = ScanVerbHandler(keyValueStore, verbHandlerContext,
+          mockOutboundClientManager, cacheManager);
       await scanVerbHandler.process('scan', inboundConnection);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
           .split('\n')[0]
@@ -608,8 +610,8 @@ void main() {
           'public:country.wavi$alice', AtData()..data = 'India');
       await keyValueStore.put('city.buzz$alice', AtData()..data = 'India');
 
-      scanVerbHandler = ScanVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager);
+      scanVerbHandler = ScanVerbHandler(keyValueStore, verbHandlerContext,
+          mockOutboundClientManager, cacheManager);
       // Set enrollmentId to the inboundConnection to mimic the APKAM auth
       inboundConnection.metaData.enrollmentId = enrollmentId;
       await scanVerbHandler.process('scan', inboundConnection);

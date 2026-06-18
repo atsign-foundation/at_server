@@ -28,6 +28,8 @@ import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_update_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
+import 'package:at_secondary/src/server/verb_handler_context.dart';
+import 'package:at_secondary/src/verb/manager/response_handler_manager.dart';
 import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
@@ -302,6 +304,13 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       }
     });
 
+    // Build the verb-handler context: server-scoped collaborators injected into
+    // every verb handler at construction time (replacing singleton reaches).
+    final verbHandlerContext = VerbHandlerContext(
+      currentAtSign: currentAtSign,
+      responseManager: DefaultResponseHandlerManager(),
+    );
+
     // We may have had a VerbHandlerManager set via setVerbHandlerManager()
     // But if not, create a DefaultVerbHandlerManager
     if (verbHandlerManager == null) {
@@ -315,6 +324,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         currentAtSign,
         commitLog: commitLog,
         accessLog: accessLog,
+        context: verbHandlerContext,
       );
     } else {
       // If the server has been stop()'d and re-start()'d then we will get here.
@@ -332,6 +342,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           currentAtSign,
           commitLog: commitLog,
           accessLog: accessLog,
+          context: verbHandlerContext,
         );
       }
     }

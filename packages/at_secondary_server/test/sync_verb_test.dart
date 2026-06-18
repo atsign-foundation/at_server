@@ -74,21 +74,24 @@ void main() {
   group('A group of sync verb accept test', () {
     test('test sync accept', () {
       var command = 'sync:from:5:limit:10';
-      var handler =
-          SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
+      var handler = SyncProgressiveVerbHandler(
+          keyValueStore, verbHandlerContext,
+          commitLog: atCommitLog);
       expect(handler.accept(command), true);
     });
     test('test sync accept invalid keyword', () {
       var command = 'syncing:1';
-      var handler =
-          SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
+      var handler = SyncProgressiveVerbHandler(
+          keyValueStore, verbHandlerContext,
+          commitLog: atCommitLog);
       expect(handler.accept(command), false);
     });
     test('test sync verb upper case', () {
       var command = 'SYNC:from:5:limit:10';
       command = SecondaryUtil.convertCommand(command);
-      var handler =
-          SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
+      var handler = SyncProgressiveVerbHandler(
+          keyValueStore, verbHandlerContext,
+          commitLog: atCommitLog);
       expect(handler.accept(command), true);
     });
     test('test sync verb with regex', () {
@@ -122,8 +125,9 @@ void main() {
                   PublicKeyHash('dummy_hash', HashingAlgoType.sha512.name)
               ..pubKeyCS = 'dummy_pub_key_cs'));
 
-      verbHandler =
-          SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
+      verbHandler = SyncProgressiveVerbHandler(
+          keyValueStore, verbHandlerContext,
+          commitLog: atCommitLog);
       var response = Response();
       var verbParams = HashMap<String, String>();
       verbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '0');
@@ -148,8 +152,9 @@ void main() {
     });
 
     test('test to ensure at least one entry is synced always', () async {
-      verbHandler =
-          SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
+      verbHandler = SyncProgressiveVerbHandler(
+          keyValueStore, verbHandlerContext,
+          commitLog: atCommitLog);
 
       // generate some commit entries
       await keyValueStore.put('test_key_alpha$alice', AtData()..data = 'ALPHA');
@@ -171,8 +176,9 @@ void main() {
     test(
         'overflowing entry not added to syncResponse when syncResponse not empty',
         () async {
-      verbHandler =
-          SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
+      verbHandler = SyncProgressiveVerbHandler(
+          keyValueStore, verbHandlerContext,
+          commitLog: atCommitLog);
       List<KeyStoreEntry> syncResponse = [];
 
       // generate some commit entries
@@ -222,8 +228,9 @@ void main() {
 
     test('test to ensure all entries are synced if buffer does not overflow',
         () async {
-      verbHandler =
-          SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
+      verbHandler = SyncProgressiveVerbHandler(
+          keyValueStore, verbHandlerContext,
+          commitLog: atCommitLog);
 
       // generate some commit entries
       await keyValueStore.put('test_key_alpha$alice', AtData()..data = 'ALPHA');
@@ -265,8 +272,9 @@ void main() {
     test(
         'ensure only one overflowing entry is added to syncResponse when commitLog has two large entries',
         () async {
-      verbHandler =
-          SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
+      verbHandler = SyncProgressiveVerbHandler(
+          keyValueStore, verbHandlerContext,
+          commitLog: atCommitLog);
       // generate some commit entries
       await keyValueStore.put('test_key_1$alice', AtData()..data = 'ONE');
       await keyValueStore.put('test_key_2$alice', AtData()..data = 'TWO');
@@ -327,8 +335,9 @@ void main() {
               ..metaData = metadata);
       }
 
-      verbHandler =
-          SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
+      verbHandler = SyncProgressiveVerbHandler(
+          keyValueStore, verbHandlerContext,
+          commitLog: atCommitLog);
       var response = Response();
       var verbParams = HashMap<String, String>();
       verbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '0');
@@ -365,8 +374,9 @@ void main() {
               ..metaData = metadata);
       }
 
-      verbHandler =
-          SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
+      verbHandler = SyncProgressiveVerbHandler(
+          keyValueStore, verbHandlerContext,
+          commitLog: atCommitLog);
       var response = Response();
       var verbParams = HashMap<String, String>();
       verbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '0');
@@ -403,8 +413,9 @@ void main() {
               ..metaData = metadata);
       }
 
-      verbHandler =
-          SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
+      verbHandler = SyncProgressiveVerbHandler(
+          keyValueStore, verbHandlerContext,
+          commitLog: atCommitLog);
       var response = Response();
       var verbParams = HashMap<String, String>();
       verbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '0');
@@ -458,8 +469,9 @@ void main() {
       }
       expect(atCommitLog.entriesCount(), 26); // 25 keys + the enrollment record
 
-      final verbHandler =
-          SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
+      final verbHandler = SyncProgressiveVerbHandler(
+          keyValueStore, verbHandlerContext,
+          commitLog: atCommitLog);
       final response = Response();
       final verbParams = HashMap<String, String>();
       verbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
@@ -489,8 +501,9 @@ void main() {
       await keyValueStore.put(
           'phone.wavi$alice', AtData()..data = '+12025551234');
 
-      final verbHandler =
-          SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
+      final verbHandler = SyncProgressiveVerbHandler(
+          keyValueStore, verbHandlerContext,
+          commitLog: atCommitLog);
       final response = Response();
       final verbParams = HashMap<String, String>();
       verbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');

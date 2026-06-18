@@ -49,14 +49,14 @@ void main() {
   group('A group of stats verb tests', () {
     AtSecondaryServerImpl.getInstance().currentAtSign = alice;
     test('test stats getVerb', () {
-      var handler = StatsVerbHandler(mockKeyStore);
+      var handler = StatsVerbHandler(mockKeyStore, verbHandlerContext);
       var verb = handler.getVerb();
       expect(verb is Stats, true);
     });
 
     test('test stats command accept test', () {
       var command = 'stats:1';
-      var handler = StatsVerbHandler(mockKeyStore);
+      var handler = StatsVerbHandler(mockKeyStore, verbHandlerContext);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -72,7 +72,7 @@ void main() {
 
     test('test stats command accept test with comma separated values', () {
       var command = 'stats:1,2,3';
-      var handler = StatsVerbHandler(mockKeyStore);
+      var handler = StatsVerbHandler(mockKeyStore, verbHandlerContext);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -100,7 +100,7 @@ void main() {
     test('test stats verb - upper case', () {
       var command = 'STATS';
       command = SecondaryUtil.convertCommand(command);
-      var handler = StatsVerbHandler(mockKeyStore);
+      var handler = StatsVerbHandler(mockKeyStore, verbHandlerContext);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -129,7 +129,8 @@ void main() {
           mockEnrollmentManager,
           alice,
           commitLog: atCommitLog,
-          accessLog: atAccessLog);
+          accessLog: atAccessLog,
+          context: verbHandlerContext);
 
       expect(
           () => defaultVerbExecutor.execute(
@@ -141,7 +142,7 @@ void main() {
     // test for Notification Stats
     test('notification stats command accept test', () {
       var command = 'stats:11';
-      var handler = StatsVerbHandler(mockKeyStore);
+      var handler = StatsVerbHandler(mockKeyStore, verbHandlerContext);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -177,8 +178,8 @@ void main() {
         },
         'createdOn': 0,
       };
-      var notifyListVerbHandler =
-          NotifyListVerbHandler(keyValueStore, notificationManager);
+      var notifyListVerbHandler = NotifyListVerbHandler(
+          keyValueStore, verbHandlerContext, notificationManager);
       var testNotification = (AtNotificationBuilder()
             ..id = '1031'
             ..fromAtSign = '@bob'
@@ -303,7 +304,7 @@ void main() {
   group('A group of commitLogCompactionStats verb tests', () {
     test('commitLogCompactionStats command accept test', () {
       var command = 'stats:12';
-      var handler = StatsVerbHandler(mockKeyStore);
+      var handler = StatsVerbHandler(mockKeyStore, verbHandlerContext);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -334,7 +335,7 @@ void main() {
   group('A group of accessLogCompactionStats verb tests', () {
     test('accessLogCompactionStats command acceptance test', () {
       var command = 'stats:13';
-      var handler = StatsVerbHandler(mockKeyStore);
+      var handler = StatsVerbHandler(mockKeyStore, verbHandlerContext);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -365,7 +366,7 @@ void main() {
   group('A group of notificationCompactionStats verb tests', () {
     test('notificationCompactionStats command accept test', () {
       var command = 'stats:14';
-      var handler = StatsVerbHandler(mockKeyStore);
+      var handler = StatsVerbHandler(mockKeyStore, verbHandlerContext);
       var result = handler.accept(command);
       expect(result, true);
     });

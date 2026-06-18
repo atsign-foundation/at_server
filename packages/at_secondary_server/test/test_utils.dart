@@ -48,7 +48,9 @@ import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/server/verb_handler_context.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
+import 'package:at_secondary/src/verb/manager/response_handler_manager.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:crypton/crypton.dart';
@@ -191,6 +193,15 @@ class MockStreamSubscription<T> extends Mock implements StreamSubscription<T> {}
 // String alice = '@alice🛠';
 Atsign alice = '@alice'.toAtsign();
 Atsign bob = '@bob'.toAtsign();
+
+/// Shared verb-handler context for tests: the server-scoped collaborators
+/// injected into handlers at construction time. The response manager is
+/// stateless and `alice` is the default test atSign, so a single shared
+/// instance is safe across tests.
+final verbHandlerContext = VerbHandlerContext(
+  currentAtSign: alice,
+  responseManager: DefaultResponseHandlerManager(),
+);
 var bobHost = "domain.testing.bob.bob.bob";
 var bobPort = 12345;
 var bobServerSigningKeypair = RSAKeypair.fromRandom();

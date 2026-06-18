@@ -54,8 +54,8 @@ void main() {
 
       setUp(() async {
         await verbTestsSetUp();
-        plookupVerbHandler = ProxyLookupVerbHandler(
-            keyValueStore, mockOutboundClientManager, cacheManager,
+        plookupVerbHandler = ProxyLookupVerbHandler(keyValueStore,
+            verbHandlerContext, mockOutboundClientManager, cacheManager,
             accessLog: atAccessLog);
       });
 
@@ -410,8 +410,8 @@ void main() {
     });
 
     test('test proxy_lookup getVerb', () {
-      var handler = ProxyLookupVerbHandler(
-          mockKeyStore, mockOutboundClientManager, mockAtCacheManager,
+      var handler = ProxyLookupVerbHandler(mockKeyStore, verbHandlerContext,
+          mockOutboundClientManager, mockAtCacheManager,
           accessLog: atAccessLog);
       var verb = handler.getVerb();
       expect(verb is ProxyLookup, true);
@@ -419,8 +419,8 @@ void main() {
 
     test('test proxy_lookup command accept test', () {
       var command = 'plookup:location$alice';
-      var handler = ProxyLookupVerbHandler(
-          mockKeyStore, mockOutboundClientManager, mockAtCacheManager,
+      var handler = ProxyLookupVerbHandler(mockKeyStore, verbHandlerContext,
+          mockOutboundClientManager, mockAtCacheManager,
           accessLog: atAccessLog);
       var result = handler.accept(command);
       expect(result, true);

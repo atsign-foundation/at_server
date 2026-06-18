@@ -43,18 +43,18 @@ void main() async {
 
     test('test pkam accept', () {
       var command = 'pkam:abc123';
-      var handler = PkamVerbHandler(mockKeyStore);
+      var handler = PkamVerbHandler(mockKeyStore, verbHandlerContext);
       expect(handler.accept(command), true);
     });
 
     test('test pkam accept invalid keyword', () {
       var command = 'pkamer:';
-      var handler = PkamVerbHandler(mockKeyStore);
+      var handler = PkamVerbHandler(mockKeyStore, verbHandlerContext);
       expect(handler.accept(command), false);
     });
 
     test('test pkam verb handler getVerb', () {
-      var verbHandler = PkamVerbHandler(mockKeyStore);
+      var verbHandler = PkamVerbHandler(mockKeyStore, verbHandlerContext);
       var verb = verbHandler.getVerb();
       expect(verb is Pkam, true);
     });
@@ -62,7 +62,7 @@ void main() async {
     test('test pkam verb - upper case with spaces', () {
       var command = 'PK AM:';
       command = SecondaryUtil.convertCommand(command);
-      var handler = PkamVerbHandler(mockKeyStore);
+      var handler = PkamVerbHandler(mockKeyStore, verbHandlerContext);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -80,7 +80,7 @@ void main() async {
           enMgr = EnrollmentManager(mockKeyStore, alice);
       enMgr.logger.level = 'shout';
       mockKeyStore.preRemoveHooks.add(enMgr.preRemoveHook);
-      pkamVerbHandler = PkamVerbHandler(mockKeyStore);
+      pkamVerbHandler = PkamVerbHandler(mockKeyStore, verbHandlerContext);
     });
 
     test('verify apkam behaviour - case: enrollment approved ', () async {
@@ -207,7 +207,8 @@ void main() async {
       HashMap<String, String?> pkamVerbParams =
           getVerbParam(VerbSyntax.pkam, pkamCommand);
 
-      PkamVerbHandler pkamVerbHandler = PkamVerbHandler(keyValueStore);
+      PkamVerbHandler pkamVerbHandler =
+          PkamVerbHandler(keyValueStore, verbHandlerContext);
       await pkamVerbHandler.processVerb(
           response, pkamVerbParams, inboundConnection);
       expect(response.isError, true);

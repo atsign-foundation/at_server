@@ -18,7 +18,8 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
 
   final AtCommitLog commitLog;
 
-  SyncProgressiveVerbHandler(super.keyStore, {required this.commitLog});
+  SyncProgressiveVerbHandler(super.keyStore, super.context,
+      {required this.commitLog});
 
   /// Represents the size of the sync buffer
   @visibleForTesting

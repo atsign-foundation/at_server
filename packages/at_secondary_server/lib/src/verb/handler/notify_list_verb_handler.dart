@@ -19,6 +19,7 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
 
   NotifyListVerbHandler(
     super.keyStore,
+    super.context,
     this.notifMgr,
   );
 

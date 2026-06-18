@@ -16,7 +16,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
 
   final EnrollmentManager enMgr;
   final Atsign atSign;
-  KeysVerbHandler(super.keyStore, this.enMgr, this.atSign);
+  KeysVerbHandler(super.keyStore, super.context, this.enMgr, this.atSign);
 
   @override
   bool accept(String command) => command.startsWith('keys:');

@@ -13,6 +13,7 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
 
   UpdateVerbHandler(
     super.keyStore,
+    super.context,
     super.statsNotificationService,
     super.notificationManager,
     super.atSign,

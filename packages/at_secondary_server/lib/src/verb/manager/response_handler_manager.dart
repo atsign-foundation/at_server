@@ -16,22 +16,15 @@ abstract class ResponseHandlerManager {
 }
 
 class DefaultResponseHandlerManager implements ResponseHandlerManager {
-  static final DefaultResponseHandlerManager _singleton =
-      DefaultResponseHandlerManager._internal();
+  DefaultResponseHandlerManager();
 
-  DefaultResponseHandlerManager._internal();
-
-  factory DefaultResponseHandlerManager.getInstance() {
-    return _singleton;
-  }
-
-  static final _defaultHandler = DefaultResponseHandler();
-  static final _polHandler = PolResponseHandler();
-  static final _fromHandler = FromResponseHandler();
-  static final _statsHandler = StatsResponseHandler();
-  static final _monitorHandler = MonitorResponseHandler();
-  static final _streamHandler = StreamResponseHandler();
-  static final _notifyAllHandler = NotifyAllResponseHandler();
+  final _defaultHandler = DefaultResponseHandler();
+  final _polHandler = PolResponseHandler();
+  final _fromHandler = FromResponseHandler();
+  final _statsHandler = StatsResponseHandler();
+  final _monitorHandler = MonitorResponseHandler();
+  final _streamHandler = StreamResponseHandler();
+  final _notifyAllHandler = NotifyAllResponseHandler();
 
   @override
   ResponseHandler getResponseHandler(Verb verb) {

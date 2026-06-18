@@ -29,8 +29,10 @@ void main() {
 
     setUp(() async {
       await verbTestsSetUp();
-      keysVerbHandler = KeysVerbHandler(keyValueStore, enMgr, alice);
-      localLookupVerbHandler = LocalLookupVerbHandler(keyValueStore, enMgr);
+      keysVerbHandler =
+          KeysVerbHandler(keyValueStore, verbHandlerContext, enMgr, alice);
+      localLookupVerbHandler =
+          LocalLookupVerbHandler(keyValueStore, verbHandlerContext, enMgr);
     });
 
     tearDown(() async {

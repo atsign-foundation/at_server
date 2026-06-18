@@ -63,6 +63,7 @@ void main() {
       //Update Verb
       var updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -82,6 +83,7 @@ void main() {
       //Update Meta
       var upMetaHandler = UpdateMetaVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -96,7 +98,8 @@ void main() {
 
       // Look Up verb
       var localLookUpResponse = Response();
-      var localLookupVerbHandler = LocalLookupVerbHandler(keyValueStore, enMgr);
+      var localLookupVerbHandler =
+          LocalLookupVerbHandler(keyValueStore, verbHandlerContext, enMgr);
       var localLookVerbParam = HashMap<String, String>();
       localLookVerbParam.putIfAbsent('atSign', () => alice);
       localLookVerbParam.putIfAbsent('forAtSign', () => bob);
@@ -116,6 +119,7 @@ void main() {
       //Update Verb
       var updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -135,6 +139,7 @@ void main() {
       //Update Meta
       var updateMetaVerbHandler = UpdateMetaVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -151,7 +156,8 @@ void main() {
 
       // Look Up verb
       var localLookUpResponse = Response();
-      var localLookupVerbHandler = LocalLookupVerbHandler(keyValueStore, enMgr);
+      var localLookupVerbHandler =
+          LocalLookupVerbHandler(keyValueStore, verbHandlerContext, enMgr);
       var localLookVerbParam = HashMap<String, String>();
       localLookVerbParam.putIfAbsent('atSign', () => alice);
       localLookVerbParam.putIfAbsent('forAtSign', () => bob);

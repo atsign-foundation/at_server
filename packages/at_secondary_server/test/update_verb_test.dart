@@ -51,6 +51,7 @@ void main() {
       var command = 'update:public:location$alice new york';
       var handler = UpdateVerbHandler(
         mockKeyStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -63,6 +64,7 @@ void main() {
       var command = 'updated:public:location$alice new york';
       var handler = UpdateVerbHandler(
         mockKeyStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -182,6 +184,7 @@ void main() {
       var command = 'update:location$alice us';
       AbstractVerbHandler handler = UpdateVerbHandler(
         mockKeyStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -200,6 +203,7 @@ void main() {
       var command = 'update:public:location$alice us';
       AbstractVerbHandler handler = UpdateVerbHandler(
         mockKeyStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -326,6 +330,7 @@ void main() {
       var command = 'update:location$alice';
       AbstractVerbHandler handler = UpdateVerbHandler(
         mockKeyStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -426,6 +431,7 @@ void main() {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       AbstractVerbHandler handler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -440,6 +446,7 @@ void main() {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       AbstractVerbHandler handler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -454,6 +461,7 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(
         mockKeyStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -468,6 +476,7 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(
         mockKeyStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -484,6 +493,7 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(
         mockKeyStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -500,6 +510,7 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(
         mockKeyStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -549,6 +560,7 @@ void main() {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       AbstractVerbHandler handler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -569,6 +581,7 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(
         mockKeyStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -587,7 +600,7 @@ void main() {
       secretData.data =
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyValueStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(keyValueStore,
+      var fromVerbHandler = FromVerbHandler(keyValueStore, verbHandlerContext,
           commitLog: atCommitLog, accessLog: atAccessLog);
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
@@ -602,8 +615,8 @@ void main() {
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
-      var cramVerbHandler =
-          CramVerbHandler(keyValueStore, accessLog: atAccessLog);
+      var cramVerbHandler = CramVerbHandler(keyValueStore, verbHandlerContext,
+          accessLog: atAccessLog);
       var cramResponse = Response();
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
@@ -614,6 +627,7 @@ void main() {
       //Update Verb
       var updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -626,7 +640,8 @@ void main() {
       await updateVerbHandler.processVerb(
           updateResponse, updateVerbParams, atConnection);
       var localLookUpResponse = Response();
-      var localLookupVerbHandler = LocalLookupVerbHandler(keyValueStore, enMgr);
+      var localLookupVerbHandler =
+          LocalLookupVerbHandler(keyValueStore, verbHandlerContext, enMgr);
       var localLookVerbParam = HashMap<String, String>();
       localLookVerbParam.putIfAbsent('atSign', () => alice);
       localLookVerbParam.putIfAbsent('atKey', () => 'location');
@@ -640,7 +655,7 @@ void main() {
       secretData.data =
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyValueStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(keyValueStore,
+      var fromVerbHandler = FromVerbHandler(keyValueStore, verbHandlerContext,
           commitLog: atCommitLog, accessLog: atAccessLog);
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
@@ -655,8 +670,8 @@ void main() {
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
-      var cramVerbHandler =
-          CramVerbHandler(keyValueStore, accessLog: atAccessLog);
+      var cramVerbHandler = CramVerbHandler(keyValueStore, verbHandlerContext,
+          accessLog: atAccessLog);
       var cramResponse = Response();
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
@@ -667,6 +682,7 @@ void main() {
       //Update Verb
       var updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -688,7 +704,8 @@ void main() {
 
       //LLOOKUP Verb - Before TTB
       var localLookUpResponseBeforeTtb = Response();
-      var localLookupVerbHandler = LocalLookupVerbHandler(keyValueStore, enMgr);
+      var localLookupVerbHandler =
+          LocalLookupVerbHandler(keyValueStore, verbHandlerContext, enMgr);
       var localLookVerbParam = HashMap<String, String>();
       localLookVerbParam.putIfAbsent(AtConstants.atSign, () => alice);
       localLookVerbParam.putIfAbsent(AtConstants.atKey, () => 'location');
@@ -723,7 +740,7 @@ void main() {
       secretData.data =
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyValueStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(keyValueStore,
+      var fromVerbHandler = FromVerbHandler(keyValueStore, verbHandlerContext,
           commitLog: atCommitLog, accessLog: atAccessLog);
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
@@ -738,8 +755,8 @@ void main() {
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
-      var cramVerbHandler =
-          CramVerbHandler(keyValueStore, accessLog: atAccessLog);
+      var cramVerbHandler = CramVerbHandler(keyValueStore, verbHandlerContext,
+          accessLog: atAccessLog);
       var cramResponse = Response();
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
@@ -750,6 +767,7 @@ void main() {
       //Update Verb
       var updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -764,7 +782,8 @@ void main() {
           updateResponse, updateVerbParams, atConnection);
       //LLOOKUP Verb - TTB
       var localLookUpResponse = Response();
-      var localLookupVerbHandler = LocalLookupVerbHandler(keyValueStore, enMgr);
+      var localLookupVerbHandler =
+          LocalLookupVerbHandler(keyValueStore, verbHandlerContext, enMgr);
       var localLookVerbParam = HashMap<String, String>();
       localLookVerbParam.putIfAbsent(AtConstants.atSign, () => alice);
       localLookVerbParam.putIfAbsent(AtConstants.atKey, () => 'location');
@@ -791,6 +810,7 @@ void main() {
       AbstractUpdateVerbHandler.setAutoNotify(true);
       UpdateVerbHandler updateHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -822,6 +842,7 @@ void main() {
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       var updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -889,6 +910,7 @@ void main() {
       // 1. do an update and verify via llookup
       UpdateVerbHandler updateHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -896,7 +918,7 @@ void main() {
       await updateHandler.process(updateCommand, inboundConnection);
 
       LocalLookupVerbHandler llookupHandler =
-          LocalLookupVerbHandler(keyValueStore, enMgr);
+          LocalLookupVerbHandler(keyValueStore, verbHandlerContext, enMgr);
       await llookupHandler.process(
           'llookup:all:$bob:$atKey$alice', inboundConnection);
       Map mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
@@ -981,6 +1003,7 @@ void main() {
       // update mutex protection is working correctly.
       UpdateVerbHandler updateHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -1026,6 +1049,7 @@ void main() {
       // update mutex protection is working correctly.
       UpdateVerbHandler updateHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -1068,6 +1092,7 @@ void main() {
     test('Create mutable record and verify correctness', () async {
       UpdateVerbHandler updateHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -1092,6 +1117,7 @@ void main() {
     test('Create immutable record and verify correctness', () async {
       UpdateVerbHandler updateHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -1112,6 +1138,7 @@ void main() {
 
       UpdateMetaVerbHandler updateMetaHandler = UpdateMetaVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -1127,6 +1154,7 @@ void main() {
         () async {
       UpdateVerbHandler updateHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -1154,6 +1182,7 @@ void main() {
         () async {
       UpdateVerbHandler updateHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -1206,6 +1235,7 @@ void main() {
       // 1. Do an update and verify via llookup
       UpdateVerbHandler updateHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -1213,7 +1243,7 @@ void main() {
       await updateHandler.process(updateCommand, inboundConnection);
 
       LocalLookupVerbHandler llookupHandler =
-          LocalLookupVerbHandler(keyValueStore, enMgr);
+          LocalLookupVerbHandler(keyValueStore, verbHandlerContext, enMgr);
       await llookupHandler.process(
           'llookup:all:$bob:$atKey$alice', inboundConnection);
       Map mapSentToClient = decodeResponse(inboundConnection.lastWrittenData!);
@@ -1234,6 +1264,7 @@ void main() {
       updateCommand = updateBuilder.buildCommand().trim();
       updateHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -1257,6 +1288,7 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -1277,6 +1309,7 @@ void main() {
       command = SecondaryUtil.convertCommand(command);
       AbstractVerbHandler handler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -1318,6 +1351,7 @@ void main() {
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -1343,6 +1377,7 @@ void main() {
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -1391,6 +1426,7 @@ void main() {
             getVerbParam(VerbSyntax.update, updateCommand);
         UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
           keyValueStore,
+          verbHandlerContext,
           statsNotificationService,
           notificationManager,
           alice,
@@ -1418,6 +1454,7 @@ void main() {
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -1451,6 +1488,7 @@ void main() {
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -1463,6 +1501,7 @@ void main() {
       updateVerbParams = getVerbParam(VerbSyntax.update, updateCommand);
       updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -1496,6 +1535,7 @@ void main() {
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -1531,6 +1571,7 @@ void main() {
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -1563,6 +1604,7 @@ void main() {
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -1595,6 +1637,7 @@ void main() {
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -1632,6 +1675,7 @@ void main() {
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -1666,6 +1710,7 @@ void main() {
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -1699,6 +1744,7 @@ void main() {
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -1742,6 +1788,7 @@ void main() {
 
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,

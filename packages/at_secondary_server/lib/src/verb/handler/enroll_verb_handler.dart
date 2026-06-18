@@ -39,7 +39,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   final EnrollmentManager enMgr;
   final NotificationManager notifManager;
 
-  EnrollVerbHandler(super.keyStore, this.enMgr, this.notifManager);
+  EnrollVerbHandler(
+      super.keyStore, super.context, this.enMgr, this.notifManager);
 
   @override
   bool accept(String command) => command.startsWith('enroll:');

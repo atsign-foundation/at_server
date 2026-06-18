@@ -69,7 +69,8 @@ void main() {
 
     test('test lookup key-value - cached key', () {
       var command = 'llookup:cached:@bob:email@colin';
-      var handler = LocalLookupVerbHandler(keyValueStore, enMgr);
+      var handler =
+          LocalLookupVerbHandler(keyValueStore, verbHandlerContext, enMgr);
       var paramsMap = handler.parse(command);
       expect(paramsMap[AtConstants.atKey], 'email');
       expect(paramsMap[AtConstants.atSign], 'colin');
@@ -78,14 +79,16 @@ void main() {
     });
 
     test('test local_lookup getVerb', () {
-      var handler = LocalLookupVerbHandler(keyValueStore, enMgr);
+      var handler =
+          LocalLookupVerbHandler(keyValueStore, verbHandlerContext, enMgr);
       var verb = handler.getVerb();
       expect(verb is LocalLookup, true);
     });
 
     test('test local_lookup command accept test', () {
       var command = 'llookup:@b0b:location@colin';
-      var handler = LocalLookupVerbHandler(keyValueStore, enMgr);
+      var handler =
+          LocalLookupVerbHandler(keyValueStore, verbHandlerContext, enMgr);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -155,7 +158,7 @@ void main() {
       secretData.data =
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyValueStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(keyValueStore,
+      var fromVerbHandler = FromVerbHandler(keyValueStore, verbHandlerContext,
           commitLog: atCommitLog, accessLog: atAccessLog);
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
       var atConnection = DummyInboundConnection()
@@ -170,8 +173,8 @@ void main() {
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
-      var cramVerbHandler =
-          CramVerbHandler(keyValueStore, accessLog: atAccessLog);
+      var cramVerbHandler = CramVerbHandler(keyValueStore, verbHandlerContext,
+          accessLog: atAccessLog);
       var cramResponse = Response();
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
@@ -181,6 +184,7 @@ void main() {
       //Update Verb
       var updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -195,7 +199,8 @@ void main() {
           updateResponse, updateVerbParams, atConnection);
       //LLookup Verb
       var localLookUpResponse = Response();
-      var localLookupVerbHandler = LocalLookupVerbHandler(keyValueStore, enMgr);
+      var localLookupVerbHandler =
+          LocalLookupVerbHandler(keyValueStore, verbHandlerContext, enMgr);
       var localLookVerbParam = HashMap<String, String>();
       localLookVerbParam.putIfAbsent(AtConstants.atSign, () => alice);
       localLookVerbParam.putIfAbsent(AtConstants.atKey, () => 'phone');
@@ -209,7 +214,7 @@ void main() {
       secretData.data =
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyValueStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(keyValueStore,
+      var fromVerbHandler = FromVerbHandler(keyValueStore, verbHandlerContext,
           commitLog: atCommitLog, accessLog: atAccessLog);
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
@@ -225,8 +230,8 @@ void main() {
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
-      var cramVerbHandler =
-          CramVerbHandler(keyValueStore, accessLog: atAccessLog);
+      var cramVerbHandler = CramVerbHandler(keyValueStore, verbHandlerContext,
+          accessLog: atAccessLog);
       var cramResponse = Response();
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
@@ -236,6 +241,7 @@ void main() {
       //Update Verb
       var updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -252,7 +258,8 @@ void main() {
           updateResponse, updateVerbParams, atConnection);
       //LLookup Verb
       var localLookUpResponse = Response();
-      var localLookupVerbHandler = LocalLookupVerbHandler(keyValueStore, enMgr);
+      var localLookupVerbHandler =
+          LocalLookupVerbHandler(keyValueStore, verbHandlerContext, enMgr);
       var localLookVerbParam = HashMap<String, String>();
       localLookVerbParam.putIfAbsent(AtConstants.atSign, () => alice);
       localLookVerbParam.putIfAbsent(AtConstants.atKey, () => 'location');
@@ -297,6 +304,7 @@ void main() {
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -318,7 +326,7 @@ void main() {
       HashMap<String, String?> llookupVerbParams =
           getVerbParam(VerbSyntax.llookup, llookupCommand);
       LocalLookupVerbHandler localLookupVerbHandler =
-          LocalLookupVerbHandler(keyValueStore, enMgr);
+          LocalLookupVerbHandler(keyValueStore, verbHandlerContext, enMgr);
       await localLookupVerbHandler.processVerb(
           response, llookupVerbParams, inboundConnection);
       expect(response.data, '123');
@@ -351,6 +359,7 @@ void main() {
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -364,7 +373,7 @@ void main() {
       HashMap<String, String?> llookupVerbParams =
           getVerbParam(VerbSyntax.llookup, llookupCommand);
       LocalLookupVerbHandler localLookupVerbHandler =
-          LocalLookupVerbHandler(keyValueStore, enMgr);
+          LocalLookupVerbHandler(keyValueStore, verbHandlerContext, enMgr);
       await localLookupVerbHandler.processVerb(
           response, llookupVerbParams, inboundConnection);
       expect(response.data, 'bob');
@@ -391,6 +400,7 @@ void main() {
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -404,7 +414,7 @@ void main() {
       HashMap<String, String?> llookupVerbParams =
           getVerbParam(VerbSyntax.llookup, llookupCommand);
       LocalLookupVerbHandler localLookupVerbHandler =
-          LocalLookupVerbHandler(keyValueStore, enMgr);
+          LocalLookupVerbHandler(keyValueStore, verbHandlerContext, enMgr);
       await localLookupVerbHandler.processVerb(
           response, llookupVerbParams, inboundConnection);
       expect(response.data, 'bob');
@@ -430,6 +440,7 @@ void main() {
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -445,7 +456,7 @@ void main() {
       HashMap<String, String?> llookupVerbParams =
           getVerbParam(VerbSyntax.llookup, llookupCommand);
       LocalLookupVerbHandler localLookupVerbHandler =
-          LocalLookupVerbHandler(keyValueStore, enMgr);
+          LocalLookupVerbHandler(keyValueStore, verbHandlerContext, enMgr);
       expect(
           () async => await localLookupVerbHandler.processVerb(
               response, llookupVerbParams, inboundConnection),
@@ -464,6 +475,7 @@ void main() {
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -475,7 +487,7 @@ void main() {
       var llookupCommand = 'llookup:$bob:shared_key$alice';
       var llookupVerbParams = getVerbParam(VerbSyntax.llookup, llookupCommand);
       LocalLookupVerbHandler localLookupVerbHandler =
-          LocalLookupVerbHandler(keyValueStore, enMgr);
+          LocalLookupVerbHandler(keyValueStore, verbHandlerContext, enMgr);
       await localLookupVerbHandler.processVerb(
           response, llookupVerbParams, inboundConnection);
       expect(response.data, 'some shared value');
@@ -504,6 +516,7 @@ void main() {
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -515,7 +528,7 @@ void main() {
       var llookupCommand = 'llookup:$bob:shared_key$alice';
       var llookupVerbParams = getVerbParam(VerbSyntax.llookup, llookupCommand);
       LocalLookupVerbHandler localLookupVerbHandler =
-          LocalLookupVerbHandler(keyValueStore, enMgr);
+          LocalLookupVerbHandler(keyValueStore, verbHandlerContext, enMgr);
       await localLookupVerbHandler.processVerb(
           response, llookupVerbParams, inboundConnection);
       expect(response.data, '123');
@@ -543,6 +556,7 @@ void main() {
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -554,7 +568,7 @@ void main() {
       var llookupCommand = 'llookup:$alice:secret_data$alice';
       var llookupVerbParams = getVerbParam(VerbSyntax.llookup, llookupCommand);
       LocalLookupVerbHandler localLookupVerbHandler =
-          LocalLookupVerbHandler(keyValueStore, enMgr);
+          LocalLookupVerbHandler(keyValueStore, verbHandlerContext, enMgr);
       await localLookupVerbHandler.processVerb(
           response, llookupVerbParams, inboundConnection);
       expect(response.data, '123');
@@ -586,6 +600,7 @@ void main() {
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
         keyValueStore,
+        verbHandlerContext,
         statsNotificationService,
         notificationManager,
         alice,
@@ -613,7 +628,7 @@ void main() {
           secondEnrollmentKey, AtData()..data = jsonEncode(secondEnrollJson));
 
       LocalLookupVerbHandler llookupVerbHandler =
-          LocalLookupVerbHandler(keyValueStore, enMgr);
+          LocalLookupVerbHandler(keyValueStore, verbHandlerContext, enMgr);
       String lookupCommand = 'llookup:$testKey';
       expect(
           await llookupVerbHandler.isAuthorized(inboundConnection.metadata,
@@ -664,7 +679,7 @@ void main() {
         HashMap<String, String?> localLookupVerbParams =
             getVerbParam(VerbSyntax.llookup, llookupCommand);
         LocalLookupVerbHandler localLookupVerbHandler =
-            LocalLookupVerbHandler(keyValueStore, enMgr);
+            LocalLookupVerbHandler(keyValueStore, verbHandlerContext, enMgr);
         expect(
             () async => await localLookupVerbHandler.processVerb(
                 response, localLookupVerbParams, inboundConnection),

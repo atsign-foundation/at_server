@@ -20,7 +20,8 @@ void main() {
     test('Verify that otp:get requires authentication', () async {
       Response response = Response();
       inboundConnection.metaData.isAuthenticated = false;
-      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+      OtpVerbHandler otpVerbHandler =
+          OtpVerbHandler(keyValueStore, verbHandlerContext);
       expect(
           otpVerbHandler.processVerb(response,
               getVerbParam(VerbSyntax.otp, 'otp:get'), inboundConnection),
@@ -29,7 +30,8 @@ void main() {
     test('Verify that otp:get with ttl requires authentication', () async {
       Response response = Response();
       inboundConnection.metaData.isAuthenticated = false;
-      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+      OtpVerbHandler otpVerbHandler =
+          OtpVerbHandler(keyValueStore, verbHandlerContext);
       expect(
           otpVerbHandler.processVerb(
               response,
@@ -40,7 +42,8 @@ void main() {
     test('Verify that otp:put requires authentication', () async {
       Response response = Response();
       inboundConnection.metaData.isAuthenticated = false;
-      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+      OtpVerbHandler otpVerbHandler =
+          OtpVerbHandler(keyValueStore, verbHandlerContext);
       expect(
           otpVerbHandler.processVerb(
               response,
@@ -53,7 +56,8 @@ void main() {
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:get');
       inboundConnection.metaData.isAuthenticated = true;
-      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+      OtpVerbHandler otpVerbHandler =
+          OtpVerbHandler(keyValueStore, verbHandlerContext);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(response.data, isNotNull);
       expect(response.data!.length, 6);
@@ -67,7 +71,8 @@ void main() {
         HashMap<String, String?> verbParams =
             getVerbParam(VerbSyntax.otp, 'otp:get');
         inboundConnection.metaData.isAuthenticated = true;
-        OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+        OtpVerbHandler otpVerbHandler =
+            OtpVerbHandler(keyValueStore, verbHandlerContext);
         await otpVerbHandler.processVerb(
             response, verbParams, inboundConnection);
         expect(response.data, isNotNull);
@@ -85,7 +90,8 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:get:ttl:1000');
-      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+      OtpVerbHandler otpVerbHandler =
+          OtpVerbHandler(keyValueStore, verbHandlerContext);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       String? otp = response.data;
       expect(await otpVerbHandler.isPasscodeValid(otp), true);
@@ -97,7 +103,8 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:get:ttl:1');
-      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+      OtpVerbHandler otpVerbHandler =
+          OtpVerbHandler(keyValueStore, verbHandlerContext);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       String? otp = response.data;
       await Future.delayed(Duration(seconds: 1));
@@ -116,7 +123,8 @@ void main() {
       Response response = Response();
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:get');
-      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+      OtpVerbHandler otpVerbHandler =
+          OtpVerbHandler(keyValueStore, verbHandlerContext);
       expect(
           () => otpVerbHandler.processVerb(
               response, verbParams, inboundConnection),
@@ -138,7 +146,8 @@ void main() {
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:get');
       inboundConnection.metaData.isAuthenticated = true;
-      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+      OtpVerbHandler otpVerbHandler =
+          OtpVerbHandler(keyValueStore, verbHandlerContext);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(await otpVerbHandler.isPasscodeValid(response.data), true);
     });
@@ -149,7 +158,8 @@ void main() {
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:get:ttl:1');
       inboundConnection.metaData.isAuthenticated = true;
-      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+      OtpVerbHandler otpVerbHandler =
+          OtpVerbHandler(keyValueStore, verbHandlerContext);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       String? otp = response.data;
       await Future.delayed(Duration(milliseconds: 2));
@@ -161,7 +171,8 @@ void main() {
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:get:ttl:1');
       inboundConnection.metaData.isAuthenticated = true;
-      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+      OtpVerbHandler otpVerbHandler =
+          OtpVerbHandler(keyValueStore, verbHandlerContext);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       AtData? atData = await keyValueStore.get(
           'private:${response.data}.${OtpVerbHandler.otpNamespace}$atSign');
@@ -180,7 +191,8 @@ void main() {
         'A test to verify otp:validate return invalid when otp does not exist in keystore',
         () async {
       String otp = 'ABC123';
-      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+      OtpVerbHandler otpVerbHandler =
+          OtpVerbHandler(keyValueStore, verbHandlerContext);
       expect(await otpVerbHandler.isPasscodeValid(otp), false);
     });
 
@@ -190,7 +202,8 @@ void main() {
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:get');
       inboundConnection.metaData.isAuthenticated = true;
-      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+      OtpVerbHandler otpVerbHandler =
+          OtpVerbHandler(keyValueStore, verbHandlerContext);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       String? otp = response.data;
       expect(await otpVerbHandler.isPasscodeValid(otp), true);
@@ -207,7 +220,8 @@ void main() {
           ..ttl = OtpVerbHandler.defaultOtpExpiry.inMilliseconds);
       await keyValueStore.put(otpLegacyKey, value);
 
-      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+      OtpVerbHandler otpVerbHandler =
+          OtpVerbHandler(keyValueStore, verbHandlerContext);
       expect(await otpVerbHandler.isPasscodeValid(testOtp), true);
     });
     tearDown(() async => await verbTestsTearDown());
@@ -235,7 +249,8 @@ void main() {
           getVerbParam(VerbSyntax.otp, 'otp:put:$passcode');
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.enrollmentId = enrollmentId;
-      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+      OtpVerbHandler otpVerbHandler =
+          OtpVerbHandler(keyValueStore, verbHandlerContext);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(await otpVerbHandler.isPasscodeValid(passcode), true);
       // Adding expect again to ensure the Semi-permanent passcodes are not deleted
@@ -250,7 +265,8 @@ void main() {
           getVerbParam(VerbSyntax.otp, 'otp:put:$passcode:ttl:50');
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.enrollmentId = enrollmentId;
-      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+      OtpVerbHandler otpVerbHandler =
+          OtpVerbHandler(keyValueStore, verbHandlerContext);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(await otpVerbHandler.isPasscodeValid(passcode), true);
       // Adding expect again to ensure the Semi-permanent passcodes are not deleted
@@ -267,7 +283,8 @@ void main() {
           getVerbParam(VerbSyntax.otp, 'otp:put:$passcode:ttl:50');
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.enrollmentId = enrollmentId;
-      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+      OtpVerbHandler otpVerbHandler =
+          OtpVerbHandler(keyValueStore, verbHandlerContext);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(await otpVerbHandler.isPasscodeValid(passcode), true);
       // Adding expect again to ensure the Semi-permanent passcodes are not deleted
@@ -285,7 +302,8 @@ void main() {
           getVerbParam(VerbSyntax.otp, 'otp:put:$passcode');
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.enrollmentId = enrollmentId;
-      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+      OtpVerbHandler otpVerbHandler =
+          OtpVerbHandler(keyValueStore, verbHandlerContext);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       await Future.delayed(Duration(milliseconds: 2));
       expect(await otpVerbHandler.isPasscodeValid(passcode), true);
@@ -302,14 +320,15 @@ void main() {
           getVerbParam(VerbSyntax.otp, 'otp:put:$passcode');
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.enrollmentId = enrollmentId;
-      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+      OtpVerbHandler otpVerbHandler =
+          OtpVerbHandler(keyValueStore, verbHandlerContext);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(await otpVerbHandler.isPasscodeValid(passcode), true);
       // Update the pass-code
       passcode = 'xyz987';
       response = Response();
       verbParams = getVerbParam(VerbSyntax.otp, 'otp:put:$passcode');
-      otpVerbHandler = OtpVerbHandler(keyValueStore);
+      otpVerbHandler = OtpVerbHandler(keyValueStore, verbHandlerContext);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(await otpVerbHandler.isPasscodeValid(passcode), true);
     });
@@ -321,7 +340,8 @@ void main() {
       AtData value = AtData()..data = testOtp;
       await keyValueStore.put(otpLegacyKey, value);
 
-      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+      OtpVerbHandler otpVerbHandler =
+          OtpVerbHandler(keyValueStore, verbHandlerContext);
       expect(await otpVerbHandler.isPasscodeValid(testOtp), true);
     });
     tearDown(() async => await verbTestsTearDown());
