@@ -333,6 +333,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       streamManager: streamManager,
       enrollmentManager: enrollmentManager,
       statsNotificationService: statsNotificationService,
+      secondaryAddressFinder: secondaryAddressFinder,
     );
 
     // We may have had a VerbHandlerManager set via setVerbHandlerManager()

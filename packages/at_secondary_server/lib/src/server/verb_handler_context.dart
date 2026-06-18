@@ -1,4 +1,5 @@
 import 'package:at_commons/at_commons.dart';
+import 'package:at_lookup/at_lookup.dart' show SecondaryAddressFinder;
 import 'package:at_secondary/src/connection/stream_manager.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
@@ -36,6 +37,9 @@ class VerbHandlerContext {
   /// god-class singleton).
   final StatsNotificationService statsNotificationService;
 
+  /// Resolves an atSign to its secondary's address (used by the `from` verb).
+  final SecondaryAddressFinder secondaryAddressFinder;
+
   VerbHandlerContext({
     required this.currentAtSign,
     required this.responseManager,
@@ -43,5 +47,6 @@ class VerbHandlerContext {
     required this.streamManager,
     required this.enrollmentManager,
     required this.statsNotificationService,
+    required this.secondaryAddressFinder,
   });
 }

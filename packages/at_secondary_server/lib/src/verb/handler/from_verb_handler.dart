@@ -7,7 +7,6 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/config/at_config.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -113,10 +112,9 @@ class FromVerbHandler extends AbstractVerbHandler {
       String fromAtSign, InboundConnection atConnection) async {
     logger.finer(
         'In _verifyFromAtSign fromAtSign : $fromAtSign, rootDomain : $_rootDomain, port : $_rootPort');
-    var secondaryUrl = (await AtSecondaryServerImpl.getInstance()
-            .secondaryAddressFinder
-            .findSecondary(fromAtSign))
-        .toString();
+    var secondaryUrl =
+        (await context.secondaryAddressFinder.findSecondary(fromAtSign))
+            .toString();
 
     logger.finer('_verifyFromAtSign secondaryUrl : $secondaryUrl');
     var secondaryInfo = SecondaryUtil.getSecondaryInfo(secondaryUrl);

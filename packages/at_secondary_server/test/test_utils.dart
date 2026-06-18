@@ -207,6 +207,7 @@ VerbHandlerContext verbHandlerContext = VerbHandlerContext(
   streamManager: StreamManager(),
   enrollmentManager: EnrollmentManager(MockAtKeyValueStore(), alice),
   statsNotificationService: MockStatsNotificationService(),
+  secondaryAddressFinder: MockSecondaryAddressFinder(),
 );
 
 /// Returns a copy of [verbHandlerContext] with selected fields overridden, for
@@ -228,6 +229,7 @@ VerbHandlerContext verbHandlerContextWith({
           enrollmentManager ?? verbHandlerContext.enrollmentManager,
       statsNotificationService: statsNotificationService ??
           verbHandlerContext.statsNotificationService,
+      secondaryAddressFinder: verbHandlerContext.secondaryAddressFinder,
     );
 var bobHost = "domain.testing.bob.bob.bob";
 var bobPort = 12345;
@@ -502,6 +504,7 @@ verbTestsSetUp() async {
     streamManager: StreamManager(),
     enrollmentManager: enMgr,
     statsNotificationService: statsNotificationService,
+    secondaryAddressFinder: mockSecondaryAddressFinder,
   );
 }
 
