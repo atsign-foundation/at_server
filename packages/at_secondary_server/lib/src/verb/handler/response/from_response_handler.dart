@@ -1,6 +1,8 @@
 import 'package:at_secondary/src/verb/handler/response/base_response_handler.dart';
 
 class FromResponseHandler extends BaseResponseHandler {
+  FromResponseHandler(super.currentAtSign, super.exceptionHandler);
+
   @override
   String getResponseMessage(String? verbResult, String prompt) {
     String responseMessage;

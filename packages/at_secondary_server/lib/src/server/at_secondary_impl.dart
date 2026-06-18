@@ -328,7 +328,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // every verb handler at construction time (replacing singleton reaches).
     final verbHandlerContext = VerbHandlerContext(
       currentAtSign: currentAtSign,
-      responseManager: DefaultResponseHandlerManager(),
+      responseManager:
+          DefaultResponseHandlerManager(currentAtSign, globalExceptionHandler),
       exceptionHandler: globalExceptionHandler,
       streamManager: streamManager,
       enrollmentManager: enrollmentManager,

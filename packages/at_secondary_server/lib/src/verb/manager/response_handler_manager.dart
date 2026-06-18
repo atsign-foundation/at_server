@@ -1,3 +1,5 @@
+import 'package:at_commons/at_commons.dart';
+import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/verb/handler/response/default_response_handler.dart';
 import 'package:at_secondary/src/verb/handler/response/from_response_handler.dart';
 import 'package:at_secondary/src/verb/handler/response/monitor_response_handler.dart';
@@ -16,15 +18,24 @@ abstract class ResponseHandlerManager {
 }
 
 class DefaultResponseHandlerManager implements ResponseHandlerManager {
-  DefaultResponseHandlerManager();
+  final Atsign currentAtSign;
+  final GlobalExceptionHandler exceptionHandler;
 
-  final _defaultHandler = DefaultResponseHandler();
-  final _polHandler = PolResponseHandler();
-  final _fromHandler = FromResponseHandler();
-  final _statsHandler = StatsResponseHandler();
-  final _monitorHandler = MonitorResponseHandler();
-  final _streamHandler = StreamResponseHandler();
-  final _notifyAllHandler = NotifyAllResponseHandler();
+  DefaultResponseHandlerManager(this.currentAtSign, this.exceptionHandler);
+
+  late final _defaultHandler =
+      DefaultResponseHandler(currentAtSign, exceptionHandler);
+  late final _polHandler = PolResponseHandler(currentAtSign, exceptionHandler);
+  late final _fromHandler =
+      FromResponseHandler(currentAtSign, exceptionHandler);
+  late final _statsHandler =
+      StatsResponseHandler(currentAtSign, exceptionHandler);
+  late final _monitorHandler =
+      MonitorResponseHandler(currentAtSign, exceptionHandler);
+  late final _streamHandler =
+      StreamResponseHandler(currentAtSign, exceptionHandler);
+  late final _notifyAllHandler =
+      NotifyAllResponseHandler(currentAtSign, exceptionHandler);
 
   @override
   ResponseHandler getResponseHandler(Verb verb) {

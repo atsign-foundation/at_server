@@ -1,13 +1,20 @@
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/verb/handler/response/response_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
 
 abstract class BaseResponseHandler implements ResponseHandler {
+  /// The atSign this server hosts (used to build the response prompt).
+  final Atsign currentAtSign;
+
+  /// Handles exceptions raised while writing the response to the socket.
+  final GlobalExceptionHandler exceptionHandler;
+
   late AtSignLogger logger;
-  BaseResponseHandler() {
+
+  BaseResponseHandler(this.currentAtSign, this.exceptionHandler) {
     logger = AtSignLogger(runtimeType.toString());
   }
 
@@ -21,7 +28,7 @@ abstract class BaseResponseHandler implements ResponseHandler {
       var atConnectionMetadata =
           connection.metaData as InboundConnectionMetadata;
       var isAuthenticated = atConnectionMetadata.isAuthenticated;
-      var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+      var atSign = currentAtSign;
       var isPolAuthenticated = connection.metaData.isPolAuthenticated;
       var fromAtSign = atConnectionMetadata.fromAtSign;
       var prompt = isAuthenticated
@@ -38,9 +45,8 @@ abstract class BaseResponseHandler implements ResponseHandler {
       await connection.write(responseMessage);
     } on Exception catch (e, st) {
       logger.severe('exception in writing response to socket:${e.toString()}');
-      await AtSecondaryServerImpl.getInstance()
-          .globalExceptionHandler
-          .handle(e, stackTrace: st, atConnection: connection);
+      await exceptionHandler.handle(e,
+          stackTrace: st, atConnection: connection);
     }
   }
 

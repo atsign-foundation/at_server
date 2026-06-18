@@ -202,7 +202,8 @@ Atsign bob = '@bob'.toAtsign();
 /// instance is safe across tests.
 VerbHandlerContext verbHandlerContext = VerbHandlerContext(
   currentAtSign: alice,
-  responseManager: DefaultResponseHandlerManager(),
+  responseManager:
+      DefaultResponseHandlerManager(alice, GlobalExceptionHandler(alice)),
   exceptionHandler: GlobalExceptionHandler(alice),
   streamManager: StreamManager(),
   enrollmentManager: EnrollmentManager(MockAtKeyValueStore(), alice),
@@ -499,7 +500,8 @@ verbTestsSetUp() async {
   // instances the tests set up.
   verbHandlerContext = VerbHandlerContext(
     currentAtSign: alice,
-    responseManager: DefaultResponseHandlerManager(),
+    responseManager:
+        DefaultResponseHandlerManager(alice, GlobalExceptionHandler(alice)),
     exceptionHandler: GlobalExceptionHandler(alice),
     streamManager: StreamManager(),
     enrollmentManager: enMgr,
