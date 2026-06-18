@@ -1,5 +1,6 @@
 import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_pool.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -28,6 +29,16 @@ class OutboundClientManager {
   @visibleForTesting
   SecondaryAddressFinder secondaryAddressFinder;
   final OutboundConnectionFactory outboundConnectionFactory;
+
+  /// Server-scoped collaborators injected into each [OutboundClient]. Wired late
+  /// (after AtCacheManager and the signing key exist) at the composition root,
+  /// because this manager is created earlier in server startup. The narrow
+  /// [cachePublicKey] callback (rather than the whole AtCacheManager) breaks the
+  /// OutboundClient <-> AtCacheManager dependency cycle.
+  late Future<void> Function(String name, AtData data) cachePublicKey;
+  late Atsign currentAtSign;
+  dynamic signingKey;
+  late AtKeyValueStore<String, AtData, AtMetaData?> keyStore;
 
   set poolSize(int s) => _pool.size = s;
 
@@ -75,6 +86,10 @@ class OutboundClientManager {
       secondaryAddressFinder,
       handshakeRequired,
       outboundConnectionFactory,
+      cachePublicKey,
+      currentAtSign,
+      signingKey,
+      keyStore,
     );
     if (connect) {
       await newClient.connect();

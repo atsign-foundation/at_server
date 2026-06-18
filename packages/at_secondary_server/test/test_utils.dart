@@ -351,6 +351,10 @@ verbTestsSetUp() async {
     mockSecondaryAddressFinder,
     true,
     mockOutboundConnectionFactory,
+    (name, data) async => await cacheManager.put(name, data),
+    alice,
+    bobServerSigningKeypair.privateKey.toString(),
+    keyValueStore,
   )
     ..notifyTimeoutMillis = 100
     ..lookupTimeoutMillis = 100
@@ -363,6 +367,10 @@ verbTestsSetUp() async {
     mockSecondaryAddressFinder,
     false,
     mockOutboundConnectionFactory,
+    (name, data) async => await cacheManager.put(name, data),
+    alice,
+    bobServerSigningKeypair.privateKey.toString(),
+    keyValueStore,
   )
     ..notifyTimeoutMillis = 100
     ..lookupTimeoutMillis = 100
@@ -422,6 +430,14 @@ verbTestsSetUp() async {
     keyValueStore,
     mockOutboundClientManager,
     notificationManager,
+  );
+
+  // Wire the notify pool's outbound deps (mirrors AtSecondaryServerImpl.start()).
+  notificationManager.wireOutboundClientDeps(
+    cachePublicKey: cacheManager.put,
+    currentAtSign: alice,
+    signingKey: bobServerSigningKeypair.privateKey.toString(),
+    keyStore: keyValueStore,
   );
 
   AtSecondaryServerImpl.getInstance().keyValueStore = keyValueStore;

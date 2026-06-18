@@ -292,6 +292,23 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     cacheManager = AtCacheManager(serverContext!.currentAtSign!, keyValueStore,
         outboundClientManager, notificationManager);
 
+    // Wire the outbound pools' server-scoped deps now that cacheManager and the
+    // signing key (loaded in _initializePersistentInstances) exist. The pools
+    // were created earlier in startup, so this is a one-time late wiring. The
+    // narrow cachePublicKey callback (cacheManager.put) breaks the
+    // OutboundClient <-> AtCacheManager dependency cycle.
+    outboundClientManager
+      ..cachePublicKey = cacheManager.put
+      ..currentAtSign = currentAtSign
+      ..signingKey = signingKey
+      ..keyStore = keyValueStore;
+    notificationManager.wireOutboundClientDeps(
+      cachePublicKey: cacheManager.put,
+      currentAtSign: currentAtSign,
+      signingKey: signingKey,
+      keyStore: keyValueStore,
+    );
+
     var random = Random();
     var runRefreshJobHour = random.nextInt(23);
     atRefreshJob =

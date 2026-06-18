@@ -1,5 +1,6 @@
 import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart' show SecondaryAddressFinder;
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_pool.dart';
@@ -14,6 +15,15 @@ class NotifyConnectionsPool {
   late final OutboundClientPool _outboundClientPool;
   final OutboundConnectionFactory outboundConnectionFactory;
   final SecondaryAddressFinder secondaryAddressFinder;
+
+  /// Server-scoped collaborators injected into each [OutboundClient]. Wired late
+  /// (after AtCacheManager and the signing key exist) at the composition root.
+  /// The narrow [cachePublicKey] callback (rather than the whole AtCacheManager)
+  /// breaks the OutboundClient <-> AtCacheManager dependency cycle.
+  late Future<void> Function(String name, AtData data) cachePublicKey;
+  late Atsign currentAtSign;
+  dynamic signingKey;
+  late AtKeyValueStore<String, AtData, AtMetaData?> keyStore;
 
   NotifyConnectionsPool(
     this.secondaryAddressFinder,
@@ -69,6 +79,10 @@ class NotifyConnectionsPool {
       secondaryAddressFinder,
       true,
       outboundConnectionFactory,
+      cachePublicKey,
+      currentAtSign,
+      signingKey,
+      keyStore,
     );
     if (connect) {
       await newClient.connect();

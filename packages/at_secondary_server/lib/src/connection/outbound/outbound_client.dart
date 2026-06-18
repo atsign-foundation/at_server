@@ -4,12 +4,10 @@ import 'dart:io';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart' as at_lookup;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/outbound/at_request_formatter.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_message_listener.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/at_security_context_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -53,12 +51,31 @@ class OutboundClient {
         'isConnectionCreated: $isConnectionCreated, isHandShakeDone: $isHandShakeDone}';
   }
 
+  /// Caches a remote peer's public key (wired to `AtCacheManager.put` at the
+  /// composition root). A narrow capability rather than the whole cache manager,
+  /// so OutboundClient does not name AtCacheManager — this breaks the
+  /// OutboundClient <-> AtCacheManager dependency cycle.
+  final Future<void> Function(String name, AtData data) cachePublicKey;
+
+  /// The atSign this server hosts.
+  final Atsign currentAtSign;
+
+  /// This server's signing private key, used for the server-to-server pol
+  /// handshake. Typed `dynamic` to match the server's lazily-loaded value.
+  final dynamic signingKey;
+
+  final AtKeyValueStore<String, AtData, AtMetaData?> keyStore;
+
   OutboundClient(
     this.inboundConnection,
     this.toAtSign,
     this.secondaryAddressFinder,
     this.handshakeRequired,
     this.outboundConnectionFactory,
+    this.cachePublicKey,
+    this.currentAtSign,
+    this.signingKey,
+    this.keyStore,
   );
 
   /// Connects to an secondary and performs required handshake to be ready to run rest of the commands
@@ -125,11 +142,6 @@ class OutboundClient {
     late AtData atData;
     late String remoteResponse;
 
-    // TODO Using singleton until we have won the long war on singletons and can inject the AtCacheManager
-    // TODO into this object at construction time.
-    AtCacheManager cacheManager =
-        AtSecondaryServerImpl.getInstance().cacheManager;
-
     String doing = 'checkRemotePublicKey looking up $remotePublicKeyName';
     try {
       remoteResponse =
@@ -155,7 +167,7 @@ class OutboundClient {
       doing = 'checkRemotePublicKey updating $cachedPublicKeyName in cache';
       // Note: Potentially the put here may be doing a lot more than just the put.
       // See AtCacheManager.put for detailed explanation.
-      await cacheManager.put(cachedPublicKeyName, atData);
+      await cachePublicKey(cachedPublicKeyName, atData);
     } catch (e, st) {
       logger.severe('Caught $e while $doing');
       logger.severe(st);
@@ -176,8 +188,8 @@ class OutboundClient {
     }
     try {
       //1. create from request
-      await outboundConnection!.write(AtRequestFormatter.createFromRequest(
-          AtSecondaryServerImpl.getInstance().currentAtSign));
+      await outboundConnection!
+          .write(AtRequestFormatter.createFromRequest(currentAtSign));
 
       //2. Receive proof
       var fromResult = await messageListener.read();
@@ -192,10 +204,10 @@ class OutboundClient {
       var challenge = cookieParams[3];
 
       if (productionMode) {
-        var signedChallenge = SecondaryUtil.signChallenge(
-            challenge, AtSecondaryServerImpl.getInstance().signingKey);
-        await SecondaryUtil.saveCookie(sessionIdWithAtSign, signedChallenge,
-            AtSecondaryServerImpl.getInstance().keyValueStore);
+        var signedChallenge =
+            SecondaryUtil.signChallenge(challenge, signingKey);
+        await SecondaryUtil.saveCookie(
+            sessionIdWithAtSign, signedChallenge, keyStore);
       }
 
       //4. Create pol request
@@ -203,7 +215,6 @@ class OutboundClient {
 
       // 5. wait for handshake result - @<current_atsign>@
       var handShakeResult = await messageListener.read();
-      var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
       if (handShakeResult.startsWith('$currentAtSign@')) {
         logger.info("pol handshake complete");
         outboundConnection!.authenticated = true;

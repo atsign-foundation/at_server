@@ -30,6 +30,13 @@ void main() async {
         DefaultOutboundConnectionFactory(clientCertificateRequired: false));
 
     notifyConnectionsPool.size = 2;
+    // Wire the outbound deps the pool injects into each OutboundClient
+    // (production wires these in AtSecondaryServerImpl.start()).
+    notifyConnectionsPool
+      ..cachePublicKey = ((name, data) async {})
+      ..currentAtSign = alice
+      ..signingKey = ''
+      ..keyStore = MockAtKeyValueStore();
   });
 
   tearDown(() {
@@ -54,6 +61,10 @@ void main() async {
         AtSecondaryServerImpl.getInstance().secondaryAddressFinder,
         false,
         outboundConnectionFactory,
+        (name, data) async {},
+        alice,
+        '',
+        MockAtKeyValueStore(),
       );
       outboundClient.outboundConnection =
           OutboundConnectionImpl(mockSocket, toAtSign);

@@ -20,6 +20,13 @@ void main() {
     serverContext.unauthenticatedInboundIdleTimeMillis = 50;
     serverContext.unauthenticatedOutboundIdleTimeMillis = 30;
     AtSecondaryServerImpl.getInstance().serverContext = serverContext;
+    // Wire the outbound deps the manager injects into each OutboundClient
+    // (production wires these in AtSecondaryServerImpl.start()).
+    AtSecondaryServerImpl.getInstance().outboundClientManager
+      ..cachePublicKey = ((name, data) async {})
+      ..currentAtSign = alice
+      ..signingKey = ''
+      ..keyStore = MockAtKeyValueStore();
   });
 
   group('A group of outbound client manager tests', () {

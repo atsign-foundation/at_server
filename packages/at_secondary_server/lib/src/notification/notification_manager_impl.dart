@@ -38,6 +38,23 @@ class NotificationManager {
   NotificationManager(
       this.atSign, this._notifStore, this._notifyConnectionsPool);
 
+  /// Wires the server-scoped collaborators into the outbound notify pool. Called
+  /// once by the composition root after AtCacheManager and the signing key exist
+  /// (the pool is created earlier in startup). The narrow [cachePublicKey]
+  /// callback breaks the OutboundClient <-> AtCacheManager dependency cycle.
+  void wireOutboundClientDeps({
+    required Future<void> Function(String name, AtData data) cachePublicKey,
+    required Atsign currentAtSign,
+    required dynamic signingKey,
+    required AtKeyValueStore<String, AtData, AtMetaData?> keyStore,
+  }) {
+    _notifyConnectionsPool
+      ..cachePublicKey = cachePublicKey
+      ..currentAtSign = currentAtSign
+      ..signingKey = signingKey
+      ..keyStore = keyStore;
+  }
+
   Future<void> close() async {
     if (_closed) {
       return;
