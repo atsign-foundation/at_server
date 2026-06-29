@@ -35,8 +35,10 @@ composition-root access, not oversights (each is commented inline):
   inbound connection `serverContext` (config, with a default fallback — the
   connection is constructed ~100× in tests), `InboundMessageListener`,
   `connection_metrics`, `stats_notification_service`, `outbound_connection_impl`,
-  `at_certificate_validation`, and `StatsVerbHandler.atServer` (the stats metrics
-  operate over the whole server). These operate on server-wide state by design.
+  `at_certificate_validation`, and `StatsVerbHandler._inboundConnectionPool` (a
+  late getter for the inbound pool, which is created after the handler is built —
+  the other stats collaborators are constructor-injected and each `MetricProvider`
+  takes only the dependency it needs). These operate on server-wide state by design.
 - **Static-by-design shared state**: `AbstractUpdateVerbHandler._updateMutexes`
   (a per-key mutex registry deliberately shared across `UpdateVerbHandler` and
   `UpdateMetaVerbHandler`) and `_autoNotify` (process-wide runtime config toggled
