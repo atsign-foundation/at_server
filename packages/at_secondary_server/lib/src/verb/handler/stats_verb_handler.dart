@@ -4,7 +4,11 @@ import 'dart:collection';
 import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
+import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_impl.dart';
@@ -37,10 +41,6 @@ enum Metric {
 }
 
 class StatsVerbHandler extends AbstractVerbHandler {
-  // Composition-root access (deliberate): the stats metrics operate over
-  // server-wide state, so each Metric implementation below takes the whole
-  // server instance.
-  AtSecondaryServerImpl atServer = AtSecondaryServerImpl.getInstance();
   static Stats stats = Stats();
 
   /// Maps a stat id (as sent on the wire) to its [Metric]. Immutable routing
@@ -65,48 +65,70 @@ class StatsVerbHandler extends AbstractVerbHandler {
     '17': Metric.INBOUND_DETAILED,
   };
 
+  /// Server-scoped collaborators the individual metrics operate over, injected
+  /// at construction so each metric's dependency is explicit at the point it is
+  /// built (see [getProvider]).
+  final OutboundClientManager outboundClientManager;
+  final NotificationManager notificationManager;
+  final AtCommitLog commitLog;
+  final AtAccessLog accessLog;
+
   dynamic _regex;
+
+  StatsVerbHandler(
+    super.keyStore,
+    super.context,
+    this.outboundClientManager,
+    this.notificationManager, {
+    required this.commitLog,
+    required this.accessLog,
+  });
+
+  /// Composition-root access (deliberate): the inbound connection pool is
+  /// created during server start — after the verb-handler context, and hence
+  /// this handler, are built — so it cannot be constructor-injected. Mirrors
+  /// the late-bound reach in `enroll_verb_handler`.
+  InboundConnectionPool get _inboundConnectionPool =>
+      AtSecondaryServerImpl.getInstance().inboundConnectionManager.pool;
 
   MetricProvider getProvider(Metric metric) {
     switch (metric) {
       case Metric.INBOUND:
-        return InboundMetricImpl(atServer);
+        return InboundMetricImpl(_inboundConnectionPool);
       case Metric.OUTBOUND:
-        return OutBoundMetricImpl(atServer);
+        return OutBoundMetricImpl(outboundClientManager);
       case Metric.LASTCOMMIT:
-        return LastCommitIDMetricImpl(atServer);
+        return LastCommitIDMetricImpl(commitLog);
       case Metric.SECONDARY_STORAGE_SIZE:
-        return SecondaryStorageMetricImpl(atServer);
+        return SecondaryStorageMetricImpl();
       case Metric.MOST_VISITED_ATSIGN:
-        return MostVisitedAtSignMetricImpl(atServer);
+        return MostVisitedAtSignMetricImpl(accessLog);
       case Metric.MOST_VISITED_ATKEYS:
-        return MostVisitedAtKeyMetricImpl(atServer);
+        return MostVisitedAtKeyMetricImpl(accessLog);
       case Metric.SECONDARY_SERVER_VERSION:
-        return SecondaryServerVersion(atServer);
+        return SecondaryServerVersion();
       case Metric.LAST_LOGGEDIN_DATETIME:
-        return LastLoggedInDatetimeMetricImpl(atServer);
+        return LastLoggedInDatetimeMetricImpl(accessLog);
       case Metric.DISK_SIZE:
-        return DiskSizeMetricImpl(atServer);
+        return DiskSizeMetricImpl();
       case Metric.LAST_AUTH_TIME:
-        return LastPkamMetricImpl(atServer);
+        return LastPkamMetricImpl(accessLog);
       case Metric.NOTIFICATION_COUNT:
-        return NotificationsMetricImpl(atServer);
+        return NotificationsMetricImpl(notificationManager);
       case Metric.COMMIT_LOG_COMPACTION:
-        return CommitLogCompactionStats(atServer);
+        return CommitLogCompactionStats(keyStore);
       case Metric.ACCESS_lOG_COMPACTION:
-        return AccessLogCompactionStats(atServer);
+        return AccessLogCompactionStats(keyStore);
       case Metric.NOTIFICATION_COMPACTION:
-        return NotificationCompactionStats(atServer);
+        return NotificationCompactionStats(keyStore);
       case Metric.LATEST_COMMIT_ENTRY_OF_EACH_KEY:
-        return LatestCommitEntryOfEachKey(atServer);
+        return LatestCommitEntryOfEachKey(commitLog);
       case Metric.INBOUND_SUMMARY:
-        return InboundSummaryMetricImpl(atServer);
+        return InboundSummaryMetricImpl(_inboundConnectionPool);
       case Metric.INBOUND_DETAILED:
-        return InboundDetailedMetricImpl(atServer);
+        return InboundDetailedMetricImpl(_inboundConnectionPool);
     }
   }
-
-  StatsVerbHandler(super.keyStore, super.context);
 
   // Method to verify whether command is accepted or not
   // Input: command
@@ -165,7 +187,7 @@ class StatsVerbHandler extends AbstractVerbHandler {
     List<String> enrolledNamespaces = [];
     if ((atConnection.metaData as InboundConnectionMetadata).enrollmentId !=
         null) {
-      enrolledNamespaces = (await atServer.enrollmentManager.getEnrollmentById(
+      enrolledNamespaces = (await context.enrollmentManager.getEnrollmentById(
               (atConnection.metaData as InboundConnectionMetadata)
                   .enrollmentId!))
           .namespaces

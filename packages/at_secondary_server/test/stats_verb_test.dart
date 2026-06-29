@@ -49,14 +49,18 @@ void main() {
   group('A group of stats verb tests', () {
     AtSecondaryServerImpl.getInstance().currentAtSign = alice;
     test('test stats getVerb', () {
-      var handler = StatsVerbHandler(mockKeyStore, verbHandlerContext);
+      var handler = StatsVerbHandler(mockKeyStore, verbHandlerContext,
+          mockOutboundClientManager, mockNotificationManager,
+          commitLog: atCommitLog, accessLog: atAccessLog);
       var verb = handler.getVerb();
       expect(verb is Stats, true);
     });
 
     test('test stats command accept test', () {
       var command = 'stats:1';
-      var handler = StatsVerbHandler(mockKeyStore, verbHandlerContext);
+      var handler = StatsVerbHandler(mockKeyStore, verbHandlerContext,
+          mockOutboundClientManager, mockNotificationManager,
+          commitLog: atCommitLog, accessLog: atAccessLog);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -72,7 +76,9 @@ void main() {
 
     test('test stats command accept test with comma separated values', () {
       var command = 'stats:1,2,3';
-      var handler = StatsVerbHandler(mockKeyStore, verbHandlerContext);
+      var handler = StatsVerbHandler(mockKeyStore, verbHandlerContext,
+          mockOutboundClientManager, mockNotificationManager,
+          commitLog: atCommitLog, accessLog: atAccessLog);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -100,7 +106,9 @@ void main() {
     test('test stats verb - upper case', () {
       var command = 'STATS';
       command = SecondaryUtil.convertCommand(command);
-      var handler = StatsVerbHandler(mockKeyStore, verbHandlerContext);
+      var handler = StatsVerbHandler(mockKeyStore, verbHandlerContext,
+          mockOutboundClientManager, mockNotificationManager,
+          commitLog: atCommitLog, accessLog: atAccessLog);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -142,13 +150,15 @@ void main() {
     // test for Notification Stats
     test('notification stats command accept test', () {
       var command = 'stats:11';
-      var handler = StatsVerbHandler(mockKeyStore, verbHandlerContext);
+      var handler = StatsVerbHandler(mockKeyStore, verbHandlerContext,
+          mockOutboundClientManager, mockNotificationManager,
+          commitLog: atCommitLog, accessLog: atAccessLog);
       var result = handler.accept(command);
       expect(result, true);
     });
 
     test('the name of the notificationStats', () async {
-      var metric = NotificationsMetricImpl(atServer);
+      var metric = NotificationsMetricImpl(atServer.notificationManager);
       String name = metric.getName();
       expect(name, 'NotificationCount');
     });
@@ -284,7 +294,7 @@ void main() {
           response, verbParams3, atConnection);
       await notifyListVerbHandler.processVerb(
           response, verbParams4, atConnection);
-      metricsMap = await NotificationsMetricImpl(atServer)
+      metricsMap = await NotificationsMetricImpl(atServer.notificationManager)
           .getNotificationStats(metricsMap);
       expect(metricsMap['total'], 4);
       expect(metricsMap['type']['sent'], 2);
@@ -304,13 +314,15 @@ void main() {
   group('A group of commitLogCompactionStats verb tests', () {
     test('commitLogCompactionStats command accept test', () {
       var command = 'stats:12';
-      var handler = StatsVerbHandler(mockKeyStore, verbHandlerContext);
+      var handler = StatsVerbHandler(mockKeyStore, verbHandlerContext,
+          mockOutboundClientManager, mockNotificationManager,
+          commitLog: atCommitLog, accessLog: atAccessLog);
       var result = handler.accept(command);
       expect(result, true);
     });
 
     test('test name returned for commitLogCompaction Stats', () async {
-      var commitLogInstance = CommitLogCompactionStats(atServer);
+      var commitLogInstance = CommitLogCompactionStats(atServer.keyValueStore);
       String name = commitLogInstance.getName();
       expect(name, 'CommitLogCompactionStats');
     });
@@ -325,7 +337,8 @@ void main() {
       await keyValueStore.put(AtConstants.commitLogCompactionKey,
           AtData()..data = jsonEncode(payload));
 
-      var atData = await CommitLogCompactionStats(atServer).getMetrics();
+      var atData =
+          await CommitLogCompactionStats(atServer.keyValueStore).getMetrics();
       var decodedData = jsonDecode(atData!) as Map;
       expect(decodedData['deletedKeysCount'].toString(), '41');
       expect(decodedData['compactionDurationInMills'].toString(), '1000');
@@ -335,13 +348,15 @@ void main() {
   group('A group of accessLogCompactionStats verb tests', () {
     test('accessLogCompactionStats command acceptance test', () {
       var command = 'stats:13';
-      var handler = StatsVerbHandler(mockKeyStore, verbHandlerContext);
+      var handler = StatsVerbHandler(mockKeyStore, verbHandlerContext,
+          mockOutboundClientManager, mockNotificationManager,
+          commitLog: atCommitLog, accessLog: atAccessLog);
       var result = handler.accept(command);
       expect(result, true);
     });
 
     test('name returned for accessLogCompaction Stats test', () async {
-      var accessLogInstance = AccessLogCompactionStats(atServer);
+      var accessLogInstance = AccessLogCompactionStats(atServer.keyValueStore);
       String name = accessLogInstance.getName();
       expect(name, 'AccessLogCompactionStats');
     });
@@ -356,7 +371,8 @@ void main() {
       await keyValueStore.put(AtConstants.accessLogCompactionKey,
           AtData()..data = jsonEncode(payload));
 
-      var atData = await AccessLogCompactionStats(atServer).getMetrics();
+      var atData =
+          await AccessLogCompactionStats(atServer.keyValueStore).getMetrics();
       var decodedData = jsonDecode(atData!) as Map;
       expect(decodedData['deletedKeysCount'], '431');
       expect(decodedData['compactionDurationInMills'], '10000');
@@ -366,13 +382,16 @@ void main() {
   group('A group of notificationCompactionStats verb tests', () {
     test('notificationCompactionStats command accept test', () {
       var command = 'stats:14';
-      var handler = StatsVerbHandler(mockKeyStore, verbHandlerContext);
+      var handler = StatsVerbHandler(mockKeyStore, verbHandlerContext,
+          mockOutboundClientManager, mockNotificationManager,
+          commitLog: atCommitLog, accessLog: atAccessLog);
       var result = handler.accept(command);
       expect(result, true);
     });
 
     test('test name returned for notificationCompaction Stats', () async {
-      var notificationInstance = NotificationCompactionStats(atServer);
+      var notificationInstance =
+          NotificationCompactionStats(atServer.keyValueStore);
       String name = notificationInstance.getName();
       expect(name, 'NotificationCompactionStats');
     });
@@ -387,7 +406,8 @@ void main() {
       await keyValueStore.put(AtConstants.commitLogCompactionKey,
           AtData()..data = jsonEncode(payload));
 
-      var atData = await CommitLogCompactionStats(atServer).getMetrics();
+      var atData =
+          await CommitLogCompactionStats(atServer.keyValueStore).getMetrics();
       var decodedData = jsonDecode(atData!) as Map;
       expect(decodedData['deletedKeysCount'], '1');
       expect(decodedData['compactionDurationInMills'], '10000');
@@ -396,7 +416,8 @@ void main() {
 
   group('A group of test to validate latestCommitEntryOfEachKey', () {
     test('A test to validate latestCommitEntryOfEachKey', () async {
-      var lastCommitId = await LastCommitIDMetricImpl(atServer).getMetrics();
+      var lastCommitId =
+          await LastCommitIDMetricImpl(atServer.commitLog).getMetrics();
       var randomString = Uuid().v4();
       await keyValueStore.put(
           '$alice:phone-$randomString$alice', AtData()..data = '9848033443');
@@ -411,7 +432,7 @@ void main() {
           AtData()..data = '9848033444');
       await keyValueStore.remove('$alice:deleteKey-$randomString$alice');
       var latestCommitIdForEachKey =
-          await LatestCommitEntryOfEachKey(atServer).getMetrics();
+          await LatestCommitEntryOfEachKey(atServer.commitLog).getMetrics();
       var latestCommitIdMap = jsonDecode(latestCommitIdForEachKey);
       expect(latestCommitIdMap['$alice:location-$randomString$alice'][0],
           (int.parse(lastCommitId) + 2));
@@ -429,7 +450,7 @@ void main() {
     test(
         'A test to validate commit entries when commit log entry count is greater than default sync buffer zie',
         () async {
-      await LastCommitIDMetricImpl(atServer).getMetrics();
+      await LastCommitIDMetricImpl(atServer.commitLog).getMetrics();
       var randomString = Uuid().v4();
       int phoneNumber = 1234;
       int min = 5;
@@ -441,9 +462,9 @@ void main() {
         await keyValueStore.put('$alice:phone-${randomString}_$i$alice',
             AtData()..data = phoneNumber.toString());
       }
-      await LastCommitIDMetricImpl(atServer).getMetrics();
+      await LastCommitIDMetricImpl(atServer.commitLog).getMetrics();
       var latestCommitIdForEachKey =
-          await LatestCommitEntryOfEachKey(atServer).getMetrics();
+          await LatestCommitEntryOfEachKey(atServer.commitLog).getMetrics();
       Map<String, dynamic> latestCommitIdMap =
           jsonDecode(latestCommitIdForEachKey);
       for (int i = 1; i <= randomNumber; i++) {
@@ -464,7 +485,7 @@ void main() {
       await keyValueStore.put(
           '$alice:mobile.buzz$alice', AtData()..data = '9848033444');
 
-      var lastCommitId = await LastCommitIDMetricImpl(atServer)
+      var lastCommitId = await LastCommitIDMetricImpl(atServer.commitLog)
           .getMetrics(enrolledNamespaces: ['wavi']);
       expect(lastCommitId, '1');
     });
@@ -481,7 +502,7 @@ void main() {
       await keyValueStore.put(
           '$alice:contact.atmosphere$alice', AtData()..data = '9848033444');
 
-      var lastCommitId = await LastCommitIDMetricImpl(atServer)
+      var lastCommitId = await LastCommitIDMetricImpl(atServer.commitLog)
           .getMetrics(enrolledNamespaces: ['wavi', 'buzz']);
       expect(lastCommitId, '2');
     });
@@ -498,7 +519,8 @@ void main() {
       await keyValueStore.put(
           '$alice:contact.atmosphere$alice', AtData()..data = '9848033444');
 
-      var lastCommitId = await LastCommitIDMetricImpl(atServer).getMetrics();
+      var lastCommitId =
+          await LastCommitIDMetricImpl(atServer.commitLog).getMetrics();
       expect(lastCommitId, '3');
     });
 
@@ -514,14 +536,14 @@ void main() {
       await keyValueStore.put(
           '$alice:contact.atmosphere$alice', AtData()..data = '9848033444');
 
-      var lastCommitId =
-          await LastCommitIDMetricImpl(atServer).getMetrics(regex: 'buzz');
+      var lastCommitId = await LastCommitIDMetricImpl(atServer.commitLog)
+          .getMetrics(regex: 'buzz');
       expect(lastCommitId, '2');
     });
     test('A test to check LatestCommitEntryOfEachKey for empty commit log',
         () async {
       var latestCommitIdForEachKey =
-          await LatestCommitEntryOfEachKey(atServer).getMetrics();
+          await LatestCommitEntryOfEachKey(atServer.commitLog).getMetrics();
       Map<String, dynamic> latestCommitIdMap =
           jsonDecode(latestCommitIdForEachKey);
       expect(latestCommitIdMap.isEmpty, true);

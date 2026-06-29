@@ -1,10 +1,9 @@
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
-
+/// Base type for the individual server-stats providers built by
+/// `StatsVerbHandler.getProvider`. Each implementation declares exactly the
+/// collaborator(s) it needs as constructor parameters rather than reaching
+/// through a shared god-class handle, so a provider's dependencies are obvious
+/// at its construction site.
 abstract class MetricProvider {
-  AtSecondaryServerImpl atServer;
-
-  MetricProvider(this.atServer);
-
   String getName();
 
   dynamic getMetrics({String? regex});

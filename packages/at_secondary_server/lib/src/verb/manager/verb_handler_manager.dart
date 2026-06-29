@@ -138,7 +138,9 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
       statsNotificationService,
       notificationManager,
     ));
-    _verbHandlers.add(StatsVerbHandler(keyStore, context));
+    _verbHandlers.add(StatsVerbHandler(
+        keyStore, context, outboundClientManager, notificationManager,
+        commitLog: commitLog, accessLog: accessLog));
     _verbHandlers
         .add(ConfigVerbHandler(keyStore, context, commitLog: commitLog));
     _verbHandlers

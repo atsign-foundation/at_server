@@ -3,6 +3,9 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
+import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/regex_util.dart' as sync_filter;
 import 'package:at_secondary/src/verb/metrics/metrics_provider.dart';
@@ -12,13 +15,13 @@ import 'package:at_utils/at_logger.dart';
 final _logger = AtSignLogger('MetricsImpl');
 
 class InboundMetricImpl extends MetricProvider {
-  InboundMetricImpl(super.atServer);
+  final InboundConnectionPool pool;
+
+  InboundMetricImpl(this.pool);
 
   @override
   String getMetrics({String? regex}) {
-    return atServer.inboundConnectionManager.pool
-        .getActiveConnectionSize()
-        .toString();
+    return pool.getActiveConnectionSize().toString();
   }
 
   @override
@@ -28,11 +31,13 @@ class InboundMetricImpl extends MetricProvider {
 }
 
 class InboundSummaryMetricImpl extends MetricProvider {
-  InboundSummaryMetricImpl(super.atServer);
+  final InboundConnectionPool pool;
+
+  InboundSummaryMetricImpl(this.pool);
 
   @override
   Map<String, dynamic> getMetrics({String? regex}) {
-    return atServer.inboundConnectionManager.pool.getStats(detailed: false);
+    return pool.getStats(detailed: false);
   }
 
   @override
@@ -42,11 +47,13 @@ class InboundSummaryMetricImpl extends MetricProvider {
 }
 
 class InboundDetailedMetricImpl extends MetricProvider {
-  InboundDetailedMetricImpl(super.atServer);
+  final InboundConnectionPool pool;
+
+  InboundDetailedMetricImpl(this.pool);
 
   @override
   Map<String, dynamic> getMetrics({String? regex}) {
-    return atServer.inboundConnectionManager.pool.getStats(detailed: true);
+    return pool.getStats(detailed: true);
   }
 
   @override
@@ -56,11 +63,13 @@ class InboundDetailedMetricImpl extends MetricProvider {
 }
 
 class OutBoundMetricImpl extends MetricProvider {
-  OutBoundMetricImpl(super.atServer);
+  final OutboundClientManager outboundClientManager;
+
+  OutBoundMetricImpl(this.outboundClientManager);
 
   @override
   String getMetrics({String? regex}) {
-    return atServer.outboundClientManager.getActiveConnectionSize().toString();
+    return outboundClientManager.getActiveConnectionSize().toString();
   }
 
   @override
@@ -70,18 +79,20 @@ class OutBoundMetricImpl extends MetricProvider {
 }
 
 class LastCommitIDMetricImpl extends MetricProvider {
-  LastCommitIDMetricImpl(super.atServer);
+  final AtCommitLog commitLog;
+
+  LastCommitIDMetricImpl(this.commitLog);
 
   @override
   Future<String> getMetrics(
       {String? regex, List<String>? enrolledNamespaces}) async {
     _logger.finer('In commitID getMetrics...regex : $regex');
     if (regex == null && enrolledNamespaces == null) {
-      return atServer.commitLog.lastCommittedSequenceNumber().toString();
+      return commitLog.lastCommittedSequenceNumber().toString();
     }
     final effectiveRegex = regex ?? '.*';
     int? lastCommitID;
-    await for (final entry in atServer.commitLog.iterate(
+    await for (final entry in commitLog.iterate(
         where: (e) => sync_filter.shouldIncludeKeyInSyncResponse(
             e.atKey!, effectiveRegex,
             enrolledNamespace: enrolledNamespaces))) {
@@ -100,7 +111,7 @@ class LastCommitIDMetricImpl extends MetricProvider {
 }
 
 class SecondaryStorageMetricImpl extends MetricProvider {
-  SecondaryStorageMetricImpl(super.atServer);
+  SecondaryStorageMetricImpl();
 
   @override
   int getMetrics({String? regex}) {
@@ -126,13 +137,14 @@ class SecondaryStorageMetricImpl extends MetricProvider {
 }
 
 class MostVisitedAtSignMetricImpl extends MetricProvider {
-  MostVisitedAtSignMetricImpl(super.atServer);
+  final AtAccessLog accessLog;
+
+  MostVisitedAtSignMetricImpl(this.accessLog);
 
   @override
   Future<String> getMetrics({String? regex}) async {
     final length = AtSecondaryConfig.stats_top_visits!;
-    final AtAccessLog atAccessLog = atServer.accessLog;
-    return jsonEncode(await atAccessLog.mostVisitedAtSigns(length));
+    return jsonEncode(await accessLog.mostVisitedAtSigns(length));
   }
 
   @override
@@ -142,13 +154,14 @@ class MostVisitedAtSignMetricImpl extends MetricProvider {
 }
 
 class MostVisitedAtKeyMetricImpl extends MetricProvider {
-  MostVisitedAtKeyMetricImpl(super.atServer);
+  final AtAccessLog accessLog;
+
+  MostVisitedAtKeyMetricImpl(this.accessLog);
 
   @override
   Future<String> getMetrics({String? regex}) async {
     final length = AtSecondaryConfig.stats_top_keys!;
-    final AtAccessLog atAccessLog = atServer.accessLog;
-    return jsonEncode(await atAccessLog.mostVisitedKeys(length));
+    return jsonEncode(await accessLog.mostVisitedKeys(length));
   }
 
   @override
@@ -158,7 +171,7 @@ class MostVisitedAtKeyMetricImpl extends MetricProvider {
 }
 
 class SecondaryServerVersion extends MetricProvider {
-  SecondaryServerVersion(super.atServer);
+  SecondaryServerVersion();
 
   @override
   String? getMetrics({String? regex}) {
@@ -172,12 +185,13 @@ class SecondaryServerVersion extends MetricProvider {
 }
 
 class LastLoggedInDatetimeMetricImpl extends MetricProvider {
-  LastLoggedInDatetimeMetricImpl(super.atServer);
+  final AtAccessLog accessLog;
+
+  LastLoggedInDatetimeMetricImpl(this.accessLog);
 
   @override
   Future<String?> getMetrics({String? regex}) async {
-    final AtAccessLog atAccessLog = atServer.accessLog;
-    var entry = await atAccessLog.getLastAccessLogEntry();
+    var entry = await accessLog.getLastAccessLogEntry();
     return entry.requestDateTime!.toUtc().toString();
   }
 
@@ -188,7 +202,7 @@ class LastLoggedInDatetimeMetricImpl extends MetricProvider {
 }
 
 class DiskSizeMetricImpl extends MetricProvider {
-  DiskSizeMetricImpl(super.atServer);
+  DiskSizeMetricImpl();
 
   @override
   String getMetrics({String? regex}) {
@@ -226,12 +240,13 @@ class DiskSizeMetricImpl extends MetricProvider {
 }
 
 class LastPkamMetricImpl extends MetricProvider {
-  LastPkamMetricImpl(super.atServer);
+  final AtAccessLog accessLog;
+
+  LastPkamMetricImpl(this.accessLog);
 
   @override
   Future<String?> getMetrics({String? regex}) async {
-    final AtAccessLog atAccessLog = atServer.accessLog;
-    var entry = await atAccessLog.getLastPkamAccessLogEntry();
+    var entry = await accessLog.getLastPkamAccessLogEntry();
     return (entry != null)
         ? entry.requestDateTime!.toUtc().toString()
         : 'Not Available';
@@ -244,7 +259,9 @@ class LastPkamMetricImpl extends MetricProvider {
 }
 
 class NotificationsMetricImpl extends MetricProvider {
-  NotificationsMetricImpl(super.atServer);
+  final NotificationManager notificationManager;
+
+  NotificationsMetricImpl(this.notificationManager);
 
   @override
   Future<String?> getMetrics({String? regex}) async {
@@ -279,8 +296,8 @@ class NotificationsMetricImpl extends MetricProvider {
   Future<Map<String, dynamic>> getNotificationStats(
       Map<String, dynamic> metrics) async {
     int total = 0;
-    for (final k in await atServer.notificationManager.getKeys()) {
-      final n = await atServer.notificationManager.get(k);
+    for (final k in await notificationManager.getKeys()) {
+      final n = await notificationManager.get(k);
       if (n == null) {
         continue;
       }
@@ -333,26 +350,13 @@ class NotificationsMetricImpl extends MetricProvider {
   }
 }
 
-class KeyStorageMetricImpl extends MetricProvider {
-  KeyStorageMetricImpl(super.atServer);
-
-  @override
-  Future<String?> getMetrics({String? regex}) async {
-    return atServer.currentAtSign;
-  }
-
-  @override
-  String getName() {
-    return 'atSign';
-  }
-}
-
 class CommitLogCompactionStats extends MetricProvider {
-  CommitLogCompactionStats(super.atServer);
+  final AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore;
+
+  CommitLogCompactionStats(this.keyValueStore);
 
   @override
   getMetrics({String? regex}) async {
-    final keyValueStore = atServer.keyValueStore;
     if (await keyValueStore.exists(AtConstants.commitLogCompactionKey)) {
       AtData? atData =
           await keyValueStore.get(AtConstants.commitLogCompactionKey);
@@ -370,11 +374,12 @@ class CommitLogCompactionStats extends MetricProvider {
 }
 
 class AccessLogCompactionStats extends MetricProvider {
-  AccessLogCompactionStats(super.atServer);
+  final AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore;
+
+  AccessLogCompactionStats(this.keyValueStore);
 
   @override
   getMetrics({String? regex}) async {
-    final keyValueStore = atServer.keyValueStore;
     if (await keyValueStore.exists(AtConstants.accessLogCompactionKey)) {
       AtData? atData =
           await keyValueStore.get(AtConstants.accessLogCompactionKey);
@@ -392,11 +397,12 @@ class AccessLogCompactionStats extends MetricProvider {
 }
 
 class NotificationCompactionStats extends MetricProvider {
-  NotificationCompactionStats(super.atServer);
+  final AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore;
+
+  NotificationCompactionStats(this.keyValueStore);
 
   @override
   getMetrics({String? regex}) async {
-    final keyValueStore = atServer.keyValueStore;
     if (await keyValueStore.exists(AtConstants.notificationCompactionKey)) {
       AtData? atData =
           await keyValueStore.get(AtConstants.notificationCompactionKey);
@@ -414,17 +420,18 @@ class NotificationCompactionStats extends MetricProvider {
 }
 
 class LatestCommitEntryOfEachKey extends MetricProvider {
-  LatestCommitEntryOfEachKey(super.atServer);
+  final AtCommitLog commitLog;
+
+  LatestCommitEntryOfEachKey(this.commitLog);
 
   @override
   getMetrics({String? regex = '.*'}) async {
     final responseMap = <String, List<dynamic>>{};
-    final atCommitLog = atServer.commitLog;
     // The commit-log box's one-entry-per-atKey invariant guarantees
     // a single walk yields the latest entry for every atKey.
     final hasRegex = regex != null && regex.isNotEmpty && regex != '.*';
     final pattern = hasRegex ? RegExp(regex) : null;
-    await for (final commitEntry in atCommitLog.iterate(
+    await for (final commitEntry in commitLog.iterate(
         where: hasRegex
             ? (e) => e.atKey != null && pattern!.hasMatch(e.atKey!)
             : null)) {
