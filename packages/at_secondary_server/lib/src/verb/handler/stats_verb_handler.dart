@@ -36,32 +36,34 @@ enum Metric {
   INBOUND_DETAILED,
 }
 
-final Map statsMap = {
-  '1': Metric.INBOUND,
-  '2': Metric.OUTBOUND,
-  '3': Metric.LASTCOMMIT,
-  '4': Metric.SECONDARY_STORAGE_SIZE,
-  '5': Metric.MOST_VISITED_ATSIGN,
-  '6': Metric.MOST_VISITED_ATKEYS,
-  '7': Metric.SECONDARY_SERVER_VERSION,
-  '8': Metric.LAST_LOGGEDIN_DATETIME,
-  '9': Metric.DISK_SIZE,
-  '10': Metric.LAST_AUTH_TIME,
-  '11': Metric.NOTIFICATION_COUNT,
-  '12': Metric.COMMIT_LOG_COMPACTION,
-  '13': Metric.ACCESS_lOG_COMPACTION,
-  '14': Metric.NOTIFICATION_COMPACTION,
-  '15': Metric.LATEST_COMMIT_ENTRY_OF_EACH_KEY,
-  '16': Metric.INBOUND_SUMMARY,
-  '17': Metric.INBOUND_DETAILED,
-};
-
 class StatsVerbHandler extends AbstractVerbHandler {
   // Composition-root access (deliberate): the stats metrics operate over
   // server-wide state, so each Metric implementation below takes the whole
   // server instance.
   AtSecondaryServerImpl atServer = AtSecondaryServerImpl.getInstance();
   static Stats stats = Stats();
+
+  /// Maps a stat id (as sent on the wire) to its [Metric]. Immutable routing
+  /// table; formerly a top-level mutable global map.
+  static const Map _statsMap = {
+    '1': Metric.INBOUND,
+    '2': Metric.OUTBOUND,
+    '3': Metric.LASTCOMMIT,
+    '4': Metric.SECONDARY_STORAGE_SIZE,
+    '5': Metric.MOST_VISITED_ATSIGN,
+    '6': Metric.MOST_VISITED_ATKEYS,
+    '7': Metric.SECONDARY_SERVER_VERSION,
+    '8': Metric.LAST_LOGGEDIN_DATETIME,
+    '9': Metric.DISK_SIZE,
+    '10': Metric.LAST_AUTH_TIME,
+    '11': Metric.NOTIFICATION_COUNT,
+    '12': Metric.COMMIT_LOG_COMPACTION,
+    '13': Metric.ACCESS_lOG_COMPACTION,
+    '14': Metric.NOTIFICATION_COMPACTION,
+    '15': Metric.LATEST_COMMIT_ENTRY_OF_EACH_KEY,
+    '16': Metric.INBOUND_SUMMARY,
+    '17': Metric.INBOUND_DETAILED,
+  };
 
   dynamic _regex;
 
@@ -157,7 +159,7 @@ class StatsVerbHandler extends AbstractVerbHandler {
       statsList = getStatsIDSet(statID);
     } else {
       // if user send only stats verb get list of all the stat ID's
-      statsList = statsMap.keys.toSet();
+      statsList = _statsMap.keys.toSet();
     }
     var result = [];
     List<String> enrolledNamespaces = [];
@@ -183,8 +185,8 @@ class StatsVerbHandler extends AbstractVerbHandler {
   // get Metric based on ID
   Metric metricById(String key) {
     //use map and get name based on ID
-    if (statsMap.containsKey(key)) {
-      return statsMap[key];
+    if (_statsMap.containsKey(key)) {
+      return _statsMap[key];
     } else {
       throw InvalidSyntaxException('No metric with ID $key');
     }

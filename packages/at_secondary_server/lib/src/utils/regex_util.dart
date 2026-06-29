@@ -3,7 +3,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:at_utils/at_utils.dart';
 
-final logger = AtSignLogger('RegexUtil');
+final _logger = AtSignLogger('RegexUtil');
 
 Iterable<RegExpMatch> getMatches(RegExp regex, String command) {
   var matches = regex.allMatches(command);
@@ -54,7 +54,7 @@ bool isNamespaceAuthorised(
   try {
     atKey = AtKey.fromString(atKeyAsString);
   } on InvalidSyntaxException catch (_) {
-    logger.warning(
+    _logger.warning(
         'isNamespaceAuthorised found an invalid key "$atKeyAsString" in the commit log. Returning false');
     return false;
   }

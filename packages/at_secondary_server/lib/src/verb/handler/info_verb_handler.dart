@@ -13,11 +13,14 @@ import 'abstract_verb_handler.dart';
 /// Handler for the 'info' verb. Usage of info verb is documented in at_server_spec/lib/src/verb/info.dart
 class InfoVerbHandler extends AbstractVerbHandler {
   static Info infoVerb = Info();
-  static int? approximateStartTimeMillis;
 
-  InfoVerbHandler(super.keyStore, super.context) {
-    approximateStartTimeMillis ??= DateTime.now().millisecondsSinceEpoch;
-  }
+  /// Approximate server start time, captured when this handler is built (once
+  /// per server, during verb-handler manager construction). Formerly a static
+  /// field with a first-construction-wins guard; an instance field isolates it
+  /// per server — notably across restarts within a single test isolate.
+  final int approximateStartTimeMillis = DateTime.now().millisecondsSinceEpoch;
+
+  InfoVerbHandler(super.keyStore, super.context);
 
   @override
   bool accept(String command) =>
@@ -37,8 +40,8 @@ class InfoVerbHandler extends AbstractVerbHandler {
 
     infoMap['version'] = AtSecondaryConfig.secondaryServerVersion;
     Duration uptime = Duration(
-        milliseconds: DateTime.now().millisecondsSinceEpoch -
-            approximateStartTimeMillis!);
+        milliseconds:
+            DateTime.now().millisecondsSinceEpoch - approximateStartTimeMillis);
     if (verbParams[paramFullCommandAsReceived] == 'info') {
       String uptimeAsWords = durationToWords(uptime);
       infoMap['uptimeAsWords'] = uptimeAsWords;
