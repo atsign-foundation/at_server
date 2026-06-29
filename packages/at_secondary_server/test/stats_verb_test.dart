@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:math';
 
@@ -547,6 +548,188 @@ void main() {
       Map<String, dynamic> latestCommitIdMap =
           jsonDecode(latestCommitIdForEachKey);
       expect(latestCommitIdMap.isEmpty, true);
+    });
+  });
+
+  group('StatsVerbHandler getProvider dependency-injection wiring', () {
+    // Each metric must be built with exactly the collaborator it needs.
+    // Construct the handler with distinguishable instances and assert which
+    // one each MetricProvider receives.
+    StatsVerbHandler wiringHandler() => StatsVerbHandler(mockKeyStore,
+        verbHandlerContext, mockOutboundClientManager, mockNotificationManager,
+        commitLog: atCommitLog, accessLog: atAccessLog);
+
+    test('inbound metrics receive the server inbound connection pool', () {
+      var handler = wiringHandler();
+      final pool = atServer.inboundConnectionManager.pool;
+      expect((handler.getProvider(Metric.INBOUND) as InboundMetricImpl).pool,
+          same(pool));
+      expect(
+          (handler.getProvider(Metric.INBOUND_SUMMARY)
+                  as InboundSummaryMetricImpl)
+              .pool,
+          same(pool));
+      expect(
+          (handler.getProvider(Metric.INBOUND_DETAILED)
+                  as InboundDetailedMetricImpl)
+              .pool,
+          same(pool));
+    });
+
+    test('outbound metric receives the injected outboundClientManager', () {
+      var handler = wiringHandler();
+      expect(
+          (handler.getProvider(Metric.OUTBOUND) as OutBoundMetricImpl)
+              .outboundClientManager,
+          same(mockOutboundClientManager));
+    });
+
+    test('commit-log metrics receive the injected commitLog', () {
+      var handler = wiringHandler();
+      expect(
+          (handler.getProvider(Metric.LASTCOMMIT) as LastCommitIDMetricImpl)
+              .commitLog,
+          same(atCommitLog));
+      expect(
+          (handler.getProvider(Metric.LATEST_COMMIT_ENTRY_OF_EACH_KEY)
+                  as LatestCommitEntryOfEachKey)
+              .commitLog,
+          same(atCommitLog));
+    });
+
+    test('access-log metrics receive the injected accessLog', () {
+      var handler = wiringHandler();
+      expect(
+          (handler.getProvider(Metric.MOST_VISITED_ATSIGN)
+                  as MostVisitedAtSignMetricImpl)
+              .accessLog,
+          same(atAccessLog));
+      expect(
+          (handler.getProvider(Metric.MOST_VISITED_ATKEYS)
+                  as MostVisitedAtKeyMetricImpl)
+              .accessLog,
+          same(atAccessLog));
+      expect(
+          (handler.getProvider(Metric.LAST_LOGGEDIN_DATETIME)
+                  as LastLoggedInDatetimeMetricImpl)
+              .accessLog,
+          same(atAccessLog));
+      expect(
+          (handler.getProvider(Metric.LAST_AUTH_TIME) as LastPkamMetricImpl)
+              .accessLog,
+          same(atAccessLog));
+    });
+
+    test('compaction metrics receive the handler keyStore', () {
+      var handler = wiringHandler();
+      expect(
+          (handler.getProvider(Metric.COMMIT_LOG_COMPACTION)
+                  as CommitLogCompactionStats)
+              .keyValueStore,
+          same(mockKeyStore));
+      expect(
+          (handler.getProvider(Metric.ACCESS_lOG_COMPACTION)
+                  as AccessLogCompactionStats)
+              .keyValueStore,
+          same(mockKeyStore));
+      expect(
+          (handler.getProvider(Metric.NOTIFICATION_COMPACTION)
+                  as NotificationCompactionStats)
+              .keyValueStore,
+          same(mockKeyStore));
+    });
+
+    test('notification metric receives the injected notificationManager', () {
+      var handler = wiringHandler();
+      expect(
+          (handler.getProvider(Metric.NOTIFICATION_COUNT)
+                  as NotificationsMetricImpl)
+              .notificationManager,
+          same(mockNotificationManager));
+    });
+
+    test('config-backed metrics take no collaborator', () {
+      var handler = wiringHandler();
+      expect(handler.getProvider(Metric.SECONDARY_STORAGE_SIZE),
+          isA<SecondaryStorageMetricImpl>());
+      expect(handler.getProvider(Metric.DISK_SIZE), isA<DiskSizeMetricImpl>());
+      expect(handler.getProvider(Metric.SECONDARY_SERVER_VERSION),
+          isA<SecondaryServerVersion>());
+    });
+  });
+
+  group('StatsVerbHandler processVerb and helpers', () {
+    // Build with the real collaborators so processVerb exercises the full path.
+    StatsVerbHandler buildHandler() => StatsVerbHandler(keyValueStore,
+        verbHandlerContext, mockOutboundClientManager, notificationManager,
+        commitLog: atCommitLog, accessLog: atAccessLog);
+
+    HashMap<String, String?> verbParams(String? statId, {String? regex}) =>
+        HashMap<String, String?>.from(
+            {AtConstants.statId: statId, AtConstants.regex: regex});
+
+    List<Map> decodeStats(Response response) =>
+        (jsonDecode(response.data!) as List).cast<Map>();
+
+    test('processVerb stats:1 reports inbound connections via the late pool',
+        () async {
+      var handler = buildHandler();
+      var response = Response();
+      var connection = InboundConnectionImpl(mockSocket, null);
+
+      await handler.processVerb(response, verbParams(':1'), connection);
+
+      var stats = decodeStats(response);
+      expect(stats.length, 1);
+      expect(stats.first['name'], 'activeInboundConnections');
+      // Fresh, empty inbound pool from verbTestsSetUp.
+      expect(stats.first['value'], '0');
+    });
+
+    test('processVerb stats:3 returns lastCommitID via the injected commitLog',
+        () async {
+      await keyValueStore.put(
+          '$alice:phone$alice', AtData()..data = '9848033443');
+      var handler = buildHandler();
+      var response = Response();
+      var connection = InboundConnectionImpl(mockSocket, null);
+
+      await handler.processVerb(response, verbParams(':3'), connection);
+
+      var stats = decodeStats(response);
+      expect(stats.length, 1);
+      expect(stats.first['name'], 'lastCommitID');
+      expect(stats.first['value'],
+          atCommitLog.lastCommittedSequenceNumber().toString());
+    });
+
+    test('processVerb with multiple ids returns one entry per id', () async {
+      var handler = buildHandler();
+      var response = Response();
+      var connection = InboundConnectionImpl(mockSocket, null);
+
+      await handler.processVerb(response, verbParams(':1,7'), connection);
+
+      var stats = decodeStats(response);
+      expect(stats.length, 2);
+      expect(stats.map((s) => s['name']).toSet(),
+          {'activeInboundConnections', 'secondaryServerVersion'});
+    });
+
+    test('metricById maps known ids and rejects unknown ones', () {
+      var handler = buildHandler();
+      expect(handler.metricById('1'), Metric.INBOUND);
+      expect(handler.metricById('17'), Metric.INBOUND_DETAILED);
+      expect(
+          () => handler.metricById('999'),
+          throwsA(predicate((dynamic e) =>
+              e is InvalidSyntaxException &&
+              e.message == 'No metric with ID 999')));
+    });
+
+    test('getStatsIDSet parses comma-separated ids and de-duplicates', () {
+      var handler = buildHandler();
+      expect(handler.getStatsIDSet(':1,2,2,3'), {'1', '2', '3'});
     });
   });
 }
