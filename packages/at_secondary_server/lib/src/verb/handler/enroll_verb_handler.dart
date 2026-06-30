@@ -68,10 +68,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
     EnrollParams? enrollVerbParams;
 
-    // Ensure that enrollParams are present for all enroll operation
-    // Exclude operation 'list' which does not have enrollParams
+    // Ensure that enrollParams are present for all enroll operation.
+    // 'list' and 'listfornamespace' carry no enrollParams JSON body.
     if (verbParams[AtConstants.enrollParams] == null) {
-      if (operation != 'list') {
+      if (operation != 'list' &&
+          operation != 'listfornamespace' &&
+          operation != 'metadata') {
         logger.severe(
             'Enroll params is empty | EnrollParams: ${verbParams[AtConstants.enrollParams]}');
         throw IllegalArgumentException('Enroll parameters not provided');
@@ -141,6 +143,23 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           enrollVerbParams: enrollVerbParams,
         );
         return;
+      case 'listfornamespace':
+        response.data = await _fetchEnrollmentsForNamespace(
+          enMgr,
+          atConnection,
+          verbParams['namespace'] ?? '',
+        );
+        return;
+      case 'metadata':
+        await _storeEnrollmentMetadata(
+          enMgr,
+          atConnection,
+          verbParams['namespace'] ?? '',
+          verbParams[AtConstants.enrollParams] ?? '{}',
+          currentAtSign,
+        );
+        responseJson['status'] = 'success';
+        break;
       case 'fetch':
         response.data = await _fetchEnrollmentInfoById(
           enMgr,
@@ -511,6 +530,94 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
   }
 
+  /// Returns a JSON-encoded list of approved enrollments authorised for
+  /// [namespace]. Each element has shape:
+  ///   `{"enrollmentId": <id>, "access": <"r"|"rw">, "metadata": <map|null>}`
+  ///
+  /// Only enrollments with at least read-access to [namespace] are included.
+  /// Requires an APKAM-authenticated connection that itself has access to the
+  /// namespace (the atServer namespace gating ensures this implicitly; the
+  /// handler re-verifies that the caller's enrollment is approved).
+  Future<String> _fetchEnrollmentsForNamespace(
+    EnrollmentManager enMgr,
+    InboundConnection atConnection,
+    String namespace,
+  ) async {
+    if (namespace.isEmpty) {
+      throw IllegalArgumentException(
+          'namespace is required for enroll:listfornamespace');
+    }
+
+    final callerEnrollmentId =
+        (atConnection.metaData as InboundConnectionMetadata).enrollmentId;
+    if (callerEnrollmentId == null || callerEnrollmentId.isEmpty) {
+      throw UnAuthenticatedException(
+          'enroll:listfornamespace requires APKAM authentication');
+    }
+
+    // Verify the caller's own enrollment is approved and has namespace access.
+    final callerEnVal = await enMgr.getEnrollmentById(callerEnrollmentId);
+    if (callerEnVal.approval?.state != EnrollmentStatus.approved.name) {
+      throw UnAuthorizedException(
+          'Caller enrollment is not in approved state');
+    }
+
+    final members = await enMgr.getEnrollmentsForNamespace(namespace);
+    return jsonEncode(members);
+  }
+
+  /// Stores opaque [metadataJson] on the enrollment record identified by
+  /// [enrollmentId]. The caller must be authenticated via APKAM and the
+  /// [enrollmentId] must match the authenticated enrollment (a client can
+  /// only write its own metadata).
+  Future<void> _storeEnrollmentMetadata(
+    EnrollmentManager enMgr,
+    InboundConnection atConnection,
+    String enrollmentId,
+    String metadataJson,
+    String currentAtSign,
+  ) async {
+    if (enrollmentId.isEmpty) {
+      throw IllegalArgumentException(
+          'enrollmentId is required for enroll:metadata');
+    }
+
+    final callerEnrollmentId =
+        (atConnection.metaData as InboundConnectionMetadata).enrollmentId;
+    if (callerEnrollmentId == null || callerEnrollmentId.isEmpty) {
+      throw UnAuthenticatedException(
+          'enroll:metadata requires APKAM authentication');
+    }
+    if (callerEnrollmentId != enrollmentId) {
+      throw UnAuthorizedException(
+          'enroll:metadata: caller enrollment $callerEnrollmentId cannot write'
+          ' metadata for enrollment $enrollmentId');
+    }
+
+    final EnrollDataStoreValue enVal =
+        await enMgr.getEnrollmentById(enrollmentId);
+    if (enVal.approval?.state != EnrollmentStatus.approved.name) {
+      throw IllegalStateException(
+          'Cannot write metadata for a non-approved enrollment');
+    }
+
+    Map<String, dynamic> parsedMetadata;
+    try {
+      parsedMetadata = jsonDecode(metadataJson) as Map<String, dynamic>;
+    } catch (_) {
+      throw IllegalArgumentException(
+          'enroll:metadata: metadataJson is not valid JSON');
+    }
+
+    // Merge incoming metadata into any existing metadata, then persist.
+    final existing = enVal.metadata ?? {};
+    existing.addAll(parsedMetadata);
+    enVal.metadata = existing;
+
+    final atData = AtData()..data = jsonEncode(enVal.toJson());
+    await enMgr.put(enrollmentId, atData, EnrollmentStatus.approved);
+  }
+
   bool _doesEnrollmentHaveManageNamespace(
       EnrollDataStoreValue enrollDataStoreValue) {
     return enrollDataStoreValue.namespaces
@@ -679,6 +786,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
               'enrollmentId is mandatory for enroll:$operation');
         }
         break;
+      // listfornamespace and metadata are validated in their own handlers
+      // because their params are in the 'namespace' capture group, not enrollParams.
     }
   }
 

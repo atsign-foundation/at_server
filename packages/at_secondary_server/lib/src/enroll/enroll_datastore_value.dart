@@ -18,6 +18,12 @@ class EnrollDataStoreValue {
   String? encryptedAPKAMSymmetricKey;
   Duration apkamKeysExpiryDuration = Duration(milliseconds: 0);
 
+  /// Opaque per-APKAM metadata stored by the client (WP-SS).
+  /// The server treats this as an opaque JSON map and returns it verbatim in
+  /// enroll:listfornamespace responses. Key packages live under
+  /// metadata['keyPackages'] by convention.
+  Map<String, dynamic>? metadata;
+
   EnrollDataStoreValue(
       this.sessionId, this.appName, this.deviceName, this.apkamPublicKey);
 
