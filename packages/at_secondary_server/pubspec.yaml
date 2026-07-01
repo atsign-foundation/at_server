@@ -21,7 +21,7 @@ dependencies:
   encrypt: ^5.0.3
   at_commons: ^5.11.0
   at_utils: ^3.4.0
-  at_chops: ^3.0.0
+  at_chops: ^3.3.0
   at_lookup: ^3.5.0
   at_server_spec: ^5.1.0
   at_persistence_secondary_server: ^5.1.0

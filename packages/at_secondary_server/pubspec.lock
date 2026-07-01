@@ -61,10 +61,10 @@ packages:
     dependency: "direct main"
     description:
       name: at_chops
-      sha256: f53505b62169c0c3d8226ee8fbe4b2b837bff68be33496946e54d680986192a7
+      sha256: "4d6ab2cbf9fb87e0d575ffe0cc0622075677b679ea875d5ac39e475ae4be188a"
       url: "https://pub.dev"
     source: hosted
-    version: "3.2.0"
+    version: "3.3.0"
   at_commons:
     dependency: "direct main"
     description:
@@ -84,16 +84,18 @@ packages:
   at_persistence_secondary_server:
     dependency: "direct main"
     description:
-      path: "../at_persistence_secondary_server"
-      relative: true
-    source: path
+      name: at_persistence_secondary_server
+      sha256: e4386ee5aab1c6cda7ca9f2baf1f7273fc8e4b669f7aa477260693c8ba84d08b
+      url: "https://pub.dev"
+    source: hosted
     version: "5.1.0"
   at_server_spec:
     dependency: "direct main"
     description:
-      path: "../at_server_spec"
-      relative: true
-    source: path
+      name: at_server_spec
+      sha256: c128bc00c8bde819ff547b2a7baf9788723f9d87c36eddc30fd18042c64060cf
+      url: "https://pub.dev"
+    source: hosted
     version: "5.1.0"
   at_utf7:
     dependency: transitive
