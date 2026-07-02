@@ -300,9 +300,18 @@ class EnrollmentManager {
   }
 
   /// Returns all approved enrollments that have access to [namespace], as a
-  /// list of maps suitable for JSON encoding in the `enroll:listfornamespace`
-  /// response. Each entry has shape:
-  ///   `{"enrollmentId": <id>, "access": <"r"|"rw">, "metadata": <map|null>}`
+  /// flat list of maps suitable for JSON encoding in the `enroll:listns`
+  /// response (1:1:1 — one entry per enrollment, no nested `apkam[]`). Each
+  /// entry has shape:
+  ///
+  /// ```
+  /// {"enrollmentId": id, "access": "r"|"rw", "apkamPubKey": pubKey,
+  ///  "metadata": map|null}
+  /// ```
+  ///
+  /// `metadata.keyPackage` (a singular, APKAM-signed key package) is the
+  /// substrate's encapsulation target; the server stores/returns `metadata`
+  /// opaquely.
   ///
   /// The namespace match mirrors the atServer's own suffix rule:
   ///   - `*` authorises every namespace
@@ -318,9 +327,7 @@ class EnrollmentManager {
       String? access;
       for (final entry in enVal.namespaces.entries) {
         final ns = entry.key;
-        if (ns == '*' ||
-            ns == namespace ||
-            namespace.endsWith('.$ns')) {
+        if (ns == '*' || ns == namespace || namespace.endsWith('.$ns')) {
           access = entry.value;
           break;
         }
@@ -330,6 +337,7 @@ class EnrollmentManager {
       result.add({
         'enrollmentId': getIdFromKey(ek),
         'access': access,
+        'apkamPubKey': enVal.apkamPublicKey,
         'metadata': enVal.metadata,
       });
     }

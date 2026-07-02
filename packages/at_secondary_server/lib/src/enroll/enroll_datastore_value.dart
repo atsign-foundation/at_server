@@ -20,9 +20,14 @@ class EnrollDataStoreValue {
 
   /// Opaque per-APKAM metadata stored by the client (WP-SS).
   /// The server treats this as an opaque JSON map and returns it verbatim in
-  /// enroll:listfornamespace responses. Key packages live under
-  /// metadata['keyPackages'] by convention.
+  /// enroll:listns responses. The enrollment's single (APKAM-signed) key
+  /// package lives under metadata['keyPackage'] by convention (1:1:1 — no
+  /// format-keyed map).
   Map<String, dynamic>? metadata;
+
+  /// The signing algorithm of [apkamPublicKey] — `rsa2048` (legacy default) or
+  /// `mldsa65` (PQ). Recorded so PKAM verification can be record-authoritative.
+  String? signingAlgo;
 
   EnrollDataStoreValue(
       this.sessionId, this.appName, this.deviceName, this.apkamPublicKey);
