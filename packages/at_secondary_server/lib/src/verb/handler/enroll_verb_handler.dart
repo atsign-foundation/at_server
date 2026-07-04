@@ -82,8 +82,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         throw IllegalArgumentException('Enroll parameters not provided');
       }
     } else {
-      rawEnrollParams = jsonDecode(verbParams[AtConstants.enrollParams]!)
-          as Map<String, dynamic>;
+      rawEnrollParams =
+          jsonDecode(verbParams[AtConstants.enrollParams]!) as Map<String, dynamic>;
       enrollVerbParams = EnrollParams.fromJson(rawEnrollParams);
     }
 
