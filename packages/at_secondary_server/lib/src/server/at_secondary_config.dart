@@ -17,6 +17,13 @@ class AtSecondaryConfig {
   static const bool _useTLS = true;
   static const bool _clientCertificateRequired = true;
 
+  // Cross-server 'to:' verb. Default OFF for safe fleet rollout.
+  // When on: the server UNDERSTANDS inbound 'to:@x' (returning the peer's
+  // {publickey, signing_publickey} envelope) and, when opening a connection to
+  // another atServer, EMITS 'to:@target' as the first verb (which also fetches
+  // the peer's public key, so no separate lookup is needed).
+  static const bool _crossServerToVerbEnabled = false;
+
   //Certificate Paths
   static const String _fullchainLocation = 'certs/fullchain.pem';
   static const String _privkeyLocation = 'certs/privkey.pem';
@@ -173,6 +180,22 @@ class AtSecondaryConfig {
       return getConfigFromYaml(['security', 'clientCertificateRequired']);
     } on ElementNotFoundException {
       return _clientCertificateRequired;
+    }
+  }
+
+  /// Gates the cross-server `to:` verb. Default
+  /// false (fleet-safe: `to:` is an unknown verb and outbound connections use
+  /// the legacy `lookup:`/bare-`from:` path). Override with env
+  /// `crossServerToVerbEnabled=true` or yaml `protocol.crossServerToVerbEnabled`.
+  static bool get crossServerToVerbEnabled {
+    var result = _getBoolEnvVar('crossServerToVerbEnabled');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(['protocol', 'crossServerToVerbEnabled']);
+    } on ElementNotFoundException {
+      return _crossServerToVerbEnabled;
     }
   }
 

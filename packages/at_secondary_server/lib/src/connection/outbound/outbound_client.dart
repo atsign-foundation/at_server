@@ -6,6 +6,7 @@ import 'package:at_lookup/at_lookup.dart' as at_lookup;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/outbound/at_request_formatter.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_message_listener.dart';
@@ -132,8 +133,14 @@ class OutboundClient {
 
     String doing = 'checkRemotePublicKey looking up $remotePublicKeyName';
     try {
-      remoteResponse =
-          (await lookUp('all:$remotePublicKeyName', handshake: false))!;
+      // When cross-server 'to:' is enabled, fetch the peer's public key via the
+      // 'to:@target' verb — which is ALSO the first verb on the connection,
+      // declaring the target tenant to the peer. It returns
+      // both public keys in one round trip, so no separate lookup is needed.
+      // Otherwise fall back to the legacy unauthenticated lookup, byte for byte.
+      remoteResponse = AtSecondaryConfig.crossServerToVerbEnabled
+          ? await _sendToVerb()
+          : (await lookUp('all:$remotePublicKeyName', handshake: false))!;
     } on KeyNotFoundException {
       // Do nothing
       return;
@@ -150,7 +157,25 @@ class OutboundClient {
       }
       doing =
           'checkRemotePublicKey parsing response from looking up $remotePublicKeyName';
-      atData = AtData().fromJson(jsonDecode(remoteResponse));
+      if (AtSecondaryConfig.crossServerToVerbEnabled) {
+        // 'to:' returns {"publickey":..,"signing_publickey":..}. Use the
+        // encryption public key; a null publickey means the peer has not
+        // onboarded an encryption key yet — leave the cache untouched, exactly
+        // as the KeyNotFound branch above does for the legacy lookup path.
+        var envelope = jsonDecode(remoteResponse) as Map;
+        var publicKey = envelope['publickey'];
+        if (publicKey == null) {
+          return;
+        }
+        // A non-null metaData is required — the cache put dereferences it, and the
+        // legacy fromJson path always populates one. The 'to:' envelope carries only
+        // the key string, so attach a default (public key, no TTL).
+        atData = AtData()
+          ..data = publicKey as String
+          ..metaData = AtMetaData();
+      } else {
+        atData = AtData().fromJson(jsonDecode(remoteResponse));
+      }
 
       doing = 'checkRemotePublicKey updating $cachedPublicKeyName in cache';
       // Note: Potentially the put here may be doing a lot more than just the put.
@@ -161,6 +186,30 @@ class OutboundClient {
       logger.severe(st);
       return;
     }
+  }
+
+  /// Sends the cross-server `to:@toAtSign` verb and returns the peer's raw
+  /// response. This is the FIRST verb on the connection (sent from
+  /// [checkRemotePublicKey], which [connect] calls before the handshake), so it
+  /// declares the target tenant to the peer before any `from:`.
+  /// Mirrors [scan]'s raw write/read; only used when crossServerToVerbEnabled.
+  Future<String> _sendToVerb() async {
+    var toRequest = AtRequestFormatter.createToRequest(toAtSign);
+    try {
+      await outboundConnection!.write(toRequest);
+    } on AtIOException catch (e) {
+      await outboundConnection!.close();
+      throw LookupException(
+          'Exception writing to outbound socket ${e.toString()}');
+    } on ConnectionInvalidException catch (e) {
+      logger.severe('$this | encountered $e');
+      throw OutBoundConnectionInvalidException('Outbound connection invalid');
+    }
+    var result =
+        await messageListener.read(maxWaitMilliSeconds: lookupTimeoutMillis);
+    result = result.replaceFirst(_trailingPrompt, '');
+    lastUsed = DateTime.now();
+    return result;
   }
 
   Future<String> _findSecondary(toAtSign) async {

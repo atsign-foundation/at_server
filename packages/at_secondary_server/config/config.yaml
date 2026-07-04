@@ -35,6 +35,14 @@ security:
   # atServer
   clientCertificateRequired: true
 
+# Cross-server 'to:' verb: the first verb on an outbound peer connection
+# declares the target tenant, giving architectural flexibility for atServer
+# endpoints — e.g. atServers reached through proxies / gateways.
+# Default false. Turn on (env crossServerToVerbEnabled=true) only once every
+# atServer in the fleet understands 'to:' — a staged rollout.
+protocol:
+  crossServerToVerbEnabled: false
+
 # The atProtocol storage configurations
 hive:
   # The storage path for secondary storage.
