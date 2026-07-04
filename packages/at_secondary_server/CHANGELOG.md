@@ -1,5 +1,15 @@
 # 3.14.0
 
+- feat: `enroll:listns:<namespace>` verb for the WP-SS secret-sharing
+  substrate (at_commons 5.12.0). Returns all approved enrollments that hold
+  read-or-better access to the requested namespace, including their opaque
+  `metadata` payload (key packages). Access is gated on the caller being
+  APKAM-authenticated with an approved enrollment that itself holds ≥`r`
+  access to that namespace; unauthenticated or under-privileged callers
+  receive `UnAuthorized`.
+- feat: `metadata` field on enrollment records — an opaque JSON map stored
+  verbatim from `enroll:request`'s `EnrollParams.metadata`; surfaced in
+  `enroll:fetch`, `enroll:list`, and `enroll:listns` responses.
 - feat: `appMetadata` support on `update`, `update:meta` and `notify`
   (at_commons 5.11.0). The base64(JSON)
   `:appMetadata:` fragment is parsed into
