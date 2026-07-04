@@ -158,21 +158,19 @@ class OutboundClient {
       doing =
           'checkRemotePublicKey parsing response from looking up $remotePublicKeyName';
       if (AtSecondaryConfig.crossServerToVerbEnabled) {
-        // 'to:' returns {"publickey":..,"signing_publickey":..}. Use the
-        // encryption public key; a null publickey means the peer has not
+        // 'to:' returns {"publickey":..,"signing_publickey":..} where each
+        // value is a {key, data, metaData} map — the same shape as a
+        // lookup:all: response. A null publickey means the peer has not
         // onboarded an encryption key yet — leave the cache untouched, exactly
         // as the KeyNotFound branch above does for the legacy lookup path.
         var envelope = jsonDecode(remoteResponse) as Map;
-        var publicKey = envelope['publickey'];
-        if (publicKey == null) {
+        var publicKeyEntry = envelope['publickey'];
+        if (publicKeyEntry == null) {
           return;
         }
-        // A non-null metaData is required — the cache put dereferences it, and the
-        // legacy fromJson path always populates one. The 'to:' envelope carries only
-        // the key string, so attach a default (public key, no TTL).
-        atData = AtData()
-          ..data = publicKey as String
-          ..metaData = AtMetaData();
+        // Same fromJson as the legacy branch below, so the peer's metadata is
+        // preserved in the cache rather than replaced with a default.
+        atData = AtData().fromJson(publicKeyEntry);
       } else {
         atData = AtData().fromJson(jsonDecode(remoteResponse));
       }

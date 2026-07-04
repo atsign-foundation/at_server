@@ -4,7 +4,9 @@ import 'package:at_server_spec/at_verb_spec.dart';
 ///
 /// A peer atServer sends `to:@x` as the first verb after opening the socket to
 /// declare which tenant it is operating against; the server replies with the
-/// `{publickey, signing_publickey}` envelope for `@x`. Declaring the target
+/// `{publickey, signing_publickey}` envelope for `@x`, each value in the
+/// `{key, data, metaData}` shape of a `lookup:all:` response so the caller
+/// gets the value's metadata, not just the data. Declaring the target
 /// tenant up front gives architectural flexibility for atServer endpoints —
 /// e.g. atServers reached through proxies / gateways. Single-tenant Dart:
 /// `@x` must be this server's own atSign.
