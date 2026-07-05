@@ -1,5 +1,35 @@
 ## 5.1.0
 
+- feat: dual-write persistence layer (`lib/dual.dart`) — serves reads from a
+  primary backend while mirroring every write byte-exactly into a secondary
+  (via `restore`/`replay`, not operation-replay, so server-stamped timestamps
+  and commit ids stay identical). Run a real workload once, compare after.
+- feat: `bin/compare_persistence.dart` — compares two DB sets (backend +
+  storage root) for one atSign across all four stores and reports every
+  inconsistency; exit 0 identical / 1 differences / 2 error. Backed by
+  `PersistenceSnapshot.differencesFrom` (all differences, not just the first).
+- feat: SQLite persistence backend (`lib/sqlite.dart`) implementing the
+  same spec interfaces as Hive — `SqliteAtKeyValueStore` (with full-
+  fidelity `supportsSnapshots` / `supportsPathQueries` / true
+  transactions), `SqliteAtCommitLog` (dense/gapless `counters`-based
+  commit ids), `SqliteAtNotificationKeystore`, `SqliteAtAccessLog`,
+  `SqliteAtPersistenceFactory`. One `atsign.db` per atSign; the schema
+  is a stable per-atSign interchange contract.
+- feat: migrator-only verbatim primitives — `AtKeyValueStore.restore`
+  and `AtAccessLog.replay` (symmetric to `AtCommitLog.replay`) — plus
+  `PersistenceMigrator` (backend-agnostic Hive↔SQLite copy) and
+  `PersistenceSnapshot` (canonical bundle comparator). `AtPersistenceBackendId`
+  gains `sqlite`. Covered by a conversion-integrity gate:
+  hive→sqlite→hive→sqlite→hive→sqlite round-trips byte-identically.
+- fix: `PersistenceSnapshot` tolerates Hive's non-deterministic commit-log
+  orphans — a non-delete commit entry whose key is absent or expired is skipped.
+  After a TTL-expiry `skipCommit` sweep, Hive can leave a stale commit entry in
+  its box (its cache-based `getLatestCommitEntry` purge misses the box entry —
+  a cache/box inconsistency); a faithful SQLite mirror carries no such entry.
+  Such an entry is sync-benign, so it is excluded from both snapshots. DELETE
+  entries and live unexpired-key entries are always compared, so real mirror
+  data loss still fails. Makes the dual-write Hive-vs-SQLite DB-set comparison
+  deterministic under a real functional workload, so it can gate CI.
 - feat: new persistence field `AtMetaData.appMetadata` carrying the
   provider-owned `AppMetadata` from at_commons (opaque to the
   server). Stored by `AtMetaDataAdapter` as a JSON-encoded string

@@ -12,6 +12,9 @@ COPY ./packages/at_persistence_spec/ ./at_persistence_spec
 COPY ./packages/at_persistence_secondary_server/ ./at_persistence_secondary_server
 COPY ./packages/at_secondary_server/ ./at_secondary_server
 RUN \
+  apt-get update ; \
+  apt-get install -y --no-install-recommends libsqlite3-0 ; \
+  rm -rf /var/lib/apt/lists/* ; \
   mkdir -p $HOMEDIR/storage ; \
   mkdir -p $HOMEDIR/config ; \
   mkdir -p /etc/cacert ; \
@@ -34,6 +37,13 @@ RUN \
 # Second stage of build FROM scratch
 FROM scratch
 COPY --from=buildimage /runtime/ /
+# libsqlite3 (+ libz) for the SQLite persistence backend's FFI. Only
+# dlopen'd when persistence.backend=sqlite; the default (hive) image never
+# loads it. NOTE: the exact transitive .so set must be confirmed with a
+# Docker build before the first SQLite production deploy (this scratch
+# image has no package manager to pull deps at runtime).
+COPY --from=buildimage /usr/lib/x86_64-linux-gnu/libsqlite3.so.0 /usr/lib/x86_64-linux-gnu/
+COPY --from=buildimage /usr/lib/x86_64-linux-gnu/libz.so.1 /usr/lib/x86_64-linux-gnu/
 COPY --from=buildimage /etc/passwd /etc/passwd
 COPY --from=buildimage /etc/group /etc/group
 COPY --from=buildimage /etc/cacert /etc/cacert
