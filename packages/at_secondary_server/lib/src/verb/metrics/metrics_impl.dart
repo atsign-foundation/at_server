@@ -4,9 +4,12 @@ import 'dart:math';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
-import 'package:at_secondary/src/utils/regex_util.dart';
+import 'package:at_secondary/src/utils/regex_util.dart' as sync_filter;
 import 'package:at_secondary/src/verb/metrics/metrics_provider.dart';
 import 'package:at_commons/at_commons.dart';
+import 'package:at_utils/at_logger.dart';
+
+final _logger = AtSignLogger('MetricsImpl');
 
 class InboundMetricImpl extends MetricProvider {
   InboundMetricImpl(super.atServer);
@@ -72,16 +75,21 @@ class LastCommitIDMetricImpl extends MetricProvider {
   @override
   Future<String> getMetrics(
       {String? regex, List<String>? enrolledNamespaces}) async {
-    logger.finer('In commitID getMetrics...regex : $regex');
-    int? lastCommitID;
-    if (regex != null || enrolledNamespaces != null) {
-      regex ??= '.*';
-      lastCommitID = await atServer.commitLog
-          .lastCommittedSequenceNumberWithRegex(regex,
-              enrolledNamespace: enrolledNamespaces);
-      return lastCommitID.toString();
+    _logger.finer('In commitID getMetrics...regex : $regex');
+    if (regex == null && enrolledNamespaces == null) {
+      return atServer.commitLog.lastCommittedSequenceNumber().toString();
     }
-    lastCommitID = atServer.commitLog.lastCommittedSequenceNumber();
+    final effectiveRegex = regex ?? '.*';
+    int? lastCommitID;
+    await for (final entry in atServer.commitLog.iterate(
+        where: (e) => sync_filter.shouldIncludeKeyInSyncResponse(
+            e.atKey!, effectiveRegex,
+            enrolledNamespace: enrolledNamespaces))) {
+      if (entry.commitId != null &&
+          (lastCommitID == null || entry.commitId! > lastCommitID)) {
+        lastCommitID = entry.commitId;
+      }
+    }
     return lastCommitID.toString();
   }
 
@@ -123,9 +131,8 @@ class MostVisitedAtSignMetricImpl extends MetricProvider {
   @override
   Future<String> getMetrics({String? regex}) async {
     final length = AtSecondaryConfig.stats_top_visits!;
-    var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
-        .getAccessLog(atServer.currentAtSign));
-    return jsonEncode(await atAccessLog?.mostVisitedAtSigns(length));
+    final AtAccessLog atAccessLog = atServer.accessLog;
+    return jsonEncode(await atAccessLog.mostVisitedAtSigns(length));
   }
 
   @override
@@ -140,9 +147,8 @@ class MostVisitedAtKeyMetricImpl extends MetricProvider {
   @override
   Future<String> getMetrics({String? regex}) async {
     final length = AtSecondaryConfig.stats_top_keys!;
-    var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
-        .getAccessLog(atServer.currentAtSign));
-    return jsonEncode(await atAccessLog?.mostVisitedKeys(length));
+    final AtAccessLog atAccessLog = atServer.accessLog;
+    return jsonEncode(await atAccessLog.mostVisitedKeys(length));
   }
 
   @override
@@ -170,9 +176,8 @@ class LastLoggedInDatetimeMetricImpl extends MetricProvider {
 
   @override
   Future<String?> getMetrics({String? regex}) async {
-    var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
-        .getAccessLog(atServer.currentAtSign));
-    var entry = await atAccessLog!.getLastAccessLogEntry();
+    final AtAccessLog atAccessLog = atServer.accessLog;
+    var entry = await atAccessLog.getLastAccessLogEntry();
     return entry.requestDateTime!.toUtc().toString();
   }
 
@@ -225,9 +230,8 @@ class LastPkamMetricImpl extends MetricProvider {
 
   @override
   Future<String?> getMetrics({String? regex}) async {
-    var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
-        .getAccessLog(atServer.currentAtSign));
-    var entry = await atAccessLog!.getLastPkamAccessLogEntry();
+    final AtAccessLog atAccessLog = atServer.accessLog;
+    var entry = await atAccessLog.getLastPkamAccessLogEntry();
     return (entry != null)
         ? entry.requestDateTime!.toUtc().toString()
         : 'Not Available';
@@ -348,11 +352,10 @@ class CommitLogCompactionStats extends MetricProvider {
 
   @override
   getMetrics({String? regex}) async {
-    var keyStore = SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(atServer.currentAtSign)
-        ?.getSecondaryKeyStore();
-    if (keyStore!.isKeyExists(AtConstants.commitLogCompactionKey)) {
-      AtData? atData = await keyStore.get(AtConstants.commitLogCompactionKey);
+    final keyValueStore = atServer.keyValueStore;
+    if (await keyValueStore.exists(AtConstants.commitLogCompactionKey)) {
+      AtData? atData =
+          await keyValueStore.get(AtConstants.commitLogCompactionKey);
       if (atData != null && atData.data != null) {
         return atData.data;
       }
@@ -371,11 +374,10 @@ class AccessLogCompactionStats extends MetricProvider {
 
   @override
   getMetrics({String? regex}) async {
-    var keyStore = SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(atServer.currentAtSign)
-        ?.getSecondaryKeyStore();
-    if (keyStore!.isKeyExists(AtConstants.accessLogCompactionKey)) {
-      AtData? atData = await keyStore.get(AtConstants.accessLogCompactionKey);
+    final keyValueStore = atServer.keyValueStore;
+    if (await keyValueStore.exists(AtConstants.accessLogCompactionKey)) {
+      AtData? atData =
+          await keyValueStore.get(AtConstants.accessLogCompactionKey);
       if (atData != null && atData.data != null) {
         return atData.data;
       }
@@ -394,12 +396,10 @@ class NotificationCompactionStats extends MetricProvider {
 
   @override
   getMetrics({String? regex}) async {
-    var keyStore = SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(atServer.currentAtSign)
-        ?.getSecondaryKeyStore();
-    if (keyStore!.isKeyExists(AtConstants.notificationCompactionKey)) {
+    final keyValueStore = atServer.keyValueStore;
+    if (await keyValueStore.exists(AtConstants.notificationCompactionKey)) {
       AtData? atData =
-          await keyStore.get(AtConstants.notificationCompactionKey);
+          await keyValueStore.get(AtConstants.notificationCompactionKey);
       if (atData != null && atData.data != null) {
         return atData.data;
       }
@@ -418,23 +418,20 @@ class LatestCommitEntryOfEachKey extends MetricProvider {
 
   @override
   getMetrics({String? regex = '.*'}) async {
-    var responseMap = <String, List<dynamic>>{};
-    var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
-        .getCommitLog(atServer.currentAtSign));
-
-    int? lastCommitId = atCommitLog?.lastCommittedSequenceNumber();
-    int lastCommitIdReceived = -1;
-    while (lastCommitId != null && lastCommitIdReceived != lastCommitId) {
-      Iterator commitEntryIterator =
-          atCommitLog!.getEntries(lastCommitIdReceived, regex: regex);
-      while (commitEntryIterator.moveNext()) {
-        CommitEntry commitEntry = commitEntryIterator.current.value;
-        responseMap[commitEntry.atKey!] = [
-          commitEntry.commitId,
-          commitEntry.operation.name
-        ];
-        lastCommitIdReceived = commitEntry.commitId!;
-      }
+    final responseMap = <String, List<dynamic>>{};
+    final atCommitLog = atServer.commitLog;
+    // The commit-log box's one-entry-per-atKey invariant guarantees
+    // a single walk yields the latest entry for every atKey.
+    final hasRegex = regex != null && regex.isNotEmpty && regex != '.*';
+    final pattern = hasRegex ? RegExp(regex) : null;
+    await for (final commitEntry in atCommitLog.iterate(
+        where: hasRegex
+            ? (e) => e.atKey != null && pattern!.hasMatch(e.atKey!)
+            : null)) {
+      responseMap[commitEntry.atKey!] = [
+        commitEntry.commitId,
+        commitEntry.operation!.name
+      ];
     }
     return jsonEncode(responseMap);
   }

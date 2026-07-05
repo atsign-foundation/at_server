@@ -170,6 +170,18 @@ class StreamableByteBuffer extends at_commons.ByteBuffer {
 
   void validate(AtConnection connection) {
     if (validated) return;
+    final len = length();
+    if (len == 0) return;
+    // Defer validation until we have either a terminating `\n` or
+    // enough bytes (see [InboundCommandValidator.minBytesForValidation])
+    // to fully cover the longest possible verb+subcommand. Validating
+    // against a shorter partial buffer would reject the first fragment
+    // of a fragmented command (e.g. `'loo'` arriving before
+    // `'kup:publickey@alice\n'`) and bin the buffer, dropping the
+    // command bytes still in flight.
+    if (!isEnd() && len < InboundCommandValidator.minBytesForValidation) {
+      return;
+    }
     InboundCommandValidator.validate(getData(), connection);
     validated = true;
   }

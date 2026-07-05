@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
-import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
@@ -70,7 +69,7 @@ void main() {
 
     test('test lookup key-value - cached key', () {
       var command = 'llookup:cached:@bob:email@colin';
-      var handler = LocalLookupVerbHandler(secondaryKeyStore, enMgr);
+      var handler = LocalLookupVerbHandler(keyValueStore, enMgr);
       var paramsMap = handler.parse(command);
       expect(paramsMap[AtConstants.atKey], 'email');
       expect(paramsMap[AtConstants.atSign], 'colin');
@@ -79,14 +78,14 @@ void main() {
     });
 
     test('test local_lookup getVerb', () {
-      var handler = LocalLookupVerbHandler(secondaryKeyStore, enMgr);
+      var handler = LocalLookupVerbHandler(keyValueStore, enMgr);
       var verb = handler.getVerb();
       expect(verb is LocalLookup, true);
     });
 
     test('test local_lookup command accept test', () {
       var command = 'llookup:@b0b:location@colin';
-      var handler = LocalLookupVerbHandler(secondaryKeyStore, enMgr);
+      var handler = LocalLookupVerbHandler(keyValueStore, enMgr);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -155,8 +154,9 @@ void main() {
       var secretData = AtData();
       secretData.data =
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
-      await secondaryKeyStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(secondaryKeyStore);
+      await keyValueStore.put('privatekey:at_secret', secretData);
+      var fromVerbHandler = FromVerbHandler(keyValueStore,
+          commitLog: atCommitLog, accessLog: atAccessLog);
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
       var atConnection = DummyInboundConnection()
         ..metaData.sessionID = inBoundSessionId;
@@ -170,7 +170,8 @@ void main() {
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
-      var cramVerbHandler = CramVerbHandler(secondaryKeyStore);
+      var cramVerbHandler =
+          CramVerbHandler(keyValueStore, accessLog: atAccessLog);
       var cramResponse = Response();
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
@@ -179,8 +180,8 @@ void main() {
       expect(cramResponse.data, 'success');
       //Update Verb
       var updateVerbHandler = UpdateVerbHandler(
-        secondaryKeyStore,
-        StatsNotificationService.getInstance(),
+        keyValueStore,
+        statsNotificationService,
         notificationManager,
         alice,
       );
@@ -194,8 +195,7 @@ void main() {
           updateResponse, updateVerbParams, atConnection);
       //LLookup Verb
       var localLookUpResponse = Response();
-      var localLookupVerbHandler =
-          LocalLookupVerbHandler(secondaryKeyStore, enMgr);
+      var localLookupVerbHandler = LocalLookupVerbHandler(keyValueStore, enMgr);
       var localLookVerbParam = HashMap<String, String>();
       localLookVerbParam.putIfAbsent(AtConstants.atSign, () => alice);
       localLookVerbParam.putIfAbsent(AtConstants.atKey, () => 'phone');
@@ -208,8 +208,9 @@ void main() {
       var secretData = AtData();
       secretData.data =
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
-      await secondaryKeyStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(secondaryKeyStore);
+      await keyValueStore.put('privatekey:at_secret', secretData);
+      var fromVerbHandler = FromVerbHandler(keyValueStore,
+          commitLog: atCommitLog, accessLog: atAccessLog);
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
       var atConnection = DummyInboundConnection()
@@ -224,7 +225,8 @@ void main() {
       var bytes = utf8.encode(combo);
       var digest = sha512.convert(bytes);
       cramVerbParams.putIfAbsent('digest', () => digest.toString());
-      var cramVerbHandler = CramVerbHandler(secondaryKeyStore);
+      var cramVerbHandler =
+          CramVerbHandler(keyValueStore, accessLog: atAccessLog);
       var cramResponse = Response();
       await cramVerbHandler.processVerb(
           cramResponse, cramVerbParams, atConnection);
@@ -233,8 +235,8 @@ void main() {
       expect(cramResponse.data, 'success');
       //Update Verb
       var updateVerbHandler = UpdateVerbHandler(
-        secondaryKeyStore,
-        StatsNotificationService.getInstance(),
+        keyValueStore,
+        statsNotificationService,
         notificationManager,
         alice,
       );
@@ -250,8 +252,7 @@ void main() {
           updateResponse, updateVerbParams, atConnection);
       //LLookup Verb
       var localLookUpResponse = Response();
-      var localLookupVerbHandler =
-          LocalLookupVerbHandler(secondaryKeyStore, enMgr);
+      var localLookupVerbHandler = LocalLookupVerbHandler(keyValueStore, enMgr);
       var localLookVerbParam = HashMap<String, String>();
       localLookVerbParam.putIfAbsent(AtConstants.atSign, () => alice);
       localLookVerbParam.putIfAbsent(AtConstants.atKey, () => 'location');
@@ -289,14 +290,13 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
-          keyName, AtData()..data = jsonEncode(enrollJson));
+      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
       // Update a key with wavi namespace
       String updateCommand = 'update:$alice:phone.wavi$alice 123';
       HashMap<String, String?> updateVerbParams =
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         statsNotificationService,
         notificationManager,
         alice,
@@ -318,7 +318,7 @@ void main() {
       HashMap<String, String?> llookupVerbParams =
           getVerbParam(VerbSyntax.llookup, llookupCommand);
       LocalLookupVerbHandler localLookupVerbHandler =
-          LocalLookupVerbHandler(secondaryKeyStore, enMgr);
+          LocalLookupVerbHandler(keyValueStore, enMgr);
       await localLookupVerbHandler.processVerb(
           response, llookupVerbParams, inboundConnection);
       expect(response.data, '123');
@@ -343,15 +343,14 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
-          keyName, AtData()..data = jsonEncode(enrollJson));
+      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
       // Update a key with buzz namespace
       String updateCommand =
           'update:at_connections.bob.alice.at_contact.buzz$alice bob';
       HashMap<String, String?> updateVerbParams =
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         statsNotificationService,
         notificationManager,
         alice,
@@ -365,7 +364,7 @@ void main() {
       HashMap<String, String?> llookupVerbParams =
           getVerbParam(VerbSyntax.llookup, llookupCommand);
       LocalLookupVerbHandler localLookupVerbHandler =
-          LocalLookupVerbHandler(secondaryKeyStore, enMgr);
+          LocalLookupVerbHandler(keyValueStore, enMgr);
       await localLookupVerbHandler.processVerb(
           response, llookupVerbParams, inboundConnection);
       expect(response.data, 'bob');
@@ -384,15 +383,14 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
-          keyName, AtData()..data = jsonEncode(enrollJson));
+      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
       // Update a key with at_contact.buzz namespace
       String updateCommand =
           'update:at_connections.bob.alice.at_contact.buzz$alice bob';
       HashMap<String, String?> updateVerbParams =
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         statsNotificationService,
         notificationManager,
         alice,
@@ -406,7 +404,7 @@ void main() {
       HashMap<String, String?> llookupVerbParams =
           getVerbParam(VerbSyntax.llookup, llookupCommand);
       LocalLookupVerbHandler localLookupVerbHandler =
-          LocalLookupVerbHandler(secondaryKeyStore, enMgr);
+          LocalLookupVerbHandler(keyValueStore, enMgr);
       await localLookupVerbHandler.processVerb(
           response, llookupVerbParams, inboundConnection);
       expect(response.data, 'bob');
@@ -425,14 +423,13 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
-          keyName, AtData()..data = jsonEncode(enrollJson));
+      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
       // Update a key with buzz namespace
       String updateCommand = 'update:$alice:mobile.buzz$alice 123';
       HashMap<String, String?> updateVerbParams =
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         statsNotificationService,
         notificationManager,
         alice,
@@ -448,7 +445,7 @@ void main() {
       HashMap<String, String?> llookupVerbParams =
           getVerbParam(VerbSyntax.llookup, llookupCommand);
       LocalLookupVerbHandler localLookupVerbHandler =
-          LocalLookupVerbHandler(secondaryKeyStore, enMgr);
+          LocalLookupVerbHandler(keyValueStore, enMgr);
       expect(
           () async => await localLookupVerbHandler.processVerb(
               response, llookupVerbParams, inboundConnection),
@@ -466,7 +463,7 @@ void main() {
       HashMap<String, String?> updateVerbParams =
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         statsNotificationService,
         notificationManager,
         alice,
@@ -478,7 +475,7 @@ void main() {
       var llookupCommand = 'llookup:$bob:shared_key$alice';
       var llookupVerbParams = getVerbParam(VerbSyntax.llookup, llookupCommand);
       LocalLookupVerbHandler localLookupVerbHandler =
-          LocalLookupVerbHandler(secondaryKeyStore, enMgr);
+          LocalLookupVerbHandler(keyValueStore, enMgr);
       await localLookupVerbHandler.processVerb(
           response, llookupVerbParams, inboundConnection);
       expect(response.data, 'some shared value');
@@ -501,13 +498,12 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
-          keyName, AtData()..data = jsonEncode(enrollJson));
+      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
       String updateCommand = 'update:$bob:shared_key$alice 123';
       HashMap<String, String?> updateVerbParams =
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         statsNotificationService,
         notificationManager,
         alice,
@@ -519,7 +515,7 @@ void main() {
       var llookupCommand = 'llookup:$bob:shared_key$alice';
       var llookupVerbParams = getVerbParam(VerbSyntax.llookup, llookupCommand);
       LocalLookupVerbHandler localLookupVerbHandler =
-          LocalLookupVerbHandler(secondaryKeyStore, enMgr);
+          LocalLookupVerbHandler(keyValueStore, enMgr);
       await localLookupVerbHandler.processVerb(
           response, llookupVerbParams, inboundConnection);
       expect(response.data, '123');
@@ -541,13 +537,12 @@ void main() {
         'approval': {'state': 'approved'}
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
-      await secondaryKeyStore.put(
-          keyName, AtData()..data = jsonEncode(enrollJson));
+      await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
       String updateCommand = 'update:$alice:secret_data$alice 123';
       HashMap<String, String?> updateVerbParams =
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         statsNotificationService,
         notificationManager,
         alice,
@@ -559,7 +554,7 @@ void main() {
       var llookupCommand = 'llookup:$alice:secret_data$alice';
       var llookupVerbParams = getVerbParam(VerbSyntax.llookup, llookupCommand);
       LocalLookupVerbHandler localLookupVerbHandler =
-          LocalLookupVerbHandler(secondaryKeyStore, enMgr);
+          LocalLookupVerbHandler(keyValueStore, enMgr);
       await localLookupVerbHandler.processVerb(
           response, llookupVerbParams, inboundConnection);
       expect(response.data, '123');
@@ -583,14 +578,14 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           firstEnrollmentKey, AtData()..data = jsonEncode(firstEnrollJson));
       // update key using first enrollment that has * access
       String updateCommand = 'update:$testKey 123';
       HashMap<String, String?> updateVerbParams =
           getVerbParam(VerbSyntax.update, updateCommand);
       UpdateVerbHandler updateVerbHandler = UpdateVerbHandler(
-        secondaryKeyStore,
+        keyValueStore,
         statsNotificationService,
         notificationManager,
         alice,
@@ -614,11 +609,11 @@ void main() {
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           secondEnrollmentKey, AtData()..data = jsonEncode(secondEnrollJson));
 
       LocalLookupVerbHandler llookupVerbHandler =
-          LocalLookupVerbHandler(secondaryKeyStore, enMgr);
+          LocalLookupVerbHandler(keyValueStore, enMgr);
       String lookupCommand = 'llookup:$testKey';
       expect(
           await llookupVerbHandler.isAuthorized(inboundConnection.metadata,
@@ -662,15 +657,14 @@ void main() {
           'requestType': 'newEnrollment',
           'approval': {'state': operation}
         };
-        await secondaryKeyStore.put(
-            '$enrollmentId.new.enrollments.__manage$alice',
+        await keyValueStore.put('$enrollmentId.new.enrollments.__manage$alice',
             AtData()..data = jsonEncode(enrollJson));
         inboundConnection.metadata.enrollmentId = enrollmentId;
         String llookupCommand = 'llookup:$alice:dummykey.wavi$alice';
         HashMap<String, String?> localLookupVerbParams =
             getVerbParam(VerbSyntax.llookup, llookupCommand);
         LocalLookupVerbHandler localLookupVerbHandler =
-            LocalLookupVerbHandler(secondaryKeyStore, enMgr);
+            LocalLookupVerbHandler(keyValueStore, enMgr);
         expect(
             () async => await localLookupVerbHandler.processVerb(
                 response, localLookupVerbParams, inboundConnection),

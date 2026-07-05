@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/config/at_config.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -20,7 +21,11 @@ class FromVerbHandler extends AbstractVerbHandler {
   static final _rootDomain = AtSecondaryConfig.rootServerUrl;
   static final _rootPort = AtSecondaryConfig.rootServerPort;
 
-  FromVerbHandler(super.keyStore) {
+  final AtCommitLog commitLog;
+  final AtAccessLog accessLog;
+
+  FromVerbHandler(super.keyStore,
+      {required this.commitLog, required this.accessLog}) {
     logger.level = 'info';
   }
 
@@ -41,9 +46,7 @@ class FromVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-    atConfigInstance = AtConfig(
-        await AtCommitLogManagerImpl.getInstance().getCommitLog(currentAtSign),
-        currentAtSign);
+    atConfigInstance = AtConfig(keyStore, currentAtSign);
     atConnection.initiatedBy = currentAtSign;
     var atConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
@@ -99,10 +102,8 @@ class FromVerbHandler extends AbstractVerbHandler {
       atConnectionMetadata.from = true;
       atConnectionMetadata.fromAtSign = fromAtSign;
     }
-    var atAccessLog = await (AtAccessLogManagerImpl.getInstance()
-        .getAccessLog(AtSecondaryServerImpl.getInstance().currentAtSign));
     try {
-      await atAccessLog?.insert(fromAtSign, from.name());
+      await accessLog.insert(fromAtSign, from.name());
     } on DataStoreException catch (e) {
       logger.severe('Hive error adding to access log:${e.toString()}');
     }

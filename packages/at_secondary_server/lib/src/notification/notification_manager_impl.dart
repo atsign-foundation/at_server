@@ -108,8 +108,9 @@ class NotificationManager {
       throw StateError('Closed');
     }
 
-    // Persist the notification
-    await _notifStore.put(n.id, n);
+    // Persist the notification. `id` is non-null by construction —
+    // AtNotificationBuilder defaults it to a fresh Uuid v4.
+    await _notifStore.put(n.id!, n);
 
     // Queue it for delivery
     enqueue(n);
@@ -136,7 +137,7 @@ class NotificationManager {
         ' defaultTtl is ${AtNotification.defaultTtl}');
     int removed = 0;
     int failed = 0;
-    for (final k in await notifStore.getExpiredKeys()) {
+    await for (final k in await notifStore.getExpiredKeys()) {
       try {
         await remove(k);
         removed++;
@@ -158,7 +159,7 @@ class NotificationManager {
         logger.severe('Setting status to errored');
         try {
           n.notificationStatus = NotificationStatus.errored;
-          await notifStore.put(n.id, n);
+          await notifStore.put(n.id!, n);
         } catch (e) {
           logger.severe('*** Error while updating stored notification: $e');
         }
@@ -183,15 +184,15 @@ class NotificationManager {
   }
 
   Future<bool> isKeyExists(String key) async {
-    return _notifStore.isKeyExists(key);
+    return _notifStore.exists(key);
   }
 
-  Future<AtNotification?> get(key) {
-    return _notifStore.get(key);
+  Future<AtNotification?> get(key) async {
+    return await _notifStore.get(key);
   }
 
-  Future<List> getKeys({String? regex}) async {
-    return _notifStore.getKeys(regex: regex);
+  Future<List<String>> getKeys({String? regex}) async {
+    return (await _notifStore.getKeys(regex: regex)).toList();
   }
 
   int compareDateTime(AtNotification n1, AtNotification n2) {
@@ -221,7 +222,7 @@ class NotificationManager {
     List<AtNotification> values = [];
 
     // Iterate through all the keys
-    for (final k in _notifStore.getKeys()) {
+    await for (final k in await _notifStore.getKeys()) {
       //   Fetch each one in turn
       AtNotification? n = await _notifStore.get(k);
       //   Filter null (who knows)
@@ -256,6 +257,12 @@ class NotificationManager {
     }
     var atMetaData = atNotification.atMetadata;
     if (atMetaData != null) {
+      // appMetadata is the LAST group in VerbSyntax.metadataFragment;
+      // since this body is built back-to-front, it is prepended first.
+      if (atNotification.atMetadata!.appMetadata != null) {
+        commandBody =
+            '${AtConstants.appMetadata}:${Metadata.encodeAppMetadata(atNotification.atMetadata!.appMetadata!)}:$commandBody';
+      }
       if (atNotification.atMetadata!.immutable == true) {
         commandBody = '${AtConstants.immutable}:true:$commandBody';
       }

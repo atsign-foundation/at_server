@@ -6,6 +6,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_utils/at_logger.dart' show AtSignLogger;
 
 import 'inbound_connection_pool.dart';
 
@@ -190,11 +191,36 @@ class InboundIdleChecker {
 }
 
 class InboundCommandValidator {
+  static final AtSignLogger logger = AtSignLogger('InboundCommandValidator');
+
   /// We only need enough of the buffer to identify the verb name (capped at 64
   /// chars below) and the optional subcommand, so for very long commands (e.g.
   /// large `update` values) we cap the decode here to a small prefix instead
   /// of decoding the entire payload twice (validator + listener).
   static const int _maxBytesForValidation = 256;
+
+  /// Lower bound below which the buffer is too short to make a reliable
+  /// verb / subcommand decision: validation must be deferred until either
+  /// a terminating `\n` arrives or at least this many bytes have been
+  /// accumulated.
+  ///
+  /// Computed as `max(verb.length + 1 + max_subcommand_length + 1)` across
+  /// every [AtVerb] with `hasSubcommands == true`, where the candidate
+  /// subcommands are the [Subcommand] enum values that the validator can
+  /// match — the longest is `unrevoke` (8). The bound is
+  /// `enroll:unrevoke` (6 + 1 + 8 + 1 = 16). Verbs without subcommands and
+  /// the longest verb name (`llookup`/`plookup`/`monitor`, 7 chars) fit
+  /// inside this bound.
+  ///
+  /// Below this bound, validating against a partial prefix would
+  ///  (a) reject the legitimate first half of a fragmented command (e.g.
+  ///      `'loo'` followed in a later TCP flow by `'kup:publickey@alice\n'`)
+  ///      — `AtVerb.tryParse('loo')` returns null and we'd send a
+  ///      spurious `error:` frame plus clear the buffer; and
+  ///  (b) make the auth-required decision against a truncated subcommand
+  ///      (e.g. `'enroll:revo'` would auth-pass before the `unrevoke`
+  ///      subcommand's `requiresAuth: true` was observed).
+  static const int minBytesForValidation = 16;
 
   static final Utf8Decoder _allowMalformedUtf8 =
       Utf8Decoder(allowMalformed: true);
@@ -220,8 +246,13 @@ class InboundCommandValidator {
     var isAuthenticated = connection.metaData.isAuthenticated ||
         connection.metaData.isPolAuthenticated;
 
-    // why does scan delimit with a space....
-    if (command.contains('scan ') || command.contains('monitor ')) {
+    // `scan` and `monitor` are the two verbs whose arguments are
+    // delimited by a space rather than `:`, so the verb-then-colon
+    // split below can't parse them. Anchor the match to the start of
+    // the command — `contains` would also match a `scan ` or
+    // `monitor ` substring inside an `update` value, letting an
+    // unauthenticated client bypass the auth check on `update`.
+    if (command.startsWith('scan ') || command.startsWith('monitor ')) {
       return;
     }
 
@@ -242,9 +273,12 @@ class InboundCommandValidator {
     }
 
     // what verb is this?
-    final verb = AtVerb.tryParse(rawVerb) ??
-        (throw InvalidSyntaxException(
-            'Received invalid verb that does not match protocol spec'));
+    final AtVerb? verb = AtVerb.tryParse(rawVerb);
+    if (verb == null) {
+      String exMsg = 'Received invalid verb that does not match protocol spec';
+      logger.warning('$exMsg. rawVerb: $rawVerb command: $command');
+      throw InvalidSyntaxException(exMsg);
+    }
 
     // determine auth requirement - may be overridden if verb has subcommands
     bool requiresAuth = verb.requiresAuth;

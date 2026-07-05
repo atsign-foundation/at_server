@@ -16,10 +16,10 @@ jobs:
         uses: atsign-company/certinfo-action@e33db584f27bbbc0260af9916aeaefbec0db8ef4 # v1.0.1
       # checkout at_server code
       - name: checkout repo content
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       # Pull ACME script
       - name: Pull ACME script
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: atsign-company/secondaries-scripts
           path: secondaries-scripts
@@ -36,7 +36,7 @@ jobs:
           echo "${{secrets.GOOGLE_PRIVKEY}}" > /gluster/@/api/keys/google.key
       # Install Python Libraries
       - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
       - name: Install Python Libraries
         run: |-
           sudo apt-get install python3-poetry-plugin-export

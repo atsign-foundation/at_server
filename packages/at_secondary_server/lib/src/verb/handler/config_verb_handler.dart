@@ -1,5 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
+import 'package:at_secondary/src/config/at_config.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -29,7 +30,9 @@ import 'package:at_commons/at_commons.dart';
 class ConfigVerbHandler extends AbstractVerbHandler {
   static Config config = Config();
 
-  ConfigVerbHandler(super.keyStore);
+  final AtCommitLog commitLog;
+
+  ConfigVerbHandler(super.keyStore, {required this.commitLog});
 
   late AtConfig atConfigInstance;
   late ModifiableConfigs? setConfigName;
@@ -50,9 +53,7 @@ class ConfigVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-    atConfigInstance = AtConfig(
-        await AtCommitLogManagerImpl.getInstance().getCommitLog(currentAtSign),
-        currentAtSign);
+    atConfigInstance = AtConfig(keyStore, currentAtSign);
     dynamic result;
     var operation = verbParams[AtConstants.operation];
     var atsigns = verbParams[AtConstants.atSign];

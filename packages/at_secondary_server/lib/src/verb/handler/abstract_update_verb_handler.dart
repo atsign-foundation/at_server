@@ -223,6 +223,15 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       metadata.immutable =
           AtMetadataUtil.getBoolVerbParams(verbParams[AtConstants.immutable]);
     }
+    // Arrives base64(JSON)-encoded on the wire; decodeAppMetadata also
+    // maps an absent param (or the literal 'null') to null.
+    try {
+      metadata.appMetadata =
+          Metadata.decodeAppMetadata(verbParams[AtConstants.appMetadata]);
+    } on FormatException catch (e) {
+      throw InvalidSyntaxException(
+          'invalid ${AtConstants.appMetadata}: ${e.message}');
+    }
 
     updateParams.metadata = metadata;
 
@@ -345,6 +354,9 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     newAtMetadata.immutable ??= existing?.immutable;
 
     newAtMetadata.pubKeyHash ??= existing?.pubKeyHash;
+    // Like pubKeyHash, appMetadata is a typed (non-String) field, so
+    // the 'null' unset sentinel cannot reach it — retain-only.
+    newAtMetadata.appMetadata ??= existing?.appMetadata;
 
     return newAtMetadata;
   }

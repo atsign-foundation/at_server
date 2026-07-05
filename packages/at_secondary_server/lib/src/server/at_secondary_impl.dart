@@ -6,9 +6,11 @@ import 'dart:math';
 
 import 'package:at_commons/at_commons.dart' hide StringBuffer;
 import 'package:at_lookup/at_lookup.dart';
+import 'package:at_persistence_secondary_server/hive.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/caching/cache_refresh_job.dart';
+import 'package:at_secondary/src/compaction/at_compaction_stats_service_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart'
     show OutboundConnectionFactory, DefaultOutboundConnectionFactory;
@@ -50,6 +52,18 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late bool _isPaused;
 
   var logger = AtSignLogger('AtSecondaryServer');
+
+  /// Builds the per-atSign persistence stores during [start] and tears
+  /// them down during [stop]. Defaults to a [HiveAtPersistenceFactory];
+  /// tests / alternative deployments can replace it before calling
+  /// [start]. Made public so tests can inject a stand-in (e.g.
+  /// `TestAtPersistenceFactory`).
+  AtPersistenceFactory persistenceFactory = HiveAtPersistenceFactory();
+
+  /// The bundle this server is currently running against. Set during
+  /// [_initializePersistentInstances]; used by [start] for
+  /// scheduleKeyExpireTask and by [stop] to close.
+  AtPersistenceBundle? _persistenceBundle;
 
   factory AtSecondaryServerImpl.getInstance() {
     return _singleton;
@@ -93,27 +107,38 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   bool _isRunning = false;
   late Atsign currentAtSign;
   late AtCommitLog commitLog;
-  var _accessLog;
+  late AtAccessLog accessLog;
   var signingKey;
   AtSecondaryContext? serverContext;
   VerbExecutor? executor;
   VerbHandlerManager? verbHandlerManager;
   late AtCacheRefreshJob atRefreshJob;
   late AtCacheManager cacheManager;
-  late AtCompactionJob commitLogCompactionJobInstance;
-  late AtCompactionJob accessLogCompactionJobInstance;
-  late AtCompactionJob notificationKeyStoreCompactionJobInstance;
+  final StatsNotificationService statsNotificationService =
+      StatsNotificationService();
+
+  /// Timers driving the per-resource compaction cron. Each ticks
+  /// on its own configured frequency; tick body drains the
+  /// resource's `compact(false)` stream with an overlap guard.
+  final List<Timer> _compactionTimers = [];
+
+  /// One-shot timer driving the key-expiry sweep, rescheduled after
+  /// every sweep from [AtKeyValueStore.nextExpiresAt] — the server
+  /// sleeps until the next key actually expires instead of polling
+  /// on a fixed cadence. Owned by the secondary (not the
+  /// persistence layer): the application picks the schedule, the
+  /// keystore exposes [AtKeyValueStore.nextExpiresAt] and
+  /// [AtKeyValueStore.deleteExpiredKeys].
+  Timer? _keyExpiryTimer;
+
+  /// Floor for the expiry-sweep sleep — stops a burst of
+  /// near-future expiries from re-running the sweep back-to-back.
+  static const Duration _minExpirySleep = Duration(seconds: 10);
   @visibleForTesting
   AtCertificateValidationJob? certificateReloadJob;
-  @visibleForTesting
-  late SecondaryPersistenceStore secondaryPersistenceStore;
-  late HivePersistenceManager hivePersistenceManager;
-  late SecondaryKeyStore<String, AtData?, AtMetaData?> secondaryKeyStore;
+  late AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore;
   late AtNotificationKeystore notificationKeystore;
   late NotificationManager notificationManager;
-  late var atCommitLogCompactionConfig;
-  late var atAccessLogCompactionConfig;
-  late var atNotificationCompactionConfig;
   late EnrollmentManager enrollmentManager;
   late InboundConnectionManager inboundConnectionManager;
 
@@ -176,11 +201,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw AtServerException('Secondary keystore is not initialized');
     }
 
-    secondaryPersistenceStore = SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(currentAtSign)!;
-
     // Initialize enrollment manager
-    enrollmentManager = EnrollmentManager(secondaryKeyStore, currentAtSign);
+    enrollmentManager = EnrollmentManager(keyValueStore, currentAtSign);
     List<String> deletedKeys =
         await enrollmentManager.removeLegacyApkamPublicKeys();
     if (deletedKeys.isNotEmpty) {
@@ -193,47 +215,45 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     // Set up removal of expired keys
     // We add a hook here to handle deletion of enrollments.
-    secondaryKeyStore.preRemoveHooks.add(enrollmentManager.preRemoveHook);
+    keyValueStore.preRemoveHooks.add(enrollmentManager.preRemoveHook);
 
-    // expiringRunFreqMins default is 10 mins. Randomly run the task every 8-15 mins.
-    final expiryRunRandomMins =
-        (expiringRunFreqMins! - 2) + Random().nextInt(8);
-    logger.finest('Scheduling key expiry job every $expiryRunRandomMins mins');
-    hivePersistenceManager.scheduleKeyExpireTask(3,
-        skipCommits: AtSecondaryConfig.skipCommitsForExpiredKeys);
+    // Startup sweep, then schedule the next one from
+    // nextExpiresAt() — see _scheduleNextExpirySweep for the
+    // sleep-until-next-expiry shape and its staleness bound.
+    await keyValueStore.deleteExpiredKeys();
+    await _scheduleNextExpirySweep();
 
-    await secondaryKeyStore.deleteExpiredKeys();
-
-    //Commit Log Compaction
-    commitLogCompactionJobInstance =
-        AtCompactionJob(commitLog, secondaryPersistenceStore);
-    atCommitLogCompactionConfig = AtCompactionConfig()
-      ..compactionPercentage = AtSecondaryConfig.commitLogCompactionPercentage
-      ..compactionFrequencyInMins =
-          AtSecondaryConfig.commitLogCompactionFrequencyMins;
-    commitLogCompactionJobInstance
-        .scheduleCompactionJob(atCommitLogCompactionConfig);
-
-    //Access Log Compaction
-    accessLogCompactionJobInstance =
-        AtCompactionJob(_accessLog, secondaryPersistenceStore);
-    atAccessLogCompactionConfig = AtCompactionConfig()
-      ..compactionPercentage = AtSecondaryConfig.accessLogCompactionPercentage
-      ..compactionFrequencyInMins =
-          AtSecondaryConfig.accessLogCompactionFrequencyMins;
-    accessLogCompactionJobInstance
-        .scheduleCompactionJob(atAccessLogCompactionConfig);
-
-    // Notification keystore compaction
-    notificationKeyStoreCompactionJobInstance =
-        AtCompactionJob(notificationKeystore, secondaryPersistenceStore);
-    atNotificationCompactionConfig = AtCompactionConfig()
-      ..compactionPercentage =
-          AtSecondaryConfig.notificationKeyStoreCompactionPercentage
-      ..compactionFrequencyInMins =
-          AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins;
-    notificationKeyStoreCompactionJobInstance
-        .scheduleCompactionJob(atNotificationCompactionConfig);
+    // Compaction is scheduled at the secondary level (not by the
+    // persistence layer): the Timer ticks, drains the resource's
+    // compact(false) stream with an overlap guard, and records
+    // primitives to a stats service.
+    final statsService = AtCompactionStatsService(keyValueStore);
+    if (AtSecondaryConfig.enableCommitLogCompactor) {
+      _scheduleCompaction(
+        commitLog,
+        Duration(minutes: AtSecondaryConfig.commitLogCompactionFrequencyMins),
+        'commitLog',
+        statsService,
+      );
+    }
+    if (AtSecondaryConfig.enableAccessLogCompactor) {
+      _scheduleCompaction(
+        accessLog,
+        Duration(minutes: AtSecondaryConfig.accessLogCompactionFrequencyMins),
+        'accessLog',
+        statsService,
+      );
+    }
+    if (AtSecondaryConfig.enableNotificationCompactor) {
+      _scheduleCompaction(
+        notificationKeystore,
+        Duration(
+            minutes:
+                AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins),
+        'notificationKeystore',
+        statsService,
+      );
+    }
 
     final socketConfig = SecureSocketConfig()
       ..decryptPackets = false
@@ -264,8 +284,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         ));
 
     // Refresh Cached Keys
-    cacheManager = AtCacheManager(serverContext!.currentAtSign!,
-        secondaryKeyStore, outboundClientManager, notificationManager);
+    cacheManager = AtCacheManager(serverContext!.currentAtSign!, keyValueStore,
+        outboundClientManager, notificationManager);
 
     var random = Random();
     var runRefreshJobHour = random.nextInt(23);
@@ -286,28 +306,32 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // But if not, create a DefaultVerbHandlerManager
     if (verbHandlerManager == null) {
       verbHandlerManager = DefaultVerbHandlerManager(
-        secondaryKeyStore,
+        keyValueStore,
         outboundClientManager,
         cacheManager,
-        StatsNotificationService.getInstance(),
+        statsNotificationService,
         notificationManager,
         enrollmentManager,
         currentAtSign,
+        commitLog: commitLog,
+        accessLog: accessLog,
       );
     } else {
       // If the server has been stop()'d and re-start()'d then we will get here.
       // We have to make sure that if we used a DefaultVerbHandlerManager then we
-      // create a new one here so that it has the correct instances of the SecondaryKeyStore,
+      // create a new one here so that it has the correct instances of the AtKeyValueStore,
       // OutboundClientManager and AtCacheManager
       if (verbHandlerManager is DefaultVerbHandlerManager) {
         verbHandlerManager = DefaultVerbHandlerManager(
-          secondaryKeyStore,
+          keyValueStore,
           outboundClientManager,
           cacheManager,
-          StatsNotificationService.getInstance(),
+          statsNotificationService,
           notificationManager,
           enrollmentManager,
           currentAtSign,
+          commitLog: commitLog,
+          accessLog: accessLog,
         );
       }
     }
@@ -352,7 +376,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         poolSize: serverContext!.inboundConnectionLimit);
 
     // Starts StatsNotificationService to keep monitor connections alive
-    await StatsNotificationService.getInstance().schedule(currentAtSign);
+    await statsNotificationService.schedule(currentAtSign, commitLog);
 
     //initializes subscribers for dynamic config change 'config:Set'
     await initDynamicConfigListeners();
@@ -401,19 +425,111 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     resume();
   }
 
-  ///restarts compaction with new compaction frequency. Works only when testingMode set to true.
-  Future<void> restartCompaction(
-      AtCompactionJob atCompactionJob,
-      AtCompactionConfig atCompactionConfig,
-      int newFrequency,
-      AtLogType atLogType) async {
+  /// Restart compaction with a new frequency for the resource
+  /// identified by [label]. Works only when testing mode is set.
+  Future<void> _restartCompaction(
+    Compactable resource,
+    Duration newFrequency,
+    String label,
+    AtCompactionStatsService statsService,
+  ) async {
     logger.finest(
-        'Received new frequency for $atLogType compaction: $newFrequency');
-    await atCompactionJob.stopCompactionJob();
-    logger.finest('Existing cron job of $atLogType compaction terminated');
-    atCompactionConfig.compactionFrequencyInMins = newFrequency;
-    atCompactionJob.scheduleCompactionJob(atCompactionConfig);
-    logger.finest('New compaction cron job started for $atLogType');
+        'Received new frequency for $label compaction: ${newFrequency.inMinutes}m');
+    // Cancel any existing timer for this label (best effort: we
+    // currently don't index timers by label so the simplest restart
+    // is to cancel all and re-schedule the one we care about).
+    for (final t in _compactionTimers) {
+      t.cancel();
+    }
+    _compactionTimers.clear();
+    _scheduleCompaction(resource, newFrequency, label, statsService);
+  }
+
+  /// Computes the next expiry-sweep wake-up from
+  /// [AtKeyValueStore.nextExpiresAt] and arms [_keyExpiryTimer].
+  ///
+  /// Sleep is clamped to `[_minExpirySleep, expiringRunFreqMins]`.
+  /// The ceiling matters for correctness, not just hygiene:
+  /// `nextExpiresAt()` is a snapshot, and a put with a sooner
+  /// expiry while we sleep would otherwise go un-swept until the
+  /// (stale) wake-up. Capping the sleep bounds that staleness at
+  /// one old-style poll interval — the worst case is exactly
+  /// today's fixed-cadence behaviour, the common case is a sweep
+  /// within seconds of the next key actually expiring. The same
+  /// ceiling doubles as the idle re-check period when no key has
+  /// a ttl at all.
+  ///
+  /// A 0-30s jitter spreads the disk load when multiple co-hosted
+  /// atSigns have expiries clustered at the same wall-clock minute.
+  Future<void> _scheduleNextExpirySweep() async {
+    if (_persistenceBundle == null) {
+      return;
+    }
+    final maxSleep = Duration(minutes: expiringRunFreqMins!);
+    Duration sleep;
+    try {
+      final DateTime? next = await keyValueStore.nextExpiresAt();
+      if (next == null) {
+        sleep = maxSleep;
+      } else {
+        final untilNext = next.difference(DateTime.timestamp());
+        sleep = untilNext < _minExpirySleep
+            ? _minExpirySleep
+            : (untilNext > maxSleep ? maxSleep : untilNext);
+      }
+    } on Exception catch (e) {
+      logger.warning('Failed to compute next expiry wake-up: $e');
+      sleep = maxSleep;
+    }
+    sleep += Duration(seconds: Random().nextInt(30));
+    logger.finest('Next key expiry sweep in $sleep');
+    _keyExpiryTimer = Timer(sleep, () async {
+      if (_persistenceBundle == null) {
+        return;
+      }
+      try {
+        await keyValueStore.deleteExpiredKeys();
+      } on Exception catch (e) {
+        logger.warning('Key expiry sweep failed: $e');
+      }
+      await _scheduleNextExpirySweep();
+    });
+  }
+
+  /// Schedule a periodic compaction tick for [resource]. The tick
+  /// drains `compact(false)` with an overlap guard and records the
+  /// pass via [statsService].
+  void _scheduleCompaction(
+    Compactable resource,
+    Duration period,
+    String label,
+    AtCompactionStatsService statsService,
+  ) {
+    bool running = false;
+    _compactionTimers.add(Timer.periodic(period, (_) async {
+      if (running) return;
+      running = true;
+      try {
+        final start = DateTime.timestamp();
+        var count = 0;
+        await for (final _ in resource.compact(false)) {
+          count++;
+        }
+        final duration = DateTime.timestamp().difference(start);
+        logger.info(
+            'compacted $label: dropped $count entries in ${duration.inMilliseconds}ms');
+        await statsService.record(
+          label: label,
+          start: start,
+          compactedCount: count,
+          duration: duration,
+        );
+      } catch (e, st) {
+        logger.warning('compaction failed for $label: $e\n$st');
+      } finally {
+        running = false;
+      }
+    }));
   }
 
   Future<void> initDynamicConfigListeners() async {
@@ -426,14 +542,19 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           'inbound_max_limit change received. Modifying inbound_max_limit of server to $newSize');
     });
 
+    final statsService = AtCompactionStatsService(keyValueStore);
+
     //subscriber for notification keystore compaction freq change
     logger.finest(
         'Subscribing to dynamic changes made to notificationKeystoreCompactionFreq');
     AtSecondaryConfig.subscribe(
             ModifiableConfigs.notificationKeyStoreCompactionFrequencyMins)
         ?.listen((newFrequency) async {
-      await restartCompaction(notificationKeyStoreCompactionJobInstance,
-          atNotificationCompactionConfig, newFrequency, notificationKeystore);
+      await _restartCompaction(
+          notificationKeystore,
+          Duration(minutes: newFrequency),
+          'notificationKeystore',
+          statsService);
     });
 
     //subscriber for access log compaction frequency change
@@ -442,8 +563,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     AtSecondaryConfig.subscribe(
             ModifiableConfigs.accessLogCompactionFrequencyMins)
         ?.listen((newFrequency) async {
-      await restartCompaction(accessLogCompactionJobInstance,
-          atAccessLogCompactionConfig, newFrequency, _accessLog);
+      await _restartCompaction(accessLog, Duration(minutes: newFrequency),
+          'accessLog', statsService);
     });
 
     //subscriber for commit log compaction frequency change
@@ -452,8 +573,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     AtSecondaryConfig.subscribe(
             ModifiableConfigs.commitLogCompactionFrequencyMins)
         ?.listen((newFrequency) async {
-      await restartCompaction(commitLogCompactionJobInstance,
-          atCommitLogCompactionConfig, newFrequency, commitLog);
+      await _restartCompaction(commitLog, Duration(minutes: newFrequency),
+          'commitLog', statsService);
     });
 
     //subscriber for autoNotify state change
@@ -513,7 +634,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // to the pseudoServerSocket
     HttpServer httpServer = HttpServer.listenOn(pseudoServerSocket);
     final httpReqHandler =
-        AtServerHttpRequestHandler(currentAtSign, secondaryKeyStore);
+        AtServerHttpRequestHandler(currentAtSign, keyValueStore);
     httpServer.listen((HttpRequest req) {
       if (req.uri.path == '/ws') {
         // Upgrade an HttpRequest to a WebSocket connection.
@@ -677,7 +798,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       _serverSocket.close();
 
       logger.shout("Stopping StatsNotificationService");
-      await StatsNotificationService.getInstance().cancel();
+      await statsNotificationService.cancel();
 
       logger.shout("Terminating all inbound connections");
       inboundConnectionManager.close();
@@ -685,22 +806,24 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.shout("Closing Notification Manager");
       await notificationManager.close();
 
-      secondaryKeyStore.preRemoveHooks.clear();
-      secondaryKeyStore.postRemoveHooks.clear();
+      keyValueStore.preRemoveHooks.clear();
+      keyValueStore.postRemoveHooks.clear();
 
-      logger.shout("Closing CommitLog");
-      await AtCommitLogManagerImpl.getInstance().close();
-      logger.shout("Closing AccessLog");
-      await AtAccessLogManagerImpl.getInstance().close();
-      logger.shout("Closing NotificationKeyStore");
-      await notificationKeystore.close();
-      logger.shout("Closing SecondaryKeyStore");
-      await SecondaryPersistenceStoreFactory.getInstance().close();
+      logger.shout("Stopping key expiry timer");
+      _keyExpiryTimer?.cancel();
+      _keyExpiryTimer = null;
+
+      logger.shout('Closing persistence (commit log, access log, '
+          'notification keystore, secondary keystore)');
+      await persistenceFactory.close();
+      _persistenceBundle = null;
 
       logger.shout("Stopping scheduled tasks");
       atRefreshJob.close();
-      commitLogCompactionJobInstance.close();
-      accessLogCompactionJobInstance.close();
+      for (final t in _compactionTimers) {
+        t.cancel();
+      }
+      _compactionTimers.clear();
       _isRunning = false;
     } on Exception catch (e) {
       throw AtServerException(
@@ -715,76 +838,83 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     throw Exception("AtSecondaryServer.getMetrics() is obsolete");
   }
 
-  /// Initializes [SecondaryKeyStore], [AtCommitLog], [AtNotificationKeystore] and [AtAccessLog] instances.
+  /// Initializes [AtKeyValueStore], [AtCommitLog], [AtNotificationKeystore] and [AtAccessLog] instances.
   Future<void> _initializePersistentInstances() async {
-    // Initialize commit log
-    commitLog = (await AtCommitLogManagerImpl.getInstance().getCommitLog(
-        serverContext!.currentAtSign!,
-        commitLogPath: AtSecondaryConfig.commitLogPath))!;
-    commitLog.addEventListener(
-        CommitLogCompactionService(commitLog.commitLogKeyStore));
-
-    // Initialize access log
-    var atAccessLog = await AtAccessLogManagerImpl.getInstance().getAccessLog(
-        serverContext!.currentAtSign!,
-        accessLogPath: AtSecondaryConfig.accessLogPath);
-    _accessLog = atAccessLog;
-
-    // Initialize notification storage
     AtNotification.defaultTtl =
         Duration(minutes: AtSecondaryConfig.notificationExpiryInMins);
-    notificationKeystore =
-        AtNotificationKeystore(serverContext!.currentAtSign!);
-    await notificationKeystore.init(AtSecondaryConfig.notificationStoragePath);
 
-    // Initialize Secondary Storage
-    var secondaryPersistenceStore =
-        SecondaryPersistenceStoreFactory.getInstance()
-            .getSecondaryPersistenceStore(serverContext!.currentAtSign)!;
+    final config = HivePersistenceConfig.serverDefaults(
+      storagePath: AtSecondaryConfig.storagePath,
+      commitLogPath: AtSecondaryConfig.commitLogPath,
+      accessLogPath: AtSecondaryConfig.accessLogPath,
+      notificationStoragePath: AtSecondaryConfig.notificationStoragePath,
+    );
+    final bundle = await persistenceFactory.initialize(
+        serverContext!.currentAtSign!, config);
+    _persistenceBundle = bundle;
 
-    hivePersistenceManager =
-        secondaryPersistenceStore.getHivePersistenceManager()!;
+    _assertServerCapabilities(bundle);
 
-    await hivePersistenceManager.init(AtSecondaryConfig.storagePath);
+    // Server bundle invariant: the keystore's commitLog is non-null
+    // (asserted above). Bind once to a non-nullable local so
+    // downstream consumers don't litter `!` at every call site.
+    commitLog = bundle.keyValueStore.commitLog!;
+    accessLog = bundle.accessLog!;
+    notificationKeystore = bundle.notificationKeystore!;
+    keyValueStore = bundle.keyValueStore;
+
+    serverContext!.isKeyStoreInitialized = true;
 
     var atData = AtData();
     atData.data = serverContext!.sharedSecret;
-    var keyStoreManager = SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(serverContext!.currentAtSign)!
-        .getSecondaryKeyStoreManager()!;
-    secondaryKeyStore = SecondaryPersistenceStoreFactory.getInstance()
-        .getSecondaryPersistenceStore(serverContext!.currentAtSign)!
-        .getSecondaryKeyStore()!;
-    secondaryKeyStore.commitLog = commitLog;
-
-    keyStoreManager.keyStore = secondaryKeyStore;
-    // Initialize the hive store
-    await secondaryKeyStore.initialize();
-    serverContext!.isKeyStoreInitialized = true;
 
     // Ensure essential data is present in persistence
-    if (!secondaryKeyStore.isKeyExists(AtConstants.atCramSecretDeleted)) {
-      await secondaryKeyStore.put(AtConstants.atCramSecret, atData);
+    if (!await keyValueStore.exists(AtConstants.atCramSecretDeleted)) {
+      await keyValueStore.put(AtConstants.atCramSecret, atData);
     }
-    if (!secondaryKeyStore.isKeyExists(AtConstants.atSigningKeypairGenerated)) {
+    if (!await keyValueStore.exists(AtConstants.atSigningKeypairGenerated)) {
       var rsaKeypair = RSAKeypair.fromRandom();
-      await secondaryKeyStore.put(
-          '${AtConstants.atSigningPublicKey}$currentAtSign',
+      await keyValueStore.put('${AtConstants.atSigningPublicKey}$currentAtSign',
           AtData()..data = rsaKeypair.publicKey.toString());
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           '$currentAtSign:${AtConstants.atSigningPrivateKey}$currentAtSign',
           AtData()..data = rsaKeypair.privateKey.toString());
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           AtConstants.atSigningKeypairGenerated, AtData()..data = 'true');
       logger.info('signing keypair generated');
     }
     try {
-      var signingPrivateKey = await secondaryKeyStore.get(
+      var signingPrivateKey = await keyValueStore.get(
           '$currentAtSign:${AtConstants.atSigningPrivateKey}$currentAtSign');
       signingKey = signingPrivateKey?.data;
     } on KeyNotFoundException {
       logger.info(
-          'signing key generated? ${secondaryKeyStore.isKeyExists(AtConstants.atSigningKeypairGenerated)}');
+          'signing key generated? ${await keyValueStore.exists(AtConstants.atSigningKeypairGenerated)}');
+    }
+  }
+
+  /// Confirms that the bundle was initialised with the optional
+  /// capabilities a server requires (access log, notification
+  /// keystore). The bundle exposes them as nullable to support
+  /// client-shaped consumers that don't need them; for a server
+  /// they must be present, so missing them is a configuration
+  /// bug, not a runtime condition. After this check, the
+  /// [accessLog] and [notificationKeystore] fields can be assigned
+  /// from the bundle without `!` litter at every call site.
+  void _assertServerCapabilities(AtPersistenceBundle bundle) {
+    if (bundle.accessLog == null) {
+      throw StateError('Server bundle is missing the access log capability. '
+          'Did the config disable enableAccessLog?');
+    }
+    if (bundle.notificationKeystore == null) {
+      throw StateError(
+          'Server bundle is missing the notification keystore capability. '
+          'Did the config disable enableNotificationKeystore?');
+    }
+    if (bundle.keyValueStore.commitLog == null) {
+      throw StateError(
+          'Server bundle is missing the commit log on its keystore. '
+          'Did the config disable enableCommitId?');
     }
   }
 
@@ -797,13 +927,12 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // To retain the invalid keys on server start-up, set the flag to false.
     if (AtSecondaryConfig.shouldRemoveMalformedKeys) {
       List<String> malformedKeys = AtSecondaryConfig.malformedKeysList;
-      final keyStore = secondaryPersistenceStore.getSecondaryKeyStore()!;
-      List<String> keys = keyStore.getKeys();
+      List<String> keys = await (await keyValueStore.getKeys()).toList();
       logger.finest('malformed keys from config: $malformedKeys');
       for (String key in keys) {
         if (key.startsWith('public:cached:') || (malformedKeys.contains(key))) {
           try {
-            int? commitId = await keyStore.remove(key);
+            int? commitId = await keyValueStore.remove(key);
             logger.warning('commitId for removed key $key: $commitId');
           } on KeyNotFoundException catch (e) {
             logger

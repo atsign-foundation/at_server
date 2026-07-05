@@ -3,9 +3,10 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/regex_util.dart' as sync_filter;
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -15,7 +16,9 @@ import 'package:meta/meta.dart';
 class SyncProgressiveVerbHandler extends AbstractVerbHandler {
   static SyncFrom syncFrom = SyncFrom();
 
-  SyncProgressiveVerbHandler(super.keyStore);
+  final AtCommitLog commitLog;
+
+  SyncProgressiveVerbHandler(super.keyStore, {required this.commitLog});
 
   /// Represents the size of the sync buffer
   @visibleForTesting
@@ -36,120 +39,149 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
-    // Get Commit Log Instance.
-    var atCommitLog = await (AtCommitLogManagerImpl.getInstance()
-        .getCommitLog(AtSecondaryServerImpl.getInstance().currentAtSign));
-    int? skipDeletesUntil = verbParams[AtConstants.skipDeletesUntil] != null
-        ? int.parse(verbParams[AtConstants.skipDeletesUntil]!)
-        : null;
-    int? syncLimit = verbParams[AtConstants.syncLimit] != null
+    final int fromCommitId =
+        int.parse(verbParams[AtConstants.fromCommitSequence]!) + 1;
+    final int? skipDeletesUntil =
+        verbParams[AtConstants.skipDeletesUntil] != null
+            ? int.parse(verbParams[AtConstants.skipDeletesUntil]!)
+            : null;
+    final String? regex = verbParams['regex'];
+    int syncLimit = verbParams[AtConstants.syncLimit] != null
         ? int.parse(verbParams[AtConstants.syncLimit]!)
-        : null;
-    // Get entries to sync
-    Iterator<MapEntry<String, CommitEntry>> commitEntryIterator;
-    // if client doesn't pass syncLimit set the default value from server
-    syncLimit ??= AtSecondaryConfig.syncPageLimit;
-    commitEntryIterator = atCommitLog!.getEntries(
-        int.parse(verbParams[AtConstants.fromCommitSequence]!) + 1,
-        regex: verbParams['regex'],
-        skipDeletesUntil: skipDeletesUntil,
-        limit: syncLimit);
+        : AtSecondaryConfig.syncPageLimit;
 
-    List<KeyStoreEntry> syncResponse = [];
-    InboundConnectionMetadata connectionMetadata =
+    final connectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
+    final enrollmentId = connectionMetadata.enrollmentId;
+    // Resolve enrollment ONCE per request — sync iterates many candidate
+    // entries against a single enrollment context, so the per-entry filter
+    // inside the iterate() where: closure can stay synchronous.
+    final EnrollDataStoreValue? enroll =
+        (enrollmentId == null) ? null : await resolveEnrollment(enrollmentId);
+    final int? latestCommitId = commitLog.lastCommittedSequenceNumber();
+
+    bool whereFilter(CommitEntry entry) {
+      final atKey = entry.atKey;
+      if (atKey == null) return false;
+
+      // Invalid key shape — corrupt commit-log entry.
+      if (AtKey.getKeyType(atKey, enforceNameSpace: false) ==
+          KeyType.invalidKey) {
+        logger.warning('sync filter | $atKey is an invalid key. Skipping.');
+        return false;
+      }
+      try {
+        AtKey.fromString(atKey);
+      } on InvalidSyntaxException catch (_) {
+        logger.warning(
+            'sync filter | found an invalid key "$atKey" in the commit log. Skipping.');
+        return false;
+      }
+
+      // skipDeletesUntil: skip DELETE entries below the threshold,
+      // unless this is the latest commit entry overall (then it stays
+      // so the client can advance its watermark).
+      if (skipDeletesUntil != null &&
+          entry.operation == CommitOp.DELETE &&
+          entry.commitId != null &&
+          entry.commitId! <= skipDeletesUntil &&
+          entry.commitId != latestCommitId) {
+        return false;
+      }
+
+      // Regex / always-include-in-sync filter.
+      if (regex != null &&
+          regex.isNotEmpty &&
+          !RegExp(regex).hasMatch(atKey) &&
+          !sync_filter.alwaysIncludeInSync(atKey)) {
+        return false;
+      }
+
+      // Enrollment authorization (sync seam from 3.5c).
+      if (!isAuthorizedSync(enroll, enrollmentId, atKey: atKey)) {
+        return false;
+      }
+
+      // Note: for non-DELETE entries the keystore-presence check is
+      // applied in the output-flow loop (prepareResponse), where the
+      // keyValueStore.get is the real guard against the TOCTOU window
+      // between filter-time and fetch-time. The keystore's existence
+      // check is async, so it cannot run inside this synchronous
+      // `where` predicate.
+      return true;
+    }
+
+    final List<KeyStoreEntry> syncResponse = [];
     await prepareResponse(
       capacity,
       syncLimit,
       syncResponse,
-      commitEntryIterator,
-      connectionMetadata,
-      enrollmentId: connectionMetadata.enrollmentId,
+      commitLog.iterate(fromCommitId: fromCommitId, where: whereFilter),
     );
 
     response.data = jsonEncode(syncResponse);
   }
 
-  /// Adds items from the [commitEntryIterator] to the [syncResponse] until either
-  /// 1. there is at least one item in [syncResponse], and the response length is greater than [desiredMaxSyncResponseLength], or
-  /// 2. there are [AtSecondaryConfig.syncPageLimit] items in the [syncResponse]
+  /// Drains the filtered [stream] of commit entries into [syncResponse],
+  /// applying output-flow logic only:
+  ///
+  ///   - For non-DELETE entries, fetch the value from [keyStore]; skip if
+  ///     missing (handles the TOCTOU window between filter-time and
+  ///     fetch-time, where a concurrent delete can null the get).
+  ///   - Stop adding once `syncResponse.length >= syncPageLimit`.
+  ///   - Stop when adding the current entry would exceed
+  ///     [desiredMaxSyncResponseLength], provided at least one entry is
+  ///     already in the response. The first entry is always added even
+  ///     if it exceeds the buffer, so the client has something to
+  ///     advance past.
+  ///
+  /// The stream is unbounded by design — if every entry past `from`
+  /// fails the filter, the loop terminates on stream-end with
+  /// `syncResponse` empty. That returns `[]` to the client, but
+  /// bounded in time (one full scan), not the ad-infinitum loop the
+  /// previous limit-based impl was vulnerable to when filters
+  /// rejected every candidate in a 25-entry window.
   @visibleForTesting
   Future<void> prepareResponse(
-      int desiredMaxSyncResponseLength,
-      int syncPageLimit,
-      List<KeyStoreEntry> syncResponse,
-      Iterator<dynamic> commitEntryIterator,
-      InboundConnectionMetadata connectionMetadata,
-      {String? enrollmentId}) async {
+    int desiredMaxSyncResponseLength,
+    int syncPageLimit,
+    List<KeyStoreEntry> syncResponse,
+    Stream<CommitEntry> stream,
+  ) async {
     int currentResponseLength = 0;
-    while (
-        commitEntryIterator.moveNext() && syncResponse.length < syncPageLimit) {
-      var atKeyType = AtKey.getKeyType(commitEntryIterator.current.key,
-          enforceNameSpace: false);
-      if (atKeyType == KeyType.invalidKey) {
-        logger.warning(
-            'prepareResponse | ${commitEntryIterator.current.key} is an invalid key. Skipping.');
-        continue;
-      }
-      try {
-        AtKey.fromString(commitEntryIterator.current.key!);
-      } on InvalidSyntaxException catch (_) {
-        logger.warning(
-            'prepareResponse | found an invalid key "${commitEntryIterator.current.key!}" in the commit log. Skipping.');
-        continue;
-      }
-      if (!(await isAuthorized(
-        connectionMetadata,
-        atKey: commitEntryIterator.current.key!,
-      ))) {
-        continue;
-      }
-      var keyStoreEntry = KeyStoreEntry();
-      keyStoreEntry.key = commitEntryIterator.current.key;
-      keyStoreEntry.commitId = commitEntryIterator.current.value.commitId;
-      keyStoreEntry.operation = commitEntryIterator.current.value.operation;
-      if (commitEntryIterator.current.value.operation != CommitOp.DELETE) {
-        // If commitOperation is update (or) update_all (or) update_meta and key does not
-        // exist in keystore, skip the key to sync and continue
-        if (!keyStore.isKeyExists(commitEntryIterator.current.key)) {
-          logger.finer(
-              'prepareResponse | ${commitEntryIterator.current.key} does not exist in the keystore. Skipping.');
-          continue;
-        }
+    await for (final entry in stream) {
+      if (syncResponse.length >= syncPageLimit) break;
 
-        AtData? atData = await keyStore.get(commitEntryIterator.current.key);
+      final keyStoreEntry = KeyStoreEntry()
+        ..key = entry.atKey!
+        ..commitId = entry.commitId!
+        ..operation = entry.operation!;
+
+      if (entry.operation != CommitOp.DELETE) {
+        final atData = await keyStore.get(entry.atKey!);
         if (atData == null) {
-          logger.info('atData is null for ${commitEntryIterator.current.key}');
+          logger.info('atData is null for ${entry.atKey}');
           continue;
         }
         keyStoreEntry.value = atData.data;
         keyStoreEntry.atMetaData = _populateMetadata(atData);
       }
 
-      var utfJsonEncodedEntry = utf8.encode(jsonEncode(keyStoreEntry));
-
-      bool isOverflow = currentResponseLength + utfJsonEncodedEntry.length >
-          desiredMaxSyncResponseLength;
-
-      // If we've already got an item in the response, and this item would overflow our syncBufferSize
+      final encoded = utf8.encode(jsonEncode(keyStoreEntry));
+      final isOverflow =
+          currentResponseLength + encoded.length > desiredMaxSyncResponseLength;
       if (syncResponse.isNotEmpty && isOverflow) {
         logger.finer(
             'Sync progressive verb buffer overflow. BufferSize:$desiredMaxSyncResponseLength');
         break;
       }
-
-      // We ensure that if entries are available then at least one is always returned.
-      // If we don't do that, then the client will keep on requesting a sync from the
-      // same point, and the server will keep on returning empty lists, ad infinitum.
       syncResponse.add(keyStoreEntry);
-
       if (isOverflow) {
         logger.finer(
             'Sync progressive verb buffer overflow. BufferSize:$desiredMaxSyncResponseLength');
         break;
-      } else {
-        currentResponseLength += utfJsonEncodedEntry.length;
       }
+      currentResponseLength += encoded.length;
     }
   }
 
@@ -171,6 +203,16 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       if (itr.current.key == AtConstants.sharedWithPublicKeyHash &&
           itr.current.value != null) {
         metaDataMap[itr.current.key] = jsonEncode(itr.current.value);
+        continue;
+      }
+      // Like pubKeyHash, appMetadata is structured — toString() would
+      // emit a Dart-Map literal the client can't parse. The client's
+      // sync path decodes this with Metadata.decodeAppMetadata, whose
+      // String form is base64(JSON) — so emit exactly that.
+      if (itr.current.key == AtConstants.appMetadata &&
+          itr.current.value != null) {
+        metaDataMap[itr.current.key] =
+            Metadata.encodeAppMetadata(metaData.appMetadata!);
         continue;
       }
       if (itr.current.value != null) {

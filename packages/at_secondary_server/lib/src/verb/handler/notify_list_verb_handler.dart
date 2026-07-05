@@ -40,13 +40,19 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
     int? fromDateInEpoch;
     int toDateInEpoch;
     try {
+      // Both `fromDate` and `toDate` are interpreted as UTC dates.
+      // The window is `[fromDate 00:00:00Z, toDate 23:59:59.999Z]`
+      // inclusive. Mixing UTC with local-zone parsing here used to
+      // produce a window that varied by time-of-day in non-UTC
+      // timezones; pinning both to UTC removes the asymmetry.
       fromDateInEpoch = (verbParams['fromDate'] != null)
-          ? DateTime.parse(verbParams['fromDate']!).millisecondsSinceEpoch
+          ? DateTime.parse('${verbParams['fromDate']!}T00:00:00Z')
+              .millisecondsSinceEpoch
           : null;
       toDateInEpoch = (verbParams['toDate'] != null)
-          ? DateTime.parse('${verbParams['toDate']} 23:59:99Z')
+          ? DateTime.parse('${verbParams['toDate']}T23:59:59.999Z')
               .millisecondsSinceEpoch
-          : DateTime.now().millisecondsSinceEpoch;
+          : DateTime.now().toUtc().millisecondsSinceEpoch;
       if (fromDateInEpoch != null && toDateInEpoch < fromDateInEpoch) {
         logger.severe('ToDate cannot be less than FromDate');
         throw IllegalArgumentException('ToDate cannot be less than FromDate');

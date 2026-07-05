@@ -1,3 +1,240 @@
+## 5.1.0
+
+- feat: new persistence field `AtMetaData.appMetadata` carrying the
+  provider-owned `AppMetadata` from at_commons (opaque to the
+  server). Stored by `AtMetaDataAdapter` as a JSON-encoded string
+  (hive field 26); records written before the field existed read
+  back with `appMetadata == null`. Mapped in
+  `fromCommonsMetadata` / `toCommonsMetadata` and `toJson` /
+  `fromJson` (the latter accepts both the Map and base64 wire
+  forms).
+
+## 5.0.0
+
+Major release: persistence-overhaul. Themes:
+
+- **Bootstrap is now factory + bundle, not singletons.**
+  `AtPersistenceFactory` / `AtPersistenceBundle` replace every
+  legacy `getInstance()` shim. Backend-pluggable by design.
+- **Hive concretes renamed; abstract interfaces freed.**
+  `HiveAtCommitLog` / `HiveAtAccessLog` /
+  `HiveAtNotificationKeystore` / `HiveAtKeyValueStore`
+  implement abstract `AtCommitLog` / `AtAccessLog` /
+  `AtNotificationKeystore` / `AtKeyValueStore`. Bundles type
+  at the abstracts.
+- **Slim bundle + capability toggles.** The bundle exposes
+  `keyValueStore` (core) plus `accessLog?` and
+  `notificationKeystore?` (optional capabilities gated by
+  `AtPersistenceConfig` toggles). `serverDefaults` opts into
+  every capability; `clientDefaults` opts into the keystore only.
+- **First-class min/max/floor query surface.**
+  `KeyValueStore` gains `nextExpiresAt` / `peekExpired` (expiry
+  wake-up + bounded ascending-order drain, on both the main and
+  notification keystores); `AtKeyValueStore` gains
+  `nextAvailableAt` / `peekNewlyAvailable` (TTB wake-up + a
+  caller-side-watermark sweep window); `AtCommitLog` gains
+  `firstCommittedSequenceNumber` (the log's floor, pairing with
+  `lastCommittedSequenceNumber` so sync clients can detect
+  "server no longer retains my delta"). The Hive notification
+  keystore now maintains an in-memory effective-expiry index
+  (folding `expiresAt`, the `notificationDateTime + maxTtl`
+  guard, and already-expired-by-shape entries into one
+  comparable instant), which also backs `getExpiredKeys`
+  without a full-box deserialise. Fixed: bulk commit-log
+  removal left stale entries in the commit-log cache; cache
+  eviction is now guarded so deleting an older duplicate never
+  evicts the newer live entry.
+- **`AtKeyValueStore` widened with ten new primitives** for
+  at_client adoption: `exists`, `scanKeys` (with
+  `KeyPattern` + ordering + pagination), `getMany`,
+  `removeMany`, `changes` stream, `transaction`,
+  `queryByPath` (+ `supportsPathQueries`), `snapshot`
+  (+ `supportsSnapshots`), and `stats`. Capability flags let a
+  future SQL backend light up native indexed query / MVCC paths
+  while Hive falls back gracefully.
+- **Keystore type hierarchy collapsed.**
+  `SecondaryKeyStore` renamed to `AtKeyValueStore`;
+  `HiveSecondaryKeyStore` renamed to `HiveAtKeyValueStore`.
+  Bundle field `keyStore` renamed to `keyValueStore`.
+  `Keystore` (read-only), `WritableKeystore`, and
+  `SynchronizableKeyStore` collapsed into a single
+  `KeyValueStore<K, V>` interface that holds the merged
+  CRUD + rich surface (scan, bulk, expire, change stream,
+  transaction, snapshot, stats). `AtKeyValueStore<K, V, T>`
+  extends `KeyValueStore` and adds the sync-coupled surface:
+  the (nullable) `commitLog`, `putMeta` / `putAll` /
+  `getMeta`, and `queryByPath` /  `supportsPathQueries`.
+- **`scanKeys` / `KeyPattern` live on `AtKeyValueStore`, not
+  `KeyValueStore`.** Structured filtering (`KeyPattern`'s
+  `sharedBy` / `sharedWith` / `namespace` / `idPrefix`) is
+  atKey-shaped, so it belongs on the atKey-aware tier rather than
+  the generic key-value contract. `KeyValueStore.exists` and the
+  pre/post-remove hook callbacks are typed at the generic key `K`
+  (was `String`), since they don't carry the atKey assumption. A
+  new `AtKeyValueStoreSnapshot extends KeyStoreSnapshot` adds
+  `scanKeys` on top of the base snapshot for the same reason;
+  `HiveAtNotificationKeystore` (and its snapshot) no longer carry
+  the awkward `scanKeys` impl that only honoured `idPrefix`.
+- **Model classes decoupled from Hive.** `AtData`, `AtMetaData`,
+  `CommitEntry`, `AccessLogEntry` and `AtNotification` no longer
+  carry Hive's `@HiveType` / `@HiveField` annotations (they were
+  dead — no codegen) or `extends HiveObject`. The hand-written
+  `TypeAdapter`s moved to `lib/src/hive/adapters/` (re-exported by
+  the barrel; on-disk wire format unchanged). `AtData` and
+  `CommitEntry` keep a transient, non-serialized `key` field that
+  the keystore populates on read, replacing the `HiveObject.key`
+  that Hive used to auto-stamp. The five models are now plain Dart
+  objects — the seam a future SQLite/Postgres backend needs.
+- **`HiveAtKeyValueStore` value type tightened to non-null
+  `AtData`.** The main keystore now implements
+  `AtKeyValueStore<String, AtData, AtMetaData?>` (was
+  `<String, AtData?, AtMetaData?>`), and `AtPersistenceBundle`
+  surfaces it as such. `put` / `create` / `putAll` reject a
+  null value at compile time instead of crashing on an internal
+  `value!`; `getMany` returns `Map<String, AtData>`. `get` is
+  unchanged — it still returns `Future<AtData?>` (`null` for an
+  absent key). The metadata type parameter stays nullable
+  (`AtMetaData?`) since `getMeta` legitimately returns `null`.
+- **Keystore listing/existence APIs are now fully async, and
+  list-returning queries stream.** `KeyValueStore.getKeys`,
+  `getExpiredKeys` and `scanKeys` now return
+  `Future<Stream<…>>`; `LogKeyStore.getExpired` and
+  `AtCommitLog.getChanges` likewise return `Future<Stream<…>>`.
+  The `Future` completes once the backend has accepted the
+  request (so setup failures — store not open, invalid regex —
+  reject eagerly rather than mid-stream); the `Stream` then
+  yields the results. The synchronous `isKeyExists` is removed —
+  use the async `exists` (the two were duplicates; `exists` is
+  the backend-agnostic shape SQL backends need).
+- **`AtKeyValueStore.commitLog` is nullable, end to end.**
+  Server bundles hold a non-null commit log on the keystore;
+  client bundles hold `null` (sync via fsync or other
+  mechanism). `AtPersistenceConfig.enableCommitLog` (default
+  `true`; `serverDefaults` → `true`, `clientDefaults` → `false`)
+  selects which — when `false` the factory builds the keystore
+  commit-log-free and never opens the commit-log box.
+  `HiveAtKeyValueStore` honours a `null` commit log throughout:
+  `put` / `create` / `putAll` / `putMeta` / `remove` /
+  `removeMany` succeed and return `null` (no sequence number),
+  and `compact()` is a no-op that yields nothing. The server's
+  bootstrap asserts non-null once and binds to a non-nullable
+  local for downstream consumers.
+- **Bundle no longer exposes the commit log directly.**
+  `AtPersistenceBundle.commitLog` is gone; reach it as
+  `bundle.keyValueStore.commitLog!`.
+- **`AtNotificationKeystore` re-parented to `KeyValueStore`.**
+  No longer extends the AtKeyValueStore tier — notifications
+  don't participate in the commit log. Drops the six
+  `UnimplementedError` stubs and the no-op `commitLog`
+  override that the old interface forced on it. Notification
+  keystore implementations stop pretending to support
+  `putMeta` / `putAll` / `getMeta` / `queryByPath`. Now
+  strongly typed `KeyValueStore<String, AtNotification>`
+  (was `<dynamic, dynamic>`) — keys are notification ids,
+  values are `AtNotification`; consumers no longer cast.
+- **Compaction is intrinsic, not strategy-wrapped.** The
+  `Compactable` interface (one method: `Stream<Object>
+  compact(bool dryRun)`) replaces `AtCompactionStrategy`,
+  `HiveCompactionStrategy`, `AtCompaction`, `AtLogType`,
+  `AtCompactionConfig`, and `AtCompactionStats` — all
+  deleted. `AtCommitLog`, `AtAccessLog`,
+  `AtNotificationKeystore`, and `AtKeyValueStore` all
+  implement `Compactable`. The Hive impls each carry their
+  own `compactionPercentage` constructor parameter; on
+  `compact(false)` they yield the items removed,
+  `compact(true)` yields what would be removed.
+- **Compactor scheduling moves to `at_secondary_server`.**
+  The persistence layer no longer schedules anything — the
+  secondary server runs three `Timer.periodic` ticks with
+  overlap guards. `AtCompactionJob` deleted.
+  `AtCompactionStatsService.record()` takes primitives
+  (`label`, `start`, `compactedCount`, `duration`) instead
+  of an `AtCompactionStats` object.
+- **`AtPersistenceConfig` compactor flags removed.**
+  `enableCommitLogCompactor` / `enableAccessLogCompactor` /
+  `enableKeyStoreCompactor` moved to `AtSecondaryConfig`
+  (with `enableKeyStoreCompactor` → `enableNotificationCompactor`,
+  matching the resource it actually gates).
+- **Migrator-friendly walks.** `replay(CommitEntry)` and
+  `iterate({fromCommitId, where})` on `AtCommitLog`, plus
+  `iterate()` on access log + notification keystore. Lazy box-
+  walks; no upfront map materialisation.
+- **Commit log is one-entry-per-atKey by construction.** Inline
+  single-atKey dedup in `CommitLogKeyStore.add()` plus a
+  startup dedup migration. `CommitLogCompactionService` and
+  `CompactionSortedList` retired (their job is done eagerly by
+  the write path).
+- **`AtCommitLog.getEntries` retired.** Migrate to
+  `iterate(fromCommitId, where: closure)`; the closure carries
+  any caller-side filtering (regex, skipDeletesUntil, etc.).
+- **Keystore signatures tightened to remove `dynamic`.** CRUD
+  methods on `KeyValueStore` now return `Future<int?>`
+  (commit-log sequence number or `null`) instead of
+  `Future<dynamic>`. `KeyValueStore.get` is `Future<V?>`
+  instead of `Future<V>?`. `LogKeyStore.add` returns
+  `Future<int>` (Hive-assigned key); `update`/`remove` return
+  `Future<void>`; `getFirstNEntries` returns `List<int>`;
+  `getExpired` returns `Future<List<K>>`. `AtAccessLog`'s
+  `mostVisitedAtSigns` / `mostVisitedKeys` return
+  `Future<Map<String, int>>`. Pre/post-remove hook callbacks
+  are `Future<void> Function(...)`. Call sites can drop
+  `as int?` / `as AtData?` / `as Map` casts.
+- **`AtKeyValueStore.deleteExpiredKeys` drops `skipCommit`.**
+  Expiry is treated as backend-local maintenance: the sweep
+  never advances `commitId` and never propagates via sync.
+- **`AtKeyValueStore.commitLog` typed `AtCommitLog?` rather
+  than `AtLogType?`.** Callers no longer need `as AtCommitLog`
+  at every access site.
+- **`HiveAtNotificationKeystore.commitLog` is a no-op
+  getter/setter** instead of a mutable field — notifications
+  never participate in the commit log.
+- **`SyncProgressiveVerbHandler` empty-response wedge fixed.**
+  When every entry in a requested range failed `isAuthorized`
+  (or another in-loop filter), the handler returned `[]` and
+  the client could not advance its `from` watermark. The
+  switch to `iterate(where:)` makes the scan unbounded; the
+  client now always sees forward progress. No wire-format
+  change.
+- **`AtConfig` moved out** of this package into
+  `at_secondary_server`. Block-list writes pass
+  `skipCommit: true` and don't bump the local `commitId`.
+- **Test-isolation primitive.** `AtPersistenceBundle.clear()`
+  drops every entry from each store while keeping underlying
+  boxes open.
+- **Dependency on `at_persistence_spec` dropped.** The
+  interface types this package previously imported from
+  `at_persistence_spec` (`AtKeyValueStore`, exceptions, the
+  `@server`/`@client` annotations, and the new query /
+  change-stream types — `KeyEntry`, `KeyPattern`, `KeyStoreChange`,
+  `KeyStoreSnapshot`, `KeyStoreStats`, `KeyStoreTxn`, `OrderByKey`,
+  `Predicate`) now live alongside the Hive implementation in this
+  package.
+  Future backend packages depend on
+  `at_persistence_secondary_server` for the interface types
+  they need to satisfy.
+- **Factory close-and-reuse hardened.** `AtPersistenceBundle`
+  exposes `bool get isClosed`. `AtPersistenceFactory` gains
+  `Future<void> closeFor(String atSign)` — closes a single bundle
+  and drops the factory's reference. `initialize` and `bundleFor`
+  now treat a closed entry as absent (a closed bundle is dropped
+  and rebuilt on next `initialize`, and `bundleFor` returns
+  `null`), so a caller closing a bundle directly via
+  `bundle.close()` can no longer cause the factory to hand out a
+  stale closed reference.
+- **Dead code removed.** Deleted the unused `StoreType` enum,
+  `AtCommitLog.firstCommittedSequenceNumber` (no callers), the
+  `NullCommitEntry` sentinel (the package returns `null`, never a
+  sentinel), and the vestigial `LogKeyStore` interface — one
+  implementer, no consumers — along with the orphaned keystore
+  methods it carried (`getExpired`, and the commit-log keystore's
+  `getFirstNEntries`).
+
+See [`MIGRATION.md`](MIGRATION.md) for the full migration guide:
+what changed in this package (5.0.0 vs 4.3.5), how
+`at_secondary_server` was reworked to consume it, and a
+step-by-step guide for migrating `at_client` onto 5.0.0 and a
+commit-log-free local keystore.
+
 ## 4.3.5
 
 - perf: `NullCommitEntry` is now a singleton — no fresh `DateTime.now()`

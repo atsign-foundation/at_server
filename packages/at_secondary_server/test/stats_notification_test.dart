@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -37,7 +38,7 @@ void main() {
     bool inboundConn1Written = false;
     bool inboundConn2Written = false;
     StatsNotificationService statsNotificationService =
-        StatsNotificationService.getInstance();
+        atServer.statsNotificationService;
 
     expect(statsNotificationService.state,
         StatsNotificationServiceState.notScheduled);
@@ -63,7 +64,8 @@ void main() {
     when(() => mockInboundConnection2.isMonitor).thenAnswer((_) => false);
 
     var statsNotificationJobTimeInterval = Duration(milliseconds: 50);
-    await statsNotificationService.schedule(alice,
+    await statsNotificationService.schedule(
+        alice, AtSecondaryServerImpl.getInstance().commitLog,
         interval: statsNotificationJobTimeInterval);
     expect(statsNotificationService.state,
         StatsNotificationServiceState.scheduled);

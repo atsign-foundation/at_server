@@ -27,16 +27,14 @@ void main() async {
 
   group('A group of notify list verb tests', () {
     test('test notify getVerb', () {
-      var handler =
-          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
+      var handler = NotifyListVerbHandler(keyValueStore, notificationManager);
       var verb = handler.getVerb();
       expect(verb is NotifyList, true);
     });
 
     test('test notify command accept test', () {
       var command = 'notify:list .me:2021-01-01:2021-01-12';
-      var handler =
-          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
+      var handler = NotifyListVerbHandler(keyValueStore, notificationManager);
       var result = handler.accept(command);
       expect(result, true);
     });
@@ -84,7 +82,7 @@ void main() async {
   group('A group of tests on date time', () {
     test('A test to verify from date', () async {
       var notifyListVerbHandler =
-          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
+          NotifyListVerbHandler(keyValueStore, notificationManager);
       var notification1 = (AtNotificationBuilder()
             ..id = '122'
             ..fromAtSign = '@test_user_1'
@@ -124,7 +122,11 @@ void main() async {
       await notifStore.put('122', notification1);
       await notifStore.put('125', notification2);
       var verb = NotifyList();
-      var date = DateTime.now().toString().split(' ')[0];
+      // The notify-list handler interprets fromDate as a UTC date —
+      // derive the date string from UTC too, otherwise the
+      // local-zone date-string can fall outside the UTC window for
+      // notifications at the day boundary in non-UTC timezones.
+      var date = DateTime.now().toUtc().toString().split(' ')[0];
       var command = 'notify:list:$date';
       var regex = verb.syntax();
       var verbParams = getVerbParam(regex, command);
@@ -148,7 +150,7 @@ void main() async {
 
     test('A test to verify from and to date', () async {
       var notifyListVerbHandler =
-          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
+          NotifyListVerbHandler(keyValueStore, notificationManager);
       var notification1 = (AtNotificationBuilder()
             ..id = '121'
             ..fromAtSign = '@test_user_1'
@@ -208,10 +210,22 @@ void main() async {
       await notifStore.put('122', notification2);
       await notifStore.put('123', notification3);
       var verb = NotifyList();
-      var fromDate =
-          DateTime.now().subtract(Duration(days: 2)).toString().split(' ')[0];
-      var toDate =
-          DateTime.now().subtract(Duration(days: 1)).toString().split(' ')[0];
+      // The notify-list handler interprets the fromDate/toDate query
+      // parameters as UTC dates (window =
+      // `[fromDate 00:00:00Z, toDate 23:59:59.999Z]`), so derive the
+      // date strings from UTC too. Mixing local-zone date-string
+      // derivation here against the UTC-zone handler bounds produced
+      // a window that depended on time-of-day in non-UTC timezones.
+      var fromDate = DateTime.now()
+          .toUtc()
+          .subtract(Duration(days: 2))
+          .toString()
+          .split(' ')[0];
+      var toDate = DateTime.now()
+          .toUtc()
+          .subtract(Duration(days: 1))
+          .toString()
+          .split(' ')[0];
       var command = 'notify:list:$fromDate:$toDate';
       var regex = verb.syntax();
       var verbParams = getVerbParam(regex, command);
@@ -268,7 +282,7 @@ void main() async {
 
       await notifStore.put(testNotificationId, notification);
       NotifyListVerbHandler notifyListVerbHandler =
-          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
+          NotifyListVerbHandler(keyValueStore, notificationManager);
       InboundConnectionMetadata inboundConnectionMetadata =
           InboundConnectionMetadata()
             ..fromAtSign = testFromAtsign.toAtsign()
@@ -300,7 +314,7 @@ void main() async {
         () async {
       var ttl = 100;
       var notifyListVerbHandler =
-          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
+          NotifyListVerbHandler(keyValueStore, notificationManager);
       var notification1 = (AtNotificationBuilder()
             ..id = '122'
             ..fromAtSign = '@test_user_1'
@@ -368,7 +382,7 @@ void main() async {
     test('A test to verify notify list expired entries - No expired entry',
         () async {
       var notifyListVerbHandler =
-          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
+          NotifyListVerbHandler(keyValueStore, notificationManager);
       var notification1 = (AtNotificationBuilder()
             ..id = '122'
             ..fromAtSign = '@test_user_1'
@@ -463,7 +477,7 @@ void main() async {
       await notifStore.put(testNotificationId, notification);
 
       NotifyListVerbHandler notifyListVerbHandler =
-          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
+          NotifyListVerbHandler(keyValueStore, notificationManager);
       InboundConnectionMetadata inboundConnectionMetadata =
           InboundConnectionMetadata()
             ..fromAtSign = testFromAtsign.toAtsign()
@@ -520,7 +534,7 @@ void main() async {
       await notifStore.put(testNotificationId, notification);
 
       NotifyListVerbHandler notifyListVerbHandler =
-          NotifyListVerbHandler(secondaryKeyStore, notificationManager);
+          NotifyListVerbHandler(keyValueStore, notificationManager);
       InboundConnectionMetadata inboundConnectionMetadata =
           InboundConnectionMetadata()
             ..fromAtSign = testFromAtsign.toAtsign()
@@ -549,7 +563,7 @@ void main() async {
   group('A group of test to verify notify fetch', () {
     test('test to fetch notification using notification-id', () async {
       var notifyFetchVerbHandler =
-          NotifyFetchVerbHandler(secondaryKeyStore, notificationManager);
+          NotifyFetchVerbHandler(keyValueStore, notificationManager);
       var dateTimeNow = DateTime.now();
       var notification1 = (AtNotificationBuilder()
             ..id = '122'
@@ -596,7 +610,7 @@ void main() async {
     test('test to fetch a non existent notification using notification-id',
         () async {
       var notifyFetchVerbHandler =
-          NotifyFetchVerbHandler(secondaryKeyStore, notificationManager);
+          NotifyFetchVerbHandler(keyValueStore, notificationManager);
       var verbParams = getVerbParam(NotifyFetch().syntax(), 'notify:fetch:123');
       var inBoundSessionId = '123';
       var metadata = InboundConnectionMetadata()

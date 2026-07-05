@@ -18,7 +18,7 @@ import 'package:at_utils/at_logger.dart';
 final String paramFullCommandAsReceived = 'FullCommandAsReceived';
 
 abstract class AbstractVerbHandler implements VerbHandler {
-  final SecondaryKeyStore keyStore;
+  final AtKeyValueStore<String, AtData, AtMetaData?> keyStore;
 
   late AtSignLogger logger;
   ResponseHandlerManager responseManager =
@@ -184,22 +184,62 @@ abstract class AbstractVerbHandler implements VerbHandler {
       String? namespace,
       String enrolledNamespaceAccess = '',
       String operation = ''}) async {
+    final enrollmentId = inboundConnectionMetadata.enrollmentId;
     // If legacy PKAM (full permissions) or is a reserved key (to which all
     // authenticated connections have access) then return true
-    if (inboundConnectionMetadata.enrollmentId == null ||
-        _isReservedKey(atKey)) {
+    if (enrollmentId == null || _isReservedKey(atKey)) {
       return true;
     }
+    final enroll = await resolveEnrollment(enrollmentId);
+    return isAuthorizedSync(enroll, enrollmentId,
+        atKey: atKey,
+        namespace: namespace,
+        enrolledNamespaceAccess: enrolledNamespaceAccess,
+        operation: operation);
+  }
 
-    EnrollDataStoreValue enrollDataStoreValue;
-
+  /// Fetches the enrollment record for [enrollmentId] from the
+  /// enrollment manager. Returns `null` if the record cannot be
+  /// found ([KeyNotFoundException]); callers treat that as
+  /// "deny all".
+  ///
+  /// Companion to [isAuthorizedSync] — callers that need to authorize
+  /// many entries against a single enrollment context resolve once via
+  /// this method, then call [isAuthorizedSync] in a sync inner loop.
+  Future<EnrollDataStoreValue?> resolveEnrollment(String enrollmentId) async {
     try {
-      enrollDataStoreValue = await AtSecondaryServerImpl.getInstance()
+      return await AtSecondaryServerImpl.getInstance()
           .enrollmentManager
-          .getEnrollmentById(inboundConnectionMetadata.enrollmentId!);
+          .getEnrollmentById(enrollmentId);
     } on KeyNotFoundException {
-      logger.severe(
-          'Could not retrieve enrollment data for ${inboundConnectionMetadata.enrollmentId}');
+      logger.severe('Could not retrieve enrollment data for $enrollmentId');
+      return null;
+    }
+  }
+
+  /// Synchronous per-entry authorization check against a pre-fetched
+  /// [enrollDataStoreValue]. Hot-path companion to [isAuthorized] for
+  /// callers that decide many entries against a single enrollment
+  /// context (e.g. sync's commit-log walk) — resolve once via
+  /// [_resolveEnrollment], then call this for each candidate atKey.
+  ///
+  /// Three input states:
+  ///   - [enrollmentId] is null → legacy PKAM, full access → true
+  ///   - [atKey] is a reserved key → all authenticated connections
+  ///     have access → true (does not require a resolved enrollment)
+  ///   - [enrollDataStoreValue] is null → enrollment record unresolvable
+  ///     ([KeyNotFoundException] from [_resolveEnrollment]) → false
+  ///   - otherwise → namespace-access decision based on the enrollment
+  bool isAuthorizedSync(
+      EnrollDataStoreValue? enrollDataStoreValue, String? enrollmentId,
+      {String? atKey,
+      String? namespace,
+      String enrolledNamespaceAccess = '',
+      String operation = ''}) {
+    if (enrollmentId == null || _isReservedKey(atKey)) {
+      return true;
+    }
+    if (enrollDataStoreValue == null) {
       return false;
     }
 
@@ -236,8 +276,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
     // to public data, or if the enrollment has "*:rw"
     //
     // Unit tests to assert this are in update_verb_test.dart
-    enrollDataStoreValue.namespaces[enrollmentReservedNamespace(
-        inboundConnectionMetadata.enrollmentId!)] = 'rw';
+    enrollDataStoreValue.namespaces[enrollmentReservedNamespace(enrollmentId)] =
+        'rw';
 
     // Checks for namespace authorisation
     // In the authorizedNamespace, the first parameter represents the namespace and second parameter represents the
@@ -414,7 +454,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
     // If SPP key is available, check if the otp sent is a valid pass code.
     // If yes, return true, else check it is a valid OTP.
     String passcodeKey = OtpVerbHandler.passcodeKey(passcode, isSpp: true);
-    if (!keyStore.isKeyExists(passcodeKey)) {
+    if (!await keyStore.exists(passcodeKey)) {
       // if new SPPKey does not exist in keystore, check for SPP data against legacy SPP key
       // New SPP key has __otp namespace, legacy key does NOT have any namespace
       passcodeKey =
@@ -440,7 +480,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
 
     // 2. If not a valid SPP, then check against OTP keys
     String otpKey = OtpVerbHandler.passcodeKey(passcode, isSpp: false);
-    if (!keyStore.isKeyExists(otpKey)) {
+    if (!await keyStore.exists(otpKey)) {
       // if new OTPKey does not exist in keystore, check for OTP data against legacy OTPKey
       // New OTP key has __otp namespace, legacy key does not have namespace
       otpKey =

@@ -30,7 +30,8 @@ void main() {
     setUp(() async {
       await verbTestsSetUp();
       lookupVerbHandler = LookupVerbHandler(
-          secondaryKeyStore, mockOutboundClientManager, cacheManager, enMgr);
+          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+          accessLog: atAccessLog);
     });
 
     tearDown(() async {
@@ -51,8 +52,7 @@ void main() {
       //   * shared_key.bob$alice is unchanged
       await cacheManager.put(
           cachedBobsPublicKeyName, bobOriginalPublicKeyAtData);
-      await secondaryKeyStore.put(
-          sharedEncryptionKeyName, sharedEncryptionKeyData);
+      await keyValueStore.put(sharedEncryptionKeyName, sharedEncryptionKeyData);
 
       inboundConnection.metadata.isAuthenticated = true;
 
@@ -75,7 +75,7 @@ void main() {
           cachedBobPublicKeyData.metaData!.updatedAt!.millisecondsSinceEpoch,
           bobOriginalPublicKeyAtData
               .metaData!.updatedAt!.millisecondsSinceEpoch);
-      expect(secondaryKeyStore.isKeyExists(sharedEncryptionKeyName), true);
+      expect(await keyValueStore.exists(sharedEncryptionKeyName), true);
 
       var existsKeyName = 'some.key.some_app@bob';
       AtData bobData = createRandomAtData(bob);
@@ -102,7 +102,7 @@ void main() {
           cachedBobPublicKeyData.metaData!.createdAt!.millisecondsSinceEpoch,
           bobOriginalPublicKeyAtData
               .metaData!.createdAt!.millisecondsSinceEpoch);
-      expect(secondaryKeyStore.isKeyExists(sharedEncryptionKeyName), true);
+      expect(await keyValueStore.exists(sharedEncryptionKeyName), true);
     });
 
     doPKChangeAndAssertions() async {
@@ -113,13 +113,12 @@ void main() {
       // Then
       //   * a new value for publickey@bob has been fetched as part of OutboundClient creation / connection
       //   * cached:public:publickey@bob has been changed
-      await secondaryKeyStore.put(
+      await keyValueStore.put(
           cachedBobsPublicKeyName, bobOriginalPublicKeyAtData);
-      await secondaryKeyStore.put(
-          sharedEncryptionKeyName, sharedEncryptionKeyData);
+      await keyValueStore.put(sharedEncryptionKeyName, sharedEncryptionKeyData);
 
       AtData originalCachedBobPublicKeyData =
-          (await secondaryKeyStore.get(cachedBobsPublicKeyName))!;
+          (await keyValueStore.get(cachedBobsPublicKeyName))!;
 
       inboundConnection.metadata.isAuthenticated = true;
 
@@ -158,7 +157,7 @@ void main() {
         socketOnDataFn("data:$bobNewPublicKeyAsJson\n$alice@".codeUnits);
       });
 
-      expect(secondaryKeyStore.isKeyExists(sharedEncryptionKeyName), true);
+      expect(await keyValueStore.exists(sharedEncryptionKeyName), true);
 
       await lookupVerbHandler.process(
           'lookup:all:$existsKeyName', inboundConnection);
@@ -207,10 +206,11 @@ void main() {
 
       await doPKChangeAndAssertions();
 
-      expect(secondaryKeyStore.isKeyExists(sharedEncryptionKeyName), false);
+      expect(await keyValueStore.exists(sharedEncryptionKeyName), false);
 
       List<String> matches =
-          secondaryKeyStore.getKeys(regex: r'shared_key\.bob');
+          await (await keyValueStore.getKeys(regex: r'shared_key\.bob'))
+              .toList();
       expect(matches.contains(sharedEncryptionKeyName), false);
       bool found = false;
       for (String mkn in matches) {
@@ -224,13 +224,14 @@ void main() {
     test('PKChangedEvent created when public key changed', () async {
       await doPKChangeAndAssertions();
 
-      List<String> eventKeys = secondaryKeyStore.getKeys(
-          regex: '\\d*'
-              '\\.events'
-              '\\.${AtConstants.atServerReservedNamespace}'
-              '$alice');
+      List<String> eventKeys = await (await keyValueStore.getKeys(
+              regex: '\\d*'
+                  '\\.events'
+                  '\\.${AtConstants.atServerReservedNamespace}'
+                  '$alice'))
+          .toList();
       expect(eventKeys.length, 1);
-      AtData? atData = await secondaryKeyStore.get(eventKeys.first);
+      AtData? atData = await keyValueStore.get(eventKeys.first);
 
       AtSignPKChangedEvent expectedEvent = AtSignPKChangedEvent('@bob');
       AtSignPKChangedEvent actualEvent =
@@ -251,7 +252,7 @@ void main() {
       pkamMC.metaData.authType = AuthType.pkamLegacy;
       pkamMC.metaData.isAuthenticated = true;
       pkamMC.metaData.sessionID = 'legacy_pkam_monitor_session';
-      await MonitorVerbHandler(secondaryKeyStore, notificationManager)
+      await MonitorVerbHandler(keyValueStore, notificationManager)
           .processVerb(Response(), mvp, pkamMC);
 
       // Make a public key change

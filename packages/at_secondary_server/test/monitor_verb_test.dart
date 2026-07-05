@@ -32,7 +32,7 @@ void main() {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       inboundConnection.metaData.isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore, notificationManager);
+          MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
 
@@ -68,7 +68,7 @@ void main() {
       verbParams[AtConstants.regex] = 'wavi';
       inboundConnection.metaData.isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore, notificationManager);
+          MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
 
@@ -118,7 +118,7 @@ void main() {
       verbParams[AtConstants.regex] = 'wavi';
       inboundConnection.metaData.isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore, notificationManager);
+          MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
 
@@ -152,7 +152,7 @@ void main() {
       verbParams[AtConstants.regex] = 'wavi';
       inboundConnection.metaData.isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore, notificationManager);
+          MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
 
@@ -202,7 +202,7 @@ void main() {
           await setEnrollmentKey(jsonEncode({"wavi": "r"}));
 
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore, notificationManager);
+          MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
       var atNotification = (AtNotificationBuilder()
@@ -253,7 +253,7 @@ void main() {
           await setEnrollmentKey(jsonEncode({"wavi": "r", "buzz": 'rw'}));
 
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore, notificationManager);
+          MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
       var atNotification = (AtNotificationBuilder()
@@ -314,7 +314,7 @@ void main() {
           await setEnrollmentKey(jsonEncode({"wavi": "r", "buzz": "rw"}));
 
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore, notificationManager);
+          MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
       var atNotification = (AtNotificationBuilder()
@@ -368,7 +368,7 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.sessionID = 'dummy_session_id';
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enMgr, notificationManager);
+          EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
       await enrollVerbHandler.processVerb(
           response, enrollmentRequestVerbParams, inboundConnection);
       inboundConnection.metaData.enrollmentId =
@@ -376,7 +376,7 @@ void main() {
       expect(jsonDecode(response.data!)['status'], 'approved');
 
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore, notificationManager);
+          MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
           Response(), monitorVerbParams, inboundConnection);
       // Notification with wavi namespace
@@ -430,12 +430,12 @@ void main() {
     Future<String> newEnrollment(
         String appName, String deviceName, Map<String, String> namespaces,
         {required bool autoApprove}) async {
-      OtpVerbHandler otpVH = OtpVerbHandler(secondaryKeyStore);
+      OtpVerbHandler otpVH = OtpVerbHandler(keyValueStore);
       String otp = otpVH.generateOTP();
       await otpVH.savePasscode(otp, ttl: 5000, isSpp: false);
 
       EnrollVerbHandler enrollVerbHandler =
-          EnrollVerbHandler(secondaryKeyStore, enMgr, notificationManager);
+          EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
       String enrollmentRequest = 'enroll:request:'
           '{"otp":"$otp"'
           ',"appName":"$appName"'
@@ -485,7 +485,7 @@ void main() {
       pkamMC.metaData.authType = AuthType.pkamLegacy;
       pkamMC.metaData.isAuthenticated = true;
       pkamMC.metaData.sessionID = 'legacy_pkam_monitor_session';
-      await MonitorVerbHandler(secondaryKeyStore, notificationManager)
+      await MonitorVerbHandler(keyValueStore, notificationManager)
           .processVerb(Response(), mvp, pkamMC);
 
       // Make another enrollment request
@@ -538,7 +538,7 @@ void main() {
       inboundConnection.metaData.authType = AuthType.apkam;
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.sessionID = 'apkam_monitor_session';
-      await MonitorVerbHandler(secondaryKeyStore, notificationManager)
+      await MonitorVerbHandler(keyValueStore, notificationManager)
           .processVerb(Response(), mvp, inboundConnection);
 
       // Make another enrollment request
@@ -594,7 +594,7 @@ void main() {
       );
 
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore, notificationManager);
+          MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
       var atNotification = (AtNotificationBuilder()
@@ -665,7 +665,7 @@ void main() {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       inboundConnection.metaData.isAuthenticated = false;
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore, notificationManager);
+          MonitorVerbHandler(keyValueStore, notificationManager);
       expect(
           () async => await monitorVerbHandler.processVerb(
               Response(), verbParams, inboundConnection),
@@ -682,7 +682,7 @@ void main() {
       verbParams[AtConstants.regex] = '[';
       inboundConnection.metaData.isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore, notificationManager);
+          MonitorVerbHandler(keyValueStore, notificationManager);
       await expectLater(
           monitorVerbHandler.processVerb(
               Response(), verbParams, inboundConnection),
@@ -700,7 +700,7 @@ void main() {
       inboundConnection.metaData.enrollmentId =
           await setEnrollmentKey(jsonEncode({"wavi": "r"}));
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore, notificationManager);
+          MonitorVerbHandler(keyValueStore, notificationManager);
       await expectLater(
           monitorVerbHandler.processVerb(
               Response(), verbParams, inboundConnection),
@@ -725,7 +725,7 @@ void main() {
       verbParams[AtConstants.monitorSelfNotifications] = 'selfNotifications';
       inboundConnection.metaData.isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore, notificationManager);
+          MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
 
@@ -773,7 +773,7 @@ void main() {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       inboundConnection.metaData.isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore, notificationManager);
+          MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
 
@@ -821,7 +821,7 @@ void main() {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       inboundConnection.metaData.isAuthenticated = true;
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore, notificationManager);
+          MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
 
@@ -882,7 +882,7 @@ void main() {
       String monitorCommand = 'monitor:selfNotifications:$epoch';
 
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore, notificationManager);
+          MonitorVerbHandler(keyValueStore, notificationManager);
       HashMap<String, String?> verbParams =
           monitorVerbHandler.parse(monitorCommand);
       inboundConnection.metaData.isAuthenticated = true;
@@ -932,7 +932,7 @@ void main() {
 
       String monitorCommand = 'monitor:$epoch';
       MonitorVerbHandler monitorVerbHandler =
-          MonitorVerbHandler(secondaryKeyStore, notificationManager);
+          MonitorVerbHandler(keyValueStore, notificationManager);
       HashMap<String, String?> verbParams =
           monitorVerbHandler.parse(monitorCommand);
       inboundConnection.metaData.isAuthenticated = true;
@@ -969,13 +969,13 @@ void main() {
 Future<String> setEnrollmentKey(String namespace) async {
   Response response = Response();
   EnrollVerbHandler enrollVerbHandler =
-      EnrollVerbHandler(secondaryKeyStore, enMgr, notificationManager);
+      EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
   inboundConnection.metaData.isAuthenticated = true;
   inboundConnection.metaData.sessionID = 'dummy_session';
   // OTP Verb
   HashMap<String, String?> totpVerbParams =
       getVerbParam(VerbSyntax.otp, 'otp:get');
-  OtpVerbHandler otpVerbHandler = OtpVerbHandler(secondaryKeyStore);
+  OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
   await otpVerbHandler.processVerb(response, totpVerbParams, inboundConnection);
   // Enroll request
   String enrollmentRequest =
@@ -984,7 +984,7 @@ Future<String> setEnrollmentKey(String namespace) async {
       getVerbParam(VerbSyntax.enroll, enrollmentRequest);
   inboundConnection.metaData.isAuthenticated = false;
   enrollVerbHandler =
-      EnrollVerbHandler(secondaryKeyStore, enMgr, notificationManager);
+      EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
   await enrollVerbHandler.processVerb(
       response, enrollmentRequestVerbParams, inboundConnection);
   String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
@@ -995,7 +995,7 @@ Future<String> setEnrollmentKey(String namespace) async {
       getVerbParam(VerbSyntax.enroll, approveEnrollmentRequest);
   inboundConnection.metaData.isAuthenticated = true;
   enrollVerbHandler =
-      EnrollVerbHandler(secondaryKeyStore, enMgr, notificationManager);
+      EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
   await enrollVerbHandler.processVerb(
       response, approveEnrollmentVerbParams, inboundConnection);
   return enrollmentId;

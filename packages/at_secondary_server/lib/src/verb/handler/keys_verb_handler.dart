@@ -111,7 +111,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
     final keyNameFromParams = verbParams[AtConstants.keyName];
     if (keyNameFromParams != null && keyNameFromParams.isNotEmpty) {
       try {
-        final value = await keyStore.get(keyNameFromParams);
+        final value = (await keyStore.get(keyNameFromParams))!;
         response.data = value.data;
         return;
       } on KeyNotFoundException {
@@ -129,13 +129,16 @@ class KeysVerbHandler extends AbstractVerbHandler {
   /// Also return the encrypted default encryption private key and encrypted self encryption key for enrollmentId [enId]
   Future<List<String>> _getFilteredKeys(
       String? keyVisibility, bool hasManageAccess, String enId) async {
-    final result = keyVisibility != null && keyVisibility.isNotEmpty
+    final List<String> result = keyVisibility != null &&
+            keyVisibility.isNotEmpty
         ? hasManageAccess
-            ? keyStore.getKeys(
-                regex:
-                    '.*$keyVisibility.*__global$atSign\$|.*$keyVisibility.*__manage$atSign\$')
-            : keyStore.getKeys(
-                regex: '.*__${keyVisibility}_keys.__global$atSign\$')
+            ? await (await keyStore.getKeys(
+                    regex:
+                        '.*$keyVisibility.*__global$atSign\$|.*$keyVisibility.*__manage$atSign\$'))
+                .toList()
+            : await (await keyStore.getKeys(
+                    regex: '.*__${keyVisibility}_keys.__global$atSign\$'))
+                .toList()
         : <String>[];
 
     final filteredKeys = <String>[];
@@ -166,7 +169,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
     HashMap<String, String?> verbParams,
     Response response,
   ) async {
-    final keyNameFromParams = verbParams[AtConstants.keyName];
+    final keyNameFromParams = verbParams[AtConstants.keyName]!;
     response.data =
         (await keyStore.remove(keyNameFromParams, skipCommit: true)).toString();
   }
@@ -177,8 +180,9 @@ class KeysVerbHandler extends AbstractVerbHandler {
   Future<void> _addKeyIfEnrollmentIdMatches(List<dynamic> filteredKeys,
       String key, String enrollIdFromMetadata) async {
     final value = await keyStore.get(key);
-    if (value != null && value.data != null) {
-      final valueJson = jsonDecode(value.data);
+    final data = value?.data;
+    if (data != null) {
+      final valueJson = jsonDecode(data);
       if (valueJson[AtConstants.enrollmentId] == enrollIdFromMetadata) {
         filteredKeys.add(key);
       }
