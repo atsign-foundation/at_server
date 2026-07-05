@@ -8,7 +8,8 @@ void main() {
     });
 
     test('createFromRequest is unchanged (bare from:, no to:)', () {
-      expect(AtRequestFormatter.createFromRequest('@alice🛠'), 'from:@alice🛠\n');
+      expect(
+          AtRequestFormatter.createFromRequest('@alice🛠'), 'from:@alice🛠\n');
     });
 
     test('createLookUpRequest is unchanged', () {

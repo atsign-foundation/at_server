@@ -38,10 +38,16 @@ security:
 # Cross-server 'to:' verb: the first verb on an outbound peer connection
 # declares the target tenant, giving architectural flexibility for atServer
 # endpoints — e.g. atServers reached through proxies / gateways.
-# Default false. Turn on (env crossServerToVerbEnabled=true) only once every
-# atServer in the fleet understands 'to:' — a staged rollout.
+# Understanding inbound 'to:@x' is always on (unauthenticated, serves only
+# data already publicly readable via lookup). Emitting 'to:@target' on
+# outbound peer connections is gated here:
+# - toVerbOutboundEnabled (default false): emit 'to:@target' as the first
+#   verb on outbound peer connections. A peer that rejects 'to:' triggers a
+#   fallback to the legacy lookup, so enabling early costs a wasted round
+#   trip per connection to legacy peers, not an outage. Turn on (env
+#   toVerbOutboundEnabled=true) once the fleet understands 'to:'.
 protocol:
-  crossServerToVerbEnabled: false
+  toVerbOutboundEnabled: false
 
 # The atProtocol storage configurations
 hive:

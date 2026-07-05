@@ -114,6 +114,19 @@ class OutboundMessageListener {
               "Unexpected response '$result' from remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort}");
         }
       }
+      // Once the connection is closed no response can ever arrive —
+      // messageHandler drops data received on a closed connection — so
+      // don't wait out the timeout. This matters when a peer closes the
+      // connection instead of replying with an error upon receiving a verb
+      // it does not understand (atServers up to v3.0.28 do this).
+      if (outboundClient.outboundConnection == null ||
+          outboundClient.outboundConnection!.metaData.isClosed) {
+        _closeOutboundClient();
+        throw AtConnectException(
+            'Connection to remote secondary ${outboundClient.toAtSign}'
+            ' at ${outboundClient.toHost}:${outboundClient.toPort}'
+            ' was closed before a response was received');
+      }
       await Future.delayed(Duration(milliseconds: loopMillis));
     }
     // No response ... that's probably bad, so in addition to throwing an exception, let's also close the connection

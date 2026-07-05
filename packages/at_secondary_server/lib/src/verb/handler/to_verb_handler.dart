@@ -3,7 +3,6 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -13,9 +12,10 @@ import 'package:at_server_spec/at_server_spec.dart';
 
 /// Handler for the cross-server `to:@x` verb.
 ///
-/// Flag-gated: [accept] returns false when
-/// [AtSecondaryConfig.crossServerToVerbEnabled] is off, so `to:` is simply an
-/// unknown verb — behaviour is identical to today. When on, a peer atServer
+/// Always understood: understanding `to:` is safe (unauthenticated, serves
+/// only data that is already publicly readable via `lookup:`), and inbound
+/// support being unconditional is what lets outbound emission of `to:` be
+/// enabled later without a flag-flip ordering problem. A peer atServer
 /// declares the target tenant with `to:@x` and receives that tenant's
 /// `{publickey, signing_publickey}` envelope in one round trip (saving the peer
 /// a separate `lookup:publickey@x`). Each envelope value is in exactly the
@@ -31,15 +31,16 @@ class ToVerbHandler extends AbstractVerbHandler {
   ToVerbHandler(super.keyStore);
 
   @override
-  bool accept(String command) =>
-      AtSecondaryConfig.crossServerToVerbEnabled && command.startsWith('to:');
+  bool accept(String command) => command.startsWith('to:');
 
   @override
   Verb getVerb() => toVerb;
 
   @override
-  Future<void> processVerb(Response response,
-      HashMap<String, String?> verbParams, InboundConnection atConnection) async {
+  Future<void> processVerb(
+      Response response,
+      HashMap<String, String?> verbParams,
+      InboundConnection atConnection) async {
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     Atsign target = verbParams[AtConstants.atSign]!.toAtsign();
 
@@ -54,10 +55,10 @@ class ToVerbHandler extends AbstractVerbHandler {
 
     // The signing public key is generated at server startup so it is present;
     // the encryption public key may be absent until the atSign onboards one.
-    var encPublicKey =
-        await _lookupAllOrNull('${AtConstants.atEncryptionPublicKey}$currentAtSign');
-    var signingPublicKey =
-        await _lookupAllOrNull('${AtConstants.atSigningPublicKey}$currentAtSign');
+    var encPublicKey = await _lookupAllOrNull(
+        '${AtConstants.atEncryptionPublicKey}$currentAtSign');
+    var signingPublicKey = await _lookupAllOrNull(
+        '${AtConstants.atSigningPublicKey}$currentAtSign');
 
     response.data = jsonEncode({
       'publickey': encPublicKey,

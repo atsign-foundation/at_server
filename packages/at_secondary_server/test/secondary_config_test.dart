@@ -18,9 +18,9 @@ void main() async {
           equals(logging.Level.INFO.name.trim().toUpperCase()));
     });
 
-    test('Config: crossServerToVerbEnabled defaults to false (fleet-safe)',
+    test('Config: toVerbOutboundEnabled defaults to false (fleet-safe)',
         () async {
-      expect(AtSecondaryConfig.crossServerToVerbEnabled, false);
+      expect(AtSecondaryConfig.toVerbOutboundEnabled, false);
     });
 
     test(

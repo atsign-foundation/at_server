@@ -262,11 +262,10 @@ class InboundCommandValidator {
     final String rawVerb =
         (firstColon == -1 ? command : command.substring(0, firstColon)).trim();
 
-    // The cross-server 'to:' verb is not in the published AtVerb
-    // enum. When enabled, accept it as an unauthenticated first-verb (like from:/
-    // scan:) so it reaches ToVerbHandler; when the flag is off it falls through
-    // to the normal AtVerb.tryParse rejection, exactly as today.
-    if (rawVerb == 'to' && AtSecondaryConfig.crossServerToVerbEnabled) {
+    // The cross-server 'to:' verb is not in the published AtVerb enum, but is
+    // always understood. Accept it as an unauthenticated first-verb (like
+    // from:/scan:) so it reaches ToVerbHandler.
+    if (rawVerb == 'to') {
       return;
     }
 

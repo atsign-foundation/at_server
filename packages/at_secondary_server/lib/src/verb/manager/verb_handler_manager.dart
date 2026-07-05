@@ -84,9 +84,8 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     _verbHandlers = [];
     _verbHandlers.add(
         FromVerbHandler(keyStore, commitLog: commitLog, accessLog: accessLog));
-    // Cross-server 'to:' verb. accept() is flag-gated, so when
-    // crossServerToVerbEnabled is off this handler never matches — 'to:' stays
-    // an unknown verb, exactly as before.
+    // Cross-server 'to:' verb. Inbound understanding is always on; the
+    // handler accepts any command starting with 'to:'.
     _verbHandlers.add(ToVerbHandler(keyStore));
     _verbHandlers.add(CramVerbHandler(keyStore, accessLog: accessLog));
     _verbHandlers.add(PkamVerbHandler(keyStore));

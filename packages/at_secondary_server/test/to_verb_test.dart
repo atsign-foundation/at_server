@@ -45,11 +45,10 @@ void main() {
   });
 
   group('to verb accept tests', () {
-    // accept() is gated on AtSecondaryConfig.crossServerToVerbEnabled which
-    // defaults to false, so 'to:' is not accepted unless the flag is turned on
-    // — a fleet-safe default.
-    test('to: is NOT accepted when the flag is off (default)', () {
-      expect(ToVerbHandler(mockKeyStore).accept('to:@alice'), false);
+    // Inbound understanding of to: is always on — it is unauthenticated and
+    // serves only data that is already publicly readable via lookup:.
+    test('to: is accepted', () {
+      expect(ToVerbHandler(mockKeyStore).accept('to:@alice'), true);
     });
 
     test('a non-to: command is never accepted', () {
