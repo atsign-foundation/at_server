@@ -1,4 +1,4 @@
-## 5.1.0
+## 5.2.0
 
 - feat: dual-write persistence layer (`lib/dual.dart`) — serves reads from a
   primary backend while mirroring every write byte-exactly into a secondary
@@ -30,6 +30,9 @@
   entries and live unexpired-key entries are always compared, so real mirror
   data loss still fails. Makes the dual-write Hive-vs-SQLite DB-set comparison
   deterministic under a real functional workload, so it can gate CI.
+
+## 5.1.0
+
 - feat: new persistence field `AtMetaData.appMetadata` carrying the
   provider-owned `AppMetadata` from at_commons (opaque to the
   server). Stored by `AtMetaDataAdapter` as a JSON-encoded string

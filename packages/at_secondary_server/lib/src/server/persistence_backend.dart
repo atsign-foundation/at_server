@@ -80,7 +80,7 @@ class PersistenceBackendManager {
 
   /// Validation harness backend: serves reads from Hive while mirroring every
   /// write into SQLite. Run the functional pack against it, then compare the
-  /// two DB sets under <storageRoot> with bin/compare_persistence.dart. Not a
+  /// two DB sets under `<storageRoot>` with bin/compare_persistence.dart. Not a
   /// persistent backend — no marker, no migration.
   static const String dual = 'dual';
 
