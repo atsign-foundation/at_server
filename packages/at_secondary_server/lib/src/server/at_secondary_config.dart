@@ -33,6 +33,16 @@ class AtSecondaryConfig {
   static const String _notificationStoragePath = 'storage/notificationLog.v1';
   static const int _expiringRunFreqMins = 10;
 
+  // Persistence backend selection. 'hive' (default) keeps the historical
+  // Hive stores. 'sqlite' opens one atsign.db per atSign under
+  // <storageRoot>/sqlite. A mismatch between this and the on-disk backend
+  // marker triggers a migrate-verify-flip at startup (abort on failure).
+  static const String _persistenceBackend = 'hive';
+  // The common storage root under which both backends' data and the
+  // backend marker live (Hive under storage/hive etc., SQLite under
+  // storage/sqlite). Defaults to the parent of the Hive storagePath.
+  static const String _storageRoot = 'storage';
+
   //Commit Log
   static const int _commitLogCompactionFrequencyMins = 18;
   static const int _commitLogCompactionPercentage = 20;
@@ -354,6 +364,32 @@ class AtSecondaryConfig {
       return getConfigFromYaml(['hive', 'storagePath']);
     } on ElementNotFoundException {
       return _storagePath;
+    }
+  }
+
+  /// The active persistence backend: `'hive'` (default) or `'sqlite'`.
+  /// Override with env `persistenceBackend` or yaml
+  /// `persistence.backend`.
+  static String get persistenceBackend {
+    final result = _getStringEnvVar('persistenceBackend');
+    if (result != null) return result;
+    try {
+      return getConfigFromYaml(['persistence', 'backend']);
+    } on ElementNotFoundException {
+      return _persistenceBackend;
+    }
+  }
+
+  /// The common storage root under which each backend's data and the
+  /// backend marker live. Override with env `storageRoot` or yaml
+  /// `persistence.storageRoot`.
+  static String get storageRoot {
+    final result = _getStringEnvVar('storageRoot');
+    if (result != null) return result;
+    try {
+      return getConfigFromYaml(['persistence', 'storageRoot']);
+    } on ElementNotFoundException {
+      return _storageRoot;
     }
   }
 

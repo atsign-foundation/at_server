@@ -97,6 +97,20 @@ abstract interface class AtKeyValueStore<K, V, T>
   /// Returns the metadata associated with [key].
   Future<T> getMeta(K key);
 
+  /// Write [value] for [key] **verbatim** — no [AtMetadataBuilder]
+  /// pass, no `version`/`updatedAt` mutation, no commit-log append,
+  /// no change-event. The stored record is byte-for-byte what
+  /// [value] carries (its data and its metadata).
+  ///
+  /// This is the keystore counterpart to [AtCommitLog.replay]: it
+  /// exists for the persistence migrator to copy keystore content
+  /// from one backend to another while preserving every field
+  /// exactly. It is NOT a general write path — application writes go
+  /// through [put] / [create] / [putAll], which derive metadata.
+  /// Idempotent: restoring the same (key, value) twice leaves the
+  /// same stored record.
+  Future<void> restore(K key, V value);
+
   /// Stream the keystore keys that match [pattern]. Backend-
   /// portable successor to [KeyValueStore.getKeys] for callers
   /// that want structured filtering rather than building regular

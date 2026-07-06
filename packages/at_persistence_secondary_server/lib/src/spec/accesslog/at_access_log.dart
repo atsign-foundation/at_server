@@ -35,6 +35,13 @@ abstract class AtAccessLog implements Compactable {
   /// backend to another.
   Stream<AccessLogEntry> iterate();
 
+  /// Append [entry] **verbatim**, preserving its `requestDateTime`
+  /// (unlike [insert], which stamps the current instant). The
+  /// keystore counterpart to [iterate] for the persistence migrator:
+  /// replaying every iterated entry into a fresh backend reproduces
+  /// the same insertion-ordered log.
+  Future<void> replay(AccessLogEntry entry);
+
   /// Total entry count. Used by operators / metrics; not on any
   /// hot path.
   int entriesCount();

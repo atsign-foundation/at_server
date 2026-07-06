@@ -400,6 +400,34 @@ class HiveAtKeyValueStore
     }
   }
 
+  /// Writes [value] verbatim — no metadata builder, no commit-log
+  /// append, no change event. See [AtKeyValueStore.restore]. Used by
+  /// the persistence migrator to reproduce a source keystore's
+  /// records exactly (preserving createdAt/updatedAt/version and
+  /// every other field).
+  @override
+  Future<void> restore(String key, AtData value) async {
+    key = key.toLowerCase();
+    final atKey = AtKey.getKeyType(key, enforceNameSpace: false);
+    if (atKey == KeyType.invalidKey) {
+      logger.warning('Key $key is invalid');
+      throw InvalidAtKeyException('Key $key is invalid');
+    }
+    String hiveKey = HiveKeyStoreHelper.prepareKey(key);
+    _checkMaxLength(hiveKey);
+    try {
+      await getBox().put(hiveKey, value);
+      _updateMetadataCache(key, value.metaData);
+    } on Exception catch (exception) {
+      logger.severe('HiveAtKeyValueStore restore exception: $exception');
+      throw DataStoreException('exception in restore: ${exception.toString()}');
+    } on HiveError catch (error) {
+      await _restartHiveBox(error);
+      logger.severe('HiveAtKeyValueStore error: $error');
+      throw DataStoreException(error.message);
+    }
+  }
+
   /// Returns an integer if the key to be deleted is present in keystore or cache.
   @override
   Future<int?> remove(String key, {bool skipCommit = false}) async {

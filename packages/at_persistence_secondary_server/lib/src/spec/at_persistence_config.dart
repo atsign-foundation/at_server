@@ -1,8 +1,8 @@
 /// Identifies which persistence backend an [AtPersistenceFactory]
-/// produces. Only [hive] ships today; future backends (e.g. SQLite,
+/// produces. [hive] and [sqlite] ship today; future backends (e.g.
 /// Postgres) will add others without changing the enum's existing
 /// values.
-enum AtPersistenceBackendId { hive }
+enum AtPersistenceBackendId { hive, sqlite }
 
 /// Open base class for backend-specific configuration. Future
 /// backends subclass to add backend-specific fields without breaking

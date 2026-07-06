@@ -23,6 +23,7 @@ import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_certificate_validation.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/server/persistence_backend.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -843,14 +844,23 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     AtNotification.defaultTtl =
         Duration(minutes: AtSecondaryConfig.notificationExpiryInMins);
 
-    final config = HivePersistenceConfig.serverDefaults(
-      storagePath: AtSecondaryConfig.storagePath,
-      commitLogPath: AtSecondaryConfig.commitLogPath,
-      accessLogPath: AtSecondaryConfig.accessLogPath,
-      notificationStoragePath: AtSecondaryConfig.notificationStoragePath,
-    );
-    final bundle = await persistenceFactory.initialize(
-        serverContext!.currentAtSign!, config);
+    final atSign = serverContext!.currentAtSign!;
+    final targetBackend = PersistenceBackendManager.configuredBackend;
+
+    // If the on-disk backend marker disagrees with the configured backend,
+    // migrate → verify → flip before opening the target. Any failure here
+    // throws out of start(), leaving the source data and marker untouched.
+    await PersistenceBackendManager.migrateIfNeeded(atSign, targetBackend);
+
+    // For 'hive' (default) keep using the injectable persistenceFactory
+    // field, so existing behaviour and test injection are unchanged; for
+    // 'sqlite' / 'dual' switch to the corresponding factory.
+    if (targetBackend != PersistenceBackendManager.hive) {
+      persistenceFactory = PersistenceBackendManager.factoryFor(targetBackend);
+    }
+    final config = PersistenceBackendManager.configFor(targetBackend);
+
+    final bundle = await persistenceFactory.initialize(atSign, config);
     _persistenceBundle = bundle;
 
     _assertServerCapabilities(bundle);
