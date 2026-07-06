@@ -1,3 +1,6 @@
+## 5.2.0
+- chore: dependency bump — `at_commons` to `^5.12.0`
+
 ## 5.1.0
 - feat: introduce enum AtVerb for better preparsing of verbs
 

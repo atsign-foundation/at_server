@@ -67,11 +67,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'Cannot $operation enrollment without authentication');
     }
     EnrollParams? enrollVerbParams;
-    // The raw decoded enrollParams JSON map. Used to read fields the pinned
-    // at_commons EnrollParams model does not yet type (`metadata`,
-    // `signingAlgo`) — these ride the opaque JSON tail on enroll:request and
-    // are persisted verbatim onto the enrollment record.
-    Map<String, dynamic>? rawEnrollParams;
 
     // Ensure that enrollParams are present for all enroll operation.
     // 'list' and 'listns' carry no enrollParams JSON body.
@@ -82,9 +77,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         throw IllegalArgumentException('Enroll parameters not provided');
       }
     } else {
-      rawEnrollParams =
-          jsonDecode(verbParams[AtConstants.enrollParams]!) as Map<String, dynamic>;
-      enrollVerbParams = EnrollParams.fromJson(rawEnrollParams);
+      enrollVerbParams = EnrollParams.fromJson(
+          jsonDecode(verbParams[AtConstants.enrollParams]!)
+              as Map<String, dynamic>);
     }
 
     _validateParams(enrollVerbParams, operation!, atConnection);
@@ -94,7 +89,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         await _handleEnrollmentRequest(
           enMgr,
           enrollVerbParams!,
-          rawEnrollParams,
           currentAtSign,
           responseJson,
           atConnection,
@@ -221,7 +215,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   Future<void> _handleEnrollmentRequest(
       EnrollmentManager enMgr,
       EnrollParams enrollParams,
-      Map<String, dynamic>? rawEnrollParams,
       currentAtSign,
       Map<dynamic, dynamic> responseJson,
       InboundConnection atConnection) async {
@@ -273,17 +266,14 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     enrollmentValue.requestType = EnrollRequestType.newEnrollment;
 
     // The X-Wing key package (at `metadata.keyPackage`) and the APKAM
-    // `signingAlgo` ride the opaque enrollParams JSON tail on enroll:request and
-    // are persisted verbatim onto the enrollment record — there is no separate
-    // enroll:metadata write. Read from the raw JSON: the pinned at_commons
-    // EnrollParams model does not yet type these fields.
-    final rawMetadata = rawEnrollParams?['metadata'];
-    if (rawMetadata is Map<String, dynamic>) {
-      enrollmentValue.metadata = rawMetadata;
+    // `signingAlgo` ride EnrollParams on enroll:request and are persisted
+    // verbatim onto the enrollment record — there is no separate
+    // enroll:metadata write.
+    if (enrollParams.metadata != null) {
+      enrollmentValue.metadata = enrollParams.metadata;
     }
-    final rawSigningAlgo = rawEnrollParams?['signingAlgo'];
-    if (rawSigningAlgo is String) {
-      enrollmentValue.signingAlgo = rawSigningAlgo;
+    if (enrollParams.signingAlgo != null) {
+      enrollmentValue.signingAlgo = enrollParams.signingAlgo;
     }
 
     if (enrollParams.apkamKeysExpiryDuration != null) {
