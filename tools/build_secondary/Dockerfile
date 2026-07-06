@@ -34,16 +34,33 @@ RUN \
   cp config/config.yaml $HOMEDIR/config/ ; \
   cp cacert/cacert.pem /etc/cacert ; \
   cp pubspec.yaml $HOMEDIR/
+
+# Stage the architecture-appropriate libsqlite3 (+ its libz dependency) into
+# /runtime, alongside the Dart AOT runtime, so the scratch stage's static
+# `COPY --from=buildimage /runtime/ /` picks up the correct library for the
+# build architecture (a scratch-stage COPY cannot be arch-conditional).
+# `--dereference` resolves the SONAME symlink so a real file lands in the
+# scratch image (a copied symlink would dangle). Only dlopen'd at runtime when
+# persistence.backend=sqlite (the default hive image never loads it). NOTE:
+# confirm the full transitive .so set with a Docker build before the first
+# SQLite production deploy (this scratch image has no package manager).
+RUN \
+  case "$(dpkg --print-architecture)" in \
+    amd64) TRIPLET="x86_64-linux-gnu" ;; \
+    armhf) TRIPLET="arm-linux-gnueabihf" ;; \
+    arm64) TRIPLET="aarch64-linux-gnu" ;; \
+    riscv64) TRIPLET="riscv64-linux-gnu" ;; \
+    *) echo "Unsupported architecture: $(dpkg --print-architecture)" ; exit 5 ;; \
+  esac ; \
+  FILES="/usr/lib/$TRIPLET/libsqlite3.so.0 /usr/lib/$TRIPLET/libz.so.1" ; \
+  for f in $FILES ; do \
+    mkdir -p "/runtime$(dirname "$f")" ; \
+    cp --archive --link --dereference --no-target-directory "$f" "/runtime$f" ; \
+  done
+
 # Second stage of build FROM scratch
 FROM scratch
 COPY --from=buildimage /runtime/ /
-# libsqlite3 (+ libz) for the SQLite persistence backend's FFI. Only
-# dlopen'd when persistence.backend=sqlite; the default (hive) image never
-# loads it. NOTE: the exact transitive .so set must be confirmed with a
-# Docker build before the first SQLite production deploy (this scratch
-# image has no package manager to pull deps at runtime).
-COPY --from=buildimage /usr/lib/x86_64-linux-gnu/libsqlite3.so.0 /usr/lib/x86_64-linux-gnu/
-COPY --from=buildimage /usr/lib/x86_64-linux-gnu/libz.so.1 /usr/lib/x86_64-linux-gnu/
 COPY --from=buildimage /etc/passwd /etc/passwd
 COPY --from=buildimage /etc/group /etc/group
 COPY --from=buildimage /etc/cacert /etc/cacert
