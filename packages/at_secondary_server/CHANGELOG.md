@@ -1,4 +1,4 @@
-# 3.14.0
+# 3.15.0
 
 - feat: `enroll:listns:<namespace>` verb for the WP-SS secret-sharing
   substrate (at_commons 5.12.0). Returns all approved enrollments that hold
@@ -10,6 +10,9 @@
 - feat: `metadata` field on enrollment records — an opaque JSON map stored
   verbatim from `enroll:request`'s `EnrollParams.metadata`; surfaced in
   `enroll:fetch`, `enroll:list`, and `enroll:listns` responses.
+
+# 3.14.0
+
 - feat: `appMetadata` support on `update`, `update:meta` and `notify`
   (at_commons 5.11.0). The base64(JSON)
   `:appMetadata:` fragment is parsed into
