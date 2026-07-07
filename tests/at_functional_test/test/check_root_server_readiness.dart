@@ -10,7 +10,10 @@ Queue rootServerResponseQueue = Queue();
 
 void main() {
   var atSign = 'sitaram🛠';
-  var rootServerPort = 64;
+  // Root/atDirectory binds to VIRTUALENV_BASE_PORT when the VE runs on a shifted
+  // base port; default 64 otherwise.
+  final rootServerPort =
+      int.tryParse(Platform.environment['VIRTUALENV_BASE_PORT'] ?? '') ?? 64;
   var rootServer = 'vip.ve.atsign.zone';
 
   late SecureSocket secureSocket;
