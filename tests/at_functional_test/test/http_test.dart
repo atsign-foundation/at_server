@@ -24,7 +24,30 @@ void main() {
   final basePort =
       int.tryParse(Platform.environment['VIRTUALENV_BASE_PORT'] ?? '');
   final rootPort = basePort ?? 64;
-  final httpsPort = basePort != null ? basePort + 98 : 443;
+  // VIRTUALENV_ATDIRECTORY_HTTPS_PORT overrides the HTTPS port outright — used
+  // when the atServer serves HTTP GET-for-key on its OWN TLS port and there is
+  // no co-located port-64 atDirectory (an atServer that co-locates its HTTP
+  // GET-for-key surface on its own TLS port). Otherwise the ve's BASE + 98 (or
+  // the default 443) applies.
+  final httpsPort =
+      int.tryParse(Platform.environment['VIRTUALENV_ATDIRECTORY_HTTPS_PORT'] ?? '') ??
+          (basePort != null ? basePort + 98 : 443);
+
+  // When that override is set, the atProtocol-lookup half of the redirect tests
+  // must connect straight to the atServer (root:httpsPort) rather than resolving
+  // each atSign via the atDirectory; a fixed finder points every atSign there.
+  // Unset (ve) => null => AtLookupImpl's default CacheableSecondaryAddressFinder.
+  final SecondaryAddressFinder? directLookupFinder =
+      Platform.environment.containsKey('VIRTUALENV_ATDIRECTORY_HTTPS_PORT')
+          ? _FixedSecondaryAddressFinder(root, httpsPort)
+          : null;
+
+  // The basic atDirectory tests hit the port-64 secondary-address lookup and the
+  // root HTTPS lookup; skip them where the atServer has no co-located
+  // atDirectory: SKIP_BASIC_ATDIRECTORY_TESTS=true.
+  final skipBasicAtDirectory =
+      (Platform.environment['SKIP_BASIC_ATDIRECTORY_TESTS'] ?? '').toLowerCase() ==
+          'true';
 
   group('basic atDirectory tests', () {
     test('lookup existing atSign via 64', () async {
@@ -73,12 +96,16 @@ void main() {
       final responses = await Future.wait(futures);
       stderr.writeln('${responses.length} of ${atSigns.length} OK');
     });
-  });
+  },
+      skip: skipBasicAtDirectory
+          ? 'atDirectory port-64 / HTTPS lookup — no co-located atDirectory'
+          : null);
 
   group('atDirectory redirect tests', () {
     Future<bool> getAndCompareServerSigningKeyData(String atSign) async {
       final String command = 'lookup:signing_publickey$atSign';
-      final atLookup = AtLookupImpl(atSign, root, rootPort);
+      final atLookup = AtLookupImpl(atSign, root, rootPort,
+          secondaryAddressFinder: directLookupFinder);
       String pskFromAtLookup;
       try {
         pskFromAtLookup = (await atLookup.executeCommand('$command\n'))!;
@@ -100,7 +127,8 @@ void main() {
 
     Future<bool> getAndCompareServerSigningKeyMetadata(String atSign) async {
       final String command = 'lookup:meta:signing_publickey$atSign';
-      final atLookup = AtLookupImpl(atSign, root, rootPort);
+      final atLookup = AtLookupImpl(atSign, root, rootPort,
+          secondaryAddressFinder: directLookupFinder);
       String atMetaDataFromAtLookup = '';
       try {
         atMetaDataFromAtLookup = (await atLookup.executeCommand('$command\n'))!;
@@ -176,4 +204,17 @@ HttpClient newHttpClient() {
   final SecurityContext context = SecurityContext(withTrustedRoots: true);
   context.setAlpnProtocols(['http/1.1'], false);
   return HttpClient(context: context);
+}
+
+/// A [SecondaryAddressFinder] that returns a fixed host:port for every atSign —
+/// used when the atServer serves directly (atProtocol + HTTP GET-for-key on one
+/// TLS port) and there is no atDirectory to resolve per-atSign addresses.
+class _FixedSecondaryAddressFinder implements SecondaryAddressFinder {
+  final String host;
+  final int port;
+  _FixedSecondaryAddressFinder(this.host, this.port);
+
+  @override
+  Future<SecondaryAddress> findSecondary(String atSign) async =>
+      SecondaryAddress(host, port);
 }
