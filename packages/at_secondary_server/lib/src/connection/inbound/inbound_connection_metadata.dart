@@ -12,6 +12,10 @@ class InboundConnectionMetadata extends AtConnectionMetaData {
   /// fromOtherAtSign will be populated iff 'from' has been executed with an atSign which is NOT the atSign of this atServer
   Atsign? fromAtSign;
 
+  /// The target tenant a cross-server peer is operating on, set by the `to:@x`
+  /// verb. Single-tenant: always equals this server's atSign when set.
+  Atsign? toAtSign;
+
   /// A unique identifier to distinguish clients in the server logs.
   String? clientId;
 
@@ -30,6 +34,6 @@ class InboundConnectionMetadata extends AtConnectionMetaData {
 
   @override
   String toString() {
-    return 'InboundConnectionMetadata{self: $self, from: $from, fromAtSign: $fromAtSign, clientId: $clientId, appName: $appName, appVersion: $appVersion, platform: $platform, enrollmentId: $enrollmentId}';
+    return 'InboundConnectionMetadata{self: $self, from: $from, fromAtSign: $fromAtSign, toAtSign: $toAtSign, clientId: $clientId, appName: $appName, appVersion: $appVersion, platform: $platform, enrollmentId: $enrollmentId}';
   }
 }
