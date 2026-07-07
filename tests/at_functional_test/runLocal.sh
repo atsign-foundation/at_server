@@ -5,6 +5,28 @@ cd "$(dirname -- "$0")"
 cd ../../
 repoDir=$(pwd)
 
+# Optional VE base port. Set VIRTUALENV_BASE_PORT (env) or pass it as the first
+# argument to run the virtualenv on a shifted port range, so it doesn't clash
+# with another VE already running on the default ports. The ve entrypoint binds
+# atDirectory to BASE, atServers to BASE+1.., Redis to BASE+99
+# (tools/build_virtual_environment/ve/contents/atsign/entrypoint.sh). The Dart
+# harness reads VIRTUALENV_BASE_PORT too (config_util, the readiness checks), so
+# tests target the shifted ports without editing config.yaml. Unset => original
+# ports (atDirectory 64, atServers 25000.., Redis 6379).
+VIRTUALENV_BASE_PORT="${1:-${VIRTUALENV_BASE_PORT:-}}"
+if [[ -n "$VIRTUALENV_BASE_PORT" ]]; then
+  export VIRTUALENV_BASE_PORT
+  export rootServerPort="$VIRTUALENV_BASE_PORT" # install_PKAM_Keys reads this
+  veEnvArgs="-e VIRTUALENV_BASE_PORT=${VIRTUALENV_BASE_PORT}"
+  vePortArgs="-p ${VIRTUALENV_BASE_PORT}-$((VIRTUALENV_BASE_PORT + 99)):${VIRTUALENV_BASE_PORT}-$((VIRTUALENV_BASE_PORT + 99))"
+  veCmd="bash /atsign/entrypoint.sh"
+  echo "Using VE base port ${VIRTUALENV_BASE_PORT} (atServers ${VIRTUALENV_BASE_PORT}+1.., Redis +99)"
+else
+  veEnvArgs=""
+  vePortArgs="-p 6379:6379 -p 25000-25040:25000-25040 -p 64:64 -p 443:443"
+  veCmd=""
+fi
+
 echo "Generate atDirectory binary (root) [in dart:3.11.2 Linux container]"
 # Compile the binaries inside a Linux Dart container so they run inside the
 # Linux at_virtual_env container we build below. Compiling on the host
@@ -45,8 +67,8 @@ docker stop at_server_func_cont
 echo "Run docker container"
 docker run -d --rm --name at_server_func_cont \
   -e testingMode="true" -e httpsEnabled="true" \
-  -p 6379:6379 -p 25000-25040:25000-25040 -p 64:64 -p 443:443 \
-  at_virtual_env:local || exit 1
+  $veEnvArgs $vePortArgs \
+  at_virtual_env:local $veCmd || exit 1
 
 echo "Check docker readiness to load PKAM keys"
 cd ${repoDir}/tests/at_functional_test

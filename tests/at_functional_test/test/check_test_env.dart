@@ -7,7 +7,14 @@ void main() {
   SecureSocket secureSocket;
   var rootServer = 'vip.ve.atsign.zone';
   var atsign = '@sitaram🛠';
-  var atsignPort = 25017;
+  // Match the port the ve entrypoint assigns to @sitaram🛠 when the VE runs on a
+  // shifted base port (VIRTUALENV_BASE_PORT); default 25017 otherwise.
+  const defaultAtsignPort = 25017;
+  final basePort =
+      int.tryParse(Platform.environment['VIRTUALENV_BASE_PORT'] ?? '');
+  final atsignPort = basePort != null
+      ? defaultAtsignPort + (basePort + 1 - 25000)
+      : defaultAtsignPort;
   int maxRetryCount = 10;
   int retryCount = 1;
 
