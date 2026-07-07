@@ -18,12 +18,16 @@ void main() {
 
   AtSignLogger.root_level = 'shout';
   final root = 'vip.ve.atsign.zone';
+  // atDirectory binds to VIRTUALENV_BASE_PORT when the VE runs on a shifted base
+  // port; default 64 otherwise.
+  final rootPort =
+      int.tryParse(Platform.environment['VIRTUALENV_BASE_PORT'] ?? '') ?? 64;
 
   group('basic atDirectory tests', () {
     test('lookup existing atSign via 64', () async {
       List<Future> futures = [];
       for (final atSign in atSigns) {
-        final saf = CacheableSecondaryAddressFinder(root, 64);
+        final saf = CacheableSecondaryAddressFinder(root, rootPort);
         futures.add(saf.findSecondary(atSign));
       }
       final responses = await Future.wait(futures);
@@ -33,7 +37,7 @@ void main() {
     test('lookup non-existent atSign avia 64', () async {
       List<Future> futures = [];
       for (final atSign in atSigns.map((e) => '${e}_nope')) {
-        final saf = CacheableSecondaryAddressFinder(root, 64);
+        final saf = CacheableSecondaryAddressFinder(root, rootPort);
         futures.add(expectLater(saf.findSecondary(atSign),
             throwsA(isA<SecondaryNotFoundException>())));
       }
@@ -71,7 +75,7 @@ void main() {
   group('atDirectory redirect tests', () {
     Future<bool> getAndCompareServerSigningKeyData(String atSign) async {
       final String command = 'lookup:signing_publickey$atSign';
-      final atLookup = AtLookupImpl(atSign, root, 64);
+      final atLookup = AtLookupImpl(atSign, root, rootPort);
       String pskFromAtLookup;
       try {
         pskFromAtLookup = (await atLookup.executeCommand('$command\n'))!;
@@ -93,7 +97,7 @@ void main() {
 
     Future<bool> getAndCompareServerSigningKeyMetadata(String atSign) async {
       final String command = 'lookup:meta:signing_publickey$atSign';
-      final atLookup = AtLookupImpl(atSign, root, 64);
+      final atLookup = AtLookupImpl(atSign, root, rootPort);
       String atMetaDataFromAtLookup = '';
       try {
         atMetaDataFromAtLookup = (await atLookup.executeCommand('$command\n'))!;
