@@ -17,6 +17,15 @@ class AtSecondaryConfig {
   static const bool _useTLS = true;
   static const bool _clientCertificateRequired = true;
 
+  // Cross-server 'to:' verb. Inbound understanding of 'to:@x' is always on
+  // (unauthenticated, serves only data that is already publicly readable via
+  // lookup) — see ToVerbHandler. Outbound emission (send 'to:@target' as the
+  // first verb on outbound peer connections, which also fetches the peer's
+  // public key so no separate lookup is needed) is gated by this flag,
+  // default OFF until every atServer understands 'to:'. OutboundClient falls
+  // back to the legacy lookup when a peer rejects 'to:'.
+  static const bool _toVerbOutboundEnabled = false;
+
   //Certificate Paths
   static const String _fullchainLocation = 'certs/fullchain.pem';
   static const String _privkeyLocation = 'certs/privkey.pem';
@@ -183,6 +192,24 @@ class AtSecondaryConfig {
       return getConfigFromYaml(['security', 'clientCertificateRequired']);
     } on ElementNotFoundException {
       return _clientCertificateRequired;
+    }
+  }
+
+  /// Gates outbound emission of the cross-server `to:` verb as the first verb
+  /// on outbound peer connections. Default false (outbound connections use the
+  /// legacy `lookup:`/bare-`from:` path, byte for byte). When on, a peer that
+  /// rejects `to:` triggers a fallback to the legacy lookup, so enabling is
+  /// safe against atServers that do not understand the verb. Override with env
+  /// `toVerbOutboundEnabled=true` or yaml `protocol.toVerbOutboundEnabled`.
+  static bool get toVerbOutboundEnabled {
+    var result = _getBoolEnvVar('toVerbOutboundEnabled');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(['protocol', 'toVerbOutboundEnabled']);
+    } on ElementNotFoundException {
+      return _toVerbOutboundEnabled;
     }
   }
 
