@@ -70,6 +70,21 @@ class HiveAtAccessLog implements AtAccessLog {
     return await _accessLogKeyStore.getLastPkamEntry();
   }
 
+  /// Appends [entry] verbatim, preserving its `requestDateTime`.
+  /// See [AtAccessLog.replay].
+  @override
+  Future<void> replay(AccessLogEntry entry) async {
+    try {
+      await _accessLogKeyStore.add(entry);
+    } on Exception catch (e) {
+      throw DataStoreException(
+          'Exception replaying to access log:${e.toString()}');
+    } on HiveError catch (e) {
+      throw DataStoreException(
+          'Hive error replaying to access log:${e.toString()}');
+    }
+  }
+
   @override
   Stream<AccessLogEntry> iterate() async* {
     // Access log uses a LazyBox; fetch each value asynchronously

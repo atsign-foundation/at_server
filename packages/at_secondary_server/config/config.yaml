@@ -35,6 +35,19 @@ security:
   # atServer
   clientCertificateRequired: true
 
+# Persistence backend selection.
+# - backend: 'hive' (default) keeps the historical Hive stores; 'sqlite'
+#   opens one atsign.db per atSign under <storageRoot>/sqlite.
+# - storageRoot: the common root under which each backend's data and the
+#   backend marker (.persistence_backend) live.
+# Changing 'backend' triggers a migrate-verify-flip at startup (aborting
+# startup on any failure, leaving the source data untouched). The old
+# backend's data is RETAINED after a successful migration; reclaim it with
+# bin/cleanup_stale_persistence.dart once you no longer need to roll back.
+persistence:
+  backend: 'hive'
+  storageRoot: 'storage'
+
 # Cross-server 'to:' verb: the first verb on an outbound peer connection
 # declares the target tenant, giving architectural flexibility for atServer
 # endpoints — e.g. atServers reached through proxies / gateways.

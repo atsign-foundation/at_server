@@ -1,0 +1,135 @@
+name: functional_dual_verify
+# Runs the functional test pack against an atServer in dual persistence mode
+# (Hive primary, every write mirrored into SQLite), then verifies that each
+# atSign's Hive and SQLite DB sets are logically identical. This gates the
+# SQLite backend + dual-write mirror against a real end-to-end workload.
+on:
+  push:
+    branches:
+      - trunk
+  pull_request:
+    branches:
+      - trunk
+
+permissions:
+  contents: read
+
+env:
+  root-working-directory: ./packages/at_root_server
+  psecondary-working-directory: ./packages/at_persistence_secondary_server
+  secondary-working-directory: ./packages/at_secondary_server
+  ftest-working-directory: ./tests/at_functional_test
+  install-pkam-working-directory: ./tools/build_virtual_environment/install_PKAM_Keys
+
+jobs:
+  functional_dual_verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
+        with:
+          sdk: stable
+
+      - name: Install dependencies (functional test)
+        working-directory: ${{ env.ftest-working-directory }}
+        run: dart pub get
+
+      # The compare tool (tool/dual_compare_ve.dart) needs the persistence
+      # package's deps resolved.
+      - name: Install dependencies (persistence)
+        working-directory: ${{ env.psecondary-working-directory }}
+        run: dart pub get
+
+      - name: Add entry to hosts file
+        run: echo "127.0.0.1    vip.ve.atsign.zone" | sudo tee -a /etc/hosts
+
+      - name: Generate atDirectory binary (root)
+        working-directory: ${{ env.root-working-directory }}
+        run: dart pub get && dart compile exe bin/main.dart -o root
+
+      - name: Generate atServer binary (secondary)
+        working-directory: ${{ env.secondary-working-directory }}
+        run: dart pub get && dart compile exe bin/main.dart -o secondary
+
+      - name: Copy root and secondary binaries to the virtualenv
+        run: |
+          mkdir -p tools/build_virtual_environment/ve/contents/atsign/root
+          cp packages/at_root_server/root tools/build_virtual_environment/ve/contents/atsign/root/
+          cp packages/at_root_server/pubspec.yaml tools/build_virtual_environment/ve/contents/atsign/root/
+          chmod 755 tools/build_virtual_environment/ve/contents/atsign/root/root
+          rm -rf tools/build_virtual_environment/ve/contents/atsign/secondary
+          mkdir -p tools/build_virtual_environment/ve/contents/atsign/secondary
+          cp packages/at_secondary_server/secondary tools/build_virtual_environment/ve/contents/atsign/secondary/
+          cp packages/at_secondary_server/pubspec.yaml tools/build_virtual_environment/ve/contents/atsign/secondary/
+          chmod 755 tools/build_virtual_environment/ve/contents/atsign/secondary/secondary
+
+      - name: Build virtualenv docker image (with libsqlite3)
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          file: tools/build_virtual_environment/ve/Dockerfile
+          context: tools/build_virtual_environment/ve
+          tags: at_virtual_env:dual
+
+      - name: Run docker container in DUAL persistence mode
+        run: |
+          docker run -d --rm --name at_virtual_env_dual_cont \
+            -e testingMode="true" -e httpsEnabled="true" -e persistenceBackend="dual" \
+            -p 6379:6379 -p 25000-25099:25000-25099 -p 64:64 -p 443:443 \
+            at_virtual_env:dual
+
+      - name: Check docker readiness to load PKAM keys
+        working-directory: ${{ env.ftest-working-directory }}
+        run: dart run test/check_docker_readiness.dart
+
+      - name: Check root server readiness to load PKAM keys
+        working-directory: ${{ env.ftest-working-directory }}
+        run: dart run test/check_root_server_readiness.dart
+
+      - name: Load PKAM Keys
+        working-directory: ${{ env.install-pkam-working-directory }}
+        run: |
+          dart pub get
+          dart bin/install_PKAM_Keys.dart
+
+      - name: Check test environment readiness
+        working-directory: ${{ env.ftest-working-directory }}
+        run: dart run test/check_test_env.dart
+
+      - name: Run functional pack (dual mode)
+        working-directory: ${{ env.ftest-working-directory }}
+        run: dart run test --concurrency=1
+
+      - name: Verify every atSign's Hive and SQLite DB sets are identical
+        run: |
+          CONT=at_virtual_env_dual_cont
+          OUT=$(mktemp -d)
+          fail=0
+          total=0
+          dbs=$(docker exec "$CONT" sh -c "find / -name atsign.db 2>/dev/null" | tr -d '\r')
+          if [ -z "$dbs" ]; then
+            echo "::error::dual mode produced no SQLite databases"
+            exit 1
+          fi
+          for db in $dbs; do
+            secdir=$(echo "$db" | sed 's|/storage/sqlite/.*||')
+            atSign=$(basename "$(dirname "$db")")
+            dest="$OUT/$(echo "$secdir" | md5sum | cut -c1-12)"
+            docker cp "$CONT:$secdir/." "$dest" >/dev/null
+            res=$(cd packages/at_persistence_secondary_server && \
+              dart run tool/dual_compare_ve.dart "$dest" "$atSign" 2>/dev/null \
+              | grep -vE '^(SHOUT|INFO|WARNING|FINE)')
+            echo "$res"
+            echo "$res" | grep -q '^IDENTICAL' || fail=1
+            total=$((total+1))
+            rm -rf "$dest"
+          done
+          echo "compared $total atSign(s)"
+          if [ "$fail" != "0" ]; then
+            echo "::error::Hive and SQLite DB sets diverged in dual mode"
+            exit 1
+          fi
+
+      - name: Stop container
+        if: always()
+        run: docker stop at_virtual_env_dual_cont || true
