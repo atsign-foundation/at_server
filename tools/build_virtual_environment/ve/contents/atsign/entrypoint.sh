@@ -10,6 +10,7 @@
 # into the [BASE, BASE+99] range:
 #   atDirectory  -> BASE
 #   atServers    -> BASE+1 .. BASE+80
+#   HTTPS        -> BASE+98
 #   Redis        -> BASE+99
 # This makes it possible to run several VE containers side-by-side on
 # one host without port collisions.
@@ -24,6 +25,7 @@ fi
 BASE=${VIRTUALENV_BASE_PORT}
 ROOT_PORT=${BASE}
 REDIS_PORT=$((BASE + 99))
+HTTPS_PORT=$((BASE + 98))
 SECONDARY_BASE=$((BASE + 1))
 SHIFT=$((SECONDARY_BASE - 25000))
 
@@ -32,6 +34,8 @@ sed -i "s/^port .*/port ${REDIS_PORT}/" /etc/redis/redis.conf
 
 # root_server: redis client port (the -p arg) and bind port (env var)
 export rootServerPort="${ROOT_PORT}"
+# root_server: HTTPS bind port (env var read by AtRootConfig.httpsPort)
+export httpsPort="${HTTPS_PORT}"
 sed -i "s/-p 6379/-p ${REDIS_PORT}/" /etc/supervisor/conf.d/30_root.conf
 
 # Secondary atServer supervisord program blocks: rewrite the -p N arg

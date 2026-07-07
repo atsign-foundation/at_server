@@ -18,10 +18,13 @@ void main() {
 
   AtSignLogger.root_level = 'shout';
   final root = 'vip.ve.atsign.zone';
-  // atDirectory binds to VIRTUALENV_BASE_PORT when the VE runs on a shifted base
-  // port; default 64 otherwise.
-  final rootPort =
-      int.tryParse(Platform.environment['VIRTUALENV_BASE_PORT'] ?? '') ?? 64;
+  // When the VE runs on a shifted base port (VIRTUALENV_BASE_PORT), the
+  // atDirectory binds to BASE and serves HTTPS on BASE + 98 (see the ve
+  // entrypoint); otherwise the defaults 64 / 443.
+  final basePort =
+      int.tryParse(Platform.environment['VIRTUALENV_BASE_PORT'] ?? '');
+  final rootPort = basePort ?? 64;
+  final httpsPort = basePort != null ? basePort + 98 : 443;
 
   group('basic atDirectory tests', () {
     test('lookup existing atSign via 64', () async {
@@ -48,7 +51,7 @@ void main() {
     test('lookup existing atSign via https', () async {
       List<Future> futures = [];
       for (final atSign in atSigns) {
-        final Uri url = Uri.https(root, atSign);
+        final Uri url = Uri.https('$root:$httpsPort', atSign);
         futures.add(expectLater(
           http.get(url).then((response) => response.statusCode),
           completion(HttpStatus.ok),
@@ -61,7 +64,7 @@ void main() {
     test('lookup non-existent atSign via https', () async {
       List<Future> futures = [];
       for (final atSign in atSigns.map((e) => '${e}_nope')) {
-        final Uri url = Uri.https(root, atSign);
+        final Uri url = Uri.https('$root:$httpsPort', atSign);
         futures.add(expectLater(
           http.get(url).then((response) => response.statusCode),
           completion(HttpStatus.notFound),
@@ -87,7 +90,7 @@ void main() {
       }
 
       final (statusCode, pskFromHttpRedirect) = await dartIoHttpClientGet(
-          Uri.https(root, '/$atSign/signing_publickey'));
+          Uri.https('$root:$httpsPort', '/$atSign/signing_publickey'));
 
       expect(statusCode, HttpStatus.ok);
       expect(pskFromHttpRedirect, pskFromAtLookup);
@@ -112,7 +115,7 @@ void main() {
       }
 
       final (statusCode, atMetaDataFromHttpGet) = await dartIoHttpClientGet(
-          Uri.https(root, '/$atSign/signing_publickey', {'at_rt': 'meta'}));
+          Uri.https('$root:$httpsPort', '/$atSign/signing_publickey', {'at_rt': 'meta'}));
 
       expect(statusCode, HttpStatus.ok);
       expect(atMetaDataFromHttpGet, atMetaDataFromAtLookup);
