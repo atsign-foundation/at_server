@@ -8,14 +8,6 @@ publish_to: none
 environment:
   sdk: ">=3.0.0 <4.0.0"
 
-# Temporary bridge: at_secondary_server consumes new at_persistence_secondary_server
-# 5.2.0 API (SQLite backend, migrator) that is not yet published to pub.dev. Resolve
-# the sibling package by path so CI (plain `dart pub get`, no melos bootstrap) can
-# compile the secondary. Remove this once 5.2.0 is published and depend on it hosted.
-dependency_overrides:
-  at_persistence_secondary_server:
-    path: ../at_persistence_secondary_server
-
 dependencies:
   args: ^2.7.0
   uuid: ^4.5.3
