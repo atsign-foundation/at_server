@@ -50,8 +50,7 @@ class SqlitePersistenceConfig implements AtPersistenceConfig {
             backendMarkerPath ?? p.join(storagePath, '.persistence_backend');
 
   /// The `.db` file path for [atSign]: `<storagePath>/<atSign>/atsign.db`.
-  String dbPathFor(String atSign) =>
-      p.join(storagePath, atSign, 'atsign.db');
+  String dbPathFor(String atSign) => p.join(storagePath, atSign, 'atsign.db');
 
   /// atSecondary server config: all optional capabilities on.
   factory SqlitePersistenceConfig.serverDefaults({

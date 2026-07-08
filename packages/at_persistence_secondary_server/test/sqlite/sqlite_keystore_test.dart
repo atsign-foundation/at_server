@@ -69,8 +69,8 @@ void main() {
     test('getMany returns only present keys', () async {
       await ks.create('a.wavi@alice', data('1'));
       await ks.create('b.wavi@alice', data('2'));
-      final many = await ks.getMany(
-          ['a.wavi@alice', 'b.wavi@alice', 'missing.wavi@alice']);
+      final many = await ks
+          .getMany(['a.wavi@alice', 'b.wavi@alice', 'missing.wavi@alice']);
       expect(many.keys.toSet(), {'a.wavi@alice', 'b.wavi@alice'});
     });
 
@@ -80,7 +80,8 @@ void main() {
       await ks.create('c.wavi@alice', data('3'));
       await ks.remove('a.wavi@alice');
       expect(await ks.exists('a.wavi@alice'), false);
-      final n = await ks.removeMany(['b.wavi@alice', 'c.wavi@alice', 'x@alice']);
+      final n =
+          await ks.removeMany(['b.wavi@alice', 'c.wavi@alice', 'x@alice']);
       expect(n, 2);
     });
   });
@@ -184,8 +185,8 @@ void main() {
     test('scanKeys filters by KeyPattern', () async {
       await ks.create('phone.wavi@alice', data('1'));
       await ks.create('email.buzz@alice', data('2'));
-      final wavi = await (await ks.scanKeys(KeyPattern(namespace: 'wavi')))
-          .toList();
+      final wavi =
+          await (await ks.scanKeys(KeyPattern(namespace: 'wavi'))).toList();
       expect(wavi, ['phone.wavi@alice']);
     });
 
@@ -215,13 +216,11 @@ void main() {
 
   group('transaction', () {
     test('all-or-nothing: a throw rolls back every buffered write', () async {
-      await expectLater(
-          ks.transaction((txn) async {
-            await txn.put('a.wavi@alice', data('1'), null);
-            await txn.put('b.wavi@alice', data('2'), null);
-            throw StateError('boom');
-          }),
-          throwsA(isA<StateError>()));
+      await expectLater(ks.transaction((txn) async {
+        await txn.put('a.wavi@alice', data('1'), null);
+        await txn.put('b.wavi@alice', data('2'), null);
+        throw StateError('boom');
+      }), throwsA(isA<StateError>()));
       expect(await ks.exists('a.wavi@alice'), false);
       expect(await ks.exists('b.wavi@alice'), false);
     });

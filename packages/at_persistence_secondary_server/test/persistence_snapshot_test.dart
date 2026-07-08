@@ -43,13 +43,14 @@ void main() {
   });
 
   Future<List<AtPersistenceBundle>> two() async => [
-        await fa.initialize(
-            '@a', SqlitePersistenceConfig.serverDefaults(storagePath: '$root/a')),
-        await fb.initialize(
-            '@a', SqlitePersistenceConfig.serverDefaults(storagePath: '$root/b')),
+        await fa.initialize('@a',
+            SqlitePersistenceConfig.serverDefaults(storagePath: '$root/a')),
+        await fb.initialize('@a',
+            SqlitePersistenceConfig.serverDefaults(storagePath: '$root/b')),
       ];
 
-  Future<List<String>> diffs(AtPersistenceBundle a, AtPersistenceBundle b) async =>
+  Future<List<String>> diffs(
+          AtPersistenceBundle a, AtPersistenceBundle b) async =>
       (await PersistenceSnapshot.capture(a))
           .differencesFrom(await PersistenceSnapshot.capture(b));
 

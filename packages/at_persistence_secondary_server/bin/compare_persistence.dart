@@ -40,8 +40,10 @@ Future<void> main(List<String> args) async {
     final aSnap = await PersistenceSnapshot.capture(aBundle);
     final bSnap = await PersistenceSnapshot.capture(bBundle);
 
-    stdout.writeln('A = ${opts.aBackend}@${opts.aRoot}  counts=${aSnap.counts}');
-    stdout.writeln('B = ${opts.bBackend}@${opts.bRoot}  counts=${bSnap.counts}');
+    stdout
+        .writeln('A = ${opts.aBackend}@${opts.aRoot}  counts=${aSnap.counts}');
+    stdout
+        .writeln('B = ${opts.bBackend}@${opts.bRoot}  counts=${bSnap.counts}');
 
     final diffs = aSnap.differencesFrom(bSnap);
     if (diffs.isEmpty) {

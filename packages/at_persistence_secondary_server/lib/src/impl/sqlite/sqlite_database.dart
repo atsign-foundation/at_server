@@ -45,8 +45,7 @@ class SqliteDatabase {
     if (_libraryConfigured) return;
     _libraryConfigured = true;
     if (!Platform.isLinux) return;
-    sqlite_open.open
-        .overrideFor(sqlite_open.OperatingSystem.linux, () {
+    sqlite_open.open.overrideFor(sqlite_open.OperatingSystem.linux, () {
       try {
         return DynamicLibrary.open('libsqlite3.so.0');
       } on ArgumentError {
@@ -126,7 +125,8 @@ class SqliteDatabase {
       _db.execute('DELETE FROM commit_log;');
       _db.execute('DELETE FROM notifications;');
       _db.execute('DELETE FROM access_log;');
-      _db.execute("UPDATE counters SET value = 0 WHERE name = 'last_commit_id';");
+      _db.execute(
+          "UPDATE counters SET value = 0 WHERE name = 'last_commit_id';");
     });
   }
 

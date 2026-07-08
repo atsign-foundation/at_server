@@ -51,7 +51,8 @@ void main() {
     // mirror must copy the primary's stamps, not let sqlite stamp its own).
     await ks.create('phone.wavi$atSign', d('111'));
     await ks.put('phone.wavi$atSign', d('222')); // update → version bump
-    await ks.create('email.wavi$atSign', d('a@b', AtMetaData()..isEncrypted = true));
+    await ks.create(
+        'email.wavi$atSign', d('a@b', AtMetaData()..isEncrypted = true));
     await ks.putMeta('email.wavi$atSign', AtMetaData()..ttr = 3600);
 
     // Shared + elided + public:__ keys.
@@ -64,12 +65,16 @@ void main() {
     await ks.remove('bye.wavi$atSign');
 
     // Expired TTL key swept via deleteExpiredKeys.
-    await ks.restore('exp.wavi$atSign', d('gone', AtMetaData()
-      ..createdAt = DateTime.utc(2020)
-      ..updatedAt = DateTime.utc(2020)
-      ..version = 0
-      ..ttl = 1
-      ..expiresAt = DateTime.utc(2020, 1, 1, 0, 0, 1)));
+    await ks.restore(
+        'exp.wavi$atSign',
+        d(
+            'gone',
+            AtMetaData()
+              ..createdAt = DateTime.utc(2020)
+              ..updatedAt = DateTime.utc(2020)
+              ..version = 0
+              ..ttl = 1
+              ..expiresAt = DateTime.utc(2020, 1, 1, 0, 0, 1)));
     await ks.deleteExpiredKeys();
 
     // Notifications — including one whose embedded metadata has null
@@ -90,7 +95,8 @@ void main() {
     await bundle.notificationKeystore!.put(n.id!, n);
 
     // Access log.
-    await bundle.accessLog!.insert('@bob', 'lookup', lookupKey: 'phone.wavi$atSign');
+    await bundle.accessLog!
+        .insert('@bob', 'lookup', lookupKey: 'phone.wavi$atSign');
     await bundle.accessLog!.insert(atSign, 'pkam');
 
     // The two underlying DB sets must be byte-identical.

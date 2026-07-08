@@ -58,8 +58,11 @@ void main() {
       await ks.create('seed.wavi@verbatim_user', AtData()..data = 'x');
       final before = ks.commitLog!.lastCommittedSequenceNumber();
 
-      await ks.restore('phone.wavi@verbatim_user',
-          AtData()..data = 'v'..metaData = sourceMetadata());
+      await ks.restore(
+          'phone.wavi@verbatim_user',
+          AtData()
+            ..data = 'v'
+            ..metaData = sourceMetadata());
 
       expect(ks.commitLog!.lastCommittedSequenceNumber(), before,
           reason: 'restore must not advance the commit id');
@@ -86,8 +89,8 @@ void main() {
   });
 
   group('AtAccessLog.replay preserves the entry timestamp', () {
-    setUp(() async =>
-        await testAccessLogFor(atSign, accessLogPath: storageDir));
+    setUp(
+        () async => await testAccessLogFor(atSign, accessLogPath: storageDir));
     tearDown(() async => await tearDownTestPersistence(storageDir: storageDir));
 
     test('replay keeps requestDateTime; insert would stamp now', () async {

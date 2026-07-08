@@ -148,7 +148,8 @@ class DualWriteBundle implements AtPersistenceBundle {
 
 /// Keystore wrapper: writes to primary, then mirrors the affected key's exact
 /// resulting state into secondary. Reads/capabilities delegate to primary.
-class _DualWriteKeyStore implements AtKeyValueStore<String, AtData, AtMetaData?> {
+class _DualWriteKeyStore
+    implements AtKeyValueStore<String, AtData, AtMetaData?> {
   final AtKeyValueStore<String, AtData, AtMetaData?> _primary;
   final AtKeyValueStore<String, AtData, AtMetaData?> _secondary;
 
@@ -366,7 +367,8 @@ class _DualWriteNotificationKeystore implements AtNotificationKeystore {
   Future<bool> deleteExpiredKeys() async {
     final expired = await (await _primary.getExpiredKeys()).toList();
     final result = await _primary.deleteExpiredKeys();
-    if (expired.isNotEmpty) await _secondary.removeMany(expired, skipCommit: true);
+    if (expired.isNotEmpty)
+      await _secondary.removeMany(expired, skipCommit: true);
     return result;
   }
 
@@ -454,8 +456,8 @@ class _DualWriteAccessLog implements AtAccessLog {
     // Build the entry once and replay the SAME entry to both logs. Using
     // primary.insert + getLastAccessLogEntry would race: a concurrent insert
     // could advance "last" between the two calls, mirroring the wrong entry.
-    final entry = AccessLogEntry(
-        fromAtSign, DateTime.now().toUtc(), verbName, lookupKey);
+    final entry =
+        AccessLogEntry(fromAtSign, DateTime.now().toUtc(), verbName, lookupKey);
     await _primary.replay(entry);
     await _secondary.replay(entry);
     return null;

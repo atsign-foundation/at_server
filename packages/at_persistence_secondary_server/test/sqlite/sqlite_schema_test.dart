@@ -48,27 +48,30 @@ void main() {
           .toList();
       expect(
           tables,
-          containsAll(
-              ['at_data', 'commit_log', 'counters', 'notifications', 'access_log']));
+          containsAll([
+            'at_data',
+            'commit_log',
+            'counters',
+            'notifications',
+            'access_log'
+          ]));
 
       final ver = db.raw.select('PRAGMA user_version;').first.values.first;
       expect(ver, SqliteSchema.contractVersion);
 
-      final counter = db.raw.select(
-          "SELECT value FROM counters WHERE name = 'last_commit_id';");
+      final counter = db.raw
+          .select("SELECT value FROM counters WHERE name = 'last_commit_id';");
       expect(counter.first['value'], 0);
 
-      final journal =
-          db.raw.select('PRAGMA journal_mode;').first.values.first;
+      final journal = db.raw.select('PRAGMA journal_mode;').first.values.first;
       expect((journal as String).toLowerCase(), 'wal');
 
       db.close();
     });
 
     test('re-opening an existing db is idempotent (no data loss)', () {
-      final path =
-          SqlitePersistenceConfig.serverDefaults(storagePath: root)
-              .dbPathFor('@bob');
+      final path = SqlitePersistenceConfig.serverDefaults(storagePath: root)
+          .dbPathFor('@bob');
       var db = SqliteDatabase.open('@bob', path);
       db.raw.execute(
           "INSERT INTO at_data (atkey, value, metadata) VALUES ('k@bob','v','{}');");
@@ -82,9 +85,8 @@ void main() {
     });
 
     test('runInTransaction rolls back on throw', () {
-      final path =
-          SqlitePersistenceConfig.serverDefaults(storagePath: root)
-              .dbPathFor('@carol');
+      final path = SqlitePersistenceConfig.serverDefaults(storagePath: root)
+          .dbPathFor('@carol');
       final db = SqliteDatabase.open('@carol', path);
 
       expect(
@@ -101,9 +103,8 @@ void main() {
 
     test('nested runInTransaction commits once; inner throw rolls back all',
         () {
-      final path =
-          SqlitePersistenceConfig.serverDefaults(storagePath: root)
-              .dbPathFor('@dave');
+      final path = SqlitePersistenceConfig.serverDefaults(storagePath: root)
+          .dbPathFor('@dave');
       final db = SqliteDatabase.open('@dave', path);
 
       // Happy path: nested join commits the whole thing.
@@ -132,9 +133,8 @@ void main() {
     });
 
     test('clear drops rows and resets the counter, keeping the db open', () {
-      final path =
-          SqlitePersistenceConfig.serverDefaults(storagePath: root)
-              .dbPathFor('@erin');
+      final path = SqlitePersistenceConfig.serverDefaults(storagePath: root)
+          .dbPathFor('@erin');
       final db = SqliteDatabase.open('@erin', path);
       db.raw.execute(
           "INSERT INTO at_data (atkey, value, metadata) VALUES ('k@erin','v','{}');");
@@ -153,9 +153,8 @@ void main() {
     });
 
     test('refuses to open a forward-versioned database', () {
-      final path =
-          SqlitePersistenceConfig.serverDefaults(storagePath: root)
-              .dbPathFor('@frank');
+      final path = SqlitePersistenceConfig.serverDefaults(storagePath: root)
+          .dbPathFor('@frank');
       // Create the db normally (dir + file + schema at v1), then stamp it
       // with a newer contract version to simulate a forward-versioned file.
       SqliteDatabase.open('@frank', path).close();
