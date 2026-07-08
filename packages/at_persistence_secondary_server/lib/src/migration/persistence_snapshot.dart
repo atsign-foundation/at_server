@@ -123,8 +123,7 @@ class PersistenceSnapshot {
     return diffs;
   }
 
-  bool matches(PersistenceSnapshot other) =>
-      differencesFrom(other).isEmpty;
+  bool matches(PersistenceSnapshot other) => differencesFrom(other).isEmpty;
 
   /// Per-store row counts, for the compare CLI's summary line.
   Map<String, int> get counts => {
@@ -162,7 +161,8 @@ class PersistenceSnapshot {
       if (!b.containsKey(key)) {
         out.add('$label: key only in A: $key');
       } else if (a[key] != b[key]) {
-        out.add('$label: value differs for $key\n    A=${a[key]}\n    B=${b[key]}');
+        out.add(
+            '$label: value differs for $key\n    A=${a[key]}\n    B=${b[key]}');
       }
     }
     for (final key in b.keys) {

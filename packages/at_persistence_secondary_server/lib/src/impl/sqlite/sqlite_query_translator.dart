@@ -56,10 +56,7 @@ class SqliteQueryTranslator {
         }
         final expected = p.expected;
         final bound = expected is bool ? (expected ? 1 : 0) : expected;
-        return (
-          sql: "json_extract($column, ?) = ?",
-          params: [path, bound]
-        );
+        return (sql: "json_extract($column, ?) = ?", params: [path, bound]);
       case And a:
         if (a.children.isEmpty) return (sql: '1=1', params: []);
         return _combine(a.children, 'AND', column);

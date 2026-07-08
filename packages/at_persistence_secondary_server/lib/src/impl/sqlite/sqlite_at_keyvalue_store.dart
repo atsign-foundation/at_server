@@ -362,8 +362,8 @@ class SqliteAtKeyValueStore
         " ORDER BY json_extract(metadata, '\$.createdAt')",
       null => '',
     };
-    final rows = _db.raw
-        .select('SELECT atkey FROM at_data WHERE $where$order;', params);
+    final rows =
+        _db.raw.select('SELECT atkey FROM at_data WHERE $where$order;', params);
     // KeyPattern filter, then skip/limit (limit is post-filter, matching
     // the Hive semantics).
     var matched = rows
@@ -421,7 +421,8 @@ class SqliteAtKeyValueStore
   bool get supportsSnapshots => true;
 
   @override
-  Future<AtKeyValueStoreSnapshot<String, AtData, AtMetaData?>> snapshot() async {
+  Future<AtKeyValueStoreSnapshot<String, AtData, AtMetaData?>>
+      snapshot() async {
     return _SqliteSnapshot.open(_db.path);
   }
 
@@ -467,25 +468,23 @@ class SqliteAtKeyValueStore
 
   @override
   Future<KeyStoreStats> stats() async {
-    final row = _db.raw.select('SELECT '
-        'COUNT(*) total, '
-        'SUM(CASE WHEN expires_at IS NOT NULL THEN 1 ELSE 0 END) ttl, '
-        'SUM(CASE WHEN available_at IS NOT NULL THEN 1 ELSE 0 END) ttb, '
-        "MIN(json_extract(metadata, '\$.createdAt')) oldest, "
-        "MAX(json_extract(metadata, '\$.createdAt')) newest "
-        'FROM at_data;').first;
+    final row = _db.raw
+        .select('SELECT '
+            'COUNT(*) total, '
+            'SUM(CASE WHEN expires_at IS NOT NULL THEN 1 ELSE 0 END) ttl, '
+            'SUM(CASE WHEN available_at IS NOT NULL THEN 1 ELSE 0 END) ttb, '
+            "MIN(json_extract(metadata, '\$.createdAt')) oldest, "
+            "MAX(json_extract(metadata, '\$.createdAt')) newest "
+            'FROM at_data;')
+        .first;
     DateTime? parse(Object? v) =>
         v == null ? null : DateTime.tryParse(v as String);
     return KeyStoreStats(
       totalKeys: (row['total'] as int?) ?? 0,
       ttlKeys: (row['ttl'] as int?) ?? 0,
       ttbKeys: (row['ttb'] as int?) ?? 0,
-      sizeBytes: _db.raw
-              .select('PRAGMA page_count;')
-              .first
-              .values
-              .first as int? ??
-          0,
+      sizeBytes:
+          _db.raw.select('PRAGMA page_count;').first.values.first as int? ?? 0,
       oldestCreatedAt: parse(row['oldest']),
       newestCreatedAt: parse(row['newest']),
     );
@@ -507,8 +506,7 @@ class SqliteAtKeyValueStore
   // Internals
   // ---------------------------------------------------------------
 
-  String _normalize(String key) =>
-      key.trim().toLowerCase().replaceAll(' ', '');
+  String _normalize(String key) => key.trim().toLowerCase().replaceAll(' ', '');
 
   String _validateAndNormalize(String key) {
     final normalized = _normalize(key);
@@ -530,9 +528,9 @@ class SqliteAtKeyValueStore
 
   int _nowMillis() => DateTime.now().toUtc().millisecondsSinceEpoch;
 
-  bool _existsSync(String normalizedKey) => _db.raw
-      .select('SELECT 1 FROM at_data WHERE atkey = ? LIMIT 1;', [normalizedKey])
-      .isNotEmpty;
+  bool _existsSync(String normalizedKey) => _db.raw.select(
+      'SELECT 1 FROM at_data WHERE atkey = ? LIMIT 1;',
+      [normalizedKey]).isNotEmpty;
 
   AtData? _getSync(String normalizedKey) {
     final rows = _db.raw.select(

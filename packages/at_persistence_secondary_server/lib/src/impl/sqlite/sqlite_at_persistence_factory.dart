@@ -41,8 +41,9 @@ class SqliteAtPersistenceFactory implements AtPersistenceFactory {
 
     final commitLog = config.enableCommitLog ? SqliteAtCommitLog(db) : null;
     final accessLog = config.enableAccessLog ? SqliteAtAccessLog(db) : null;
-    final notificationKeystore =
-        config.enableNotificationKeystore ? SqliteAtNotificationKeystore(db) : null;
+    final notificationKeystore = config.enableNotificationKeystore
+        ? SqliteAtNotificationKeystore(db)
+        : null;
 
     final keyValueStore = SqliteAtKeyValueStore(db, atSign)
       ..commitLog = commitLog;

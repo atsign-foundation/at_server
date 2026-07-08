@@ -86,6 +86,14 @@ class PersistenceBackendManager {
 
   static final _logger = AtSignLogger('PersistenceBackendManager');
 
+  /// The backend marker file: `<storageRoot>/.persistence_backend`. In
+  /// production `storageRoot` is relative and resolves to `/atsign/storage`
+  /// (the secondary container's WORKDIR is `/atsign`, and that path is the
+  /// mounted persistent volume — see config.yaml's `persistence:` notes).
+  /// NOTE: with the default `hive` backend the marker is only ever READ, never
+  /// written — [migrateIfNeeded] writes it solely on a backend switch — so a
+  /// legacy Hive-only install has no marker file at all, and `read` returning
+  /// null there is the normal case (treated as `hive`).
   static String get markerPath =>
       p.join(AtSecondaryConfig.storageRoot, '.persistence_backend');
 
@@ -99,6 +107,10 @@ class PersistenceBackendManager {
     return b;
   }
 
+  // Hive data paths come from the dedicated storagePath / commitLogPath /
+  // accessLogPath / notificationStoragePath config (the `hive:` yaml block),
+  // NOT from storageRoot — the two are independent. storageRoot governs only
+  // the marker ([markerPath]) and the SQLite root (_sqliteConfig below).
   static HivePersistenceConfig _hiveConfig() =>
       HivePersistenceConfig.serverDefaults(
         storagePath: AtSecondaryConfig.storagePath,
@@ -107,6 +119,8 @@ class PersistenceBackendManager {
         notificationStoragePath: AtSecondaryConfig.notificationStoragePath,
       );
 
+  // SQLite keeps one atsign.db per atSign under <storageRoot>/sqlite — here
+  // storageRoot IS the data root (unlike the Hive case above).
   static SqlitePersistenceConfig _sqliteConfig() =>
       SqlitePersistenceConfig.serverDefaults(
           storagePath: p.join(AtSecondaryConfig.storageRoot, 'sqlite'));

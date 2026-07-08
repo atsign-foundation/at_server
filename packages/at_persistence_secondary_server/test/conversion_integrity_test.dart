@@ -37,7 +37,8 @@ void main() {
         notificationStoragePath: '$root/hive/$name',
       ));
 
-  Future<AtPersistenceBundle> sqliteBundle(String name) =>
+  Future<AtPersistenceBundle> sqliteBundle(
+          String name) =>
       sqliteFactory.initialize(
           '$atSign-$name-key',
           SqlitePersistenceConfig.serverDefaults(
@@ -48,7 +49,13 @@ void main() {
     ..metaData = m;
 
   // ms-precision so Hive's ms-truncation and SQLite's JSON string form agree.
-  DateTime t(int y, [int mo = 1, int d = 1, int h = 0, int mi = 0, int s = 0, int ms = 0]) =>
+  DateTime t(int y,
+          [int mo = 1,
+          int d = 1,
+          int h = 0,
+          int mi = 0,
+          int s = 0,
+          int ms = 0]) =>
       DateTime.utc(y, mo, d, h, mi, s, ms);
 
   /// Seeds a bundle with a fixture exercising every field/edge the round
@@ -59,24 +66,28 @@ void main() {
 
     // 1. A fully-populated metadata record (via verbatim restore so the
     //    audit fields are fixed and comparable).
-    await ks.restore('public:publickey$owner', atData('RSA_PUB', AtMetaData()
-      ..createdBy = owner
-      ..updatedBy = owner
-      ..createdAt = t(2021, 1, 2, 3, 4, 5, 678)
-      ..updatedAt = t(2021, 1, 2, 3, 4, 5, 678)
-      ..version = 0
-      ..ttr = -1
-      ..isBinary = false
-      ..isEncrypted = false
-      ..dataSignature = 'sig-data'
-      ..sharedKeyEnc = 'shared-enc'
-      ..pubKeyCS = 'cs123'
-      ..encoding = 'base64'
-      ..encKeyName = 'ek'
-      ..encAlgo = 'AES/GCM'
-      ..ivNonce = 'iv123'
-      ..skeEncKeyName = 'ske'
-      ..skeEncAlgo = 'RSA'));
+    await ks.restore(
+        'public:publickey$owner',
+        atData(
+            'RSA_PUB',
+            AtMetaData()
+              ..createdBy = owner
+              ..updatedBy = owner
+              ..createdAt = t(2021, 1, 2, 3, 4, 5, 678)
+              ..updatedAt = t(2021, 1, 2, 3, 4, 5, 678)
+              ..version = 0
+              ..ttr = -1
+              ..isBinary = false
+              ..isEncrypted = false
+              ..dataSignature = 'sig-data'
+              ..sharedKeyEnc = 'shared-enc'
+              ..pubKeyCS = 'cs123'
+              ..encoding = 'base64'
+              ..encKeyName = 'ek'
+              ..encAlgo = 'AES/GCM'
+              ..ivNonce = 'iv123'
+              ..skeEncKeyName = 'ske'
+              ..skeEncAlgo = 'RSA'));
 
     // 2. A normal write (goes through the builder → commit entry).
     await ks.create('phone.wavi$owner', atData('+1234', AtMetaData()));
@@ -89,26 +100,35 @@ void main() {
     //    stored data — the builder stamps it — so the fixture sets it too;
     //    AtMetaData.fromJson coerces a null version to 0, which would
     //    otherwise diverge from Hive's binary adapter that preserves null.)
-    await ks.restore('temp.wavi$owner', atData('gone', AtMetaData()
-      ..createdAt = t(2020)
-      ..updatedAt = t(2020)
-      ..version = 3
-      ..ttl = 1000
-      ..expiresAt = t(2020, 1, 1, 0, 0, 1)));
+    await ks.restore(
+        'temp.wavi$owner',
+        atData(
+            'gone',
+            AtMetaData()
+              ..createdAt = t(2020)
+              ..updatedAt = t(2020)
+              ..version = 3
+              ..ttl = 1000
+              ..expiresAt = t(2020, 1, 1, 0, 0, 1)));
 
     // 5. A TTB key not yet born.
-    await ks.restore('future.wavi$owner', atData('later', AtMetaData()
-      ..createdAt = t(2021)
-      ..updatedAt = t(2021)
-      ..version = 0
-      ..ttb = 999999999
-      ..availableAt = t(2099)));
+    await ks.restore(
+        'future.wavi$owner',
+        atData(
+            'later',
+            AtMetaData()
+              ..createdAt = t(2021)
+              ..updatedAt = t(2021)
+              ..version = 0
+              ..ttb = 999999999
+              ..availableAt = t(2099)));
 
     // 6. An elided key (no commit entry).
     await ks.create('private:secret.wavi$owner', atData('hush', AtMetaData()));
 
     // 7. A public:__ (double underscore) key — IS synced.
-    await ks.create('public:__internal.wavi$owner', atData('vis', AtMetaData()));
+    await ks.create(
+        'public:__internal.wavi$owner', atData('vis', AtMetaData()));
 
     // 8. A unicode atKey.
     await ks.create('emoji.wavi$owner', atData('🎉', AtMetaData()));
@@ -118,10 +138,10 @@ void main() {
     await ks.remove('goodbye.wavi$owner');
 
     // Access log.
-    await b.accessLog!.replay(
-        AccessLogEntry(owner, t(2022, 5, 5, 1, 2, 3), 'pkam', null));
     await b.accessLog!
-        .replay(AccessLogEntry('@bob', t(2022, 5, 5, 1, 2, 4), 'lookup', 'phone.wavi$owner'));
+        .replay(AccessLogEntry(owner, t(2022, 5, 5, 1, 2, 3), 'pkam', null));
+    await b.accessLog!.replay(AccessLogEntry(
+        '@bob', t(2022, 5, 5, 1, 2, 4), 'lookup', 'phone.wavi$owner'));
     await b.accessLog!
         .replay(AccessLogEntry('@bob', t(2022, 5, 5, 1, 2, 5), 'pol', null));
 

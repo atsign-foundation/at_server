@@ -8,8 +8,7 @@ import 'sqlite_notification_codec.dart';
 /// SQLite-backed [AtNotificationKeystore] (`notifications` table). A
 /// `KeyValueStore<String, AtNotification>` — no commit log, no metadata
 /// triplet — plus the notification-specific `init` / `iterate` surface.
-class SqliteAtNotificationKeystore
-    implements AtNotificationKeystore {
+class SqliteAtNotificationKeystore implements AtNotificationKeystore {
   final SqliteDatabase _db;
 
   final StreamController<KeyStoreChange> _changes =
@@ -65,8 +64,8 @@ class SqliteAtNotificationKeystore
 
   @override
   Future<AtNotification?> get(String key) async {
-    final rows =
-        _db.raw.select('SELECT payload FROM notifications WHERE id = ?;', [key]);
+    final rows = _db.raw
+        .select('SELECT payload FROM notifications WHERE id = ?;', [key]);
     if (rows.isEmpty) return null;
     return SqliteNotificationCodec.decode(rows.first['payload'] as String);
   }
@@ -85,9 +84,8 @@ class SqliteAtNotificationKeystore
   }
 
   @override
-  Future<bool> exists(String key) async => _db.raw
-      .select('SELECT 1 FROM notifications WHERE id = ? LIMIT 1;', [key])
-      .isNotEmpty;
+  Future<bool> exists(String key) async => _db.raw.select(
+      'SELECT 1 FROM notifications WHERE id = ? LIMIT 1;', [key]).isNotEmpty;
 
   @override
   Future<Map<String, AtNotification>> getMany(List<String> keys) async {
@@ -104,9 +102,8 @@ class SqliteAtNotificationKeystore
     var removed = 0;
     _db.runInTransaction(() {
       for (final k in keys) {
-        if (_db.raw
-            .select('SELECT 1 FROM notifications WHERE id = ? LIMIT 1;', [k])
-            .isEmpty) {
+        if (_db.raw.select(
+            'SELECT 1 FROM notifications WHERE id = ? LIMIT 1;', [k]).isEmpty) {
           continue;
         }
         _db.raw.execute('DELETE FROM notifications WHERE id = ?;', [k]);
@@ -193,9 +190,9 @@ class SqliteAtNotificationKeystore
 
   @override
   Future<KeyStoreStats> stats() async {
-    final total =
-        _db.raw.select('SELECT COUNT(*) c FROM notifications;').first['c']
-            as int;
+    final total = _db.raw
+        .select('SELECT COUNT(*) c FROM notifications;')
+        .first['c'] as int;
     return KeyStoreStats(
       totalKeys: total,
       ttlKeys: 0,

@@ -147,9 +147,8 @@ class SqliteAtCommitLog extends AtCommitLog {
   }
 
   int? _minMax(String fn) {
-    final v = _db.raw
-        .select('SELECT $fn(commit_id) v FROM commit_log;')
-        .first['v'];
+    final v =
+        _db.raw.select('SELECT $fn(commit_id) v FROM commit_log;').first['v'];
     return v as int?;
   }
 

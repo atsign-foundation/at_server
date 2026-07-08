@@ -38,7 +38,8 @@ Future<void> main(List<String> args) async {
     final diffs = hiveSnap.differencesFrom(sqliteSnap);
 
     if (diffs.isEmpty) {
-      print('IDENTICAL $atSign  hive=${hiveSnap.counts} sqlite=${sqliteSnap.counts}');
+      print(
+          'IDENTICAL $atSign  hive=${hiveSnap.counts} sqlite=${sqliteSnap.counts}');
     } else {
       print('MISMATCH(${diffs.length}) $atSign  '
           'hive=${hiveSnap.counts} sqlite=${sqliteSnap.counts}');

@@ -48,7 +48,8 @@ class SqliteNotificationCodec {
       ..opType = _enum(OperationType.values, m['opType'])
       ..messageType = _enum(MessageType.values, m['messageType'])
       ..priority = _enum(NotificationPriority.values, m['priority'])
-      ..notificationStatus = _enum(NotificationStatus.values, m['notificationStatus'])
+      ..notificationStatus =
+          _enum(NotificationStatus.values, m['notificationStatus'])
       ..retryCount = (m['retryCount'] as int?) ?? 1
       ..strategy = m['strategy'] as String?
       ..depth = m['depth'] as int?

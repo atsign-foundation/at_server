@@ -1,5 +1,21 @@
 # 3.15.0
 
+- feat: cross-server `to:@<atSign>` first-verb. On an outbound peer connection
+  the atServer can name the target tenant with `to:` as the first verb — giving
+  architectural flexibility for endpoints reached through proxies / gateways and
+  for multi-tenant peers that resolve a connection's tenant from its first verb.
+  Inbound understanding of `to:@x` is unconditional (unauthenticated, serving
+  only data already publicly readable via `lookup`); outbound emission is gated
+  by `toVerbOutboundEnabled` (default false), falling back to the legacy
+  `lookup:all:publickey` (reconnecting first) when a peer rejects or closes on
+  `to:`, so it is safe to enable against legacy and pre-c3.0.35 peers.
+- feat: optional SQLite persistence backend, selected by `persistence.backend`
+  (`hive` default, or `sqlite`). SQLite opens one `atsign.db` per atSign under
+  `<storageRoot>/sqlite`. Changing the backend triggers a migrate-verify-flip at
+  startup (abort-on-failure, with the source data retained for rollback and
+  reclaimed later by `bin/cleanup_stale_persistence.dart`); a `dual` validation
+  mode mirrors every write into both stores for comparison. The default `hive`
+  image is unchanged and never loads libsqlite3.
 - feat: `enroll:listns:<namespace>` verb for the WP-SS secret-sharing
   substrate (at_commons 5.12.0). Returns all approved enrollments that hold
   read-or-better access to the requested namespace, including their opaque
