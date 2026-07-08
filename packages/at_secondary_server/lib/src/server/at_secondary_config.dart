@@ -47,9 +47,14 @@ class AtSecondaryConfig {
   // <storageRoot>/sqlite. A mismatch between this and the on-disk backend
   // marker triggers a migrate-verify-flip at startup (abort on failure).
   static const String _persistenceBackend = 'hive';
-  // The common storage root under which both backends' data and the
-  // backend marker live (Hive under storage/hive etc., SQLite under
-  // storage/sqlite). Defaults to the parent of the Hive storagePath.
+  // The common storage root for the backend marker (.persistence_backend) and,
+  // for the 'sqlite'/'dual' backends, the SQLite data (<storageRoot>/sqlite).
+  // INDEPENDENT of the Hive path constants above (_storagePath / _commitLogPath
+  // / ...): with the default 'hive' backend this only locates the marker file —
+  // the Hive stores live at those paths, NOT under here. A relative path, so in
+  // the secondary container (WORKDIR /atsign) it resolves to /atsign/storage,
+  // the mounted persistent volume. Kept equal to the Hive paths' parent by
+  // convention so all state lands on that one volume.
   static const String _storageRoot = 'storage';
 
   //Commit Log
@@ -407,9 +412,13 @@ class AtSecondaryConfig {
     }
   }
 
-  /// The common storage root under which each backend's data and the
-  /// backend marker live. Override with env `storageRoot` or yaml
-  /// `persistence.storageRoot`.
+  /// The common storage root for the backend marker and (for the
+  /// `'sqlite'`/`'dual'` backends) the SQLite data. INDEPENDENT of the Hive
+  /// paths — with the default `'hive'` backend this only locates the marker
+  /// file; the Hive stores live at [storagePath] / [commitLogPath] / etc.,
+  /// not under here. Relative to the container working dir in production
+  /// (`/atsign` → `/atsign/storage`, the mounted volume). Override with env
+  /// `storageRoot` or yaml `persistence.storageRoot`.
   static String get storageRoot {
     final result = _getStringEnvVar('storageRoot');
     if (result != null) return result;
