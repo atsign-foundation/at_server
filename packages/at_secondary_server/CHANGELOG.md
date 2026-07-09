@@ -26,6 +26,9 @@
 - feat: `metadata` field on enrollment records — an opaque JSON map stored
   verbatim from `enroll:request`'s `EnrollParams.metadata`; surfaced in
   `enroll:fetch`, `enroll:list`, and `enroll:listns` responses.
+- fix: resolve sqlite migration deadlocks and OOMs by enforcing TRUNCATE mode and disabling true MVCC snapshots
+- fix: fix path overlap bug in `sweepStaleSource`
+
 
 # 3.14.0
 

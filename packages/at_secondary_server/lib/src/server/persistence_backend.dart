@@ -230,8 +230,29 @@ class PersistenceBackendManager {
     final age = DateTime.now().difference(marker.migratedAt!);
     if (age < retention) return const [];
 
+    final activePaths = dataPathsFor(marker.activeBackend)
+        .map((e) => p.canonicalize(e))
+        .toList();
+
     final deleted = <String>[];
     for (final path in marker.previousPaths) {
+      final canonPath = p.canonicalize(path);
+      bool overlaps = false;
+      for (final activePath in activePaths) {
+        if (canonPath == activePath ||
+            p.isWithin(canonPath, activePath) ||
+            p.isWithin(activePath, canonPath)) {
+          overlaps = true;
+          break;
+        }
+      }
+
+      if (overlaps) {
+        _logger.warning(
+            'Refusing to delete stale source path $path because it overlaps with active backend paths.');
+        continue;
+      }
+
       final dir = Directory(path);
       final file = File(path);
       if (dir.existsSync()) {

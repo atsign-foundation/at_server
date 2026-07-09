@@ -1,3 +1,8 @@
+## 5.2.1
+
+- fix: resolve sqlite migration deadlocks and OOMs by enforcing TRUNCATE mode and disabling true MVCC snapshots
+- fix: fix path overlap bug in `sweepStaleSource`
+
 ## 5.2.0
 
 - feat: dual-write persistence layer (`lib/dual.dart`) — serves reads from a
