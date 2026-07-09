@@ -118,5 +118,55 @@ void main() {
       expect(inboundConnection.lastWrittenData, contains('my-own-public-key'),
           reason: 'legitimate self-owned key access must still work');
     });
+
+    test('cannot READ a keys-verb key tagged with another enrollmentId',
+        () async {
+      await setUpNarrowlyScopedApprovedEnrollment();
+
+      // A well-formed keys-verb value (a Map carrying an enrollmentId) that
+      // belongs to a DIFFERENT enrollment. This exercises the discriminating
+      // branch of the gate — `decoded is Map && decoded[enrollmentId] == enId`
+      // — which the other refuse tests never reach because they use non-JSON
+      // values (those only hit the jsonDecode-throws → refuse path). This is
+      // the canonical "A cannot read B's key" isolation case.
+      final foreignEnId = Uuid().v4();
+      const foreignKey = 'public:encryption_self.__public_keys.__global@alice';
+      final foreignValue = jsonEncode({
+        'value': 'another-enrollments-key-material',
+        'keyType': 'rsa2048',
+        AtConstants.enrollmentId: foreignEnId,
+      });
+      await keyValueStore.put(foreignKey, AtData()..data = foreignValue);
+
+      await expectLater(
+          keysVerbHandler.process(
+              'keys:get:keyName:$foreignKey', inboundConnection),
+          throwsA(isA<UnAuthorizedException>()),
+          reason: 'must not read a keys-verb key owned by another enrollment');
+      expect(inboundConnection.lastWrittenData ?? '',
+          isNot(contains('another-enrollments-key-material')));
+    });
+
+    test('cannot DELETE a keys-verb key tagged with another enrollmentId',
+        () async {
+      await setUpNarrowlyScopedApprovedEnrollment();
+
+      final foreignEnId = Uuid().v4();
+      const foreignKey = 'public:encryption_self.__public_keys.__global@alice';
+      await keyValueStore.put(
+          foreignKey,
+          AtData()
+            ..data = jsonEncode({
+              'value': 'do-not-delete',
+              AtConstants.enrollmentId: foreignEnId,
+            }));
+
+      await expectLater(
+          keysVerbHandler.process(
+              'keys:delete:keyName:$foreignKey', inboundConnection),
+          throwsA(isA<UnAuthorizedException>()),
+          reason: 'must not delete a keys-verb key owned by another enrollment');
+      expect(await keyValueStore.exists(foreignKey), isTrue);
+    });
   });
 }
