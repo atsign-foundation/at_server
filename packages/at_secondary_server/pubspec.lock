@@ -84,19 +84,17 @@ packages:
   at_persistence_secondary_server:
     dependency: "direct main"
     description:
-      name: at_persistence_secondary_server
-      sha256: e4386ee5aab1c6cda7ca9f2baf1f7273fc8e4b669f7aa477260693c8ba84d08b
-      url: "https://pub.dev"
-    source: hosted
-    version: "5.1.0"
+      path: "../at_persistence_secondary_server"
+      relative: true
+    source: path
+    version: "5.2.1"
   at_server_spec:
     dependency: "direct main"
     description:
-      name: at_server_spec
-      sha256: c128bc00c8bde819ff547b2a7baf9788723f9d87c36eddc30fd18042c64060cf
-      url: "https://pub.dev"
-    source: hosted
-    version: "5.1.0"
+      path: "../at_server_spec"
+      relative: true
+    source: path
+    version: "5.2.0"
   at_utf7:
     dependency: transitive
     description:
@@ -633,6 +631,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.10.2"
+  sqlite3:
+    dependency: transitive
+    description:
+      name: sqlite3
+      sha256: "3145bd74dcdb4fd6f5c6dda4d4e4490a8087d7f286a14dee5d37087290f0f8a2"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.9.4"
   stack_trace:
     dependency: transitive
     description:
