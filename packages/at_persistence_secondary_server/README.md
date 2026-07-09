@@ -45,6 +45,12 @@ and the Hive implementation from
 - [Migrating from 4.x](#migrating-from-4x)
 - [License](#license)
 
+## SQLite Version Pinning
+
+This package pins the `sqlite3` dependency to `^2.4.0` (which resolves up to `2.9.x`). **Do not upgrade to `sqlite3 >= 3.0.0`.**
+
+The `sqlite3` 3.x release introduced a major architectural breaking change: it removed `DynamicLibrary.open()` in favor of Dart's experimental Native Assets (`build hooks`) for loading the C library. Upgrading to 3.x would break our standalone compilation pipelines and Docker builds for the `atServer` across different platforms. We will remain on the 2.x line until Dart's Native Assets are fully stable and supported across our build targets.
+
 ## Quick start
 
 Bootstrap a per-atSign bundle via the factory, then read the stores
