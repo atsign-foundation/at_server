@@ -875,12 +875,27 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     serverContext!.isKeyStoreInitialized = true;
 
-    var atData = AtData();
-    atData.data = serverContext!.sharedSecret;
-
-    // Ensure essential data is present in persistence
-    if (!await keyValueStore.exists(AtConstants.atCramSecretDeleted)) {
-      await keyValueStore.put(AtConstants.atCramSecret, atData);
+    // Ensure the CRAM secret is present in persistence for first-time
+    // activation, but never resurrect it once onboarding has moved to
+    // PKAM/APKAM. Only plant when:
+    //  - it has not been explicitly deleted (marker absent), AND
+    //  - it is not already present (don't clobber an existing secret with a
+    //    null on a restart that was started without -s), AND
+    //  - a non-empty shared_secret was actually supplied (a null/empty secret
+    //    would be CRAM-authenticatable, see CramVerbHandler).
+    final sharedSecret = serverContext!.sharedSecret;
+    final cramSecretDeleted =
+        await keyValueStore.exists(AtConstants.atCramSecretDeleted);
+    final cramSecretExists =
+        await keyValueStore.exists(AtConstants.atCramSecret);
+    if (!cramSecretDeleted && !cramSecretExists) {
+      if (sharedSecret != null && sharedSecret.isNotEmpty) {
+        await keyValueStore.put(
+            AtConstants.atCramSecret, AtData()..data = sharedSecret);
+      } else {
+        logger.info('Not planting CRAM secret: no shared_secret supplied and'
+            ' none already present');
+      }
     }
     if (!await keyValueStore.exists(AtConstants.atSigningKeypairGenerated)) {
       var rsaKeypair = RSAKeypair.fromRandom();

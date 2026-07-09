@@ -129,6 +129,39 @@ void main() {
       expect(connectionMetadata.isAuthenticated, false);
     });
 
+    test(
+        'test cram verb handler rejects an empty secret (null-replant backdoor)',
+        () async {
+      // Simulate a secondary where privatekey:at_secret was re-planted with an
+      // empty/null value (e.g. restart without -s after the deleted-marker was
+      // removed). The digest is then computable from public session data, so
+      // the server must refuse to authenticate.
+      await keyValueStore.put('privatekey:at_secret', AtData()..data = '');
+      var fromVerbHandler = FromVerbHandler(keyValueStore,
+          commitLog: atCommitLog, accessLog: atAccessLog);
+      AtSecondaryServerImpl.getInstance().currentAtSign =
+          '@test_user_1'.toAtsign();
+      var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
+      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+      var fromVerbParams = HashMap<String, String>();
+      fromVerbParams.putIfAbsent('atSign', () => 'test_user_1');
+      var response = Response();
+      await fromVerbHandler.processVerb(response, fromVerbParams, atConnection);
+      var fromResponse = response.data!.replaceFirst(RegExp('^data:'), '');
+      // The digest an attacker would compute against an empty secret.
+      var cramVerbParams = HashMap<String, String>();
+      var digest = sha512.convert(utf8.encode(fromResponse));
+      cramVerbParams.putIfAbsent('digest', () => digest.toString());
+      var verbHandler = CramVerbHandler(keyValueStore, accessLog: atAccessLog);
+      var connectionMetadata =
+          atConnection.metaData as InboundConnectionMetadata;
+      expect(
+          () async => await verbHandler.processVerb(
+              Response(), cramVerbParams, atConnection),
+          throwsA(predicate((dynamic e) => e is UnAuthenticatedException)));
+      expect(connectionMetadata.isAuthenticated, false);
+    });
+
     test('test cram verb handler processVerb no secret in keystore', () async {
       var fromVerbHandler = FromVerbHandler(keyValueStore,
           commitLog: atCommitLog, accessLog: atAccessLog);

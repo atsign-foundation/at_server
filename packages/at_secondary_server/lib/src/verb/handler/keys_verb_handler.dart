@@ -79,7 +79,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
             response, enrollIdFromMetadata);
         break;
       case 'delete':
-        await _handleDeleteOperation(verbParams, response);
+        await _handleDeleteOperation(verbParams, response, enrollIdFromMetadata);
         break;
     }
   }
@@ -110,14 +110,20 @@ class KeysVerbHandler extends AbstractVerbHandler {
   ) async {
     final keyNameFromParams = verbParams[AtConstants.keyName];
     if (keyNameFromParams != null && keyNameFromParams.isNotEmpty) {
+      final AtData value;
       try {
-        final value = (await keyStore.get(keyNameFromParams))!;
-        response.data = value.data;
-        return;
+        value = (await keyStore.get(keyNameFromParams))!;
       } on KeyNotFoundException {
         throw KeyNotFoundException(
             'key $keyNameFromParams not found in keystore');
       }
+      if (!_isAuthorizedForKey(keyNameFromParams, value, enrollIdFromMetadata)) {
+        throw UnAuthorizedException(
+            'Enrollment $enrollIdFromMetadata is not authorized to access key'
+            ' $keyNameFromParams');
+      }
+      response.data = value.data;
+      return;
     }
     final filteredKeys = await _getFilteredKeys(
         keyVisibility, hasManageAccess, enrollIdFromMetadata);
@@ -168,10 +174,50 @@ class KeysVerbHandler extends AbstractVerbHandler {
   Future<void> _handleDeleteOperation(
     HashMap<String, String?> verbParams,
     Response response,
+    String enrollIdFromMetadata,
   ) async {
     final keyNameFromParams = verbParams[AtConstants.keyName]!;
+    AtData? value;
+    try {
+      value = await keyStore.get(keyNameFromParams);
+    } on KeyNotFoundException {
+      value = null;
+    }
+    if (value == null) {
+      throw KeyNotFoundException('key $keyNameFromParams not found in keystore');
+    }
+    if (!_isAuthorizedForKey(keyNameFromParams, value, enrollIdFromMetadata)) {
+      throw UnAuthorizedException(
+          'Enrollment $enrollIdFromMetadata is not authorized to delete key'
+          ' $keyNameFromParams');
+    }
     response.data =
         (await keyStore.remove(keyNameFromParams, skipCommit: true)).toString();
+  }
+
+  /// Authorization gate for the by-name `get`/`delete` branches.
+  ///
+  /// Mirrors the filtered-list branch ([_addKeyIfEnrollmentIdMatches]): a
+  /// caller may only touch keys tagged with its own [enId], plus its own
+  /// default-encryption-private-key and self-encryption-key. Any other key —
+  /// including keys belonging to another enrollment and reserved server
+  /// secrets such as `privatekey:at_secret` (which are not keys-verb-managed
+  /// JSON values) — is refused.
+  bool _isAuthorizedForKey(String keyName, AtData value, String enId) {
+    if (keyName == enMgr.keyForPEK(enId) || keyName == enMgr.keyForSEK(enId)) {
+      return true;
+    }
+    final data = value.data;
+    if (data == null) {
+      return false;
+    }
+    try {
+      final decoded = jsonDecode(data);
+      return decoded is Map && decoded[AtConstants.enrollmentId] == enId;
+    } catch (_) {
+      // Not a keys-verb-managed value (e.g. a raw server secret) -> refuse.
+      return false;
+    }
   }
 
   /// List only keys from current enrollment. Do not list keys from another enrollment.
