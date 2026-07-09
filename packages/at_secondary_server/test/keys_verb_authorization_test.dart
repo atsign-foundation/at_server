@@ -9,14 +9,15 @@ import 'package:uuid/uuid.dart';
 
 import 'test_utils.dart';
 
-/// PoC: demonstrates that the `keys:get`/`keys:delete` by-name branches perform
-/// NO per-namespace / per-enrollment authorization. An enrollment scoped only to
-/// the `wavi` namespace (no `__manage`) can read the raw CRAM secret and keys in
-/// namespaces it was never granted, and delete arbitrary keys.
+/// Verifies that the `keys:get`/`keys:delete` by-name branches enforce
+/// per-enrollment authorization: an enrollment scoped only to the `wavi`
+/// namespace (no `__manage`) must NOT be able to read the raw CRAM secret or
+/// keys in namespaces it was never granted, nor delete arbitrary keys — while
+/// still being able to access keys tagged with its own enrollmentId.
 void main() {
   AtSignLogger.root_level = 'WARNING';
 
-  group('keys verb authorization PoC', () {
+  group('keys verb authorization', () {
     late KeysVerbHandler keysVerbHandler;
 
     setUpAll(() async {
@@ -64,7 +65,8 @@ void main() {
               'keys:get:keyName:privatekey:at_secret', inboundConnection),
           throwsA(isA<UnAuthorizedException>()),
           reason: 'wavi-scoped enrollment must not read the raw CRAM secret');
-      expect(inboundConnection.lastWrittenData ?? '', isNot(contains(cramSecret)));
+      expect(
+          inboundConnection.lastWrittenData ?? '', isNot(contains(cramSecret)));
     });
 
     test('wavi-scoped app cannot read a foreign-namespace key', () async {
@@ -79,8 +81,8 @@ void main() {
               'keys:get:keyName:$foreignKey', inboundConnection),
           throwsA(isA<UnAuthorizedException>()),
           reason: 'must not read a key outside the granted wavi namespace');
-      expect(
-          inboundConnection.lastWrittenData ?? '', isNot(contains(foreignValue)));
+      expect(inboundConnection.lastWrittenData ?? '',
+          isNot(contains(foreignValue)));
     });
 
     test('wavi-scoped app cannot delete an arbitrary key', () async {
@@ -97,8 +99,7 @@ void main() {
       expect(await keyValueStore.exists(victimKey), isTrue);
     });
 
-    test('POSITIVE: wavi-scoped app CAN read its own enrollment-tagged key',
-        () async {
+    test('wavi-scoped app CAN read its own enrollment-tagged key', () async {
       await setUpNarrowlyScopedApprovedEnrollment();
       final enId = inboundConnection.metadata.enrollmentId!;
 

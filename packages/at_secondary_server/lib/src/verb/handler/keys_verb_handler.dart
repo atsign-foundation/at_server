@@ -79,7 +79,8 @@ class KeysVerbHandler extends AbstractVerbHandler {
             response, enrollIdFromMetadata);
         break;
       case 'delete':
-        await _handleDeleteOperation(verbParams, response, enrollIdFromMetadata);
+        await _handleDeleteOperation(
+            verbParams, response, enrollIdFromMetadata);
         break;
     }
   }
@@ -117,7 +118,8 @@ class KeysVerbHandler extends AbstractVerbHandler {
         throw KeyNotFoundException(
             'key $keyNameFromParams not found in keystore');
       }
-      if (!_isAuthorizedForKey(keyNameFromParams, value, enrollIdFromMetadata)) {
+      if (!_isAuthorizedForKey(
+          keyNameFromParams, value, enrollIdFromMetadata)) {
         throw UnAuthorizedException(
             'Enrollment $enrollIdFromMetadata is not authorized to access key'
             ' $keyNameFromParams');
@@ -184,7 +186,8 @@ class KeysVerbHandler extends AbstractVerbHandler {
       value = null;
     }
     if (value == null) {
-      throw KeyNotFoundException('key $keyNameFromParams not found in keystore');
+      throw KeyNotFoundException(
+          'key $keyNameFromParams not found in keystore');
     }
     if (!_isAuthorizedForKey(keyNameFromParams, value, enrollIdFromMetadata)) {
       throw UnAuthorizedException(
