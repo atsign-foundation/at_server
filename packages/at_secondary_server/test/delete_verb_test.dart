@@ -149,6 +149,21 @@ void main() {
               predicate((exception) => exception is UnAuthorizedException)));
     });
 
+    // The cram-secret-deleted marker keeps CRAM permanently disabled after
+    // onboarding. The delete verb's atKey regex only special-cases the literal
+    // 'privatekey:at_secret'; the marker contains a colon and is not that
+    // literal, so it cannot be parsed - and therefore cannot be deleted via the
+    // delete verb to resurrect CRAM. (The keys verb path is closed separately
+    // by KeysVerbHandler authorization.)
+    test('verify the cram-secret-deleted marker cannot be deleted', () {
+      inboundConnection.metadata.isAuthenticated = true;
+      var command = 'delete:${AtConstants.atCramSecretDeleted}';
+      expect(
+          () => handler.processInternal(command, inboundConnection),
+          throwsA(
+              predicate((exception) => exception is InvalidSyntaxException)));
+    });
+
     // the following test throws a syntax exception since delete verb handler
     // expects a key to contain its atsign; but at_pkam_publickey does not
     test('verify deletion of pkam public key throws exception', () {
