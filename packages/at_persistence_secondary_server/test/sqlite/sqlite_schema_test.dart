@@ -64,7 +64,7 @@ void main() {
       expect(counter.first['value'], 0);
 
       final journal = db.raw.select('PRAGMA journal_mode;').first.values.first;
-      expect((journal as String).toLowerCase(), 'wal');
+      expect((journal as String).toLowerCase(), 'truncate');
 
       db.close();
     });

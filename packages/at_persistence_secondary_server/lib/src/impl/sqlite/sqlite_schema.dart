@@ -104,11 +104,11 @@ CREATE TABLE IF NOT EXISTS access_log (
     'CREATE INDEX IF NOT EXISTS access_log_request_at ON access_log (request_at);',
   ];
 
-  /// Open-time PRAGMAs. WAL + synchronous=NORMAL survives process kill
-  /// (only power loss can drop the WAL tail); both servers tolerate
-  /// opening a database left in either journal mode.
+  /// Open-time PRAGMAs. TRUNCATE + synchronous=NORMAL survives process kill
+  /// and is strictly required to enforce POSIX fcntl distributed locking
+  /// across Docker Swarm nodes on NFSv4 (WAL bypasses POSIX locking via mmap).
   static const List<String> pragmas = [
-    'PRAGMA journal_mode = WAL;',
+    'PRAGMA journal_mode = TRUNCATE;',
     'PRAGMA synchronous = NORMAL;',
     'PRAGMA busy_timeout = 5000;',
   ];

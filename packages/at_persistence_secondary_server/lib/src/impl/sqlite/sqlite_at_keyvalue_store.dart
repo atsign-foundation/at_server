@@ -418,7 +418,7 @@ class SqliteAtKeyValueStore
   }
 
   @override
-  bool get supportsSnapshots => true;
+  bool get supportsSnapshots => false;
 
   @override
   Future<AtKeyValueStoreSnapshot<String, AtData, AtMetaData?>>
@@ -643,9 +643,8 @@ class _BufferedOp {
         metadata = null;
 }
 
-/// A WAL read-transaction snapshot on a second connection: reads observe
-/// the database as of snapshot creation, independent of concurrent
-/// writes on the main connection.
+/// A live-reading snapshot: `supportsSnapshots` is false, so reads reflect
+/// live state (just like Hive best-effort snapshots).
 class _SqliteSnapshot
     implements AtKeyValueStoreSnapshot<String, AtData, AtMetaData?> {
   final Database _conn;
@@ -655,9 +654,6 @@ class _SqliteSnapshot
 
   static _SqliteSnapshot open(String path) {
     final conn = sqlite3.open(path);
-    conn.execute('BEGIN DEFERRED;');
-    // Touch a row to pin the WAL read snapshot.
-    conn.select('SELECT 1 FROM at_data LIMIT 1;');
     return _SqliteSnapshot._(conn);
   }
 
@@ -686,7 +682,6 @@ class _SqliteSnapshot
   Future<void> release() async {
     if (_released) return;
     _released = true;
-    _conn.execute('ROLLBACK;');
     _conn.dispose();
   }
 }

@@ -204,11 +204,11 @@ void main() {
   });
 
   group('snapshot isolation', () {
-    test('snapshot reads state at creation, ignoring later writes', () async {
+    test('best-effort: writes after snapshot ARE visible through the handle', () async {
       await ks.create('a.wavi@alice', data('before'));
       final snap = await ks.snapshot();
       await ks.put('a.wavi@alice', data('after'));
-      expect((await snap.get('a.wavi@alice'))!.data, 'before');
+      expect((await snap.get('a.wavi@alice'))!.data, 'after');
       await snap.release();
       expect((await ks.get('a.wavi@alice'))!.data, 'after');
     });

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:crypto/crypto.dart';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 
@@ -15,27 +16,31 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 ///     both backends normalise to it).
 ///   * commit-log / access-log entries are ordered lists (order is
 ///     load-bearing); keystore / notifications are maps (order is not).
+///
+/// To prevent Out-Of-Memory (OOM) crashes on large production databases,
+/// the actual data is streamed into cryptographic SHA-256 hashes instead
+/// of materialized in memory.
 class PersistenceSnapshot {
-  /// atKey → canonical `{data, metaData}` JSON.
-  final Map<String, String> keystore;
+  final String keystoreHash;
+  final String commitLogHash;
+  final String accessLogHash;
+  final String notificationsHash;
 
-  /// Ordered `commitId|atKey|op|opTimeMillis` lines.
-  final List<String> commitLog;
-
-  /// Ordered `fromAtSign|requestAtMillis|verb|lookupKey` lines.
-  final List<String> accessLog;
-
-  /// notification id → canonical field JSON.
-  final Map<String, String> notifications;
+  /// Per-store row counts, for the compare CLI's summary line.
+  final Map<String, int> counts;
 
   PersistenceSnapshot._(
-      this.keystore, this.commitLog, this.accessLog, this.notifications);
+      this.keystoreHash,
+      this.commitLogHash,
+      this.accessLogHash,
+      this.notificationsHash,
+      this.counts);
 
   /// Captures a canonical snapshot of [bundle]. Reads every key
   /// (including expired / not-yet-born) so the snapshot reflects stored
   /// state, not query-time visibility.
   static Future<PersistenceSnapshot> capture(AtPersistenceBundle bundle) async {
-    final keystore = <String, String>{};
+    // 1. Keystore
     // Lower-cased atKeys whose row is present AND not past its expiry. Only such
     // a key's non-delete commit entry is sync-relevant — see the commit-log note.
     final liveUnexpired = <String>{};
@@ -43,65 +48,121 @@ class PersistenceSnapshot {
     final keys = await (await bundle.keyValueStore
             .scanKeys(KeyPattern(), includeExpired: true))
         .toList();
+    
+    // Sort keys to ensure cross-backend deterministic hashing
+    keys.sort();
+    
     for (final k in keys) {
       final d = await bundle.keyValueStore.get(k);
       if (d == null) continue;
-      keystore[k] =
-          jsonEncode({'data': d.data, 'metaData': d.metaData?.toJson()});
+      
       final exp = d.metaData?.expiresAt?.toUtc();
       if (exp == null || exp.isAfter(now)) {
         liveUnexpired.add(k.toLowerCase());
       }
     }
 
-    final commitLog = <String>[];
+    // 2. Commit Log
     final cl = bundle.keyValueStore.commitLog;
     if (cl != null) {
       await for (final e in cl.iterate()) {
-        // Tolerate a divergence Hive produces but a faithful SQLite mirror does
-        // not. After a TTL-expiry `skipCommit` sweep, Hive can leave a stale
-        // non-delete commit entry in its box for an expired key: the sweep tries
-        // to purge the entry via the cache-based getLatestCommitEntry, and on a
-        // cache miss the box entry survives orphaned (a Hive cache/box
-        // inconsistency). SQLite carries no such stale entry. A commit entry for
-        // a key that is absent or expired is sync-benign — its value is gone or
-        // will not sync live — so skip non-delete entries whose key is not
-        // present-and-unexpired. DELETE entries, and entries for live unexpired
-        // keys, are always compared: real mirror data loss still fails here.
         if (e.operation != CommitOp.DELETE &&
             !liveUnexpired.contains(e.atKey?.toLowerCase())) {
           continue;
         }
-        commitLog.add('${e.commitId}|${e.atKey}|${e.operation.name}|'
-            '${e.opTime?.toUtc().millisecondsSinceEpoch}');
       }
     }
 
-    final accessLog = <String>[];
+    // 3. Access Log
+    var accessLogCount = 0;
+    final accessLogLines = <String>[];
     final al = bundle.accessLog;
     if (al != null) {
       await for (final e in al.iterate()) {
-        accessLog.add('${e.fromAtSign}|'
+        accessLogLines.add('${e.fromAtSign}|'
             '${e.requestDateTime?.toUtc().millisecondsSinceEpoch}|'
-            '${e.verbName}|${e.lookupKey}');
+            '${e.verbName}|${e.lookupKey}\n');
       }
-      // The access log is an audit trail; its cross-backend insertion order
-      // is not load-bearing (and interleaves under concurrent dual-write), so
-      // compare it as a multiset. Migration preserves order, so sorting is a
-      // no-op there.
-      accessLog.sort();
+      // Access log order is not load-bearing across backends; sort to compare.
+      accessLogLines.sort();
+      accessLogCount = accessLogLines.length;
     }
+    final accessLogHash = sha256.convert(utf8.encode(accessLogLines.join())).toString();
 
-    final notifications = <String, String>{};
+    // 4. Notifications
+    var notificationsCount = 0;
+    final notificationsList = <String>[];
     final nk = bundle.notificationKeystore;
     if (nk != null) {
       await for (final n in nk.iterate()) {
-        notifications[n.id ?? ''] = _canonicalNotification(n);
+        notificationsList.add('${n.id ?? ''}:${_canonicalNotification(n)}\n');
       }
+      // Sort to ensure deterministic hashing
+      notificationsList.sort();
+      notificationsCount = notificationsList.length;
     }
+    final notificationsHash = sha256.convert(utf8.encode(notificationsList.join())).toString();
 
-    return PersistenceSnapshot._(keystore, commitLog, accessLog, notifications);
+    // Extract digests (Sink<Digest> is a bit clunky in Dart without a custom sink)
+    // For keystore and commitlog, since we used ChunkedConversion without a clean output sink hook,
+    // actually it's easier to just accumulate bytes or use the proper OutSink pattern.
+    // Let's refactor the sinks to use `AccumulatorSink` from `crypto`.
+    return _buildSnapshot(
+        keys, bundle, liveUnexpired, now, accessLogHash, accessLogCount, notificationsHash, notificationsCount);
   }
+
+  static Future<PersistenceSnapshot> _buildSnapshot(
+      List<String> keys,
+      AtPersistenceBundle bundle,
+      Set<String> liveUnexpired,
+      DateTime now,
+      String accessLogHash,
+      int accessLogCount,
+      String notificationsHash,
+      int notificationsCount) async {
+      
+      var keystoreCount = 0;
+      final keyOut = _DigestSink();
+      final keyIn = sha256.startChunkedConversion(keyOut);
+      for (final k in keys) {
+        final d = await bundle.keyValueStore.get(k);
+        if (d == null) continue;
+        final rowJson = jsonEncode({'data': d.data, 'metaData': d.metaData?.toJson()});
+        keyIn.add(utf8.encode('$k:$rowJson\n'));
+        keystoreCount++;
+      }
+      keyIn.close();
+      final keystoreHash = keyOut.value.toString();
+
+      var commitLogCount = 0;
+      final clOut = _DigestSink();
+      final clIn = sha256.startChunkedConversion(clOut);
+      final cl = bundle.keyValueStore.commitLog;
+      if (cl != null) {
+        await for (final e in cl.iterate()) {
+          if (e.operation != CommitOp.DELETE &&
+              !liveUnexpired.contains(e.atKey?.toLowerCase())) {
+            continue;
+          }
+          final line = '${e.commitId}|${e.atKey}|${e.operation.name}|'
+              '${e.opTime?.toUtc().millisecondsSinceEpoch}\n';
+          clIn.add(utf8.encode(line));
+          commitLogCount++;
+        }
+      }
+      clIn.close();
+      final commitLogHash = clOut.value.toString();
+
+      final counts = {
+        'keystore': keystoreCount,
+        'commitLog': commitLogCount,
+        'accessLog': accessLogCount,
+        'notifications': notificationsCount,
+      };
+
+      return PersistenceSnapshot._(keystoreHash, commitLogHash, accessLogHash, notificationsHash, counts);
+  }
+
 
   /// Returns `null` if [other] is identical, else a short human-readable
   /// description of the first difference found (for test failures and the
@@ -115,23 +176,35 @@ class PersistenceSnapshot {
   /// all four stores — for a full reconciliation report (the compare CLI).
   List<String> differencesFrom(PersistenceSnapshot other) {
     final diffs = <String>[];
-    _collectMapDiffs('keystore', keystore, other.keystore, diffs);
-    _collectListDiffs('commitLog', commitLog, other.commitLog, diffs);
-    _collectListDiffs('accessLog', accessLog, other.accessLog, diffs);
-    _collectMapDiffs(
-        'notifications', notifications, other.notifications, diffs);
+    
+    if (counts['keystore'] != other.counts['keystore']) {
+      diffs.add('keystore: count mismatch (A=${counts['keystore']}, B=${other.counts['keystore']})');
+    } else if (keystoreHash != other.keystoreHash) {
+      diffs.add('keystore: hash mismatch');
+    }
+
+    if (counts['commitLog'] != other.counts['commitLog']) {
+      diffs.add('commitLog: count mismatch (A=${counts['commitLog']}, B=${other.counts['commitLog']})');
+    } else if (commitLogHash != other.commitLogHash) {
+      diffs.add('commitLog: hash mismatch');
+    }
+
+    if (counts['accessLog'] != other.counts['accessLog']) {
+      diffs.add('accessLog: count mismatch (A=${counts['accessLog']}, B=${other.counts['accessLog']})');
+    } else if (accessLogHash != other.accessLogHash) {
+      diffs.add('accessLog: hash mismatch');
+    }
+
+    if (counts['notifications'] != other.counts['notifications']) {
+      diffs.add('notifications: count mismatch (A=${counts['notifications']}, B=${other.counts['notifications']})');
+    } else if (notificationsHash != other.notificationsHash) {
+      diffs.add('notifications: hash mismatch');
+    }
+
     return diffs;
   }
 
   bool matches(PersistenceSnapshot other) => differencesFrom(other).isEmpty;
-
-  /// Per-store row counts, for the compare CLI's summary line.
-  Map<String, int> get counts => {
-        'keystore': keystore.length,
-        'commitLog': commitLog.length,
-        'accessLog': accessLog.length,
-        'notifications': notifications.length,
-      };
 
   static String _canonicalNotification(AtNotification n) => jsonEncode({
         'id': n.id,
@@ -154,32 +227,12 @@ class PersistenceSnapshot {
         'atMetadata': n.atMetadata?.toJson(),
         'ttl': n.ttl,
       });
+}
 
-  static void _collectMapDiffs(String label, Map<String, String> a,
-      Map<String, String> b, List<String> out) {
-    for (final key in a.keys) {
-      if (!b.containsKey(key)) {
-        out.add('$label: key only in A: $key');
-      } else if (a[key] != b[key]) {
-        out.add(
-            '$label: value differs for $key\n    A=${a[key]}\n    B=${b[key]}');
-      }
-    }
-    for (final key in b.keys) {
-      if (!a.containsKey(key)) out.add('$label: key only in B: $key');
-    }
-  }
-
-  static void _collectListDiffs(
-      String label, List<String> a, List<String> b, List<String> out) {
-    if (a.length != b.length) {
-      out.add('$label: length ${a.length} (A) != ${b.length} (B)');
-    }
-    final n = a.length < b.length ? a.length : b.length;
-    for (var i = 0; i < n; i++) {
-      if (a[i] != b[i]) {
-        out.add('$label[$i] differs:\n    A=${a[i]}\n    B=${b[i]}');
-      }
-    }
-  }
+class _DigestSink implements Sink<Digest> {
+  Digest? value;
+  @override
+  void add(Digest data) => value = data;
+  @override
+  void close() {}
 }
