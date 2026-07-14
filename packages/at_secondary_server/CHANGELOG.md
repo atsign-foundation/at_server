@@ -1,5 +1,19 @@
 # 3.14.0
 
+- feat: post-quantum inter-server authentication. FROM/POL now perform
+  an X-Wing (ML-KEM-768 + X25519) key-encapsulation handshake with
+  ML-DSA-65-signed certs for peers that have published a PQ cert,
+  replacing the plaintext UUID/RSA challenge; peers without a
+  published cert still get the legacy challenge. Certs and keys live
+  under a new `local:pq_*` / `public:pq_xwing_cert` record namespace,
+  which `update` now refuses to let clients overwrite. `pq.disablePqAuth`
+  in `config.yaml` force-disables the PQ path.
+- feat: the PQ X-Wing cert validity period is now configurable via
+  `pq.xwingCertExpiryInDays` in `config.yaml` (env var
+  `xwingCertExpiryInDays`), defaulting to 90 days (down from a
+  previously hardcoded 365). The server self-renews its cert
+  `pq.certRenewalHeadroomDays` (default 30) before that expiry;
+  peer-cert verification stays strict regardless.
 - feat: `appMetadata` support on `update`, `update:meta` and `notify`
   (at_commons 5.11.0). The base64(JSON)
   `:appMetadata:` fragment is parsed into
