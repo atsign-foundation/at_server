@@ -153,6 +153,19 @@ sync:
 testing:
   testingMode: false
 
+# PQ (post-quantum) X-Wing cert configurations
+pq:
+  # The number of days after issuance that a PQ X-Wing certificate expires and
+  # must be rotated. Default value is 90 days (3 months).
+  xwingCertExpiryInDays: 90
+  # How many days before expiry the server renews (rotates) its own X-Wing
+  # cert. Default value is 30 days. Has no effect on peer-cert verification,
+  # which stays strict.
+  certRenewalHeadroomDays: 30
+  # When true, the FROM verb handler skips PQ cert lookup and always issues a
+  # UUID/RSA challenge. Default value is false.
+  disablePqAuth: false
+
 # APKAM enrollment configurations
 enrollment:
   # The maximum time in hours for an enrollment to expire, beyond which any action on enrollment is forbidden.

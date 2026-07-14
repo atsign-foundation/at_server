@@ -20,6 +20,7 @@ import 'test_utils.dart';
 void main() {
   late AtKeyValueStore<String, AtData, AtMetaData?> mockKeyStore;
   late FakeSocket mockSocket;
+  late MockOutboundClientManager mockOcm;
 
   verbTestsSetUpLogging();
 
@@ -28,6 +29,7 @@ void main() {
   setUp(() async {
     mockKeyStore = MockAtKeyValueStore();
     mockSocket = FakeSocket();
+    mockOcm = MockOutboundClientManager();
     keyValueStore = await setUpFunc(storageDir);
   });
 
@@ -73,8 +75,8 @@ void main() {
       secretData.data =
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyValueStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(keyValueStore,
-          commitLog: atCommitLog, accessLog: atAccessLog);
+      var fromVerbHandler = FromVerbHandler(keyValueStore, mockOcm,
+          accessLog: atAccessLog, disablePqAuth: true);
       AtSecondaryServerImpl.getInstance().currentAtSign =
           '@test_user_1'.toAtsign();
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
@@ -103,8 +105,8 @@ void main() {
       secretData.data =
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyValueStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(keyValueStore,
-          commitLog: atCommitLog, accessLog: atAccessLog);
+      var fromVerbHandler = FromVerbHandler(keyValueStore, mockOcm,
+          accessLog: atAccessLog, disablePqAuth: true);
       AtSecondaryServerImpl.getInstance().currentAtSign =
           '@test_user_1'.toAtsign();
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
@@ -130,8 +132,8 @@ void main() {
     });
 
     test('test cram verb handler processVerb no secret in keystore', () async {
-      var fromVerbHandler = FromVerbHandler(keyValueStore,
-          commitLog: atCommitLog, accessLog: atAccessLog);
+      var fromVerbHandler = FromVerbHandler(keyValueStore, mockOcm,
+          accessLog: atAccessLog, disablePqAuth: true);
       AtSecondaryServerImpl.getInstance().currentAtSign =
           '@test_user_1'.toAtsign();
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';

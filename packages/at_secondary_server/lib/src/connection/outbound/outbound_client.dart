@@ -9,6 +9,7 @@ import 'package:at_secondary/src/connection/outbound/at_request_formatter.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_message_listener.dart';
+import 'package:at_secondary/src/crypto/pq_key_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/at_security_context_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -188,14 +189,54 @@ class OutboundClient {
 
       //3. Get the session ID and the pol challenge from the response
       var cookieParams = SecondaryUtil.getCookieParams(fromResult);
+      if (cookieParams.length < 4) {
+        throw HandShakeException(
+            'Malformed From response: expected at least 4 colon-delimited '
+            'fields, got ${cookieParams.length}');
+      }
       var sessionIdWithAtSign = cookieParams[2];
       var challenge = cookieParams[3];
 
       if (productionMode) {
-        var signedChallenge = SecondaryUtil.signChallenge(
-            challenge, AtSecondaryServerImpl.getInstance().signingKey);
-        await SecondaryUtil.saveCookie(sessionIdWithAtSign, signedChallenge,
-            AtSecondaryServerImpl.getInstance().keyValueStore);
+        if (challenge == 'pq') {
+          if (!PqKeyManager.instance.isInitialised) {
+            throw HandShakeException(
+                'Received a pq challenge but PqKeyManager is not '
+                'initialised on this server — cannot decapsulate');
+          }
+          // PQ path: the 5th colon-delimited token is the X-Wing ciphertext.
+          if (cookieParams.length < 5) {
+            throw HandShakeException(
+                'Malformed pq challenge: missing ciphertext field');
+          }
+          final ciphertextB64 = cookieParams[4];
+          final ciphertext = base64Url.decode(ciphertextB64);
+          final decapsResult =
+              await PqKeyManager.instance.decapsWithFallback(ciphertext);
+          // Derive the same key-confirmation tag the FROM side stored, bound to
+          // this handshake; persist the tag(s) ('pq:'), never the raw secret.
+          // Two candidate tags are stored (current + prev key) when a rotation
+          // grace-period key is retained, since X-Wing implicit rejection gives
+          // no signal for which key the peer actually encapsulated against.
+          final tag =
+              deriveConfirmationTag(decapsResult.current, sessionIdWithAtSign);
+          var tagsToStore = base64Url.encode(tag);
+          if (decapsResult.prev != null) {
+            final prevTag =
+                deriveConfirmationTag(decapsResult.prev!, sessionIdWithAtSign);
+            tagsToStore = '$tagsToStore,${base64Url.encode(prevTag)}';
+          }
+          await SecondaryUtil.saveCookie(
+              sessionIdWithAtSign,
+              'pq:$tagsToStore',
+              AtSecondaryServerImpl.getInstance().keyValueStore);
+        } else {
+          // Legacy RSA path.
+          var signedChallenge = SecondaryUtil.signChallenge(
+              challenge, AtSecondaryServerImpl.getInstance().signingKey);
+          await SecondaryUtil.saveCookie(sessionIdWithAtSign, signedChallenge,
+              AtSecondaryServerImpl.getInstance().keyValueStore);
+        }
       }
 
       //4. Create pol request

@@ -32,9 +32,11 @@ import 'dart:typed_data';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart' as at_lookup;
+import 'package:at_chops/at_chops_ffi.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/hive.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
+import 'package:at_secondary/src/crypto/x_wing_cert.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
@@ -187,6 +189,73 @@ class FakeSocket extends Fake implements Socket {
 }
 
 class MockStreamSubscription<T> extends Mock implements StreamSubscription<T> {}
+
+// =====================================================================
+// PQ crypto test scaffolding
+// =====================================================================
+
+/// A minimal real-hive keystore for crypto tests that need genuine
+/// key-name/put/get round-trips (so at_commons' key-type regexes actually
+/// validate record names) without the weight of [verbTestsSetUp]'s full
+/// server bundle. Each fixture opens its own storage directory; call
+/// [dispose] in `tearDown`/`tearDownAll` to close and delete it.
+class HiveKeyStoreFixture {
+  final String storageDir;
+  HiveAtPersistenceFactory? _factory;
+  AtKeyValueStore<String, AtData, AtMetaData?>? _keyStore;
+
+  HiveKeyStoreFixture(this.storageDir);
+
+  AtKeyValueStore<String, AtData, AtMetaData?> get keyStore => _keyStore!;
+
+  Future<AtKeyValueStore<String, AtData, AtMetaData?>> open(
+      Atsign atSign) async {
+    _factory = HiveAtPersistenceFactory();
+    final config = HivePersistenceConfig(
+      storagePath: storageDir,
+      commitLogPath: storageDir,
+      accessLogPath: storageDir,
+      notificationStoragePath: storageDir,
+    );
+    final bundle = await _factory!.initialize(atSign, config);
+    _keyStore = bundle.keyValueStore;
+    return _keyStore!;
+  }
+
+  Future<void> dispose() async {
+    await _factory?.close();
+    _factory = null;
+    _keyStore = null;
+    final dir = Directory(storageDir);
+    if (dir.existsSync()) {
+      dir.deleteSync(recursive: true);
+    }
+  }
+}
+
+/// Builds a self-signed, JSON-encoded [XWingCert] for use as peer-cert
+/// boilerplate in PQ handshake tests — generates fresh ML-DSA-65 and X-Wing
+/// keypairs, signs, and returns the cert JSON ready to be served from a
+/// mocked `plookUp`.
+Future<String> buildSignedPeerCertJson({required DateTime validUntil}) async {
+  final mlDsaKp = await MlDsa65KeyPair.generate();
+  final xwingKp = await XWingKeyPair.generate();
+  final draft = XWingCert(
+    xwingPublicKey: xwingKp.publicKeyBytes,
+    validUntil: validUntil,
+    signature: Uint8List(0),
+    mlDsaPublicKey: mlDsaKp.publicKeyBytes,
+  );
+  final signature = await AtPqc.mlDsa65
+      .signBytes(draft.tbsBytes, secretKey: mlDsaKp.privateKeyBytes);
+  final cert = XWingCert(
+    xwingPublicKey: xwingKp.publicKeyBytes,
+    validUntil: validUntil,
+    signature: signature,
+    mlDsaPublicKey: mlDsaKp.publicKeyBytes,
+  );
+  return cert.toJson();
+}
 
 // String alice = '@alice🛠';
 Atsign alice = '@alice'.toAtsign();

@@ -6,6 +6,7 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/change_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -184,14 +185,8 @@ class DeleteVerbHandler extends ChangeVerbHandler {
 
   Set<String> _getProtectedKeys(String? atsign) {
     atsign ??= AtSecondaryServerImpl.getInstance().currentAtSign;
-    Set<String> protectedKeys = {};
-    // fetch all protected private keys from config yaml
-    for (var key in AtSecondaryConfig.protectedKeys) {
-      // protected keys are stored as 'signing_publickey<@atsign>'
-      // replace <@atsign> with actual atsign during runtime
-      protectedKeys.add(key.replaceFirst('<@atsign>', atsign));
-    }
-    return protectedKeys;
+    return expandProtectedKeyTemplates(
+        AtSecondaryConfig.protectedKeys, atsign);
   }
 
   bool _isProtectedKey(String key, {String? isCached}) {

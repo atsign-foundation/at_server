@@ -81,8 +81,8 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
 
   List<VerbHandler> _loadVerbHandlers() {
     _verbHandlers = [];
-    _verbHandlers.add(
-        FromVerbHandler(keyStore, commitLog: commitLog, accessLog: accessLog));
+    _verbHandlers.add(FromVerbHandler(keyStore, outboundClientManager,
+        accessLog: accessLog));
     _verbHandlers.add(CramVerbHandler(keyStore, accessLog: accessLog));
     _verbHandlers.add(PkamVerbHandler(keyStore));
     _verbHandlers.add(UpdateVerbHandler(

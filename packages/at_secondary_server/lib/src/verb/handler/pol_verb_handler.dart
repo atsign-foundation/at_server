@@ -25,6 +25,8 @@ class PolVerbHandler extends AbstractVerbHandler {
   final AtAccessLog accessLog;
   final _dummyInboundConnection = DummyInboundConnection();
 
+  static const _maxOutboundAttempts = 2;
+
   PolVerbHandler(super.keyStore, this.outboundClientManager, this.cacheManager,
       {required this.accessLog});
 
@@ -65,65 +67,106 @@ class PolVerbHandler extends AbstractVerbHandler {
     }
     logger.info('pol from $fromAtSign');
 
-    final OutboundClient oc = await outboundClientManager.getClient(
-        fromAtSign!, _dummyInboundConnection,
-        handshakeRequired: false);
-    if (!oc.isConnectionCreated) {
-      try {
-        await oc.connect();
-      } on Exception catch (e) {
-        logger.severe(
-            'Exception connecting to $fromAtSign\'s outbound client | $e');
-        rethrow;
-      }
-    }
-
     final String storedSecretId = 'public:$sessionID$fromAtSign';
 
-    String? signedChallenge, fromPublicKey, message;
-
-    String doing = '';
+    // Fetch locally stored secret first to detect mode (pq: prefix = PQ mode).
+    String? message;
     try {
-      // construct the key that needs to be looked up
-      // fetch the challenge from the other secondary
-      doing = 'fetching signed challenge from $fromAtSign';
-      signedChallenge = (await (oc.lookUp(
-        '$sessionID$fromAtSign',
-        handshake: false,
-      )))
-          ?.replaceFirst(_dataPrefix, '');
-
-      // look for the public key on the other secondary
-      doing = 'fetching signing_publickey$fromAtSign';
-      fromPublicKey = (await (oc.plookUp('signing_publickey$fromAtSign')))
-          ?.replaceFirst(_dataPrefix, '');
-
-      // Getting stored secret from this secondary server
-      doing = 'fetching stored secret $storedSecretId';
       message = (await keyStore.get(storedSecretId))?.data;
+    } on KeyNotFoundException {
+      // Key doesn't exist; message remains null
     } on Exception catch (e) {
-      logger.severe('Exception while $doing : $e');
+      logger.severe('Exception fetching stored secret $storedSecretId : $e');
       rethrow;
     }
 
-    if (fromPublicKey == null || signedChallenge == null || message == null) {
-      logger.severe('Unable to verify signature.'
-          ' fromPublicKey is $fromPublicKey'
-          ' | signedChallenge is $signedChallenge'
-          ' | message is $message');
-      throw AtException('Unable to verify signature');
+    if (message == null) {
+      logger.severe('No stored secret found at $storedSecretId');
+      throw UnAuthenticatedException('Unable to verify pol: no stored secret');
     }
 
-    // pass the result from _fetchSecret() to validateChallenge()
-    // validateChallenge() requires the params fetched through _fetchSecret()
-    bool isValidChallenge = RSAPublicKey.fromString(fromPublicKey)
-        .verifySHA256Signature(
-            utf8.encode(message), base64Decode(signedChallenge));
-    if (!isValidChallenge) {
-      throw UnAuthenticatedException('Pol Authentication Failed');
+    // 'pq:' = PQ mode: both sides hold an HKDF key-confirmation tag and compare
+    // them for equality. Only the non-PQ (RSA/UUID) path needs the remote
+    // signing public key.
+    final isPqMode = message.startsWith('pq:');
+
+    // Fetch the challenge (and, for RSA, the signing key) from the peer over an
+    // unauthenticated outbound connection.
+    //
+    // A pooled outbound client to the peer may be reused here. If its socket
+    // died without a detectable close (e.g. the peer restarted, or — in the PQ
+    // flow — FROM served a cached cert so no fresh connection was made this
+    // exchange), the reuse fails with a timeout rather than a connect error.
+    // So on failure we discard the client and retry once with a fresh
+    // connection before giving up.
+    late OutboundClient oc;
+    String? signedChallenge, fromPublicKey;
+    for (int attempt = 0;; attempt++) {
+      oc = await outboundClientManager.getClient(
+          fromAtSign!, _dummyInboundConnection,
+          handshakeRequired: false);
+      String doing = '';
+      try {
+        if (!oc.isConnectionCreated) {
+          doing = 'connecting to $fromAtSign';
+          await oc.connect();
+        }
+        // fetch the challenge from the other secondary
+        doing = 'fetching challenge from $fromAtSign';
+        signedChallenge = (await oc.lookUp('$sessionID$fromAtSign',
+                handshake: false))
+            ?.replaceFirst(_dataPrefix, '');
+
+        // Only the non-PQ (RSA/UUID) path needs the remote signing public key.
+        if (!isPqMode) {
+          doing = 'fetching signing_publickey$fromAtSign';
+          fromPublicKey = (await oc.plookUp('signing_publickey$fromAtSign'))
+              ?.replaceFirst(_dataPrefix, '');
+        }
+        break; // success
+      } on Exception catch (e) {
+        // Close the (possibly stale) client so the next getClient evicts it
+        // from the pool and establishes a fresh connection.
+        await oc.outboundConnection?.close();
+        if (attempt >= _maxOutboundAttempts - 1) {
+          logger.severe('Exception while $doing (final attempt) : $e');
+          rethrow;
+        }
+        logger.info(
+            'Exception while $doing; retrying with a fresh outbound connection : $e');
+      }
     }
 
-    // remove the stored secret
+    if (signedChallenge == null) {
+      throw AtException('Unable to verify pol: no challenge returned from $fromAtSign');
+    }
+
+    if (isPqMode) {
+      // PQ path: compare key-confirmation tags. The peer may have stored more
+      // than one candidate tag ('pq:tagCurrent,tagPrev') when it retains a
+      // rotation grace-period key — X-Wing implicit rejection gives no other
+      // signal for which key it decapsulated against, so any match is valid.
+      final storedTag = message.replaceFirst(RegExp('^pq:'), '');
+      final candidateTags =
+          signedChallenge.replaceFirst(RegExp('^pq:'), '').split(',');
+      if (!candidateTags.contains(storedTag)) {
+        throw UnAuthenticatedException(
+            'Pol Authentication Failed: PQ sharedSecret mismatch');
+      }
+    } else {
+      // Legacy RSA path.
+      if (fromPublicKey == null) {
+        throw AtException('Unable to verify pol: signing_publickey not found for $fromAtSign');
+      }
+      final bool isValidChallenge = RSAPublicKey.fromString(fromPublicKey)
+          .verifySHA256Signature(
+              utf8.encode(message), base64Decode(signedChallenge));
+      if (!isValidChallenge) {
+        throw UnAuthenticatedException('Pol Authentication Failed');
+      }
+    }
+
+    // Remove the stored secret.
     try {
       await keyStore.remove(storedSecretId);
     } catch (e) {
@@ -132,7 +175,7 @@ class PolVerbHandler extends AbstractVerbHandler {
 
     atConnectionMetadata.isPolAuthenticated = true;
     response.data = 'pol:$fromAtSign@';
-    await _insertIntoAccessLog(fromAtSign, pol.name());
+    await _insertIntoAccessLog(fromAtSign.toString(), pol.name());
     logger.info('response : $fromAtSign@');
 
     return;
@@ -140,6 +183,5 @@ class PolVerbHandler extends AbstractVerbHandler {
 
   Future<void> _insertIntoAccessLog(String key, String value) async {
     await accessLog.insert(key, value);
-    return;
   }
 }

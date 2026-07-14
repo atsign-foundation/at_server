@@ -106,7 +106,12 @@ class AtSecondaryConfig {
     'signing_publickey<@atsign>',
     'signing_privatekey<@atsign>',
     'publickey<@atsign>',
-    'at_pkam_publickey'
+    'at_pkam_publickey',
+    // The only PQ record verb-addressable at all — every other PQ record
+    // lives under the `local:` namespace and is unreachable via
+    // update/delete/lookup/scan. Bare form: the delete-verb handler compares
+    // before prefixing with 'public:'.
+    'pq_xwing_cert<@atsign>',
   };
 
   //version
@@ -174,6 +179,15 @@ class AtSecondaryConfig {
     } on ElementNotFoundException {
       return _clientCertificateRequired;
     }
+  }
+
+  /// When true, the FROM verb handler skips PQ cert lookup and always issues
+  /// a UUID/RSA challenge. Set via AT_DISABLE_PQ_AUTH=true, or
+  /// `pq.disablePqAuth` in config.yaml.
+  static bool get disablePqAuth {
+    return _getBoolEnvVar('AT_DISABLE_PQ_AUTH') ??
+        getNullableBoolFromYaml(['pq', 'disablePqAuth']) ??
+        false;
   }
 
   static int? get runRefreshJobHour {
@@ -666,6 +680,21 @@ class AtSecondaryConfig {
     }
   }
 
+  /// Validity period for this server's own X-Wing cert. Has no effect on
+  /// verifying peer certs, which always enforce their own embedded expiry.
+  static int get xwingCertExpiryInDays {
+    return _getIntEnvVar('xwingCertExpiryInDays') ??
+        getNullableIntFromYaml(['pq', 'xwingCertExpiryInDays']) ??
+        90;
+  }
+
+  /// How many days before X-Wing cert expiry [PqKeyManager] rotates it.
+  static int get certRenewalHeadroomDays {
+    return _getIntEnvVar('certRenewalHeadroomDays') ??
+        getNullableIntFromYaml(['pq', 'certRenewalHeadroomDays']) ??
+        30;
+  }
+
   static int get enrollmentExpiryInHours {
     return _getIntEnvVar('enrollmentExpiryInHours') ??
         getNullableIntFromYaml(['enrollment', 'expiryInHours']) ??
@@ -787,27 +816,30 @@ class AtSecondaryConfig {
   }
 
   static int? _getIntEnvVar(String envVar) {
-    if (_envVars.containsKey(envVar)) {
-      return int.parse(_envVars[envVar]!);
-    }
+    final v = _envVars[envVar];
+    if (v != null) return int.parse(v);
     return null;
   }
 
   static bool? _getBoolEnvVar(String envVar) {
-    if (_envVars.containsKey(envVar)) {
-      return (_envVars[envVar]!.toLowerCase() == 'true') ? true : false;
-    }
+    final v = _envVars[envVar];
+    if (v != null) return v.toLowerCase() == 'true';
     return null;
   }
 
   static String? _getStringEnvVar(String envVar) {
-    if (_envVars.containsKey(envVar)) {
-      return _envVars[envVar];
-    }
-    return null;
+    return _envVars[envVar];
   }
 
   static int? getNullableIntFromYaml(List<String> args) {
+    try {
+      return getConfigFromYaml(args);
+    } on ElementNotFoundException catch (_) {
+      return null;
+    }
+  }
+
+  static bool? getNullableBoolFromYaml(List<String> args) {
     try {
       return getConfigFromYaml(args);
     } on ElementNotFoundException catch (_) {

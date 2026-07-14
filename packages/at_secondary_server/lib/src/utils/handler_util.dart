@@ -54,3 +54,14 @@ Map<String, dynamic> validateCacheMetadata(
   var valueMap = {AtConstants.ttr: ttrMillis, AtConstants.ccd: ccd};
   return valueMap;
 }
+
+/// Expands the `<@atsign>` placeholder in each of [templates] for
+/// [atSign]. Shared by the delete-verb protected-keys check and the
+/// update-verb PQ-cert check, so both compare against identically-expanded
+/// keys.
+Set<String> expandProtectedKeyTemplates(
+    Iterable<String> templates, String atSign) {
+  return {
+    for (final template in templates) template.replaceFirst('<@atsign>', atSign)
+  };
+}

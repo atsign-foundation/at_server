@@ -23,6 +23,8 @@ import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_certificate_validation.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/crypto/pq_constants.dart';
+import 'package:at_secondary/src/crypto/pq_key_manager.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -105,7 +107,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   dynamic _serverSocket;
   bool _isRunning = false;
-  late Atsign currentAtSign;
+  late Atsign _currentAtSign;
+  Atsign get currentAtSign => _currentAtSign;
+  @visibleForTesting
+  set currentAtSign(Atsign value) => _currentAtSign = value;
   late AtCommitLog commitLog;
   late AtAccessLog accessLog;
   var signingKey;
@@ -862,6 +867,39 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     accessLog = bundle.accessLog!;
     notificationKeystore = bundle.notificationKeystore!;
     keyValueStore = bundle.keyValueStore;
+
+    // Initialise PQ keypairs and publish cert + ML-DSA public key. On failure,
+    // withdraw any cert published on a prior boot so peers cannot commit to a
+    // PQ handshake this server is now unable to complete (there is no
+    // fallback once a peer sees a published cert — see outbound_client.dart's
+    // 'pq' branch). The kill-switch gets the same treatment: a disabled
+    // server must withdraw its cert too, or peers keep attempting PQ against
+    // a server that will never answer the handshake.
+    if (AtSecondaryConfig.disablePqAuth) {
+      logger.info('PQ auth disabled via config — withdrawing any published '
+          'PQ cert so peers fall back to legacy auth');
+      try {
+        await keyValueStore.remove(pqXwingCertRecordName(currentAtSign));
+      } catch (removeError) {
+        logger.severe(
+            'Failed to withdraw PQ cert while PQ auth is disabled: $removeError');
+      }
+    } else {
+      try {
+        await PqKeyManager.instance.init(currentAtSign, keyValueStore);
+        await PqKeyManager.instance.publishKeys(currentAtSign, keyValueStore);
+      } catch (e) {
+        logger.severe(
+            'PQ key initialisation failed — withdrawing any published PQ cert '
+            'so peers fall back to legacy auth: $e');
+        try {
+          await keyValueStore.remove(pqXwingCertRecordName(currentAtSign));
+        } catch (removeError) {
+          logger.severe(
+              'Failed to withdraw PQ cert after init failure: $removeError');
+        }
+      }
+    }
 
     serverContext!.isKeyStoreInitialized = true;
 

@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/crypto/pq_constants.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as hu;
@@ -84,6 +85,19 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       InboundConnection atConnection) async {
     // Sets Response bean to the response bean in ChangeVerbHandler
     await super.processVerb(response, verbParams, atConnection);
+
+    // Reject writes to the one PQ record that's verb-addressable at all
+    // (every other PQ record lives under `local:` and is unreachable via
+    // update). Compared bare — before the sharedWith/public: prefixing below
+    // — so this can't be bypassed via `update:cached:public:pq_xwing_cert@bob`
+    // and friends the way a prefixed comparison could.
+    final bareUpdateKey = '${updateParams.atKey}${updateParams.sharedBy ?? ''}';
+    if (hu
+        .expandProtectedKeyTemplates({'$pqXwingCertName<@atsign>'}, atSign)
+        .contains(bareUpdateKey)) {
+      throw UnAuthorizedException(
+          'Cannot update protected key: \'$bareUpdateKey\'');
+    }
 
     // Get the key and update the value
     final sharedWith = updateParams.sharedWith;
