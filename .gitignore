@@ -48,3 +48,5 @@ tests/at_end2end_test/config/config.yaml
 # Local-only manual testing tool, not part of the workspace
 tools/chat/
 .DS_Store
+plans/
+

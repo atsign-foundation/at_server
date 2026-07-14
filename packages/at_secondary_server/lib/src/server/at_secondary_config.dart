@@ -16,6 +16,7 @@ class AtSecondaryConfig {
   //Certs
   static const bool _useTLS = true;
   static const bool _clientCertificateRequired = true;
+  static const bool _testingMode = false;
 
   // Cross-server 'to:' verb. Inbound understanding of 'to:@x' is always on
   // (unauthenticated, serves only data that is already publicly readable via
@@ -61,13 +62,11 @@ class AtSecondaryConfig {
   static const int _commitLogCompactionFrequencyMins = 18;
   static const int _commitLogCompactionPercentage = 20;
   static const int _commitLogSizeInKB = 2;
-  static const bool _enableCommitLogCompactor = true;
 
   //Access Log
   static const int _accessLogCompactionFrequencyMins = 15;
   static const int _accessLogCompactionPercentage = 30;
   static const int _accessLogSizeInKB = 2;
-  static const bool _enableAccessLogCompactor = true;
 
   //Notification
   static const bool _autoNotify = true;
@@ -82,7 +81,6 @@ class AtSecondaryConfig {
   static const int _notificationKeyStoreCompactionFrequencyMins = 5;
   static const int _notificationKeyStoreCompactionPercentage = 30;
   static const int _notificationKeyStoreSizeInKB = -1;
-  static const bool _enableNotificationCompactor = true;
 
   //Refresh Job
   static const int _runRefreshJobHour = 3;
@@ -115,6 +113,10 @@ class AtSecondaryConfig {
 
   //force restart
   static const bool _isForceRestart = false;
+
+  //PQ
+  static const int _xwingCertExpiryInDays = 90;
+  static const int _certRenewalHeadroomDays = 30;
 
   //Sync Configurations
   static const int _syncBufferSize = 5242880;
@@ -184,6 +186,18 @@ class AtSecondaryConfig {
     }
   }
 
+  static bool get testingMode {
+    var result = _getBoolEnvVar('testingMode');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(['testing', 'testingMode']);
+    } on ElementNotFoundException {
+      return _testingMode;
+    }
+  }
+
   /// Whether to require a client certificate when another atServer
   /// connects to us. This should NEVER be set to false except in
   /// very specific circumstances, such as a self-contained ephemeral
@@ -209,7 +223,8 @@ class AtSecondaryConfig {
   /// a UUID/RSA challenge. Set via AT_DISABLE_PQ_AUTH=true, or
   /// `pq.disablePqAuth` in config.yaml.
   static bool get disablePqAuth {
-    return _getBoolEnvVar('AT_DISABLE_PQ_AUTH') ??
+    return _getBoolEnvVar('disablePqAuth') ??
+        _getBoolEnvVar('AT_DISABLE_PQ_AUTH') ??
         getNullableBoolFromYaml(['pq', 'disablePqAuth']) ??
         false;
   }
@@ -345,28 +360,6 @@ class AtSecondaryConfig {
         getNullableIntFromYaml(
             ['notification_keystore_compaction', 'compactionFrequencyMins']) ??
         _notificationKeyStoreCompactionFrequencyMins;
-  }
-
-  /// Whether the commit-log compactor cron should be scheduled.
-  /// Disable to suppress the periodic prune.
-  static bool get enableCommitLogCompactor {
-    return _getBoolEnvVar('enableCommitLogCompactor') ??
-        _enableCommitLogCompactor;
-  }
-
-  /// Whether the access-log compactor cron should be scheduled. No
-  /// effect when [AtPersistenceConfig.enableAccessLog] is `false`.
-  static bool get enableAccessLogCompactor {
-    return _getBoolEnvVar('enableAccessLogCompactor') ??
-        _enableAccessLogCompactor;
-  }
-
-  /// Whether the notification-keystore compactor cron should be
-  /// scheduled. No effect when
-  /// [AtPersistenceConfig.enableNotificationKeystore] is `false`.
-  static bool get enableNotificationCompactor {
-    return _getBoolEnvVar('enableNotificationCompactor') ??
-        _enableNotificationCompactor;
   }
 
   static String get notificationStoragePath {
@@ -740,10 +733,13 @@ class AtSecondaryConfig {
 
   static Set<String> get protectedKeys {
     try {
-      YamlList keys = getConfigFromYaml(['hive', 'protectedKeys']);
+      final rawKeys = getConfigFromYaml(['hive', 'protectedKeys']);
+      if (rawKeys is! YamlList) {
+        return _protectedKeys;
+      }
       Set<String> protectedKeysFromConfig = {};
-      for (var key in keys) {
-        protectedKeysFromConfig.add(key);
+      for (var key in rawKeys) {
+        if (key is String) protectedKeysFromConfig.add(key);
       }
       protectedKeysFromConfig.addAll(_protectedKeys);
       return protectedKeysFromConfig;
@@ -755,16 +751,22 @@ class AtSecondaryConfig {
   /// Validity period for this server's own X-Wing cert. Has no effect on
   /// verifying peer certs, which always enforce their own embedded expiry.
   static int get xwingCertExpiryInDays {
-    return _getIntEnvVar('xwingCertExpiryInDays') ??
+    final result = _getIntEnvVar('xwingCertExpiryInDays') ??
         getNullableIntFromYaml(['pq', 'xwingCertExpiryInDays']) ??
-        90;
+        _xwingCertExpiryInDays;
+    if (result <= 0) {
+      stderr.writeln(
+          'Warning: xwingCertExpiryInDays=$result is invalid, using default $_xwingCertExpiryInDays');
+      return _xwingCertExpiryInDays;
+    }
+    return result;
   }
 
   /// How many days before X-Wing cert expiry [PqKeyManager] rotates it.
   static int get certRenewalHeadroomDays {
     return _getIntEnvVar('certRenewalHeadroomDays') ??
         getNullableIntFromYaml(['pq', 'certRenewalHeadroomDays']) ??
-        30;
+        _certRenewalHeadroomDays;
   }
 
   static int get enrollmentExpiryInHours {
@@ -782,8 +784,14 @@ class AtSecondaryConfig {
   }
 
   static int get maxEnrollRequestsAllowed {
-    return _maxEnrollRequestsAllowed ??
-        _getIntEnvVar('maxEnrollRequestsAllowed') ??
+    // For ease of testing purposes, we need to reduce the number of requests.
+    // So, in testing mode, enable to modify the "maxEnrollRequestsAllowed"
+    // can be set via the config verb
+    // Defaults to value in config.yaml
+    if (testingMode && _maxEnrollRequestsAllowed != null) {
+      return _maxEnrollRequestsAllowed!;
+    }
+    return _getIntEnvVar('maxEnrollRequestsAllowed') ??
         getNullableIntFromYaml(['enrollment', 'maxRequestsPerTimeFrame']) ??
         5;
   }
@@ -796,13 +804,19 @@ class AtSecondaryConfig {
   }
 
   static int get timeFrameInMillis {
-    return _timeFrameInMillis ??
-        (_getIntEnvVar('enrollTimeFrameInHours') ??
-                getNullableIntFromYaml(['enrollment', 'timeFrameInHours']) ??
-                _timeFrameInHours) *
-            60 *
-            60 *
-            1000;
+    // For ease of testing purposes, we need to reduce the time frame.
+    // So, in testing mode, enable to modify the "timeFrameInMillis"
+    // can be set via the config verb
+    // Defaults to value in config.yaml
+    if (testingMode && _timeFrameInMillis != null) {
+      return _timeFrameInMillis!;
+    }
+    return (_getIntEnvVar('enrollTimeFrameInHours') ??
+            getNullableIntFromYaml(['enrollment', 'timeFrameInHours']) ??
+            _timeFrameInHours) *
+        60 *
+        60 *
+        1000;
   }
 
   static int get enrollmentResponseDelayIntervalInSeconds {
@@ -819,18 +833,24 @@ class AtSecondaryConfig {
 
   // implementation for config:set. This method returns a data stream which subscribers listen to for updates
   static Stream<dynamic>? subscribe(ModifiableConfigs configName) {
-    if (!_streamListeners.containsKey(configName)) {
-      _streamListeners[configName] = ModifiableConfigurationEntry()
-        ..streamController = StreamController<dynamic>.broadcast()
-        ..defaultValue = AtSecondaryConfig.getDefaultValue(configName);
+    if (testingMode) {
+      if (!_streamListeners.containsKey(configName)) {
+        _streamListeners[configName] = ModifiableConfigurationEntry()
+          ..streamController = StreamController<dynamic>.broadcast()
+          ..defaultValue = AtSecondaryConfig.getDefaultValue(configName);
+      }
+      return _streamListeners[configName]!.streamController.stream;
     }
-    return _streamListeners[configName]!.streamController.stream;
+    return null;
   }
 
   // implementation for config:set. Broadcasts new config value to all the listeners/subscribers
   static void broadcastConfigChange(
       ModifiableConfigs configName, var newConfigValue,
       {bool isReset = false}) {
+    if (!testingMode) {
+      return;
+    }
     // if an entry for the config does not exist new entry is created
     if (!_streamListeners.containsKey(configName)) {
       _streamListeners[configName] = ModifiableConfigurationEntry()
@@ -883,20 +903,34 @@ class AtSecondaryConfig {
       case ModifiableConfigs.maxRequestsPerTimeFrame:
         return maxEnrollRequestsAllowed;
       case ModifiableConfigs.timeFrameInMillis:
-        return Duration(hours: _timeFrameInHours).inMilliseconds;
+        return timeFrameInMillis;
     }
   }
 
   static int? _getIntEnvVar(String envVar) {
     final v = _envVars[envVar];
-    if (v != null) return int.parse(v);
-    return null;
+    if (v == null) return null;
+    final parsed = int.tryParse(v);
+    if (parsed == null) {
+      stderr.writeln(
+          'Warning: env var $envVar="$v" is not a valid int, ignoring');
+    }
+    return parsed;
   }
 
   static bool? _getBoolEnvVar(String envVar) {
     final v = _envVars[envVar];
-    if (v != null) return v.toLowerCase() == 'true';
-    return null;
+    if (v == null) return null;
+    switch (v.toLowerCase()) {
+      case 'true':
+        return true;
+      case 'false':
+        return false;
+      default:
+        stderr.writeln(
+            'Warning: env var $envVar="$v" is not a valid bool, ignoring');
+        return null;
+    }
   }
 
   static String? _getStringEnvVar(String envVar) {
@@ -908,6 +942,8 @@ class AtSecondaryConfig {
       return getConfigFromYaml(args);
     } on ElementNotFoundException catch (_) {
       return null;
+    } on TypeError catch (_) {
+      return null;
     }
   }
 
@@ -915,6 +951,8 @@ class AtSecondaryConfig {
     try {
       return getConfigFromYaml(args);
     } on ElementNotFoundException catch (_) {
+      return null;
+    } on TypeError catch (_) {
       return null;
     }
   }
@@ -928,14 +966,16 @@ class AtSecondaryConfig {
         if (i == 0) {
           value = yamlMap[args[i]];
         } else {
-          if (value != null) {
+          if (value is YamlMap) {
             value = value[args[i]];
+          } else {
+            value = null;
           }
         }
       }
     }
     // If value not found throw exception
-    if (value == Null || value == null) {
+    if (value == null) {
       throw ElementNotFoundException(
           'Element ${args.toString()} Not Found in yaml');
     }
@@ -951,14 +991,16 @@ class AtSecondaryConfig {
         if (i == 0) {
           value = yamlMap[keyParts[i]];
         } else {
-          if (value != null) {
+          if (value is YamlMap) {
             value = value[keyParts[i]];
+          } else {
+            value = null;
           }
         }
       }
     }
     // If value not found throw exception
-    if (value == Null || value == null) {
+    if (value == null) {
       return null;
     } else {
       return value.toString();

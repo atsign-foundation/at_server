@@ -1,7 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
 import 'package:at_secondary/src/config/at_config.dart';
-import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
@@ -29,6 +28,13 @@ import 'package:at_commons/at_commons.dart';
 ///
 class ConfigVerbHandler extends AbstractVerbHandler {
   static Config config = Config();
+
+  static const _boolConfigs = {
+    ModifiableConfigs.autoNotify,
+    ModifiableConfigs.checkCertificateReload,
+    ModifiableConfigs.shouldReloadCertificates,
+    ModifiableConfigs.doCacheRefreshNow,
+  };
 
   final AtCommitLog commitLog;
 
@@ -89,41 +95,55 @@ class ConfigVerbHandler extends AbstractVerbHandler {
         //split 'config=value' to array of strings
         var newConfig = verbParams[AtConstants.configNew]?.split('=');
         //first element of array is config name
-        setConfigName = ModifiableConfigs.values.byName(newConfig![0]);
+        setConfigName = ModifiableConfigs.values
+            .byName(_normalizeConfigName(newConfig![0]));
         //second element of array is config value
         setConfigValue = newConfig[1];
       } else {
         //in other cases reset/print only config name is received
-        setConfigName =
-            ModifiableConfigs.values.byName(verbParams[AtConstants.configNew]!);
+        setConfigName = ModifiableConfigs.values
+            .byName(_normalizeConfigName(verbParams[AtConstants.configNew]!));
       }
 
-      bool privileged = await isAuthorized(
-          atConnection.metaData as InboundConnectionMetadata,
-          namespace: '__config');
       switch (setOperation) {
         case 'set':
-          if (!privileged) {
-            throw UnAuthorizedException('Unauthorized');
+          if (!AtSecondaryConfig.testingMode) {
+            result = 'testing mode disabled by default';
+            break;
           }
-          try {
-            AtSecondaryConfig.broadcastConfigChange(
-                setConfigName!, int.parse(setConfigValue!));
-          } catch (e) {
-            AtSecondaryConfig.broadcastConfigChange(
-                setConfigName!, setConfigValue!);
+          Object parsedValue;
+          if (_boolConfigs.contains(setConfigName)) {
+            final b = bool.tryParse(setConfigValue!, caseSensitive: false);
+            if (b == null) {
+              throw IllegalArgumentException(
+                  'Invalid bool for $setConfigName: $setConfigValue');
+            }
+            parsedValue = b;
+          } else {
+            final i = int.tryParse(setConfigValue!);
+            if (i == null) {
+              throw IllegalArgumentException(
+                  'Invalid int for $setConfigName: $setConfigValue');
+            }
+            parsedValue = i;
           }
+          AtSecondaryConfig.broadcastConfigChange(setConfigName!, parsedValue);
           result = 'ok';
           break;
         case 'reset':
-          if (!privileged) {
-            throw UnAuthorizedException('Unauthorized');
+          if (!AtSecondaryConfig.testingMode) {
+            result = 'testing mode disabled by default';
+            break;
           }
           AtSecondaryConfig.broadcastConfigChange(setConfigName!, null,
               isReset: true);
           result = 'ok';
           break;
         case 'print':
+          if (!AtSecondaryConfig.testingMode) {
+            result = 'testing mode disabled by default';
+            break;
+          }
           result = AtSecondaryConfig.getLatestConfigValue(setConfigName!);
           break;
         default:
@@ -134,6 +154,9 @@ class ConfigVerbHandler extends AbstractVerbHandler {
     response.data = result?.toString();
   }
 }
+
+String _normalizeConfigName(String name) =>
+    name == 'timeFrameInMills' ? 'timeFrameInMillis' : name;
 
 /// Returns atsigns set.
 Set<String> _toSet(String atsign) {

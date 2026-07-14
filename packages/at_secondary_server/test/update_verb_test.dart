@@ -10,6 +10,7 @@ import 'package:at_utils/at_utils.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/crypto/pq_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -1752,6 +1753,30 @@ void main() {
       expect(response.errorCode, 'AT0028');
       expect(response.errorMessage,
           'The enrollment id: $enrollmentId is expired. Closing the connection');
+    });
+  });
+
+  group('PQ X-Wing cert protection', () {
+    test(
+        'verify update of PQ X-Wing cert throws exception even with a '
+        'case-variant key', () async {
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(
+        keyValueStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
+      inboundConnection.metaData.isAuthenticated = true;
+
+      String updateCommand =
+          'update:${pqXwingCertName.toUpperCase()}$alice dummyCertValue';
+      expect(
+          () async =>
+              await updateHandler.process(updateCommand, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  "Cannot update protected key: '${pqXwingCertName.toUpperCase()}$alice'")));
     });
   });
 }

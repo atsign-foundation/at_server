@@ -200,6 +200,15 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     currentAtSign = serverContext!.currentAtSign!.toAtsign();
     logger.shout('start(): currentAtSign : $currentAtSign');
 
+    if (Platform.environment.containsKey('skipCommitsForExpiredKeys') ||
+        AtSecondaryConfig.getNullableBoolFromYaml(
+                ['hive', 'skipCommitsForExpiredKeys']) !=
+            null) {
+      logger.warning(
+          'skipCommitsForExpiredKeys is set but no longer has any effect '
+          '(key-expiry scheduling was replaced); safe to remove from config.');
+    }
+
     // Initialize persistent storage
     await _initializePersistentInstances();
 
@@ -234,32 +243,26 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // compact(false) stream with an overlap guard, and records
     // primitives to a stats service.
     final statsService = AtCompactionStatsService(keyValueStore);
-    if (AtSecondaryConfig.enableCommitLogCompactor) {
-      _scheduleCompaction(
-        commitLog,
-        Duration(minutes: AtSecondaryConfig.commitLogCompactionFrequencyMins),
-        'commitLog',
-        statsService,
-      );
-    }
-    if (AtSecondaryConfig.enableAccessLogCompactor) {
-      _scheduleCompaction(
-        accessLog,
-        Duration(minutes: AtSecondaryConfig.accessLogCompactionFrequencyMins),
-        'accessLog',
-        statsService,
-      );
-    }
-    if (AtSecondaryConfig.enableNotificationCompactor) {
-      _scheduleCompaction(
-        notificationKeystore,
-        Duration(
-            minutes:
-                AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins),
-        'notificationKeystore',
-        statsService,
-      );
-    }
+    _scheduleCompaction(
+      commitLog,
+      Duration(minutes: AtSecondaryConfig.commitLogCompactionFrequencyMins),
+      'commitLog',
+      statsService,
+    );
+    _scheduleCompaction(
+      accessLog,
+      Duration(minutes: AtSecondaryConfig.accessLogCompactionFrequencyMins),
+      'accessLog',
+      statsService,
+    );
+    _scheduleCompaction(
+      notificationKeystore,
+      Duration(
+          minutes:
+              AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins),
+      'notificationKeystore',
+      statsService,
+    );
 
     final socketConfig = SecureSocketConfig()
       ..decryptPackets = false

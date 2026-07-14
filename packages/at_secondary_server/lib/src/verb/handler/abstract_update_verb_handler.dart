@@ -94,7 +94,8 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     final bareUpdateKey = '${updateParams.atKey}${updateParams.sharedBy ?? ''}';
     if (hu
         .expandProtectedKeyTemplates({'$pqXwingCertName<@atsign>'}, atSign)
-        .contains(bareUpdateKey)) {
+        .map((e) => e.toLowerCase())
+        .contains(bareUpdateKey.toLowerCase())) {
       throw UnAuthorizedException(
           'Cannot update protected key: \'$bareUpdateKey\'');
     }

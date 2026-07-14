@@ -262,6 +262,33 @@ void main() {
         final prevCert = (await keyStore.get(pqXwingCertPrevName(atSign)))?.data;
         expect(prevCert, isNotNull);
       });
+
+      test(
+          'headroom >= expiry is clamped to 0 instead of rotating on every boot',
+          () async {
+        // certRenewalHeadroomDays (10) >= certExpiryDays (5): without the
+        // clamp, effectiveHeadroomDays would equal certRenewalHeadroomDays
+        // and renewAt would always be beyond validUntil, forcing a rotation
+        // on every publishKeys() call.
+        final mgr =
+            PqKeyManager(certExpiryDays: 5, certRenewalHeadroomDays: 10);
+        await mgr.init(atSign, keyStore);
+        final xwingPubBefore = mgr.xwingPublicKey;
+
+        final cert = await mgr.buildCert(
+            validUntil: DateTime.now().toUtc().add(const Duration(days: 5)));
+        await keyStore.put(
+            pqXwingCertRecordName(atSign), AtData()..data = cert.toJson());
+
+        await mgr.publishKeys(atSign, keyStore);
+
+        final certAfter =
+            (await keyStore.get(pqXwingCertRecordName(atSign)))?.data;
+        expect(certAfter, equals(cert.toJson()),
+            reason: 'With headroom clamped to 0, a cert still within its '
+                'full validity window must not be rotated');
+        expect(mgr.xwingPublicKey, equals(xwingPubBefore));
+      });
     });
 
     group('rotateCert()', () {

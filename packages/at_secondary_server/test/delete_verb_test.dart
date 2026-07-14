@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/crypto/pq_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
@@ -134,6 +135,17 @@ void main() {
     test('verify deletion of signing private key throws exception', () {
       inboundConnection.metadata.isAuthenticated = true;
       var command = 'delete:$alice:${AtConstants.atSigningPrivateKey}$alice';
+      expect(
+          () => handler.processInternal(command, inboundConnection),
+          throwsA(
+              predicate((exception) => exception is UnAuthorizedException)));
+    });
+
+    test(
+        'verify deletion of PQ X-Wing cert throws exception even with a '
+        'case-variant key', () {
+      inboundConnection.metadata.isAuthenticated = true;
+      var command = 'delete:public:${pqXwingCertName.toUpperCase()}$alice';
       expect(
           () => handler.processInternal(command, inboundConnection),
           throwsA(

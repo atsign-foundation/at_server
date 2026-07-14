@@ -28,7 +28,6 @@ class DeleteVerbHandler extends ChangeVerbHandler {
   );
 
   //setter to set autoNotify value from dynamic server config "config:set".
-  //only works when testingMode is set to true
   static setAutoNotify(bool newState) {
     _autoNotify = newState;
   }
@@ -185,13 +184,14 @@ class DeleteVerbHandler extends ChangeVerbHandler {
 
   Set<String> _getProtectedKeys(String? atsign) {
     atsign ??= AtSecondaryServerImpl.getInstance().currentAtSign;
-    return expandProtectedKeyTemplates(
-        AtSecondaryConfig.protectedKeys, atsign);
+    return expandProtectedKeyTemplates(AtSecondaryConfig.protectedKeys, atsign)
+        .map((e) => e.toLowerCase())
+        .toSet();
   }
 
   bool _isProtectedKey(String key, {String? isCached}) {
     isCached ??= 'false';
-    if (protectedKeys!.contains(key) && isCached == 'false') {
+    if (protectedKeys!.contains(key.toLowerCase()) && isCached == 'false') {
       logger.severe('Cannot delete key. \'$key\' is a protected key');
       return true;
     }
