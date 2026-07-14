@@ -5,7 +5,7 @@ repository: https://github.com/atsign-foundation/at_server
 homepage: https://docs.atsign.com/
 
 environment:
-  sdk: ">=3.0.0 <4.0.0"
+  sdk: ">=3.5.0 <4.0.0"
 
 dependencies:
   path: ^1.8.2
@@ -19,7 +19,7 @@ dependencies:
   meta: ^1.8.0
 
 dev_dependencies:
-  lints: ^6.0.0
+  lints: ^6.1.0
   test: ^1.25.8
   coverage: ^1.6.1
   collection: ^1.17.1

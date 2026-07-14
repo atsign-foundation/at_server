@@ -45,3 +45,5 @@ packages/at_secondary_server/bin/create_ws_to_at_server.dart
 packages/at_secondary_server/secondary
 tests/at_end2end_test/config/config.yaml
 
+# Local-only manual testing tool, not part of the workspace
+tools/chat/

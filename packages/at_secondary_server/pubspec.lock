@@ -60,11 +60,12 @@ packages:
   at_chops:
     dependency: "direct main"
     description:
-      name: at_chops
-      sha256: "4d6ab2cbf9fb87e0d575ffe0cc0622075677b679ea875d5ac39e475ae4be188a"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.3.0"
+      path: "packages/at_chops"
+      ref: "3a9302edda6df9a8f25c62edce8442ef34e590e7"
+      resolved-ref: "3a9302edda6df9a8f25c62edce8442ef34e590e7"
+      url: "https://github.com/atsign-foundation/at_client_sdk.git"
+    source: git
+    version: "3.4.0"
   at_commons:
     dependency: "direct main"
     description:
@@ -117,10 +118,10 @@ packages:
     dependency: "direct main"
     description:
       name: basic_utils
-      sha256: "2064b21d3c41ed7654bc82cc476fd65542e04d60059b74d5eed490a4da08fc6c"
+      sha256: "548047bef0b3b697be19fa62f46de54d99c9019a69fb7db92c69e19d87f633c7"
       url: "https://pub.dev"
     source: hosted
-    version: "5.7.0"
+    version: "5.8.2"
   better_cryptography:
     dependency: transitive
     description:
@@ -522,13 +523,13 @@ packages:
     source: hosted
     version: "3.1.6"
   pointycastle:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
       name: pointycastle
-      sha256: "4be0097fcf3fd3e8449e53730c631200ebc7b88016acecab2b0da2f0149222fe"
+      sha256: "92aa3841d083cc4b0f4709b5c74fd6409a3e6ba833ffc7dc6a8fee096366acf5"
       url: "https://pub.dev"
     source: hosted
-    version: "3.9.1"
+    version: "4.0.0"
   pool:
     dependency: transitive
     description:
@@ -549,10 +550,10 @@ packages:
     dependency: transitive
     description:
       name: pqcrypto
-      sha256: "36fc4126fb18e841127bfcc6c0c3ed85e1a1b04dc333737eeab7a505683e0ac4"
+      sha256: fa8bd7eac5ccb4389f4003715a79b1b601ca9439cb81d1174a1e06da75306b39
       url: "https://pub.dev"
     source: hosted
-    version: "0.3.0"
+    version: "0.3.1"
   process:
     dependency: transitive
     description:

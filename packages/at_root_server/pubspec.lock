@@ -5,18 +5,18 @@ packages:
     dependency: transitive
     description:
       name: _fe_analyzer_shared
-      sha256: "1b0e6a07425a3e460666e88bf1c949ccc7bb0116ad562ce94a1eca60fe820725"
+      sha256: f6526c100095fd63a916824e3da344bbbd50c25c8f56bcd52d13c59d35bbe422
       url: "https://pub.dev"
     source: hosted
-    version: "103.0.0"
+    version: "104.0.0"
   analyzer:
     dependency: transitive
     description:
       name: analyzer
-      sha256: "61c04d0c1bfed555c681ea079519933f071a5a026578ff73c4ff0df2d3462e5e"
+      sha256: "6c6d751533496152e78f71c46ad001260c5e74e0f9ec1f1cbc165a0467c086d6"
       url: "https://pub.dev"
     source: hosted
-    version: "13.3.0"
+    version: "14.0.0"
   args:
     dependency: "direct main"
     description:
@@ -46,7 +46,7 @@ packages:
     description:
       path: "packages/at_persistence_root_server"
       ref: trunk
-      resolved-ref: b67fb3a83345f062bf21919d6c5f750aea2d3acc
+      resolved-ref: "0b2dbf26c3d8746c5b4051452bc7bb8f34827208"
       url: "https://github.com/atsign-foundation/at_server.git"
     source: git
     version: "2.0.7"
@@ -246,10 +246,10 @@ packages:
     dependency: transitive
     description:
       name: package_config
-      sha256: f096c55ebb7deb7e384101542bfba8c52696c1b56fca2eb62827989ef2353bbc
+      sha256: ffcf4cf3d6c0b74ac43708d9f56625506e8a68aa935abe9d267a7330f320eb5d
       url: "https://pub.dev"
     source: hosted
-    version: "2.2.0"
+    version: "3.0.0"
   path:
     dependency: transitive
     description:
