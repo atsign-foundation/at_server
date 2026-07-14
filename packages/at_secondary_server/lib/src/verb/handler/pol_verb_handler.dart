@@ -67,6 +67,10 @@ class PolVerbHandler extends AbstractVerbHandler {
     }
     logger.info('pol from $fromAtSign');
 
+    // Storing under public: is necessary because the peer's outbound client
+    // is not authenticated yet when executing POL/lookUp (the POL flow is
+    // the mechanism that authenticates them). Unauthenticated connections
+    // can only perform lookUp/plookUp on keys with a public: prefix.
     final String storedSecretId = 'public:$sessionID$fromAtSign';
 
     // Fetch locally stored secret first to detect mode (pq: prefix = PQ mode).

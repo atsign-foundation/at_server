@@ -5,7 +5,7 @@ import 'package:at_chops/at_chops_ffi.dart';
 
 /// An ML-DSA-65-signed binding of an X-Wing public key to an expiry timestamp.
 ///
-/// Lives here (not in at_chops) because the cert is an atServer↔atServer
+/// Lives here because the cert is an atServer↔atServer
 /// protocol artifact with a single consumer: [PqKeyManager]. See
 /// docs/inter-atserver-comms.md.
 class XWingCert {

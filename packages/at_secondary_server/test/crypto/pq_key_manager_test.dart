@@ -216,6 +216,8 @@ void main() {
         expect(await keyStore.exists(pqXwingSecretKeyPrevName(atSign)), isFalse,
             reason: 'Expired prev secret key must be deleted alongside '
                 'the expired prev cert');
+        expect(await keyStore.exists(pqXwingCertRecordName(atSign)), isTrue,
+            reason: 'Current cert must be published/generated');
       });
 
       test('publishKeys() retains a still-valid prev cert', () async {
@@ -231,6 +233,8 @@ void main() {
 
         expect(await keyStore.exists(pqXwingCertPrevName(atSign)), isTrue,
             reason: 'A still-valid prev cert must NOT be deleted');
+        expect(await keyStore.exists(pqXwingCertRecordName(atSign)), isTrue,
+            reason: 'Current cert must be published/generated');
       });
 
       test('inside renewal headroom rotates instead of no-op', () async {
@@ -290,7 +294,14 @@ void main() {
 
         final kemResult = await AtPqc.xWing.encapsulate(mgr.xwingPublicKey);
 
+        final oldPub = mgr.xwingPublicKey;
         await mgr.rotateCert(atSign, keyStore);
+
+        final prevCertRaw = (await keyStore.get(pqXwingCertPrevName(atSign)))?.data;
+        expect(prevCertRaw, isNotNull);
+        final prevCert = XWingCert.tryParse(prevCertRaw!);
+        expect(prevCert!.xwingPublicKey, equals(oldPub),
+            reason: 'Prev cert public key must match the key before rotation');
 
         final persistedPrevSecret =
             (await keyStore.get(pqXwingSecretKeyPrevName(atSign)))?.data;

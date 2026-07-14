@@ -139,8 +139,8 @@ void main() {
       // removed). The digest is then computable from public session data, so
       // the server must refuse to authenticate.
       await keyValueStore.put('privatekey:at_secret', AtData()..data = '');
-      var fromVerbHandler = FromVerbHandler(keyValueStore,
-          commitLog: atCommitLog, accessLog: atAccessLog);
+      var fromVerbHandler = FromVerbHandler(keyValueStore, mockOcm,
+          accessLog: atAccessLog);
       AtSecondaryServerImpl.getInstance().currentAtSign =
           '@test_user_1'.toAtsign();
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';

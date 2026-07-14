@@ -160,7 +160,7 @@ class FromVerbHandler extends AbstractVerbHandler {
       String fromAtSign, String sessionID, String storedSecretId) async {
     try {
       // Always fetch the peer's published PQ cert live (unauthenticated
-      // plookUp — the same channel the RSA path uses). Nothing is cached:
+      // plookUp). Nothing is cached:
       // each handshake honours the peer's current keys, so there is no
       // stale-cert failure mode.
       final certRaw = await fetchPeerPqCert(outboundClientManager, fromAtSign);

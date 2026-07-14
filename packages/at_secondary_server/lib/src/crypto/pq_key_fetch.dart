@@ -9,14 +9,14 @@ final _dataPrefix = RegExp('^data:');
 final _dummyInboundConnection = DummyInboundConnection();
 
 /// Public-lookup [fromAtSign]'s X-Wing cert over [oc] (an unauthenticated
-/// `plookUp`, the same channel the RSA/UUID path uses).
+/// `plookUp`).
 ///
 /// The result is used for the current handshake only — it is never cached.
 /// Every handshake live-fetches fresh key material so a peer's key rotation
 /// is always honoured and there is no stale-cert failure mode.
 ///
-/// Returns the cert JSON, or null if the peer publishes no PQ keys (caller
-/// falls back to the legacy RSA/UUID path). Never throws — failures are
+/// Returns the cert JSON, or null if the peer publishes no PQ keys.
+/// Never throws — failures are
 /// logged and surface as null.
 Future<String?> fetchPqCert(OutboundClient oc, String fromAtSign) async {
   try {
