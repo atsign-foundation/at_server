@@ -116,6 +116,12 @@ class EnrollmentManager {
 
   /// Moves everything in `<enId>.[ard].__e` to the required place
   /// Returns list of all the keys which were moved
+  ///
+  /// Scoped to [enId]: only the per-enrollment keys belonging to that enrollment
+  /// are moved. The `regexForPerEnrollmentNamespaces` match exposes the owning
+  /// enrollment id via its `EnId` named group; keys whose `EnId` differs from
+  /// [enId] are left untouched, so a state change on one enrollment never
+  /// disturbs another enrollment's per-enrollment data.
   @visibleForTesting
   Future<List<String>> movePerEnrollmentData(
     String enId, {
@@ -126,8 +132,15 @@ class EnrollmentManager {
       case EnrollmentConstants.perEnrollmentDeleted:
       case EnrollmentConstants.perEnrollmentApproved:
         List<String> moved = [];
+        final RegExp perEnrollmentRegex =
+            RegExp(EnrollmentConstants.regexForPerEnrollmentNamespaces);
         await for (final String fromKey in await keyStore.getKeys(
             regex: EnrollmentConstants.regexForPerEnrollmentNamespaces)) {
+          // Scope the move to this enrollment: skip keys owned by any other enrollment.
+          final RegExpMatch? match = perEnrollmentRegex.firstMatch(fromKey);
+          if (match == null || match.namedGroup('EnId') != enId) {
+            continue;
+          }
           final String toKey = fromKey
               .replaceAll(
                   '${EnrollmentConstants.perEnrollmentRevoked}@', '$to@')

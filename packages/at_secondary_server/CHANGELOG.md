@@ -1,5 +1,12 @@
 # 3.15.0
 
+- fix: `EnrollmentManager.movePerEnrollmentData` now scopes its key moves to the
+  transitioning enrollment. It previously ignored its `enId` argument and moved
+  EVERY enrollment's per-enrollment reserved-namespace (`<enId>.[ard].__e`) keys,
+  so a state change (approve / revoke / unrevoke / delete / expiry) on one
+  enrollment wrongly moved other enrollments' data between the a/r/d markers.
+  Now scoped via the `EnId` named group of `regexForPerEnrollmentNamespaces`,
+  with a two-enrollment regression test.
 - feat: cross-server `to:@<atSign>` first-verb. On an outbound peer connection
   the atServer can name the target tenant with `to:` as the first verb — giving
   architectural flexibility for endpoints reached through proxies / gateways and
