@@ -25,6 +25,7 @@ import 'package:at_secondary/src/server/at_certificate_validation.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/crypto/pq_constants.dart';
 import 'package:at_secondary/src/crypto/pq_key_manager.dart';
+import 'package:at_secondary/src/server/persistence_backend.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -843,19 +844,55 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     throw Exception("AtSecondaryServer.getMetrics() is obsolete");
   }
 
+  /// Plants the CRAM (registrar activation) secret into [keyValueStore] for
+  /// first-time activation. Deliberately conservative: the secret is planted
+  /// only when it has NOT been explicitly deleted (marker absent), is NOT
+  /// already present, and a non-empty [sharedSecret] was supplied. This
+  /// prevents (a) clobbering a real secret with a null on a restart started
+  /// without `-s`, and (b) resurrecting a deleted secret. A null/empty secret
+  /// must never be stored — it would be CRAM-authenticatable (see
+  /// [CramVerbHandler]).
+  @visibleForTesting
+  Future<void> plantCramSecretIfRequired(
+      AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore,
+      String? sharedSecret) async {
+    final cramSecretDeleted =
+        await keyValueStore.exists(AtConstants.atCramSecretDeleted);
+    final cramSecretExists =
+        await keyValueStore.exists(AtConstants.atCramSecret);
+    if (!cramSecretDeleted && !cramSecretExists) {
+      if (sharedSecret != null && sharedSecret.isNotEmpty) {
+        await keyValueStore.put(
+            AtConstants.atCramSecret, AtData()..data = sharedSecret);
+      } else {
+        logger.info('Not planting CRAM secret: no shared_secret supplied and'
+            ' none already present');
+      }
+    }
+  }
+
   /// Initializes [AtKeyValueStore], [AtCommitLog], [AtNotificationKeystore] and [AtAccessLog] instances.
   Future<void> _initializePersistentInstances() async {
     AtNotification.defaultTtl =
         Duration(minutes: AtSecondaryConfig.notificationExpiryInMins);
 
-    final config = HivePersistenceConfig.serverDefaults(
-      storagePath: AtSecondaryConfig.storagePath,
-      commitLogPath: AtSecondaryConfig.commitLogPath,
-      accessLogPath: AtSecondaryConfig.accessLogPath,
-      notificationStoragePath: AtSecondaryConfig.notificationStoragePath,
-    );
-    final bundle = await persistenceFactory.initialize(
-        serverContext!.currentAtSign!, config);
+    final atSign = serverContext!.currentAtSign!;
+    final targetBackend = PersistenceBackendManager.configuredBackend;
+
+    // If the on-disk backend marker disagrees with the configured backend,
+    // migrate → verify → flip before opening the target. Any failure here
+    // throws out of start(), leaving the source data and marker untouched.
+    await PersistenceBackendManager.migrateIfNeeded(atSign, targetBackend);
+
+    // For 'hive' (default) keep using the injectable persistenceFactory
+    // field, so existing behaviour and test injection are unchanged; for
+    // 'sqlite' / 'dual' switch to the corresponding factory.
+    if (targetBackend != PersistenceBackendManager.hive) {
+      persistenceFactory = PersistenceBackendManager.factoryFor(targetBackend);
+    }
+    final config = PersistenceBackendManager.configFor(targetBackend);
+
+    final bundle = await persistenceFactory.initialize(atSign, config);
     _persistenceBundle = bundle;
 
     _assertServerCapabilities(bundle);
@@ -903,13 +940,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     serverContext!.isKeyStoreInitialized = true;
 
-    var atData = AtData();
-    atData.data = serverContext!.sharedSecret;
-
-    // Ensure essential data is present in persistence
-    if (!await keyValueStore.exists(AtConstants.atCramSecretDeleted)) {
-      await keyValueStore.put(AtConstants.atCramSecret, atData);
-    }
+    // Plant the CRAM secret for first-time activation only — never resurrect
+    // or clobber it once onboarding has moved to PKAM/APKAM.
+    await plantCramSecretIfRequired(keyValueStore, serverContext!.sharedSecret);
     if (!await keyValueStore.exists(AtConstants.atSigningKeypairGenerated)) {
       var rsaKeypair = RSAKeypair.fromRandom();
       await keyValueStore.put('${AtConstants.atSigningPublicKey}$currentAtSign',

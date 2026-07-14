@@ -40,9 +40,14 @@ class CramVerbHandler extends AbstractVerbHandler {
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     AtData? internalSecret = await keyStore.get('privatekey:at_secret');
 
-    // If there is no secret in keystore then return error
-    if (internalSecret == null) {
-      logger.severe('privatekey:at_secret is null');
+    // If there is no secret in keystore - or it is null/empty - then return
+    // error. An empty/null secret must never authenticate: the expected digest
+    // would be computed over a known constant (e.g. the literal 'null'), which
+    // any caller could reproduce from the public session id and proof.
+    if (internalSecret == null ||
+        internalSecret.data == null ||
+        internalSecret.data!.isEmpty) {
+      logger.severe('privatekey:at_secret is null or empty');
       throw UnAuthenticatedException('Authentication Failed');
     }
 

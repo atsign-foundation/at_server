@@ -35,7 +35,56 @@ security:
   # atServer
   clientCertificateRequired: true
 
-# The atProtocol storage configurations
+# Persistence backend selection.
+# - backend: 'hive' (default) keeps the historical Hive stores; 'sqlite'
+#   opens one atsign.db per atSign under <storageRoot>/sqlite.
+# - storageRoot: the common root for the backend marker (.persistence_backend)
+#   and, for the 'sqlite'/'dual' backends, the SQLite data (<storageRoot>/sqlite).
+#   IMPORTANT: with the default 'hive' backend, storageRoot ONLY locates the
+#   marker file — the Hive data paths come from the 'hive:' section below, NOT
+#   from here. The two are independent: changing storageRoot does not move Hive
+#   data, and on a legacy Hive-only install the marker file is never even
+#   written (it is created only when 'backend' changes). storageRoot becomes the
+#   actual data root only under the 'sqlite'/'dual' backends.
+#
+# Production note: these are RELATIVE paths. The secondary container runs with
+# working directory /atsign (tools/build_secondary/Dockerfile: WORKDIR /atsign),
+# so 'storage' resolves to /atsign/storage — the mount point of the persistent
+# volume that holds atServer state across container restarts. The volume is
+# supplied by the deploy layer (docker `-v` / k8s PVC); the image only
+# pre-creates the /atsign/storage directory. Keep every storage path (this one
+# and the 'hive:' paths) under the same root so all state lands on that one
+# mounted volume.
+#
+# Changing 'backend' triggers a migrate-verify-flip at startup (aborting
+# startup on any failure, leaving the source data untouched). The old
+# backend's data is RETAINED after a successful migration; reclaim it with
+# bin/cleanup_stale_persistence.dart once you no longer need to roll back.
+persistence:
+  backend: 'hive'
+  storageRoot: 'storage'
+
+# Cross-server 'to:' verb: the first verb on an outbound peer connection
+# declares the target tenant, giving architectural flexibility for atServer
+# endpoints — e.g. atServers reached through proxies / gateways.
+# Understanding inbound 'to:@x' is always on (unauthenticated, serves only
+# data already publicly readable via lookup). Emitting 'to:@target' on
+# outbound peer connections is gated here:
+# - toVerbOutboundEnabled (default false): emit 'to:@target' as the first
+#   verb on outbound peer connections. A peer that rejects 'to:' triggers a
+#   fallback to the legacy lookup, so enabling early costs a wasted round
+#   trip per connection to legacy peers, not an outage. Turn on (env
+#   toVerbOutboundEnabled=true) once the fleet understands 'to:'.
+protocol:
+  toVerbOutboundEnabled: false
+
+# Hive storage paths — used when persistence.backend is 'hive' (the default).
+# These are INDEPENDENT of persistence.storageRoot above: the backend marker
+# lives at <storageRoot>/.persistence_backend, but the Hive data itself lives at
+# exactly the paths below. They default under the same 'storage/' root that is
+# mounted into the container in production (see the 'persistence:' section
+# above), so all atServer state lands on the one persistent volume — keep them
+# consistent with storageRoot if you relocate it.
 hive:
   # The storage path for secondary storage.
   storagePath: 'storage/hive'

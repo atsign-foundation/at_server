@@ -40,6 +40,9 @@ updates:
       pub:
         patterns:
           - "*"
+    ignore:
+      - dependency-name: "sqlite3"
+        versions: [">= 3.0.0-0"]
   - package-ecosystem: "pip"
     directory: "/tools" # Location of package manifests
     schedule:

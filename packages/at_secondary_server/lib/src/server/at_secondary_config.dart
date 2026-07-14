@@ -17,6 +17,15 @@ class AtSecondaryConfig {
   static const bool _useTLS = true;
   static const bool _clientCertificateRequired = true;
 
+  // Cross-server 'to:' verb. Inbound understanding of 'to:@x' is always on
+  // (unauthenticated, serves only data that is already publicly readable via
+  // lookup) — see ToVerbHandler. Outbound emission (send 'to:@target' as the
+  // first verb on outbound peer connections, which also fetches the peer's
+  // public key so no separate lookup is needed) is gated by this flag,
+  // default OFF until every atServer understands 'to:'. OutboundClient falls
+  // back to the legacy lookup when a peer rejects 'to:'.
+  static const bool _toVerbOutboundEnabled = false;
+
   //Certificate Paths
   static const String _fullchainLocation = 'certs/fullchain.pem';
   static const String _privkeyLocation = 'certs/privkey.pem';
@@ -32,6 +41,21 @@ class AtSecondaryConfig {
   static const String _accessLogPath = 'storage/accessLog';
   static const String _notificationStoragePath = 'storage/notificationLog.v1';
   static const int _expiringRunFreqMins = 10;
+
+  // Persistence backend selection. 'hive' (default) keeps the historical
+  // Hive stores. 'sqlite' opens one atsign.db per atSign under
+  // <storageRoot>/sqlite. A mismatch between this and the on-disk backend
+  // marker triggers a migrate-verify-flip at startup (abort on failure).
+  static const String _persistenceBackend = 'hive';
+  // The common storage root for the backend marker (.persistence_backend) and,
+  // for the 'sqlite'/'dual' backends, the SQLite data (<storageRoot>/sqlite).
+  // INDEPENDENT of the Hive path constants above (_storagePath / _commitLogPath
+  // / ...): with the default 'hive' backend this only locates the marker file —
+  // the Hive stores live at those paths, NOT under here. A relative path, so in
+  // the secondary container (WORKDIR /atsign) it resolves to /atsign/storage,
+  // the mounted persistent volume. Kept equal to the Hive paths' parent by
+  // convention so all state lands on that one volume.
+  static const String _storageRoot = 'storage';
 
   //Commit Log
   static const int _commitLogCompactionFrequencyMins = 18;
@@ -188,6 +212,24 @@ class AtSecondaryConfig {
     return _getBoolEnvVar('AT_DISABLE_PQ_AUTH') ??
         getNullableBoolFromYaml(['pq', 'disablePqAuth']) ??
         false;
+  }
+
+  /// Gates outbound emission of the cross-server `to:` verb as the first verb
+  /// on outbound peer connections. Default false (outbound connections use the
+  /// legacy `lookup:`/bare-`from:` path, byte for byte). When on, a peer that
+  /// rejects `to:` triggers a fallback to the legacy lookup, so enabling is
+  /// safe against atServers that do not understand the verb. Override with env
+  /// `toVerbOutboundEnabled=true` or yaml `protocol.toVerbOutboundEnabled`.
+  static bool get toVerbOutboundEnabled {
+    var result = _getBoolEnvVar('toVerbOutboundEnabled');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(['protocol', 'toVerbOutboundEnabled']);
+    } on ElementNotFoundException {
+      return _toVerbOutboundEnabled;
+    }
   }
 
   static int? get runRefreshJobHour {
@@ -368,6 +410,36 @@ class AtSecondaryConfig {
       return getConfigFromYaml(['hive', 'storagePath']);
     } on ElementNotFoundException {
       return _storagePath;
+    }
+  }
+
+  /// The active persistence backend: `'hive'` (default) or `'sqlite'`.
+  /// Override with env `persistenceBackend` or yaml
+  /// `persistence.backend`.
+  static String get persistenceBackend {
+    final result = _getStringEnvVar('persistenceBackend');
+    if (result != null) return result;
+    try {
+      return getConfigFromYaml(['persistence', 'backend']);
+    } on ElementNotFoundException {
+      return _persistenceBackend;
+    }
+  }
+
+  /// The common storage root for the backend marker and (for the
+  /// `'sqlite'`/`'dual'` backends) the SQLite data. INDEPENDENT of the Hive
+  /// paths — with the default `'hive'` backend this only locates the marker
+  /// file; the Hive stores live at [storagePath] / [commitLogPath] / etc.,
+  /// not under here. Relative to the container working dir in production
+  /// (`/atsign` → `/atsign/storage`, the mounted volume). Override with env
+  /// `storageRoot` or yaml `persistence.storageRoot`.
+  static String get storageRoot {
+    final result = _getStringEnvVar('storageRoot');
+    if (result != null) return result;
+    try {
+      return getConfigFromYaml(['persistence', 'storageRoot']);
+    } on ElementNotFoundException {
+      return _storageRoot;
     }
   }
 

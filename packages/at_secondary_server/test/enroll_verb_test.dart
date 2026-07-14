@@ -2866,4 +2866,150 @@ void main() {
 
     tearDown(() async => await verbTestsTearDown());
   });
+
+  group('enroll:listns discovery + _apsk + request metadata', () {
+    final etu = ETU();
+    setUp(() async {
+      await verbTestsSetUp();
+      await etu.init();
+    });
+    tearDown(() async {
+      await verbTestsTearDown();
+    });
+
+    test(
+        'getEnrollmentsForNamespace returns apkamPubKey + metadata, '
+        'approved-only, honours suffix/* match', () async {
+      final (enIds, _) = await etu.createEnrollments(n: 2);
+      // enIds[0] = app_1 {app_1:rw, test:r}; enIds[1] = app_2 {app_2:rw, test:r}
+
+      // Attach metadata to enIds[0]'s record (models the enroll:request tail).
+      final ev0 = await enMgr.getEnrollmentById(enIds[0]);
+      ev0.metadata = {
+        'keyPackage': {'v': 1, 'keys': []}
+      };
+      await enMgr.put(enIds[0], AtData()..data = jsonEncode(ev0.toJson()),
+          EnrollmentStatus.approved);
+
+      // A pending (unapproved) enrollment authorised for 'test' — excluded.
+      final pending = await etu.createPendingEnrollment(
+          appName: 'pend',
+          deviceName: 't',
+          namespaces: {'test': 'r'},
+          apkamKeysExpiryDuration: null);
+
+      final members = await enMgr.getEnrollmentsForNamespace('test');
+      final ids = members.map((m) => m['enrollmentId']).toSet();
+      // primary(*:rw) + app_1(test:r) + app_2(test:r) authorised; pending excluded
+      expect(ids.contains(enIds[0]), true);
+      expect(ids.contains(enIds[1]), true);
+      expect(ids.contains(pending), false);
+      // every element carries apkamPubKey and access
+      for (final m in members) {
+        expect(m['apkamPubKey'], isNotNull);
+        expect(m.containsKey('access'), true);
+      }
+      final m0 = members.firstWhere((m) => m['enrollmentId'] == enIds[0]);
+      expect(m0['apkamPubKey'], 'apkam public key app_1 test');
+      expect(m0['access'], 'r');
+      expect(m0['metadata'], {
+        'keyPackage': {'v': 1, 'keys': []}
+      });
+      final m1 = members.firstWhere((m) => m['enrollmentId'] == enIds[1]);
+      expect(m1['metadata'], isNull);
+    });
+
+    test(
+        'enroll:listns serves the roster to a caller with >=r and refuses '
+        'a caller without access to the namespace', () async {
+      final (enIds, _) = await etu.createEnrollments(n: 2);
+
+      // app_1 (test:r) queries 'test' -> allowed
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.enrollmentId = enIds[0];
+      final okResp = Response();
+      await etu.evh.processVerb(
+          okResp,
+          HashMap<String, String?>.from(
+              {'operation': 'listns', 'listNamespace': 'test'}),
+          inboundConnection);
+      expect(okResp.isError, false);
+      final roster = jsonDecode(okResp.data!) as List;
+      expect(roster.any((m) => m['apkamPubKey'] != null), true);
+
+      // app_2 (app_2:rw, test:r — NOT app_1) queries 'app_1' -> refused
+      inboundConnection.metaData.enrollmentId = enIds[1];
+      await expectLater(
+          etu.evh.processVerb(
+              Response(),
+              HashMap<String, String?>.from(
+                  {'operation': 'listns', 'listNamespace': 'app_1'}),
+              inboundConnection),
+          throwsA(isA<UnAuthorizedException>()));
+    });
+
+    test('_apsk signing key is published on approval (CRAM + enroll:approve)',
+        () async {
+      // primary was CRAM auto-approved in ETU.init()
+      final primaryApsk = 'public:_apsk.${etu.primaryEnId}'
+          '.${EnrollmentConstants.perEnrollmentApproved}$alice';
+      expect(await keyValueStore.exists(primaryApsk), true);
+      expect((await keyValueStore.get(primaryApsk))?.data, 'apkam public key');
+
+      // a standard enroll:approve path
+      final (enIds, _) = await etu.createEnrollments(n: 1);
+      final apsk = 'public:_apsk.${enIds[0]}'
+          '.${EnrollmentConstants.perEnrollmentApproved}$alice';
+      expect(await keyValueStore.exists(apsk), true);
+      expect(
+          (await keyValueStore.get(apsk))?.data, 'apkam public key app_1 test');
+    });
+
+    test('metadata + signingAlgo on enroll:request are persisted on the record',
+        () async {
+      inboundConnection.metaData.isAuthenticated = true;
+      final otp = await etu.getOtp();
+      // The pinned at_commons EnrollParams does not type metadata/signingAlgo,
+      // so append them to the raw request JSON tail (the server persists them).
+      final reqJson = {
+        'appName': 'metaApp',
+        'deviceName': 'd',
+        'apkamPublicKey': 'apkam meta pub',
+        'encryptedAPKAMSymmetricKey': 'enc aes',
+        'namespaces': {'wavi': 'rw'},
+        'otp': otp,
+        'signingAlgo': 'mldsa65',
+        'metadata': {
+          'keyPackage': {
+            'v': 1,
+            'keys': [
+              {'kid': 'k', 'use': 'enc', 'alg': 'x-wing', 'pub': 'p'}
+            ]
+          }
+        },
+      };
+      inboundConnection.metaData.isAuthenticated = false;
+      inboundConnection.metaData.authType = null;
+      inboundConnection.metaData.sessionID =
+          DateTime.now().millisecondsSinceEpoch.toString();
+      final r = Response();
+      await etu.evh.processVerb(
+          r,
+          getVerbParam(
+              VerbSyntax.enroll, 'enroll:request:${jsonEncode(reqJson)}'),
+          inboundConnection);
+      expect(r.isError, false);
+      final enId = jsonDecode(r.data!)['enrollmentId'];
+      final ev = await enMgr.getEnrollmentById(enId);
+      expect(ev.signingAlgo, 'mldsa65');
+      expect(ev.metadata, {
+        'keyPackage': {
+          'v': 1,
+          'keys': [
+            {'kid': 'k', 'use': 'enc', 'alg': 'x-wing', 'pub': 'p'}
+          ]
+        }
+      });
+    });
+  });
 }

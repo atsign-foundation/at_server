@@ -68,17 +68,18 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
     EnrollParams? enrollVerbParams;
 
-    // Ensure that enrollParams are present for all enroll operation
-    // Exclude operation 'list' which does not have enrollParams
+    // Ensure that enrollParams are present for all enroll operation.
+    // 'list' and 'listns' carry no enrollParams JSON body.
     if (verbParams[AtConstants.enrollParams] == null) {
-      if (operation != 'list') {
+      if (operation != 'list' && operation != 'listns') {
         logger.severe(
             'Enroll params is empty | EnrollParams: ${verbParams[AtConstants.enrollParams]}');
         throw IllegalArgumentException('Enroll parameters not provided');
       }
     } else {
       enrollVerbParams = EnrollParams.fromJson(
-          jsonDecode(verbParams[AtConstants.enrollParams]!));
+          jsonDecode(verbParams[AtConstants.enrollParams]!)
+              as Map<String, dynamic>);
     }
 
     _validateParams(enrollVerbParams, operation!, atConnection);
@@ -139,6 +140,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           atConnection,
           currentAtSign,
           enrollVerbParams: enrollVerbParams,
+        );
+        return;
+      case 'listns':
+        response.data = await _fetchEnrollmentsForNamespace(
+          enMgr,
+          atConnection,
+          verbParams['listNamespace'] ?? '',
         );
         return;
       case 'fetch':
@@ -257,6 +265,17 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     enrollmentValue.namespaces = enrollNamespaces;
     enrollmentValue.requestType = EnrollRequestType.newEnrollment;
 
+    // The X-Wing key package (at `metadata.keyPackage`) and the APKAM
+    // `signingAlgo` ride EnrollParams on enroll:request and are persisted
+    // verbatim onto the enrollment record — there is no separate
+    // enroll:metadata write.
+    if (enrollParams.metadata != null) {
+      enrollmentValue.metadata = enrollParams.metadata;
+    }
+    if (enrollParams.signingAlgo != null) {
+      enrollmentValue.signingAlgo = enrollParams.signingAlgo;
+    }
+
     if (enrollParams.apkamKeysExpiryDuration != null) {
       enrollmentValue.apkamKeysExpiryDuration =
           enrollParams.apkamKeysExpiryDuration!;
@@ -277,6 +296,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       await keyStore.put(AtConstants.atPkamPublicKey,
           AtData()..data = enrollParams.apkamPublicKey!,
           skipCommit: true);
+      // Keep the enrollment's `_apsk` signing key present for verifiers.
+      await _publishApskSigningKey(
+          newEnrollmentId, enrollParams.apkamPublicKey!, currentAtSign);
       AtData enrollData = AtData()..data = jsonEncode(enrollmentValue.toJson());
 
       await enMgr.put(newEnrollmentId, enrollData, EnrollmentStatus.approved);
@@ -378,6 +400,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // when enrollment is approved store the encrypted encryption keys
     if (operation == 'approve') {
       await _storeEncryptionKeys(enId, enrollParams, enVal);
+      // Keep the enrollment's `_apsk` signing key present for verifiers.
+      await _publishApskSigningKey(enId, enVal.apkamPublicKey, currentAtSign);
     }
     responseJson['enrollmentId'] = enId;
   }
@@ -457,6 +481,22 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         skipCommit: true);
   }
 
+  /// Publishes the enrollment's APKAM public key as its `_apsk` signing key at
+  /// `public:_apsk.<enrollmentId>.a.__e@<atSign>` (the location the at_client
+  /// `ApkamSigning` mixin reads). The atServer keeps this key present — rather
+  /// than leaving it to the client-side `publishPublicSigningKey` — so a
+  /// verifier can always fetch it to verify APKAM signatures on `__ssenv`
+  /// envelopes and on advertised recipient keys (key package, `nskey` public,
+  /// `pqpublickey`). World-readable so a same-atSign or a peer-atSign verifier
+  /// can reach it via plookup. Idempotent: a re-publish is a harmless overwrite
+  /// with the same value.
+  Future<void> _publishApskSigningKey(
+      String enrollmentId, String apkamPublicKey, currentAtSign) async {
+    final apskKey = 'public:_apsk.$enrollmentId'
+        '.${EnrollmentConstants.perEnrollmentApproved}$currentAtSign';
+    await keyStore.put(apskKey, AtData()..data = apkamPublicKey);
+  }
+
   EnrollmentStatus _getEnrollStatusEnum(String? enrollmentOperation) {
     enrollmentOperation = enrollmentOperation?.toLowerCase();
     final operationMap = {
@@ -509,6 +549,62 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       }
       return jsonEncode(jsonMap);
     }
+  }
+
+  /// Returns a JSON-encoded list of approved enrollments authorised for
+  /// [namespace]. Each element has shape:
+  ///   `{"enrollmentId": <id>, "access": <"r"|"rw">, "metadata": <map|null>}`
+  ///
+  /// Only enrollments with at least read-access to [namespace] are included.
+  /// Requires an APKAM-authenticated connection that itself has access to the
+  /// namespace (the atServer namespace gating ensures this implicitly; the
+  /// handler re-verifies that the caller's enrollment is approved).
+  Future<String> _fetchEnrollmentsForNamespace(
+    EnrollmentManager enMgr,
+    InboundConnection atConnection,
+    String namespace,
+  ) async {
+    if (namespace.isEmpty) {
+      throw IllegalArgumentException('namespace is required for enroll:listns');
+    }
+
+    final callerEnrollmentId =
+        (atConnection.metaData as InboundConnectionMetadata).enrollmentId;
+    if (callerEnrollmentId == null || callerEnrollmentId.isEmpty) {
+      throw UnAuthenticatedException(
+          'enroll:listns requires APKAM authentication');
+    }
+
+    // Verify the caller's own enrollment is approved AND holds at least read
+    // access to the requested namespace — learning a namespace's roster is
+    // gated on ≥r for that namespace, not merely on being approved.
+    final callerEnVal = await enMgr.getEnrollmentById(callerEnrollmentId);
+    if (callerEnVal.approval?.state != EnrollmentStatus.approved.name) {
+      throw UnAuthorizedException('Caller enrollment is not in approved state');
+    }
+    if (_accessForNamespace(callerEnVal, namespace) == null) {
+      throw UnAuthorizedException(
+          'Caller enrollment is not authorised for namespace "$namespace"');
+    }
+
+    final members = await enMgr.getEnrollmentsForNamespace(namespace);
+    return jsonEncode(members);
+  }
+
+  /// The caller's access (`r`|`rw`) to [namespace] under the atServer's own
+  /// suffix / `*`-wildcard rule, or null if the enrollment has no access.
+  /// Mirrors [EnrollmentManager.getEnrollmentsForNamespace]'s match; both `r`
+  /// and `rw` satisfy the ≥`r` bar the discovery verb requires.
+  String? _accessForNamespace(EnrollDataStoreValue enVal, String namespace) {
+    for (final entry in enVal.namespaces.entries) {
+      final ns = entry.key;
+      if (ns == EnrollmentConstants.allNamespaces ||
+          ns == namespace ||
+          namespace.endsWith('.$ns')) {
+        return entry.value;
+      }
+    }
+    return null;
   }
 
   bool _doesEnrollmentHaveManageNamespace(
@@ -679,6 +775,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
               'enrollmentId is mandatory for enroll:$operation');
         }
         break;
+      // list / listns carry no enrollParams; listns validates its namespace
+      // (from the 'listNamespace' capture group) in its own handler.
     }
   }
 

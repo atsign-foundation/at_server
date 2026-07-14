@@ -299,6 +299,51 @@ class EnrollmentManager {
     return ejList;
   }
 
+  /// Returns all approved enrollments that have access to [namespace], as a
+  /// flat list of maps suitable for JSON encoding in the `enroll:listns`
+  /// response (1:1:1 — one entry per enrollment, no nested `apkam[]`). Each
+  /// entry has shape:
+  ///
+  /// ```
+  /// {"enrollmentId": id, "access": "r"|"rw", "apkamPubKey": pubKey,
+  ///  "metadata": map|null}
+  /// ```
+  ///
+  /// `metadata.keyPackage` (a singular, APKAM-signed key package) is the
+  /// substrate's encapsulation target; the server stores/returns `metadata`
+  /// opaquely.
+  ///
+  /// The namespace match mirrors the atServer's own suffix rule:
+  ///   - `*` authorises every namespace
+  ///   - an exact match (e.g. `wavi` authorises `wavi`)
+  ///   - a namespace suffix match (e.g. `wavi` authorises `data.wavi`)
+  Future<List<Map<String, dynamic>>> getEnrollmentsForNamespace(
+      String namespace) async {
+    final result = <Map<String, dynamic>>[];
+    for (final ek in await getAllEnrollmentKeys()) {
+      final EnrollDataStoreValue enVal = await getEnrollmentByFullKey(ek);
+      if (enVal.approval?.state != EnrollmentStatus.approved.name) continue;
+
+      String? access;
+      for (final entry in enVal.namespaces.entries) {
+        final ns = entry.key;
+        if (ns == '*' || ns == namespace || namespace.endsWith('.$ns')) {
+          access = entry.value;
+          break;
+        }
+      }
+      if (access == null) continue;
+
+      result.add({
+        'enrollmentId': getIdFromKey(ek),
+        'access': access,
+        'apkamPubKey': enVal.apkamPublicKey,
+        'metadata': enVal.metadata,
+      });
+    }
+    return result;
+  }
+
   /// iterate all enrollments, remove key which leaks appName and deviceName
   Future<List<String>> removeLegacyApkamPublicKeys() async {
     final List<String> deletedLegacyKeys = [];

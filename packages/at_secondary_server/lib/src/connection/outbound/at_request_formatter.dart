@@ -10,4 +10,12 @@ class AtRequestFormatter {
   static String createLookUpRequest(String key) {
     return 'lookup:$key\n';
   }
+
+  /// The cross-server `to:@toAtSign` verb — declares the target tenant to a peer
+  /// atServer and, in one round trip, returns the peer's
+  /// {publickey, signing_publickey} envelope. Sent as the first verb on the
+  /// connection when [AtSecondaryConfig.toVerbOutboundEnabled] is on.
+  static String createToRequest(String toAtSign) {
+    return 'to:$toAtSign\n';
+  }
 }

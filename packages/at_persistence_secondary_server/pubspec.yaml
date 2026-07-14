@@ -1,6 +1,6 @@
 name: at_persistence_secondary_server
 description: A Dart library with the implementation classes for the persistence layer of the secondary server.
-version: 5.1.0
+version: 5.2.1
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://docs.atsign.com/
 
@@ -10,6 +10,8 @@ environment:
 dependencies:
   path: ^1.8.2
   hive: ^2.2.3
+  # NOTE: Do not upgrade to >= 3.0.0. See README.md "SQLite Version Pinning".
+  sqlite3: ^2.4.0
   cron: ^0.5.0
   crypto: ^3.0.3
   uuid: ^4.0.0

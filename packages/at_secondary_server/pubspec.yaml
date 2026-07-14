@@ -1,6 +1,6 @@
 name: at_secondary
 description: Implementation of secondary server.
-version: 3.14.0
+version: 3.15.0
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://www.example.com
 publish_to: none
@@ -19,12 +19,12 @@ dependencies:
   basic_utils: ^5.7.0
   ecdsa: ^0.1.2
   encrypt: ^5.0.3
-  at_commons: ^5.11.0
+  at_commons: ^5.12.0
   at_utils: ^3.4.0
   at_chops: ^3.4.0
   at_lookup: ^3.5.0
   at_server_spec: ^5.1.0
-  at_persistence_secondary_server: ^5.1.0
+  at_persistence_secondary_server: ^5.2.0
   intl: ^0.20.3
   json_annotation: ^4.12.0
   version: ^3.0.2
@@ -52,3 +52,5 @@ dependency_overrides:
       ref: 3a9302edda6df9a8f25c62edce8442ef34e590e7
       path: packages/at_chops
   pointycastle: ^4.0.0
+  at_persistence_secondary_server:
+    path: ../at_persistence_secondary_server

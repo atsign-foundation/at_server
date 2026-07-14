@@ -18,6 +18,11 @@ void main() async {
           equals(logging.Level.INFO.name.trim().toUpperCase()));
     });
 
+    test('Config: toVerbOutboundEnabled defaults to false (fleet-safe)',
+        () async {
+      expect(AtSecondaryConfig.toVerbOutboundEnabled, false);
+    });
+
     test(
         'Config: check new AtSignLoggers have level set correctly, via setting AtSignLogger.root_level from a string config setting',
         () async {

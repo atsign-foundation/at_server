@@ -11,6 +11,7 @@ import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/enroll_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/from_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/to_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/info_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/keys_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
@@ -83,6 +84,9 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     _verbHandlers = [];
     _verbHandlers.add(FromVerbHandler(keyStore, outboundClientManager,
         accessLog: accessLog));
+    // Cross-server 'to:' verb. Inbound understanding is always on; the
+    // handler accepts any command starting with 'to:'.
+    _verbHandlers.add(ToVerbHandler(keyStore));
     _verbHandlers.add(CramVerbHandler(keyStore, accessLog: accessLog));
     _verbHandlers.add(PkamVerbHandler(keyStore));
     _verbHandlers.add(UpdateVerbHandler(

@@ -1,6 +1,13 @@
 FROM atsigncompany/vebase:latest
 USER root
 
+# libsqlite3 for the SQLite persistence backend's FFI — needed when the
+# secondary runs with persistenceBackend=sqlite or =dual (e.g. the
+# dual-write DB-identity functional run). Harmless for the default hive mode.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libsqlite3-0 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Secondary binary will be put in place by GitHub Actions
 # Context for this Dockerfile is its local directory:
 # tools/build_virtual_environment/ve
