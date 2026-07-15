@@ -93,7 +93,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     // and friends the way a prefixed comparison could.
     final bareUpdateKey = '${updateParams.atKey}${updateParams.sharedBy ?? ''}';
     if (hu
-        .expandProtectedKeyTemplates({'$pqXwingCertName<@atsign>'}, atSign)
+        .expandProtectedKeyTemplates({'$pqXwingCertNamePart<@atsign>'}, atSign)
         .map((e) => e.toLowerCase())
         .contains(bareUpdateKey.toLowerCase())) {
       throw UnAuthorizedException(

@@ -243,26 +243,32 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // compact(false) stream with an overlap guard, and records
     // primitives to a stats service.
     final statsService = AtCompactionStatsService(keyValueStore);
-    _scheduleCompaction(
-      commitLog,
-      Duration(minutes: AtSecondaryConfig.commitLogCompactionFrequencyMins),
-      'commitLog',
-      statsService,
-    );
-    _scheduleCompaction(
-      accessLog,
-      Duration(minutes: AtSecondaryConfig.accessLogCompactionFrequencyMins),
-      'accessLog',
-      statsService,
-    );
-    _scheduleCompaction(
-      notificationKeystore,
-      Duration(
-          minutes:
-              AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins),
-      'notificationKeystore',
-      statsService,
-    );
+    if (AtSecondaryConfig.enableCommitLogCompactor) {
+      _scheduleCompaction(
+        commitLog,
+        Duration(minutes: AtSecondaryConfig.commitLogCompactionFrequencyMins),
+        'commitLog',
+        statsService,
+      );
+    }
+    if (AtSecondaryConfig.enableAccessLogCompactor) {
+      _scheduleCompaction(
+        accessLog,
+        Duration(minutes: AtSecondaryConfig.accessLogCompactionFrequencyMins),
+        'accessLog',
+        statsService,
+      );
+    }
+    if (AtSecondaryConfig.enableNotificationCompactor) {
+      _scheduleCompaction(
+        notificationKeystore,
+        Duration(
+            minutes:
+                AtSecondaryConfig.notificationKeyStoreCompactionFrequencyMins),
+        'notificationKeystore',
+        statsService,
+      );
+    }
 
     final socketConfig = SecureSocketConfig()
       ..decryptPackets = false
@@ -919,7 +925,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.info('PQ auth disabled via config — withdrawing any published '
           'PQ cert so peers fall back to legacy auth');
       try {
-        await keyValueStore.remove(pqXwingCertRecordName(currentAtSign));
+        await keyValueStore.remove(pqXwingCertName(currentAtSign));
       } catch (removeError) {
         logger.severe(
             'Failed to withdraw PQ cert while PQ auth is disabled: $removeError');
@@ -933,7 +939,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
             'PQ key initialisation failed — withdrawing any published PQ cert '
             'so peers fall back to legacy auth: $e');
         try {
-          await keyValueStore.remove(pqXwingCertRecordName(currentAtSign));
+          await keyValueStore.remove(pqXwingCertName(currentAtSign));
         } catch (removeError) {
           logger.severe(
               'Failed to withdraw PQ cert after init failure: $removeError');

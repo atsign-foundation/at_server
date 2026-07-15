@@ -16,7 +16,6 @@ class AtSecondaryConfig {
   //Certs
   static const bool _useTLS = true;
   static const bool _clientCertificateRequired = true;
-  static const bool _testingMode = false;
 
   // Cross-server 'to:' verb. Inbound understanding of 'to:@x' is always on
   // (unauthenticated, serves only data that is already publicly readable via
@@ -62,11 +61,13 @@ class AtSecondaryConfig {
   static const int _commitLogCompactionFrequencyMins = 18;
   static const int _commitLogCompactionPercentage = 20;
   static const int _commitLogSizeInKB = 2;
+  static const bool _enableCommitLogCompactor = true;
 
   //Access Log
   static const int _accessLogCompactionFrequencyMins = 15;
   static const int _accessLogCompactionPercentage = 30;
   static const int _accessLogSizeInKB = 2;
+  static const bool _enableAccessLogCompactor = true;
 
   //Notification
   static const bool _autoNotify = true;
@@ -81,6 +82,7 @@ class AtSecondaryConfig {
   static const int _notificationKeyStoreCompactionFrequencyMins = 5;
   static const int _notificationKeyStoreCompactionPercentage = 30;
   static const int _notificationKeyStoreSizeInKB = -1;
+  static const bool _enableNotificationCompactor = true;
 
   //Refresh Job
   static const int _runRefreshJobHour = 3;
@@ -183,18 +185,6 @@ class AtSecondaryConfig {
       } on ElementNotFoundException {
         return _useTLS;
       }
-    }
-  }
-
-  static bool get testingMode {
-    var result = _getBoolEnvVar('testingMode');
-    if (result != null) {
-      return result;
-    }
-    try {
-      return getConfigFromYaml(['testing', 'testingMode']);
-    } on ElementNotFoundException {
-      return _testingMode;
     }
   }
 
@@ -360,6 +350,28 @@ class AtSecondaryConfig {
         getNullableIntFromYaml(
             ['notification_keystore_compaction', 'compactionFrequencyMins']) ??
         _notificationKeyStoreCompactionFrequencyMins;
+  }
+
+  /// Whether the commit-log compactor cron should be scheduled.
+  /// Disable to suppress the periodic prune.
+  static bool get enableCommitLogCompactor {
+    return _getBoolEnvVar('enableCommitLogCompactor') ??
+        _enableCommitLogCompactor;
+  }
+
+  /// Whether the access-log compactor cron should be scheduled. No
+  /// effect when [AtPersistenceConfig.enableAccessLog] is `false`.
+  static bool get enableAccessLogCompactor {
+    return _getBoolEnvVar('enableAccessLogCompactor') ??
+        _enableAccessLogCompactor;
+  }
+
+  /// Whether the notification-keystore compactor cron should be
+  /// scheduled. No effect when
+  /// [AtPersistenceConfig.enableNotificationKeystore] is `false`.
+  static bool get enableNotificationCompactor {
+    return _getBoolEnvVar('enableNotificationCompactor') ??
+        _enableNotificationCompactor;
   }
 
   static String get notificationStoragePath {
@@ -784,14 +796,8 @@ class AtSecondaryConfig {
   }
 
   static int get maxEnrollRequestsAllowed {
-    // For ease of testing purposes, we need to reduce the number of requests.
-    // So, in testing mode, enable to modify the "maxEnrollRequestsAllowed"
-    // can be set via the config verb
-    // Defaults to value in config.yaml
-    if (testingMode && _maxEnrollRequestsAllowed != null) {
-      return _maxEnrollRequestsAllowed!;
-    }
-    return _getIntEnvVar('maxEnrollRequestsAllowed') ??
+    return _maxEnrollRequestsAllowed ??
+        _getIntEnvVar('maxEnrollRequestsAllowed') ??
         getNullableIntFromYaml(['enrollment', 'maxRequestsPerTimeFrame']) ??
         5;
   }
@@ -804,19 +810,13 @@ class AtSecondaryConfig {
   }
 
   static int get timeFrameInMillis {
-    // For ease of testing purposes, we need to reduce the time frame.
-    // So, in testing mode, enable to modify the "timeFrameInMillis"
-    // can be set via the config verb
-    // Defaults to value in config.yaml
-    if (testingMode && _timeFrameInMillis != null) {
-      return _timeFrameInMillis!;
-    }
-    return (_getIntEnvVar('enrollTimeFrameInHours') ??
-            getNullableIntFromYaml(['enrollment', 'timeFrameInHours']) ??
-            _timeFrameInHours) *
-        60 *
-        60 *
-        1000;
+    return _timeFrameInMillis ??
+        (_getIntEnvVar('enrollTimeFrameInHours') ??
+                getNullableIntFromYaml(['enrollment', 'timeFrameInHours']) ??
+                _timeFrameInHours) *
+            60 *
+            60 *
+            1000;
   }
 
   static int get enrollmentResponseDelayIntervalInSeconds {
@@ -833,24 +833,18 @@ class AtSecondaryConfig {
 
   // implementation for config:set. This method returns a data stream which subscribers listen to for updates
   static Stream<dynamic>? subscribe(ModifiableConfigs configName) {
-    if (testingMode) {
-      if (!_streamListeners.containsKey(configName)) {
-        _streamListeners[configName] = ModifiableConfigurationEntry()
-          ..streamController = StreamController<dynamic>.broadcast()
-          ..defaultValue = AtSecondaryConfig.getDefaultValue(configName);
-      }
-      return _streamListeners[configName]!.streamController.stream;
+    if (!_streamListeners.containsKey(configName)) {
+      _streamListeners[configName] = ModifiableConfigurationEntry()
+        ..streamController = StreamController<dynamic>.broadcast()
+        ..defaultValue = AtSecondaryConfig.getDefaultValue(configName);
     }
-    return null;
+    return _streamListeners[configName]!.streamController.stream;
   }
 
   // implementation for config:set. Broadcasts new config value to all the listeners/subscribers
   static void broadcastConfigChange(
       ModifiableConfigs configName, var newConfigValue,
       {bool isReset = false}) {
-    if (!testingMode) {
-      return;
-    }
     // if an entry for the config does not exist new entry is created
     if (!_streamListeners.containsKey(configName)) {
       _streamListeners[configName] = ModifiableConfigurationEntry()

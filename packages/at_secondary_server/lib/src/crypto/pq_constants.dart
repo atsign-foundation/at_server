@@ -8,11 +8,11 @@
 /// regexes — nor a bare self key (`@atSign:name@atSign`), which IS
 /// commit-logged and syncs to enrolled clients, leaking PQ secret material.
 ///
-/// Only [pqXwingCertName]/[pqXwingCertRecordName] are peer-fetchable (`public:`);
+/// Only [pqXwingCertNamePart]/[pqXwingCertName] are peer-fetchable (`public:`);
 /// every other record is `local:` and never leaves this server.
 library;
 
-const String pqXwingCertName = 'pq_xwing_cert';
+const String pqXwingCertNamePart = 'pq_xwing_cert';
 
 String pqSigningSecretKeyName(String atSign) =>
     'local:pq_signing_secretkey$atSign';
@@ -29,4 +29,5 @@ String pqXwingSecretKeyPrevName(String atSign) =>
 
 String pqXwingCertPrevName(String atSign) => 'local:pq_xwing_cert_prev$atSign';
 
-String pqXwingCertRecordName(String atSign) => 'public:$pqXwingCertName$atSign';
+String pqXwingCertName(String atSign) =>
+    'public:$pqXwingCertNamePart$atSign';

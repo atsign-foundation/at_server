@@ -69,10 +69,10 @@ class PqKeyManager {
       final xwingPubKeyName = pqXwingPublicKeyName(atSign);
       final xwingPrevSecKeyName = pqXwingSecretKeyPrevName(atSign);
 
-      final existingMlDsaSec = await _getOrNull(keyStore, mlDsaSecKeyName);
-      final existingMlDsaPub = await _getOrNull(keyStore, mlDsaPubKeyName);
-      final existingXwingSec = await _getOrNull(keyStore, xwingSecKeyName);
-      final existingXwingPub = await _getOrNull(keyStore, xwingPubKeyName);
+      final existingMlDsaSec = await _tryGet(keyStore, mlDsaSecKeyName);
+      final existingMlDsaPub = await _tryGet(keyStore, mlDsaPubKeyName);
+      final existingXwingSec = await _tryGet(keyStore, xwingSecKeyName);
+      final existingXwingPub = await _tryGet(keyStore, xwingPubKeyName);
 
       if (existingMlDsaSec != null &&
           existingMlDsaPub != null &&
@@ -83,7 +83,7 @@ class PqKeyManager {
         _xwingSecretKey = base64.decode(existingXwingSec);
         _xwingPublicKey = base64.decode(existingXwingPub);
         final existingXwingPrev =
-            await _getOrNull(keyStore, xwingPrevSecKeyName);
+            await _tryGet(keyStore, xwingPrevSecKeyName);
         if (existingXwingPrev != null) {
           _xwingPrevSecretKey = base64.decode(existingXwingPrev);
         }
@@ -142,11 +142,11 @@ class PqKeyManager {
   Future<void> publishKeys(String atSign,
       AtKeyValueStore<String, AtData, AtMetaData?> keyStore) async {
     _assertInitialized();
-    final certName = pqXwingCertRecordName(atSign);
+    final certName = pqXwingCertName(atSign);
     final certPrevName = pqXwingCertPrevName(atSign);
     final secretPrevName = pqXwingSecretKeyPrevName(atSign);
 
-    final prevCertRaw = await _getOrNull(keyStore, certPrevName);
+    final prevCertRaw = await _tryGet(keyStore, certPrevName);
     if (prevCertRaw != null) {
       final parsedPrev = XWingCert.tryParse(prevCertRaw);
       if (parsedPrev == null ||
@@ -158,7 +158,7 @@ class PqKeyManager {
       }
     }
 
-    final currentCertRaw = await _getOrNull(keyStore, certName);
+    final currentCertRaw = await _tryGet(keyStore, certName);
     if (currentCertRaw != null) {
       final currentCert = XWingCert.tryParse(currentCertRaw);
       if (currentCert != null &&
@@ -187,11 +187,11 @@ class PqKeyManager {
   Future<void> rotateCert(String atSign,
       AtKeyValueStore<String, AtData, AtMetaData?> keyStore) async {
     _assertInitialized();
-    final certName = pqXwingCertRecordName(atSign);
+    final certName = pqXwingCertName(atSign);
     final certPrevName = pqXwingCertPrevName(atSign);
     final secretPrevName = pqXwingSecretKeyPrevName(atSign);
 
-    final currentCert = await _getOrNull(keyStore, certName);
+    final currentCert = await _tryGet(keyStore, certName);
     if (currentCert != null) {
       await keyStore.put(certPrevName, AtData()..data = currentCert);
     }
@@ -289,7 +289,7 @@ class PqKeyManager {
   /// `get` may return `null` for a missing key or throw a backend-specific
   /// not-found exception depending on the concrete [AtKeyValueStore] impl —
   /// normalize both cases to `null`.
-  Future<String?> _getOrNull(
+  Future<String?> _tryGet(
       AtKeyValueStore<String, AtData, AtMetaData?> ks, String key) async {
     try {
       return (await ks.get(key))?.data;

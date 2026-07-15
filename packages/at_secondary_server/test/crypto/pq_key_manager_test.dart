@@ -173,7 +173,7 @@ void main() {
         await mgr.init(atSign, keyStore);
         await mgr.publishKeys(atSign, keyStore);
         final certBefore =
-            (await keyStore.get(pqXwingCertRecordName(atSign)))?.data;
+            (await keyStore.get(pqXwingCertName(atSign)))?.data;
         expect(certBefore, isNotNull);
 
         // Simulate a keypair regeneration (e.g. after partial keystore loss)
@@ -181,12 +181,12 @@ void main() {
         await mgr.rotateCert(atSign, keyStore);
         // rotateCert already republishes, so force the stale scenario directly:
         // put back the original (now-stale) cert as the "current" cert.
-        await keyStore.put(pqXwingCertRecordName(atSign), AtData()..data = certBefore);
+        await keyStore.put(pqXwingCertName(atSign), AtData()..data = certBefore);
 
         await mgr.publishKeys(atSign, keyStore);
 
         final certAfter =
-            (await keyStore.get(pqXwingCertRecordName(atSign)))?.data;
+            (await keyStore.get(pqXwingCertName(atSign)))?.data;
         expect(certAfter, isNot(equals(certBefore)),
             reason: 'A cert bound to a key the manager no longer holds '
                 'must be republished, not treated as still valid');
@@ -216,7 +216,7 @@ void main() {
         expect(await keyStore.exists(pqXwingSecretKeyPrevName(atSign)), isFalse,
             reason: 'Expired prev secret key must be deleted alongside '
                 'the expired prev cert');
-        expect(await keyStore.exists(pqXwingCertRecordName(atSign)), isTrue,
+        expect(await keyStore.exists(pqXwingCertName(atSign)), isTrue,
             reason: 'Current cert must be published/generated');
       });
 
@@ -233,7 +233,7 @@ void main() {
 
         expect(await keyStore.exists(pqXwingCertPrevName(atSign)), isTrue,
             reason: 'A still-valid prev cert must NOT be deleted');
-        expect(await keyStore.exists(pqXwingCertRecordName(atSign)), isTrue,
+        expect(await keyStore.exists(pqXwingCertName(atSign)), isTrue,
             reason: 'Current cert must be published/generated');
       });
 
@@ -243,18 +243,18 @@ void main() {
         await mgr.init(atSign, keyStore);
         // First publish issues a 90-day cert — outside headroom.
         await mgr.publishKeys(atSign, keyStore);
-        final certBefore = (await keyStore.get(pqXwingCertRecordName(atSign)))?.data;
+        final certBefore = (await keyStore.get(pqXwingCertName(atSign)))?.data;
         final xwingPubBefore = mgr.xwingPublicKey;
 
         // Force the current cert to look like it's inside the renewal
         // headroom (10 days left, headroom is 30).
         final soonCert = await mgr.buildCert(
             validUntil: DateTime.now().toUtc().add(const Duration(days: 10)));
-        await keyStore.put(pqXwingCertRecordName(atSign), AtData()..data = soonCert.toJson());
+        await keyStore.put(pqXwingCertName(atSign), AtData()..data = soonCert.toJson());
 
         await mgr.publishKeys(atSign, keyStore);
 
-        final certAfter = (await keyStore.get(pqXwingCertRecordName(atSign)))?.data;
+        final certAfter = (await keyStore.get(pqXwingCertName(atSign)))?.data;
         expect(certAfter, isNot(equals(certBefore)));
         expect(mgr.xwingPublicKey, isNot(equals(xwingPubBefore)),
             reason: 'Inside headroom must rotate the keypair, not just '
@@ -278,12 +278,12 @@ void main() {
         final cert = await mgr.buildCert(
             validUntil: DateTime.now().toUtc().add(const Duration(days: 5)));
         await keyStore.put(
-            pqXwingCertRecordName(atSign), AtData()..data = cert.toJson());
+            pqXwingCertName(atSign), AtData()..data = cert.toJson());
 
         await mgr.publishKeys(atSign, keyStore);
 
         final certAfter =
-            (await keyStore.get(pqXwingCertRecordName(atSign)))?.data;
+            (await keyStore.get(pqXwingCertName(atSign)))?.data;
         expect(certAfter, equals(cert.toJson()),
             reason: 'With headroom clamped to 0, a cert still within its '
                 'full validity window must not be rotated');
@@ -299,14 +299,14 @@ void main() {
         await mgr.publishKeys(atSign, keyStore);
 
         final certBefore =
-            (await keyStore.get(pqXwingCertRecordName(atSign)))?.data;
+            (await keyStore.get(pqXwingCertName(atSign)))?.data;
         expect(certBefore, isNotNull);
 
         await mgr.rotateCert(atSign, keyStore);
 
         final prevCert =
             (await keyStore.get(pqXwingCertPrevName(atSign)))?.data;
-        final newCert = (await keyStore.get(pqXwingCertRecordName(atSign)))?.data;
+        final newCert = (await keyStore.get(pqXwingCertName(atSign)))?.data;
 
         expect(prevCert, equals(certBefore));
         expect(newCert, isNotNull);
@@ -386,7 +386,7 @@ void main() {
         await mgr.init(atSign, keyStore);
         await mgr.publishKeys(atSign, keyStore);
 
-        final certRaw = (await keyStore.get(pqXwingCertRecordName(atSign)))?.data;
+        final certRaw = (await keyStore.get(pqXwingCertName(atSign)))?.data;
         final cert = XWingCert.tryParse(certRaw!);
 
         final expected = DateTime.now().toUtc().add(const Duration(days: 7));
@@ -416,8 +416,8 @@ void main() {
           expect(name, startsWith('local:'), reason: name);
           expect(await keyStore.exists(name), isTrue, reason: name);
         }
-        expect(pqXwingCertRecordName(atSign), startsWith('public:'));
-        expect(await keyStore.exists(pqXwingCertRecordName(atSign)), isTrue);
+        expect(pqXwingCertName(atSign), startsWith('public:'));
+        expect(await keyStore.exists(pqXwingCertName(atSign)), isTrue);
       });
     });
   });

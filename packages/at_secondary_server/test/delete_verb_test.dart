@@ -145,7 +145,7 @@ void main() {
         'verify deletion of PQ X-Wing cert throws exception even with a '
         'case-variant key', () {
       inboundConnection.metadata.isAuthenticated = true;
-      var command = 'delete:public:${pqXwingCertName.toUpperCase()}$alice';
+      var command = 'delete:public:${pqXwingCertNamePart.toUpperCase()}$alice';
       expect(
           () => handler.processInternal(command, inboundConnection),
           throwsA(

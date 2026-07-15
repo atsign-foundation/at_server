@@ -1769,14 +1769,14 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
 
       String updateCommand =
-          'update:${pqXwingCertName.toUpperCase()}$alice dummyCertValue';
+          'update:${pqXwingCertNamePart.toUpperCase()}$alice dummyCertValue';
       expect(
           () async =>
               await updateHandler.process(updateCommand, inboundConnection),
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  "Cannot update protected key: '${pqXwingCertName.toUpperCase()}$alice'")));
+                  "Cannot update protected key: '${pqXwingCertNamePart.toUpperCase()}$alice'")));
     });
   });
 }
