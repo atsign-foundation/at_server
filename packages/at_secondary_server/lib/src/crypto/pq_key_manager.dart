@@ -7,6 +7,7 @@ import 'package:at_secondary/src/crypto/pq_constants.dart';
 import 'package:at_secondary/src/crypto/x_wing_cert.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:meta/meta.dart';
 
 /// Manages PQ keypairs for inter-server authentication.
 ///
@@ -19,14 +20,14 @@ class PqKeyManager {
   /// Own-cert renewal thresholds. Peer-cert verification ([XWingCert.verify])
   /// stays strict — these only decide when *this* server rotates its own
   /// cert, never whether a peer's cert is accepted.
-  final int certExpiryDays;
-  final int certRenewalHeadroomDays;
+  final int xwingCertExpiryDays;
+  final int xwingCertRenewalHeadroomDays;
 
-  PqKeyManager({int? certExpiryDays, int? certRenewalHeadroomDays})
-      : certExpiryDays =
-            certExpiryDays ?? AtSecondaryConfig.xwingCertExpiryInDays,
-        certRenewalHeadroomDays =
-            certRenewalHeadroomDays ?? AtSecondaryConfig.certRenewalHeadroomDays;
+  PqKeyManager({int? xwingCertExpiryDays, int? xwingCertRenewalHeadroomDays})
+      : xwingCertExpiryDays =
+            xwingCertExpiryDays ?? AtSecondaryConfig.xwingCertExpiryInDays,
+        xwingCertRenewalHeadroomDays = xwingCertRenewalHeadroomDays ??
+            AtSecondaryConfig.xwingCertRenewalHeadroomDays;
 
   static final _log = AtSignLogger('PqKeyManager');
 
@@ -54,8 +55,8 @@ class PqKeyManager {
   /// [Future] is cached (rather than short-circuited by a boolean flag) so a
   /// second caller awaits the same result instead of returning immediately
   /// while the first call is still in progress.
-  Future<void> init(String atSign,
-      AtKeyValueStore<String, AtData, AtMetaData?> keyStore) {
+  Future<void> init(
+      String atSign, AtKeyValueStore<String, AtData, AtMetaData?> keyStore) {
     if (_initialized) return Future.value();
     return _initFuture ??= _doInit(atSign, keyStore);
   }
@@ -82,8 +83,7 @@ class PqKeyManager {
         _mlDsaPublicKey = base64.decode(existingMlDsaPub);
         _xwingSecretKey = base64.decode(existingXwingSec);
         _xwingPublicKey = base64.decode(existingXwingPub);
-        final existingXwingPrev =
-            await _tryGet(keyStore, xwingPrevSecKeyName);
+        final existingXwingPrev = await _tryGet(keyStore, xwingPrevSecKeyName);
         if (existingXwingPrev != null) {
           _xwingPrevSecretKey = base64.decode(existingXwingPrev);
         }
@@ -103,13 +103,19 @@ class PqKeyManager {
         _xwingPrevSecretKey = null;
         _log.info('Generated new PQ keypairs for $atSign');
       }
-
       _initialized = true;
     } finally {
       _initFuture = null;
     }
   }
 
+  /// Generate a fresh ML-DSA-65 + X-Wing keypair and persist both, replacing
+  /// whatever is currently held in memory.
+  ///
+  /// Called from [_doInit] only when [keyStore] has no complete existing
+  /// keypair (first run, or partial/corrupt key material) — never as part of
+  /// routine cert rotation, which reuses the existing X-Wing keypair via
+  /// [rotateCert] instead of generating a new one.
   Future<void> _generateAndStore(String atSign,
       AtKeyValueStore<String, AtData, AtMetaData?> keyStore) async {
     final mlDsaKp = await MlDsa65KeyPair.generate();
@@ -120,6 +126,8 @@ class PqKeyManager {
     _xwingSecretKey = xwingKp.privateKeyBytes;
     _xwingPublicKey = xwingKp.publicKeyBytes;
 
+    // Root (signing) keypair first, then the operational (KEM) keypair —
+    // mirrors the two-tier hierarchy described in the class doc comment.
     await keyStore.put(pqSigningSecretKeyName(atSign),
         AtData()..data = base64.encode(_mlDsaSecretKey));
     await keyStore.put(pqSigningPublicKeyName(atSign),
@@ -139,34 +147,34 @@ class PqKeyManager {
   /// 3. Missing/corrupt current cert, or its embedded key no longer matches
   ///    ours → fresh-publish over the current keypair; prev slots untouched.
   /// 4. Current cert valid but inside the renewal headroom → [rotateCert].
-  Future<void> publishKeys(String atSign,
+  Future<void> publishCert(String atSign,
       AtKeyValueStore<String, AtData, AtMetaData?> keyStore) async {
     _assertInitialized();
-    final certName = pqXwingCertName(atSign);
-    final certPrevName = pqXwingCertPrevName(atSign);
+    final xwingCertName = pqXwingCertName(atSign);
+    final xwingCertPrevName = pqXwingCertPrevName(atSign);
     final secretPrevName = pqXwingSecretKeyPrevName(atSign);
 
-    final prevCertRaw = await _tryGet(keyStore, certPrevName);
-    if (prevCertRaw != null) {
-      final parsedPrev = XWingCert.tryParse(prevCertRaw);
+    final prevXwingCertRaw = await _tryGet(keyStore, xwingCertPrevName);
+    if (prevXwingCertRaw != null) {
+      final parsedPrev = XWingCert.tryParse(prevXwingCertRaw);
       if (parsedPrev == null ||
           parsedPrev.validUntil.isBefore(DateTime.now().toUtc())) {
-        await keyStore.remove(certPrevName);
+        await keyStore.remove(xwingCertPrevName);
         await keyStore.remove(secretPrevName);
         _xwingPrevSecretKey = null;
-        _log.info('Cleaned up expired/unparseable prev X-Wing cert for $atSign');
+        _log.info(
+            'Cleaned up expired/unparseable prev X-Wing cert for $atSign');
       }
     }
 
-    final currentCertRaw = await _tryGet(keyStore, certName);
-    if (currentCertRaw != null) {
-      final currentCert = XWingCert.tryParse(currentCertRaw);
-      if (currentCert != null &&
-          _bytesEqual(currentCert.xwingPublicKey, _xwingPublicKey)) {
-        final renewAt = DateTime.now()
-            .toUtc()
-            .add(Duration(days: _effectiveHeadroomDays));
-        if (currentCert.validUntil.isAfter(renewAt)) {
+    final currentXwingCertRaw = await _tryGet(keyStore, xwingCertName);
+    if (currentXwingCertRaw != null) {
+      final currentXwingCert = XWingCert.tryParse(currentXwingCertRaw);
+      if (currentXwingCert != null &&
+          _bytesEqual(currentXwingCert.xwingPublicKey, _xwingPublicKey)) {
+        final renewAt =
+            DateTime.now().toUtc().add(Duration(days: _effectiveHeadroomDays));
+        if (currentXwingCert.validUntil.isAfter(renewAt)) {
           _log.info('Existing X-Wing cert for $atSign is still valid');
           return;
         }
@@ -175,8 +183,8 @@ class PqKeyManager {
       }
     }
 
-    final cert = await buildCert();
-    await keyStore.put(certName, AtData()..data = cert.toJson());
+    final xwingCert = await buildCert();
+    await keyStore.put(xwingCertName, AtData()..data = xwingCert.toJson());
     _log.info('Published fresh X-Wing cert for $atSign');
   }
 
@@ -184,21 +192,23 @@ class PqKeyManager {
   /// secret key move to the prev slots (retained for grace-period
   /// decapsulation via [decapsWithFallback]), and a fresh keypair + cert
   /// replace them.
+  @visibleForTesting
   Future<void> rotateCert(String atSign,
       AtKeyValueStore<String, AtData, AtMetaData?> keyStore) async {
     _assertInitialized();
-    final certName = pqXwingCertName(atSign);
-    final certPrevName = pqXwingCertPrevName(atSign);
+    final xwingCertName = pqXwingCertName(atSign);
+    final xwingCertPrevName = pqXwingCertPrevName(atSign);
     final secretPrevName = pqXwingSecretKeyPrevName(atSign);
 
-    final currentCert = await _tryGet(keyStore, certName);
-    if (currentCert != null) {
-      await keyStore.put(certPrevName, AtData()..data = currentCert);
+    final currentXwingCert = await _tryGet(keyStore, xwingCertName);
+    if (currentXwingCert != null) {
+      await keyStore.put(
+          xwingCertPrevName, AtData()..data = currentXwingCert);
     }
 
     _xwingPrevSecretKey = _xwingSecretKey;
-    await keyStore.put(secretPrevName,
-        AtData()..data = base64.encode(_xwingPrevSecretKey!));
+    await keyStore.put(
+        secretPrevName, AtData()..data = base64.encode(_xwingPrevSecretKey!));
 
     final newKp = await XWingKeyPair.generate();
     _xwingSecretKey = newKp.privateKeyBytes;
@@ -209,8 +219,8 @@ class PqKeyManager {
     await keyStore.put(pqXwingPublicKeyName(atSign),
         AtData()..data = base64.encode(_xwingPublicKey));
 
-    final cert = await buildCert();
-    await keyStore.put(certName, AtData()..data = cert.toJson());
+    final xwingCert = await buildCert();
+    await keyStore.put(xwingCertName, AtData()..data = xwingCert.toJson());
     _log.info('Rotated X-Wing cert for $atSign');
   }
 
@@ -219,15 +229,15 @@ class PqKeyManager {
   Future<XWingCert> buildCert({DateTime? validUntil}) async {
     _assertInitialized();
     final effectiveValidUntil = validUntil ??
-        DateTime.now().toUtc().add(Duration(days: certExpiryDays));
+        DateTime.now().toUtc().add(Duration(days: xwingCertExpiryDays));
     final tmp = XWingCert(
       xwingPublicKey: _xwingPublicKey,
       validUntil: effectiveValidUntil,
       signature: Uint8List(0),
       mlDsaPublicKey: _mlDsaPublicKey,
     );
-    final sig = await AtPqc.mlDsa65
-        .signBytes(tmp.tbsBytes, secretKey: _mlDsaSecretKey);
+    final sig =
+        await AtPqc.mlDsa65.signBytes(tmp.tbsBytes, secretKey: _mlDsaSecretKey);
     return XWingCert(
         xwingPublicKey: _xwingPublicKey,
         validUntil: effectiveValidUntil,
@@ -256,17 +266,18 @@ class PqKeyManager {
 
   // ── helpers ──────────────────────────────────────────────────────────────
 
-  /// `certExpiryDays > certRenewalHeadroomDays` guarantees a positive window
-  /// during which the cert is valid but outside the headroom. When the
-  /// headroom would consume the entire lifetime, disable it (0) rather than
-  /// rotate on every boot.
+  /// `xwingCertExpiryDays > xwingCertRenewalHeadroomDays` guarantees a
+  /// positive window during which the cert is valid but outside the
+  /// headroom. When the headroom would consume the entire lifetime, disable
+  /// it (0) rather than rotate on every boot.
   int get _effectiveHeadroomDays {
-    if (certExpiryDays > certRenewalHeadroomDays) {
-      return certRenewalHeadroomDays;
+    if (xwingCertExpiryDays > xwingCertRenewalHeadroomDays) {
+      return xwingCertRenewalHeadroomDays;
     }
-    _log.severe('certRenewalHeadroomDays ($certRenewalHeadroomDays) >= '
-        'certExpiryDays ($certExpiryDays) — disabling renewal headroom to '
-        'avoid rotating on every boot');
+    _log.severe(
+        'xwingCertRenewalHeadroomDays ($xwingCertRenewalHeadroomDays) >= '
+        'xwingCertExpiryDays ($xwingCertExpiryDays) — disabling renewal '
+        'headroom to avoid rotating on every boot');
     return 0;
   }
 

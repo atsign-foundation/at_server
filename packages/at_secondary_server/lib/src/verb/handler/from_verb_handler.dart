@@ -88,7 +88,15 @@ class FromVerbHandler extends AbstractVerbHandler {
       throw BlockedConnectionException('Unable to connect');
     }
 
-    if (fromAtSign != AtSecondaryServerImpl.getInstance().currentAtSign &&
+    logger.finer('fromAtSign : $fromAtSign currentAtSign : $currentAtSign');
+    if (fromAtSign == currentAtSign) {
+      atConnectionMetadata.self = true;
+    } else {
+      atConnectionMetadata.from = true;
+      atConnectionMetadata.fromAtSign = fromAtSign;
+    }
+
+    if (!atConnectionMetadata.self &&
         AtSecondaryConfig.clientCertificateRequired) {
       var result = await _verifyFromAtSign(fromAtSign, atConnection);
       logger.finer('_verifyFromAtSign result : $result');
@@ -102,48 +110,26 @@ class FromVerbHandler extends AbstractVerbHandler {
         '$keyPrefix${atConnectionMetadata.sessionID}$fromAtSign';
 
     // Try the PQ path: live-fetch fromAtSign's X-Wing cert.
-    if (fromAtSign != currentAtSign) {
-      String? pqProof;
-      if (!disablePqAuth) {
-        pqProof = await _tryBuildPqProof(
-            fromAtSign.toString(),
-            atConnectionMetadata.sessionID!,
-            storedSecretId);
-      }
-      if (pqProof != null) {
-        response.data =
-            '$responsePrefix${atConnectionMetadata.sessionID}$fromAtSign:$pqProof';
-        logger.finer('PQ proof issued for $fromAtSign');
-        // fall through to set from/access-log metadata below
-      } else {
-        // Legacy UUID path
-        final AtData atData = AtData();
-        final String proof = Uuid().v4();
-        atData.data = proof;
-        atData.metaData = AtMetaData()..ttl = 60 * 1000;
-        logger.finer('Storing legacy secret to $storedSecretId');
-        await keyStore.put(storedSecretId, atData);
-        response.data =
-            '$responsePrefix${atConnectionMetadata.sessionID}$fromAtSign:$proof';
-      }
-    } else {
-      // Self (private: prefix) always uses UUID — no server-to-server PQ needed
-      final AtData atData = AtData();
-      final String proof = Uuid().v4();
-      atData.data = proof;
-      atData.metaData = AtMetaData()..ttl = 60 * 1000;
-      await keyStore.put(storedSecretId, atData);
-      response.data =
-          '$responsePrefix${atConnectionMetadata.sessionID}$fromAtSign:$proof';
+    // Self (private: prefix) always uses UUID — no server-to-server PQ needed.
+    (String wire, String stored)? pqProof;
+    if (!atConnectionMetadata.self && !disablePqAuth) {
+      pqProof = await _tryBuildPqProof(
+          fromAtSign.toString(), atConnectionMetadata.sessionID!);
     }
 
-    logger.finer('fromAtSign : $fromAtSign currentAtSign : $currentAtSign');
-    if (fromAtSign == currentAtSign) {
-      atConnectionMetadata.self = true;
+    final String wireProof;
+    final String storedSecret;
+    if (pqProof != null) {
+      (wireProof, storedSecret) = pqProof;
+      logger.finer('PQ proof issued for $fromAtSign');
     } else {
-      atConnectionMetadata.from = true;
-      atConnectionMetadata.fromAtSign = fromAtSign;
+      wireProof = storedSecret = Uuid().v4();
+      logger.finer('Storing legacy secret to $storedSecretId');
     }
+    await _storeSecret(storedSecretId, storedSecret);
+    response.data =
+        '$responsePrefix${atConnectionMetadata.sessionID}$fromAtSign:$wireProof';
+
     try {
       await accessLog?.insert(fromAtSign, from.name());
     } on DataStoreException catch (e) {
@@ -151,35 +137,39 @@ class FromVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  /// Returns a `pq:<base64Url(ciphertext)>` proof string and stores a
-  /// `pq:<key-confirmation-tag>` locally at [storedSecretId] if the remote's
-  /// X-Wing cert can be live-fetched and passes ML-DSA-65 verification.
-  /// Returns null to fall back to the legacy UUID flow — every abandon
-  /// branch is logged so a stuck-on-legacy peer is diagnosable.
-  Future<String?> _tryBuildPqProof(
-      String fromAtSign, String sessionID, String storedSecretId) async {
+  /// Returns `(wireProof, storedSecret)` — a `pq:<base64Url(ciphertext)>`
+  /// wire proof paired with the `pq:<key-confirmation-tag>` to persist — if
+  /// the remote's X-Wing cert can be live-fetched and passes ML-DSA-65
+  /// verification. Returns null to fall back to the legacy UUID flow — every
+  /// abandon branch is logged so a stuck-on-legacy peer is diagnosable.
+  Future<(String wire, String stored)?> _tryBuildPqProof(
+      String fromAtSign, String sessionID) async {
     try {
       // Always fetch the peer's published PQ cert live (unauthenticated
       // plookUp). Nothing is cached:
       // each handshake honours the peer's current keys, so there is no
       // stale-cert failure mode.
-      final certRaw = await fetchPeerPqCert(outboundClientManager, fromAtSign);
-      if (certRaw == null) {
-        logger.info('No PQ cert fetched for $fromAtSign — falling back to UUID');
+      final xwingCertRaw =
+          await fetchPeerPqCert(outboundClientManager, fromAtSign);
+      if (xwingCertRaw == null) {
+        logger.warning(
+            'No PQ cert fetched for $fromAtSign — falling back to UUID');
         return null;
       }
 
-      final cert = XWingCert.tryParse(certRaw);
-      if (cert == null) {
-        logger.info('PQ cert for $fromAtSign failed to parse — falling back to UUID');
+      final xwingCert = XWingCert.tryParse(xwingCertRaw);
+      if (xwingCert == null) {
+        logger.warning(
+            'PQ cert for $fromAtSign failed to parse — falling back to UUID');
         return null;
       }
-      if (!await cert.verify()) {
-        logger.info('PQ cert for $fromAtSign failed verification — falling back to UUID');
+      if (!await xwingCert.verify()) {
+        logger.warning(
+            'PQ cert for $fromAtSign failed verification — falling back to UUID');
         return null;
       }
 
-      final result = await AtPqc.xWing.encapsulate(cert.xwingPublicKey);
+      final result = await AtPqc.xWing.encapsulate(xwingCert.xwingPublicKey);
       final ciphertextB64 = base64Url.encode(result.ciphertext);
 
       // Store an HKDF key-confirmation tag (bound to this handshake) rather
@@ -188,16 +178,22 @@ class FromVerbHandler extends AbstractVerbHandler {
       // carries the ciphertext under the 'pq' challenge marker.
       final tag =
           deriveConfirmationTag(result.sharedSecret, '$sessionID$fromAtSign');
-      final atData = AtData()
-        ..data = 'pq:${base64Url.encode(tag)}'
-        ..metaData = (AtMetaData()..ttl = 60 * 1000);
-      await keyStore.put(storedSecretId, atData);
 
-      return 'pq:$ciphertextB64';
+      return ('pq:$ciphertextB64', 'pq:${base64Url.encode(tag)}');
     } catch (e) {
       logger.warning('PQ proof attempt failed, falling back to UUID: $e');
       return null;
     }
+  }
+
+  /// Persists [data] as the handshake secret at [storedSecretId], with the
+  /// fixed 60s TTL shared by both the PQ key-confirmation tag and the legacy
+  /// UUID proof.
+  Future<void> _storeSecret(String storedSecretId, String data) async {
+    final atData = AtData()
+      ..data = data
+      ..metaData = (AtMetaData()..ttl = 60 * 1000);
+    await keyStore.put(storedSecretId, atData);
   }
 
   Future<bool> _verifyFromAtSign(

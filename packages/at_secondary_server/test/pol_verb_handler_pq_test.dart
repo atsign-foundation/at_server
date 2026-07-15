@@ -23,19 +23,16 @@ class _FakeInboundConnection extends Fake implements InboundConnection {}
 
 // ── test setup ────────────────────────────────────────────────────────────
 
-late HiveKeyStoreFixture _fixture;
-late AtKeyValueStore<String, AtData, AtMetaData?> _keyStore;
 late MockAtAccessLog _accessLog;
 
 Future<void> _setUp() async {
-  _fixture = HiveKeyStoreFixture('test/hive_pq_pol');
-  _keyStore = await _fixture.open(alice);
+  await verbTestsSetUp();
   AtSecondaryServerImpl.getInstance().currentAtSign = alice;
   _accessLog = MockAtAccessLog();
   when(() => _accessLog.insert(any(), any())).thenAnswer((_) async => 1);
 }
 
-Future<void> _tearDown() async => await _fixture.dispose();
+Future<void> _tearDown() async => await verbTestsTearDown();
 
 // ── helper: build an InboundConnection with from-verb metadata ────────────
 
@@ -55,7 +52,8 @@ void main() {
   verbTestsSetUpLogging();
   FakeSocket mockSocket = FakeSocket();
 
-  setUpAll(() {
+  setUpAll(() async {
+    await verbTestsSetUpAll();
     registerFallbackValue(_FakeInboundConnection());
   });
 
@@ -68,7 +66,7 @@ void main() {
     test(
         'matching PQ confirmation tags → isPolAuthenticated = true, no RSA lookup',
         () async {
-      final ks = _keyStore;
+      final ks = keyValueStore;
       const sessionId = '_pq-sess-001';
 
       // Both sides derive the same HKDF key-confirmation tag from the shared
@@ -110,7 +108,7 @@ void main() {
     test(
         'matches a rotation-grace-period candidate tag (comma-separated list)',
         () async {
-      final ks = _keyStore;
+      final ks = keyValueStore;
       const sessionId = '_pq-sess-001b';
 
       // Alice's own confirmation tag, derived from the shared secret her side
@@ -150,7 +148,7 @@ void main() {
     });
 
     test('PQ confirmation tag mismatch → UnAuthenticatedException', () async {
-      final ks = _keyStore;
+      final ks = keyValueStore;
       const sessionId = '_pq-sess-002';
 
       await ks.put(
@@ -179,7 +177,7 @@ void main() {
     });
 
     test('stored secret missing → UnAuthenticatedException', () async {
-      final ks = _keyStore;
+      final ks = keyValueStore;
       const sessionId = '_pq-sess-003';
 
       // No stored secret pre-populated.
@@ -205,7 +203,7 @@ void main() {
 
   group('pol_verb_handler legacy RSA mode', () {
     test('valid RSA signature → isPolAuthenticated = true', () async {
-      final ks = _keyStore;
+      final ks = keyValueStore;
       const sessionId = '_rsa-sess-001';
       const challenge = 'some-uuid-challenge';
 
@@ -244,7 +242,7 @@ void main() {
     });
 
     test('invalid RSA signature → UnAuthenticatedException', () async {
-      final ks = _keyStore;
+      final ks = keyValueStore;
       const sessionId = '_rsa-sess-002';
       const challenge = 'another-uuid-challenge';
 
@@ -287,7 +285,7 @@ void main() {
   group('pol_verb_handler no PQ caching', () {
     test('after legacy RSA success, no PQ keys are cached in keystore',
         () async {
-      final ks = _keyStore;
+      final ks = keyValueStore;
       const sessionId = '_rsa-cache-001';
       const challenge = 'cache-test-challenge';
 
@@ -329,7 +327,7 @@ void main() {
 
   group('pol_verb_handler precondition', () {
     test('pol without prior from: → InvalidRequestException', () async {
-      final ks = _keyStore;
+      final ks = keyValueStore;
       final mockOcm = MockOutboundClientManager();
       final handler = PolVerbHandler(ks, mockOcm, MockAtCacheManager(),
           accessLog: _accessLog);

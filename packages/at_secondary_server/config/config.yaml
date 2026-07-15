@@ -210,7 +210,7 @@ pq:
   # How many days before expiry the server renews (rotates) its own X-Wing
   # cert. Default value is 30 days. Has no effect on peer-cert verification,
   # which stays strict.
-  certRenewalHeadroomDays: 30
+  xwingCertRenewalHeadroomDays: 30
   # When true, the FROM verb handler skips PQ cert lookup and always issues a
   # UUID/RSA challenge. Default value is false.
   disablePqAuth: false

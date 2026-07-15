@@ -25,6 +25,10 @@ Future<String?> fetchPeerPqCert(
     if (!oc.isConnectionCreated) {
       await oc.connect();
     }
+    // plookup's wire key is bare (entity+atSign) — the verb handler on the
+    // remote side prepends 'public:' itself. pqXwingCertName() returns the
+    // public:-prefixed *storage* name used for keyStore.put/get, which is
+    // the wrong shape here.
     return (await oc.plookUp('$pqXwingCertNamePart$fromAtSign'))
         ?.replaceFirst(_dataPrefix, '');
   } catch (e) {

@@ -200,15 +200,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     currentAtSign = serverContext!.currentAtSign!.toAtsign();
     logger.shout('start(): currentAtSign : $currentAtSign');
 
-    if (Platform.environment.containsKey('skipCommitsForExpiredKeys') ||
-        AtSecondaryConfig.getNullableBoolFromYaml(
-                ['hive', 'skipCommitsForExpiredKeys']) !=
-            null) {
-      logger.warning(
-          'skipCommitsForExpiredKeys is set but no longer has any effect '
-          '(key-expiry scheduling was replaced); safe to remove from config.');
-    }
-
     // Initialize persistent storage
     await _initializePersistentInstances();
 
@@ -933,7 +924,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     } else {
       try {
         await PqKeyManager.instance.init(currentAtSign, keyValueStore);
-        await PqKeyManager.instance.publishKeys(currentAtSign, keyValueStore);
+        await PqKeyManager.instance.publishCert(currentAtSign, keyValueStore);
       } catch (e) {
         logger.severe(
             'PQ key initialisation failed — withdrawing any published PQ cert '

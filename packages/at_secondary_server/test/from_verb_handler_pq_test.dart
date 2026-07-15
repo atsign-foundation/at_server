@@ -5,7 +5,6 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart' as at_lookup;
-import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
@@ -17,21 +16,17 @@ import 'package:test/test.dart';
 import 'test_utils.dart';
 
 void main() {
-  late HiveKeyStoreFixture fixture;
-  late AtKeyValueStore<String, AtData, AtMetaData?> keyStoreManager;
   late MockSecureSocket mockSecureSocket;
   late MockAtAccessLog mockAccessLog;
 
-  verbTestsSetUpLogging();
-
-  setUpAll(() {
+  setUpAll(() async {
+    await verbTestsSetUpAll();
     registerFallbackValue(SocketOption.tcpNoDelay);
     registerFallbackValue(DummyInboundConnection());
   });
 
   setUp(() async {
-    fixture = HiveKeyStoreFixture('test/hive_pq_from');
-    keyStoreManager = await fixture.open(alice);
+    await verbTestsSetUp();
 
     // Inject a stub secondary address finder so _verifyFromAtSign doesn't
     // make a real root-server call when clientCertificateRequired = true.
@@ -60,12 +55,12 @@ void main() {
     when(() => mockAccessLog.insert(any(), any())).thenAnswer((_) async => 1);
   });
 
-  tearDown(() async => await fixture.dispose());
+  tearDown(() async => await verbTestsTearDown());
 
   group('from_verb_handler PQ path', () {
     test('no PQ cert available (peer plookUp returns null) → legacy UUID '
         'proof (no pq: prefix)', () async {
-      final ks = keyStoreManager;
+      final ks = keyValueStore;
 
       final mockMgr = mockOcmServingPeerCert(null);
       final handler = FromVerbHandler(ks, mockMgr, accessLog: mockAccessLog);
@@ -95,7 +90,7 @@ void main() {
 
     test('valid PQ cert live-fetched → PQ proof (pq: prefix in token)',
         () async {
-      final ks = keyStoreManager;
+      final ks = keyValueStore;
 
       final certJson = await buildSignedPeerCertJson(
           validUntil: DateTime.now().toUtc().add(const Duration(days: 365)));
@@ -131,7 +126,7 @@ void main() {
     });
 
     test('expired PQ cert live-fetched → falls back to legacy UUID', () async {
-      final ks = keyStoreManager;
+      final ks = keyValueStore;
 
       final certJson = await buildSignedPeerCertJson(
           validUntil: DateTime.now().toUtc().subtract(const Duration(days: 1)));
@@ -156,7 +151,7 @@ void main() {
     });
 
     test('unparseable PQ cert → falls back to legacy UUID', () async {
-      final ks = keyStoreManager;
+      final ks = keyValueStore;
 
       final mockMgr = mockOcmServingPeerCert('not-a-valid-cert');
       final handler = FromVerbHandler(ks, mockMgr, accessLog: mockAccessLog);
@@ -177,7 +172,7 @@ void main() {
 
     test('AT_DISABLE_PQ_AUTH forces UUID path even with valid PQ cert',
         () async {
-      final ks = keyStoreManager;
+      final ks = keyValueStore;
 
       final certJson = await buildSignedPeerCertJson(
           validUntil: DateTime.now().toUtc().add(const Duration(days: 365)));
@@ -208,7 +203,7 @@ void main() {
     });
 
     test('self-auth (from: == currentAtSign) always uses legacy UUID', () async {
-      final ks = keyStoreManager;
+      final ks = keyValueStore;
 
       final mockMgr = mockOcmServingPeerCert(null);
       final handler = FromVerbHandler(ks, mockMgr, accessLog: mockAccessLog);

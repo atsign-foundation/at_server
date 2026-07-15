@@ -118,7 +118,7 @@ class AtSecondaryConfig {
 
   //PQ
   static const int _xwingCertExpiryInDays = 90;
-  static const int _certRenewalHeadroomDays = 30;
+  static const int _xwingCertRenewalHeadroomDays = 30;
 
   //Sync Configurations
   static const int _syncBufferSize = 5242880;
@@ -775,10 +775,10 @@ class AtSecondaryConfig {
   }
 
   /// How many days before X-Wing cert expiry [PqKeyManager] rotates it.
-  static int get certRenewalHeadroomDays {
-    return _getIntEnvVar('certRenewalHeadroomDays') ??
-        getNullableIntFromYaml(['pq', 'certRenewalHeadroomDays']) ??
-        _certRenewalHeadroomDays;
+  static int get xwingCertRenewalHeadroomDays {
+    return _getIntEnvVar('xwingCertRenewalHeadroomDays') ??
+        getNullableIntFromYaml(['pq', 'xwingCertRenewalHeadroomDays']) ??
+        _xwingCertRenewalHeadroomDays;
   }
 
   static int get enrollmentExpiryInHours {

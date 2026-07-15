@@ -19,6 +19,7 @@ import 'package:crypton/crypton.dart';
 class PolVerbHandler extends AbstractVerbHandler {
   static Pol pol = Pol();
   static final RegExp _dataPrefix = RegExp('^data:');
+  static final RegExp _pqPrefix = RegExp('^pq:');
 
   final OutboundClientManager outboundClientManager;
   final AtCacheManager cacheManager;
@@ -30,8 +31,6 @@ class PolVerbHandler extends AbstractVerbHandler {
   PolVerbHandler(super.keyStore, this.outboundClientManager, this.cacheManager,
       {required this.accessLog});
 
-  // Method to verify whether command is accepted or not
-  // Input: command
   @override
   bool accept(String command) => command == getName(VerbEnum.pol);
 
@@ -40,7 +39,6 @@ class PolVerbHandler extends AbstractVerbHandler {
     return HashMap();
   }
 
-  // Method to return Instance of verb belongs to this VerbHandler
   @override
   Verb getVerb() {
     return pol;
@@ -67,10 +65,6 @@ class PolVerbHandler extends AbstractVerbHandler {
     }
     logger.info('pol from $fromAtSign');
 
-    // Storing under public: is necessary because the peer's outbound client
-    // is not authenticated yet when executing POL/lookUp (the POL flow is
-    // the mechanism that authenticates them). Unauthenticated connections
-    // can only perform lookUp/plookUp on keys with a public: prefix.
     final String storedSecretId = 'public:$sessionID$fromAtSign';
 
     // Fetch locally stored secret first to detect mode (pq: prefix = PQ mode).
@@ -90,7 +84,7 @@ class PolVerbHandler extends AbstractVerbHandler {
     }
 
     // 'pq:' = PQ mode: both sides hold an HKDF key-confirmation tag and compare
-    // them for equality. Only the non-PQ (RSA/UUID) path needs the remote
+    // them for equality. Only the legacy (RSA/UUID) path needs the remote
     // signing public key.
     final isPqMode = message.startsWith('pq:');
 
@@ -104,10 +98,11 @@ class PolVerbHandler extends AbstractVerbHandler {
     // So on failure we discard the client and retry once with a fresh
     // connection before giving up.
     late OutboundClient oc;
-    String? signedChallenge, fromPublicKey;
+    String? fetchedChallenge, fromPublicKey;
     for (int attempt = 0;; attempt++) {
       oc = await outboundClientManager.getClient(
-          fromAtSign!, _dummyInboundConnection,
+          fromAtSign!, // Non-null: guaranteed by the from: check above.
+          _dummyInboundConnection,
           handshakeRequired: false);
       String doing = '';
       try {
@@ -117,7 +112,7 @@ class PolVerbHandler extends AbstractVerbHandler {
         }
         // fetch the challenge from the other secondary
         doing = 'fetching challenge from $fromAtSign';
-        signedChallenge = (await oc.lookUp('$sessionID$fromAtSign',
+        fetchedChallenge = (await oc.lookUp('$sessionID$fromAtSign',
                 handshake: false))
             ?.replaceFirst(_dataPrefix, '');
 
@@ -141,7 +136,7 @@ class PolVerbHandler extends AbstractVerbHandler {
       }
     }
 
-    if (signedChallenge == null) {
+    if (fetchedChallenge == null) {
       throw AtException('Unable to verify pol: no challenge returned from $fromAtSign');
     }
 
@@ -150,9 +145,9 @@ class PolVerbHandler extends AbstractVerbHandler {
       // than one candidate tag ('pq:tagCurrent,tagPrev') when it retains a
       // rotation grace-period key — X-Wing implicit rejection gives no other
       // signal for which key it decapsulated against, so any match is valid.
-      final storedTag = message.replaceFirst(RegExp('^pq:'), '');
+      final storedTag = message.replaceFirst(_pqPrefix, '');
       final candidateTags =
-          signedChallenge.replaceFirst(RegExp('^pq:'), '').split(',');
+          fetchedChallenge.replaceFirst(_pqPrefix, '').split(',');
       if (!candidateTags.contains(storedTag)) {
         throw UnAuthenticatedException(
             'Pol Authentication Failed: PQ sharedSecret mismatch');
@@ -164,7 +159,7 @@ class PolVerbHandler extends AbstractVerbHandler {
       }
       final bool isValidChallenge = RSAPublicKey.fromString(fromPublicKey)
           .verifySHA256Signature(
-              utf8.encode(message), base64Decode(signedChallenge));
+              utf8.encode(message), base64Decode(fetchedChallenge));
       if (!isValidChallenge) {
         throw UnAuthenticatedException('Pol Authentication Failed');
       }
@@ -179,13 +174,7 @@ class PolVerbHandler extends AbstractVerbHandler {
 
     atConnectionMetadata.isPolAuthenticated = true;
     response.data = 'pol:$fromAtSign@';
-    await _insertIntoAccessLog(fromAtSign.toString(), pol.name());
+    await accessLog.insert(fromAtSign.toString(), pol.name());
     logger.info('response : $fromAtSign@');
-
-    return;
-  }
-
-  Future<void> _insertIntoAccessLog(String key, String value) async {
-    await accessLog.insert(key, value);
   }
 }

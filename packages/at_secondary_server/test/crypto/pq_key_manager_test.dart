@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:at_chops/at_chops_ffi.dart';
-import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/crypto/pq_constants.dart';
 import 'package:at_secondary/src/crypto/pq_key_manager.dart';
@@ -18,14 +17,14 @@ void main() {
       final mlDsaKp = await MlDsa65KeyPair.generate();
       final validUntil =
           DateTime.now().toUtc().add(const Duration(days: 365));
-      // Build a dummy cert (unsigned for this unit test).
-      final cert = XWingCert(
+      // Build a dummy xwingCert (unsigned for this unit test).
+      final xwingCert = XWingCert(
         xwingPublicKey: kp.publicKeyBytes,
         validUntil: validUntil,
         signature: Uint8List(0),
         mlDsaPublicKey: mlDsaKp.publicKeyBytes,
       );
-      final json = cert.toJson();
+      final json = xwingCert.toJson();
       final parsed = XWingCert.tryParse(json);
       expect(parsed, isNotNull);
       expect(parsed!.xwingPublicKey, equals(kp.publicKeyBytes));
@@ -44,7 +43,7 @@ void main() {
       final kp = await XWingKeyPair.generate();
       final mlDsaKp = await MlDsa65KeyPair.generate();
       final validUntil = DateTime(2026, 1, 1, 0, 0, 0, 0, 0).toUtc();
-      final cert = XWingCert(
+      final xwingCert = XWingCert(
         xwingPublicKey: kp.publicKeyBytes,
         validUntil: validUntil,
         signature: Uint8List(0),
@@ -55,10 +54,10 @@ void main() {
         ...utf8.encode(validUntil.toIso8601String()),
         ...mlDsaKp.publicKeyBytes,
       ]);
-      expect(cert.tbsBytes, equals(expected));
+      expect(xwingCert.tbsBytes, equals(expected));
     });
 
-    test('valid cert passes verify()', () async {
+    test('valid xwingCert passes verify()', () async {
       final mlDsaKp = await MlDsa65KeyPair.generate();
       final xwingKp = await XWingKeyPair.generate();
       final validUntil = DateTime.now().toUtc().add(const Duration(days: 30));
@@ -70,16 +69,16 @@ void main() {
           mlDsaPublicKey: mlDsaKp.publicKeyBytes);
       final sig = await AtPqc.mlDsa65
           .signBytes(draft.tbsBytes, secretKey: mlDsaKp.privateKeyBytes);
-      final cert = XWingCert(
+      final xwingCert = XWingCert(
           xwingPublicKey: xwingKp.publicKeyBytes,
           validUntil: validUntil,
           signature: sig,
           mlDsaPublicKey: mlDsaKp.publicKeyBytes);
 
-      expect(await cert.verify(), isTrue);
+      expect(await xwingCert.verify(), isTrue);
     });
 
-    test('expired cert fails verify()', () async {
+    test('expired xwingCert fails verify()', () async {
       final mlDsaKp = await MlDsa65KeyPair.generate();
       final xwingKp = await XWingKeyPair.generate();
       final validUntil =
@@ -92,23 +91,23 @@ void main() {
           mlDsaPublicKey: mlDsaKp.publicKeyBytes);
       final sig = await AtPqc.mlDsa65
           .signBytes(draft.tbsBytes, secretKey: mlDsaKp.privateKeyBytes);
-      final cert = XWingCert(
+      final xwingCert = XWingCert(
           xwingPublicKey: xwingKp.publicKeyBytes,
           validUntil: validUntil,
           signature: sig,
           mlDsaPublicKey: mlDsaKp.publicKeyBytes);
 
-      expect(await cert.verify(), isFalse);
+      expect(await xwingCert.verify(), isFalse);
     });
 
-    test('cert whose embedded ML-DSA key does not match the signer fails verify()',
+    test('xwingCert whose embedded ML-DSA key does not match the signer fails verify()',
         () async {
       final signerKp = await MlDsa65KeyPair.generate();
       final wrongKp = await MlDsa65KeyPair.generate();
       final xwingKp = await XWingKeyPair.generate();
       final validUntil = DateTime.now().toUtc().add(const Duration(days: 30));
 
-      // Signed with signerKp, but the cert claims a different embedded
+      // Signed with signerKp, but the xwingCert claims a different embedded
       // ML-DSA public key — signature verification against the embedded key
       // must fail.
       final draft = XWingCert(
@@ -118,27 +117,30 @@ void main() {
           mlDsaPublicKey: wrongKp.publicKeyBytes);
       final sig = await AtPqc.mlDsa65
           .signBytes(draft.tbsBytes, secretKey: signerKp.privateKeyBytes);
-      final cert = XWingCert(
+      final xwingCert = XWingCert(
           xwingPublicKey: xwingKp.publicKeyBytes,
           validUntil: validUntil,
           signature: sig,
           mlDsaPublicKey: wrongKp.publicKeyBytes);
 
-      expect(await cert.verify(), isFalse);
+      expect(await xwingCert.verify(), isFalse);
     });
   });
 
   group('PqKeyManager', () {
-    late HiveKeyStoreFixture fixture;
     late AtKeyValueStore<String, AtData, AtMetaData?> keyStore;
-    const atSign = '@testserver';
+    final atSign = alice.toString();
 
-    setUp(() async {
-      fixture = HiveKeyStoreFixture('test/hive_pq_key_manager');
-      keyStore = await fixture.open(atSign.toAtsign());
+    setUpAll(() async {
+      await verbTestsSetUpAll();
     });
 
-    tearDown(() async => await fixture.dispose());
+    setUp(() async {
+      await verbTestsSetUp();
+      keyStore = keyValueStore;
+    });
+
+    tearDown(() async => await verbTestsTearDown());
 
     group('init()', () {
       test('missing public companion key triggers regeneration, not a throw',
@@ -166,169 +168,170 @@ void main() {
       });
     });
 
-    group('publishKeys()', () {
-      test('republishes when the existing cert binds a stale X-Wing public key',
+    group('publishCert()', () {
+      test('republishes when the existing xwingCert binds a stale X-Wing public key',
           () async {
         final mgr = PqKeyManager();
         await mgr.init(atSign, keyStore);
-        await mgr.publishKeys(atSign, keyStore);
-        final certBefore =
+        await mgr.publishCert(atSign, keyStore);
+        final xwingCertBefore =
             (await keyStore.get(pqXwingCertName(atSign)))?.data;
-        expect(certBefore, isNotNull);
+        expect(xwingCertBefore, isNotNull);
 
         // Simulate a keypair regeneration (e.g. after partial keystore loss)
-        // while a still-valid cert for the OLD public key remains published.
+        // while a still-valid xwingCert for the OLD public key remains published.
         await mgr.rotateCert(atSign, keyStore);
         // rotateCert already republishes, so force the stale scenario directly:
-        // put back the original (now-stale) cert as the "current" cert.
-        await keyStore.put(pqXwingCertName(atSign), AtData()..data = certBefore);
+        // put back the original (now-stale) xwingCert as the "current" xwingCert.
+        await keyStore.put(pqXwingCertName(atSign), AtData()..data = xwingCertBefore);
 
-        await mgr.publishKeys(atSign, keyStore);
+        await mgr.publishCert(atSign, keyStore);
 
-        final certAfter =
+        final xwingCertAfter =
             (await keyStore.get(pqXwingCertName(atSign)))?.data;
-        expect(certAfter, isNot(equals(certBefore)),
-            reason: 'A cert bound to a key the manager no longer holds '
+        expect(xwingCertAfter, isNot(equals(xwingCertBefore)),
+            reason: 'A xwingCert bound to a key the manager no longer holds '
                 'must be republished, not treated as still valid');
-        final parsed = XWingCert.tryParse(certAfter!);
+        final parsed = XWingCert.tryParse(xwingCertAfter!);
         expect(parsed!.xwingPublicKey, equals(mgr.xwingPublicKey));
       });
 
-      test('publishKeys() removes prev cert and prev secret after expiry',
+      test('publishCert() removes prev xwingCert and prev secret after expiry',
           () async {
         final mgr = PqKeyManager();
         await mgr.init(atSign, keyStore);
-        await mgr.publishKeys(atSign, keyStore);
+        await mgr.publishCert(atSign, keyStore);
         await mgr.rotateCert(atSign, keyStore);
         expect(await keyStore.exists(pqXwingSecretKeyPrevName(atSign)), isTrue);
 
-        // Force the prev cert to look expired.
-        final expiredCertJson = await buildSignedPeerCertJson(
+        // Force the prev xwingCert to look expired.
+        final expiredXwingCertJson = await buildSignedPeerCertJson(
             validUntil:
                 DateTime.now().toUtc().subtract(const Duration(days: 1)));
         await keyStore.put(
-            pqXwingCertPrevName(atSign), AtData()..data = expiredCertJson);
+            pqXwingCertPrevName(atSign), AtData()..data = expiredXwingCertJson);
 
-        await mgr.publishKeys(atSign, keyStore);
+        await mgr.publishCert(atSign, keyStore);
 
         expect(await keyStore.exists(pqXwingCertPrevName(atSign)), isFalse,
-            reason: 'Expired prev cert must be deleted');
+            reason: 'Expired prev xwingCert must be deleted');
         expect(await keyStore.exists(pqXwingSecretKeyPrevName(atSign)), isFalse,
             reason: 'Expired prev secret key must be deleted alongside '
-                'the expired prev cert');
+                'the expired prev xwingCert');
         expect(await keyStore.exists(pqXwingCertName(atSign)), isTrue,
-            reason: 'Current cert must be published/generated');
+            reason: 'Current xwingCert must be published/generated');
       });
 
-      test('publishKeys() retains a still-valid prev cert', () async {
+      test('publishCert() retains a still-valid prev xwingCert', () async {
         final mgr = PqKeyManager();
         await mgr.init(atSign, keyStore);
 
-        final recentCertJson = await buildSignedPeerCertJson(
+        final recentXwingCertJson = await buildSignedPeerCertJson(
             validUntil: DateTime.now().toUtc().add(const Duration(days: 5)));
         await keyStore.put(
-            pqXwingCertPrevName(atSign), AtData()..data = recentCertJson);
+            pqXwingCertPrevName(atSign), AtData()..data = recentXwingCertJson);
 
-        await mgr.publishKeys(atSign, keyStore);
+        await mgr.publishCert(atSign, keyStore);
 
         expect(await keyStore.exists(pqXwingCertPrevName(atSign)), isTrue,
-            reason: 'A still-valid prev cert must NOT be deleted');
+            reason: 'A still-valid prev xwingCert must NOT be deleted');
         expect(await keyStore.exists(pqXwingCertName(atSign)), isTrue,
-            reason: 'Current cert must be published/generated');
+            reason: 'Current xwingCert must be published/generated');
       });
 
       test('inside renewal headroom rotates instead of no-op', () async {
         final mgr = PqKeyManager(
-            certExpiryDays: 90, certRenewalHeadroomDays: 30);
+            xwingCertExpiryDays: 90, xwingCertRenewalHeadroomDays: 30);
         await mgr.init(atSign, keyStore);
-        // First publish issues a 90-day cert — outside headroom.
-        await mgr.publishKeys(atSign, keyStore);
-        final certBefore = (await keyStore.get(pqXwingCertName(atSign)))?.data;
+        // First publish issues a 90-day xwingCert — outside headroom.
+        await mgr.publishCert(atSign, keyStore);
+        final xwingCertBefore = (await keyStore.get(pqXwingCertName(atSign)))?.data;
         final xwingPubBefore = mgr.xwingPublicKey;
 
-        // Force the current cert to look like it's inside the renewal
+        // Force the current xwingCert to look like it's inside the renewal
         // headroom (10 days left, headroom is 30).
-        final soonCert = await mgr.buildCert(
+        final soonXwingCert = await mgr.buildCert(
             validUntil: DateTime.now().toUtc().add(const Duration(days: 10)));
-        await keyStore.put(pqXwingCertName(atSign), AtData()..data = soonCert.toJson());
+        await keyStore.put(pqXwingCertName(atSign), AtData()..data = soonXwingCert.toJson());
 
-        await mgr.publishKeys(atSign, keyStore);
+        await mgr.publishCert(atSign, keyStore);
 
-        final certAfter = (await keyStore.get(pqXwingCertName(atSign)))?.data;
-        expect(certAfter, isNot(equals(certBefore)));
+        final xwingCertAfter = (await keyStore.get(pqXwingCertName(atSign)))?.data;
+        expect(xwingCertAfter, isNot(equals(xwingCertBefore)));
         expect(mgr.xwingPublicKey, isNot(equals(xwingPubBefore)),
             reason: 'Inside headroom must rotate the keypair, not just '
-                'republish a fresh cert over the same key');
-        final prevCert = (await keyStore.get(pqXwingCertPrevName(atSign)))?.data;
-        expect(prevCert, isNotNull);
+                'republish a fresh xwingCert over the same key');
+        final prevXwingCert = (await keyStore.get(pqXwingCertPrevName(atSign)))?.data;
+        expect(prevXwingCert, isNotNull);
       });
 
       test(
           'headroom >= expiry is clamped to 0 instead of rotating on every boot',
           () async {
-        // certRenewalHeadroomDays (10) >= certExpiryDays (5): without the
-        // clamp, effectiveHeadroomDays would equal certRenewalHeadroomDays
+        // xwingCertRenewalHeadroomDays (10) >= xwingCertExpiryDays (5): without the
+        // clamp, effectiveHeadroomDays would equal xwingCertRenewalHeadroomDays
         // and renewAt would always be beyond validUntil, forcing a rotation
-        // on every publishKeys() call.
+        // on every publishCert() call.
         final mgr =
-            PqKeyManager(certExpiryDays: 5, certRenewalHeadroomDays: 10);
+            PqKeyManager(xwingCertExpiryDays: 5, xwingCertRenewalHeadroomDays: 10);
         await mgr.init(atSign, keyStore);
         final xwingPubBefore = mgr.xwingPublicKey;
 
-        final cert = await mgr.buildCert(
+        final xwingCert = await mgr.buildCert(
             validUntil: DateTime.now().toUtc().add(const Duration(days: 5)));
         await keyStore.put(
-            pqXwingCertName(atSign), AtData()..data = cert.toJson());
+            pqXwingCertName(atSign), AtData()..data = xwingCert.toJson());
 
-        await mgr.publishKeys(atSign, keyStore);
+        await mgr.publishCert(atSign, keyStore);
 
-        final certAfter =
+        final xwingCertAfter =
             (await keyStore.get(pqXwingCertName(atSign)))?.data;
-        expect(certAfter, equals(cert.toJson()),
-            reason: 'With headroom clamped to 0, a cert still within its '
+        expect(xwingCertAfter, equals(xwingCert.toJson()),
+            reason: 'With headroom clamped to 0, a xwingCert still within its '
                 'full validity window must not be rotated');
         expect(mgr.xwingPublicKey, equals(xwingPubBefore));
       });
     });
 
     group('rotateCert()', () {
-      test('rotateCert() promotes current cert to prev and publishes new cert',
+      test('rotateCert() promotes current xwingCert to prev and publishes new xwingCert',
           () async {
         final mgr = PqKeyManager();
         await mgr.init(atSign, keyStore);
-        await mgr.publishKeys(atSign, keyStore);
+        await mgr.publishCert(atSign, keyStore);
 
-        final certBefore =
+        final xwingCertBefore =
             (await keyStore.get(pqXwingCertName(atSign)))?.data;
-        expect(certBefore, isNotNull);
+        expect(xwingCertBefore, isNotNull);
 
         await mgr.rotateCert(atSign, keyStore);
 
-        final prevCert =
+        final prevXwingCert =
             (await keyStore.get(pqXwingCertPrevName(atSign)))?.data;
-        final newCert = (await keyStore.get(pqXwingCertName(atSign)))?.data;
+        final newXwingCert = (await keyStore.get(pqXwingCertName(atSign)))?.data;
 
-        expect(prevCert, equals(certBefore));
-        expect(newCert, isNotNull);
-        expect(newCert, isNot(equals(certBefore)));
+        expect(prevXwingCert, equals(xwingCertBefore));
+        expect(newXwingCert, isNotNull);
+        expect(newXwingCert, isNot(equals(xwingCertBefore)));
       });
 
       test('data encrypted under prev key is still decapsulable after rotation',
           () async {
         final mgr = PqKeyManager();
         await mgr.init(atSign, keyStore);
-        await mgr.publishKeys(atSign, keyStore);
+        await mgr.publishCert(atSign, keyStore);
 
         final kemResult = await AtPqc.xWing.encapsulate(mgr.xwingPublicKey);
 
         final oldPub = mgr.xwingPublicKey;
         await mgr.rotateCert(atSign, keyStore);
 
-        final prevCertRaw = (await keyStore.get(pqXwingCertPrevName(atSign)))?.data;
-        expect(prevCertRaw, isNotNull);
-        final prevCert = XWingCert.tryParse(prevCertRaw!);
-        expect(prevCert!.xwingPublicKey, equals(oldPub),
-            reason: 'Prev cert public key must match the key before rotation');
+        final prevXwingCertRaw =
+            (await keyStore.get(pqXwingCertPrevName(atSign)))?.data;
+        expect(prevXwingCertRaw, isNotNull);
+        final prevXwingCert = XWingCert.tryParse(prevXwingCertRaw!);
+        expect(prevXwingCert!.xwingPublicKey, equals(oldPub),
+            reason: 'Prev xwingCert public key must match the key before rotation');
 
         final persistedPrevSecret =
             (await keyStore.get(pqXwingSecretKeyPrevName(atSign)))?.data;
@@ -341,14 +344,14 @@ void main() {
       });
 
       test(
-          'decapsWithFallback recovers a peer that encapsulated to the prev cert',
+          'decapsWithFallback recovers a peer that encapsulated to the prev xwingCert',
           () async {
         final mgr = PqKeyManager();
         await mgr.init(atSign, keyStore);
-        await mgr.publishKeys(atSign, keyStore);
+        await mgr.publishCert(atSign, keyStore);
 
         // A peer encapsulates against the pre-rotation public key (as if it
-        // cached the cert across the rotation).
+        // cached the xwingCert across the rotation).
         final kemResult = await AtPqc.xWing.encapsulate(mgr.xwingPublicKey);
 
         await mgr.rotateCert(atSign, keyStore);
@@ -362,7 +365,7 @@ void main() {
           () async {
         final mgr = PqKeyManager();
         await mgr.init(atSign, keyStore);
-        await mgr.publishKeys(atSign, keyStore);
+        await mgr.publishCert(atSign, keyStore);
 
         final kemResult = await AtPqc.xWing.encapsulate(mgr.xwingPublicKey);
         await mgr.rotateCert(atSign, keyStore);
@@ -380,17 +383,17 @@ void main() {
       });
     });
 
-    group('cert expiry config', () {
-      test('buildCert() honours the certExpiryDays ctor param', () async {
-        final mgr = PqKeyManager(certExpiryDays: 7);
+    group('xwingCert expiry config', () {
+      test('buildCert() honours the xwingCertExpiryDays ctor param', () async {
+        final mgr = PqKeyManager(xwingCertExpiryDays: 7);
         await mgr.init(atSign, keyStore);
-        await mgr.publishKeys(atSign, keyStore);
+        await mgr.publishCert(atSign, keyStore);
 
-        final certRaw = (await keyStore.get(pqXwingCertName(atSign)))?.data;
-        final cert = XWingCert.tryParse(certRaw!);
+        final xwingCertRaw = (await keyStore.get(pqXwingCertName(atSign)))?.data;
+        final xwingCert = XWingCert.tryParse(xwingCertRaw!);
 
         final expected = DateTime.now().toUtc().add(const Duration(days: 7));
-        expect(cert!.validUntil.difference(expected).inMinutes.abs(),
+        expect(xwingCert!.validUntil.difference(expected).inMinutes.abs(),
             lessThan(5),
             reason: 'validUntil must reflect the ctor-supplied expiry, not '
                 'the default');
@@ -398,11 +401,11 @@ void main() {
     });
 
     group('record namespacing', () {
-      test('all PQ records except the cert are stored under local:',
+      test('all PQ records except the xwingCert are stored under local:',
           () async {
         final mgr = PqKeyManager();
         await mgr.init(atSign, keyStore);
-        await mgr.publishKeys(atSign, keyStore);
+        await mgr.publishCert(atSign, keyStore);
         await mgr.rotateCert(atSign, keyStore);
 
         for (final name in [
