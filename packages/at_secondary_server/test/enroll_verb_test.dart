@@ -296,6 +296,42 @@ void main() {
       }
     });
 
+    test(
+        'Test that a state change on one enrollment does not move another '
+        'enrollment\'s per-enrollment data', () async {
+      // Two enrollments, each with its own per-enrollment data in a.__e
+      final List<String> enIds = (await etu.createEnrollments(n: 2)).$1;
+      final String enId1 = enIds[0];
+      final String enId2 = enIds[1];
+      final (keys1, _) = await etu.createSomePerEnrollmentData(enId1);
+      final (keys2, _) = await etu.createSomePerEnrollmentData(enId2);
+
+      // Revoke ONLY enId1
+      await etu.revokeEnrollment(etu.primaryEnId, enId1);
+
+      // enId1's data moved a -> r
+      for (final k in keys1) {
+        expect(await keyValueStore.exists(k), false);
+      }
+      for (final k in keys1.map((k) => k.replaceAll(
+          '${EnrollmentConstants.perEnrollmentApproved}@',
+          '${EnrollmentConstants.perEnrollmentRevoked}@'))) {
+        expect(await keyValueStore.exists(k), true);
+      }
+
+      // enId2's data is UNTOUCHED — still in a.__e, and nothing landed in r.__e.
+      // (Before the scope-by-enId fix, movePerEnrollmentData ignored its enId argument and
+      // moved EVERY enrollment's keys, so revoking enId1 wrongly moved enId2's data to r.__e.)
+      for (final k in keys2) {
+        expect(await keyValueStore.exists(k), true);
+      }
+      for (final k in keys2.map((k) => k.replaceAll(
+          '${EnrollmentConstants.perEnrollmentApproved}@',
+          '${EnrollmentConstants.perEnrollmentRevoked}@'))) {
+        expect(await keyValueStore.exists(k), false);
+      }
+    });
+
     Future<void> verifyKeysExist(List<String> keys, List<String> values) async {
       inboundConnection.metaData.enrollmentId = etu.primaryEnId;
       inboundConnection.metaData.isAuthenticated = true;
