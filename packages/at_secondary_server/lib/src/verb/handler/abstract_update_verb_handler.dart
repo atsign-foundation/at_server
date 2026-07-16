@@ -33,6 +33,12 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
 
   final String atSign;
 
+  /// Backing cache for [_updateProtectedKeys] — handlers are constructed
+  /// once at server startup and reused for the life of the process (see
+  /// DefaultVerbHandlerManager), so this is computed at most once per
+  /// handler instance rather than on every update.
+  Set<String>? _updateProtectedKeysCache;
+
   AbstractUpdateVerbHandler(
     super.keyStore,
     super.statsNotificationService,
@@ -70,6 +76,24 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       'Connection with enrollment ID $enId'
       ' is not authorized to update key: $key';
 
+  /// Protected-key templates for the bare-update guard in
+  /// [preProcessAndNotify], expanded for [atSign] and lowercased, minus
+  /// `publickey`: unlike the other entries in
+  /// [AtSecondaryConfig.protectedKeys] (signing keys, the PKAM public key,
+  /// the PQ cert), the encryption public key is client-writable by design —
+  /// an at_client publishes/rotates its own `publickey` via update during
+  /// onboarding/key-rotation — so it's only protected from delete, not
+  /// update.
+  Set<String> _updateProtectedKeys() {
+    return _updateProtectedKeysCache ??= hu
+        .expandProtectedKeyTemplates(
+            AtSecondaryConfig.protectedKeys
+                .where((template) => template != 'publickey<@atsign>'),
+            atSign)
+        .map((e) => e.toLowerCase())
+        .toSet();
+  }
+
   /// - Construct an AtKey and AtData and AtMetaData from the verb params
   /// - Fetch existing record from data store
   /// - If existing record,
@@ -86,24 +110,12 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     await super.processVerb(response, verbParams, atConnection);
 
     // Reject writes to any protected key that this server exclusively
-    // manages — signing keys, the PKAM public key, and the one PQ record
-    // that's verb-addressable at all (every other PQ record lives under
-    // `local:` and is unreachable via update). This is the same set the
-    // delete verb guards (AtSecondaryConfig.protectedKeys), minus
-    // `publickey`: unlike the others, the encryption public key is
-    // client-writable by design — an at_client publishes/rotates its own
-    // `publickey` via update during onboarding/key-rotation — so it's only
-    // protected from delete, not update.
-    // Compared bare — before the sharedWith/public: prefixing below — so
-    // this can't be bypassed via `update:cached:public:pq_xwing_cert@bob`
-    // and friends the way a prefixed comparison could.
+    // manages (see [_updateProtectedKeys]). Compared bare — before the
+    // sharedWith/public: prefixing below — so this can't be bypassed via
+    // `update:cached:public:pq_xwing_cert@bob` and friends the way a
+    // prefixed comparison could.
     final bareUpdateKey = '${updateParams.atKey}${updateParams.sharedBy ?? ''}';
-    final updateProtectedKeys = AtSecondaryConfig.protectedKeys
-        .where((template) => template != 'publickey<@atsign>');
-    if (hu
-        .expandProtectedKeyTemplates(updateProtectedKeys, atSign)
-        .map((e) => e.toLowerCase())
-        .contains(bareUpdateKey.toLowerCase())) {
+    if (_updateProtectedKeys().contains(bareUpdateKey.toLowerCase())) {
       throw UnAuthorizedException(
           'Cannot update protected key: \'$bareUpdateKey\'');
     }
