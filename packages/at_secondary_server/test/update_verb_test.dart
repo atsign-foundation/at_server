@@ -1819,8 +1819,19 @@ void main() {
       await expectBlocked('signing_privatekey$alice');
     });
 
-    test('verify update of publickey throws exception', () async {
-      await expectBlocked('publickey$alice');
+    test(
+        'verify update of publickey is allowed (client-writable during '
+        'onboarding/key-rotation, unlike the other protected keys)', () async {
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(
+        keyValueStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
+      String updateCommand = 'update:public:publickey$alice dummyPublicKey';
+      final response =
+          await updateHandler.processInternal(updateCommand, inboundConnection);
+      expect(response.isError, false);
     });
 
     test(

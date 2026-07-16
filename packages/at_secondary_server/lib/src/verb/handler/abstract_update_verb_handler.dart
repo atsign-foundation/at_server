@@ -85,16 +85,23 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     // Sets Response bean to the response bean in ChangeVerbHandler
     await super.processVerb(response, verbParams, atConnection);
 
-    // Reject writes to any protected key (the same set the delete verb
-    // guards — signing keys, the PKAM public key, and the one PQ record
-    // that's verb-addressable at all; every other PQ record lives under
-    // `local:` and is unreachable via update). Compared bare — before the
-    // sharedWith/public: prefixing below — so this can't be bypassed via
-    // `update:cached:public:pq_xwing_cert@bob` and friends the way a
-    // prefixed comparison could.
+    // Reject writes to any protected key that this server exclusively
+    // manages — signing keys, the PKAM public key, and the one PQ record
+    // that's verb-addressable at all (every other PQ record lives under
+    // `local:` and is unreachable via update). This is the same set the
+    // delete verb guards (AtSecondaryConfig.protectedKeys), minus
+    // `publickey`: unlike the others, the encryption public key is
+    // client-writable by design — an at_client publishes/rotates its own
+    // `publickey` via update during onboarding/key-rotation — so it's only
+    // protected from delete, not update.
+    // Compared bare — before the sharedWith/public: prefixing below — so
+    // this can't be bypassed via `update:cached:public:pq_xwing_cert@bob`
+    // and friends the way a prefixed comparison could.
     final bareUpdateKey = '${updateParams.atKey}${updateParams.sharedBy ?? ''}';
+    final updateProtectedKeys = AtSecondaryConfig.protectedKeys
+        .where((template) => template != 'publickey<@atsign>');
     if (hu
-        .expandProtectedKeyTemplates(AtSecondaryConfig.protectedKeys, atSign)
+        .expandProtectedKeyTemplates(updateProtectedKeys, atSign)
         .map((e) => e.toLowerCase())
         .contains(bareUpdateKey.toLowerCase())) {
       throw UnAuthorizedException(
