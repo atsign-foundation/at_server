@@ -155,6 +155,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           enrollVerbParams,
           currentAtSign,
           response,
+          atConnection,
         );
         return;
       case 'delete':
@@ -177,10 +178,38 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     EnrollParams? enrollVerbParams,
     currentAtSign,
     Response response,
+    InboundConnection atConnection,
   ) async {
     // Note: The enrollmentId is verified for null check in _validateParams.
+    final String targetEnrollmentId = enrollVerbParams!.enrollmentId!;
     EnrollDataStoreValue enrollDataStoreValue =
-        await enMgr.getEnrollmentById(enrollVerbParams!.enrollmentId!);
+        await enMgr.getEnrollmentById(targetEnrollmentId);
+
+    // enroll:fetch returns the enrollment's encryptedAPKAMSymmetricKey (a
+    // secret). A caller may always fetch its OWN enrollment (and a
+    // no-enrollmentId CRAM/owner connection may fetch any). Fetching ANOTHER
+    // enrollment requires __manage AND access to EVERY namespace the target
+    // holds — the same bar as approve/deny/revoke.
+    final inboundConnectionMetadata =
+        atConnection.metaData as InboundConnectionMetadata;
+    final callerEnrollmentId = inboundConnectionMetadata.enrollmentId;
+    if (callerEnrollmentId != null &&
+        callerEnrollmentId.isNotEmpty &&
+        callerEnrollmentId != targetEnrollmentId) {
+      for (final MapEntry<String, String> entry
+          in enrollDataStoreValue.namespaces.entries) {
+        final bool isAuthorised = await isAuthorized(inboundConnectionMetadata,
+            namespace: entry.key,
+            enrolledNamespaceAccess: entry.value,
+            operation: 'fetch');
+        if (!isAuthorised) {
+          throw UnAuthorizedException(
+              'Not authorized to fetch enrollment $targetEnrollmentId:'
+              ' requires __manage and access to all of its namespaces');
+        }
+      }
+    }
+
     return jsonEncode({
       'appName': enrollDataStoreValue.appName,
       'deviceName': enrollDataStoreValue.deviceName,

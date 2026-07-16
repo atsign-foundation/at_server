@@ -1,5 +1,23 @@
 # 3.15.0
 
+- fix: tighten enrollment-management authorization (defense-in-depth). `otp:get`
+  (OTP issuance) now requires `__manage` access — a no-`enrollmentId` owner/CRAM
+  connection still bootstraps the first enrollment. `enroll:fetch` (which returns
+  the enrollment's `encryptedAPKAMSymmetricKey`) now permits fetching only your
+  OWN enrollment, or another enrollment when you hold `__manage` AND access to
+  every namespace the target holds — the same bar as approve/deny/revoke. Both
+  were previously gated on authentication alone.
+- fix: enrollment authorization no longer lets the `*` ("all namespaces")
+  wildcard reach reserved namespaces it was never granted. A `*:rw` enrollment
+  could previously read/write another enrollment's per-enrollment reserved
+  namespace (`<id>.a|r|d.__e`), and a `*:rw` enrollment WITHOUT an explicit
+  `__manage` grant could update / delete / lookup / scan another enrollment's
+  `__manage` record and encrypted key material (PEK/SEK) — the per-namespace
+  guards keyed on the matched namespace rather than the target key's own
+  namespace, so `*` laundered the reserved namespace. Access to another
+  enrollment's reserved namespaces is now denied (public keys exempt;
+  own-enrollment access unchanged), and `scan`'s `*` fast path excludes them
+  too. Legacy no-`enrollmentId` connections are unchanged.
 - fix: `EnrollmentManager.movePerEnrollmentData` now scopes its key moves to the
   transitioning enrollment. It previously ignored its `enId` argument and moved
   EVERY enrollment's per-enrollment reserved-namespace (`<enId>.[ard].__e`) keys,
