@@ -588,7 +588,8 @@ void main() {
       secretData.data =
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyValueStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(keyValueStore, mockOutboundClientManager,
+      var fromVerbHandler = FromVerbHandler(
+          keyValueStore, mockOutboundClientManager,
           accessLog: atAccessLog, disablePqAuth: true);
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
@@ -641,7 +642,8 @@ void main() {
       secretData.data =
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyValueStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(keyValueStore, mockOutboundClientManager,
+      var fromVerbHandler = FromVerbHandler(
+          keyValueStore, mockOutboundClientManager,
           accessLog: atAccessLog, disablePqAuth: true);
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
@@ -724,7 +726,8 @@ void main() {
       secretData.data =
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyValueStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(keyValueStore, mockOutboundClientManager,
+      var fromVerbHandler = FromVerbHandler(
+          keyValueStore, mockOutboundClientManager,
           accessLog: atAccessLog, disablePqAuth: true);
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
@@ -1777,6 +1780,73 @@ void main() {
               e is UnAuthorizedException &&
               e.message ==
                   "Cannot update protected key: '${pqXwingCertNamePart.toUpperCase()}$alice'")));
+    });
+  });
+
+  group('Generalized protected-key update protection', () {
+    setUp(() {
+      inboundConnection.metaData.isAuthenticated = true;
+    });
+
+    Future<void> expectBlocked(String bareKey, {String? scope}) async {
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(
+        keyValueStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
+      final scopePrefix = scope == null ? '' : '$scope:';
+      final updateCommand = 'update:$scopePrefix$bareKey dummyValue';
+      expect(
+          () async =>
+              await updateHandler.process(updateCommand, inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message == "Cannot update protected key: '$bareKey'")));
+    }
+
+    test('verify update of signing_publickey throws exception', () async {
+      await expectBlocked('signing_publickey$alice');
+    });
+
+    test(
+        'verify update of signing_publickey throws exception even when '
+        'sent with public: scope', () async {
+      await expectBlocked('signing_publickey$alice', scope: 'public');
+    });
+
+    test('verify update of signing_privatekey throws exception', () async {
+      await expectBlocked('signing_privatekey$alice');
+    });
+
+    test('verify update of publickey throws exception', () async {
+      await expectBlocked('publickey$alice');
+    });
+
+    test(
+        'verify update of at_pkam_publickey (no atsign suffix) throws '
+        'exception', () async {
+      await expectBlocked('at_pkam_publickey');
+    });
+
+    test('verify update of a protected key is blocked case-insensitively',
+        () async {
+      await expectBlocked('SIGNING_PUBLICKEY$alice');
+    });
+
+    test(
+        'verify update of a reserved-but-not-protected key (shared_key) is '
+        'still allowed', () async {
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(
+        keyValueStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
+      String updateCommand = 'update:$bob:shared_key$alice sharedKeyValue';
+      final response =
+          await updateHandler.processInternal(updateCommand, inboundConnection);
+      expect(response.isError, false);
     });
   });
 }

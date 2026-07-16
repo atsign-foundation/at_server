@@ -26,7 +26,7 @@ class FromVerbHandler extends AbstractVerbHandler {
   static final _rootDomain = AtSecondaryConfig.rootServerUrl;
   static final _rootPort = AtSecondaryConfig.rootServerPort;
 
-  final AtAccessLog? accessLog;
+  final AtAccessLog accessLog;
 
   /// Used to live-fetch a peer's published PQ cert on first contact so the
   /// initial handshake can be PQ-safe.
@@ -131,7 +131,7 @@ class FromVerbHandler extends AbstractVerbHandler {
         '$responsePrefix${atConnectionMetadata.sessionID}$fromAtSign:$wireProof';
 
     try {
-      await accessLog?.insert(fromAtSign, from.name());
+      await accessLog.insert(fromAtSign, from.name());
     } on DataStoreException catch (e) {
       logger.severe('Hive error adding to access log:${e.toString()}');
     }

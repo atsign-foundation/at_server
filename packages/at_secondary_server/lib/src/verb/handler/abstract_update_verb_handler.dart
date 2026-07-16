@@ -5,7 +5,6 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/crypto/pq_constants.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as hu;
@@ -86,14 +85,16 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     // Sets Response bean to the response bean in ChangeVerbHandler
     await super.processVerb(response, verbParams, atConnection);
 
-    // Reject writes to the one PQ record that's verb-addressable at all
-    // (every other PQ record lives under `local:` and is unreachable via
-    // update). Compared bare — before the sharedWith/public: prefixing below
-    // — so this can't be bypassed via `update:cached:public:pq_xwing_cert@bob`
-    // and friends the way a prefixed comparison could.
+    // Reject writes to any protected key (the same set the delete verb
+    // guards — signing keys, the PKAM public key, and the one PQ record
+    // that's verb-addressable at all; every other PQ record lives under
+    // `local:` and is unreachable via update). Compared bare — before the
+    // sharedWith/public: prefixing below — so this can't be bypassed via
+    // `update:cached:public:pq_xwing_cert@bob` and friends the way a
+    // prefixed comparison could.
     final bareUpdateKey = '${updateParams.atKey}${updateParams.sharedBy ?? ''}';
     if (hu
-        .expandProtectedKeyTemplates({'$pqXwingCertNamePart<@atsign>'}, atSign)
+        .expandProtectedKeyTemplates(AtSecondaryConfig.protectedKeys, atSign)
         .map((e) => e.toLowerCase())
         .contains(bareUpdateKey.toLowerCase())) {
       throw UnAuthorizedException(

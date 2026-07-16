@@ -108,10 +108,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   dynamic _serverSocket;
   bool _isRunning = false;
-  late Atsign _currentAtSign;
-  Atsign get currentAtSign => _currentAtSign;
-  @visibleForTesting
-  set currentAtSign(Atsign value) => _currentAtSign = value;
+  late Atsign currentAtSign;
   late AtCommitLog commitLog;
   late AtAccessLog accessLog;
   var signingKey;
