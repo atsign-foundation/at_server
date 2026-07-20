@@ -52,6 +52,12 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late OutboundClientManager outboundClientManager;
   late OutboundConnectionFactory outboundConnectionFactory;
 
+  /// This server's PQ signing keypair, constructed eagerly and injected into
+  /// the outbound client factories (no singleton). Initialised and its public
+  /// key published during [start]; used by outbound clients to sign FROM/POL
+  /// handshake challenges with ML-DSA.
+  final PqKeyManager pqKeyManager = PqKeyManager();
+
   late bool _isPaused;
 
   var logger = AtSignLogger('AtSecondaryServer');
@@ -103,6 +109,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     outboundClientManager = OutboundClientManager(
       secondaryAddressFinder,
       outboundConnectionFactory,
+      pqKeyManager,
     );
   }
 
@@ -274,6 +281,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     outboundClientManager = OutboundClientManager(
       secondaryAddressFinder,
       outboundConnectionFactory,
+      pqKeyManager,
       poolSize: serverContext!.outboundConnectionLimit,
     );
 
@@ -283,6 +291,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         NotifyConnectionsPool(
           secondaryAddressFinder,
           outboundConnectionFactory,
+          pqKeyManager,
           poolSize: serverContext!.outboundConnectionLimit,
         ));
 
@@ -902,35 +911,36 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     notificationKeystore = bundle.notificationKeystore!;
     keyValueStore = bundle.keyValueStore;
 
-    // Initialise PQ keypairs and publish cert + ML-DSA public key. On failure,
-    // withdraw any cert published on a prior boot so peers cannot commit to a
-    // PQ handshake this server is now unable to complete (there is no
-    // fallback once a peer sees a published cert — see outbound_client.dart's
-    // 'pq' branch). The kill-switch gets the same treatment: a disabled
-    // server must withdraw its cert too, or peers keep attempting PQ against
-    // a server that will never answer the handshake.
+    // Initialise this server's ML-DSA signing keypair and publish its public
+    // key so peers can verify our handshake signatures. On the kill-switch or
+    // an init failure we withdraw any previously published key. This is only
+    // tidiness, not load-bearing: with no PQ key initialised, outbound clients
+    // sign with the legacy RSA key and mark the cookie accordingly, so a peer
+    // falls back regardless of whether a stale record lingers.
     if (AtSecondaryConfig.disablePqAuth) {
       logger.info('PQ auth disabled via config — withdrawing any published '
-          'PQ cert so peers fall back to legacy auth');
+          'PQ signing public key so peers fall back to legacy auth');
       try {
-        await keyValueStore.remove(pqXwingCertName(currentAtSign));
+        await keyValueStore
+            .remove(pqSigningPublicKeyRecordName(currentAtSign));
       } catch (removeError) {
-        logger.severe(
-            'Failed to withdraw PQ cert while PQ auth is disabled: $removeError');
+        logger.severe('Failed to withdraw PQ signing public key while PQ auth '
+            'is disabled: $removeError');
       }
     } else {
       try {
-        await PqKeyManager.instance.init(currentAtSign, keyValueStore);
-        await PqKeyManager.instance.publishCert(currentAtSign, keyValueStore);
+        await pqKeyManager.init(currentAtSign, keyValueStore);
+        await pqKeyManager.publishPublicKey(currentAtSign, keyValueStore);
       } catch (e) {
         logger.severe(
-            'PQ key initialisation failed — withdrawing any published PQ cert '
-            'so peers fall back to legacy auth: $e');
+            'PQ key initialisation failed — withdrawing any published PQ '
+            'signing public key so peers fall back to legacy auth: $e');
         try {
-          await keyValueStore.remove(pqXwingCertName(currentAtSign));
+          await keyValueStore
+              .remove(pqSigningPublicKeyRecordName(currentAtSign));
         } catch (removeError) {
-          logger.severe(
-              'Failed to withdraw PQ cert after init failure: $removeError');
+          logger.severe('Failed to withdraw PQ signing public key after init '
+              'failure: $removeError');
         }
       }
     }

@@ -80,7 +80,8 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   /// [preProcessAndNotify], expanded for [atSign] and lowercased, minus
   /// `publickey`: unlike the other entries in
   /// [AtSecondaryConfig.protectedKeys] (signing keys, the PKAM public key,
-  /// the PQ cert), the encryption public key is client-writable by design —
+  /// the PQ signing public key), the encryption public key is client-writable
+  /// by design —
   /// an at_client publishes/rotates its own `publickey` via update during
   /// onboarding/key-rotation — so it's only protected from delete, not
   /// update.
@@ -112,7 +113,7 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     // Reject writes to any protected key that this server exclusively
     // manages (see [_updateProtectedKeys]). Compared bare — before the
     // sharedWith/public: prefixing below — so this can't be bypassed via
-    // `update:cached:public:pq_xwing_cert@bob` and friends the way a
+    // `update:cached:public:pq_signing_publickey@bob` and friends the way a
     // prefixed comparison could.
     final bareUpdateKey = '${updateParams.atKey}${updateParams.sharedBy ?? ''}';
     if (_updateProtectedKeys().contains(bareUpdateKey.toLowerCase())) {

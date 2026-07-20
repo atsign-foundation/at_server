@@ -63,39 +63,11 @@ void main() async {
       expect(AtSecondaryConfig.disablePqAuth, isTrue);
     });
 
-    test('xwingCertExpiryInDays: yaml value used when no env var is set', () {
-      AtSecondaryConfig.configYamlMap = _yaml('''
-        pq:
-          xwingCertExpiryInDays: 45
-      ''');
-      expect(AtSecondaryConfig.xwingCertExpiryInDays, equals(45));
-    });
-
-    test('xwingCertRenewalHeadroomDays: yaml value used when no env var is set',
-        () {
-      AtSecondaryConfig.configYamlMap = _yaml('''
-        pq:
-          xwingCertRenewalHeadroomDays: 7
-      ''');
-      expect(AtSecondaryConfig.xwingCertRenewalHeadroomDays, equals(7));
-    });
-
     test(
-        'pq configs fall back to hardcoded defaults when the yaml map is empty',
+        'pq config falls back to hardcoded default when the yaml map is empty',
         () {
       AtSecondaryConfig.configYamlMap = _yaml('{}');
       expect(AtSecondaryConfig.disablePqAuth, isFalse);
-      expect(AtSecondaryConfig.xwingCertExpiryInDays, equals(90));
-      expect(AtSecondaryConfig.xwingCertRenewalHeadroomDays, equals(30));
-    });
-
-    test('xwingCertExpiryInDays: non-positive yaml value falls back to default',
-        () {
-      AtSecondaryConfig.configYamlMap = _yaml('''
-        pq:
-          xwingCertExpiryInDays: 0
-      ''');
-      expect(AtSecondaryConfig.xwingCertExpiryInDays, equals(90));
     });
 
     test(
@@ -138,11 +110,11 @@ void main() async {
       AtSecondaryConfig.configYamlMap = _yaml('pq: true');
       expect(
           () => AtSecondaryConfig.getNullableIntFromYaml(
-              ['pq', 'xwingCertExpiryInDays']),
+              ['pq', 'someIntSetting']),
           returnsNormally);
       expect(
           AtSecondaryConfig.getNullableIntFromYaml(
-              ['pq', 'xwingCertExpiryInDays']),
+              ['pq', 'someIntSetting']),
           isNull);
       expect(
           () => AtSecondaryConfig.getNullableBoolFromYaml(

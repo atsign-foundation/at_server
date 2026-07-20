@@ -43,6 +43,12 @@ class OutboundClient {
 
   at_lookup.SecondaryAddressFinder secondaryAddressFinder;
 
+  /// This server's PQ signing keypair. Used to sign the handshake challenge
+  /// with ML-DSA when initialised; otherwise the handshake falls back to the
+  /// legacy RSA signature. Injected (not a singleton) so the dependency is
+  /// explicit and unit-testable.
+  final PqKeyManager pqKeyManager;
+
   /// When unit testing, we don't need to do all the things necessary
   /// to support server-to-server handshake - for example, actually signing
   /// a pol challenge, nor creating a key which stores that signature.
@@ -61,6 +67,7 @@ class OutboundClient {
     this.secondaryAddressFinder,
     this.handshakeRequired,
     this.outboundConnectionFactory,
+    this.pqKeyManager,
   );
 
   /// Connects to an secondary and performs required handshake to be ready to run rest of the commands
@@ -312,45 +319,21 @@ class OutboundClient {
       var challenge = cookieParams[3];
 
       if (productionMode) {
-        if (challenge == 'pq') {
-          if (!PqKeyManager.instance.isInitialised) {
-            throw HandShakeException(
-                'Received a pq challenge but PqKeyManager is not '
-                'initialised on this server — cannot decapsulate');
-          }
-          // PQ path: the 5th colon-delimited token is the X-Wing ciphertext.
-          if (cookieParams.length < 5) {
-            throw HandShakeException(
-                'Malformed pq challenge: missing ciphertext field');
-          }
-          final ciphertextB64 = cookieParams[4];
-          final ciphertext = base64Url.decode(ciphertextB64);
-          final decapsResult =
-              await PqKeyManager.instance.decapsWithFallback(ciphertext);
-          // Derive the same key-confirmation tag the FROM side stored, bound to
-          // this handshake; persist the tag(s) ('pq:'), never the raw secret.
-          // Two candidate tags are stored (current + prev key) when a rotation
-          // grace-period key is retained, since X-Wing implicit rejection gives
-          // no signal for which key the peer actually encapsulated against.
-          final tag =
-              deriveConfirmationTag(decapsResult.current, sessionIdWithAtSign);
-          var tagsToStore = base64Url.encode(tag);
-          if (decapsResult.prev != null) {
-            final prevTag =
-                deriveConfirmationTag(decapsResult.prev!, sessionIdWithAtSign);
-            tagsToStore = '$tagsToStore,${base64Url.encode(prevTag)}';
-          }
-          await SecondaryUtil.saveCookie(
-              sessionIdWithAtSign,
-              'pq:$tagsToStore',
-              AtSecondaryServerImpl.getInstance().keyValueStore);
+        // Sign the peer's fresh challenge. When our PQ signing keypair is
+        // initialised we sign with ML-DSA — producing a 'pq:<algo>:<sig>'
+        // cookie the POL verifier fetches and checks against our published PQ
+        // signing public key. Otherwise we fall back to the legacy RSA
+        // signature, exactly as before. The stored cookie's shape is the only
+        // signal the verifier needs to pick the matching verification path.
+        final String cookieValue;
+        if (pqKeyManager.isInitialised) {
+          cookieValue = await pqKeyManager.signChallenge(challenge);
         } else {
-          // Legacy RSA path.
-          var signedChallenge = SecondaryUtil.signChallenge(
+          cookieValue = SecondaryUtil.signChallenge(
               challenge, AtSecondaryServerImpl.getInstance().signingKey);
-          await SecondaryUtil.saveCookie(sessionIdWithAtSign, signedChallenge,
-              AtSecondaryServerImpl.getInstance().keyValueStore);
         }
+        await SecondaryUtil.saveCookie(sessionIdWithAtSign, cookieValue,
+            AtSecondaryServerImpl.getInstance().keyValueStore);
       }
 
       //4. Create pol request

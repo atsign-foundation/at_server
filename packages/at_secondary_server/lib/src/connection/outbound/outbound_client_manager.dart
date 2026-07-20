@@ -2,6 +2,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_pool.dart';
+import 'package:at_secondary/src/crypto/pq_key_manager.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:meta/meta.dart';
@@ -16,7 +17,8 @@ class OutboundClientManager {
 
   OutboundClientManager(
     this.secondaryAddressFinder,
-    this.outboundConnectionFactory, {
+    this.outboundConnectionFactory,
+    this.pqKeyManager, {
     int poolSize = defaultPoolSize,
   }) {
     _pool = OutboundClientPool(size: poolSize);
@@ -28,6 +30,10 @@ class OutboundClientManager {
   @visibleForTesting
   SecondaryAddressFinder secondaryAddressFinder;
   final OutboundConnectionFactory outboundConnectionFactory;
+
+  /// Injected into every [OutboundClient] this manager creates, so the
+  /// handshake can sign challenges with ML-DSA.
+  final PqKeyManager pqKeyManager;
 
   set poolSize(int s) => _pool.size = s;
 
@@ -75,6 +81,7 @@ class OutboundClientManager {
       secondaryAddressFinder,
       handshakeRequired,
       outboundConnectionFactory,
+      pqKeyManager,
     );
     if (connect) {
       await newClient.connect();

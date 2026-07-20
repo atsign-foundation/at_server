@@ -117,9 +117,6 @@ class AtSecondaryConfig {
   static const bool _isForceRestart = false;
 
   //PQ
-  static const int _xwingCertExpiryInDays = 90;
-  static const int _xwingCertRenewalHeadroomDays = 30;
-
   //Sync Configurations
   static const int _syncBufferSize = 5242880;
   static const int _syncPageLimit = 100;
@@ -139,7 +136,7 @@ class AtSecondaryConfig {
     // lives under the `local:` namespace and is unreachable via
     // update/delete/lookup/scan. Bare form: the delete-verb handler compares
     // before prefixing with 'public:'.
-    'pq_xwing_cert<@atsign>',
+    'pq_signing_publickey<@atsign>',
   };
 
   //version
@@ -209,8 +206,9 @@ class AtSecondaryConfig {
     }
   }
 
-  /// When true, the FROM verb handler skips PQ cert lookup and always issues
-  /// a UUID/RSA challenge. Set via AT_DISABLE_PQ_AUTH=true, or
+  /// When true, this server never advertises or uses PQ signing: it withdraws
+  /// any published PQ signing public key at boot and always signs handshake
+  /// challenges with the legacy RSA key. Set via AT_DISABLE_PQ_AUTH=true, or
   /// `pq.disablePqAuth` in config.yaml.
   static bool get disablePqAuth {
     return _getBoolEnvVar('disablePqAuth') ??
@@ -758,27 +756,6 @@ class AtSecondaryConfig {
     } on Exception {
       return _protectedKeys;
     }
-  }
-
-  /// Validity period for this server's own X-Wing cert. Has no effect on
-  /// verifying peer certs, which always enforce their own embedded expiry.
-  static int get xwingCertExpiryInDays {
-    final result = _getIntEnvVar('xwingCertExpiryInDays') ??
-        getNullableIntFromYaml(['pq', 'xwingCertExpiryInDays']) ??
-        _xwingCertExpiryInDays;
-    if (result <= 0) {
-      stderr.writeln(
-          'Warning: xwingCertExpiryInDays=$result is invalid, using default $_xwingCertExpiryInDays');
-      return _xwingCertExpiryInDays;
-    }
-    return result;
-  }
-
-  /// How many days before X-Wing cert expiry [PqKeyManager] rotates it.
-  static int get xwingCertRenewalHeadroomDays {
-    return _getIntEnvVar('xwingCertRenewalHeadroomDays') ??
-        getNullableIntFromYaml(['pq', 'xwingCertRenewalHeadroomDays']) ??
-        _xwingCertRenewalHeadroomDays;
   }
 
   static int get enrollmentExpiryInHours {

@@ -1,6 +1,7 @@
 import 'dart:collection';
 import 'dart:convert';
 
+import 'package:at_chops/at_chops_ffi.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
@@ -8,6 +9,8 @@ import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dar
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
+import 'package:at_secondary/src/crypto/pq_constants.dart';
+import 'package:at_secondary/src/crypto/pq_signing_public_record.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -67,7 +70,7 @@ class PolVerbHandler extends AbstractVerbHandler {
 
     final String storedSecretId = 'public:$sessionID$fromAtSign';
 
-    // Fetch locally stored secret first to detect mode (pq: prefix = PQ mode).
+    // The UUID challenge we issued and stored at FROM time.
     String? message;
     try {
       message = (await keyStore.get(storedSecretId))?.data;
@@ -83,22 +86,20 @@ class PolVerbHandler extends AbstractVerbHandler {
       throw UnAuthenticatedException('Unable to verify pol: no stored secret');
     }
 
-    // 'pq:' = PQ mode: both sides hold an HKDF key-confirmation tag and compare
-    // them for equality. Only the legacy (RSA/UUID) path needs the remote
-    // signing public key.
-    final isPqMode = message.startsWith('pq:');
-
-    // Fetch the challenge (and, for RSA, the signing key) from the peer over an
-    // unauthenticated outbound connection.
+    // Fetch the peer's signed challenge (its cookie) and the public key needed
+    // to verify it, over an unauthenticated outbound connection.
     //
     // A pooled outbound client to the peer may be reused here. If its socket
-    // died without a detectable close (e.g. the peer restarted, or — in the PQ
-    // flow — FROM served a cached cert so no fresh connection was made this
-    // exchange), the reuse fails with a timeout rather than a connect error.
-    // So on failure we discard the client and retry once with a fresh
-    // connection before giving up.
+    // died without a detectable close (e.g. the peer restarted), the reuse
+    // fails with a timeout rather than a connect error. So on failure we
+    // discard the client and retry once with a fresh connection before giving
+    // up.
+    //
+    // The prover marks a PQ-signed cookie with a 'pq:<algo>:' prefix; from
+    // that we know whether to fetch its PQ signing public-key record or its
+    // legacy RSA signing_publickey.
     late OutboundClient oc;
-    String? fetchedChallenge, fromPublicKey;
+    String? fetchedChallenge, fromRsaPublicKey, fromPqRecord;
     for (int attempt = 0;; attempt++) {
       oc = await outboundClientManager.getClient(
           fromAtSign!, // Non-null: guaranteed by the from: check above.
@@ -110,16 +111,21 @@ class PolVerbHandler extends AbstractVerbHandler {
           doing = 'connecting to $fromAtSign';
           await oc.connect();
         }
-        // fetch the challenge from the other secondary
+        // fetch the signed challenge (peer's cookie) from the other secondary
         doing = 'fetching challenge from $fromAtSign';
         fetchedChallenge = (await oc.lookUp('$sessionID$fromAtSign',
                 handshake: false))
             ?.replaceFirst(_dataPrefix, '');
 
-        // Only the non-PQ (RSA/UUID) path needs the remote signing public key.
-        if (!isPqMode) {
+        if (fetchedChallenge != null &&
+            fetchedChallenge.startsWith(_pqPrefix)) {
+          doing = 'fetching PQ signing public key for $fromAtSign';
+          fromPqRecord = (await oc
+                  .plookUp('$pqSigningPublicKeyRecordNamePart$fromAtSign'))
+              ?.replaceFirst(_dataPrefix, '');
+        } else {
           doing = 'fetching signing_publickey$fromAtSign';
-          fromPublicKey = (await oc.plookUp('signing_publickey$fromAtSign'))
+          fromRsaPublicKey = (await oc.plookUp('signing_publickey$fromAtSign'))
               ?.replaceFirst(_dataPrefix, '');
         }
         break; // success
@@ -137,27 +143,20 @@ class PolVerbHandler extends AbstractVerbHandler {
     }
 
     if (fetchedChallenge == null) {
-      throw AtException('Unable to verify pol: no challenge returned from $fromAtSign');
+      throw AtException(
+          'Unable to verify pol: no challenge returned from $fromAtSign');
     }
 
-    if (isPqMode) {
-      // PQ path: compare key-confirmation tags. The peer may have stored more
-      // than one candidate tag ('pq:tagCurrent,tagPrev') when it retains a
-      // rotation grace-period key — X-Wing implicit rejection gives no other
-      // signal for which key it decapsulated against, so any match is valid.
-      final storedTag = message.replaceFirst(_pqPrefix, '');
-      final candidateTags =
-          fetchedChallenge.replaceFirst(_pqPrefix, '').split(',');
-      if (!candidateTags.contains(storedTag)) {
-        throw UnAuthenticatedException(
-            'Pol Authentication Failed: PQ sharedSecret mismatch');
-      }
+    if (fetchedChallenge.startsWith(_pqPrefix)) {
+      await _verifyPqSignature(
+          fromAtSign, message, fetchedChallenge, fromPqRecord);
     } else {
       // Legacy RSA path.
-      if (fromPublicKey == null) {
-        throw AtException('Unable to verify pol: signing_publickey not found for $fromAtSign');
+      if (fromRsaPublicKey == null) {
+        throw AtException(
+            'Unable to verify pol: signing_publickey not found for $fromAtSign');
       }
-      final bool isValidChallenge = RSAPublicKey.fromString(fromPublicKey)
+      final bool isValidChallenge = RSAPublicKey.fromString(fromRsaPublicKey)
           .verifySHA256Signature(
               utf8.encode(message), base64Decode(fetchedChallenge));
       if (!isValidChallenge) {
@@ -176,5 +175,45 @@ class PolVerbHandler extends AbstractVerbHandler {
     response.data = 'pol:$fromAtSign@';
     await accessLog.insert(fromAtSign.toString(), pol.name());
     logger.info('response : $fromAtSign@');
+  }
+
+  /// Verify a PQ-signed pol challenge.
+  ///
+  /// [signedCookie] is the peer's cookie of the form
+  /// `pq:<algo>:<base64 signature>`; [challenge] is the UUID we issued and
+  /// stored; [peerRecord] is the peer's published PQ signing public-key record
+  /// (JSON keyed by algorithm id). Throws [UnAuthenticatedException] /
+  /// [AtException] on any verification failure.
+  Future<void> _verifyPqSignature(String fromAtSign, String challenge,
+      String signedCookie, String? peerRecord) async {
+    // 'pq:<algo>:<base64 sig>' — base64 contains no ':', so a plain split
+    // yields exactly three fields; anything else is malformed.
+    final parts = signedCookie.split(':');
+    if (parts.length != 3 || parts[0] != 'pq') {
+      throw UnAuthenticatedException(
+          'Pol Authentication Failed: malformed PQ cookie');
+    }
+    final algo = parts[1];
+    if (!pqSupportedSigningAlgosByPreference.contains(algo)) {
+      throw UnAuthenticatedException(
+          'Pol Authentication Failed: unsupported PQ algorithm "$algo"');
+    }
+    if (peerRecord == null) {
+      throw AtException(
+          'Unable to verify pol: PQ signing public key not found for $fromAtSign');
+    }
+    final publicKey = pqSigningKeyForAlgo(peerRecord, algo);
+    if (publicKey == null) {
+      throw UnAuthenticatedException(
+          'Pol Authentication Failed: no "$algo" key in $fromAtSign record');
+    }
+    // Only ml-dsa-65 is in the supported set today; a new algorithm adds a
+    // branch here alongside its entry in pqSupportedSigningAlgosByPreference.
+    final isValid = await AtPqc.mlDsa65.verifyBytes(utf8.encode(challenge),
+        signature: base64Decode(parts[2]), publicKey: publicKey);
+    if (!isValid) {
+      throw UnAuthenticatedException(
+          'Pol Authentication Failed: PQ signature invalid');
+    }
   }
 }

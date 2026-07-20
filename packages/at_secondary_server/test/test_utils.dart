@@ -32,11 +32,9 @@ import 'dart:typed_data';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart' as at_lookup;
-import 'package:at_chops/at_chops_ffi.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/hive.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
-import 'package:at_secondary/src/crypto/x_wing_cert.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
@@ -190,34 +188,6 @@ class FakeSocket extends Fake implements Socket {
 
 class MockStreamSubscription<T> extends Mock implements StreamSubscription<T> {}
 
-// =====================================================================
-// PQ crypto test scaffolding
-// =====================================================================
-
-/// Builds a self-signed, JSON-encoded [XWingCert] for use as peer-cert
-/// boilerplate in PQ handshake tests — generates fresh ML-DSA-65 and X-Wing
-/// keypairs, signs, and returns the cert JSON ready to be served from a
-/// mocked `plookUp`.
-Future<String> buildSignedPeerCertJson({required DateTime validUntil}) async {
-  final mlDsaKp = await MlDsa65KeyPair.generate();
-  final xwingKp = await XWingKeyPair.generate();
-  final draft = XWingCert(
-    xwingPublicKey: xwingKp.publicKeyBytes,
-    validUntil: validUntil,
-    signature: Uint8List(0),
-    mlDsaPublicKey: mlDsaKp.publicKeyBytes,
-  );
-  final signature = await AtPqc.mlDsa65
-      .signBytes(draft.tbsBytes, secretKey: mlDsaKp.privateKeyBytes);
-  final xwingCert = XWingCert(
-    xwingPublicKey: xwingKp.publicKeyBytes,
-    validUntil: validUntil,
-    signature: signature,
-    mlDsaPublicKey: mlDsaKp.publicKeyBytes,
-  );
-  return xwingCert.toJson();
-}
-
 // String alice = '@alice🛠';
 Atsign alice = '@alice'.toAtsign();
 Atsign bob = '@bob'.toAtsign();
@@ -343,6 +313,7 @@ verbTestsSetUp() async {
     mockSecondaryAddressFinder,
     true,
     mockOutboundConnectionFactory,
+    atServer.pqKeyManager,
   )
     ..notifyTimeoutMillis = 100
     ..lookupTimeoutMillis = 100
@@ -355,6 +326,7 @@ verbTestsSetUp() async {
     mockSecondaryAddressFinder,
     false,
     mockOutboundConnectionFactory,
+    atServer.pqKeyManager,
   )
     ..notifyTimeoutMillis = 100
     ..lookupTimeoutMillis = 100
@@ -405,8 +377,8 @@ verbTestsSetUp() async {
   notificationManager = atServer.notificationManager = NotificationManager(
       alice,
       notifStore,
-      NotifyConnectionsPool(
-          mockSecondaryAddressFinder, mockOutboundConnectionFactory));
+      NotifyConnectionsPool(mockSecondaryAddressFinder,
+          mockOutboundConnectionFactory, atServer.pqKeyManager));
   registerFallbackValue(AtNotificationBuilder().build());
 
   cacheManager = atServer.cacheManager = AtCacheManager(

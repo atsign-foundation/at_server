@@ -202,17 +202,11 @@ sync:
 testing:
   testingMode: false
 
-# PQ (post-quantum) X-Wing cert configurations
+# PQ (post-quantum) inter-server authentication configuration
 pq:
-  # The number of days after issuance that a PQ X-Wing certificate expires and
-  # must be rotated. Default value is 90 days (3 months).
-  xwingCertExpiryInDays: 90
-  # How many days before expiry the server renews (rotates) its own X-Wing
-  # cert. Default value is 30 days. Has no effect on peer-cert verification,
-  # which stays strict.
-  xwingCertRenewalHeadroomDays: 30
-  # When true, the FROM verb handler skips PQ cert lookup and always issues a
-  # UUID/RSA challenge. Default value is false.
+  # When true, this server never advertises or uses PQ signing: it withdraws
+  # any published PQ signing public key at boot and always signs handshake
+  # challenges with the legacy RSA key. Default value is false.
   disablePqAuth: false
 
 # APKAM enrollment configurations

@@ -18,7 +18,6 @@ import 'test_utils.dart';
 void main() async {
   late AtKeyValueStore<String, AtData, AtMetaData?> mockKeyStore;
   late FakeSocket mockSocket;
-  late MockOutboundClientManager mockOcm;
 
   verbTestsSetUpLogging();
 
@@ -27,7 +26,6 @@ void main() async {
   setUp(() async {
     mockKeyStore = MockAtKeyValueStore();
     mockSocket = FakeSocket();
-    mockOcm = MockOutboundClientManager();
     keyValueStore = await setUpFunc(storageDir);
   });
   group('A group of from verb regex test', () {
@@ -77,21 +75,21 @@ void main() async {
   group('A group of from verb accept test', () {
     test('test from accept', () {
       var command = 'from:$alice';
-      var handler = FromVerbHandler(mockKeyStore, mockOcm,
-          accessLog: atAccessLog, disablePqAuth: true);
+      var handler = FromVerbHandler(mockKeyStore,
+          accessLog: atAccessLog);
       expect(handler.accept(command), true);
     });
     test('test from accept invalid keyword', () {
       var command = 'to:$alice';
-      var handler = FromVerbHandler(mockKeyStore, mockOcm,
-          accessLog: atAccessLog, disablePqAuth: true);
+      var handler = FromVerbHandler(mockKeyStore,
+          accessLog: atAccessLog);
       expect(handler.accept(command), false);
     });
     test('test from verb upper case', () {
       var command = 'FROM:$alice';
       command = SecondaryUtil.convertCommand(command);
-      var handler = FromVerbHandler(mockKeyStore, mockOcm,
-          accessLog: atAccessLog, disablePqAuth: true);
+      var handler = FromVerbHandler(mockKeyStore,
+          accessLog: atAccessLog);
       expect(handler.accept(command), true);
     });
   });
@@ -109,15 +107,15 @@ void main() async {
 
   group('A group of from verb handler tests', () {
     test('test from verb handler getVerb', () {
-      var verbHandler = FromVerbHandler(keyValueStore, mockOcm,
-          accessLog: atAccessLog, disablePqAuth: true);
+      var verbHandler = FromVerbHandler(keyValueStore,
+          accessLog: atAccessLog);
       var verb = verbHandler.getVerb();
       expect(verb is From, true);
     });
 
     test('test from verb handler from atsign contains @', () async {
-      var verbHandler = FromVerbHandler(keyValueStore, mockOcm,
-          accessLog: atAccessLog, disablePqAuth: true);
+      var verbHandler = FromVerbHandler(keyValueStore,
+          accessLog: atAccessLog);
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -132,8 +130,8 @@ void main() async {
     });
 
     test('test from verb handler from atsign does not contain @', () async {
-      var verbHandler = FromVerbHandler(keyValueStore, mockOcm,
-          accessLog: atAccessLog, disablePqAuth: true);
+      var verbHandler = FromVerbHandler(keyValueStore,
+          accessLog: atAccessLog);
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -151,7 +149,7 @@ void main() async {
     /*test(
         'test from verb handler - from atsign is different from current atsign',
         () async {
-      var verbHandler = FromVerbHandler(keyValueStore, mockOcm, accessLog: atAccessLog, disablePqAuth: true);
+      var verbHandler = FromVerbHandler(keyValueStore, accessLog: atAccessLog);
       AtSecondaryServerImpl().currentAtSign = '@tokyo';
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(null, inBoundSessionId);
@@ -168,8 +166,8 @@ void main() async {
 
   group('A group of from verb handler with configuration test', () {
     test('test from verb handler to allow fromAtSign ', () async {
-      var verbHandler = FromVerbHandler(keyValueStore, mockOcm,
-          accessLog: atAccessLog, disablePqAuth: true);
+      var verbHandler = FromVerbHandler(keyValueStore,
+          accessLog: atAccessLog);
       await AtConfig(
               keyValueStore, AtSecondaryServerImpl.getInstance().currentAtSign)
           .addToBlockList({'@bob'});
@@ -188,8 +186,8 @@ void main() async {
     });
 
     test('test from verb handler to block fromAtSign ', () async {
-      var verbHandler = FromVerbHandler(keyValueStore, mockOcm,
-          accessLog: atAccessLog, disablePqAuth: true);
+      var verbHandler = FromVerbHandler(keyValueStore,
+          accessLog: atAccessLog);
       await AtConfig(
               keyValueStore, AtSecondaryServerImpl.getInstance().currentAtSign)
           .addToBlockList({'@bob'});
@@ -207,7 +205,7 @@ void main() async {
 
     /*test('test from verb handler to block fromAtSign first and then allow',
         () async {
-      var verbHandler = FromVerbHandler(keyValueStore, mockOcm, accessLog: atAccessLog, disablePqAuth: true);
+      var verbHandler = FromVerbHandler(keyValueStore, accessLog: atAccessLog);
       AtSecondaryServerImpl().currentAtSign = alice;
       await AtConfig.getInstance().addToBlockList({'@bob'});
       var inBoundSessionId = '123';
@@ -231,7 +229,7 @@ void main() async {
 
     test('test from verb handler to allow fromAtSign first and then block',
         () async {
-      var verbHandler = FromVerbHandler(keyValueStore, mockOcm, accessLog: atAccessLog, disablePqAuth: true);
+      var verbHandler = FromVerbHandler(keyValueStore, accessLog: atAccessLog);
       AtSecondaryServerImpl().currentAtSign = alice;
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(null, inBoundSessionId);

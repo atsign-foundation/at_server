@@ -145,7 +145,7 @@ void main() {
         'verify deletion of PQ X-Wing cert throws exception even with a '
         'case-variant key', () {
       inboundConnection.metadata.isAuthenticated = true;
-      var command = 'delete:public:${pqXwingCertNamePart.toUpperCase()}$alice';
+      var command = 'delete:public:${pqSigningPublicKeyRecordNamePart.toUpperCase()}$alice';
       expect(
           () => handler.processInternal(command, inboundConnection),
           throwsA(
@@ -309,7 +309,7 @@ void main() {
       'signing_privatekey<@atsign>',
       'publickey<@atsign>',
       'at_pkam_publickey',
-      'pq_xwing_cert<@atsign>',
+      'pq_signing_publickey<@atsign>',
     };
 
     test('Verify with test_config_yaml1 that has 3 additional protected keys',
