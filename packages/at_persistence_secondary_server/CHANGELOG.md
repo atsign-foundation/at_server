@@ -1,7 +1,23 @@
 ## 5.2.1
 
+- fix: `PersistenceMigrator` now drops ORPHANED commit entries rather than
+  copying them into the target — a non-delete commit entry whose key is absent
+  from the keystore. Hive accumulates these (its commit log's box and in-memory
+  cache can disagree, and the TTL-expiry purge is cache-driven, so it can miss
+  the box row); SQLite purges by atKey directly against storage and cannot
+  produce one. Migrating them forward would make them permanent residents of a
+  backend that can never generate one, and `PersistenceSnapshot` filters them
+  from both sides so the post-migration verify cannot see them. Migration is
+  where both stores are already walked, so reconciling costs nothing.
+  DELETE tombstones always survive — they legitimately have no keystore row,
+  and dropping them would break delete propagation to clients. Keys that are
+  expired but still present are NOT orphans and migrate verbatim. The dropped
+  count is reported as `MigrationReport.orphanedCommitEntries` (a new required
+  field on that class) and logged per entry.
+- fix: corrected the 5.2.0 entry below, which described a commit-log orphan as
+  "sync-benign". It was not — an orphan failed the whole sync request with
+  `AT0015` until the fix in at_secondary_server 3.15.0.
 - fix: resolve sqlite migration deadlocks and OOMs by enforcing TRUNCATE mode and disabling true MVCC snapshots
-- fix: fix path overlap bug in `sweepStaleSource`
 
 ## 5.2.0
 
@@ -31,7 +47,11 @@
   After a TTL-expiry `skipCommit` sweep, Hive can leave a stale commit entry in
   its box (its cache-based `getLatestCommitEntry` purge misses the box entry —
   a cache/box inconsistency); a faithful SQLite mirror carries no such entry.
-  Such an entry is sync-benign, so it is excluded from both snapshots. DELETE
+  Such an entry is excluded from both snapshots. (Corrected in 5.2.1: this
+  entry originally described the orphan as "sync-benign". It was not — until
+  the fix in at_secondary_server 3.15.0 an orphan failed the entire sync
+  request with `AT0015`. It is benign to the SNAPSHOT COMPARISON, which is
+  what this change is about.) DELETE
   entries and live unexpired-key entries are always compared, so real mirror
   data loss still fails. Makes the dual-write Hive-vs-SQLite DB-set comparison
   deterministic under a real functional workload, so it can gate CI.
