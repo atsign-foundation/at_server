@@ -158,7 +158,17 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
         ..operation = entry.operation!;
 
       if (entry.operation != CommitOp.DELETE) {
-        final atData = await keyStore.get(entry.atKey!);
+        final AtData? atData;
+        try {
+          atData = await keyStore.get(entry.atKey!);
+        } on KeyNotFoundException {
+          // The commit entry outlived the key: an expired key whose commit
+          // entry was not purged, or a concurrent delete between filter-time
+          // and fetch-time. Skip the entry rather than failing the whole
+          // sync request for the client.
+          logger.info('${entry.atKey} not found in keystore; skipping entry');
+          continue;
+        }
         if (atData == null) {
           logger.info('atData is null for ${entry.atKey}');
           continue;

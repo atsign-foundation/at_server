@@ -1,5 +1,13 @@
 # 3.15.0
 
+- fix: a sync request no longer fails outright when a commit entry outlives its
+  key. `SyncProgressiveVerbHandler` fetched each non-delete entry's value from
+  the keystore with no guard, so one commit entry whose key is absent — an
+  expired key whose commit entry was not purged — failed the WHOLE sync request
+  with `AT0015 key not found`, leaving the client unable to sync at all. Such
+  entries are now skipped and logged. Note the pre-existing `atData == null`
+  guard below it is dead code against both real backends, which throw
+  `KeyNotFoundException` rather than returning null.
 - fix: `EnrollmentManager.movePerEnrollmentData` now scopes its key moves to the
   transitioning enrollment. It previously ignored its `enId` argument and moved
   EVERY enrollment's per-enrollment reserved-namespace (`<enId>.[ard].__e`) keys,

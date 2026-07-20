@@ -609,6 +609,37 @@ void main() async {
         expect(syncResponse[3]['commitId'], 3);
         expect(syncResponse[3]['operation'], '+');
       });
+      test(
+          'A test to verify a commit entry whose key is absent from the keystore is skipped, not fatal',
+          () async {
+        // Reproduces the AT0015 sync failure: a commit entry outlives its
+        // key (e.g. an expired key whose commit entry was not purged).
+        // keyStore.get throws KeyNotFoundException rather than returning
+        // null, so an unguarded fetch failed the entire sync request.
+        AtCommitLog atCommitLog = (keyValueStore.commitLog) as HiveAtCommitLog;
+        await atCommitLog.commit(
+            'cached:$alice:orphaned.wavi$alice', CommitOp.UPDATE);
+
+        var syncProgressiveVerbHandler =
+            SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
+        var response = Response();
+        var atConnection = InboundConnectionImpl(
+            mockSocket, '_6665436c-29ff-481b-8dc6-129e89199718');
+        atConnection.metaData.isAuthenticated = true;
+        var syncVerbParams = HashMap<String, String>();
+        syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+
+        await syncProgressiveVerbHandler.processVerb(
+            response, syncVerbParams, atConnection);
+
+        List syncResponse = jsonDecode(response.data!);
+        // The four keys from setUp sync; the orphaned entry is skipped.
+        expect(syncResponse.length, 4);
+        expect(
+            syncResponse
+                .any((e) => e['atKey'] == 'cached:$alice:orphaned.wavi$alice'),
+            false);
+      });
       tearDown(() async => await verbTestsTearDown());
     });
     group('A group of test to validate the commit entry data', () {
