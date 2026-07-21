@@ -115,6 +115,11 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     // sharedWith/public: prefixing below — so this can't be bypassed via
     // `update:cached:public:pq_signing_publickey@bob` and friends the way a
     // prefixed comparison could.
+    //
+    // Comparing bare is deliberately over-broad: it also rejects the self key
+    // `@alice:pq_signing_publickey@alice`, a different record that nothing
+    // writes. Refusing a key no client has a reason to write is the safe side
+    // of that trade.
     final bareUpdateKey = '${updateParams.atKey}${updateParams.sharedBy ?? ''}';
     if (_updateProtectedKeys().contains(bareUpdateKey.toLowerCase())) {
       throw UnAuthorizedException(

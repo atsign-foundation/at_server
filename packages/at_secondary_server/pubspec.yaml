@@ -6,7 +6,9 @@ homepage: https://www.example.com
 publish_to: none
 
 environment:
-  sdk: ">=3.5.0 <4.0.0"
+  # 3.6.0 floor is set by at_chops ^3.4.1, which declares sdk ^3.6.0 for its
+  # FFI/AtPqc support. A lower floor here would not resolve on a 3.5.x SDK.
+  sdk: ">=3.6.0 <4.0.0"
 
 dependencies:
   args: ^2.7.0
@@ -21,7 +23,7 @@ dependencies:
   encrypt: ^5.0.3
   at_commons: ^5.12.0
   at_utils: ^3.4.0
-  at_chops: ^3.4.0
+  at_chops: ^3.4.1
   at_lookup: ^3.5.0
   at_server_spec: ^5.1.0
   at_persistence_secondary_server: ^5.2.0
@@ -43,14 +45,5 @@ dev_dependencies:
   mocktail: ^1.0.5
 
 dependency_overrides:
-  at_chops:
-    git:
-      url: https://github.com/atsign-foundation/at_client_sdk.git
-      # PR #2030 (at_chops FFI / AtPqc) has merged to trunk, so st/at_chops_ffi
-      # is gone. Pinned to a commit, not the branch name — floating on trunk
-      # makes builds non-reproducible as it moves underneath us.
-      ref: 3a9302edda6df9a8f25c62edce8442ef34e590e7
-      path: packages/at_chops
-  pointycastle: ^4.0.0
   at_persistence_secondary_server:
     path: ../at_persistence_secondary_server

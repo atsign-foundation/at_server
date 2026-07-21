@@ -1759,10 +1759,10 @@ void main() {
     });
   });
 
-  group('PQ X-Wing cert protection', () {
+  group('PQ signing public key protection', () {
     test(
-        'verify update of PQ X-Wing cert throws exception even with a '
-        'case-variant key', () async {
+        'verify update of PQ signing public key throws exception even with '
+        'a case-variant key', () async {
       UpdateVerbHandler updateHandler = UpdateVerbHandler(
         keyValueStore,
         statsNotificationService,

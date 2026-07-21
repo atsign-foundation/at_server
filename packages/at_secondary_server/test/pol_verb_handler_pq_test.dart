@@ -1,5 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:at_chops/at_chops_ffi.dart';
 import 'package:at_commons/at_commons.dart';
@@ -53,6 +54,17 @@ Future<void> _setUp() async {
 
 Future<void> _tearDown() async => await verbTestsTearDown();
 
+// ── helper: the payload the verifier (alice) reconstructs and expects the
+// prover (bob) to have signed for a given session + challenge ─────────────
+
+String _expectedPayload(String sessionId, String challenge) =>
+    SecondaryUtil.buildPolSignedPayload(
+      verifierAtSign: alice.toString(),
+      proverAtSign: bob.toString(),
+      sessionId: '$sessionId$bob',
+      challenge: challenge,
+    );
+
 // ── helper: build an InboundConnection with from-verb metadata ────────────
 
 InboundConnectionImpl _makeInbound(
@@ -82,8 +94,7 @@ void main() {
   // ── PQ mode ──────────────────────────────────────────────────────────────
 
   group('pol_verb_handler PQ mode', () {
-    test(
-        'valid ML-DSA signature → isPolAuthenticated = true, no RSA lookup',
+    test('valid ML-DSA signature → isPolAuthenticated = true, no RSA lookup',
         () async {
       final ks = keyValueStore;
       const sessionId = '_pq-sess-001';
@@ -96,7 +107,8 @@ void main() {
           ..data = challenge
           ..metaData = (AtMetaData()..ttl = 60 * 1000),
       );
-      final peer = await _PeerSigner.sign(challenge);
+      final peer =
+          await _PeerSigner.sign(_expectedPayload(sessionId, challenge));
 
       final mockOcm = MockOutboundClientManager();
       final mockOc = MockOutboundClient();
@@ -132,8 +144,10 @@ void main() {
           ..data = 'the-real-challenge'
           ..metaData = (AtMetaData()..ttl = 60 * 1000),
       );
-      // Peer signed a *different* challenge than the one Alice stored.
-      final peer = await _PeerSigner.sign('a-forged-challenge');
+      // Peer signed a payload for a *different* challenge than the one Alice
+      // stored.
+      final peer = await _PeerSigner.sign(
+          _expectedPayload(sessionId, 'a-forged-challenge'));
 
       final mockOcm = MockOutboundClientManager();
       final mockOc = MockOutboundClient();
@@ -199,7 +213,8 @@ void main() {
           ..data = challenge
           ..metaData = (AtMetaData()..ttl = 60 * 1000),
       );
-      final peer = await _PeerSigner.sign(challenge);
+      final peer =
+          await _PeerSigner.sign(_expectedPayload(sessionId, challenge));
 
       final mockOcm = MockOutboundClientManager();
       final mockOc = MockOutboundClient();
@@ -220,6 +235,77 @@ void main() {
         handler.processVerb(Response(), HashMap<String, String?>(), inbound),
         throwsA(isA<AtException>()),
       );
+    });
+
+    // Peer-controlled bytes that at_chops reports as StateError /
+    // FormatException rather than an AtException. Without the guards in
+    // _verifyPqSignature these escape as a shout-logged internal server
+    // error; a peer sending garbage is an auth failure, not a server fault.
+    group('malformed peer material fails as an auth error, not a 500', () {
+      /// Drives a full pol with [cookie] as the peer's stored cookie and
+      /// [record] as its published signing-key record.
+      Future<void> expectAuthFailure(
+          {required String sessionId,
+          required String cookie,
+          required String record}) async {
+        final ks = keyValueStore;
+        await ks.put(
+          'public:$sessionId$bob',
+          AtData()
+            ..data = 'a-challenge'
+            ..metaData = (AtMetaData()..ttl = 60 * 1000),
+        );
+
+        final mockOcm = MockOutboundClientManager();
+        final mockOc = MockOutboundClient();
+        when(() => mockOcm.getClient(bob, any(), handshakeRequired: false))
+            .thenAnswer((_) async => mockOc);
+        when(() => mockOc.isConnectionCreated).thenReturn(true);
+        when(() => mockOc.lookUp('$sessionId$bob', handshake: false))
+            .thenAnswer((_) async => 'data:$cookie');
+        when(() => mockOc.plookUp('$pqSigningPublicKeyRecordNamePart$bob'))
+            .thenAnswer((_) async => 'data:$record');
+
+        final handler = PolVerbHandler(ks, mockOcm, MockAtCacheManager(),
+            accessLog: _accessLog);
+        await expectLater(
+          handler.processVerb(Response(), HashMap<String, String?>(),
+              _makeInbound(mockSocket, sessionId, bob)),
+          throwsA(isA<UnAuthenticatedException>()),
+        );
+      }
+
+      test('public key of the wrong length', () async {
+        await expectAuthFailure(
+          sessionId: '_pq-bad-key',
+          cookie: 'pq:$pqAlgoMlDsa65:${base64.encode(List<int>.filled(
+            mlDsa65SignatureLength,
+            0,
+          ))}',
+          record: buildPqSigningPublicRecord(
+              {pqAlgoMlDsa65: Uint8List.fromList(List<int>.filled(100, 1))}),
+        );
+      });
+
+      test('signature that is not valid base64', () async {
+        final kp = await MlDsa65KeyPair.generate();
+        await expectAuthFailure(
+          sessionId: '_pq-bad-b64',
+          cookie: 'pq:$pqAlgoMlDsa65:not!valid!base64',
+          record:
+              buildPqSigningPublicRecord({pqAlgoMlDsa65: kp.publicKeyBytes}),
+        );
+      });
+
+      test('signature of the wrong length', () async {
+        final kp = await MlDsa65KeyPair.generate();
+        await expectAuthFailure(
+          sessionId: '_pq-bad-sig-len',
+          cookie: 'pq:$pqAlgoMlDsa65:${base64.encode(List<int>.filled(10, 0))}',
+          record:
+              buildPqSigningPublicRecord({pqAlgoMlDsa65: kp.publicKeyBytes}),
+        );
+      });
     });
 
     test('stored secret missing → UnAuthenticatedException', () async {

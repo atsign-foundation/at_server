@@ -1,5 +1,6 @@
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:at_chops/at_chops_ffi.dart';
 import 'package:at_commons/at_commons.dart';
@@ -11,6 +12,8 @@ import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/crypto/pq_constants.dart';
 import 'package:at_secondary/src/crypto/pq_signing_public_record.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -113,16 +116,16 @@ class PolVerbHandler extends AbstractVerbHandler {
         }
         // fetch the signed challenge (peer's cookie) from the other secondary
         doing = 'fetching challenge from $fromAtSign';
-        fetchedChallenge = (await oc.lookUp('$sessionID$fromAtSign',
-                handshake: false))
-            ?.replaceFirst(_dataPrefix, '');
+        fetchedChallenge =
+            (await oc.lookUp('$sessionID$fromAtSign', handshake: false))
+                ?.replaceFirst(_dataPrefix, '');
 
         if (fetchedChallenge != null &&
             fetchedChallenge.startsWith(_pqPrefix)) {
           doing = 'fetching PQ signing public key for $fromAtSign';
-          fromPqRecord = (await oc
-                  .plookUp('$pqSigningPublicKeyRecordNamePart$fromAtSign'))
-              ?.replaceFirst(_dataPrefix, '');
+          fromPqRecord =
+              (await oc.plookUp('$pqSigningPublicKeyRecordNamePart$fromAtSign'))
+                  ?.replaceFirst(_dataPrefix, '');
         } else {
           doing = 'fetching signing_publickey$fromAtSign';
           fromRsaPublicKey = (await oc.plookUp('signing_publickey$fromAtSign'))
@@ -147,15 +150,31 @@ class PolVerbHandler extends AbstractVerbHandler {
           'Unable to verify pol: no challenge returned from $fromAtSign');
     }
 
+    // Reconstructed entirely from this server's own local state (its own
+    // atSign, its own sessionID, the challenge it itself generated at FROM
+    // time) — never from anything the peer sent on this connection. That's
+    // what makes the binding meaningful: a signature minted for a different
+    // verifier/session won't reconstruct to the same bytes here.
+    final expectedPayload = SecondaryUtil.buildPolSignedPayload(
+        verifierAtSign:
+            AtSecondaryServerImpl.getInstance().currentAtSign.toString(),
+        proverAtSign: fromAtSign.toString(),
+        sessionId: '$sessionID$fromAtSign',
+        challenge: message);
+
     if (fetchedChallenge.startsWith(_pqPrefix)) {
       await _verifyPqSignature(
-          fromAtSign, message, fetchedChallenge, fromPqRecord);
+          fromAtSign, expectedPayload, fetchedChallenge, fromPqRecord);
     } else {
       // Legacy RSA path.
       if (fromRsaPublicKey == null) {
         throw AtException(
             'Unable to verify pol: signing_publickey not found for $fromAtSign');
       }
+      // Deliberately the bare challenge, NOT expectedPayload: every deployed
+      // at_server signs the raw UUID, so binding this path would reject every
+      // peer that has not yet upgraded. The binding is free on the PQ path
+      // only because that wire format is new.
       final bool isValidChallenge = RSAPublicKey.fromString(fromRsaPublicKey)
           .verifySHA256Signature(
               utf8.encode(message), base64Decode(fetchedChallenge));
@@ -180,11 +199,15 @@ class PolVerbHandler extends AbstractVerbHandler {
   /// Verify a PQ-signed pol challenge.
   ///
   /// [signedCookie] is the peer's cookie of the form
-  /// `pq:<algo>:<base64 signature>`; [challenge] is the UUID we issued and
-  /// stored; [peerRecord] is the peer's published PQ signing public-key record
-  /// (JSON keyed by algorithm id). Throws [UnAuthenticatedException] /
+  /// `pq:<algo>:<base64 signature>`; [expectedPayload] is the structured
+  /// [SecondaryUtil.buildPolSignedPayload] string this server reconstructed
+  /// from its own local state (own atSign, own sessionID, own stored
+  /// challenge) — not anything read off the wire, so a signature minted for a
+  /// different verifier/session won't reconstruct to the same bytes here;
+  /// [peerRecord] is the peer's published PQ signing public-key record (JSON
+  /// keyed by algorithm id). Throws [UnAuthenticatedException] /
   /// [AtException] on any verification failure.
-  Future<void> _verifyPqSignature(String fromAtSign, String challenge,
+  Future<void> _verifyPqSignature(String fromAtSign, String expectedPayload,
       String signedCookie, String? peerRecord) async {
     // 'pq:<algo>:<base64 sig>' — base64 contains no ':', so a plain split
     // yields exactly three fields; anything else is malformed.
@@ -207,10 +230,43 @@ class PolVerbHandler extends AbstractVerbHandler {
       throw UnAuthenticatedException(
           'Pol Authentication Failed: no "$algo" key in $fromAtSign record');
     }
+
+    // Everything below is peer-controlled bytes. at_chops reports malformed
+    // key material as a StateError and malformed base64 as a FormatException;
+    // neither is an AtException, so both would escape to
+    // GlobalExceptionHandler's catch-all and surface as a shout-logged
+    // internal server error. A peer sending garbage is an authentication
+    // failure, not a server fault — so size-check first and funnel anything
+    // that still escapes into UnAuthenticatedException.
+    final Uint8List signature;
+    try {
+      signature = base64Decode(parts[2]);
+    } on FormatException {
+      throw UnAuthenticatedException(
+          'Pol Authentication Failed: PQ signature is not valid base64');
+    }
+    if (publicKey.length != mlDsa65PublicKeyLength) {
+      throw UnAuthenticatedException(
+          'Pol Authentication Failed: "$algo" key in $fromAtSign record is '
+          '${publicKey.length} bytes, expected $mlDsa65PublicKeyLength');
+    }
+    if (signature.length != mlDsa65SignatureLength) {
+      throw UnAuthenticatedException(
+          'Pol Authentication Failed: signature is ${signature.length} bytes, '
+          'expected $mlDsa65SignatureLength');
+    }
+
     // Only ml-dsa-65 is in the supported set today; a new algorithm adds a
     // branch here alongside its entry in pqSupportedSigningAlgosByPreference.
-    final isValid = await AtPqc.mlDsa65.verifyBytes(utf8.encode(challenge),
-        signature: base64Decode(parts[2]), publicKey: publicKey);
+    final bool isValid;
+    try {
+      isValid = await AtPqc.mlDsa65.verifyBytes(utf8.encode(expectedPayload),
+          signature: signature, publicKey: publicKey);
+    } catch (e) {
+      logger.warning('PQ signature verification for $fromAtSign errored: $e');
+      throw UnAuthenticatedException(
+          'Pol Authentication Failed: PQ signature could not be verified');
+    }
     if (!isValid) {
       throw UnAuthenticatedException(
           'Pol Authentication Failed: PQ signature invalid');

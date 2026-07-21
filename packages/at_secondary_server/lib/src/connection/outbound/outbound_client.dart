@@ -10,6 +10,8 @@ import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_message_listener.dart';
+import 'package:at_secondary/src/crypto/pq_constants.dart';
+import 'package:at_secondary/src/crypto/pq_signing_public_record.dart';
 import 'package:at_secondary/src/crypto/pq_key_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/at_security_context_impl.dart';
@@ -319,19 +321,17 @@ class OutboundClient {
       var challenge = cookieParams[3];
 
       if (productionMode) {
-        // Sign the peer's fresh challenge. When our PQ signing keypair is
-        // initialised we sign with ML-DSA — producing a 'pq:<algo>:<sig>'
-        // cookie the POL verifier fetches and checks against our published PQ
-        // signing public key. Otherwise we fall back to the legacy RSA
-        // signature, exactly as before. The stored cookie's shape is the only
-        // signal the verifier needs to pick the matching verification path.
-        final String cookieValue;
-        if (pqKeyManager.isInitialised) {
-          cookieValue = await pqKeyManager.signChallenge(challenge);
-        } else {
-          cookieValue = SecondaryUtil.signChallenge(
-              challenge, AtSecondaryServerImpl.getInstance().signingKey);
-        }
+        // verifierAtSign is *this client's own* dial target, never anything
+        // parsed out of the peer's response — that's what stops a signature
+        // minted here from being replayed against a different verifier.
+        final payload = SecondaryUtil.buildPolSignedPayload(
+            verifierAtSign: toAtSign,
+            proverAtSign:
+                AtSecondaryServerImpl.getInstance().currentAtSign.toString(),
+            sessionId: sessionIdWithAtSign,
+            challenge: challenge);
+        final cookieValue = await selectAndSignChallenge(
+            legacyChallenge: challenge, pqPayload: payload);
         await SecondaryUtil.saveCookie(sessionIdWithAtSign, cookieValue,
             AtSecondaryServerImpl.getInstance().keyValueStore);
       }
@@ -357,6 +357,72 @@ class OutboundClient {
     } catch (e) {
       await outboundConnection!.close();
       throw HandShakeException(e.toString());
+    }
+  }
+
+  /// Picks the handshake cookie format and signs the matching bytes.
+  ///
+  /// The two paths deliberately sign *different* things, so both must be
+  /// passed in:
+  /// - PQ signs [pqPayload], the structured
+  ///   [SecondaryUtil.buildPolSignedPayload] string, binding the signature to
+  ///   this verifier/prover/session. Free to do because the `pq:` wire format
+  ///   is new.
+  /// - Legacy RSA signs the bare [legacyChallenge], byte for byte as every
+  ///   deployed at_server already does. Binding it would break every peer
+  ///   that has not yet upgraded.
+  ///
+  /// Signing with ML-DSA requires both that our own PQ keypair is
+  /// initialised *and* that [toAtSign] has published a PQ signing public-key
+  /// record — the signal that its POL verifier understands a `pq:`-prefixed
+  /// cookie at all. A peer that never published one is either running
+  /// pre-PQ code or has `disablePqAuth` set; either way its verifier does a
+  /// bare legacy `base64Decode` and cannot parse our cookie, so we sign RSA
+  /// instead. This is what makes the handshake backward compatible during a
+  /// rolling upgrade, where the two ends of a pair may be on different
+  /// versions.
+  @visibleForTesting
+  Future<String> selectAndSignChallenge({
+    required String legacyChallenge,
+    required String pqPayload,
+  }) async {
+    if (pqKeyManager.isInitialised && await checkPeerPqSupport()) {
+      return pqKeyManager.buildChallengeResponse(pqPayload);
+    }
+    return SecondaryUtil.signChallenge(
+        legacyChallenge, AtSecondaryServerImpl.getInstance().signingKey);
+  }
+
+  /// Whether [toAtSign] has published a PQ signing public-key record carrying
+  /// a key we can actually sign against.
+  ///
+  /// Unauthenticated `plookUp`, mirroring the same fetch `PolVerbHandler`
+  /// does on the verifier side. Note this runs on the *same* outbound
+  /// connection, between reading the FROM response and writing the POL
+  /// request — safe because the response queue is FIFO and this is a strictly
+  /// sequential request/response, and because `isHandShakeDone` is still
+  /// false so `lookUp`'s handshake guard passes.
+  ///
+  /// The record must parse and contain [pqAlgoMlDsa65]: a peer advertising a
+  /// truncated or future-format record cannot verify a cookie we sign today,
+  /// and a hard auth failure is worse than falling back. Any failure —
+  /// including the key simply not existing — is treated as "no", never
+  /// surfaced: a signer that can't confirm PQ support must fall back to
+  /// legacy RSA rather than risk sending a cookie the peer can't parse.
+  @visibleForTesting
+  Future<bool> checkPeerPqSupport() async {
+    try {
+      final record =
+          (await plookUp('$pqSigningPublicKeyRecordNamePart$toAtSign'))
+              ?.replaceFirst(RegExp('^data:'), '');
+      if (record == null) return false;
+      return pqSigningKeyForAlgo(record, pqAlgoMlDsa65) != null;
+    } on KeyNotFoundException {
+      return false;
+    } catch (e) {
+      logger.info('Could not determine PQ signing support for $toAtSign '
+          '($e); falling back to legacy RSA signing');
+      return false;
     }
   }
 

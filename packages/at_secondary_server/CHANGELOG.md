@@ -1,5 +1,41 @@
 # 3.15.0
 
+- feat: post-quantum inter-server authentication. FROM/POL now perform an
+  ML-DSA-65 signature challenge-response for peers that have published a PQ
+  signing public key — the same fresh per-session UUID challenge as before,
+  but signed with ML-DSA-65 instead of RSA. A prover signs with ML-DSA-65 only
+  when its own PQ keypair is initialised and the peer has published a PQ
+  signing public-key record, falling back to legacy RSA otherwise, so a
+  mixed-version fleet keeps working during a rolling upgrade. Keys and the
+  published record live under a new `local:pq_*` / `public:pq_signing_publickey`
+  namespace, which `update`/`delete` now refuse to let clients touch.
+  `pq.disablePqAuth` in `config.yaml` force-disables the PQ path.
+- fix: ML-DSA-65 FROM/POL handshake signatures are bound to the specific
+  verifier, prover and session instead of signing the bare challenge UUID. The
+  un-bound signature let a malicious peer harvest a session/challenge pair from
+  a real target it had authenticated to, induce a different atSign's server to
+  dial out to it (any ordinary cached lookup triggers this), and relay the
+  harvested pair back as if it were a fresh challenge — that server's own
+  signature over the pair would then verify against the real target, completing
+  pol as that atSign without ever touching its private key. The signed payload
+  now includes the verifier atSign sourced from the signer's own local
+  connection state, never from anything read off the wire, so a signature
+  minted for one verifier cannot be replayed against another. The legacy RSA
+  path deliberately still signs the bare UUID — binding it would reject every
+  peer that has not yet upgraded — so it remains exposed to this relay until
+  the fleet has moved to PQ.
+- fix: malformed or oversized peer key material on the PQ pol path now fails as
+  an authentication error instead of an internal server error. Wrong-length
+  ML-DSA keys and signatures are rejected up front, and decode/verify errors
+  from at_chops are funnelled into `UnAuthenticatedException`.
+- **Behaviour change** — invalid values in bool and int environment variables
+  are now logged and ignored (falling through to `config.yaml` and then the
+  hardcoded default) instead of being coerced. Previously any bool env var that
+  was not literally `true` evaluated to `false`, and a non-numeric int env var
+  threw at startup. This affects every env-var-driven config in the server, not
+  just the PQ ones: e.g. `testingMode=1` previously meant `false` and now
+  inherits whatever `config.yaml` specifies. Check deployments for env vars
+  that relied on the old coercion.
 - fix: a sync request no longer fails outright when a commit entry outlives its
   key. `SyncProgressiveVerbHandler` fetched each non-delete entry's value from
   the keystore with no guard, so one commit entry whose key is absent — an
@@ -47,20 +83,6 @@
 
 # 3.14.0
 
-- feat: post-quantum inter-server authentication. FROM/POL now perform
-  an X-Wing (ML-KEM-768 + X25519) key-encapsulation handshake with
-  ML-DSA-65-signed certs for peers that have published a PQ cert,
-  replacing the plaintext UUID/RSA challenge; peers without a
-  published cert still get the legacy challenge. Certs and keys live
-  under a new `local:pq_*` / `public:pq_xwing_cert` record namespace,
-  which `update` now refuses to let clients overwrite. `pq.disablePqAuth`
-  in `config.yaml` force-disables the PQ path.
-- feat: the PQ X-Wing cert validity period is now configurable via
-  `pq.xwingCertExpiryInDays` in `config.yaml` (env var
-  `xwingCertExpiryInDays`), defaulting to 90 days (down from a
-  previously hardcoded 365). The server self-renews its cert
-  `pq.certRenewalHeadroomDays` (default 30) before that expiry;
-  peer-cert verification stays strict regardless.
 - feat: `appMetadata` support on `update`, `update:meta` and `notify`
   (at_commons 5.11.0). The base64(JSON)
   `:appMetadata:` fragment is parsed into

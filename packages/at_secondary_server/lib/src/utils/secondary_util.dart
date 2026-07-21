@@ -102,6 +102,29 @@ class SecondaryUtil {
     }
   }
 
+  /// Domain-separation tag for the POL handshake signature payload. Bumping
+  /// this is a protocol version change — old and new tags never verify
+  /// against each other.
+  static const String polSignaturePayloadTag = 'atproto-pol-v1';
+
+  /// Builds the exact string signed (and later reconstructed and verified)
+  /// for a POL challenge-response, binding the signature to the specific
+  /// verifier, prover and session rather than just the bare challenge.
+  ///
+  /// [verifierAtSign] MUST come from the signer's own local connection state
+  /// — the atSign it actually dialed / actually accepted a connection from —
+  /// never from anything read off the wire. A signer that reads
+  /// [verifierAtSign] out of peer-supplied data (e.g. a `from` response) can
+  /// be tricked into signing a payload for a peer it never talked to,
+  /// re-enabling the reflection this binding exists to prevent.
+  static String buildPolSignedPayload({
+    required String verifierAtSign,
+    required String proverAtSign,
+    required String sessionId,
+    required String challenge,
+  }) =>
+      '$polSignaturePayloadTag|$verifierAtSign|$proverAtSign|$sessionId|$challenge';
+
   static String signChallenge(String challenge, String privateKey) {
     var key = RSAPrivateKey.fromString(privateKey);
     challenge = challenge.trim();

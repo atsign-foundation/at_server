@@ -73,20 +73,26 @@ class FromVerbHandler extends AbstractVerbHandler {
     }
 
     logger.finer('fromAtSign : $fromAtSign currentAtSign : $currentAtSign');
-    if (fromAtSign == currentAtSign) {
+    final bool isSelf = fromAtSign == currentAtSign;
+    if (isSelf) {
       atConnectionMetadata.self = true;
-    } else {
-      atConnectionMetadata.from = true;
-      atConnectionMetadata.fromAtSign = fromAtSign;
     }
 
-    if (!atConnectionMetadata.self &&
-        AtSecondaryConfig.clientCertificateRequired) {
+    if (!isSelf && AtSecondaryConfig.clientCertificateRequired) {
       var result = await _verifyFromAtSign(fromAtSign, atConnection);
       logger.finer('_verifyFromAtSign result : $result');
       if (!result) {
         throw UnAuthenticatedException('Certificate Verification Failed');
       }
+    }
+
+    // Set only after the certificate check has passed. UnAuthenticatedException
+    // does not close the connection (see GlobalExceptionHandler), so marking
+    // the connection as `from` before verifying would leave a cert-failed
+    // connection sitting open in a half-authenticated state.
+    if (!isSelf) {
+      atConnectionMetadata.from = true;
+      atConnectionMetadata.fromAtSign = fromAtSign;
     }
 
     //store key with private/public prefix, sessionId and fromAtSign

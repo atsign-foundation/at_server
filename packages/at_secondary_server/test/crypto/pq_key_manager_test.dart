@@ -103,14 +103,14 @@ void main() {
       });
     });
 
-    group('signChallenge()', () {
+    group('buildChallengeResponse()', () {
       test('produces a pq:<algo>:<sig> cookie that verifies against the '
           'published key', () async {
         final mgr = PqKeyManager();
         await mgr.init(atSign, keyStore);
 
         const challenge = 'a-fresh-uuid-challenge';
-        final cookie = await mgr.signChallenge(challenge);
+        final cookie = await mgr.buildChallengeResponse(challenge);
 
         final parts = cookie.split(':');
         expect(parts[0], equals('pq'));
@@ -129,7 +129,7 @@ void main() {
         final mgr = PqKeyManager();
         await mgr.init(atSign, keyStore);
 
-        final cookie = await mgr.signChallenge('challenge-one');
+        final cookie = await mgr.buildChallengeResponse('challenge-one');
         final sig = base64.decode(cookie.split(':')[2]);
 
         final isValid = await AtPqc.mlDsa65.verifyBytes(
@@ -141,7 +141,7 @@ void main() {
 
       test('throws if called before init()', () async {
         final mgr = PqKeyManager();
-        expect(() => mgr.signChallenge('x'), throwsA(isA<StateError>()));
+        expect(() => mgr.buildChallengeResponse('x'), throwsA(isA<StateError>()));
       });
     });
   });

@@ -52,8 +52,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late OutboundClientManager outboundClientManager;
   late OutboundConnectionFactory outboundConnectionFactory;
 
-  /// This server's PQ signing keypair, constructed eagerly and injected into
-  /// the outbound client factories (no singleton). Initialised and its public
+  /// This manages the PQ signing keypair. Initialised and its public
   /// key published during [start]; used by outbound clients to sign FROM/POL
   /// handshake challenges with ML-DSA.
   final PqKeyManager pqKeyManager = PqKeyManager();
@@ -913,10 +912,12 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     // Initialise this server's ML-DSA signing keypair and publish its public
     // key so peers can verify our handshake signatures. On the kill-switch or
-    // an init failure we withdraw any previously published key. This is only
-    // tidiness, not load-bearing: with no PQ key initialised, outbound clients
-    // sign with the legacy RSA key and mark the cookie accordingly, so a peer
-    // falls back regardless of whether a stale record lingers.
+    // an init failure we withdraw any previously published key. This is not
+    // just tidiness: OutboundClient.checkPeerPqSupport (called by peers
+    // signing to us) treats a missing record as "this atServer can't verify
+    // PQ cookies" and falls back to legacy RSA signing, so withdrawing it
+    // promptly is what makes peers stop sending us a format we can no longer
+    // parse.
     if (AtSecondaryConfig.disablePqAuth) {
       logger.info('PQ auth disabled via config — withdrawing any published '
           'PQ signing public key so peers fall back to legacy auth');

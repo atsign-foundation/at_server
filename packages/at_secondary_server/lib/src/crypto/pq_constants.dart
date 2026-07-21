@@ -37,6 +37,17 @@ String pqSigningPublicKeyRecordName(String atSign) =>
 /// the published record and in the `pq:<algo>:` wire/cookie marker.
 const String pqAlgoMlDsa65 = 'ml-dsa-65';
 
+/// Raw ML-DSA-65 public key and signature sizes (FIPS 204).
+///
+/// Checked before handing peer-supplied bytes to the at_chops FFI: OpenSSL's
+/// `EVP_PKEY_new_raw_public_key_ex` rejects a wrong-length key by returning
+/// null, which at_chops surfaces as a [StateError] — not an [AtException], so
+/// it would escape the POL handler as an internal server error instead of an
+/// authentication failure. Validating up front keeps a malformed peer record
+/// on the auth-failure path.
+const int mlDsa65PublicKeyLength = 1952;
+const int mlDsa65SignatureLength = 3309;
+
 /// PQ signature algorithms this server understands, strongest-first. A prover
 /// signs with the first entry it holds a key for; a verifier reads the algo
 /// tag off the cookie and looks that key up in the peer's published record.

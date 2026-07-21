@@ -60,12 +60,11 @@ packages:
   at_chops:
     dependency: "direct main"
     description:
-      path: "packages/at_chops"
-      ref: "3a9302edda6df9a8f25c62edce8442ef34e590e7"
-      resolved-ref: "3a9302edda6df9a8f25c62edce8442ef34e590e7"
-      url: "https://github.com/atsign-foundation/at_client_sdk.git"
-    source: git
-    version: "3.4.0"
+      name: at_chops
+      sha256: e38abf9b245af869bb7545e7b03488bf0bdad8a413a7b110b45795971026e7fc
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.4.1"
   at_commons:
     dependency: "direct main"
     description:
@@ -117,10 +116,10 @@ packages:
     dependency: "direct main"
     description:
       name: basic_utils
-      sha256: "548047bef0b3b697be19fa62f46de54d99c9019a69fb7db92c69e19d87f633c7"
+      sha256: "2064b21d3c41ed7654bc82cc476fd65542e04d60059b74d5eed490a4da08fc6c"
       url: "https://pub.dev"
     source: hosted
-    version: "5.8.2"
+    version: "5.7.0"
   better_cryptography:
     dependency: transitive
     description:
@@ -522,13 +521,13 @@ packages:
     source: hosted
     version: "3.1.6"
   pointycastle:
-    dependency: "direct overridden"
+    dependency: transitive
     description:
       name: pointycastle
-      sha256: "92aa3841d083cc4b0f4709b5c74fd6409a3e6ba833ffc7dc6a8fee096366acf5"
+      sha256: "4be0097fcf3fd3e8449e53730c631200ebc7b88016acecab2b0da2f0149222fe"
       url: "https://pub.dev"
     source: hosted
-    version: "4.0.0"
+    version: "3.9.1"
   pool:
     dependency: transitive
     description:

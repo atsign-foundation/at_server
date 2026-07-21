@@ -142,8 +142,8 @@ void main() {
     });
 
     test(
-        'verify deletion of PQ X-Wing cert throws exception even with a '
-        'case-variant key', () {
+        'verify deletion of PQ signing public key throws exception even '
+        'with a case-variant key', () {
       inboundConnection.metadata.isAuthenticated = true;
       var command = 'delete:public:${pqSigningPublicKeyRecordNamePart.toUpperCase()}$alice';
       expect(

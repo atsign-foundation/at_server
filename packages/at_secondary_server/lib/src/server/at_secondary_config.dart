@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/conf/config_util.dart';
+import 'package:at_secondary/src/crypto/pq_constants.dart';
 import 'package:meta/meta.dart';
 import 'package:yaml/yaml.dart';
 
@@ -116,7 +117,6 @@ class AtSecondaryConfig {
   //force restart
   static const bool _isForceRestart = false;
 
-  //PQ
   //Sync Configurations
   static const int _syncBufferSize = 5242880;
   static const int _syncPageLimit = 100;
@@ -132,11 +132,7 @@ class AtSecondaryConfig {
     'signing_privatekey<@atsign>',
     'publickey<@atsign>',
     'at_pkam_publickey',
-    // The only PQ record verb-addressable at all — every other PQ record
-    // lives under the `local:` namespace and is unreachable via
-    // update/delete/lookup/scan. Bare form: the delete-verb handler compares
-    // before prefixing with 'public:'.
-    'pq_signing_publickey<@atsign>',
+    '$pqSigningPublicKeyRecordNamePart<@atsign>',
   };
 
   //version
@@ -208,11 +204,10 @@ class AtSecondaryConfig {
 
   /// When true, this server never advertises or uses PQ signing: it withdraws
   /// any published PQ signing public key at boot and always signs handshake
-  /// challenges with the legacy RSA key. Set via AT_DISABLE_PQ_AUTH=true, or
-  /// `pq.disablePqAuth` in config.yaml.
+  /// challenges with the legacy RSA key. Set via the `disablePqAuth` env var,
+  /// or `pq.disablePqAuth` in config.yaml.
   static bool get disablePqAuth {
     return _getBoolEnvVar('disablePqAuth') ??
-        _getBoolEnvVar('AT_DISABLE_PQ_AUTH') ??
         getNullableBoolFromYaml(['pq', 'disablePqAuth']) ??
         false;
   }
