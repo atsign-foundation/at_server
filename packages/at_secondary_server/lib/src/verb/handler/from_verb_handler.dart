@@ -87,7 +87,12 @@ class FromVerbHandler extends AbstractVerbHandler {
     String storedSecretId =
         '$keyPrefix${atConnectionMetadata.sessionID}$fromAtSign';
     final AtData atData = AtData();
-    final String proof = Uuid().v4(); // proof
+    // The challenge the peer/client signs. Peer pol auth (fromAtSign !=
+    // currentAtSign) gets a verifier-bound challenge naming this server;
+    // the self path (client PKAM/CRAM) keeps the bare UUID.
+    final String proof = (fromAtSign == currentAtSign)
+        ? Uuid().v4()
+        : SecondaryUtil.buildBoundPolChallenge(currentAtSign);
     atData.data = proof;
     atData.metaData = AtMetaData()..ttl = 60 * 1000; //expire in 1 min
     logger.finer('Storing secret to $storedSecretId');

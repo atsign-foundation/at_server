@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:crypton/crypton.dart';
@@ -107,6 +108,48 @@ class SecondaryUtil {
     challenge = challenge.trim();
     var signature = key.createSHA256Signature(utf8.encode(challenge));
     return base64Encode(signature);
+  }
+
+  /// Marks a verifier-bound pol challenge. A challenge issued to a peer for
+  /// pol authentication has the form `<polChallengeV1Prefix><base64Url(json)>`,
+  /// where the json names the verifier that issued it (`v`) and carries a fresh
+  /// nonce (`n`). The encoding is colon-free so the challenge survives
+  /// [getCookieParams]'s `split(':')`, and whitespace-free so it signs and
+  /// verifies verbatim.
+  ///
+  /// The prover ([OutboundClient]) refuses to sign such a challenge unless `v`
+  /// names the atSign it actually dialed. A legacy / verifier issues a bare
+  /// UUID (no prefix); a legacy prover signs the token / verbatim without
+  /// inspecting it — so every version pairing interoperates.
+  static const String polChallengeV1Prefix = 'pol1.';
+
+  /// Builds a verifier-bound pol challenge naming [verifierAtSign].
+  static String buildBoundPolChallenge(Atsign verifierAtSign) {
+    final payload = jsonEncode({'v': verifierAtSign, 'n': Uuid().v4()});
+    return '$polChallengeV1Prefix${base64Url.encode(utf8.encode(payload))}';
+  }
+
+  /// If [challenge] is a verifier-bound pol challenge, returns the verifier
+  /// [Atsign] it names; returns `null` for a legacy bare-UUID challenge.
+  ///
+  /// Fails closed rather than signing something it cannot validate: throws
+  /// [FormatException] on a malformed bound challenge (bad base64/JSON, or a
+  /// missing/empty `v`), and [InvalidAtSignException] (via [String.toAtsign])
+  /// if `v` is present but is not a valid atSign. The returned [Atsign] is
+  /// canonicalised, so the caller can compare it directly against a
+  /// canonicalised dialed atSign.
+  static Atsign? verifierOfBoundPolChallenge(String challenge) {
+    if (!challenge.startsWith(polChallengeV1Prefix)) {
+      return null;
+    }
+    final encoded = challenge.substring(polChallengeV1Prefix.length);
+    final decoded = jsonDecode(utf8.decode(base64Url.decode(encoded)));
+    if (decoded is! Map ||
+        decoded['v'] is! String ||
+        (decoded['v'] as String).isEmpty) {
+      throw const FormatException('malformed bound pol challenge');
+    }
+    return (decoded['v'] as String).toAtsign();
   }
 
   /// When [key] is supplied, it will be used even if the [atData] already has a key.
