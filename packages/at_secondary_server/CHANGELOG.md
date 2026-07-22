@@ -1,3 +1,6 @@
+# 3.15.1
+- feat: augmented pol challenge
+
 # 3.15.0
 
 - fix: a sync request no longer fails outright when a commit entry outlives its
