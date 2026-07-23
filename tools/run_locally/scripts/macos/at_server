@@ -68,6 +68,8 @@ export logLevel="WARNING"
 
 export testingMode="true"
 
+export securityTrustedCertificateLocation="certs/cacert.pem"
+
 # Set up on the local root server
 redis-cli << EOF
 auth foobared
