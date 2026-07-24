@@ -79,8 +79,8 @@ void main() {
     tearDown(() async => await verbTestsTearDown());
 
     test('self path (client PKAM/CRAM) keeps a bare UUID challenge', () async {
-      final handler = FromVerbHandler(keyValueStore,
-          commitLog: atCommitLog, accessLog: atAccessLog);
+      final handler =
+          FromVerbHandler(keyValueStore, accessLog: atAccessLog);
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       final atConnection = InboundConnectionImpl(FakeSocket(), '123');
       final verbParams = HashMap<String, String>()

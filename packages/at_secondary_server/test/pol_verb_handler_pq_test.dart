@@ -58,7 +58,7 @@ Future<void> _tearDown() async => await verbTestsTearDown();
 // prover (bob) to have signed for a given session + challenge ─────────────
 
 String _expectedPayload(String sessionId, String challenge) =>
-    SecondaryUtil.buildPolSignedPayload(
+    SecondaryUtil.buildPolChallengePayload(
       verifierAtSign: alice.toString(),
       proverAtSign: bob.toString(),
       sessionId: '$sessionId$bob',

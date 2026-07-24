@@ -118,7 +118,7 @@ class SecondaryUtil {
   /// [verifierAtSign] out of peer-supplied data (e.g. a `from` response) can
   /// be tricked into signing a payload for a peer it never talked to,
   /// re-enabling the reflection this binding exists to prevent.
-  static String buildPolSignedPayload({
+  static String buildPolChallengePayload({
     required String verifierAtSign,
     required String proverAtSign,
     required String sessionId,

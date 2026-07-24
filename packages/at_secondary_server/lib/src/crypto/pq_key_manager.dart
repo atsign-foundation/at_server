@@ -114,7 +114,7 @@ class PqKeyManager {
   /// algo tag tells the verifier which published public key to check against.
   ///
   /// [payload] must be the structured
-  /// [SecondaryUtil.buildPolSignedPayload] string (verifier + prover atSigns,
+  /// [SecondaryUtil.buildPolChallengePayload] string (verifier + prover atSigns,
   /// session, challenge), not the bare challenge — signing the bare challenge
   /// lets a signature be replayed against any verifier/session, since nothing
   /// in the signed bytes ties it to one.

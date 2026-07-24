@@ -155,7 +155,7 @@ class PolVerbHandler extends AbstractVerbHandler {
     // time) — never from anything the peer sent on this connection. That's
     // what makes the binding meaningful: a signature minted for a different
     // verifier/session won't reconstruct to the same bytes here.
-    final expectedPayload = SecondaryUtil.buildPolSignedPayload(
+    final expectedPayload = SecondaryUtil.buildPolChallengePayload(
         verifierAtSign:
             AtSecondaryServerImpl.getInstance().currentAtSign.toString(),
         proverAtSign: fromAtSign.toString(),
@@ -200,7 +200,7 @@ class PolVerbHandler extends AbstractVerbHandler {
   ///
   /// [signedCookie] is the peer's cookie of the form
   /// `pq:<algo>:<base64 signature>`; [expectedPayload] is the structured
-  /// [SecondaryUtil.buildPolSignedPayload] string this server reconstructed
+  /// [SecondaryUtil.buildPolChallengePayload] string this server reconstructed
   /// from its own local state (own atSign, own sessionID, own stored
   /// challenge) — not anything read off the wire, so a signature minted for a
   /// different verifier/session won't reconstruct to the same bytes here;
