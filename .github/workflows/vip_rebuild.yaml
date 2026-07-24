@@ -78,7 +78,7 @@ jobs:
         run: echo ${{ steps.docker_build_base.outputs.digest }}
 
       - name: Google Chat Notification VE base
-        uses: Co-qn/google-chat-notification@04e7733ead0e8a31a502adb271aadbc7f8d496d9 # v2
+        uses: atsign-company/google-chat-notification@69f3920c9c9372c296112b25eaea0bddab9ee115 # v2.0.1
         with:
           name: New Docker base image for vebase:latest
           url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
@@ -156,7 +156,7 @@ jobs:
         run: echo ${{ steps.docker_build_vip.outputs.digest }}
 
       - name: Google Chat Notification vip
-        uses: Co-qn/google-chat-notification@04e7733ead0e8a31a502adb271aadbc7f8d496d9 # v2
+        uses: atsign-company/google-chat-notification@69f3920c9c9372c296112b25eaea0bddab9ee115 # v2.0.1
         with:
           name: New Docker image for atsigncompany/virtualenv:vip
           url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
