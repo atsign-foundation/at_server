@@ -21,9 +21,11 @@ class FromVerbHandler extends AbstractVerbHandler {
   static final _rootDomain = AtSecondaryConfig.rootServerUrl;
   static final _rootPort = AtSecondaryConfig.rootServerPort;
 
+  final AtCommitLog commitLog;
   final AtAccessLog accessLog;
 
-  FromVerbHandler(super.keyStore, {required this.accessLog}) {
+  FromVerbHandler(super.keyStore,
+      {required this.commitLog, required this.accessLog}) {
     logger.level = 'info';
   }
 
@@ -72,13 +74,8 @@ class FromVerbHandler extends AbstractVerbHandler {
       throw BlockedConnectionException('Unable to connect');
     }
 
-    logger.finer('fromAtSign : $fromAtSign currentAtSign : $currentAtSign');
-    final bool isSelf = fromAtSign == currentAtSign;
-    if (isSelf) {
-      atConnectionMetadata.self = true;
-    }
-
-    if (!isSelf && AtSecondaryConfig.clientCertificateRequired) {
+    if (fromAtSign != AtSecondaryServerImpl.getInstance().currentAtSign &&
+        AtSecondaryConfig.clientCertificateRequired) {
       var result = await _verifyFromAtSign(fromAtSign, atConnection);
       logger.finer('_verifyFromAtSign result : $result');
       if (!result) {
@@ -86,43 +83,35 @@ class FromVerbHandler extends AbstractVerbHandler {
       }
     }
 
-    // Set only after the certificate check has passed. UnAuthenticatedException
-    // does not close the connection (see GlobalExceptionHandler), so marking
-    // the connection as `from` before verifying would leave a cert-failed
-    // connection sitting open in a half-authenticated state.
-    if (!isSelf) {
-      atConnectionMetadata.from = true;
-      atConnectionMetadata.fromAtSign = fromAtSign;
-    }
-
     //store key with private/public prefix, sessionId and fromAtSign
     String storedSecretId =
         '$keyPrefix${atConnectionMetadata.sessionID}$fromAtSign';
-
-    // Issue a fresh random challenge. The prover signs it (ML-DSA if it has a
-    // PQ signing key, else legacy RSA) and POL verifies the signature over
-    // this stored value — the challenge is algorithm-agnostic, so FROM stays
-    // identical regardless of which signature the peer uses.
-    final String challenge = Uuid().v4();
-    logger.finer('Storing challenge to $storedSecretId');
-    await _storeSecret(storedSecretId, challenge);
+    final AtData atData = AtData();
+    // The challenge the peer/client signs. Peer pol auth (fromAtSign !=
+    // currentAtSign) gets a verifier-bound challenge naming this server;
+    // the self path (client PKAM/CRAM) keeps the bare UUID.
+    final String proof = (fromAtSign == currentAtSign)
+        ? Uuid().v4()
+        : SecondaryUtil.buildBoundPolChallenge(currentAtSign);
+    atData.data = proof;
+    atData.metaData = AtMetaData()..ttl = 60 * 1000; //expire in 1 min
+    logger.finer('Storing secret to $storedSecretId');
+    await keyStore.put(storedSecretId, atData);
     response.data =
-        '$responsePrefix${atConnectionMetadata.sessionID}$fromAtSign:$challenge';
+        '$responsePrefix${atConnectionMetadata.sessionID}$fromAtSign:$proof';
 
+    logger.finer('fromAtSign : $fromAtSign currentAtSign : $currentAtSign');
+    if (fromAtSign == currentAtSign) {
+      atConnectionMetadata.self = true;
+    } else {
+      atConnectionMetadata.from = true;
+      atConnectionMetadata.fromAtSign = fromAtSign;
+    }
     try {
       await accessLog.insert(fromAtSign, from.name());
     } on DataStoreException catch (e) {
       logger.severe('Hive error adding to access log:${e.toString()}');
     }
-  }
-
-  /// Persists [data] as the handshake challenge at [storedSecretId], with a
-  /// fixed 60s TTL.
-  Future<void> _storeSecret(String storedSecretId, String data) async {
-    final atData = AtData()
-      ..data = data
-      ..metaData = (AtMetaData()..ttl = 60 * 1000);
-    await keyStore.put(storedSecretId, atData);
   }
 
   Future<bool> _verifyFromAtSign(

@@ -1,3 +1,6 @@
+# 3.15.1
+- feat: augmented pol challenge
+
 # 3.15.0
 
 - feat: post-quantum inter-server authentication. FROM/POL now perform an

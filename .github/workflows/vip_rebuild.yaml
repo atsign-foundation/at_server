@@ -20,7 +20,7 @@ jobs:
       id-token: write # for creating OIDC tokens for signing.
     steps:
       - name: Checkout trunk
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
@@ -78,7 +78,7 @@ jobs:
         run: echo ${{ steps.docker_build_base.outputs.digest }}
 
       - name: Google Chat Notification VE base
-        uses: Co-qn/google-chat-notification@04e7733ead0e8a31a502adb271aadbc7f8d496d9 # v2
+        uses: atsign-company/google-chat-notification@69f3920c9c9372c296112b25eaea0bddab9ee115 # v2.0.1
         with:
           name: New Docker base image for vebase:latest
           url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
@@ -99,7 +99,7 @@ jobs:
           echo "prod_tag=${PROD_TAG}" >> $GITHUB_OUTPUT
 
       - name: Checkout latest production tag
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ steps.prod_tag.outputs.prod_tag}}
 
@@ -156,7 +156,7 @@ jobs:
         run: echo ${{ steps.docker_build_vip.outputs.digest }}
 
       - name: Google Chat Notification vip
-        uses: Co-qn/google-chat-notification@04e7733ead0e8a31a502adb271aadbc7f8d496d9 # v2
+        uses: atsign-company/google-chat-notification@69f3920c9c9372c296112b25eaea0bddab9ee115 # v2.0.1
         with:
           name: New Docker image for atsigncompany/virtualenv:vip
           url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
@@ -176,7 +176,7 @@ jobs:
           echo "prod_tag=${PROD_TAG}" >> $GITHUB_OUTPUT
 
       - name: Checkout latest production tag
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ steps.prod_tag.outputs.prod_tag}}
 
