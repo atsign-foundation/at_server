@@ -77,8 +77,14 @@ class HiveAtCommitLog extends AtCommitLog {
   Stream<CommitEntry> iterate({
     int? fromCommitId,
     bool Function(CommitEntry)? where,
+    int? skipDeletesUntil,
+    int? latestCommitId,
   }) {
-    return _commitLogKeyStore.iterate(fromCommitId: fromCommitId, where: where);
+    return _commitLogKeyStore.iterate(
+        fromCommitId: fromCommitId,
+        where: where,
+        skipDeletesUntil: skipDeletesUntil,
+        latestCommitId: latestCommitId);
   }
 
   /// Returns the latest committed sequence number

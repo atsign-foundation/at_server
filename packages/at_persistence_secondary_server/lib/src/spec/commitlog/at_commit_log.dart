@@ -29,12 +29,23 @@ abstract class AtCommitLog implements Compactable {
   /// the rest are silently skipped. Used by sync, by migration,
   /// and by anything that needs full-log traversal.
   ///
+  /// [skipDeletesUntil] pushes sync's "skip deletes" policy into the
+  /// query so DELETE entries the client does not need are never
+  /// materialised: when set, a DELETE entry whose `commitId <=
+  /// skipDeletesUntil` is not yielded — EXCEPT the entry whose
+  /// `commitId == [latestCommitId]`, which is always yielded so the
+  /// client can still advance its watermark. Applied before [where].
+  /// Backends that can (SQLite) filter these rows in the query itself
+  /// rather than reading and discarding them.
+  ///
   /// After 3.5a's dedup invariant, the box has at most one entry
   /// per atKey, so a full-log walk yields one entry per atKey
   /// in commit-id order.
   Stream<CommitEntry> iterate({
     int? fromCommitId,
     bool Function(CommitEntry)? where,
+    int? skipDeletesUntil,
+    int? latestCommitId,
   });
 
   /// Latest assigned `commitId`, or `null` if the log is empty.

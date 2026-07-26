@@ -97,15 +97,31 @@ class SqliteAtCommitLog extends AtCommitLog {
   Stream<CommitEntry> iterate({
     int? fromCommitId,
     bool Function(CommitEntry)? where,
+    int? skipDeletesUntil,
+    int? latestCommitId,
   }) async* {
-    final rows = fromCommitId == null
-        ? _db.raw.select(
-            'SELECT atkey, commit_id, operation, op_time FROM commit_log '
-            'ORDER BY commit_id;')
-        : _db.raw.select(
-            'SELECT atkey, commit_id, operation, op_time FROM commit_log '
-            'WHERE commit_id >= ? ORDER BY commit_id;',
-            [fromCommitId]);
+    final conditions = <String>[];
+    final params = <Object?>[];
+    if (fromCommitId != null) {
+      conditions.add('commit_id >= ?');
+      params.add(fromCommitId);
+    }
+    if (skipDeletesUntil != null) {
+      // Push sync's delete-skip into the query so below-watermark DELETE
+      // rows are filtered by SQLite and never read into Dart. Keep the
+      // single latest entry so the client can still advance its watermark.
+      // ('-' is the DELETE operation symbol; see _opFromSymbol.)
+      conditions.add("NOT (operation = '-' AND commit_id IS NOT NULL "
+          'AND commit_id <= ? AND commit_id <> ?)');
+      params.add(skipDeletesUntil);
+      params.add(latestCommitId ?? -1);
+    }
+    final whereSql =
+        conditions.isEmpty ? '' : 'WHERE ${conditions.join(' AND ')} ';
+    final rows = _db.raw.select(
+        'SELECT atkey, commit_id, operation, op_time FROM commit_log '
+        '${whereSql}ORDER BY commit_id;',
+        params);
     for (final row in rows) {
       final entry = _entryFromRow(row);
       if (where == null || where(entry)) yield entry;
