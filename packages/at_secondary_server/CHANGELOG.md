@@ -1,5 +1,11 @@
 # 3.15.1
 - feat: augmented pol challenge
+- perf: sync now pushes `skipDeletesUntil` into the commit-log query rather than
+  filtering deletes out of the results. `SyncProgressiveVerbHandler` passed
+  `skipDeletesUntil` to a Dart `where` predicate over a full `iterate()` walk, so
+  below-watermark DELETE entries were still read from the store (for SQLite,
+  every such row materialised) before being dropped. They are now excluded by
+  the query itself, materially cutting sync work on atSigns with many deletes.
 
 # 3.15.0
 
