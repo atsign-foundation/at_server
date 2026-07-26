@@ -306,6 +306,20 @@ class OutboundClient {
       var challenge = cookieParams[3];
 
       if (productionMode) {
+        // Before signing: if the verifier issued a verifier-bound challenge it
+        // names the atSign that issued it. Refuse to sign unless that matches
+        // the atSign we actually dialed.
+        // verifierOfBoundPolChallenge returns a canonical Atsign; toAtSign
+        // arrives un-normalised from the caller, so canonicalise it for the
+        // comparison. A malformed or invalid bound challenge throws (fail
+        // closed); a legacy bare challenge returns null and signs as before.
+        final Atsign? boundVerifier =
+            SecondaryUtil.verifierOfBoundPolChallenge(challenge);
+        if (boundVerifier != null && boundVerifier != toAtSign.toAtsign()) {
+          throw HandShakeException(
+              'pol challenge names $boundVerifier but we dialed $toAtSign;'
+              ' refusing to sign');
+        }
         var signedChallenge = SecondaryUtil.signChallenge(
             challenge, AtSecondaryServerImpl.getInstance().signingKey);
         await SecondaryUtil.saveCookie(sessionIdWithAtSign, signedChallenge,

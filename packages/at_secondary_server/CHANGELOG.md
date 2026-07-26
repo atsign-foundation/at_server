@@ -1,3 +1,6 @@
+# 3.15.1
+- feat: augmented pol challenge
+
 # 3.15.0
 
 - fix: tighten enrollment-management authorization (defense-in-depth). `otp:get`
