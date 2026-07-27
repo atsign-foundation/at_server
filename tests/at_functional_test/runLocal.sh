@@ -27,6 +27,18 @@ else
   veCmd=""
 fi
 
+# The VE image built below is `FROM atsigncompany/vebase:latest` (see
+# tools/build_virtual_environment/ve/Dockerfile), whose baked TLS certs expire
+# periodically — they are refreshed by .github/workflows/refreshcerts.yaml,
+# which republishes the base image. `docker build` reuses a local base image
+# without checking the registry, so a stale local vebase means expired certs and
+# the root-server readiness check below times out. Force-pull the current
+# published base first. (Tolerate failure so offline runs fall back to the local
+# image — its certs may be stale.)
+echo "Force-pulling atsigncompany/vebase:latest (keeps the VE TLS certs fresh)"
+docker pull atsigncompany/vebase:latest \
+  || echo "WARNING: could not pull atsigncompany/vebase:latest; using the local image (its TLS certs may be stale)"
+
 echo "Generate atDirectory binary (root) [in dart:3.11.2 Linux container]"
 # Compile the binaries inside a Linux Dart container so they run inside the
 # Linux at_virtual_env container we build below. Compiling on the host
