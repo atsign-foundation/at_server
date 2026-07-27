@@ -469,7 +469,8 @@ void main() {
           scanResponseList[0], '$enrollmentId.new.enrollments.__manage$alice');
     });
 
-    test('A test to verify enrollment has *:rw access', () async {
+    test('A test to verify a *:rw enrollment does NOT see __manage keys in scan',
+        () async {
       var enrollmentId = Uuid().v4();
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.sessionID = 'dummy_session';
@@ -486,6 +487,8 @@ void main() {
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
+      // An ordinary key the '*:rw' enrollment IS allowed to see.
+      await keyValueStore.put('phone.wavi$alice', AtData()..data = '12345');
 
       scanVerbHandler = ScanVerbHandler(
           keyValueStore, mockOutboundClientManager, cacheManager);
@@ -494,11 +497,17 @@ void main() {
           .split('\n')[0]
           .replaceAll('data:', '');
       List scanResponseList = jsonDecode(inboundConnection.lastWrittenData!);
-      expect(scanResponseList[0].toString().startsWith(enrollmentId), true);
+      // '*:rw' does not grant sight of the __manage enrollment key...
+      expect(
+          scanResponseList
+              .contains('$enrollmentId.new.enrollments.__manage$alice'),
+          false);
+      // ...but ordinary keys are still visible.
+      expect(scanResponseList.contains('phone.wavi$alice'), true);
     });
 
     test(
-        'A test to verify scan returns all keys when enrollment has *:rw access',
+        'A test to verify scan returns all keys EXCEPT __manage when enrollment has *:rw access',
         () async {
       var enrollmentId = Uuid().v4();
       inboundConnection.metaData.isAuthenticated = true;
@@ -531,10 +540,11 @@ void main() {
           .split('\n')[0]
           .replaceAll('data:', '');
       List scanResponseList = jsonDecode(inboundConnection.lastWrittenData!);
+      // The __manage enrollment key is NOT visible to a '*:rw' enrollment.
       expect(
           scanResponseList
               .contains('$enrollmentId.new.enrollments.__manage$alice'),
-          true);
+          false);
       expect(
           scanResponseList.contains('@bob:firstname.atmosphere$alice'), true);
 

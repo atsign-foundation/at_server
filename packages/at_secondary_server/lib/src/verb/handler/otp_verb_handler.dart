@@ -40,6 +40,14 @@ class OtpVerbHandler extends AbstractVerbHandler {
     }
     switch (operation) {
       case 'get':
+        // Issuing an OTP is an enrollment-management operation: only a
+        // connection with access to the __manage namespace may do it (a
+        // no-enrollmentId CRAM/owner connection is authorized too).
+        if (!(await _hasManageNamespaceAccess(
+            atConnection.metaData as InboundConnectionMetadata))) {
+          throw UnAuthorizedException(
+              'otp:get requires access to the __manage namespace');
+        }
         String otp = generateOTP();
         // Extract the ttl from the verb parameters if supplied, or use the default value.
         int otpTtl = int.tryParse(verbParams[AtConstants.ttl] ?? '') ??
@@ -48,10 +56,10 @@ class OtpVerbHandler extends AbstractVerbHandler {
         response.data = otp;
         break;
       case 'put':
-        // Only client connection which has access to __manage access are allowed to store the semi permanent pass codes
-        if (!(await _isClientAuthorizedToStoreSPP(
-            atConnection.metaData as InboundConnectionMetadata,
-            AtSecondaryServerImpl.getInstance().currentAtSign))) {
+        // Only client connections which have access to the __manage namespace
+        // are allowed to store the semi-permanent passcode.
+        if (!(await _hasManageNamespaceAccess(
+            atConnection.metaData as InboundConnectionMetadata))) {
           throw InvalidRequestException(
               'Client not allowed to not store semi permanent pass code');
         }
@@ -136,11 +144,12 @@ class OtpVerbHandler extends AbstractVerbHandler {
     return result;
   }
 
-  /// Only the connections which have access to the __manage namespace are allowed
-  /// to store the SPP.
-  Future<bool> _isClientAuthorizedToStoreSPP(
-      InboundConnectionMetadata atConnectionMetadata,
-      String currentAtSign) async {
+  /// Whether the connection holds access to the `__manage` namespace — required
+  /// for enrollment-management operations (issuing an OTP via `otp:get`, storing
+  /// a semi-permanent passcode via `otp:put`). A connection with no enrollmentId
+  /// (CRAM / owner) is authorized, preserving the initial-enrollment bootstrap.
+  Future<bool> _hasManageNamespaceAccess(
+      InboundConnectionMetadata atConnectionMetadata) async {
     return super.isAuthorized(atConnectionMetadata,
         namespace: EnrollmentConstants.enrollManageNamespace);
   }
