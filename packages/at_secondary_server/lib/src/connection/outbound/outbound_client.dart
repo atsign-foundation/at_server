@@ -335,17 +335,7 @@ class OutboundClient {
               'pol challenge names $boundVerifier but we dialed $toAtSign;'
               ' refusing to sign');
         }
-        // verifierAtSign is *this client's own* dial target, never anything
-        // parsed out of the peer's response — that's what stops a signature
-        // minted here from being replayed against a different verifier.
-        final payload = SecondaryUtil.buildPolChallengePayload(
-            verifierAtSign: toAtSign,
-            proverAtSign:
-                AtSecondaryServerImpl.getInstance().currentAtSign.toString(),
-            sessionId: sessionIdWithAtSign,
-            challenge: challenge);
-        final cookieValue = await selectAndSignChallenge(
-            legacyChallenge: challenge, pqPayload: payload);
+        final cookieValue = await selectAndSignChallenge(challenge);
         await SecondaryUtil.saveCookie(sessionIdWithAtSign, cookieValue,
             AtSecondaryServerImpl.getInstance().keyValueStore);
       }
@@ -374,17 +364,11 @@ class OutboundClient {
     }
   }
 
-  /// Picks the handshake cookie format and signs the matching bytes.
-  ///
-  /// The two paths deliberately sign *different* things, so both must be
-  /// passed in:
-  /// - PQ signs [pqPayload], the structured
-  ///   [SecondaryUtil.buildPolChallengePayload] string, binding the signature to
-  ///   this verifier/prover/session. Free to do because the `pq:` wire format
-  ///   is new.
-  /// - Legacy RSA signs the bare [legacyChallenge], byte for byte as every
-  ///   deployed at_server already does. Binding it would break every peer
-  ///   that has not yet upgraded.
+  /// Picks the handshake cookie format and signs [challenge] — the same
+  /// bytes either way; [challenge] is already verifier-bound (see
+  /// [SecondaryUtil.buildBoundPolChallenge]) and verification is scoped to
+  /// this prover's own published key, so neither path needs to sign
+  /// anything beyond the challenge itself.
   ///
   /// Signing with ML-DSA requires both that our own PQ keypair is
   /// initialised *and* that [toAtSign] has published a PQ signing public-key
@@ -396,15 +380,12 @@ class OutboundClient {
   /// rolling upgrade, where the two ends of a pair may be on different
   /// versions.
   @visibleForTesting
-  Future<String> selectAndSignChallenge({
-    required String legacyChallenge,
-    required String pqPayload,
-  }) async {
+  Future<String> selectAndSignChallenge(String challenge) async {
     if (pqKeyManager.isInitialised && await checkPeerPqSupport()) {
-      return pqKeyManager.buildChallengeResponse(pqPayload);
+      return pqKeyManager.buildChallengeResponse(challenge);
     }
     return SecondaryUtil.signChallenge(
-        legacyChallenge, AtSecondaryServerImpl.getInstance().signingKey);
+        challenge, AtSecondaryServerImpl.getInstance().signingKey);
   }
 
   /// Whether [toAtSign] has published a PQ signing public-key record carrying

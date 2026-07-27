@@ -12,8 +12,6 @@ import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/crypto/pq_constants.dart';
 import 'package:at_secondary/src/crypto/pq_signing_public_record.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -74,17 +72,17 @@ class PolVerbHandler extends AbstractVerbHandler {
     final String storedSecretId = 'public:$sessionID$fromAtSign';
 
     // The UUID challenge we issued and stored at FROM time.
-    String? message;
+    String? challenge;
     try {
-      message = (await keyStore.get(storedSecretId))?.data;
+      challenge = (await keyStore.get(storedSecretId))?.data;
     } on KeyNotFoundException {
-      // Key doesn't exist; message remains null
+      // Key doesn't exist; challenge remains null
     } on Exception catch (e) {
       logger.severe('Exception fetching stored secret $storedSecretId : $e');
       rethrow;
     }
 
-    if (message == null) {
+    if (challenge == null) {
       logger.severe('No stored secret found at $storedSecretId');
       throw UnAuthenticatedException('Unable to verify pol: no stored secret');
     }
@@ -150,34 +148,18 @@ class PolVerbHandler extends AbstractVerbHandler {
           'Unable to verify pol: no challenge returned from $fromAtSign');
     }
 
-    // Reconstructed entirely from this server's own local state (its own
-    // atSign, its own sessionID, the challenge it itself generated at FROM
-    // time) — never from anything the peer sent on this connection. That's
-    // what makes the binding meaningful: a signature minted for a different
-    // verifier/session won't reconstruct to the same bytes here.
-    final expectedPayload = SecondaryUtil.buildPolChallengePayload(
-        verifierAtSign:
-            AtSecondaryServerImpl.getInstance().currentAtSign.toString(),
-        proverAtSign: fromAtSign.toString(),
-        sessionId: '$sessionID$fromAtSign',
-        challenge: message);
-
     if (fetchedChallenge.startsWith(_pqPrefix)) {
       await _verifyPqSignature(
-          fromAtSign, expectedPayload, fetchedChallenge, fromPqRecord);
+          fromAtSign, challenge, fetchedChallenge, fromPqRecord);
     } else {
       // Legacy RSA path.
       if (fromRsaPublicKey == null) {
         throw AtException(
             'Unable to verify pol: signing_publickey not found for $fromAtSign');
       }
-      // Deliberately the bare challenge, NOT expectedPayload: every deployed
-      // at_server signs the raw UUID, so binding this path would reject every
-      // peer that has not yet upgraded. The binding is free on the PQ path
-      // only because that wire format is new.
       final bool isValidChallenge = RSAPublicKey.fromString(fromRsaPublicKey)
           .verifySHA256Signature(
-              utf8.encode(message), base64Decode(fetchedChallenge));
+              utf8.encode(challenge), base64Decode(fetchedChallenge));
       if (!isValidChallenge) {
         throw UnAuthenticatedException('Pol Authentication Failed');
       }
@@ -199,15 +181,12 @@ class PolVerbHandler extends AbstractVerbHandler {
   /// Verify a PQ-signed pol challenge.
   ///
   /// [signedCookie] is the peer's cookie of the form
-  /// `pq:<algo>:<base64 signature>`; [expectedPayload] is the structured
-  /// [SecondaryUtil.buildPolChallengePayload] string this server reconstructed
-  /// from its own local state (own atSign, own sessionID, own stored
-  /// challenge) — not anything read off the wire, so a signature minted for a
-  /// different verifier/session won't reconstruct to the same bytes here;
-  /// [peerRecord] is the peer's published PQ signing public-key record (JSON
-  /// keyed by algorithm id). Throws [UnAuthenticatedException] /
-  /// [AtException] on any verification failure.
-  Future<void> _verifyPqSignature(String fromAtSign, String expectedPayload,
+  /// `pq:<algo>:<base64 signature>`; [expectedChallenge] is the challenge
+  /// this server itself generated and stored at FROM time — not anything
+  /// read off the wire; [peerRecord] is the peer's published PQ signing
+  /// public-key record (JSON keyed by algorithm id). Throws
+  /// [UnAuthenticatedException] / [AtException] on any verification failure.
+  Future<void> _verifyPqSignature(String fromAtSign, String expectedChallenge,
       String signedCookie, String? peerRecord) async {
     // 'pq:<algo>:<base64 sig>' — base64 contains no ':', so a plain split
     // yields exactly three fields; anything else is malformed.
@@ -260,7 +239,8 @@ class PolVerbHandler extends AbstractVerbHandler {
     // branch here alongside its entry in pqSupportedSigningAlgosByPreference.
     final bool isValid;
     try {
-      isValid = await AtPqc.mlDsa65.verifyBytes(utf8.encode(expectedPayload),
+      isValid = await AtPqc.mlDsa65.verifyBytes(
+          utf8.encode(expectedChallenge),
           signature: signature, publicKey: publicKey);
     } catch (e) {
       logger.warning('PQ signature verification for $fromAtSign errored: $e');

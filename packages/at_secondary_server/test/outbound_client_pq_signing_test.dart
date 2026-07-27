@@ -129,8 +129,7 @@ void main() {
     test('PQ key initialised + peer supports PQ → ML-DSA cookie', () async {
       final client = makeClient((key) async => _validPeerRecord,
           pqKeyManager: initialisedPqKeyManager);
-      final cookie = await client.selectAndSignChallenge(
-          legacyChallenge: 'a-challenge', pqPayload: 'a-bound-payload');
+      final cookie = await client.selectAndSignChallenge('a-challenge');
       expect(cookie, startsWith('pq:$pqAlgoMlDsa65:'));
     });
 
@@ -140,53 +139,40 @@ void main() {
       final client = makeClient((key) async {
         throw KeyNotFoundException('key not found : $key');
       }, pqKeyManager: initialisedPqKeyManager);
-      final cookie = await client.selectAndSignChallenge(
-          legacyChallenge: 'a-challenge', pqPayload: 'a-bound-payload');
+      final cookie = await client.selectAndSignChallenge('a-challenge');
       expect(cookie, isNot(startsWith('pq:')));
     });
 
     test('PQ key not initialised → legacy RSA cookie regardless of peer',
         () async {
       final client = makeClient((key) async => _validPeerRecord);
-      final cookie = await client.selectAndSignChallenge(
-          legacyChallenge: 'a-challenge', pqPayload: 'a-bound-payload');
+      final cookie = await client.selectAndSignChallenge('a-challenge');
       expect(cookie, isNot(startsWith('pq:')));
     });
 
-    test('PQ signs the bound payload; RSA fallback signs the bare challenge',
-        () async {
-      const challenge = 'the-bare-uuid';
-      const payload = 'atproto-pol-v1|@bob|@alice|_sess@alice|the-bare-uuid';
+    test('PQ and RSA both sign the same challenge bytes', () async {
+      const challenge = 'the-bound-challenge';
 
       final pqCookie = await makeClient((key) async => _validPeerRecord,
               pqKeyManager: initialisedPqKeyManager)
-          .selectAndSignChallenge(
-              legacyChallenge: challenge, pqPayload: payload);
+          .selectAndSignChallenge(challenge);
       final pqSig = base64.decode(pqCookie.split(':')[2]);
       final pub = initialisedPqKeyManager.mlDsaPublicKey;
 
       expect(
-          await AtPqc.mlDsa65.verifyBytes(utf8.encode(payload),
-              signature: pqSig, publicKey: pub),
-          isTrue);
-      expect(
           await AtPqc.mlDsa65.verifyBytes(utf8.encode(challenge),
               signature: pqSig, publicKey: pub),
-          isFalse,
-          reason: 'the PQ path must sign the bound payload, not the raw UUID');
+          isTrue);
 
-      // The RSA fallback must stay byte-compatible with pre-PQ peers, which
-      // verify the signature over the bare challenge.
       final rsaCookie = await makeClient((key) async {
         throw KeyNotFoundException('key not found : $key');
       }, pqKeyManager: initialisedPqKeyManager)
-          .selectAndSignChallenge(
-              legacyChallenge: challenge, pqPayload: payload);
+          .selectAndSignChallenge(challenge);
       expect(
           rsaCookie,
           equals(SecondaryUtil.signChallenge(
               challenge, AtSecondaryServerImpl.getInstance().signingKey)),
-          reason: 'the RSA path must sign the bare challenge, exactly as '
+          reason: 'the RSA path must sign the challenge verbatim, exactly as '
               'every deployed at_server already does');
     });
   });

@@ -54,17 +54,6 @@ Future<void> _setUp() async {
 
 Future<void> _tearDown() async => await verbTestsTearDown();
 
-// ── helper: the payload the verifier (alice) reconstructs and expects the
-// prover (bob) to have signed for a given session + challenge ─────────────
-
-String _expectedPayload(String sessionId, String challenge) =>
-    SecondaryUtil.buildPolChallengePayload(
-      verifierAtSign: alice.toString(),
-      proverAtSign: bob.toString(),
-      sessionId: '$sessionId$bob',
-      challenge: challenge,
-    );
-
 // ── helper: build an InboundConnection with from-verb metadata ────────────
 
 InboundConnectionImpl _makeInbound(
@@ -107,8 +96,7 @@ void main() {
           ..data = challenge
           ..metaData = (AtMetaData()..ttl = 60 * 1000),
       );
-      final peer =
-          await _PeerSigner.sign(_expectedPayload(sessionId, challenge));
+      final peer = await _PeerSigner.sign(challenge);
 
       final mockOcm = MockOutboundClientManager();
       final mockOc = MockOutboundClient();
@@ -144,10 +132,8 @@ void main() {
           ..data = 'the-real-challenge'
           ..metaData = (AtMetaData()..ttl = 60 * 1000),
       );
-      // Peer signed a payload for a *different* challenge than the one Alice
-      // stored.
-      final peer = await _PeerSigner.sign(
-          _expectedPayload(sessionId, 'a-forged-challenge'));
+      // Peer signed a *different* challenge than the one Alice stored.
+      final peer = await _PeerSigner.sign('a-forged-challenge');
 
       final mockOcm = MockOutboundClientManager();
       final mockOc = MockOutboundClient();
@@ -214,7 +200,7 @@ void main() {
           ..metaData = (AtMetaData()..ttl = 60 * 1000),
       );
       final peer =
-          await _PeerSigner.sign(_expectedPayload(sessionId, challenge));
+          await _PeerSigner.sign(challenge);
 
       final mockOcm = MockOutboundClientManager();
       final mockOc = MockOutboundClient();

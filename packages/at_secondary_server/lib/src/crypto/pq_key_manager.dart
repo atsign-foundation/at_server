@@ -108,20 +108,20 @@ class PqKeyManager {
     _log.info('Published PQ signing public key for $atSign');
   }
 
-  /// Sign a handshake [payload] with this server's ML-DSA secret key and
+  /// Sign a handshake [challenge] with this server's ML-DSA secret key and
   /// build the cookie value the verifier fetches at POL:
   /// `pq:<algo>:<base64 signature>`. The `pq:` prefix marks PQ mode and the
   /// algo tag tells the verifier which published public key to check against.
   ///
-  /// [payload] must be the structured
-  /// [SecondaryUtil.buildPolChallengePayload] string (verifier + prover atSigns,
-  /// session, challenge), not the bare challenge — signing the bare challenge
-  /// lets a signature be replayed against any verifier/session, since nothing
-  /// in the signed bytes ties it to one.
-  Future<String> buildChallengeResponse(String payload) async {
+  /// Signs [challenge] verbatim, exactly as the legacy RSA path does —
+  /// [challenge] is already verifier-bound (see
+  /// [SecondaryUtil.buildBoundPolChallenge]), and verification is already
+  /// scoped to this prover's own published key, so no further structure is
+  /// needed in the signed bytes.
+  Future<String> buildChallengeResponse(String challenge) async {
     _assertInitialized();
     final sig = await AtPqc.mlDsa65
-        .signBytes(utf8.encode(payload), secretKey: _mlDsaSecretKey);
+        .signBytes(utf8.encode(challenge), secretKey: _mlDsaSecretKey);
     return 'pq:$pqAlgoMlDsa65:${base64.encode(sig)}';
   }
 
