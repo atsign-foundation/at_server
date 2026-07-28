@@ -203,8 +203,17 @@ class ScanVerbHandler extends AbstractVerbHandler {
           'For the enrollmentId ${atConnectionMetadata.enrollmentId} no namespaces are enrolled. Returning empty list');
       return [];
     }
-    // If enrollment namespace contains ".*" return all keys.
+    // If the enrollment holds '*', it sees all namespaces EXCEPT the __manage
+    // namespace (enrollment records / key material) and any *other* enrollment's
+    // per-enrollment reserved namespace (<id>.a|r|d.__e). Public keys stay
+    // visible. This mirrors the isAuthorizedSync gate that the per-key branch
+    // below applies for non-'*' enrollments (the '*' fast path skips that loop).
     if (enrollNamespaces.containsKey(EnrollmentConstants.allNamespaces)) {
+      localKeysList.removeWhere((key) =>
+          !key.startsWith('public:') &&
+          (AbstractVerbHandler.isEnrollManageKey(key) ||
+              AbstractVerbHandler.isForeignPerEnrollmentReservedKey(
+                  key, atConnectionMetadata.enrollmentId)));
       return localKeysList;
     }
 

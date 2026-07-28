@@ -224,7 +224,7 @@ void main() {
     // 6. Connect to the second client
     // 7. Send an apkam request with the enrollment id from step 4
     // 8. Assert that the apkam request is successful
-    // 9. Assert that the scan verb returns the key with __manage namespace
+    // 9. Assert that the scan verb does NOT return the key with __manage namespace
     // 10. Assert that the enroll:list verb returns the enrollment key
     // 11. Assert that the llookup verb on the enrollment key fails
     // 12. Assert that the keys:get:self verb returns the default self encryption key
@@ -258,7 +258,9 @@ void main() {
       // check if scan verb returns apkam namespace
       String scanResponse = await socketConnection2.sendRequestToServer('scan');
       // assert that scan doesn't return key with __manage namespace
-      expect(scanResponse.contains('__manage'), true);
+      // (even for a '*:rw' + __manage enrollment; enroll:list below is the
+      // management path for enrollment keys)
+      expect(scanResponse.contains('__manage'), false);
 
       // enroll:list
       String enrollListResponse =

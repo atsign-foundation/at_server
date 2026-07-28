@@ -152,6 +152,34 @@ abstract class AbstractVerbHandler implements VerbHandler {
     return '$enrollmentId.${EnrollmentConstants.perEnrollmentApproved}';
   }
 
+  /// Matches a per-enrollment reserved-namespace key (`<EnId>.a|r|d.__e@…`),
+  /// capturing the owning enrollment id in the `EnId` group. Compiled once.
+  static final RegExp _perEnrollmentReservedKeyRegex =
+      RegExp(EnrollmentConstants.regexForPerEnrollmentNamespaces);
+
+  /// Whether [atKey] lives in a per-enrollment reserved namespace
+  /// (`<id>.a|r|d.__e`) owned by an enrollment *other than* [enrollmentId].
+  /// Public keys are never treated as foreign — they are world-readable by
+  /// design (e.g. the `public:_apsk.<id>.a.__e@` APKAM signing key).
+  static bool isForeignPerEnrollmentReservedKey(
+      String atKey, String? enrollmentId) {
+    if (atKey.startsWith('public:')) {
+      return false;
+    }
+    final match = _perEnrollmentReservedKeyRegex.firstMatch(atKey);
+    if (match == null) {
+      return false;
+    }
+    return match.namedGroup('EnId') != enrollmentId;
+  }
+
+  /// Whether [atKey]'s namespace is the enrollment-manage namespace
+  /// (`__manage`) — i.e. an enrollment record or its encrypted key material
+  /// (PEK/SEK).
+  static bool isEnrollManageKey(String atKey) {
+    return atKey.contains('.${EnrollmentConstants.enrollManageNamespace}@');
+  }
+
   /// Verifies whether the current connection has permission to
   /// modify, delete, or retrieve the data in a given namespace.
   ///
@@ -249,6 +277,17 @@ abstract class AbstractVerbHandler implements VerbHandler {
       return isValidEnrollment;
     }
 
+    // A per-enrollment reserved namespace (<id>.a|r|d.__e) is private to the
+    // enrollment that owns it. Deny any *other* enrollment — including one with
+    // '*:rw', which would otherwise reach it via the wildcard fallback below.
+    // (Public keys are exempt; see isForeignPerEnrollmentReservedKey.) A
+    // connection with no enrollmentId already short-circuited to `true` above,
+    // so this does not alter owner/legacy access.
+    if (atKey != null &&
+        isForeignPerEnrollmentReservedKey(atKey, enrollmentId)) {
+      return false;
+    }
+
     // If namespace is null or empty, fetch namespace from AtKey.
     String keyWithNamespace = '';
     if ((namespace == null || namespace.isEmpty) && atKey != null) {
@@ -271,11 +310,14 @@ abstract class AbstractVerbHandler implements VerbHandler {
           'r';
     }
 
-    // All enrollments should have rw access to a namespace which is unique
-    // to their enrollment. Other enrollments should not have access, except
-    // to public data, or if the enrollment has "*:rw"
+    // All enrollments have rw access to a namespace unique to their enrollment.
+    // Other enrollments have NO access to it, except to public data — a '*:rw'
+    // enrollment used to reach it via the wildcard fallback, but that
+    // cross-enrollment reach is now denied above (see the foreign per-enrollment
+    // check). Own-enrollment access is granted by the line below.
     //
-    // Unit tests to assert this are in update_verb_test.dart
+    // Unit tests to assert this are in update_verb_test.dart and
+    // enrollment_authz_tightening_test.dart
     enrollDataStoreValue.namespaces[enrollmentReservedNamespace(enrollmentId)] =
         'rw';
 
@@ -292,14 +334,21 @@ abstract class AbstractVerbHandler implements VerbHandler {
       return false;
     }
 
-    // Only spp and enroll operations are allowed to access
-    // the enrollManageNamespace
-    // Prevents update, delete or any other operations on the enrollment key
-    if (authorizedNamespace.$1 == EnrollmentConstants.enrollManageNamespace) {
+    // The __manage namespace holds enrollment records and per-enrollment
+    // encrypted key material (PEK/SEK). It is reachable only by an enrollment
+    // that holds __manage *explicitly*, and then only via otp/enroll/monitor —
+    // never a generic data verb (update/delete/lookup/…). An enrollment that
+    // reaches a __manage key through the '*' wildcard fallback (i.e. without an
+    // explicit __manage grant) is denied outright, so '*:rw' cannot launder
+    // __manage into '*' and bypass this guard.
+    if (namespace == EnrollmentConstants.enrollManageNamespace ||
+        authorizedNamespace.$1 == EnrollmentConstants.enrollManageNamespace) {
+      final bool holdsManageNamespaceExplicitly =
+          authorizedNamespace.$1 == EnrollmentConstants.enrollManageNamespace;
       // ignore: experimental_member_use
-      return (getVerb() is Otp || getVerb() is Enroll || getVerb() is Monitor)
-          ? (authorizedNamespace.$2 == 'r' || authorizedNamespace.$2 == 'rw')
-          : false;
+      return holdsManageNamespaceExplicitly &&
+          (getVerb() is Otp || getVerb() is Enroll || getVerb() is Monitor) &&
+          (authorizedNamespace.$2 == 'r' || authorizedNamespace.$2 == 'rw');
     }
     return checkEnrollmentNamespaceAccess(authorizedNamespace.$2!,
         enrolledNamespaceAccess: enrolledNamespaceAccess);

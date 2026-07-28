@@ -332,36 +332,22 @@ void main() {
       }
     });
 
+    // Observe per-enrollment data directly in the keystore. These lifecycle
+    // checks run against enrollments that get revoked/deleted (so the owning
+    // enrollment can no longer read its own keys), and a '*:rw' enrollment is
+    // no longer permitted to cross-read another enrollment's per-enrollment
+    // reserved namespace — so the neutral observer is the keystore itself, as
+    // in the sibling test above.
     Future<void> verifyKeysExist(List<String> keys, List<String> values) async {
-      inboundConnection.metaData.enrollmentId = etu.primaryEnId;
-      inboundConnection.metaData.isAuthenticated = true;
       for (int i = 0; i < keys.length; i++) {
-        final k = keys[i];
-        final v = values[i];
-        Response r;
-        r = await etu.lvh.processInternal('lookup:$k', inboundConnection);
-        expect(r.isError, false);
-        expect(r.data, v);
-        r = await etu.llvh.processInternal('llookup:$k', inboundConnection);
-        expect(r.isError, false);
-        expect(r.data, v);
+        final atData = await keyValueStore.get(keys[i]);
+        expect(atData?.data, values[i]);
       }
     }
 
     Future<void> verifyKeysGone(List<String> keys) async {
-      inboundConnection.metaData.enrollmentId = etu.primaryEnId;
-      inboundConnection.metaData.isAuthenticated = true;
       for (final k in keys) {
-        await expectLater(
-            etu.lvh.processInternal('lookup:$k', inboundConnection),
-            throwsA(predicate((dynamic e) =>
-                e is KeyNotFoundException &&
-                e.message == '$k does not exist in keystore')));
-        await expectLater(
-            etu.llvh.processInternal('llookup:$k', inboundConnection),
-            throwsA(predicate((dynamic e) =>
-                e is KeyNotFoundException &&
-                e.message == '$k does not exist in keystore')));
+        expect(await keyValueStore.exists(k), false);
       }
     }
 
@@ -378,10 +364,15 @@ void main() {
       // 2a. As the primary enrollment, verify all the keys are there
       await verifyKeysExist(keys, values);
 
-      // 3. Wait for expiry
+      // 3. Wait for expiry, then run the expired-keys job so the enrollment key
+      // is removed — which, via preRemoveHook, moves its per-enrollment data
+      // a -> d. (Previously observed indirectly through a cross-enrollment
+      // lookup; that cross-read is no longer permitted, so trigger and observe
+      // the move directly.)
       await Future.delayed(Duration(milliseconds: ttl + 1));
+      await keyValueStore.deleteExpiredKeys();
 
-      // 4. As the primary enrollment, verify all the keys are GONE
+      // 4. Verify all the a.__e keys are GONE
       await verifyKeysGone(keys);
 
       // 5. Verify they are all now in d.__e
@@ -2164,6 +2155,78 @@ void main() {
           enrollmentResponse['status'], enrollDataStoreValue.approval?.state);
       expect(enrollmentResponse['encryptedAPKAMSymmetricKey'],
           enrollDataStoreValue.encryptedAPKAMSymmetricKey);
+    });
+
+    // --- enroll:fetch authorization: self, or __manage + access to ALL of the
+    // target enrollment's namespaces (same bar as approve/deny/revoke) ---
+    Future<void> seedEnrollment(String id, Map<String, String> ns) async {
+      await keyValueStore.put(
+          '$id.new.enrollments.__manage$alice',
+          AtData()
+            ..data = jsonEncode(
+                EnrollDataStoreValue('session', 'wavi', 'pixel', 'pubkey')
+                  ..namespaces = ns
+                  ..approval = EnrollApproval(EnrollmentStatus.approved.name)
+                  ..encryptedAPKAMSymmetricKey = 'secret-$id'));
+    }
+
+    Future<Map> fetchAs(String callerId, String targetId) async {
+      final response = Response();
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.enrollmentId = callerId;
+      final handler =
+          EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
+      await handler.processVerb(
+          response,
+          getVerbParam(
+              VerbSyntax.enroll, 'enroll:fetch:{"enrollmentId":"$targetId"}'),
+          inboundConnection);
+      return jsonDecode(response.data!);
+    }
+
+    Future<void> expectFetchDenied(String callerId, String targetId) async {
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.enrollmentId = callerId;
+      final handler =
+          EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
+      await expectLater(
+          handler.processVerb(
+              Response(),
+              getVerbParam(VerbSyntax.enroll,
+                  'enroll:fetch:{"enrollmentId":"$targetId"}'),
+              inboundConnection),
+          throwsA(isA<UnAuthorizedException>()));
+    }
+
+    test('enroll:fetch — a caller can fetch its OWN enrollment without __manage',
+        () async {
+      await seedEnrollment('self1', {'wavi': 'rw'});
+      final r = await fetchAs('self1', 'self1');
+      expect(r['encryptedAPKAMSymmetricKey'], 'secret-self1');
+    });
+
+    test('enroll:fetch — fetching ANOTHER enrollment without __manage is denied',
+        () async {
+      await seedEnrollment('caller1', {'wavi': 'rw'});
+      await seedEnrollment('target1', {'wavi': 'rw'});
+      await expectFetchDenied('caller1', 'target1');
+    });
+
+    test(
+        'enroll:fetch — __manage + access to all of the target namespaces is allowed',
+        () async {
+      await seedEnrollment('mgr1', {'wavi': 'rw', '__manage': 'rw'});
+      await seedEnrollment('target2', {'wavi': 'rw'});
+      final r = await fetchAs('mgr1', 'target2');
+      expect(r['encryptedAPKAMSymmetricKey'], 'secret-target2');
+    });
+
+    test(
+        'enroll:fetch — __manage but missing one of the target namespaces is denied',
+        () async {
+      await seedEnrollment('mgr2', {'wavi': 'rw', '__manage': 'rw'});
+      await seedEnrollment('target3', {'buzz': 'rw'});
+      await expectFetchDenied('mgr2', 'target3');
     });
 
     tearDown(() async => await verbTestsTearDown());

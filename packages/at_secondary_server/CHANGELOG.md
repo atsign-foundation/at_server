@@ -22,6 +22,12 @@
 
 # 3.15.1
 - feat: augmented pol challenge
+- perf: sync now pushes `skipDeletesUntil` into the commit-log query rather than
+  filtering deletes out of the results. `SyncProgressiveVerbHandler` passed
+  `skipDeletesUntil` to a Dart `where` predicate over a full `iterate()` walk, so
+  below-watermark DELETE entries were still read from the store (for SQLite,
+  every such row materialised) before being dropped. They are now excluded by
+  the query itself, materially cutting sync work on atSigns with many deletes.
 
 # 3.15.0
 
@@ -33,6 +39,24 @@
   just the PQ ones: e.g. `testingMode=1` previously meant `false` and now
   inherits whatever `config.yaml` specifies. Check deployments for env vars
   that relied on the old coercion.
+- fix: tighten enrollment-management authorization (defense-in-depth). `otp:get`
+  (OTP issuance) now requires `__manage` access — a no-`enrollmentId` owner/CRAM
+  connection still bootstraps the first enrollment. `enroll:fetch` (which returns
+  the enrollment's `encryptedAPKAMSymmetricKey`) now permits fetching only your
+  OWN enrollment, or another enrollment when you hold `__manage` AND access to
+  every namespace the target holds — the same bar as approve/deny/revoke. Both
+  were previously gated on authentication alone.
+- fix: enrollment authorization no longer lets the `*` ("all namespaces")
+  wildcard reach reserved namespaces it was never granted. A `*:rw` enrollment
+  could previously read/write another enrollment's per-enrollment reserved
+  namespace (`<id>.a|r|d.__e`), and a `*:rw` enrollment WITHOUT an explicit
+  `__manage` grant could update / delete / lookup / scan another enrollment's
+  `__manage` record and encrypted key material (PEK/SEK) — the per-namespace
+  guards keyed on the matched namespace rather than the target key's own
+  namespace, so `*` laundered the reserved namespace. Access to another
+  enrollment's reserved namespaces is now denied (public keys exempt;
+  own-enrollment access unchanged), and `scan`'s `*` fast path excludes them
+  too. Legacy no-`enrollmentId` connections are unchanged.
 - fix: a sync request no longer fails outright when a commit entry outlives its
   key. `SyncProgressiveVerbHandler` fetched each non-delete entry's value from
   the keystore with no guard, so one commit entry whose key is absent — an

@@ -102,9 +102,9 @@ void main() {
     });
 
     test(
-        'revoking an enrollment moves its per-enrollment data from a.__e to r.__e',
+        'a *:rw + __manage primary cannot read another enrollment\'s per-enrollment (a.__e) data',
         () async {
-      // Primary CRAM enrollment (has __manage + *:rw) — it will approve and revoke.
+      // Primary CRAM enrollment (has __manage + *:rw) — it will approve.
       await firstAtSignConnection.authenticateConnection(authType: AuthType.cram);
       String primaryEnroll =
           'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
@@ -134,35 +134,31 @@ void main() {
           .replaceAll('data:', ''));
       expect(approveJson['status'], 'approved');
 
-      // The second enrollment writes a self key in its OWN reserved namespace.
+      // The second enrollment writes AND reads a self key in its OWN reserved
+      // namespace — own-enrollment access is unchanged.
       await secondConnection.authenticateConnection(
           authType: AuthType.apkam, enrollmentId: secondEnrollmentId);
       String approvedKey =
           '$firstAtSign:secret.$secondEnrollmentId.a.__e$firstAtSign';
-      String revokedKey =
-          '$firstAtSign:secret.$secondEnrollmentId.r.__e$firstAtSign';
       String updateResponse = await secondConnection
           .sendRequestToServer('update:$approvedKey topsecret');
       assert((updateResponse.startsWith('data:')) &&
           (!updateResponse.contains('null')));
+      expect(await secondConnection.sendRequestToServer('llookup:$approvedKey'),
+          'data:topsecret');
       await secondConnection.close();
 
-      // The primary (holds *:rw) can read the a.__e key while the enrollment is approved.
-      expect(await firstAtSignConnection.sendRequestToServer('llookup:$approvedKey'),
-          'data:topsecret');
-
-      // Primary revokes the second enrollment.
-      var revokeJson = jsonDecode((await firstAtSignConnection.sendRequestToServer(
-              'enroll:revoke:{"enrollmentId":"$secondEnrollmentId"}'))
-          .replaceAll('data:', ''));
-      expect(revokeJson['status'], 'revoked');
-
-      // The data has MOVED a.__e -> r.__e: the a.__e key is gone, the r.__e key carries the value.
-      String goneResponse = await firstAtSignConnection
+      // The primary holds *:rw + __manage, yet must NOT be able to read another
+      // enrollment's per-enrollment reserved-namespace (a.__e) data. (The
+      // a -> r/d lifecycle move on revoke/delete is verified by the server unit
+      // tests, which observe the keystore directly; it is intentionally no
+      // longer observable cross-enrollment over the wire.)
+      String crossRead = await firstAtSignConnection
           .sendRequestToServer('llookup:$approvedKey');
-      expect(goneResponse, contains('does not exist in keystore'));
-      expect(await firstAtSignConnection.sendRequestToServer('llookup:$revokedKey'),
-          'data:topsecret');
+      expect(crossRead, isNot(contains('topsecret')),
+          reason: 'primary must not see another enrollment\'s a.__e value');
+      expect(crossRead.toLowerCase(),
+          anyOf(startsWith('error:'), contains('not authorized')));
     });
   });
 }

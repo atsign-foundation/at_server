@@ -78,16 +78,9 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
         return false;
       }
 
-      // skipDeletesUntil: skip DELETE entries below the threshold,
-      // unless this is the latest commit entry overall (then it stays
-      // so the client can advance its watermark).
-      if (skipDeletesUntil != null &&
-          entry.operation == CommitOp.DELETE &&
-          entry.commitId != null &&
-          entry.commitId! <= skipDeletesUntil &&
-          entry.commitId != latestCommitId) {
-        return false;
-      }
+      // skipDeletesUntil is handled at the query level (see the iterate()
+      // call below), so below-watermark DELETE entries never reach this
+      // filter and are never read from the store.
 
       // Regex / always-include-in-sync filter.
       if (regex != null &&
@@ -116,7 +109,12 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       capacity,
       syncLimit,
       syncResponse,
-      commitLog.iterate(fromCommitId: fromCommitId, where: whereFilter),
+      commitLog.iterate(
+        fromCommitId: fromCommitId,
+        where: whereFilter,
+        skipDeletesUntil: skipDeletesUntil,
+        latestCommitId: latestCommitId,
+      ),
     );
 
     response.data = jsonEncode(syncResponse);

@@ -37,10 +37,10 @@ packages:
     dependency: "direct main"
     description:
       name: at_commons
-      sha256: "59ee72b4dbbe9ca8310fb08a2de725937e6a0bb5947b7c24286aea5e8d0eadb5"
+      sha256: fd878c65d9628f0fbba9e724ead7995412394ae614ff0eac33384235c5494286
       url: "https://pub.dev"
     source: hosted
-    version: "5.12.0"
+    version: "5.13.0"
   at_persistence_root_server:
     dependency: "direct main"
     description:
@@ -406,10 +406,10 @@ packages:
     dependency: "direct main"
     description:
       name: uuid
-      sha256: "1fef9e8e11e2991bb773070d4656b7bd5d850967a2456cfc83cf47925ba79489"
+      sha256: "9b129329f58692f6e6578329498a8fe9fbe98f090beb764ffbb8ee2eadd01dcd"
       url: "https://pub.dev"
     source: hosted
-    version: "4.5.3"
+    version: "4.6.0"
   vm_service:
     dependency: transitive
     description:

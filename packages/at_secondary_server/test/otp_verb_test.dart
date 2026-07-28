@@ -48,6 +48,51 @@ void main() {
               inboundConnection),
           throwsA(predicate((dynamic e) => e is UnAuthenticatedException)));
     });
+    test('otp:get is denied for an enrollment without __manage access',
+        () async {
+      Response response = Response();
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.enrollmentId = 'scoped-enroll-id';
+      await keyValueStore.put(
+          'scoped-enroll-id.new.enrollments.__manage$alice',
+          AtData()
+            ..data = jsonEncode({
+              'sessionId': '123',
+              'appName': 'wavi',
+              'deviceName': 'pixel',
+              'namespaces': {'wavi': 'rw'}, // no __manage
+              'apkamPublicKey': 'k',
+              'requestType': 'newEnrollment',
+              'approval': {'state': 'approved'}
+            }));
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+      expect(
+          otpVerbHandler.processVerb(response,
+              getVerbParam(VerbSyntax.otp, 'otp:get'), inboundConnection),
+          throwsA(isA<UnAuthorizedException>()));
+    });
+    test('otp:get is allowed for an enrollment with __manage access', () async {
+      Response response = Response();
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.enrollmentId = 'manage-enroll-id';
+      await keyValueStore.put(
+          'manage-enroll-id.new.enrollments.__manage$alice',
+          AtData()
+            ..data = jsonEncode({
+              'sessionId': '123',
+              'appName': 'wavi',
+              'deviceName': 'pixel',
+              'namespaces': {'wavi': 'rw', '__manage': 'rw'},
+              'apkamPublicKey': 'k',
+              'requestType': 'newEnrollment',
+              'approval': {'state': 'approved'}
+            }));
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+      await otpVerbHandler.processVerb(
+          response, getVerbParam(VerbSyntax.otp, 'otp:get'), inboundConnection);
+      expect(response.data, isNotNull);
+      expect(response.data!.length, 6);
+    });
     test('A test to verify OTP generated is 6-character length', () async {
       Response response = Response();
       HashMap<String, String?> verbParams =

@@ -192,16 +192,28 @@ class HiveCommitLogKeyStore with HiveBase<CommitEntry?> {
   /// Lazy stream over every commit entry with `commitId >= [fromCommitId]`
   /// (or all entries if [fromCommitId] is null), in commit-id order.
   /// If [where] is provided, only entries for which `where(entry)` returns
-  /// true are yielded. The box's one-entry-per-atKey invariant
-  /// (enforced inline by [add] and by the startup dedup migration)
+  /// true are yielded. [skipDeletesUntil]/[latestCommitId] apply sync's
+  /// delete-skip (see [AtCommitLog.iterate]). The box's one-entry-per-atKey
+  /// invariant (enforced inline by [add] and by the startup dedup migration)
   /// means this yields one entry per atKey naturally.
   Stream<CommitEntry> iterate({
     int? fromCommitId,
     bool Function(CommitEntry)? where,
+    int? skipDeletesUntil,
+    int? latestCommitId,
   }) async* {
     for (final key in getBox().keys) {
       if (fromCommitId != null && (key as int) < fromCommitId) continue;
       final entry = await getValue(key) as CommitEntry;
+      // Sync's delete-skip: drop below-watermark DELETE entries, keeping
+      // only the latest so the client can still advance its watermark.
+      if (skipDeletesUntil != null &&
+          entry.operation == CommitOp.DELETE &&
+          entry.commitId != null &&
+          entry.commitId! <= skipDeletesUntil &&
+          entry.commitId != latestCommitId) {
+        continue;
+      }
       if (where != null && !where(entry)) continue;
       yield entry;
     }

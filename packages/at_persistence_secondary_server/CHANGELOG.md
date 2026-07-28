@@ -1,5 +1,13 @@
 ## 5.2.1
 
+- feat: `AtCommitLog.iterate` accepts `skipDeletesUntil`/`latestCommitId`,
+  pushing sync's delete-skip into the query. Previously sync fetched every
+  commit entry from `fromCommitId` and discarded below-watermark DELETE entries
+  in a Dart filter; now the backend excludes them at the source — SQLite in the
+  SQL `WHERE`, so those rows are never read or deserialised — while always
+  yielding the single latest entry so the client can still advance its
+  watermark. Legacy callers (no `skipDeletesUntil`) are unaffected.
+
 - fix: `PersistenceMigrator` now drops ORPHANED commit entries rather than
   copying them into the target — a non-delete commit entry whose key is absent
   from the keystore. Hive accumulates these (its commit log's box and in-memory

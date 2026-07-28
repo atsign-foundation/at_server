@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>APKAM enrollment — overview</title>
+<style>
+  :root{
+    --ink:#12212e; --ink-2:#3a4f60; --muted:#6a7b8a; --line:#e2e8ee; --line-2:#cfd9e2;
+    --bg:#ffffff; --panel:#f6f9fb; --teal:#0d8f80; --teal-bg:#e6f6f3;
+    --amber:#b06a00; --amber-bg:#fbf1e0; --violet:#6d5bd0; --violet-bg:#eeebfb;
+    --red:#c0392b; --red-bg:#fbeceb; --green:#0f8a4f; --green-bg:#e4f6ec;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:#eef2f6;color:var(--ink);font-family:var(--sans);line-height:1.5;font-size:15px;}
+  .page{max-width:900px;margin:26px auto;background:var(--bg);border:1px solid var(--line);
+    border-radius:12px;padding:34px 40px 30px;box-shadow:0 1px 3px rgba(20,33,46,.06);}
+  header{border-bottom:2px solid var(--teal);padding-bottom:14px;margin-bottom:18px;}
+  .eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--teal);font-weight:700;margin:0 0 6px;}
+  h1{font-size:25px;line-height:1.15;margin:0 0 8px;letter-spacing:-.3px;}
+  .thesis{font-size:15.5px;color:var(--ink-2);margin:0;}
+  .meta{font-size:12px;color:var(--muted);margin-top:8px;}
+  h2{font-size:16px;margin:26px 0 8px;padding-left:11px;border-left:3px solid var(--teal);}
+  h2 .n{color:var(--teal);font-family:var(--mono);font-size:13px;font-weight:700;margin-right:7px;}
+  h3{font-size:13.5px;margin:16px 0 4px;color:var(--ink);}
+  p{margin:.5em 0;}
+  code,.k{font-family:var(--mono);font-size:.9em;background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:.5px 5px;color:var(--ink-2);}
+  ul{margin:.4em 0;padding-left:0;list-style:none;}
+  li{position:relative;padding:4px 0 4px 20px;color:var(--ink-2);}
+  li::before{content:"";position:absolute;left:3px;top:12px;width:6px;height:6px;border-radius:50%;background:var(--teal);}
+  li b,p b{color:var(--ink);}
+  ol.steps{counter-reset:s;margin:.6em 0;padding-left:0;list-style:none;}
+  ol.steps li{counter-increment:s;padding:6px 0 6px 34px;}
+  ol.steps li::before{content:counter(s);top:6px;left:0;width:22px;height:22px;border-radius:50%;
+    background:var(--teal-bg);border:1px solid #bfe6df;color:var(--teal);font:700 12px/22px var(--mono);text-align:center;}
+  .lead{font-size:15.5px;color:var(--ink-2);}
+  .lead b{color:var(--ink);}
+  .ttab{width:100%;border-collapse:collapse;margin:14px 0 6px;font-size:13px;}
+  .ttab th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;padding:5px 11px;border-bottom:2px solid var(--line-2);vertical-align:bottom;}
+  .ttab td{padding:9px 11px;border-bottom:1px solid var(--line);vertical-align:top;}
+  .ttab td:first-child{font-weight:800;color:var(--ink);font-family:var(--mono);white-space:nowrap;}
+  .ttab tr:last-child td{border-bottom:none;}
+  .yes{color:var(--green);font-weight:700;} .no{color:var(--red);font-weight:700;}
+  .box{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:13px 16px;margin-top:14px;}
+  .box.key{background:var(--teal-bg);border-color:#bfe6df;}
+  .box h3{margin-top:0;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px;}
+  .flow{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:6px 16px 12px;margin-top:12px;}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin-top:22px;padding-top:12px;border-top:1px solid var(--line);}
+  .legend span b{color:var(--ink);}
+  .foot{font-size:11.5px;color:var(--muted);margin-top:8px;}
+  @media (max-width:640px){.grid2{grid-template-columns:1fr;}}
+  @media print{body{background:#fff;} .page{border:none;box-shadow:none;margin:0;max-width:none;}}
+</style></head>
+<body>
+<div class="page">
+  <header>
+    <p class="eyebrow">Atsign Protocol · atServer · APKAM enrollment</p>
+    <h1>APKAM enrollment — how it works</h1>
+    <p class="thesis">APKAM (Application PKAM) is how an atSign owner lets an individual app or device act on
+    their behalf — with just the access it needs, revocable at any time, and without ever handing over the
+    root keypair. This is a conceptual overview: it starts with the idea and what it enables, then serves as an
+    engineering reference for the flows, the per-enrollment namespaces, and the authorization model.</p>
+    <p class="meta">Overview · a level above the code</p>
+  </header>
+
+  <h2><span class="n">1</span>The idea, and what it enables</h2>
+  <p class="lead">Onboarding an atSign creates one <b>root keypair</b> that authenticates the owner and can do
+  anything. Giving that key to every app and device would be all-or-nothing and irreversible. APKAM enrollment
+  replaces that with a set of <b>scoped, revocable grants</b>: each app or device gets <em>its own</em> key and
+  only the namespaces it needs, and can be turned off later without disturbing anything else.</p>
+  <p>The unit is an <b>enrollment</b> — one (app, device) with its own signing keypair, a namespace-scoped
+  grant, a lifecycle you approve and can later revoke, and a one-time delivery of the encryption keys it needs
+  to work with the atSign's end-to-end-encrypted data. What that model buys you:</p>
+  <ul>
+    <li><b>Least privilege.</b> An app holds only the namespaces it needs, at read or read-write — never the
+      root key. A photo app gets <code>photos:rw</code>, not the keys to everything.</li>
+    <li><b>Revocability without re-keying.</b> A lost device is revoked in place; the owner and every other app
+      keep working. No root-key rotation, no re-onboarding.</li>
+    <li><b>Safe key delivery.</b> Each enrollment still needs the atSign's encryption keys to read and write
+      E2E-encrypted data. They are delivered to it <em>encrypted</em>, once, at approval — the server never
+      sees anything in the clear, and the private signing key is never transmitted.</li>
+    <li><b>Delegated administration.</b> A trusted enrollment can be given the right to manage others — bounded
+      so it can never grant access it does not itself hold.</li>
+    <li><b>Isolation &amp; auditability.</b> Every enrollment is a durable record, and each one's private
+      working data is walled off from the others.</li>
+  </ul>
+
+  <h2><span class="n">2</span>The building blocks</h2>
+  <div class="grid2">
+    <div class="box">
+      <h3>An enrollment record</h3>
+      <ul style="margin:0">
+        <li><b>app / device name</b> — what and where.</li>
+        <li><b>namespaces</b> — a map of <code>namespace → r | rw</code>; <code>*</code> means all namespaces;
+          <code>__manage</code> means management rights.</li>
+        <li><b>APKAM public key</b> — verifies this enrollment's logins. The private half lives only on the
+          device.</li>
+        <li><b>state</b> — pending, approved, revoked, denied (see §6).</li>
+        <li><b>delivered key material</b> — the atSign's encryption keys, encrypted for this enrollment (§5).</li>
+        <li><b>metadata</b> — opaque data the enrollment chooses to publish to other authorized enrollments.</li>
+      </ul>
+    </div>
+    <div class="box">
+      <h3>Two special namespaces</h3>
+      <ul style="margin:0">
+        <li><code>__manage</code> — the <b>management</b> namespace. Holding it (read-write) confers the
+          authority to run enrollment operations, and it is where enrollment records and delivered key material
+          physically live.</li>
+        <li><code>&lt;id&gt;.a|r|d.__e</code> — each enrollment's own <b>per-enrollment reserved namespace</b>
+          (§4): a private space keyed to the enrollment, with an approved / revoked / deleted marker.</li>
+      </ul>
+      <p style="margin:.6em 0 0">The <b>owner</b> — a root-authenticated connection with no enrollment id —
+      sits above all of this and bootstraps the first enrollment.</p>
+    </div>
+  </div>
+
+  <h2><span class="n">3</span>Enrollment-management flows</h2>
+
+  <h3>3.1 Bootstrap — the first enrollment</h3>
+  <div class="flow">
+    <ol class="steps">
+      <li>The owner authenticates with the root credential and requests enrollment of the first app.</li>
+      <li>Because it is the owner, the request is <b>auto-approved</b> and granted <code>*:rw</code> plus
+        <code>__manage</code> — a full-access administrator enrollment that can then manage everyone else.</li>
+    </ol>
+  </div>
+
+  <h3>3.2 New enrollment — an app joins</h3>
+  <div class="flow">
+    <ol class="steps">
+      <li>A manager (the owner, or any enrollment holding <code>__manage</code>) issues a short-lived
+        <b>one-time passcode (OTP)</b> — or a longer-lived semi-permanent passcode.</li>
+      <li>The new app sends an <b>enrollment request</b> carrying that passcode, the namespaces it wants, its
+        APKAM public key, and its symmetric key (encrypted). It is recorded as <b>pending</b>. Requests are
+        rate-limited, and the passcode is consumed.</li>
+      <li>A manager <b>approves</b> — supplying the atSign's encryption keys re-encrypted for the new enrollment
+        (§5). Approval can only grant namespaces the manager itself holds.</li>
+      <li>The app <b>APKAM-authenticates</b> (proving possession of its private key), <b>pulls its delivered
+        keys once</b>, and stores them on-device. It is now a live, scoped enrollment.</li>
+    </ol>
+  </div>
+
+  <h3>3.3 Lifecycle changes</h3>
+  <ul>
+    <li><b>Deny</b> — reject a pending request.</li>
+    <li><b>Revoke</b> — withdraw an approved enrollment's access (e.g. a lost device). Its live connection is
+      dropped and its per-enrollment data moves from the <em>approved</em> to the <em>revoked</em> marker.</li>
+    <li><b>Unrevoke</b> — restore a revoked enrollment.</li>
+    <li><b>Delete</b> — remove a denied or revoked record entirely; its per-enrollment data moves to the
+      <em>deleted</em> marker. Expiry (an enrollment can be given a lifetime) reaches the same end state.</li>
+  </ul>
+  <p style="margin:.6em 0 0">All four are <b>management operations</b>: they require <code>__manage</code> and
+  are further bounded so the caller can only act on an enrollment whose namespaces the caller itself holds — you
+  cannot revoke or approve an app for a namespace you don't have. You cannot revoke your own enrollment without
+  an explicit force flag.</p>
+
+  <h3>3.4 Inspection &amp; discovery</h3>
+  <ul>
+    <li><b>List</b> — without <code>__manage</code> a caller sees only its own record; with <code>__manage</code>
+      it sees the full roster.</li>
+    <li><b>List-by-namespace</b> — any approved enrollment holding at least read on a namespace can discover the
+      other enrollments that also have access to it (id, access level, public key, published metadata). A
+      deliberate discovery mechanism — it never returns any secret.</li>
+    <li><b>Fetch by id</b> — retrieve one enrollment's details, including its delivered key material. Permitted
+      for your <em>own</em> enrollment, or for another only if you hold <code>__manage</code> <b>and</b> access
+      to every namespace that enrollment holds.</li>
+  </ul>
+
+  <h2><span class="n">4</span>Per-enrollment namespaces — <code>&lt;id&gt;.a|r|d.__e</code></h2>
+  <p>Every enrollment is automatically given read-write on a reserved namespace unique to it. The trailing
+  marker tracks the enrollment's lifecycle — <code>.a.__e</code> while <b>approved</b>, moved to
+  <code>.r.__e</code> when <b>revoked</b> and <code>.d.__e</code> when <b>deleted</b> — so an enrollment's
+  working data follows its state automatically and is cleaned up with it.</p>
+  <h3>What it enables</h3>
+  <ul>
+    <li><b>Private per-enrollment storage.</b> A place an enrollment keeps its own working data, isolated from
+      every other enrollment.</li>
+    <li><b>Discovery target.</b> An enrollment can publish a <em>public</em> key here (for example its signing
+      key) so other authorized parties can find it and encrypt to it — this is what list-by-namespace surfaces.</li>
+    <li><b>Automatic lifecycle hygiene.</b> Revoke, delete and expiry move or remove this data as a side effect,
+      so there are no orphans.</li>
+  </ul>
+  <p style="margin:.6em 0 0"><b>Isolation.</b> This namespace is private to its owning enrollment: another
+  enrollment cannot read or write it. Public keys stored there remain world-readable, but private data does not
+  cross between enrollments.</p>
+
+  <h2><span class="n">5</span>Key material &amp; delivery</h2>
+  <p>Because atSign data is end-to-end encrypted and the server never holds decryption keys, a new enrollment
+  must be <em>given</em> the atSign's encryption keys — safely. Four pieces of material are involved:</p>
+  <table class="ttab">
+    <thead><tr><th>Material</th><th>What it is</th><th>Handling</th></tr></thead>
+    <tbody>
+      <tr><td>APKAM keypair</td><td>The enrollment's own login keypair.</td><td>Public half on the record; <b>private half never leaves the device</b>.</td></tr>
+      <tr><td>Encrypted symmetric key</td><td>The enrollment's symmetric key, encrypted to the atSign's encryption public key.</td><td>Supplied at request time; used to wrap the keys below.</td></tr>
+      <tr><td>PEK</td><td>The atSign's default <em>encryption</em> private key, re-encrypted for this enrollment.</td><td rowspan="2">Supplied at <b>approval</b>, stored server-side under <code>__manage</code>, <b>pulled once</b> by the enrollee and kept on-device; the server copies are unused thereafter.</td></tr>
+      <tr><td>SEK</td><td>The atSign's default <em>self-encryption</em> key, re-encrypted for this enrollment.</td></tr>
+    </tbody>
+  </table>
+  <div class="box key">
+    <p style="margin:0"><b>Delivery is one-shot and encrypted end to end.</b> The manager approving the request
+    does the re-encryption; the server only stores and relays ciphertext. The enrollee reads its PEK/SEK once,
+    through a dedicated key-retrieval path scoped to its own keys, and holds them locally from then on.</p>
+  </div>
+
+  <h2><span class="n">6</span>States</h2>
+  <table class="ttab">
+    <thead><tr><th>State</th><th>Meaning</th><th>Reached from</th></tr></thead>
+    <tbody>
+      <tr><td>pending</td><td>Requested, awaiting a decision. Cannot yet authenticate.</td><td>a new request</td></tr>
+      <tr><td>approved</td><td>Live: can APKAM-authenticate and use its granted namespaces.</td><td>pending → <b>approve</b>; revoked → <b>unrevoke</b>; owner's first request (auto)</td></tr>
+      <tr><td>denied</td><td>Rejected. Terminal until deleted.</td><td>pending → <b>deny</b></td></tr>
+      <tr><td>revoked</td><td>Access withdrawn; connection dropped; data moved to the revoked marker.</td><td>approved → <b>revoke</b> (or expiry)</td></tr>
+      <tr><td>deleted</td><td>Record removed; data moved to the deleted marker.</td><td>denied/revoked → <b>delete</b> (or expiry)</td></tr>
+    </tbody>
+  </table>
+  <p class="foot">Each mutation enforces a state precondition — you can only approve a <em>pending</em>
+  enrollment, revoke an <em>approved</em> one, unrevoke a <em>revoked</em> one, and delete a <em>denied or
+  revoked</em> one.</p>
+
+  <h2><span class="n">7</span>Authorization model — summary</h2>
+  <p>Two questions govern almost everything: <b>do you hold <code>__manage</code>?</b> (the right to administer
+  enrollments) and <b>do you hold the namespace in question</b>, at a sufficient access level? The owner
+  connection sits above both. Management authority is always <em>bounded by your own grants</em> — holding
+  <code>__manage</code> is necessary but never sufficient to act on namespaces you don't have.</p>
+
+  <h3>7.1 Who may perform each operation</h3>
+  <table class="ttab">
+    <thead><tr><th>Operation</th><th>Purpose</th><th>Permitted for</th></tr></thead>
+    <tbody>
+      <tr><td>request</td><td>Ask to enroll a new app/device.</td><td>The owner (first enrollment, auto-approved); or a new device presenting a valid passcode. Rate-limited.</td></tr>
+      <tr><td>otp:get / otp:put</td><td>Issue a one-time / semi-permanent passcode.</td><td>The owner, or an enrollment holding <span class="k">__manage</span>. <span class="no">Not</span> a scoped app.</td></tr>
+      <tr><td>approve / deny</td><td>Decide a pending request.</td><td><span class="k">__manage</span> holders — <b>and</b> only for namespaces the approver itself holds (at ≥ the requested access).</td></tr>
+      <tr><td>revoke / unrevoke / delete</td><td>Change an enrollment's lifecycle.</td><td><span class="k">__manage</span> + access to all of the target's namespaces. Cannot revoke your own without <span class="k">force</span>.</td></tr>
+      <tr><td>list</td><td>List enrollments.</td><td>Own record only without <span class="k">__manage</span>; full roster with it.</td></tr>
+      <tr><td>listns</td><td>Discover enrollments sharing a namespace.</td><td>Any <em>approved</em> enrollment holding ≥ read on that namespace. Returns no secrets.</td></tr>
+      <tr><td>fetch</td><td>Fetch one enrollment's details.</td><td>Your <b>own</b> enrollment; or another only with <span class="k">__manage</span> <b>and</b> access to all of its namespaces.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>7.2 Access to the reserved namespaces</h3>
+  <table class="ttab">
+    <thead><tr><th>Target</th><th>Who may read / write</th></tr></thead>
+    <tbody>
+      <tr><td>__manage keys<br><span class="foot" style="margin:0">records · delivered key material</span></td>
+        <td>Reachable only through enrollment/OTP/monitor operations by a holder of <span class="k">__manage</span>, plus the enrollee's own key-retrieval. <span class="no">Never</span> via ordinary data verbs (update/delete/lookup/scan) — and a <span class="k">*</span> ("all namespaces") grant does <span class="no">not</span> substitute for holding <span class="k">__manage</span>.</td></tr>
+      <tr><td>own <span class="k">&lt;id&gt;.a.__e</span></td><td><span class="yes">read-write</span> by the enrollment that owns it.</td></tr>
+      <tr><td>another enrollment's <span class="k">&lt;id&gt;.a|r|d.__e</span></td><td><span class="no">Denied</span> — even to a <span class="k">*:rw</span> enrollment — except public keys, which stay world-readable.</td></tr>
+      <tr><td>public keys (anywhere)</td><td>World-readable by design — that is what discovery relies on.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box">
+    <p style="margin:0"><b>The through-line.</b> <code>__manage</code> is the master gate for administering
+    enrollments and for touching enrollment key material; the per-namespace check keeps every administrator
+    inside its own grant; and each enrollment's private reserved namespace is walled off from the others. A
+    broad <code>*</code> grant is about <em>data</em> access — it never confers management authority or reaches
+    another enrollment's private space.</p>
+  </div>
+
+  <div class="legend">
+    <span><b class="k" style="background:none;border:none;padding:0">__manage</b> management authority + where records &amp; key material live</span>
+    <span><b class="k" style="background:none;border:none;padding:0">*</b> "all namespaces" (data), not management</span>
+    <span><b class="k" style="background:none;border:none;padding:0">.a|r|d.__e</b> per-enrollment reserved namespace (approved / revoked / deleted)</span>
+  </div>
+</div>
+</body></html>
