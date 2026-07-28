@@ -404,6 +404,11 @@ class OutboundClient {
   /// including the key simply not existing — is treated as "no", never
   /// surfaced: a signer that can't confirm PQ support must fall back to
   /// legacy RSA rather than risk sending a cookie the peer can't parse.
+  ///
+  /// Hardcoded to [pqAlgoMlDsa65] because that's the only signing algorithm
+  /// [PqKeyManager] can produce a cookie for today. A second algorithm needs
+  /// a branch here alongside the one in `PolVerbHandler._verifyPqSignature`
+  /// (see its comment on `pqSupportedSigningAlgosByPreference`).
   @visibleForTesting
   Future<bool> checkPeerPqSupport() async {
     try {

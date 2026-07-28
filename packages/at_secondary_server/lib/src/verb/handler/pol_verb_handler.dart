@@ -102,6 +102,12 @@ class PolVerbHandler extends AbstractVerbHandler {
     late OutboundClient oc;
     String? fetchedChallenge, fromRsaPublicKey, fromPqRecord;
     for (int attempt = 0;; attempt++) {
+      // Reset per attempt: a retry must not let a partial result from a
+      // failed earlier attempt (e.g. a fetched challenge followed by a
+      // failed key lookup) leak into the branch selection below.
+      fetchedChallenge = null;
+      fromRsaPublicKey = null;
+      fromPqRecord = null;
       oc = await outboundClientManager.getClient(
           fromAtSign!, // Non-null: guaranteed by the from: check above.
           _dummyInboundConnection,

@@ -910,41 +910,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     notificationKeystore = bundle.notificationKeystore!;
     keyValueStore = bundle.keyValueStore;
 
-    // Initialise this server's ML-DSA signing keypair and publish its public
-    // key so peers can verify our handshake signatures. On the kill-switch or
-    // an init failure we withdraw any previously published key. This is not
-    // just tidiness: OutboundClient.checkPeerPqSupport (called by peers
-    // signing to us) treats a missing record as "this atServer can't verify
-    // PQ cookies" and falls back to legacy RSA signing, so withdrawing it
-    // promptly is what makes peers stop sending us a format we can no longer
-    // parse.
-    if (AtSecondaryConfig.disablePqAuth) {
-      logger.info('PQ auth disabled via config — withdrawing any published '
-          'PQ signing public key so peers fall back to legacy auth');
-      try {
-        await keyValueStore
-            .remove(pqSigningPublicKeyRecordName(currentAtSign));
-      } catch (removeError) {
-        logger.severe('Failed to withdraw PQ signing public key while PQ auth '
-            'is disabled: $removeError');
-      }
-    } else {
-      try {
-        await pqKeyManager.init(currentAtSign, keyValueStore);
-        await pqKeyManager.publishPublicKey(currentAtSign, keyValueStore);
-      } catch (e) {
-        logger.severe(
-            'PQ key initialisation failed — withdrawing any published PQ '
-            'signing public key so peers fall back to legacy auth: $e');
-        try {
-          await keyValueStore
-              .remove(pqSigningPublicKeyRecordName(currentAtSign));
-        } catch (removeError) {
-          logger.severe('Failed to withdraw PQ signing public key after init '
-              'failure: $removeError');
-        }
-      }
-    }
+    await initializePqAuth(currentAtSign, keyValueStore);
 
     serverContext!.isKeyStoreInitialized = true;
 
@@ -969,6 +935,51 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     } on KeyNotFoundException {
       logger.info(
           'signing key generated? ${await keyValueStore.exists(AtConstants.atSigningKeypairGenerated)}');
+    }
+  }
+
+  /// Initialise this server's ML-DSA signing keypair and publish its public
+  /// key so peers can verify our handshake signatures. On the kill-switch or
+  /// an init failure we withdraw any previously published key. This is not
+  /// just tidiness: OutboundClient.checkPeerPqSupport (called by peers
+  /// signing to us) treats a missing record as "this atServer can't verify
+  /// PQ cookies" and falls back to legacy RSA signing, so withdrawing it
+  /// promptly is what makes peers stop sending us a format we can no longer
+  /// parse.
+  ///
+  /// Extracted out of [_initializePersistentInstances] (rather than left
+  /// inline) so it can be exercised directly in tests without booting a full
+  /// server — the kill switch is the one PQ code path a fleet rollout most
+  /// needs proven, and the surrounding method requires a real persistence
+  /// bundle and continues on to bind a TLS socket.
+  @visibleForTesting
+  Future<void> initializePqAuth(String currentAtSign,
+      AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore) async {
+    if (AtSecondaryConfig.disablePqAuth) {
+      logger.info('PQ auth disabled via config — withdrawing any published '
+          'PQ signing public key so peers fall back to legacy auth');
+      try {
+        await keyValueStore
+            .remove(pqSigningPublicKeyRecordName(currentAtSign));
+      } catch (removeError) {
+        logger.severe('Failed to withdraw PQ signing public key while PQ auth '
+            'is disabled: $removeError');
+      }
+    } else {
+      try {
+        await pqKeyManager.init(currentAtSign, keyValueStore);
+      } catch (e) {
+        logger.severe(
+            'PQ key initialisation failed — withdrawing any published PQ '
+            'signing public key so peers fall back to legacy auth: $e');
+        try {
+          await keyValueStore
+              .remove(pqSigningPublicKeyRecordName(currentAtSign));
+        } catch (removeError) {
+          logger.severe('Failed to withdraw PQ signing public key after init '
+              'failure: $removeError');
+        }
+      }
     }
   }
 

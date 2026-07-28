@@ -69,52 +69,52 @@ void main() {
 
   group('OutboundClient.checkPeerPqSupport', () {
     test('true when the peer has published a PQ signing key record', () async {
-      final client = makeClient((key) async => _validPeerRecord);
-      expect(await client.checkPeerPqSupport(), isTrue);
+      final oc = makeClient((key) async => _validPeerRecord);
+      expect(await oc.checkPeerPqSupport(), isTrue);
     });
 
     test('false when the peer has no PQ signing key record', () async {
-      final client = makeClient((key) async {
+      final oc = makeClient((key) async {
         throw KeyNotFoundException('key not found : $key');
       });
-      expect(await client.checkPeerPqSupport(), isFalse);
+      expect(await oc.checkPeerPqSupport(), isFalse);
     });
 
     test('false (fail-safe) on any other lookup failure', () async {
-      final client = makeClient((key) async {
+      final oc = makeClient((key) async {
         throw AtTimeoutException('no response');
       });
-      expect(await client.checkPeerPqSupport(), isFalse);
+      expect(await oc.checkPeerPqSupport(), isFalse);
     });
 
     test('probes the peer-specific PQ record name', () async {
       String? probedKey;
-      final client = makeClient((key) async {
+      final oc = makeClient((key) async {
         probedKey = key;
         return _validPeerRecord;
       });
-      await client.checkPeerPqSupport();
+      await oc.checkPeerPqSupport();
       expect(probedKey, equals('$pqSigningPublicKeyRecordNamePart$bob'));
     });
 
     test('false when the peer record carries no ml-dsa-65 entry', () async {
-      final client = makeClient((key) async => 'data:'
+      final oc = makeClient((key) async => 'data:'
           '${buildPqSigningPublicRecord({
                 'some-future-algo': Uint8List.fromList([1, 2, 3])
               })}');
-      expect(await client.checkPeerPqSupport(), isFalse,
+      expect(await oc.checkPeerPqSupport(), isFalse,
           reason: 'signing a cookie the peer cannot verify is worse than '
               'falling back to RSA');
     });
 
     test('false when the peer record is unparseable', () async {
-      final client = makeClient((key) async => 'data:not-json');
-      expect(await client.checkPeerPqSupport(), isFalse);
+      final oc = makeClient((key) async => 'data:not-json');
+      expect(await oc.checkPeerPqSupport(), isFalse);
     });
 
     test('false when the lookup returns nothing', () async {
-      final client = makeClient((key) async => null);
-      expect(await client.checkPeerPqSupport(), isFalse);
+      final oc = makeClient((key) async => null);
+      expect(await oc.checkPeerPqSupport(), isFalse);
     });
   });
 
@@ -127,26 +127,26 @@ void main() {
     });
 
     test('PQ key initialised + peer supports PQ → ML-DSA cookie', () async {
-      final client = makeClient((key) async => _validPeerRecord,
+      final oc = makeClient((key) async => _validPeerRecord,
           pqKeyManager: initialisedPqKeyManager);
-      final cookie = await client.selectAndSignChallenge('a-challenge');
+      final cookie = await oc.selectAndSignChallenge('a-challenge');
       expect(cookie, startsWith('pq:$pqAlgoMlDsa65:'));
     });
 
     test(
         'PQ key initialised but peer does NOT support PQ → legacy RSA cookie (backward compat)',
         () async {
-      final client = makeClient((key) async {
+      final oc = makeClient((key) async {
         throw KeyNotFoundException('key not found : $key');
       }, pqKeyManager: initialisedPqKeyManager);
-      final cookie = await client.selectAndSignChallenge('a-challenge');
+      final cookie = await oc.selectAndSignChallenge('a-challenge');
       expect(cookie, isNot(startsWith('pq:')));
     });
 
     test('PQ key not initialised → legacy RSA cookie regardless of peer',
         () async {
-      final client = makeClient((key) async => _validPeerRecord);
-      final cookie = await client.selectAndSignChallenge('a-challenge');
+      final oc = makeClient((key) async => _validPeerRecord);
+      final cookie = await oc.selectAndSignChallenge('a-challenge');
       expect(cookie, isNot(startsWith('pq:')));
     });
 

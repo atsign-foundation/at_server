@@ -29,17 +29,23 @@ class OutboundConnectionFactory {
   }
 
   Future<String> sendRequestToServer(String message,
-      {int maxWaitMilliSeconds = 90000}) async {
+      {int maxWaitMilliSeconds = 90000,
+      int transientWaitTimeMillis = 10000}) async {
     if (!(message.endsWith('\n'))) {
       message = '$message\n';
     }
     await _outboundConnection.write(message);
-    return await getServerResponse(maxWaitMilliSeconds: maxWaitMilliSeconds);
+    return await getServerResponse(
+        maxWaitMilliSeconds: maxWaitMilliSeconds,
+        transientWaitTimeMillis: transientWaitTimeMillis);
   }
 
-  Future<String> getServerResponse({int maxWaitMilliSeconds = 90000}) async {
+  Future<String> getServerResponse(
+      {int maxWaitMilliSeconds = 90000,
+      int transientWaitTimeMillis = 10000}) async {
     return await _outboundMessageListener.read(
-        maxWaitMilliSeconds: maxWaitMilliSeconds);
+        maxWaitMilliSeconds: maxWaitMilliSeconds,
+        transientWaitTimeMillis: transientWaitTimeMillis);
   }
 
   Future<String> authenticateConnection(

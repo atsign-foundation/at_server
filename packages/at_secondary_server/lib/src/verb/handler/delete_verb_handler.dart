@@ -28,6 +28,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
   );
 
   //setter to set autoNotify value from dynamic server config "config:set".
+  //only works when testingMode is set to true
   static setAutoNotify(bool newState) {
     _autoNotify = newState;
   }

@@ -8,10 +8,12 @@ import 'package:test/test.dart';
 ///
 /// The unit tests around `PolVerbHandler` stub every `lookUp`/`plookUp`, so
 /// they cannot show that the published PQ signing record is actually reachable
-/// over the wire. It is written straight to the keystore by `PqKeyManager`
-/// with no `AtMetaData`, and served through the ordinary plookup path — if
-/// that combination did not resolve, every unit test would still pass while
-/// inter-server auth was broken in production.
+/// over the wire. It is written straight to the keystore by `PqKeyManager` and
+/// served through the ordinary unauthenticated `lookup` path — the same path
+/// `OutboundClient.plookUp()` actually uses on the wire (it sends `lookup:`
+/// with `handshake: false`, not the `plookup` verb, which requires prior
+/// auth) — if that combination did not resolve, every unit test would still
+/// pass while inter-server auth was broken in production.
 void main() {
   String firstAtSign =
       ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignName'];
@@ -40,11 +42,13 @@ void main() {
     test('plookup returns a parseable record carrying an $pqAlgo key',
         () async {
       String response = await connection
-          .sendRequestToServer('plookup:$pqRecordName$firstAtSign');
+          .sendRequestToServer('lookup:$pqRecordName$firstAtSign');
       expect(response, startsWith('data:'),
           reason: 'the record is published at startup by PqKeyManager, so an '
-              'unauthenticated plookup must resolve it — a peer performing pol '
-              'fetches it exactly this way');
+              'unauthenticated lookup must resolve it — a peer performing pol '
+              'fetches it exactly this way, via OutboundClient.plookUp() which '
+              'is actually a lookup:, handshake:false wire call, not the '
+              'plookup: verb (which requires prior auth)');
 
       var record = jsonDecode(response.replaceFirst('data:', '').trim()) as Map;
       expect(record.keys, contains(pqAlgo),
@@ -55,7 +59,7 @@ void main() {
 
     test('the same record is reachable on the peer atSign', () async {
       String response = await connection
-          .sendRequestToServer('plookup:$pqRecordName$secondAtSign');
+          .sendRequestToServer('lookup:$pqRecordName$secondAtSign');
       expect(response, startsWith('data:'),
           reason: 'cross-server pol depends on fetching the *peer\'s* record');
 
@@ -90,8 +94,21 @@ void main() {
       // the full FROM/POL exchange. Both servers publish a PQ record, so the
       // handshake takes the ML-DSA path; a signature or record failure would
       // surface here as an error response rather than data/no-key.
-      String response = await connection
-          .sendRequestToServer('lookup:shared_key$secondAtSign');
+      //
+      // PROVISIONAL, not a confirmed fix: this is the only test in the suite
+      // that drives a live cross-server FROM/POL dance (two outbound TLS
+      // connections chained sequentially, plus the extra checkPeerPqSupport
+      // round trip the PQ path adds over legacy RSA), so the leading
+      // hypothesis is that the default 10s idle timeout is simply tight for
+      // a cold handshake in CI — not a hang. This widens the idle window
+      // (not the 90s total budget) as a diagnostic. The next CI run
+      // distinguishes the two: passes ⇒ latency, as hypothesised; fails at
+      // 90s (AtTimeoutException, total budget) ⇒ a genuine hang that needs
+      // debugging with server-side logs, and this override should come back
+      // out.
+      String response = await connection.sendRequestToServer(
+          'lookup:shared_key$secondAtSign',
+          transientWaitTimeMillis: 30000);
       expect(response, anyOf(startsWith('data:'), startsWith('error:AT0015')),
           reason: 'either the key resolves or it genuinely does not exist; an '
               'auth failure would come back as a pol/handshake error');

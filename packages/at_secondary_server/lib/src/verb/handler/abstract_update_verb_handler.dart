@@ -88,8 +88,8 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   Set<String> _updateProtectedKeys() {
     return _updateProtectedKeysCache ??= hu
         .expandProtectedKeyTemplates(
-            AtSecondaryConfig.protectedKeys
-                .where((template) => template != 'publickey<@atsign>'),
+            AtSecondaryConfig.protectedKeys.where((template) =>
+                template != AtSecondaryConfig.encryptionPublicKeyTemplate),
             atSign)
         .map((e) => e.toLowerCase())
         .toSet();

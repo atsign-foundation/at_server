@@ -79,16 +79,16 @@ void main() {
       });
     });
 
-    group('publishPublicKey()', () {
+    group('init() publishes the public key', () {
       test('publishes a JSON record carrying the ml-dsa-65 public key',
           () async {
         final mgr = PqKeyManager();
         await mgr.init(atSign, keyStore);
-        await mgr.publishPublicKey(atSign, keyStore);
 
         final raw =
             (await keyStore.get(pqSigningPublicKeyRecordName(atSign)))?.data;
-        expect(raw, isNotNull);
+        expect(raw, isNotNull,
+            reason: 'init() must publish, not just load/generate the keypair');
         final map = jsonDecode(raw!) as Map<String, dynamic>;
         expect(map.keys, equals({pqAlgoMlDsa65}),
             reason: 'exactly the supported algorithm is offered today');
@@ -96,10 +96,47 @@ void main() {
             equals(mgr.mlDsaPublicKey));
       });
 
-      test('throws if called before init()', () async {
+      test(
+          'a second init() with an unchanged, still-published key does not '
+          'rewrite the record', () async {
         final mgr = PqKeyManager();
-        expect(() => mgr.publishPublicKey(atSign, keyStore),
-            throwsA(isA<StateError>()));
+        await mgr.init(atSign, keyStore);
+        final versionAfterFirstInit =
+            (await keyStore.get(pqSigningPublicKeyRecordName(atSign)))
+                ?.metaData
+                ?.version;
+
+        final mgr2 = PqKeyManager();
+        await mgr2.init(atSign, keyStore);
+        final versionAfterSecondInit =
+            (await keyStore.get(pqSigningPublicKeyRecordName(atSign)))
+                ?.metaData
+                ?.version;
+
+        // AtMetadataBuilder increments version on every put, so an unchanged
+        // version is a reliable signal the second init() did not write.
+        expect(versionAfterSecondInit, equals(versionAfterFirstInit),
+            reason: 'republishing an identical record on every boot would '
+                'push a no-op sync delta to every enrolled client');
+      });
+
+      test(
+          'a second init() republishes when the record was withdrawn '
+          '(e.g. disablePqAuth toggled off then on)', () async {
+        final mgr = PqKeyManager();
+        await mgr.init(atSign, keyStore);
+        await keyStore.remove(pqSigningPublicKeyRecordName(atSign));
+
+        final mgr2 = PqKeyManager();
+        await mgr2.init(atSign, keyStore);
+
+        final raw =
+            (await keyStore.get(pqSigningPublicKeyRecordName(atSign)))?.data;
+        expect(raw, isNotNull,
+            reason: 'a withdrawn record must be restored so peers can '
+                'verify this server again');
+        expect(pqSigningKeyForAlgo(raw!, pqAlgoMlDsa65),
+            equals(mgr2.mlDsaPublicKey));
       });
     });
 

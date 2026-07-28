@@ -1,36 +1,30 @@
-# 3.15.1
-- feat: augmented pol challenge
-
-# 3.15.0
+# 3.15.2
 
 - feat: post-quantum inter-server authentication. FROM/POL now perform an
   ML-DSA-65 signature challenge-response for peers that have published a PQ
-  signing public key — the same fresh per-session UUID challenge as before,
-  but signed with ML-DSA-65 instead of RSA. A prover signs with ML-DSA-65 only
-  when its own PQ keypair is initialised and the peer has published a PQ
+  signing public key. The prover signs the same verifier-bound pol challenge
+  introduced in 3.15.1 ("augmented pol challenge") with ML-DSA-65 instead of
+  RSA — no PQ-specific binding step is needed, since a signature over a
+  verifier-bound challenge is already scoped to the intended verifier and
+  session, and that binding now applies uniformly to both the PQ and legacy
+  RSA paths (a legacy verifier still issues a bare, unbound UUID, so a signer
+  talking to one is not protected — see 3.15.1). A prover signs with ML-DSA-65
+  only when its own PQ keypair is initialised and the peer has published a PQ
   signing public-key record, falling back to legacy RSA otherwise, so a
   mixed-version fleet keeps working during a rolling upgrade. Keys and the
   published record live under a new `local:pq_*` / `public:pq_signing_publickey`
   namespace, which `update`/`delete` now refuse to let clients touch.
   `pq.disablePqAuth` in `config.yaml` force-disables the PQ path.
-- fix: ML-DSA-65 FROM/POL handshake signatures are bound to the specific
-  verifier, prover and session instead of signing the bare challenge UUID. The
-  un-bound signature let a malicious peer harvest a session/challenge pair from
-  a real target it had authenticated to, induce a different atSign's server to
-  dial out to it (any ordinary cached lookup triggers this), and relay the
-  harvested pair back as if it were a fresh challenge — that server's own
-  signature over the pair would then verify against the real target, completing
-  pol as that atSign without ever touching its private key. The signed payload
-  now includes the verifier atSign sourced from the signer's own local
-  connection state, never from anything read off the wire, so a signature
-  minted for one verifier cannot be replayed against another. The legacy RSA
-  path deliberately still signs the bare UUID — binding it would reject every
-  peer that has not yet upgraded — so it remains exposed to this relay until
-  the fleet has moved to PQ.
 - fix: malformed or oversized peer key material on the PQ pol path now fails as
   an authentication error instead of an internal server error. Wrong-length
   ML-DSA keys and signatures are rejected up front, and decode/verify errors
   from at_chops are funnelled into `UnAuthenticatedException`.
+
+# 3.15.1
+- feat: augmented pol challenge
+
+# 3.15.0
+
 - **Behaviour change** — invalid values in bool and int environment variables
   are now logged and ignored (falling through to `config.yaml` and then the
   hardcoded default) instead of being coerced. Previously any bool env var that

@@ -127,10 +127,19 @@ class AtSecondaryConfig {
 
   // Protected Keys
   // <@atsign> is a placeholder. To be replaced with actual atsign during runtime
+
+  /// The encryption public-key template — unlike every other entry in
+  /// [_protectedKeys], this one is client-writable via `update` (an
+  /// at_client publishes/rotates its own `publickey` during
+  /// onboarding/key-rotation), so it's protected from delete only. Exposed
+  /// so [AbstractUpdateVerbHandler] can filter it out of the update-time
+  /// guard by identity rather than duplicating the literal.
+  static const String encryptionPublicKeyTemplate = 'publickey<@atsign>';
+
   static final Set<String> _protectedKeys = {
     'signing_publickey<@atsign>',
     'signing_privatekey<@atsign>',
-    'publickey<@atsign>',
+    encryptionPublicKeyTemplate,
     'at_pkam_publickey',
     '$pqSigningPublicKeyRecordNamePart<@atsign>',
   };

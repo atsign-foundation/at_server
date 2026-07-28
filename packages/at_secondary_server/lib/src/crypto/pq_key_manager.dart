@@ -12,12 +12,14 @@ import 'package:at_utils/at_logger.dart';
 /// inter-server authentication.
 ///
 /// Inter-server FROM/POL auth is a signature challenge-response: the verifier
-/// issues a fresh per-session UUID (unchanged legacy behaviour), the prover
-/// signs it with this keypair via [buildChallengeResponse], and the verifier fetches
-/// the prover's published public key ([publishPublicKey]) and checks the
-/// signature. This is the exact shape of the legacy RSA handshake with the
-/// signature primitive swapped for a post-quantum one — no KEM, cert, expiry,
-/// or rotation machinery.
+/// issues a fresh, verifier-bound pol challenge (see
+/// [SecondaryUtil.buildBoundPolChallenge] — the same challenge format the
+/// legacy RSA path signs), the prover signs it with this keypair via
+/// [buildChallengeResponse], and the verifier fetches the prover's published
+/// public key (published by [init]) and checks the signature. This is the
+/// exact shape of the legacy RSA handshake with the signature primitive
+/// swapped for a post-quantum one — no KEM, cert, expiry, or rotation
+/// machinery.
 class PqKeyManager {
   static final _log = AtSignLogger('PqKeyManager');
 
@@ -36,7 +38,12 @@ class PqKeyManager {
   bool get isInitialised => _initialized;
 
   /// Load the existing ML-DSA signing keypair from [keyStore] or generate a
-  /// fresh one.
+  /// fresh one, then publish its public half so peers can verify this
+  /// server's handshake signatures. Loading/generating and publishing are one
+  /// atomic step, not two the caller sequences: [isInitialised] only becomes
+  /// true once the key is both in memory and published, so a publish failure
+  /// can never leave this server signing PQ cookies peers have no way to
+  /// verify.
   ///
   /// Concurrent callers share a single in-flight attempt: the started
   /// [Future] is cached (rather than short-circuited by a boolean flag) so a
@@ -58,6 +65,7 @@ class PqKeyManager {
       final existingSec = await _tryGet(keyStore, secKeyName);
       final existingPub = await _tryGet(keyStore, pubKeyName);
 
+      bool keyWasGenerated = false;
       if (existingSec != null && existingPub != null) {
         // load existing keys
         _mlDsaSecretKey = base64.decode(existingSec);
@@ -77,6 +85,25 @@ class PqKeyManager {
         await keyStore.put(
             pubKeyName, AtData()..data = base64.encode(_mlDsaPublicKey));
         _log.info('Generated new ML-DSA signing keypair for $atSign');
+        keyWasGenerated = true;
+      }
+      // Publish before flipping _initialized: OutboundClient gates PQ
+      // signing on isInitialised alone, so if this write failed but
+      // _initialized were already true, this server would keep emitting PQ
+      // cookies for a key it never actually published — peers could never
+      // verify them, and the handshake would break instead of falling back
+      // to RSA.
+      //
+      // Skipped on an ordinary restart with an unchanged, still-published
+      // key: the record is `public:` and commit-logged, so an unconditional
+      // publish here would write an identical value on every boot and push a
+      // no-op sync delta to every enrolled client. Only publish when the
+      // keypair changed (freshly generated) or the stored record doesn't
+      // already match it (withdrawn, corrupted, or manually touched) — a
+      // peer must never be left unable to verify against what's published.
+      if (keyWasGenerated ||
+          await _publishedRecordNeedsRefresh(atSign, keyStore)) {
+        await _publishPublicKey(atSign, keyStore);
       }
       _initialized = true;
     } finally {
@@ -84,9 +111,28 @@ class PqKeyManager {
     }
   }
 
+  /// Whether the record currently published at [pqSigningPublicKeyRecordName]
+  /// is missing or differs from what [_mlDsaPublicKey] would produce.
+  ///
+  /// Any read failure (not just a missing key) is treated as "needs
+  /// (re-)publishing": a peer that can't fetch a matching record can't verify
+  /// us either way, so republishing is the safe default rather than silently
+  /// leaving a stale/absent record in place.
+  Future<bool> _publishedRecordNeedsRefresh(String atSign,
+      AtKeyValueStore<String, AtData, AtMetaData?> keyStore) async {
+    final existing =
+        await _tryGet(keyStore, pqSigningPublicKeyRecordName(atSign));
+    if (existing == null) return true;
+    return existing != buildPqSigningPublicRecord({pqAlgoMlDsa65: _mlDsaPublicKey});
+  }
+
   /// Publish this server's signing public key at
   /// [pqSigningPublicKeyRecordName] as a JSON map keyed by algorithm id, so
-  /// peers can fetch it to verify handshake signatures.
+  /// peers can fetch it to verify handshake signatures. Called only from
+  /// [_doInit], and only when needed (see
+  /// [_publishedRecordNeedsRefresh]) — publishing is not a step callers
+  /// sequence separately, since a loaded/generated keypair is useless to
+  /// peers until it is published.
   ///
   /// Written with no [AtMetaData] — deliberately, unlike records created via
   /// the update verb:
@@ -99,9 +145,8 @@ class PqKeyManager {
   /// Being a `public:` record it is commit-logged and therefore syncs to
   /// enrolled clients. That is harmless — it is a public key, and the secret
   /// half lives under `local:` which never syncs (see [pq_constants]).
-  Future<void> publishPublicKey(String atSign,
+  Future<void> _publishPublicKey(String atSign,
       AtKeyValueStore<String, AtData, AtMetaData?> keyStore) async {
-    _assertInitialized();
     final record = buildPqSigningPublicRecord({pqAlgoMlDsa65: _mlDsaPublicKey});
     await keyStore.put(
         pqSigningPublicKeyRecordName(atSign), AtData()..data = record);

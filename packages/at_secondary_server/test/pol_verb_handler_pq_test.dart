@@ -397,48 +397,6 @@ void main() {
     });
   });
 
-  // ── No PQ key caching (cache removed) ─────────────────────────────────────
-
-  group('pol_verb_handler no PQ caching', () {
-    test('after legacy RSA success, no PQ keys are cached in keystore',
-        () async {
-      final ks = keyValueStore;
-      const sessionId = '_rsa-cache-001';
-      const challenge = 'cache-test-challenge';
-
-      await ks.put(
-        'public:$sessionId$bob',
-        AtData()
-          ..data = challenge
-          ..metaData = (AtMetaData()..ttl = 60 * 1000),
-      );
-
-      final bobKp = RSAKeypair.fromRandom();
-      final signedChallenge =
-          SecondaryUtil.signChallenge(challenge, bobKp.privateKey.toString());
-
-      final mockOcm = MockOutboundClientManager();
-      final mockOc = MockOutboundClient();
-      when(() => mockOcm.getClient(bob, any(), handshakeRequired: false))
-          .thenAnswer((_) async => mockOc);
-      when(() => mockOc.isConnectionCreated).thenReturn(true);
-      when(() => mockOc.lookUp('$sessionId$bob', handshake: false))
-          .thenAnswer((_) async => 'data:$signedChallenge');
-      when(() => mockOc.plookUp('signing_publickey$bob'))
-          .thenAnswer((_) async => 'data:${bobKp.publicKey}');
-
-      final handler = PolVerbHandler(ks, mockOcm, MockAtCacheManager(),
-          accessLog: _accessLog);
-      final inbound = _makeInbound(mockSocket, sessionId, bob);
-      await handler.processVerb(
-          Response(), HashMap<String, String?>(), inbound);
-
-      // Legacy auth must NOT persist any peer PQ key material.
-      expect(
-          await ks.exists('cached:public:pq_signing_publickey$bob'), isFalse);
-    });
-  });
-
   // ── pol requires prior from ───────────────────────────────────────────────
 
   group('pol_verb_handler precondition', () {
