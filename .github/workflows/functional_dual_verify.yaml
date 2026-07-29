@@ -72,9 +72,15 @@ jobs:
           tags: at_virtual_env:dual
 
       - name: Run docker container in DUAL persistence mode
+        # --add-host: the /etc/hosts entry added above only helps the host-side
+        # dart tests. Inside the container, vip.ve.atsign.zone otherwise
+        # resolves via public DNS to an unroutable address, so an atServer
+        # cannot reach the atDirectory on :64 to resolve a *peer's* address --
+        # every cross-atSign lookup then dies with AT0011 (connect timeout).
         run: |
           docker run -d --rm --name at_virtual_env_dual_cont \
             -e testingMode="true" -e httpsEnabled="true" -e persistenceBackend="dual" \
+            --add-host vip.ve.atsign.zone:127.0.0.1 \
             -p 6379:6379 -p 25000-25099:25000-25099 -p 64:64 -p 443:443 \
             at_virtual_env:dual
 
