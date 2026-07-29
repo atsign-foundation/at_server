@@ -8,7 +8,6 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/crypto/pq_constants.dart';
-import 'package:at_secondary/src/crypto/pq_signing_public_record.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/pol_verb_handler.dart';
@@ -20,7 +19,7 @@ import 'package:test/test.dart';
 import 'test_utils.dart';
 
 /// A peer's PQ signing material: the `pq:<algo>:<sig>` cookie it would store
-/// for [challenge], and the JSON public-key record a verifier fetches.
+/// for [challenge], plus the public-key record a verifier fetches.
 class _PeerSigner {
   final String cookie;
   final String record;
@@ -105,7 +104,7 @@ void main() {
       when(() => mockOc.isConnectionCreated).thenReturn(true);
       when(() => mockOc.lookUp('$sessionId$bob', handshake: false))
           .thenAnswer((_) async => 'data:${peer.cookie}');
-      when(() => mockOc.plookUp('$pqSigningPublicKeyRecordNamePart$bob'))
+      when(() => mockOc.plookUp('$pqSigningPublicKeyRecordName$bob'))
           .thenAnswer((_) async => 'data:${peer.record}');
 
       final handler = PolVerbHandler(ks, mockOcm, MockAtCacheManager(),
@@ -142,7 +141,7 @@ void main() {
       when(() => mockOc.isConnectionCreated).thenReturn(true);
       when(() => mockOc.lookUp('$sessionId$bob', handshake: false))
           .thenAnswer((_) async => 'data:${peer.cookie}');
-      when(() => mockOc.plookUp('$pqSigningPublicKeyRecordNamePart$bob'))
+      when(() => mockOc.plookUp('$pqSigningPublicKeyRecordName$bob'))
           .thenAnswer((_) async => 'data:${peer.record}');
 
       final handler = PolVerbHandler(ks, mockOcm, MockAtCacheManager(),
@@ -175,7 +174,7 @@ void main() {
       // Cookie advertises an algorithm the verifier does not support.
       when(() => mockOc.lookUp('$sessionId$bob', handshake: false))
           .thenAnswer((_) async => 'data:pq:pq-future-algo:AAAA');
-      when(() => mockOc.plookUp('$pqSigningPublicKeyRecordNamePart$bob'))
+      when(() => mockOc.plookUp('$pqSigningPublicKeyRecordName$bob'))
           .thenAnswer((_) async => null);
 
       final handler = PolVerbHandler(ks, mockOcm, MockAtCacheManager(),
@@ -210,7 +209,7 @@ void main() {
       when(() => mockOc.lookUp('$sessionId$bob', handshake: false))
           .thenAnswer((_) async => 'data:${peer.cookie}');
       // Record lookup returns null (peer published nothing).
-      when(() => mockOc.plookUp('$pqSigningPublicKeyRecordNamePart$bob'))
+      when(() => mockOc.plookUp('$pqSigningPublicKeyRecordName$bob'))
           .thenAnswer((_) async => null);
 
       final handler = PolVerbHandler(ks, mockOcm, MockAtCacheManager(),
@@ -224,9 +223,9 @@ void main() {
     });
 
     // Peer-controlled bytes that at_chops reports as StateError /
-    // FormatException rather than an AtException. Without the guards in
-    // _verifyPqSignature these escape as a shout-logged internal server
-    // error; a peer sending garbage is an auth failure, not a server fault.
+    // FormatException, not AtException. Without _verifyPqSignature's guards
+    // they escape as a shout-logged internal server error rather than the auth
+    // failure they are.
     group('malformed peer material fails as an auth error, not a 500', () {
       /// Drives a full pol with [cookie] as the peer's stored cookie and
       /// [record] as its published signing-key record.
@@ -249,7 +248,7 @@ void main() {
         when(() => mockOc.isConnectionCreated).thenReturn(true);
         when(() => mockOc.lookUp('$sessionId$bob', handshake: false))
             .thenAnswer((_) async => 'data:$cookie');
-        when(() => mockOc.plookUp('$pqSigningPublicKeyRecordNamePart$bob'))
+        when(() => mockOc.plookUp('$pqSigningPublicKeyRecordName$bob'))
             .thenAnswer((_) async => 'data:$record');
 
         final handler = PolVerbHandler(ks, mockOcm, MockAtCacheManager(),

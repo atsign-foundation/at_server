@@ -128,12 +128,9 @@ class AtSecondaryConfig {
   // Protected Keys
   // <@atsign> is a placeholder. To be replaced with actual atsign during runtime
 
-  /// The encryption public-key template — unlike every other entry in
-  /// [_protectedKeys], this one is client-writable via `update` (an
-  /// at_client publishes/rotates its own `publickey` during
-  /// onboarding/key-rotation), so it's protected from delete only. Exposed
-  /// so [AbstractUpdateVerbHandler] can filter it out of the update-time
-  /// guard by identity rather than duplicating the literal.
+  /// The one client-writable entry in [_protectedKeys]: at_client publishes and
+  /// rotates its own `publickey` via `update`. Protected from delete only —
+  /// `AbstractUpdateVerbHandler`'s guard excludes it.
   static const String encryptionPublicKeyTemplate = 'publickey<@atsign>';
 
   static final Set<String> _protectedKeys = {
@@ -141,7 +138,7 @@ class AtSecondaryConfig {
     'signing_privatekey<@atsign>',
     encryptionPublicKeyTemplate,
     'at_pkam_publickey',
-    '$pqSigningPublicKeyRecordNamePart<@atsign>',
+    '$pqSigningPublicKeyRecordName<@atsign>',
   };
 
   //version
@@ -211,10 +208,9 @@ class AtSecondaryConfig {
     }
   }
 
-  /// When true, this server never advertises or uses PQ signing: it withdraws
-  /// any published PQ signing public key at boot and always signs handshake
-  /// challenges with the legacy RSA key. Set via the `disablePqAuth` env var,
-  /// or `pq.disablePqAuth` in config.yaml.
+  /// When true, this server withdraws any published PQ signing public key at
+  /// boot and always signs handshake challenges with the legacy RSA key. Set
+  /// via the `disablePqAuth` env var or `pq.disablePqAuth` in config.yaml.
   static bool get disablePqAuth {
     return _getBoolEnvVar('disablePqAuth') ??
         getNullableBoolFromYaml(['pq', 'disablePqAuth']) ??

@@ -1772,14 +1772,14 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
 
       String updateCommand =
-          'update:${pqSigningPublicKeyRecordNamePart.toUpperCase()}$alice dummyCertValue';
+          'update:${pqSigningPublicKeyRecordName.toUpperCase()}$alice dummyCertValue';
       expect(
           () async =>
               await updateHandler.process(updateCommand, inboundConnection),
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  "Cannot update protected key: '${pqSigningPublicKeyRecordNamePart.toUpperCase()}$alice'")));
+                  "Cannot update protected key: '${pqSigningPublicKeyRecordName.toUpperCase()}$alice'")));
     });
   });
 

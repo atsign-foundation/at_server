@@ -17,7 +17,7 @@ class NotifyConnectionsPool {
   final SecondaryAddressFinder secondaryAddressFinder;
 
   /// Injected into every [OutboundClient] this pool creates, so notification
-  /// handshakes can sign challenges with ML-DSA.
+  /// handshakes can sign with ML-DSA.
   final PqKeyManager pqKeyManager;
 
   NotifyConnectionsPool(

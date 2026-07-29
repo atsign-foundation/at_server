@@ -868,13 +868,11 @@ void main() {
 
     /// The rate-limit window these tests configure on the server.
     ///
-    /// Deliberately generous. Every test here needs two enroll requests — with
-    /// an `otp:get` round trip between them — to land inside a *single* window,
-    /// so the margin has to absorb however slow the atServer happens to be. At
-    /// the previous 100ms this failed intermittently in dual-persistence CI
-    /// (every write goes to both hive and sqlite, on a 2-vCPU runner): the
-    /// second request slipped past the window and was allowed, so the
-    /// "exceeded the limit" assertion saw success instead of a rejection.
+    /// Deliberately generous: every test needs two enroll requests — with an
+    /// `otp:get` round trip between them — inside a *single* window. At the
+    /// previous 100ms the second request slipped past the window and was
+    /// allowed, failing intermittently in dual-persistence CI (every write hits
+    /// both hive and sqlite, on a 2-vCPU runner).
     const rateLimitWindowMillis = 2000;
 
     setUp(() async {
@@ -947,8 +945,7 @@ void main() {
           enrollmentResponse.contains(
               'Enrollment requests have exceeded the limit within the specified time frame'),
           true);
-      // Derived from the window rather than hardcoded, so the two can never
-      // drift apart: wait out the whole window plus a small margin.
+      // Derived from the window, not hardcoded, so the two can't drift apart.
       await Future.delayed(Duration(milliseconds: rateLimitWindowMillis + 100));
       enrollmentResponse =
           (await unAuthenticatedConnection.sendRequestToServer(enrollRequest))

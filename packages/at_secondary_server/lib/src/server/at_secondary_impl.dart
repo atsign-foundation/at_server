@@ -52,9 +52,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late OutboundClientManager outboundClientManager;
   late OutboundConnectionFactory outboundConnectionFactory;
 
-  /// This manages the PQ signing keypair. Initialised and its public
-  /// key published during [start]; used by outbound clients to sign FROM/POL
-  /// handshake challenges with ML-DSA.
+  /// The PQ signing keypair: initialised and published during [start], then
+  /// used by outbound clients to sign FROM/POL challenges with ML-DSA.
   final PqKeyManager pqKeyManager = PqKeyManager();
 
   late bool _isPaused;
@@ -939,19 +938,15 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   /// Initialise this server's ML-DSA signing keypair and publish its public
-  /// key so peers can verify our handshake signatures. On the kill-switch or
-  /// an init failure we withdraw any previously published key. This is not
-  /// just tidiness: OutboundClient.checkPeerPqSupport (called by peers
-  /// signing to us) treats a missing record as "this atServer can't verify
-  /// PQ cookies" and falls back to legacy RSA signing, so withdrawing it
-  /// promptly is what makes peers stop sending us a format we can no longer
-  /// parse.
+  /// key so peers can verify our signatures. On the kill-switch or an init
+  /// failure, withdraw any previously published key: peers treat a missing
+  /// record as "can't verify PQ cookies" (OutboundClient.checkPeerPqSupport)
+  /// and fall back to RSA, so withdrawing it promptly is what stops them
+  /// sending a format we can no longer parse.
   ///
-  /// Extracted out of [_initializePersistentInstances] (rather than left
-  /// inline) so it can be exercised directly in tests without booting a full
-  /// server — the kill switch is the one PQ code path a fleet rollout most
-  /// needs proven, and the surrounding method requires a real persistence
-  /// bundle and continues on to bind a TLS socket.
+  /// Extracted from [_initializePersistentInstances] so the kill switch — the
+  /// PQ path a fleet rollout most needs proven — is testable without a real
+  /// persistence bundle and a bound TLS socket.
   @visibleForTesting
   Future<void> initializePqAuth(String currentAtSign,
       AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore) async {
@@ -960,7 +955,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           'PQ signing public key so peers fall back to legacy auth');
       try {
         await keyValueStore
-            .remove(pqSigningPublicKeyRecordName(currentAtSign));
+            .remove(pqSigningPublicKeyRecordKey(currentAtSign));
       } catch (removeError) {
         logger.severe('Failed to withdraw PQ signing public key while PQ auth '
             'is disabled: $removeError');
@@ -974,7 +969,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
             'signing public key so peers fall back to legacy auth: $e');
         try {
           await keyValueStore
-              .remove(pqSigningPublicKeyRecordName(currentAtSign));
+              .remove(pqSigningPublicKeyRecordKey(currentAtSign));
         } catch (removeError) {
           logger.severe('Failed to withdraw PQ signing public key after init '
               'failure: $removeError');

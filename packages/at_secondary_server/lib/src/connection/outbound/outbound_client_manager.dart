@@ -32,7 +32,7 @@ class OutboundClientManager {
   final OutboundConnectionFactory outboundConnectionFactory;
 
   /// Injected into every [OutboundClient] this manager creates, so the
-  /// handshake can sign challenges with ML-DSA.
+  /// handshake can sign with ML-DSA.
   final PqKeyManager pqKeyManager;
 
   set poolSize(int s) => _pool.size = s;

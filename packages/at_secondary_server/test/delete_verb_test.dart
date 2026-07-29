@@ -145,7 +145,7 @@ void main() {
         'verify deletion of PQ signing public key throws exception even '
         'with a case-variant key', () {
       inboundConnection.metadata.isAuthenticated = true;
-      var command = 'delete:public:${pqSigningPublicKeyRecordNamePart.toUpperCase()}$alice';
+      var command = 'delete:public:${pqSigningPublicKeyRecordName.toUpperCase()}$alice';
       expect(
           () => handler.processInternal(command, inboundConnection),
           throwsA(

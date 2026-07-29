@@ -79,9 +79,9 @@ docker stop at_server_func_cont
 echo "Run docker container"
 # --add-host: inside the container, vip.ve.atsign.zone otherwise resolves via
 # public DNS to an unroutable address, so an atServer cannot reach the
-# atDirectory on the root port to resolve a *peer's* address — every
-# cross-atSign lookup then dies with AT0011 (connect timeout). Host-side
-# resolution is a separate matter (an /etc/hosts entry, which CI adds).
+# atDirectory to resolve a *peer's* address and every cross-atSign lookup dies
+# with AT0011 (connect timeout). Host-side resolution is separate (/etc/hosts,
+# which CI adds).
 docker run -d --rm --name at_server_func_cont \
   -e testingMode="true" -e httpsEnabled="true" \
   --add-host vip.ve.atsign.zone:127.0.0.1 \

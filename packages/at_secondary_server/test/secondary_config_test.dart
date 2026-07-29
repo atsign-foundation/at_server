@@ -4,8 +4,8 @@ import 'package:logging/logging.dart' as logging;
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
-/// Parses an indented YAML literal, stripping the common leading whitespace
-/// first so the literal can be indented to match the surrounding code.
+/// Parses an indented YAML literal, stripping the common leading whitespace so
+/// it can be indented to match the surrounding code.
 YamlMap _yaml(String indented) {
   final lines = indented.split('\n')
     ..removeWhere((line) => line.trim().isEmpty);

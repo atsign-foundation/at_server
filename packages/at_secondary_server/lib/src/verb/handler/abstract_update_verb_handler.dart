@@ -33,10 +33,9 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
 
   final String atSign;
 
-  /// Backing cache for [_updateProtectedKeys] — handlers are constructed
-  /// once at server startup and reused for the life of the process (see
-  /// DefaultVerbHandlerManager), so this is computed at most once per
-  /// handler instance rather than on every update.
+  /// Backing cache for [_updateProtectedKeys]. Handlers live for the whole
+  /// process (see DefaultVerbHandlerManager), so this is computed once per
+  /// instance rather than on every update.
   Set<String>? _updateProtectedKeysCache;
 
   AbstractUpdateVerbHandler(
@@ -76,15 +75,9 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       'Connection with enrollment ID $enId'
       ' is not authorized to update key: $key';
 
-  /// Protected-key templates for the bare-update guard in
-  /// [preProcessAndNotify], expanded for [atSign] and lowercased, minus
-  /// `publickey`: unlike the other entries in
-  /// [AtSecondaryConfig.protectedKeys] (signing keys, the PKAM public key,
-  /// the PQ signing public key), the encryption public key is client-writable
-  /// by design —
-  /// an at_client publishes/rotates its own `publickey` via update during
-  /// onboarding/key-rotation — so it's only protected from delete, not
-  /// update.
+  /// Protected-key templates for the guard in [preProcessAndNotify], expanded
+  /// for [atSign] and lowercased, minus
+  /// [AtSecondaryConfig.encryptionPublicKeyTemplate] (delete-protected only).
   Set<String> _updateProtectedKeys() {
     return _updateProtectedKeysCache ??= hu
         .expandProtectedKeyTemplates(
@@ -110,16 +103,14 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     // Sets Response bean to the response bean in ChangeVerbHandler
     await super.processVerb(response, verbParams, atConnection);
 
-    // Reject writes to any protected key that this server exclusively
-    // manages (see [_updateProtectedKeys]). Compared bare — before the
-    // sharedWith/public: prefixing below — so this can't be bypassed via
-    // `update:cached:public:pq_signing_publickey@bob` and friends the way a
-    // prefixed comparison could.
+    // Reject writes to protected keys this server exclusively manages (see
+    // [_updateProtectedKeys]). Compared bare, before the sharedWith/public:
+    // prefixing below, so `update:cached:public:pq_signing_publickey@bob` and
+    // friends can't slip past a prefixed comparison.
     //
-    // Comparing bare is deliberately over-broad: it also rejects the self key
-    // `@alice:pq_signing_publickey@alice`, a different record that nothing
-    // writes. Refusing a key no client has a reason to write is the safe side
-    // of that trade.
+    // Deliberately over-broad: this also rejects the unrelated self key
+    // `@alice:pq_signing_publickey@alice`. Refusing a key no client writes is
+    // the safe side of that trade.
     final bareUpdateKey = '${updateParams.atKey}${updateParams.sharedBy ?? ''}';
     if (_updateProtectedKeys().contains(bareUpdateKey.toLowerCase())) {
       throw UnAuthorizedException(

@@ -86,10 +86,9 @@ class FromVerbHandler extends AbstractVerbHandler {
       }
     }
 
-    // Set only after the certificate check has passed. UnAuthenticatedException
-    // does not close the connection (see GlobalExceptionHandler), so marking
-    // the connection as `from` before verifying would leave a cert-failed
-    // connection sitting open in a half-authenticated state.
+    // Only after the cert check passes: UnAuthenticatedException does not close
+    // the connection (see GlobalExceptionHandler), so marking `from` earlier
+    // would leave a cert-failed connection open and half-authenticated.
     if (!isSelf) {
       atConnectionMetadata.from = true;
       atConnectionMetadata.fromAtSign = fromAtSign;
@@ -99,12 +98,11 @@ class FromVerbHandler extends AbstractVerbHandler {
     String storedSecretId =
         '$keyPrefix${atConnectionMetadata.sessionID}$fromAtSign';
 
-    // The challenge the peer/client signs. Peer pol auth (fromAtSign !=
-    // currentAtSign) gets a verifier-bound challenge naming this server, so
-    // the prover's signer refuses to sign it for any other verifier; the self
-    // path (client PKAM/CRAM) keeps the bare UUID. Either way the prover signs
-    // it (ML-DSA if it has a PQ signing key, else legacy RSA) and POL verifies
-    // the signature over this stored value.
+    // The challenge the peer/client signs. Peer pol auth gets a verifier-bound
+    // challenge naming this server, so the prover refuses to sign it for any
+    // other verifier; the self path (client PKAM/CRAM) keeps the bare UUID.
+    // Either way POL verifies the signature (ML-DSA or legacy RSA) over the
+    // value stored here.
     final String challenge = isSelf
         ? Uuid().v4()
         : SecondaryUtil.buildBoundPolChallenge(currentAtSign);
@@ -120,8 +118,7 @@ class FromVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  /// Persists [data] as the handshake challenge at [storedSecretId], with a
-  /// fixed 60s TTL.
+  /// Persists [data] as the handshake challenge at [storedSecretId], TTL 60s.
   Future<void> _storeSecret(String storedSecretId, String data) async {
     final atData = AtData()
       ..data = data

@@ -7,24 +7,23 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/crypto/pq_constants.dart';
 import 'package:at_secondary/src/crypto/pq_key_manager.dart';
-import 'package:at_secondary/src/crypto/pq_signing_public_record.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
 
-/// A well-formed published record, as a peer running PQ code would serve it.
-/// The key bytes are arbitrary — `checkPeerPqSupport` only needs the record to
-/// parse and carry an entry for the algorithm, not to be a usable key.
+/// A well-formed published record, as a PQ-capable peer would serve it. The key
+/// bytes are arbitrary: `checkPeerPqSupport` only needs the record to parse and
+/// carry an entry for the algorithm.
 final String _validPeerRecord = 'data:'
     '${buildPqSigningPublicRecord({
       pqAlgoMlDsa65: Uint8List.fromList(List<int>.filled(8, 7))
     })}';
 
 /// Stubs the wire-level [plookUp] so [OutboundClient.checkPeerPqSupport] and
-/// [OutboundClient.selectAndSignChallenge] can be tested without a live
-/// socket — everything else on [OutboundClient] is exercised as-is.
+/// [OutboundClient.selectAndSignChallenge] are testable without a live socket;
+/// everything else on [OutboundClient] runs as-is.
 class _StubOutboundClient extends OutboundClient {
   final Future<String?> Function(String key) plookUpStub;
 
@@ -94,7 +93,7 @@ void main() {
         return _validPeerRecord;
       });
       await oc.checkPeerPqSupport();
-      expect(probedKey, equals('$pqSigningPublicKeyRecordNamePart$bob'));
+      expect(probedKey, equals('$pqSigningPublicKeyRecordName$bob'));
     });
 
     test('false when the peer record carries no ml-dsa-65 entry', () async {

@@ -7,9 +7,9 @@ import 'package:yaml/yaml.dart';
 
 import 'test_utils.dart';
 
-/// Parses an indented YAML literal, stripping the common leading whitespace
-/// first so the literal can be indented to match the surrounding code.
-/// Mirrors the helper in secondary_config_test.dart.
+/// Parses an indented YAML literal, stripping the common leading whitespace so
+/// it can be indented to match the surrounding code. Mirrors the helper in
+/// secondary_config_test.dart.
 YamlMap _yaml(String indented) {
   final lines = indented.split('\n')
     ..removeWhere((line) => line.trim().isEmpty);
@@ -20,12 +20,9 @@ YamlMap _yaml(String indented) {
 }
 
 /// Covers [AtSecondaryServerImpl.initializePqAuth] — the PQ kill-switch and
-/// init-failure boot logic. Extracted out of the private
-/// `_initializePersistentInstances` specifically so it's testable without
-/// booting a full server (see its doc comment); these are the one PQ code
-/// path a fleet rollout most needs proven, since a stale published record
-/// left behind by either branch would make peers keep sending a cookie
-/// format this server can no longer parse.
+/// init-failure boot paths. A stale published record left behind by either
+/// would keep peers sending a cookie format this server can no longer parse,
+/// which is why it was extracted for testing without a full server boot.
 void main() {
   final atSign = alice.toString();
   late YamlMap? originalYamlMap;
@@ -48,9 +45,8 @@ void main() {
   group('initializePqAuth — disablePqAuth kill switch', () {
     test('withdraws a previously-published PQ signing key when '
         'disablePqAuth is true', () async {
-      // Seed a published record as if a prior boot (with PQ enabled) had
-      // published one.
-      await keyValueStore.put(pqSigningPublicKeyRecordName(atSign),
+      // Seed a record as if a prior boot with PQ enabled had published one.
+      await keyValueStore.put(pqSigningPublicKeyRecordKey(atSign),
           AtData()..data = '{"$pqAlgoMlDsa65":"dummy"}');
 
       AtSecondaryConfig.configYamlMap = _yaml('''
@@ -60,7 +56,7 @@ void main() {
 
       await atServer.initializePqAuth(atSign, keyValueStore);
 
-      expect(await keyValueStore.exists(pqSigningPublicKeyRecordName(atSign)),
+      expect(await keyValueStore.exists(pqSigningPublicKeyRecordKey(atSign)),
           isFalse,
           reason: 'a peer must stop being able to fetch a record for a '
               'signature format this server no longer sends');
@@ -76,7 +72,7 @@ void main() {
 
       await expectLater(
           atServer.initializePqAuth(atSign, keyValueStore), completes);
-      expect(await keyValueStore.exists(pqSigningPublicKeyRecordName(atSign)),
+      expect(await keyValueStore.exists(pqSigningPublicKeyRecordKey(atSign)),
           isFalse);
     });
   });
@@ -84,7 +80,7 @@ void main() {
   group('initializePqAuth — init failure', () {
     test('withdraws a previously-published PQ signing key when key '
         'initialisation throws', () async {
-      await keyValueStore.put(pqSigningPublicKeyRecordName(atSign),
+      await keyValueStore.put(pqSigningPublicKeyRecordKey(atSign),
           AtData()..data = '{"$pqAlgoMlDsa65":"dummy"}');
 
       AtSecondaryConfig.configYamlMap = _yaml('{}'); // disablePqAuth: false
@@ -94,17 +90,17 @@ void main() {
           .thenAnswer((_) async => null); // no existing key material
       when(() => mockKeyStore.put(any(), any())).thenThrow(
           Exception('simulated store fault while generating a keypair'));
-      when(() => mockKeyStore.remove(pqSigningPublicKeyRecordName(atSign)))
+      when(() => mockKeyStore.remove(pqSigningPublicKeyRecordKey(atSign)))
           .thenAnswer((_) async {
-        await keyValueStore.remove(pqSigningPublicKeyRecordName(atSign));
+        await keyValueStore.remove(pqSigningPublicKeyRecordKey(atSign));
         return 1;
       });
 
       await atServer.initializePqAuth(atSign, mockKeyStore);
 
-      verify(() => mockKeyStore.remove(pqSigningPublicKeyRecordName(atSign)))
+      verify(() => mockKeyStore.remove(pqSigningPublicKeyRecordKey(atSign)))
           .called(1);
-      expect(await keyValueStore.exists(pqSigningPublicKeyRecordName(atSign)),
+      expect(await keyValueStore.exists(pqSigningPublicKeyRecordKey(atSign)),
           isFalse,
           reason: 'a server whose PQ keypair failed to initialise must not '
               'leave peers pointed at a record it can no longer sign for');

@@ -5,13 +5,12 @@ import 'package:at_chops/at_chops_ffi.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/crypto/pq_constants.dart';
 import 'package:at_secondary/src/crypto/pq_key_manager.dart';
-import 'package:at_secondary/src/crypto/pq_signing_public_record.dart';
 import 'package:test/test.dart';
 
 import '../test_utils.dart';
 
 void main() {
-  group('pq_signing_public_record', () {
+  group('PQ signing public record', () {
     test('build → parse round-trips the key for its algorithm', () {
       final key = Uint8List.fromList(List<int>.generate(64, (i) => i));
       final json = buildPqSigningPublicRecord({pqAlgoMlDsa65: key});
@@ -64,18 +63,46 @@ void main() {
             reason: 'existing key material must be loaded, not regenerated');
       });
 
-      test('partial key material regenerates rather than throwing', () async {
+      test('a surviving public record without its secret regenerates rather '
+          'than throwing', () async {
         final mgr = PqKeyManager();
         await mgr.init(atSign, keyStore);
         final pubBefore = mgr.mlDsaPublicKey;
 
-        // Public companion record deleted while the secret survives.
-        await keyStore.remove(pqSigningPublicKeyName(atSign));
+        // Secret half gone but published half survives: the server can no
+        // longer sign as the identity it advertises, so both must be replaced.
+        await keyStore.remove(pqSigningSecretKeyName(atSign));
 
         final mgr2 = PqKeyManager();
         await expectLater(mgr2.init(atSign, keyStore), completes);
         expect(mgr2.mlDsaPublicKey, isNot(equals(pubBefore)),
             reason: 'partial material must trigger regeneration');
+        expect(
+            pqSigningKeyForAlgo(
+                (await keyStore.get(pqSigningPublicKeyRecordKey(atSign)))!.data!,
+                pqAlgoMlDsa65),
+            equals(mgr2.mlDsaPublicKey),
+            reason: 'the stale published key must be replaced, not left '
+                'advertising a key this server can no longer sign with');
+      });
+
+      test('an unparseable published record regenerates rather than adopting '
+          'it', () async {
+        final mgr = PqKeyManager();
+        await mgr.init(atSign, keyStore);
+        final pubBefore = mgr.mlDsaPublicKey;
+
+        await keyStore.put(pqSigningPublicKeyRecordKey(atSign),
+            AtData()..data = 'not-json');
+
+        final mgr2 = PqKeyManager();
+        await expectLater(mgr2.init(atSign, keyStore), completes);
+        expect(mgr2.mlDsaPublicKey, isNot(equals(pubBefore)));
+        expect(
+            pqSigningKeyForAlgo(
+                (await keyStore.get(pqSigningPublicKeyRecordKey(atSign)))!.data!,
+                pqAlgoMlDsa65),
+            equals(mgr2.mlDsaPublicKey));
       });
     });
 
@@ -86,7 +113,7 @@ void main() {
         await mgr.init(atSign, keyStore);
 
         final raw =
-            (await keyStore.get(pqSigningPublicKeyRecordName(atSign)))?.data;
+            (await keyStore.get(pqSigningPublicKeyRecordKey(atSign)))?.data;
         expect(raw, isNotNull,
             reason: 'init() must publish, not just load/generate the keypair');
         final map = jsonDecode(raw!) as Map<String, dynamic>;
@@ -102,19 +129,19 @@ void main() {
         final mgr = PqKeyManager();
         await mgr.init(atSign, keyStore);
         final versionAfterFirstInit =
-            (await keyStore.get(pqSigningPublicKeyRecordName(atSign)))
+            (await keyStore.get(pqSigningPublicKeyRecordKey(atSign)))
                 ?.metaData
                 ?.version;
 
         final mgr2 = PqKeyManager();
         await mgr2.init(atSign, keyStore);
         final versionAfterSecondInit =
-            (await keyStore.get(pqSigningPublicKeyRecordName(atSign)))
+            (await keyStore.get(pqSigningPublicKeyRecordKey(atSign)))
                 ?.metaData
                 ?.version;
 
-        // AtMetadataBuilder increments version on every put, so an unchanged
-        // version is a reliable signal the second init() did not write.
+        // AtMetadataBuilder bumps version on every put, so an unchanged
+        // version proves the second init() did not write.
         expect(versionAfterSecondInit, equals(versionAfterFirstInit),
             reason: 'republishing an identical record on every boot would '
                 'push a no-op sync delta to every enrolled client');
@@ -125,18 +152,23 @@ void main() {
           '(e.g. disablePqAuth toggled off then on)', () async {
         final mgr = PqKeyManager();
         await mgr.init(atSign, keyStore);
-        await keyStore.remove(pqSigningPublicKeyRecordName(atSign));
+        final pubBefore = mgr.mlDsaPublicKey;
+        await keyStore.remove(pqSigningPublicKeyRecordKey(atSign));
 
         final mgr2 = PqKeyManager();
         await mgr2.init(atSign, keyStore);
 
         final raw =
-            (await keyStore.get(pqSigningPublicKeyRecordName(atSign)))?.data;
+            (await keyStore.get(pqSigningPublicKeyRecordKey(atSign)))?.data;
         expect(raw, isNotNull,
             reason: 'a withdrawn record must be restored so peers can '
                 'verify this server again');
         expect(pqSigningKeyForAlgo(raw!, pqAlgoMlDsa65),
             equals(mgr2.mlDsaPublicKey));
+        // The published record is the only copy of the public half, so
+        // withdrawing it rotates the keypair on the next boot instead of
+        // restoring the old one. Harmless: with no ttr, peers cache nothing.
+        expect(mgr2.mlDsaPublicKey, isNot(equals(pubBefore)));
       });
     });
 

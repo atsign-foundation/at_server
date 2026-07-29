@@ -11,7 +11,6 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/crypto/pq_constants.dart';
-import 'package:at_secondary/src/crypto/pq_signing_public_record.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -87,24 +86,20 @@ class PolVerbHandler extends AbstractVerbHandler {
       throw UnAuthenticatedException('Unable to verify pol: no stored secret');
     }
 
-    // Fetch the peer's signed challenge (its cookie) and the public key needed
-    // to verify it, over an unauthenticated outbound connection.
+    // Fetch the peer's cookie and the public key needed to verify it, over an
+    // unauthenticated outbound connection. A 'pq:<algo>:' prefix on the cookie
+    // says which key to fetch: the peer's PQ record or its legacy RSA
+    // signing_publickey.
     //
-    // A pooled outbound client to the peer may be reused here. If its socket
-    // died without a detectable close (e.g. the peer restarted), the reuse
-    // fails with a timeout rather than a connect error. So on failure we
-    // discard the client and retry once with a fresh connection before giving
-    // up.
-    //
-    // The prover marks a PQ-signed cookie with a 'pq:<algo>:' prefix; from
-    // that we know whether to fetch its PQ signing public-key record or its
-    // legacy RSA signing_publickey.
+    // A pooled client may be reused here; if its socket died without a
+    // detectable close (peer restart) the reuse times out rather than failing
+    // to connect, so on failure we discard it and retry once with a fresh
+    // connection.
     late OutboundClient oc;
     String? fetchedChallenge, fromRsaPublicKey, fromPqRecord;
     for (int attempt = 0;; attempt++) {
-      // Reset per attempt: a retry must not let a partial result from a
-      // failed earlier attempt (e.g. a fetched challenge followed by a
-      // failed key lookup) leak into the branch selection below.
+      // Reset per attempt, so a partial result from a failed attempt (cookie
+      // fetched, key lookup failed) can't leak into the branch selection.
       fetchedChallenge = null;
       fromRsaPublicKey = null;
       fromPqRecord = null;
@@ -128,7 +123,7 @@ class PolVerbHandler extends AbstractVerbHandler {
             fetchedChallenge.startsWith(_pqPrefix)) {
           doing = 'fetching PQ signing public key for $fromAtSign';
           fromPqRecord =
-              (await oc.plookUp('$pqSigningPublicKeyRecordNamePart$fromAtSign'))
+              (await oc.plookUp('$pqSigningPublicKeyRecordName$fromAtSign'))
                   ?.replaceFirst(_dataPrefix, '');
         } else {
           doing = 'fetching signing_publickey$fromAtSign';
@@ -137,8 +132,8 @@ class PolVerbHandler extends AbstractVerbHandler {
         }
         break; // success
       } on Exception catch (e) {
-        // Close the (possibly stale) client so the next getClient evicts it
-        // from the pool and establishes a fresh connection.
+        // Close the possibly-stale client so the next getClient evicts it and
+        // connects afresh.
         await oc.outboundConnection?.close();
         if (attempt >= _maxOutboundAttempts - 1) {
           logger.severe('Exception while $doing (final attempt) : $e');
@@ -186,16 +181,15 @@ class PolVerbHandler extends AbstractVerbHandler {
 
   /// Verify a PQ-signed pol challenge.
   ///
-  /// [signedCookie] is the peer's cookie of the form
-  /// `pq:<algo>:<base64 signature>`; [expectedChallenge] is the challenge
-  /// this server itself generated and stored at FROM time — not anything
-  /// read off the wire; [peerRecord] is the peer's published PQ signing
-  /// public-key record (JSON keyed by algorithm id). Throws
-  /// [UnAuthenticatedException] / [AtException] on any verification failure.
+  /// [signedCookie] is the peer's `pq:<algo>:<base64 signature>` cookie;
+  /// [expectedChallenge] is the challenge this server generated and stored at
+  /// FROM time — never anything read off the wire; [peerRecord] is the peer's
+  /// published PQ record. Throws [UnAuthenticatedException] / [AtException] on
+  /// any verification failure.
   Future<void> _verifyPqSignature(String fromAtSign, String expectedChallenge,
       String signedCookie, String? peerRecord) async {
-    // 'pq:<algo>:<base64 sig>' — base64 contains no ':', so a plain split
-    // yields exactly three fields; anything else is malformed.
+    // base64 contains no ':', so 'pq:<algo>:<sig>' splits into exactly three
+    // fields; anything else is malformed.
     final parts = signedCookie.split(':');
     if (parts.length != 3 || parts[0] != 'pq') {
       throw UnAuthenticatedException(
@@ -216,13 +210,11 @@ class PolVerbHandler extends AbstractVerbHandler {
           'Pol Authentication Failed: no "$algo" key in $fromAtSign record');
     }
 
-    // Everything below is peer-controlled bytes. at_chops reports malformed
-    // key material as a StateError and malformed base64 as a FormatException;
-    // neither is an AtException, so both would escape to
-    // GlobalExceptionHandler's catch-all and surface as a shout-logged
-    // internal server error. A peer sending garbage is an authentication
-    // failure, not a server fault — so size-check first and funnel anything
-    // that still escapes into UnAuthenticatedException.
+    // Everything below is peer-controlled. at_chops throws StateError on
+    // malformed key material and FormatException on bad base64; neither is an
+    // AtException, so both would surface as a shout-logged internal server
+    // error. A peer sending garbage is an auth failure, not a server fault, so
+    // size-check first and funnel the rest into UnAuthenticatedException.
     final Uint8List signature;
     try {
       signature = base64Decode(parts[2]);
@@ -241,8 +233,8 @@ class PolVerbHandler extends AbstractVerbHandler {
           'expected $mlDsa65SignatureLength');
     }
 
-    // Only ml-dsa-65 is in the supported set today; a new algorithm adds a
-    // branch here alongside its entry in pqSupportedSigningAlgosByPreference.
+    // ml-dsa-65 is the only supported algorithm today; a new one adds a branch
+    // here alongside its pqSupportedSigningAlgosByPreference entry.
     final bool isValid;
     try {
       isValid = await AtPqc.mlDsa65.verifyBytes(

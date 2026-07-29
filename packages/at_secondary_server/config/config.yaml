@@ -202,11 +202,10 @@ sync:
 testing:
   testingMode: false
 
-# PQ (post-quantum) inter-server authentication configuration
+# PQ (post-quantum) inter-server authentication
 pq:
-  # When true, this server never advertises or uses PQ signing: it withdraws
-  # any published PQ signing public key at boot and always signs handshake
-  # challenges with the legacy RSA key. Default value is false.
+  # When true, this server withdraws any published PQ signing public key at boot
+  # and always signs handshake challenges with the legacy RSA key.
   disablePqAuth: false
 
 # APKAM enrollment configurations
