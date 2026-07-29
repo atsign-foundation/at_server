@@ -865,14 +865,26 @@ void main() {
 
   group('A group of test related to Rate limiting enrollment requests', () {
     String otp = '';
+
+    /// The rate-limit window these tests configure on the server.
+    ///
+    /// Deliberately generous. Every test here needs two enroll requests — with
+    /// an `otp:get` round trip between them — to land inside a *single* window,
+    /// so the margin has to absorb however slow the atServer happens to be. At
+    /// the previous 100ms this failed intermittently in dual-persistence CI
+    /// (every write goes to both hive and sqlite, on a 2-vCPU runner): the
+    /// second request slipped past the window and was allowed, so the
+    /// "exceeded the limit" assertion saw success instead of a rejection.
+    const rateLimitWindowMillis = 2000;
+
     setUp(() async {
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.cram);
       String configResponse = await firstAtSignConnection
           .sendRequestToServer('config:set:maxRequestsPerTimeFrame=1');
       expect(configResponse.trim(), 'data:ok');
-      configResponse = await firstAtSignConnection
-          .sendRequestToServer('config:set:timeFrameInMillis=100');
+      configResponse = await firstAtSignConnection.sendRequestToServer(
+          'config:set:timeFrameInMillis=$rateLimitWindowMillis');
       expect(configResponse.trim(), 'data:ok');
     });
 
@@ -935,7 +947,9 @@ void main() {
           enrollmentResponse.contains(
               'Enrollment requests have exceeded the limit within the specified time frame'),
           true);
-      await Future.delayed(Duration(milliseconds: 110));
+      // Derived from the window rather than hardcoded, so the two can never
+      // drift apart: wait out the whole window plus a small margin.
+      await Future.delayed(Duration(milliseconds: rateLimitWindowMillis + 100));
       enrollmentResponse =
           (await unAuthenticatedConnection.sendRequestToServer(enrollRequest))
               .replaceAll('data:', '');
