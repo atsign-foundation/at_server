@@ -108,7 +108,9 @@ class OutboundClient {
   }
 
   /// Resolves [toAtSign]'s atServer address, creates the outbound connection
-  /// and starts its message listener.
+  /// and starts its message listener. Called by [connect], and again by
+  /// [_reconnectIfInvalid] when a peer that rejected `to:` closed the
+  /// connection.
   Future<void> _createConnectionAndListener() async {
     // 1. Find secondary url for the toAtSign
     String secondaryUrl = await _findSecondary(toAtSign);
@@ -131,9 +133,10 @@ class OutboundClient {
   /// This method is called by [connect] after the connection has been established, but
   /// before the connection has been authenticated (because looking up public data on another
   /// atServer requires the connection be unauthenticated).
-  /// 1. Gets the `publickey@atSign` from the remote atServer — via the `to:`
-  ///    verb when [AtSecondaryConfig.toVerbOutboundEnabled] is on (falling back
-  ///    to the legacy lookup if the peer rejects it), else via lookup.
+  /// 1. Gets the `publickey@atSign` from the remote atServer — via the
+  ///    cross-server `to:` verb when [AtSecondaryConfig.toVerbOutboundEnabled]
+  ///    is on (falling back to the legacy lookup if the peer rejects `to:`),
+  ///    otherwise via the legacy unauthenticated lookup.
   /// 2. If got a response, calls [AtCacheManager.put]
   /// 3. If we got a KeyNotFound  from remote atServer, calls [AtCacheManager.delete]
   Future<void> checkRemotePublicKey() async {
@@ -148,15 +151,17 @@ class OutboundClient {
         AtSecondaryServerImpl.getInstance().cacheManager;
 
     if (AtSecondaryConfig.toVerbOutboundEnabled) {
-      // 'to:' declares the target tenant to the peer and returns both public
-      // keys in one round trip, so no separate lookup is needed.
+      // Try the cross-server 'to:' verb first: sent as the first verb on the
+      // connection, it declares the target tenant to the peer and returns
+      // both public keys in one round trip, so no separate lookup is needed.
       bool handled = await _checkRemotePublicKeyViaToVerb(
           cacheManager, cachedPublicKeyName);
       if (handled) {
         return;
       }
-      // Peer didn't complete the to: exchange (it may predate the verb);
-      // fall through to the legacy lookup.
+      // The peer did not complete the to: exchange (it may predate the verb).
+      // _checkRemotePublicKeyViaToVerb has re-established the connection if
+      // the peer closed it; fall through to the legacy lookup.
     }
 
     String doing = 'checkRemotePublicKey looking up $remotePublicKeyName';
@@ -192,13 +197,15 @@ class OutboundClient {
     }
   }
 
-  /// Attempts the `to:` exchange and, on success, caches the peer's public key.
-  ///
-  /// Returns true when the envelope was authoritative — including when the peer
-  /// has no encryption public key yet, leaving the cache untouched as the
-  /// legacy path's KeyNotFound branch does. Returns false to fall back to the legacy
-  /// lookup, having first re-established the connection if needed (atServers up
-  /// to v3.0.28 close the connection on an unknown verb).
+  /// Attempts the `to:` exchange with the peer and, on success, caches the
+  /// peer's public key. Returns true when the envelope was authoritative —
+  /// including when it reports that the peer has no encryption public key
+  /// yet, in which case the cache is left untouched exactly as the
+  /// KeyNotFound branch of the legacy path does. Returns false when the
+  /// caller should fall back to the legacy lookup; in that case the
+  /// connection has been re-established if the peer closed it (atServers up
+  /// to v3.0.28 close the connection on an unknown verb rather than replying
+  /// with an error).
   Future<bool> _checkRemotePublicKeyViaToVerb(
       AtCacheManager cacheManager, String cachedPublicKeyName) async {
     String remoteResponse;
@@ -220,11 +227,12 @@ class OutboundClient {
       var envelope = jsonDecode(remoteResponse) as Map;
       var publicKeyEntry = envelope['publickey'];
       if (publicKeyEntry == null) {
-        // Authoritative: peer understands to: but has not onboarded an
+        // Authoritative: the peer understands to: but has not onboarded an
         // encryption public key yet.
         return true;
       }
-      // Same fromJson as the legacy path, to preserve the peer's metadata.
+      // Same fromJson as the legacy path, so the peer's metadata is preserved
+      // in the cache rather than replaced with a default.
       // Note: Potentially the put here may be doing a lot more than just the put.
       // See AtCacheManager.put for detailed explanation.
       await cacheManager.put(
@@ -233,15 +241,16 @@ class OutboundClient {
     } catch (e, st) {
       logger.severe('Caught $e processing to: envelope from $toAtSign');
       logger.severe(st);
-      // Envelope unusable but the connection is still good: fall back to the
-      // legacy lookup rather than giving up.
+      // The peer spoke to: but the envelope was unusable. The connection is
+      // still good, so fall back to the legacy lookup rather than giving up.
       return false;
     }
   }
 
-  /// A peer that rejected `to:` may have closed the connection that the
-  /// legacy-lookup fallback needs. Throws if it cannot be re-established, which
-  /// fails [connect] — the correct outcome for an unreachable peer.
+  /// The legacy-lookup fallback needs a usable connection; a peer that
+  /// rejected `to:` may have closed the connection rather than replying with
+  /// an error. Throws if the connection cannot be re-established, which fails
+  /// [connect] — the correct outcome for an unreachable peer.
   Future<void> _reconnectIfInvalid() async {
     if (outboundConnection != null && !outboundConnection!.isInValid()) {
       return;
@@ -252,9 +261,11 @@ class OutboundClient {
     await _createConnectionAndListener();
   }
 
-  /// Sends `to:@toAtSign` and returns the peer's raw response. This is the
-  /// first verb on the connection — [connect] calls [checkRemotePublicKey]
-  /// before the handshake — so the target tenant is declared before any `from:`.
+  /// Sends the cross-server `to:@toAtSign` verb and returns the peer's raw
+  /// response. This is the FIRST verb on the connection (sent from
+  /// [checkRemotePublicKey], which [connect] calls before the handshake), so it
+  /// declares the target tenant to the peer before any `from:`.
+  /// Mirrors [scan]'s raw write/read; only used when toVerbOutboundEnabled.
   Future<String> _sendToVerb() async {
     var toRequest = AtRequestFormatter.createToRequest(toAtSign);
     try {
@@ -308,11 +319,13 @@ class OutboundClient {
       var challenge = cookieParams[3];
 
       if (productionMode) {
-        // Refuse to sign a verifier-bound challenge naming an atSign other
-        // than the one we dialed. verifierOfBoundPolChallenge returns a
-        // canonical Atsign, hence toAtsign() on the un-normalised toAtSign; it
-        // throws on a malformed bound challenge (fail closed) and returns null
-        // for a legacy bare challenge, which signs as before.
+        // Before signing: if the verifier issued a verifier-bound challenge it
+        // names the atSign that issued it. Refuse to sign unless that matches
+        // the atSign we actually dialed.
+        // verifierOfBoundPolChallenge returns a canonical Atsign; toAtSign
+        // arrives un-normalised from the caller, so canonicalise it for the
+        // comparison. A malformed or invalid bound challenge throws (fail
+        // closed); a legacy bare challenge returns null and signs as before.
         final Atsign? boundVerifier =
             SecondaryUtil.verifierOfBoundPolChallenge(challenge);
         if (boundVerifier != null && boundVerifier != toAtSign.toAtsign()) {

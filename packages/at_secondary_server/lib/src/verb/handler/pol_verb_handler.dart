@@ -34,6 +34,8 @@ class PolVerbHandler extends AbstractVerbHandler {
   PolVerbHandler(super.keyStore, this.outboundClientManager, this.cacheManager,
       {required this.accessLog});
 
+  // Method to verify whether command is accepted or not
+  // Input: command
   @override
   bool accept(String command) => command == getName(VerbEnum.pol);
 
@@ -42,6 +44,7 @@ class PolVerbHandler extends AbstractVerbHandler {
     return HashMap();
   }
 
+  // Method to return Instance of verb belongs to this VerbHandler
   @override
   Verb getVerb() {
     return pol;
@@ -166,7 +169,7 @@ class PolVerbHandler extends AbstractVerbHandler {
       }
     }
 
-    // Remove the stored secret.
+    // remove the stored secret
     try {
       await keyStore.remove(storedSecretId);
     } catch (e) {

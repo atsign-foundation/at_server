@@ -98,11 +98,10 @@ class FromVerbHandler extends AbstractVerbHandler {
     String storedSecretId =
         '$keyPrefix${atConnectionMetadata.sessionID}$fromAtSign';
 
-    // The challenge the peer/client signs. Peer pol auth gets a verifier-bound
-    // challenge naming this server, so the prover refuses to sign it for any
-    // other verifier; the self path (client PKAM/CRAM) keeps the bare UUID.
-    // Either way POL verifies the signature (ML-DSA or legacy RSA) over the
-    // value stored here.
+    // The challenge the peer/client signs. Peer pol auth (fromAtSign !=
+    // currentAtSign) gets a verifier-bound challenge naming this server;
+    // the self path (client PKAM/CRAM) keeps the bare UUID.
+    // POL verifies the signature (ML-DSA or legacy RSA) over this value.
     final String challenge = isSelf
         ? Uuid().v4()
         : SecondaryUtil.buildBoundPolChallenge(currentAtSign);
@@ -122,7 +121,7 @@ class FromVerbHandler extends AbstractVerbHandler {
   Future<void> _storeSecret(String storedSecretId, String data) async {
     final atData = AtData()
       ..data = data
-      ..metaData = (AtMetaData()..ttl = 60 * 1000);
+      ..metaData = (AtMetaData()..ttl = 60 * 1000); //expire in 1 min
     await keyStore.put(storedSecretId, atData);
   }
 
