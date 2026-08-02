@@ -24,7 +24,7 @@ jobs:
 
       - name: Google Chat Notification on failure
         if: steps.compare_cacerts.outcome == 'failure'
-        uses: atsign-company/google-chat-notification@69f3920c9c9372c296112b25eaea0bddab9ee115 # v2.0.1
+        uses: atsign-company/google-chat-notification@160671f69e5e29745340c93a819aad68ab9f3f6d # v2.1.0
         with:
           name: Changes found in cacerts
           url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
