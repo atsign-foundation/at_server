@@ -53,5 +53,11 @@ dependency_overrides:
   # key) but is not yet published to pub.dev. Drop this override once it is —
   # dropping it without a publish would silently resolve back to the
   # unvalidated 3.4.1 on pub.dev.
+  #
+  # A git override, not a local `path:`, so CI can resolve it too — CI has no
+  # sibling at_client_sdk checkout on disk.
   at_chops:
-    path: ../../../at_client_sdk/packages/at_chops
+    git:
+      url: https://github.com/atsign-foundation/at_client_sdk.git
+      ref: st/pq-algo-size-spec
+      path: packages/at_chops
