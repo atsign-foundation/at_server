@@ -289,11 +289,19 @@ abstract class AbstractVerbHandler implements VerbHandler {
     }
 
     // If namespace is null or empty, fetch namespace from AtKey.
+    //
+    // AtKey.fromString throws on some key shapes that occur in the keystore and
+    // the commit log, raising Errors as well as Exceptions, so catch
+    // everything. An unresolved namespace is decided by the '*' fallback below.
     String keyWithNamespace = '';
     if ((namespace == null || namespace.isEmpty) && atKey != null) {
-      AtKey atKeyObj = AtKey.fromString(atKey);
-      namespace = atKeyObj.namespace;
-      keyWithNamespace = '${atKeyObj.key}.$namespace';
+      try {
+        AtKey atKeyObj = AtKey.fromString(atKey);
+        namespace = atKeyObj.namespace;
+        keyWithNamespace = '${atKeyObj.key}.$namespace';
+      } catch (_) {
+        namespace = null;
+      }
     }
 
     // All enrollments should have access to read from the __atserver

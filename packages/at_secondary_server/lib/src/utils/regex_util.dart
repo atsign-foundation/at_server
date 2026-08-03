@@ -53,7 +53,9 @@ bool isNamespaceAuthorised(
   late AtKey atKey;
   try {
     atKey = AtKey.fromString(atKeyAsString);
-  } on InvalidSyntaxException catch (_) {
+  } catch (_) {
+    // AtKey.fromString raises Errors as well as Exceptions on some key shapes;
+    // an unparseable key is treated as unauthorised.
     logger.warning(
         'isNamespaceAuthorised found an invalid key "$atKeyAsString" in the commit log. Returning false');
     return false;
