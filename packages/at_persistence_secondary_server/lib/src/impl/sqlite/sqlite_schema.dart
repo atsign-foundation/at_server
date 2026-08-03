@@ -51,6 +51,18 @@ CREATE TABLE IF NOT EXISTS commit_log (
 
   static const List<String> commitLogIndexes = [
     'CREATE UNIQUE INDEX IF NOT EXISTS commit_log_commit_id ON commit_log (commit_id);',
+    // Partial index over live (non-DELETE) entries, backing sync's
+    // skip-deletes range scan (see SqliteAtCommitLog._iterateSkippingDeletes).
+    // On a delete-dominated log this turns "walk every entry looking for the
+    // few live ones" into a seek over just the live ones; it costs little on
+    // a log with few deletes (it then largely mirrors commit_log_commit_id).
+    //
+    // No contract-version bump: an index is derived data, recreated here by
+    // IF NOT EXISTS on every open, so an existing database acquires it on the
+    // next start with no reshaping. Bumping would be actively harmful --
+    // apply() hard-fails on a database newer than the running server, so a
+    // bump would block rolling back to a server that reads this file fine.
+    "CREATE INDEX IF NOT EXISTS commit_log_live ON commit_log (commit_id) WHERE operation <> '-';",
   ];
 
   /// Monotonic allocators. `last_commit_id` is bumped in the same
