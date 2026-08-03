@@ -573,6 +573,26 @@ abstract class AbstractVerbHandler implements VerbHandler {
             'rw';
   }
 
+  /// Whether this connection may perform atSign-level privileged operations
+  /// (as opposed to key-level ones, which [isAuthorized] decides).
+  ///
+  /// True for a connection with no enrollment id, or for an approved root
+  /// enrollment. An enrollment's namespace map is what the requesting client
+  /// asked for, so approval state is part of the check.
+  Future<bool> isRootPrivilegedConnection(
+      InboundConnectionMetadata inboundConnectionMetadata) async {
+    final enrollmentId = inboundConnectionMetadata.enrollmentId;
+    if (enrollmentId == null) {
+      return true;
+    }
+    final EnrollDataStoreValue? enroll = await resolveEnrollment(enrollmentId);
+    if (enroll == null ||
+        enroll.approval?.state != EnrollmentStatus.approved.name) {
+      return false;
+    }
+    return isRootEnrollment(enroll);
+  }
+
   /// Whether the verb being handled mutates a key.
   ///
   /// Not derived from [_isWriteAllowed]: Config, Monitor and SyncFrom appear in

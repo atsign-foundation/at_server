@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/verb/handler/config_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
@@ -20,6 +21,7 @@ void main() {
     late UpdateVerbHandler updateVerbHandler;
     late LocalLookupVerbHandler localLookupVerbHandler;
     late DeleteVerbHandler deleteVerbHandler;
+    late ConfigVerbHandler configVerbHandler;
 
     setUpAll(() async {
       await verbTestsSetUpAll();
@@ -32,6 +34,8 @@ void main() {
       localLookupVerbHandler = LocalLookupVerbHandler(keyValueStore, enMgr);
       deleteVerbHandler = DeleteVerbHandler(
           keyValueStore, statsNotificationService, notificationManager);
+      configVerbHandler =
+          ConfigVerbHandler(keyValueStore, commitLog: atCommitLog);
     });
 
     tearDown(() async {
@@ -229,6 +233,25 @@ void main() {
           throwsA(isA<UnAuthorizedException>()));
     });
 
+    test("an enrollment granted the namespace 'null' gets no root access",
+        () async {
+      // A key with no namespace must not match a grant named 'null'.
+      await bindEnrollment({'null': 'rw'});
+      for (final key in ['foo$alice', 'public:foo$alice', '@bob:foo$alice']) {
+        await expectLater(
+            updateVerbHandler.process('update:$key v', inboundConnection),
+            throwsA(isA<UnAuthorizedException>()),
+            reason: '$key has no namespace and must not match a "null" grant');
+      }
+    });
+
+    test("a key whose namespace really is 'null' still resolves", () async {
+      await bindEnrollment({'null': 'rw'});
+      await updateVerbHandler.process(
+          'update:foo.null$alice v', inboundConnection);
+      expect(inboundConnection.lastWrittenData, contains('data:'));
+    });
+
     // ---- matching the key the keystore writes ----
 
     for (final variant in ['public:publickey@alice ', ' public:publickey@alice',
@@ -309,22 +332,34 @@ void main() {
           throwsA(isA<UnAuthorizedException>()));
     });
 
-    test("an enrollment granted the namespace 'null' gets no root access",
-        () async {
-      // A key with no namespace must not match a grant named 'null'.
-      await bindEnrollment({'null': 'rw'});
-      for (final key in ['foo$alice', 'public:foo$alice', '@bob:foo$alice']) {
+    // ---- config:block ----
+
+    test('scoped enrollment cannot read or modify the blocklist', () async {
+      await bindScoped();
+      for (final command in [
+        'config:block:show',
+        'config:block:add:@evil',
+        'config:block:remove:@evil',
+      ]) {
         await expectLater(
-            updateVerbHandler.process('update:$key v', inboundConnection),
+            configVerbHandler.process(command, inboundConnection),
             throwsA(isA<UnAuthorizedException>()),
-            reason: '$key has no namespace and must not match a "null" grant');
+            reason: '$command is an atSign-level privilege');
       }
     });
 
-    test("a key whose namespace really is 'null' still resolves", () async {
-      await bindEnrollment({'null': 'rw'});
-      await updateVerbHandler.process(
-          'update:foo.null$alice v', inboundConnection);
+    test('a *:rw enrollment without __manage cannot modify the blocklist',
+        () async {
+      await bindWildcard();
+      await expectLater(
+          configVerbHandler.process('config:block:add:@evil', inboundConnection),
+          throwsA(isA<UnAuthorizedException>()));
+    });
+
+    test('a root enrollment CAN modify the blocklist', () async {
+      await bindRoot();
+      await configVerbHandler.process(
+          'config:block:add:@evil', inboundConnection);
       expect(inboundConnection.lastWrittenData, contains('data:'));
     });
 

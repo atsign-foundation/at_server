@@ -2,6 +2,7 @@
 - fix: deny, not throw, on an unparseable atKey in authz
 - fix: defensive code to properly handle a namespace named 'null'
 - fix: scope namespace-less keys to the legacy shared_key forms
+- fix: restrict config:block to root enrollments
 - feat: augmented pol challenge
 - perf: sync now pushes `skipDeletesUntil` into the commit-log query rather than
   filtering deletes out of the results. `SyncProgressiveVerbHandler` passed
