@@ -10,8 +10,7 @@ import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_message_listener.dart';
-import 'package:at_secondary/src/crypto/pq_constants.dart';
-import 'package:at_secondary/src/crypto/pq_key_manager.dart';
+import 'package:at_secondary/src/crypto/signing_key_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/at_security_context_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -44,10 +43,11 @@ class OutboundClient {
 
   at_lookup.SecondaryAddressFinder secondaryAddressFinder;
 
-  /// Signs the handshake challenge with ML-DSA when initialised; otherwise the
+  /// Holds this server's negotiable signing keys. Signs the handshake
+  /// challenge with the best type the verifier advertised; otherwise the
   /// handshake falls back to legacy RSA. Injected, not a singleton, so it is
   /// unit-testable.
-  final PqKeyManager pqKeyManager;
+  final SigningKeyManager signingKeyManager;
 
   /// When unit testing, we don't need to do all the things necessary
   /// to support server-to-server handshake - for example, actually signing
@@ -67,7 +67,7 @@ class OutboundClient {
     this.secondaryAddressFinder,
     this.handshakeRequired,
     this.outboundConnectionFactory,
-    this.pqKeyManager,
+    this.signingKeyManager,
   );
 
   /// Connects to an secondary and performs required handshake to be ready to run rest of the commands
@@ -319,21 +319,21 @@ class OutboundClient {
       var challenge = cookieParams[3];
 
       if (productionMode) {
-        // Before signing: if the verifier issued a verifier-bound challenge it
-        // names the atSign that issued it. Refuse to sign unless that matches
-        // the atSign we actually dialed.
-        // verifierOfBoundPolChallenge returns a canonical Atsign; toAtSign
-        // arrives un-normalised from the caller, so canonicalise it for the
-        // comparison. A malformed or invalid bound challenge throws (fail
-        // closed); a legacy bare challenge returns null and signs as before.
-        final Atsign? boundVerifier =
-            SecondaryUtil.verifierOfBoundPolChallenge(challenge);
-        if (boundVerifier != null && boundVerifier != toAtSign.toAtsign()) {
+        // One decode yields both the issuer and the advertised types. If the
+        // verifier issued a bound challenge it names the atSign that issued it:
+        // refuse to sign unless that matches the atSign we actually dialed.
+        // The decoded verifier is canonical; toAtSign arrives un-normalised from
+        // the caller, so canonicalise it for the comparison. A malformed or
+        // invalid bound challenge throws (fail closed); a legacy bare challenge
+        // decodes to null and signs as before.
+        final BoundPolChallenge? bound =
+            SecondaryUtil.decodeBoundPolChallenge(challenge);
+        if (bound != null && bound.verifier != toAtSign.toAtsign()) {
           throw HandShakeException(
-              'pol challenge names $boundVerifier but we dialed $toAtSign;'
+              'pol challenge names ${bound.verifier} but we dialed $toAtSign;'
               ' refusing to sign');
         }
-        final cookieValue = await selectAndSignChallenge(challenge);
+        final cookieValue = await selectAndSignChallenge(challenge, bound);
         await SecondaryUtil.saveCookie(sessionIdWithAtSign, cookieValue,
             AtSecondaryServerImpl.getInstance().keyValueStore);
       }
@@ -362,55 +362,37 @@ class OutboundClient {
     }
   }
 
-  /// Picks the cookie format and signs [challenge] — the same bytes either way,
-  /// since [challenge] is already verifier-bound (see
-  /// [SecondaryUtil.buildBoundPolChallenge]).
+  /// Signs [challenge] with the type the verifier demanded, framing the cookie
+  /// as `<type>:<signature>`; falls back to an untagged legacy RSA signature
+  /// when the verifier demands nothing.
   ///
-  /// ML-DSA needs our keypair initialised *and* [toAtSign] to have published a
-  /// PQ record — the signal its verifier understands a `pq:`-prefixed cookie at
-  /// all. A peer without one is pre-PQ or has `disablePqAuth` set and would
-  /// `base64Decode` our cookie as garbage, so we sign RSA instead. This is what
-  /// keeps the handshake working across a rolling upgrade.
+  /// The choice of algorithm is the verifier's, not ours: [bound] carries the
+  /// single type it chose *inside the challenge it signed us*, so there is
+  /// nothing to select here, only to honour or refuse. Because the demand is
+  /// covered by our signature, stripping it in transit fails the handshake
+  /// rather than silently downgrading us to RSA.
+  ///
+  /// Falls back to RSA only when the verifier demanded nothing (pre-negotiation
+  /// peer, legacy bare challenge, or `disablePqAuth` on the verifier's side).
+  /// If it demanded a type we do not hold a key for, that is refused rather
+  /// than silently substituted — reachable only if the verifier's own record
+  /// lookup disagrees with our published keys, which should not happen absent
+  /// a bug or a mid-flight key withdrawal.
   @visibleForTesting
-  Future<String> selectAndSignChallenge(String challenge) async {
-    if (pqKeyManager.isInitialised && await checkPeerPqSupport()) {
-      return pqKeyManager.buildChallengeResponse(challenge);
+  Future<String> selectAndSignChallenge(
+      String challenge, BoundPolChallenge? bound) async {
+    final demanded = bound?.chosenAlgo;
+    if (demanded == null) {
+      return SecondaryUtil.signChallenge(
+          challenge, AtSecondaryServerImpl.getInstance().signingKey);
     }
-    return SecondaryUtil.signChallenge(
-        challenge, AtSecondaryServerImpl.getInstance().signingKey);
-  }
-
-  /// Whether [toAtSign] published a PQ record carrying a key we can sign
-  /// against — an unauthenticated `plookUp`, mirroring the verifier-side fetch
-  /// in `PolVerbHandler`.
-  ///
-  /// Runs on the *same* outbound connection, between reading the FROM response
-  /// and writing the POL request. Safe because the response queue is FIFO and
-  /// this is strictly sequential, and `isHandShakeDone` is still false so
-  /// `lookUp`'s handshake guard passes.
-  ///
-  /// Any failure — missing key, or a record without [pqAlgoMlDsa65] — means
-  /// "no" and is never surfaced: legacy RSA beats a cookie the peer can't
-  /// parse.
-  ///
-  /// [pqAlgoMlDsa65] is hardcoded as the only algorithm [PqKeyManager] can sign
-  /// with today; a second one needs a branch here and in
-  /// `PolVerbHandler._verifyPqSignature`.
-  @visibleForTesting
-  Future<bool> checkPeerPqSupport() async {
-    try {
-      final record =
-          (await plookUp('$pqSigningPublicKeyRecordName$toAtSign'))
-              ?.replaceFirst(RegExp('^data:'), '');
-      if (record == null) return false;
-      return pqSigningKeyForAlgo(record, pqAlgoMlDsa65) != null;
-    } on KeyNotFoundException {
-      return false;
-    } catch (e) {
-      logger.info('Could not determine PQ signing support for $toAtSign '
-          '($e); falling back to legacy RSA signing');
-      return false;
+    if (!signingKeyManager.isInitialised ||
+        !signingKeyManager.availableTypes.contains(demanded)) {
+      throw HandShakeException(
+          'Verifier ${bound!.verifier} demanded signature type "$demanded" '
+          'but we hold no such key');
     }
+    return signingKeyManager.buildChallengeResponse(challenge, demanded);
   }
 
   /// Runs "lookup" verb on the secondary of the @sign that this instance represents.

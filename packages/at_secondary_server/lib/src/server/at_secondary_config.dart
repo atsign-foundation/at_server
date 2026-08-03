@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/conf/config_util.dart';
-import 'package:at_secondary/src/crypto/pq_constants.dart';
+import 'package:at_secondary/src/crypto/signing_key_constants.dart';
 import 'package:meta/meta.dart';
 import 'package:yaml/yaml.dart';
 
@@ -138,7 +138,7 @@ class AtSecondaryConfig {
     'signing_privatekey<@atsign>',
     encryptionPublicKeyTemplate,
     'at_pkam_publickey',
-    '$pqSigningPublicKeyRecordName<@atsign>',
+    '$signingPublicKeysRecordName<@atsign>',
   };
 
   //version
@@ -214,6 +214,26 @@ class AtSecondaryConfig {
   static bool get disablePqAuth {
     return _getBoolEnvVar('disablePqAuth') ??
         getNullableBoolFromYaml(['pq', 'disablePqAuth']) ??
+        false;
+  }
+
+  /// When true, a failure fetching the peer's `signing_publickeys` record at
+  /// FROM time (needed to choose a mutual signature algorithm) makes the
+  /// `from:` command fail, rather than falling back to legacy RSA as if the
+  /// peer had published no record.
+  ///
+  /// Default false (fail open): while RSA remains strong, forcing a handshake
+  /// down to RSA gains an attacker who can disrupt just this one fetch nothing
+  /// they could not already do, so failing open trades that non-risk for
+  /// surviving transient peer blips. Flip to true fleet-wide once PQ is
+  /// universal and RSA can no longer be trusted as a fallback — the same
+  /// shape as [disablePqAuth]. Set via the
+  /// `failClosedOnPqNegotiationFetchFailure` env var or
+  /// `pq.failClosedOnNegotiationFetchFailure` in config.yaml.
+  static bool get failClosedOnPqNegotiationFetchFailure {
+    return _getBoolEnvVar('failClosedOnPqNegotiationFetchFailure') ??
+        getNullableBoolFromYaml(
+            ['pq', 'failClosedOnNegotiationFetchFailure']) ??
         false;
   }
 

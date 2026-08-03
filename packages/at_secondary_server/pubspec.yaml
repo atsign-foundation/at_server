@@ -6,7 +6,7 @@ homepage: https://www.example.com
 publish_to: none
 
 environment:
-  # 3.6.0 floor is set by at_chops ^3.4.1, which declares sdk ^3.6.0 for its
+  # 3.6.0 floor is set by at_chops ^3.4.2, which declares sdk ^3.6.0 for its
   # FFI/AtPqc support. A lower floor here would not resolve on a 3.5.x SDK.
   sdk: ">=3.6.0 <4.0.0"
 
@@ -23,7 +23,7 @@ dependencies:
   encrypt: ^5.0.3
   at_commons: ^5.13.0
   at_utils: ^3.4.0
-  at_chops: ^3.4.1
+  at_chops: ^3.4.2
   at_lookup: ^3.6.0
   at_server_spec: ^5.1.0
   at_persistence_secondary_server: ^5.2.1
@@ -47,3 +47,11 @@ dev_dependencies:
 dependency_overrides:
   at_persistence_secondary_server:
     path: ../at_persistence_secondary_server
+  # TEMPORARY — MUST be removed before merge (see PR description / plan §6).
+  # at_chops 3.4.2 fixes the ML-DSA-65 wrong-length-key handling this PR depends
+  # on (AtSigningException instead of silent truncation of an over-long secret
+  # key) but is not yet published to pub.dev. Drop this override once it is —
+  # dropping it without a publish would silently resolve back to the
+  # unvalidated 3.4.1 on pub.dev.
+  at_chops:
+    path: ../../../at_client_sdk/packages/at_chops

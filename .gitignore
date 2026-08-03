@@ -50,3 +50,7 @@ tools/chat/
 .DS_Store
 plans/
 
+# Local-only working design docs, not published with the repo
+docs/inter-atserver-comms.md
+diag/
+

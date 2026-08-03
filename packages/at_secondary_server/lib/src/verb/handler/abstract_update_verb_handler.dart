@@ -105,11 +105,11 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
 
     // Reject writes to protected keys this server exclusively manages (see
     // [_updateProtectedKeys]). Compared bare, before the sharedWith/public:
-    // prefixing below, so `update:cached:public:pq_signing_publickey@bob` and
+    // prefixing below, so `update:cached:public:signing_publickeys@bob` and
     // friends can't slip past a prefixed comparison.
     //
     // Deliberately over-broad: this also rejects the unrelated self key
-    // `@alice:pq_signing_publickey@alice`. Refusing a key no client writes is
+    // `@alice:signing_publickeys@alice`. Refusing a key no client writes is
     // the safe side of that trade.
     final bareUpdateKey = '${updateParams.atKey}${updateParams.sharedBy ?? ''}';
     if (_updateProtectedKeys().contains(bareUpdateKey.toLowerCase())) {

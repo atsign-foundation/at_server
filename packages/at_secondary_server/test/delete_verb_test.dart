@@ -3,7 +3,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/crypto/pq_constants.dart';
+import 'package:at_secondary/src/crypto/signing_key_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
@@ -145,7 +145,7 @@ void main() {
         'verify deletion of PQ signing public key throws exception even '
         'with a case-variant key', () {
       inboundConnection.metadata.isAuthenticated = true;
-      var command = 'delete:public:${pqSigningPublicKeyRecordName.toUpperCase()}$alice';
+      var command = 'delete:public:${signingPublicKeysRecordName.toUpperCase()}$alice';
       expect(
           () => handler.processInternal(command, inboundConnection),
           throwsA(
@@ -309,7 +309,7 @@ void main() {
       'signing_privatekey<@atsign>',
       'publickey<@atsign>',
       'at_pkam_publickey',
-      'pq_signing_publickey<@atsign>',
+      'signing_publickeys<@atsign>',
     };
 
     test('Verify with test_config_yaml1 that has 3 additional protected keys',

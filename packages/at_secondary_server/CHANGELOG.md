@@ -1,24 +1,21 @@
 # 3.15.2
 
-- feat: post-quantum inter-server authentication. FROM/POL now perform an
-  ML-DSA-65 signature challenge-response for peers that have published a PQ
-  signing public key. The prover signs the same verifier-bound pol challenge
-  introduced in 3.15.1 ("augmented pol challenge") with ML-DSA-65 instead of
-  RSA — no PQ-specific binding step is needed, since a signature over a
-  verifier-bound challenge is already scoped to the intended verifier and
-  session, and that binding now applies uniformly to both the PQ and legacy
-  RSA paths (a legacy verifier still issues a bare, unbound UUID, so a signer
-  talking to one is not protected — see 3.15.1). A prover signs with ML-DSA-65
-  only when its own PQ keypair is initialised and the peer has published a PQ
-  signing public-key record, falling back to legacy RSA otherwise, so a
-  mixed-version fleet keeps working during a rolling upgrade. Keys and the
-  published record live under a new `local:pq_*` / `public:pq_signing_publickey`
-  namespace, which `update`/`delete` now refuse to let clients touch.
-  `pq.disablePqAuth` in `config.yaml` force-disables the PQ path.
-- fix: malformed or oversized peer key material on the PQ pol path now fails as
-  an authentication error instead of an internal server error. Wrong-length
-  ML-DSA keys and signatures are rejected up front, and decode/verify errors
-  from at_chops are funnelled into `UnAuthenticatedException`.
+- feat: post-quantum inter-server authentication. FROM/POL now negotiate an
+  ML-DSA-65 signature challenge-response, falling back to legacy RSA against
+  pre-PQ peers; the negotiated algorithm cannot be downgraded by a malicious
+  prover.
+- feat: signing public keys are published (read-only to clients) at
+  `public:signing_publickeys@atsign`, keyed by algorithm, with secret halves at
+  `local:signing_secretkey.<type>@atsign`. Pol cookies gain a `<type>:` tag
+  identifying the algorithm; untagged means legacy RSA.
+- feat: `pq.disablePqAuth` turns PQ auth off and withdraws published signing keys;
+  `pq.failClosedOnNegotiationFetchFailure` refuses a handshake when the peer's
+  record cannot be fetched instead of falling back to RSA. Both default false.
+- fix: malformed peer key material on the pol path now fails as an authentication
+  error rather than an internal server error, legacy RSA path included.
+- fix: a signing keypair whose stored secret and published public key no longer
+  match is now detected at boot and regenerated, instead of being loaded
+  silently and breaking every handshake against it.
 
 # 3.15.1
 - feat: augmented pol challenge

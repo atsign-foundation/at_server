@@ -33,7 +33,7 @@ void main() {
         AtSecondaryServerImpl.getInstance().secondaryAddressFinder,
         true,
         outboundConnectionFactory,
-        AtSecondaryServerImpl.getInstance().pqKeyManager,
+        AtSecondaryServerImpl.getInstance().signingKeyManager,
       );
       client.outboundConnection = OutboundConnectionImpl(mockSocket, 'bob');
       connection1.close();
@@ -48,7 +48,7 @@ void main() {
         AtSecondaryServerImpl.getInstance().secondaryAddressFinder,
         true,
         outboundConnectionFactory,
-        AtSecondaryServerImpl.getInstance().pqKeyManager,
+        AtSecondaryServerImpl.getInstance().signingKeyManager,
       );
       client.outboundConnection = OutboundConnectionImpl(mockSocket, 'bob');
       sleep(Duration(
@@ -67,7 +67,7 @@ void main() {
         AtSecondaryServerImpl.getInstance().secondaryAddressFinder,
         true,
         outboundConnectionFactory,
-        AtSecondaryServerImpl.getInstance().pqKeyManager,
+        AtSecondaryServerImpl.getInstance().signingKeyManager,
       );
       client.outboundConnection = OutboundConnectionImpl(mockSocket, 'bob');
       expect(client.isInValid(), false);
@@ -83,7 +83,7 @@ void main() {
         AtSecondaryServerImpl.getInstance().secondaryAddressFinder,
         false,
         outboundConnectionFactory,
-        AtSecondaryServerImpl.getInstance().pqKeyManager,
+        AtSecondaryServerImpl.getInstance().signingKeyManager,
       );
       client.outboundConnection = OutboundConnectionImpl(mockSocket, 'bob');
       client.outboundConnection!.metaData.isStale = true;
@@ -103,7 +103,7 @@ void main() {
         AtSecondaryServerImpl.getInstance().secondaryAddressFinder,
         false,
         outboundConnectionFactory,
-        AtSecondaryServerImpl.getInstance().pqKeyManager,
+        AtSecondaryServerImpl.getInstance().signingKeyManager,
       );
       client.outboundConnection = OutboundConnectionImpl(mockSocket, 'bob');
       client.outboundConnection!.metaData.isClosed = true;

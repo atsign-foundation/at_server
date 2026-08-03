@@ -60,11 +60,10 @@ packages:
   at_chops:
     dependency: "direct main"
     description:
-      name: at_chops
-      sha256: e38abf9b245af869bb7545e7b03488bf0bdad8a413a7b110b45795971026e7fc
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.4.1"
+      path: "../../../at_client_sdk/packages/at_chops"
+      relative: true
+    source: path
+    version: "3.4.2"
   at_commons:
     dependency: "direct main"
     description:

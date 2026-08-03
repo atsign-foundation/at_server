@@ -7,7 +7,7 @@ import 'package:test/test.dart';
 /// End-to-end cover for the post-quantum inter-server handshake.
 ///
 /// The `PolVerbHandler` unit tests stub every `lookUp`/`plookUp`, so they can't
-/// show that `PqKeyManager`'s published record — written straight to the
+/// show that `SigningKeyManager`'s published record — written straight to the
 /// keystore — is actually served over the wire. Without this suite, every unit
 /// test would pass while inter-server auth was broken in production.
 ///
@@ -37,7 +37,11 @@ void main() {
   String secondAtSign =
       ConfigUtil.getYaml()!['secondAtSignServer']['secondAtSignName'];
 
-  const String pqRecordName = 'pq_signing_publickey';
+  // The one published signing-key record: generically named and permanent, its
+  // top-level keys being challenge types. Spelled out rather than imported so a
+  // rename of the server-side constant fails here loudly — peers fetch this by
+  // name, so it is wire protocol.
+  const String pqRecordName = 'signing_publickeys';
   const String pqAlgo = 'ml-dsa-65';
 
   late OutboundConnectionFactory connection;
@@ -64,9 +68,16 @@ void main() {
 
     var record = jsonDecode(response.replaceFirst('data:', '').trim()) as Map;
     expect(record.keys, contains(pqAlgo),
-        reason: 'the record is keyed by algorithm id for crypto agility');
-    expect(base64Decode(record[pqAlgo] as String).length, 1952,
+        reason: 'the record is keyed by challenge type for crypto agility — the '
+            'same identifier that tags the pol cookie');
+    // Each entry is an object, not a bare key, so a future algorithm can carry
+    // parameters alongside its key without a format break.
+    var entry = record[pqAlgo] as Map;
+    expect(base64Decode(entry['publicKey'] as String).length, 1952,
         reason: 'raw ML-DSA-65 public key length (FIPS 204)');
+    expect(record.containsKey('rsa-sha256'), isFalse,
+        reason: 'RSA is not duplicated here — it stays at signing_publickey, '
+            'and its location is implied by the type id');
   }
 
   group('PQ signing public key is published and locally fetchable', () {
@@ -75,7 +86,7 @@ void main() {
       String response = await connection
           .sendRequestToServer('lookup:$pqRecordName$firstAtSign');
       expectPqSigningRecord(response,
-          reason: 'the record is published at startup by PqKeyManager, so an '
+          reason: 'the record is published at startup by SigningKeyManager, so an '
               'unauthenticated lookup must resolve it — this is exactly how a '
               'peer fetches our key when verifying our pol signature');
     });
@@ -155,7 +166,7 @@ void main() {
       //
       // The 30s idle window sits inside the wrapper's 90s total budget (a cold
       // handshake chains two outbound TLS connections plus the extra
-      // checkPeerPqSupport round trip). An AtTimeoutException at 90s means a
+      // in-band type advert, so no capability probe). An AtTimeoutException at 90s means a
       // genuine hang, not CI latency, and wants server-side logs.
       String response = await connection.sendRequestToServer(
           'lookup:shared_key$secondAtSign',

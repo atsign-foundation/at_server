@@ -10,7 +10,7 @@ import 'package:at_utils/at_utils.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/crypto/pq_constants.dart';
+import 'package:at_secondary/src/crypto/signing_key_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -588,9 +588,9 @@ void main() {
       secretData.data =
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyValueStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(
-          keyValueStore,
-          accessLog: atAccessLog);
+      var fromVerbHandler = FromVerbHandler(keyValueStore,
+          accessLog: atAccessLog,
+          outboundClientManager: MockOutboundClientManager());
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -642,9 +642,9 @@ void main() {
       secretData.data =
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyValueStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(
-          keyValueStore,
-          accessLog: atAccessLog);
+      var fromVerbHandler = FromVerbHandler(keyValueStore,
+          accessLog: atAccessLog,
+          outboundClientManager: MockOutboundClientManager());
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -726,9 +726,9 @@ void main() {
       secretData.data =
           'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43bc55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
       await keyValueStore.put('privatekey:at_secret', secretData);
-      var fromVerbHandler = FromVerbHandler(
-          keyValueStore,
-          accessLog: atAccessLog);
+      var fromVerbHandler = FromVerbHandler(keyValueStore,
+          accessLog: atAccessLog,
+          outboundClientManager: MockOutboundClientManager());
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
@@ -1772,14 +1772,14 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
 
       String updateCommand =
-          'update:${pqSigningPublicKeyRecordName.toUpperCase()}$alice dummyCertValue';
+          'update:${signingPublicKeysRecordName.toUpperCase()}$alice dummyCertValue';
       expect(
           () async =>
               await updateHandler.process(updateCommand, inboundConnection),
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  "Cannot update protected key: '${pqSigningPublicKeyRecordName.toUpperCase()}$alice'")));
+                  "Cannot update protected key: '${signingPublicKeysRecordName.toUpperCase()}$alice'")));
     });
   });
 

@@ -39,6 +39,14 @@ void main() {
   // catches up — that's a real mixed-version fleet, not a test gap.
   late bool pqSupported;
 
+  // The one published signing-key record: generically named and permanent,
+  // its top-level keys being challenge types. Spelled out rather than
+  // imported — this package has no dependency on at_secondary_server's
+  // internals, and peers fetch this by name, so it is wire protocol. Mirrors
+  // `at_functional_test/test/pq_interserver_auth_test.dart`.
+  const String pqRecordName = 'signing_publickeys';
+  const String pqAlgo = 'ml-dsa-65';
+
   setUpAll(() async {
     List<String> atSigns = e2e.knownAtSigns();
     atSign_1 = atSigns[0];
@@ -75,20 +83,27 @@ void main() {
     /// exact wire call a verifier makes to fetch a prover's signing key
     /// *before* any pol verification — a prerequisite for the handshake, not
     /// the handshake itself. The two tests below cover that.
-    await sh2.writeCommand('plookup:pq_signing_publickey$atSign_1');
+    await sh2.writeCommand('plookup:$pqRecordName$atSign_1');
     String response = await sh2.read();
     print('plookup verb response $response');
 
     expect(response, startsWith('data:'),
-        reason: 'the record is published at startup by PqKeyManager, so a '
-            'peer must be able to fetch it — if this fails, no peer can '
+        reason: 'the record is published at startup by SigningKeyManager, so '
+            'a peer must be able to fetch it — if this fails, no peer can '
             'verify our pol signatures and every handshake degrades to RSA');
 
     var record = jsonDecode(response.replaceFirst('data:', '').trim()) as Map;
-    expect(record.keys, contains('ml-dsa-65'),
-        reason: 'the record is keyed by algorithm id for crypto agility');
-    expect(base64Decode(record['ml-dsa-65'] as String).length, 1952,
+    expect(record.keys, contains(pqAlgo),
+        reason: 'the record is keyed by challenge type for crypto agility — '
+            'the same identifier that tags the pol cookie');
+    // Each entry is an object, not a bare key, so a future algorithm can
+    // carry parameters alongside its key without a format break.
+    var entry = record[pqAlgo] as Map;
+    expect(base64Decode(entry['publicKey'] as String).length, 1952,
         reason: 'raw ML-DSA-65 public key length (FIPS 204)');
+    expect(record.containsKey('rsa-sha256'), isFalse,
+        reason: 'RSA is not duplicated here — it stays at signing_publickey, '
+            'and its location is implied by the type id');
   }, timeout: Timeout(Duration(seconds: 120)));
 
   test(

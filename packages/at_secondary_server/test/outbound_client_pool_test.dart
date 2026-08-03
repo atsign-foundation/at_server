@@ -29,7 +29,7 @@ void main() async {
     notifyConnectionsPool = NotifyConnectionsPool(
         MockSecondaryAddressFinder(),
         DefaultOutboundConnectionFactory(clientCertificateRequired: false),
-        AtSecondaryServerImpl.getInstance().pqKeyManager);
+        AtSecondaryServerImpl.getInstance().signingKeyManager);
 
     notifyConnectionsPool.size = 2;
   });
@@ -56,7 +56,7 @@ void main() async {
         AtSecondaryServerImpl.getInstance().secondaryAddressFinder,
         false,
         outboundConnectionFactory,
-        AtSecondaryServerImpl.getInstance().pqKeyManager,
+        AtSecondaryServerImpl.getInstance().signingKeyManager,
       );
       outboundClient.outboundConnection =
           OutboundConnectionImpl(mockSocket, toAtSign);
