@@ -1,8 +1,6 @@
 import 'dart:collection';
-import 'dart:convert';
-import 'dart:typed_data';
 
-import 'package:at_chops/at_chops_ffi.dart';
+import 'package:at_chops/at_chops.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
@@ -10,19 +8,18 @@ import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dar
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
-import 'package:at_secondary/src/crypto/pq_constants.dart';
+import 'package:at_secondary/src/crypto/pol_signing_algos.dart';
+import 'package:at_secondary/src/crypto/signing_key_constants.dart';
+import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
-import 'package:crypton/crypton.dart';
 
 // PolVerbHandler class is used to process Pol verb
 // ex: pol\n
 class PolVerbHandler extends AbstractVerbHandler {
   static Pol pol = Pol();
-  static final RegExp _dataPrefix = RegExp('^data:');
-  static final RegExp _pqPrefix = RegExp('^pq:');
 
   final OutboundClientManager outboundClientManager;
   final AtCacheManager cacheManager;
@@ -73,39 +70,45 @@ class PolVerbHandler extends AbstractVerbHandler {
 
     final String storedSecretId = 'public:$sessionID$fromAtSign';
 
-    // The UUID challenge we issued and stored at FROM time.
-    String? challenge;
+    // Our own record of what we issued at FROM time: the challenge, and —
+    // never anything read off the wire — the algorithm we chose to demand (if
+    // any) and the peer's key for it. This is what makes verification below
+    // authoritative rather than trusting the cookie's own `<type>:` tag.
+    StoredPolChallenge? stored;
     try {
-      challenge = (await keyStore.get(storedSecretId))?.data;
+      final raw = (await keyStore.get(storedSecretId))?.data;
+      if (raw != null) {
+        stored = StoredPolChallenge.decode(raw);
+      }
     } on KeyNotFoundException {
-      // Key doesn't exist; challenge remains null
+      // Key doesn't exist; stored remains null
     } on Exception catch (e) {
       logger.severe('Exception fetching stored secret $storedSecretId : $e');
       rethrow;
     }
 
-    if (challenge == null) {
+    if (stored == null) {
       logger.severe('No stored secret found at $storedSecretId');
       throw UnAuthenticatedException('Unable to verify pol: no stored secret');
     }
 
-    // Fetch the peer's cookie and the public key needed to verify it, over an
-    // unauthenticated outbound connection. A 'pq:<algo>:' prefix on the cookie
-    // says which key to fetch: the peer's PQ record or its legacy RSA
-    // signing_publickey.
+    // Fetch the peer's cookie, over an unauthenticated outbound connection.
+    // When we demanded a negotiable type, its key was already cached at FROM
+    // time — no record fetch needed here. Only the legacy RSA path (nothing
+    // demanded) still needs one, since that key is never cached in advance.
     //
     // A pooled client may be reused here; if its socket died without a
     // detectable close (peer restart) the reuse times out rather than failing
     // to connect, so on failure we discard it and retry once with a fresh
     // connection.
+    final bool needsLegacyKey = stored.chosenAlgo == null;
     late OutboundClient oc;
-    String? fetchedChallenge, fromRsaPublicKey, fromPqRecord;
+    String? fetchedCookie, legacyPublicKey;
     for (int attempt = 0;; attempt++) {
       // Reset per attempt, so a partial result from a failed attempt (cookie
-      // fetched, key lookup failed) can't leak into the branch selection.
-      fetchedChallenge = null;
-      fromRsaPublicKey = null;
-      fromPqRecord = null;
+      // fetched, key lookup failed) can't leak into verification below.
+      fetchedCookie = null;
+      legacyPublicKey = null;
       oc = await outboundClientManager.getClient(
           fromAtSign!, // Non-null: guaranteed by the from: check above.
           _dummyInboundConnection,
@@ -118,20 +121,14 @@ class PolVerbHandler extends AbstractVerbHandler {
         }
         // fetch the signed challenge (peer's cookie) from the other secondary
         doing = 'fetching challenge from $fromAtSign';
-        fetchedChallenge =
-            (await oc.lookUp('$sessionID$fromAtSign', handshake: false))
-                ?.replaceFirst(_dataPrefix, '');
+        fetchedCookie = stripDataPrefix(
+            await oc.lookUp('$sessionID$fromAtSign', handshake: false));
 
-        if (fetchedChallenge != null &&
-            fetchedChallenge.startsWith(_pqPrefix)) {
-          doing = 'fetching PQ signing public key for $fromAtSign';
-          fromPqRecord =
-              (await oc.plookUp('$pqSigningPublicKeyRecordName$fromAtSign'))
-                  ?.replaceFirst(_dataPrefix, '');
-        } else {
-          doing = 'fetching signing_publickey$fromAtSign';
-          fromRsaPublicKey = (await oc.plookUp('signing_publickey$fromAtSign'))
-              ?.replaceFirst(_dataPrefix, '');
+        if (needsLegacyKey) {
+          doing =
+              'fetching $legacyRsaSigningPublicKeyRecordName from $fromAtSign';
+          legacyPublicKey = stripDataPrefix(await oc.plookUp(
+              '$legacyRsaSigningPublicKeyRecordName$fromAtSign'));
         }
         break; // success
       } on Exception catch (e) {
@@ -147,27 +144,13 @@ class PolVerbHandler extends AbstractVerbHandler {
       }
     }
 
-    if (fetchedChallenge == null) {
+    if (fetchedCookie == null) {
       throw AtException(
           'Unable to verify pol: no challenge returned from $fromAtSign');
     }
 
-    if (fetchedChallenge.startsWith(_pqPrefix)) {
-      await _verifyPqSignature(
-          fromAtSign, challenge, fetchedChallenge, fromPqRecord);
-    } else {
-      // Legacy RSA path.
-      if (fromRsaPublicKey == null) {
-        throw AtException(
-            'Unable to verify pol: signing_publickey not found for $fromAtSign');
-      }
-      final bool isValidChallenge = RSAPublicKey.fromString(fromRsaPublicKey)
-          .verifySHA256Signature(
-              utf8.encode(challenge), base64Decode(fetchedChallenge));
-      if (!isValidChallenge) {
-        throw UnAuthenticatedException('Pol Authentication Failed');
-      }
-    }
+    await _verifySignedCookie(
+        fromAtSign, stored, fetchedCookie, legacyPublicKey);
 
     // remove the stored secret
     try {
@@ -182,75 +165,69 @@ class PolVerbHandler extends AbstractVerbHandler {
     logger.info('response : $fromAtSign@');
   }
 
-  /// Verify a PQ-signed pol challenge.
+  /// Verify the peer's signed cookie against the challenge we issued and the
+  /// algorithm *we* chose to demand.
   ///
-  /// [signedCookie] is the peer's `pq:<algo>:<base64 signature>` cookie;
-  /// [expectedChallenge] is the challenge this server generated and stored at
-  /// FROM time — never anything read off the wire; [peerRecord] is the peer's
-  /// published PQ record. Throws [UnAuthenticatedException] / [AtException] on
-  /// any verification failure.
-  Future<void> _verifyPqSignature(String fromAtSign, String expectedChallenge,
-      String signedCookie, String? peerRecord) async {
-    // base64 contains no ':', so 'pq:<algo>:<sig>' splits into exactly three
-    // fields; anything else is malformed.
-    final parts = signedCookie.split(':');
-    if (parts.length != 3 || parts[0] != 'pq') {
-      throw UnAuthenticatedException(
-          'Pol Authentication Failed: malformed PQ cookie');
+  /// [stored] is this server's own FROM-time record — the challenge, the
+  /// algorithm demanded (`null` for "nothing demanded, legacy RSA"), and the
+  /// peer's key for it. [legacyPublicKey] is the peer's RSA key, fetched fresh
+  /// at POL time; present and used only when [stored].chosenAlgo is null.
+  ///
+  /// The cookie's own `<type>:` tag is never consulted — only its signature
+  /// bytes are. A prover that signs with a weaker or different type than
+  /// demanded still lands here and simply fails verification, because we
+  /// verify against the type and key *we* chose, not whatever the cookie
+  /// claims. That is the core property this design exists for: the verifier's
+  /// choice is authoritative, the cookie's tag is not.
+  ///
+  /// The two branches are genuinely different paths, not one path with flags:
+  /// legacy RSA is untagged, keyed from its own record fetched fresh every
+  /// time, and never negotiated. What they share is failure handling — both
+  /// raise [FormatException] for unusable peer material, so one catch turns
+  /// every malformed-input case into an authentication failure rather than a
+  /// shout-logged internal server error.
+  Future<void> _verifySignedCookie(String fromAtSign, StoredPolChallenge stored,
+      String signedCookie, String? legacyPublicKey) async {
+    final signature = parseSignedCookie(signedCookie).signature;
+    final chosenAlgo = stored.chosenAlgo;
+    final type = chosenAlgo ?? polAlgoRsaSha256;
+
+    final AtSignatureAlgorithm? algo;
+    final String? publicKey;
+    if (chosenAlgo == null) {
+      algo = null;
+      publicKey = legacyPublicKey;
+    } else {
+      algo = negotiableSigningAlgos[chosenAlgo];
+      if (algo == null) {
+        // The registry shrank between FROM and POL — a type we ourselves
+        // chose no longer exists. Should not happen absent a live algorithm
+        // retirement mid-handshake; fail the auth rather than crash.
+        throw UnAuthenticatedException('Pol Authentication Failed: '
+            'algorithm "$chosenAlgo" no longer supported');
+      }
+      publicKey = stored.peerPublicKey;
     }
-    final algo = parts[1];
-    if (!pqSupportedSigningAlgosByPreference.contains(algo)) {
-      throw UnAuthenticatedException(
-          'Pol Authentication Failed: unsupported PQ algorithm "$algo"');
-    }
-    if (peerRecord == null) {
-      throw AtException(
-          'Unable to verify pol: PQ signing public key not found for $fromAtSign');
-    }
-    final publicKey = pqSigningKeyForAlgo(peerRecord, algo);
+
     if (publicKey == null) {
-      throw UnAuthenticatedException(
-          'Pol Authentication Failed: no "$algo" key in $fromAtSign record');
+      throw AtException(
+          'Unable to verify pol: no $type signing public key for $fromAtSign');
     }
 
-    // Everything below is peer-controlled. at_chops throws StateError on
-    // malformed key material and FormatException on bad base64; neither is an
-    // AtException, so both would surface as a shout-logged internal server
-    // error. A peer sending garbage is an auth failure, not a server fault, so
-    // size-check first and funnel the rest into UnAuthenticatedException.
-    final Uint8List signature;
-    try {
-      signature = base64Decode(parts[2]);
-    } on FormatException {
-      throw UnAuthenticatedException(
-          'Pol Authentication Failed: PQ signature is not valid base64');
-    }
-    if (publicKey.length != mlDsa65PublicKeyLength) {
-      throw UnAuthenticatedException(
-          'Pol Authentication Failed: "$algo" key in $fromAtSign record is '
-          '${publicKey.length} bytes, expected $mlDsa65PublicKeyLength');
-    }
-    if (signature.length != mlDsa65SignatureLength) {
-      throw UnAuthenticatedException(
-          'Pol Authentication Failed: signature is ${signature.length} bytes, '
-          'expected $mlDsa65SignatureLength');
-    }
-
-    // ml-dsa-65 is the only supported algorithm today; a new one adds a branch
-    // here alongside its pqSupportedSigningAlgosByPreference entry.
     final bool isValid;
     try {
-      isValid = await AtPqc.mlDsa65.verifyBytes(
-          utf8.encode(expectedChallenge),
-          signature: signature, publicKey: publicKey);
+      isValid = algo == null
+          ? await verifyLegacyRsaSignature(
+              stored.challenge, signature, publicKey)
+          : await algo.verifyB64(stored.challenge, signature, publicKey);
     } catch (e) {
-      logger.warning('PQ signature verification for $fromAtSign errored: $e');
+      logger.warning('$type verification for $fromAtSign errored: $e');
       throw UnAuthenticatedException(
-          'Pol Authentication Failed: PQ signature could not be verified');
+          'Pol Authentication Failed: $type signature could not be verified');
     }
     if (!isValid) {
       throw UnAuthenticatedException(
-          'Pol Authentication Failed: PQ signature invalid');
+          'Pol Authentication Failed: $type signature invalid');
     }
   }
 }

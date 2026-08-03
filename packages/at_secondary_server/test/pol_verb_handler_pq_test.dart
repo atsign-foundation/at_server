@@ -1,13 +1,12 @@
 import 'dart:collection';
 import 'dart:convert';
-import 'dart:typed_data';
 
-import 'package:at_chops/at_chops_ffi.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/crypto/pq_constants.dart';
+import 'package:at_secondary/src/crypto/pol_signing_algos.dart';
+import 'package:at_secondary/src/crypto/signing_key_constants.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/pol_verb_handler.dart';
@@ -18,22 +17,36 @@ import 'package:test/test.dart';
 
 import 'test_utils.dart';
 
-/// A peer's PQ signing material: the `pq:<algo>:<sig>` cookie it would store
-/// for [challenge], plus the public-key record a verifier fetches.
-class _PeerSigner {
-  final String cookie;
-  final String record;
-  _PeerSigner(this.cookie, this.record);
+/// Signs [challenge] with [algoId] (defaulting to [polAlgoMlDsa65]),
+/// returning the `<type>:<sig>` cookie a prover would send plus the public
+/// key a verifier would have cached at FROM time.
+Future<({String cookie, String publicKey})> _peerSign(String challenge,
+    {String? algoId}) async {
+  final id = algoId ?? polAlgoMlDsa65;
+  final algo = negotiableSigningAlgos[id]!;
+  final kp = await algo.generateKeyPairB64();
+  return (
+    cookie: buildSignedCookie(id, await algo.signB64(challenge, kp.secretKey)),
+    publicKey: kp.publicKey,
+  );
+}
 
-  static Future<_PeerSigner> sign(String challenge) async {
-    final kp = await MlDsa65KeyPair.generate();
-    final sig = await AtPqc.mlDsa65
-        .signBytes(utf8.encode(challenge), secretKey: kp.privateKeyBytes);
-    return _PeerSigner(
-      'pq:$pqAlgoMlDsa65:${base64.encode(sig)}',
-      buildPqSigningPublicRecord({pqAlgoMlDsa65: kp.publicKeyBytes}),
-    );
-  }
+/// Seeds the verifier's own FROM-time record — the challenge, the algorithm
+/// it chose to demand (if any), and the peer's key for it — exactly as
+/// [FromVerbHandler] would have stored it.
+Future<void> _seedStoredChallenge(
+    AtKeyValueStore<String, AtData, AtMetaData?> ks, String sessionId,
+    {required String challenge, String? chosenAlgo, String? peerPublicKey}) {
+  return ks.put(
+    'public:$sessionId$bob',
+    AtData()
+      ..data = StoredPolChallenge(
+              challenge: challenge,
+              chosenAlgo: chosenAlgo,
+              peerPublicKey: peerPublicKey)
+          .encode()
+      ..metaData = (AtMetaData()..ttl = 60 * 1000),
+  );
 }
 
 // ── fallback for InboundConnection ───────────────────────────────────────
@@ -79,23 +92,21 @@ void main() {
   setUp(_setUp);
   tearDown(_tearDown);
 
-  // ── PQ mode ──────────────────────────────────────────────────────────────
+  // ── PQ mode: the verifier's own stored decision is authoritative ────────
 
   group('pol_verb_handler PQ mode', () {
-    test('valid ML-DSA signature → isPolAuthenticated = true, no RSA lookup',
-        () async {
+    test(
+        'valid ML-DSA signature against the demanded type → '
+        'isPolAuthenticated = true, no key lookups', () async {
       final ks = keyValueStore;
       const sessionId = '_pq-sess-001';
       const challenge = 'pq-uuid-challenge';
 
-      // Alice (verifier) stored the UUID she issued at FROM time.
-      await ks.put(
-        'public:$sessionId$bob',
-        AtData()
-          ..data = challenge
-          ..metaData = (AtMetaData()..ttl = 60 * 1000),
-      );
-      final peer = await _PeerSigner.sign(challenge);
+      final peer = await _peerSign(challenge);
+      await _seedStoredChallenge(ks, sessionId,
+          challenge: challenge,
+          chosenAlgo: polAlgoMlDsa65,
+          peerPublicKey: peer.publicKey);
 
       final mockOcm = MockOutboundClientManager();
       final mockOc = MockOutboundClient();
@@ -104,8 +115,6 @@ void main() {
       when(() => mockOc.isConnectionCreated).thenReturn(true);
       when(() => mockOc.lookUp('$sessionId$bob', handshake: false))
           .thenAnswer((_) async => 'data:${peer.cookie}');
-      when(() => mockOc.plookUp('$pqSigningPublicKeyRecordName$bob'))
-          .thenAnswer((_) async => 'data:${peer.record}');
 
       final handler = PolVerbHandler(ks, mockOcm, MockAtCacheManager(),
           accessLog: _accessLog);
@@ -116,8 +125,9 @@ void main() {
       final meta = inbound.metaData as InboundConnectionMetadata;
       expect(meta.isPolAuthenticated, isTrue);
       expect(response.data, equals('pol:$bob@'));
-      // PQ mode must not fall back to the legacy RSA signing-key lookup.
-      verifyNever(() => mockOc.plookUp('signing_publickey$bob'));
+      // The key was already cached at FROM time — POL must not fetch any
+      // record (PQ or legacy) to verify a demanded-and-honoured signature.
+      verifyNever(() => mockOc.plookUp(any()));
     });
 
     test('signature over a different challenge → UnAuthenticatedException',
@@ -125,14 +135,12 @@ void main() {
       final ks = keyValueStore;
       const sessionId = '_pq-sess-002';
 
-      await ks.put(
-        'public:$sessionId$bob',
-        AtData()
-          ..data = 'the-real-challenge'
-          ..metaData = (AtMetaData()..ttl = 60 * 1000),
-      );
-      // Peer signed a *different* challenge than the one Alice stored.
-      final peer = await _PeerSigner.sign('a-forged-challenge');
+      // Peer signed a *different* challenge than the one alice stored.
+      final peer = await _peerSign('a-forged-challenge');
+      await _seedStoredChallenge(ks, sessionId,
+          challenge: 'the-real-challenge',
+          chosenAlgo: polAlgoMlDsa65,
+          peerPublicKey: peer.publicKey);
 
       final mockOcm = MockOutboundClientManager();
       final mockOc = MockOutboundClient();
@@ -141,8 +149,6 @@ void main() {
       when(() => mockOc.isConnectionCreated).thenReturn(true);
       when(() => mockOc.lookUp('$sessionId$bob', handshake: false))
           .thenAnswer((_) async => 'data:${peer.cookie}');
-      when(() => mockOc.plookUp('$pqSigningPublicKeyRecordName$bob'))
-          .thenAnswer((_) async => 'data:${peer.record}');
 
       final handler = PolVerbHandler(ks, mockOcm, MockAtCacheManager(),
           accessLog: _accessLog);
@@ -154,28 +160,71 @@ void main() {
       );
     });
 
-    test('unsupported algorithm tag → UnAuthenticatedException', () async {
+    // The core claim of the verifier-chosen-algorithm design: the cookie's own
+    // `<type>:` tag is never consulted. A prover that signs with something
+    // other than the demanded type still lands on verification against the
+    // demanded type's key, and simply fails.
+    test(
+        'cookie tagged with a weaker/different algorithm than demanded → '
+        'rejected, tag ignored', () async {
       final ks = keyValueStore;
       const sessionId = '_pq-sess-003';
       const challenge = 'algo-challenge';
 
-      await ks.put(
-        'public:$sessionId$bob',
-        AtData()
-          ..data = challenge
-          ..metaData = (AtMetaData()..ttl = 60 * 1000),
-      );
+      // Verifier demanded ml-dsa-65 and cached bob's key for it.
+      final demanded = await _peerSign(challenge);
+      await _seedStoredChallenge(ks, sessionId,
+          challenge: challenge,
+          chosenAlgo: polAlgoMlDsa65,
+          peerPublicKey: demanded.publicKey);
 
       final mockOcm = MockOutboundClientManager();
       final mockOc = MockOutboundClient();
       when(() => mockOcm.getClient(bob, any(), handshakeRequired: false))
           .thenAnswer((_) async => mockOc);
       when(() => mockOc.isConnectionCreated).thenReturn(true);
-      // Cookie advertises an algorithm the verifier does not support.
+      // Bob's cookie names some other algorithm entirely and carries
+      // unrelated bytes — the tag must never steer verification.
       when(() => mockOc.lookUp('$sessionId$bob', handshake: false))
-          .thenAnswer((_) async => 'data:pq:pq-future-algo:AAAA');
-      when(() => mockOc.plookUp('$pqSigningPublicKeyRecordName$bob'))
-          .thenAnswer((_) async => null);
+          .thenAnswer((_) async => 'data:pq-future-algo:AAAA');
+
+      final handler = PolVerbHandler(ks, mockOcm, MockAtCacheManager(),
+          accessLog: _accessLog);
+      final inbound = _makeInbound(mockSocket, sessionId, bob);
+
+      await expectLater(
+        handler.processVerb(Response(), HashMap<String, String?>(), inbound),
+        throwsA(isA<UnAuthenticatedException>()),
+      );
+      // Rejected without ever fetching a record for "pq-future-algo" — the
+      // tag was never looked at, so there was nothing to fetch it for.
+      verifyNever(() => mockOc.plookUp(any()));
+    });
+
+    test(
+        'an untagged (legacy-shaped) cookie against a challenge demanding PQ '
+        '→ rejected', () async {
+      final ks = keyValueStore;
+      const sessionId = '_pq-sess-004';
+      const challenge = 'untagged-vs-pq-challenge';
+
+      final demanded = await _peerSign(challenge);
+      await _seedStoredChallenge(ks, sessionId,
+          challenge: challenge,
+          chosenAlgo: polAlgoMlDsa65,
+          peerPublicKey: demanded.publicKey);
+
+      final bobKp = RSAKeypair.fromRandom();
+      final rsaCookie =
+          SecondaryUtil.signChallenge(challenge, bobKp.privateKey.toString());
+
+      final mockOcm = MockOutboundClientManager();
+      final mockOc = MockOutboundClient();
+      when(() => mockOcm.getClient(bob, any(), handshakeRequired: false))
+          .thenAnswer((_) async => mockOc);
+      when(() => mockOc.isConnectionCreated).thenReturn(true);
+      when(() => mockOc.lookUp('$sessionId$bob', handshake: false))
+          .thenAnswer((_) async => 'data:$rsaCookie');
 
       final handler = PolVerbHandler(ks, mockOcm, MockAtCacheManager(),
           accessLog: _accessLog);
@@ -187,19 +236,20 @@ void main() {
       );
     });
 
-    test('peer publishes no PQ signing key record → AtException', () async {
+    test(
+        'demanded algorithm retired from the registry between FROM and POL → '
+        'UnAuthenticatedException', () async {
       final ks = keyValueStore;
-      const sessionId = '_pq-sess-004';
-      const challenge = 'no-record-challenge';
+      const sessionId = '_pq-sess-005';
+      const challenge = 'retired-algo-challenge';
 
-      await ks.put(
-        'public:$sessionId$bob',
-        AtData()
-          ..data = challenge
-          ..metaData = (AtMetaData()..ttl = 60 * 1000),
-      );
-      final peer =
-          await _PeerSigner.sign(challenge);
+      // A type this server chose at FROM time but no longer knows by POL —
+      // should not happen absent a live retirement mid-handshake, but must
+      // fail the auth rather than crash.
+      await _seedStoredChallenge(ks, sessionId,
+          challenge: challenge,
+          chosenAlgo: 'retired-algo',
+          peerPublicKey: 'irrelevant');
 
       final mockOcm = MockOutboundClientManager();
       final mockOc = MockOutboundClient();
@@ -207,10 +257,35 @@ void main() {
           .thenAnswer((_) async => mockOc);
       when(() => mockOc.isConnectionCreated).thenReturn(true);
       when(() => mockOc.lookUp('$sessionId$bob', handshake: false))
-          .thenAnswer((_) async => 'data:${peer.cookie}');
-      // Record lookup returns null (peer published nothing).
-      when(() => mockOc.plookUp('$pqSigningPublicKeyRecordName$bob'))
-          .thenAnswer((_) async => null);
+          .thenAnswer((_) async => 'data:retired-algo:AAAA');
+
+      final handler = PolVerbHandler(ks, mockOcm, MockAtCacheManager(),
+          accessLog: _accessLog);
+      final inbound = _makeInbound(mockSocket, sessionId, bob);
+
+      await expectLater(
+        handler.processVerb(Response(), HashMap<String, String?>(), inbound),
+        throwsA(isA<UnAuthenticatedException>()),
+      );
+    });
+
+    test(
+        'a demanded algorithm with no cached peer key → AtException '
+        '(defensive; FromVerbHandler always sets both together)', () async {
+      final ks = keyValueStore;
+      const sessionId = '_pq-sess-006';
+      const challenge = 'no-cached-key-challenge';
+
+      await _seedStoredChallenge(ks, sessionId,
+          challenge: challenge, chosenAlgo: polAlgoMlDsa65);
+
+      final mockOcm = MockOutboundClientManager();
+      final mockOc = MockOutboundClient();
+      when(() => mockOcm.getClient(bob, any(), handshakeRequired: false))
+          .thenAnswer((_) async => mockOc);
+      when(() => mockOc.isConnectionCreated).thenReturn(true);
+      when(() => mockOc.lookUp('$sessionId$bob', handshake: false))
+          .thenAnswer((_) async => 'data:$polAlgoMlDsa65:AAAA');
 
       final handler = PolVerbHandler(ks, mockOcm, MockAtCacheManager(),
           accessLog: _accessLog);
@@ -223,23 +298,19 @@ void main() {
     });
 
     // Peer-controlled bytes that at_chops reports as StateError /
-    // FormatException, not AtException. Without _verifyPqSignature's guards
-    // they escape as a shout-logged internal server error rather than the auth
-    // failure they are.
+    // FormatException, not AtException. Without the verify()-wrapping guards
+    // they escape as a shout-logged internal server error rather than the
+    // auth failure they are.
     group('malformed peer material fails as an auth error, not a 500', () {
-      /// Drives a full pol with [cookie] as the peer's stored cookie and
-      /// [record] as its published signing-key record.
       Future<void> expectAuthFailure(
           {required String sessionId,
           required String cookie,
-          required String record}) async {
+          required String peerPublicKey}) async {
         final ks = keyValueStore;
-        await ks.put(
-          'public:$sessionId$bob',
-          AtData()
-            ..data = 'a-challenge'
-            ..metaData = (AtMetaData()..ttl = 60 * 1000),
-        );
+        await _seedStoredChallenge(ks, sessionId,
+            challenge: 'a-challenge',
+            chosenAlgo: polAlgoMlDsa65,
+            peerPublicKey: peerPublicKey);
 
         final mockOcm = MockOutboundClientManager();
         final mockOc = MockOutboundClient();
@@ -248,8 +319,6 @@ void main() {
         when(() => mockOc.isConnectionCreated).thenReturn(true);
         when(() => mockOc.lookUp('$sessionId$bob', handshake: false))
             .thenAnswer((_) async => 'data:$cookie');
-        when(() => mockOc.plookUp('$pqSigningPublicKeyRecordName$bob'))
-            .thenAnswer((_) async => 'data:$record');
 
         final handler = PolVerbHandler(ks, mockOcm, MockAtCacheManager(),
             accessLog: _accessLog);
@@ -260,42 +329,40 @@ void main() {
         );
       }
 
-      test('public key of the wrong length', () async {
+      test('cached public key of the wrong length', () async {
         await expectAuthFailure(
           sessionId: '_pq-bad-key',
-          cookie: 'pq:$pqAlgoMlDsa65:${base64.encode(List<int>.filled(
-            mlDsa65SignatureLength,
-            0,
-          ))}',
-          record: buildPqSigningPublicRecord(
-              {pqAlgoMlDsa65: Uint8List.fromList(List<int>.filled(100, 1))}),
+          // A correctly-sized ML-DSA-65 signature (FIPS 204), so the failure is
+          // unambiguously the key length and not the signature length.
+          cookie: buildSignedCookie(
+              polAlgoMlDsa65, base64.encode(List<int>.filled(3309, 0))),
+          peerPublicKey: base64.encode(List<int>.filled(100, 1)),
         );
       });
 
       test('signature that is not valid base64', () async {
-        final kp = await MlDsa65KeyPair.generate();
+        final peer = await _peerSign('a-challenge');
         await expectAuthFailure(
           sessionId: '_pq-bad-b64',
-          cookie: 'pq:$pqAlgoMlDsa65:not!valid!base64',
-          record:
-              buildPqSigningPublicRecord({pqAlgoMlDsa65: kp.publicKeyBytes}),
+          cookie: buildSignedCookie(polAlgoMlDsa65, 'not!valid!base64'),
+          peerPublicKey: peer.publicKey,
         );
       });
 
       test('signature of the wrong length', () async {
-        final kp = await MlDsa65KeyPair.generate();
+        final peer = await _peerSign('a-challenge');
         await expectAuthFailure(
           sessionId: '_pq-bad-sig-len',
-          cookie: 'pq:$pqAlgoMlDsa65:${base64.encode(List<int>.filled(10, 0))}',
-          record:
-              buildPqSigningPublicRecord({pqAlgoMlDsa65: kp.publicKeyBytes}),
+          cookie: buildSignedCookie(
+              polAlgoMlDsa65, base64.encode(List<int>.filled(10, 0))),
+          peerPublicKey: peer.publicKey,
         );
       });
     });
 
     test('stored secret missing → UnAuthenticatedException', () async {
       final ks = keyValueStore;
-      const sessionId = '_pq-sess-005';
+      const sessionId = '_pq-sess-007';
 
       // No stored secret pre-populated.
       final mockOcm = MockOutboundClientManager();
@@ -315,7 +382,7 @@ void main() {
     });
   });
 
-  // ── Legacy RSA mode ───────────────────────────────────────────────────────
+  // ── Legacy RSA mode: nothing demanded, key fetched fresh at POL ─────────
 
   group('pol_verb_handler legacy RSA mode', () {
     test('valid RSA signature → isPolAuthenticated = true', () async {
@@ -323,15 +390,9 @@ void main() {
       const sessionId = '_rsa-sess-001';
       const challenge = 'some-uuid-challenge';
 
-      // Alice stored the raw UUID as the secret.
-      await ks.put(
-        'public:$sessionId$bob',
-        AtData()
-          ..data = challenge
-          ..metaData = (AtMetaData()..ttl = 60 * 1000),
-      );
+      // Alice demanded nothing (no mutual PQ type) — the legacy branch.
+      await _seedStoredChallenge(ks, sessionId, challenge: challenge);
 
-      // Generate a fresh RSA keypair for @bob.
       final bobKp = RSAKeypair.fromRandom();
       final signedChallenge =
           SecondaryUtil.signChallenge(challenge, bobKp.privateKey.toString());
@@ -362,12 +423,7 @@ void main() {
       const sessionId = '_rsa-sess-002';
       const challenge = 'another-uuid-challenge';
 
-      await ks.put(
-        'public:$sessionId$bob',
-        AtData()
-          ..data = challenge
-          ..metaData = (AtMetaData()..ttl = 60 * 1000),
-      );
+      await _seedStoredChallenge(ks, sessionId, challenge: challenge);
 
       final bobKp = RSAKeypair.fromRandom();
       final wrongKp = RSAKeypair.fromRandom();
@@ -392,6 +448,69 @@ void main() {
       await expectLater(
         handler.processVerb(Response(), HashMap<String, String?>(), inbound),
         throwsA(isA<UnAuthenticatedException>()),
+      );
+    });
+
+    test('malformed peer RSA key fails as an auth error, not a 500', () async {
+      final ks = keyValueStore;
+      const sessionId = '_rsa-sess-003';
+      const challenge = 'malformed-key-challenge';
+
+      await _seedStoredChallenge(ks, sessionId, challenge: challenge);
+
+      final bobKp = RSAKeypair.fromRandom();
+      final signedChallenge =
+          SecondaryUtil.signChallenge(challenge, bobKp.privateKey.toString());
+
+      final mockOcm = MockOutboundClientManager();
+      final mockOc = MockOutboundClient();
+      when(() => mockOcm.getClient(bob, any(), handshakeRequired: false))
+          .thenAnswer((_) async => mockOc);
+      when(() => mockOc.isConnectionCreated).thenReturn(true);
+      when(() => mockOc.lookUp('$sessionId$bob', handshake: false))
+          .thenAnswer((_) async => 'data:$signedChallenge');
+      // Junk, not a parseable RSA key.
+      when(() => mockOc.plookUp('signing_publickey$bob'))
+          .thenAnswer((_) async => 'data:not-an-rsa-key');
+
+      final handler = PolVerbHandler(ks, mockOcm, MockAtCacheManager(),
+          accessLog: _accessLog);
+      final inbound = _makeInbound(mockSocket, sessionId, bob);
+
+      await expectLater(
+        handler.processVerb(Response(), HashMap<String, String?>(), inbound),
+        throwsA(isA<UnAuthenticatedException>()),
+      );
+    });
+
+    test('peer publishes no legacy RSA key → AtException', () async {
+      final ks = keyValueStore;
+      const sessionId = '_rsa-sess-004';
+      const challenge = 'no-legacy-key-challenge';
+
+      await _seedStoredChallenge(ks, sessionId, challenge: challenge);
+
+      final bobKp = RSAKeypair.fromRandom();
+      final signedChallenge =
+          SecondaryUtil.signChallenge(challenge, bobKp.privateKey.toString());
+
+      final mockOcm = MockOutboundClientManager();
+      final mockOc = MockOutboundClient();
+      when(() => mockOcm.getClient(bob, any(), handshakeRequired: false))
+          .thenAnswer((_) async => mockOc);
+      when(() => mockOc.isConnectionCreated).thenReturn(true);
+      when(() => mockOc.lookUp('$sessionId$bob', handshake: false))
+          .thenAnswer((_) async => 'data:$signedChallenge');
+      when(() => mockOc.plookUp('signing_publickey$bob'))
+          .thenAnswer((_) async => null);
+
+      final handler = PolVerbHandler(ks, mockOcm, MockAtCacheManager(),
+          accessLog: _accessLog);
+      final inbound = _makeInbound(mockSocket, sessionId, bob);
+
+      await expectLater(
+        handler.processVerb(Response(), HashMap<String, String?>(), inbound),
+        throwsA(isA<AtException>()),
       );
     });
   });
