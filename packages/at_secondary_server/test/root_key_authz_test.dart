@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_utils/at_logger.dart';
@@ -50,6 +51,25 @@ void main() {
     }
 
     Future<String> bindScoped() => bindEnrollment({'wavi': 'rw'});
+
+    test("an enrollment granted the namespace 'null' gets no root access",
+        () async {
+      // A key with no namespace must not match a grant named 'null'.
+      await bindEnrollment({'null': 'rw'});
+      for (final key in ['foo$alice', 'public:foo$alice', '@bob:foo$alice']) {
+        await expectLater(
+            updateVerbHandler.process('update:$key v', inboundConnection),
+            throwsA(isA<UnAuthorizedException>()),
+            reason: '$key has no namespace and must not match a "null" grant');
+      }
+    });
+
+    test("a key whose namespace really is 'null' still resolves", () async {
+      await bindEnrollment({'null': 'rw'});
+      await updateVerbHandler.process(
+          'update:foo.null$alice v', inboundConnection);
+      expect(inboundConnection.lastWrittenData, contains('data:'));
+    });
 
     test('an unparseable atKey returns rather than throwing', () async {
       // AtKey.fromString raises Errors as well as Exceptions on these, and the

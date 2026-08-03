@@ -1,5 +1,6 @@
 # 3.15.1
 - fix: deny, not throw, on an unparseable atKey in authz
+- fix: defensive code to properly handle a namespace named 'null'
 - feat: augmented pol challenge
 - perf: sync now pushes `skipDeletesUntil` into the commit-log query rather than
   filtering deletes out of the results. `SyncProgressiveVerbHandler` passed

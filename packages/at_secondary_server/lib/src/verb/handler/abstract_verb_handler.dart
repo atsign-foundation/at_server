@@ -298,7 +298,10 @@ abstract class AbstractVerbHandler implements VerbHandler {
       try {
         AtKey atKeyObj = AtKey.fromString(atKey);
         namespace = atKeyObj.namespace;
-        keyWithNamespace = '${atKeyObj.key}.$namespace';
+        // Built only when the key carries a namespace.
+        if (namespace != null && namespace.isNotEmpty) {
+          keyWithNamespace = '${atKeyObj.key}.$namespace';
+        }
       } catch (_) {
         namespace = null;
       }
@@ -392,10 +395,14 @@ abstract class AbstractVerbHandler implements VerbHandler {
       String? keyWithNamespace) {
     String authorisedNamespace = '';
     String? access;
-    for (String enrolledNamespace in enrollDataStoreValue.namespaces.keys) {
-      if ('.$namespace'.endsWith('.$enrolledNamespace')) {
-        authorisedNamespace = enrolledNamespace;
-        break;
+    // Only a key that carries a namespace is matched against the enrolled
+    // namespaces.
+    if (namespace != null && namespace.isNotEmpty) {
+      for (String enrolledNamespace in enrollDataStoreValue.namespaces.keys) {
+        if ('.$namespace'.endsWith('.$enrolledNamespace')) {
+          authorisedNamespace = enrolledNamespace;
+          break;
+        }
       }
     }
 
@@ -403,7 +410,10 @@ abstract class AbstractVerbHandler implements VerbHandler {
     /// For example, if the namespace is 'foo.bar', AtKey(key).namespace will return 'bar'. In such cases, authorisedNamespace
     /// cannot be cannot be fetched due to incomplete namespace.
     /// Currently, to authorize such keys, use the full key along with the namespace to perform the authorization check.
-    if (keyWithNamespace != null && authorisedNamespace.isEmpty) {
+    // keyWithNamespace is empty when the key carries no namespace.
+    if (keyWithNamespace != null &&
+        keyWithNamespace.isNotEmpty &&
+        authorisedNamespace.isEmpty) {
       for (String enrolledNamespace in enrollDataStoreValue.namespaces.keys) {
         if (keyWithNamespace.endsWith('.$enrolledNamespace')) {
           authorisedNamespace = enrolledNamespace;
