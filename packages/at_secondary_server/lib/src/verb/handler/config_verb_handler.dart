@@ -60,6 +60,16 @@ class ConfigVerbHandler extends AbstractVerbHandler {
     String? setOperation = verbParams[AtConstants.setOperation];
 
     if (operation != null) {
+      // config:block governs who may connect to this atSign, which is an
+      // atSign-level privilege rather than a namespace-scoped one, so it
+      // requires a root enrollment: read-write on '*' and on '__manage'.
+      // Connections with no enrollment id are unaffected.
+      final metadata = atConnection.metaData as InboundConnectionMetadata;
+      if (!await isRootPrivilegedConnection(metadata)) {
+        throw UnAuthorizedException(
+            'Connection with enrollment ID ${metadata.enrollmentId} is not'
+            ' authorized to perform config:block operations');
+      }
       switch (operation) {
         case 'show':
           var blockList = await atConfigInstance.getBlockList();
