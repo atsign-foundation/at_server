@@ -213,9 +213,9 @@ abstract class AbstractVerbHandler implements VerbHandler {
       String enrolledNamespaceAccess = '',
       String operation = ''}) async {
     final enrollmentId = inboundConnectionMetadata.enrollmentId;
-    // If legacy PKAM (full permissions) or is a reserved key (to which all
-    // authenticated connections have access) then return true
-    if (enrollmentId == null || _isReservedKey(atKey)) {
+    // A connection with no enrollment id has full permissions. Namespace-less
+    // keys are decided in isAuthorizedSync, against the resolved enrollment.
+    if (enrollmentId == null) {
       return true;
     }
     final enroll = await resolveEnrollment(enrollmentId);
@@ -251,12 +251,12 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// context (e.g. sync's commit-log walk) — resolve once via
   /// [_resolveEnrollment], then call this for each candidate atKey.
   ///
-  /// Three input states:
+  /// Input states:
   ///   - [enrollmentId] is null → legacy PKAM, full access → true
-  ///   - [atKey] is a reserved key → all authenticated connections
-  ///     have access → true (does not require a resolved enrollment)
   ///   - [enrollDataStoreValue] is null → enrollment record unresolvable
   ///     ([KeyNotFoundException] from [_resolveEnrollment]) → false
+  ///   - [atKey] is a root key (no grantable namespace) → decided by
+  ///     [_decideRootKey], which may defer to the namespace check
   ///   - otherwise → namespace-access decision based on the enrollment
   bool isAuthorizedSync(
       EnrollDataStoreValue? enrollDataStoreValue, String? enrollmentId,
@@ -264,7 +264,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
       String? namespace,
       String enrolledNamespaceAccess = '',
       String operation = ''}) {
-    if (enrollmentId == null || _isReservedKey(atKey)) {
+    if (enrollmentId == null) {
       return true;
     }
     if (enrollDataStoreValue == null) {
@@ -286,6 +286,13 @@ abstract class AbstractVerbHandler implements VerbHandler {
     if (atKey != null &&
         isForeignPerEnrollmentReservedKey(atKey, enrollmentId)) {
       return false;
+    }
+
+    // Namespace-less keys carry no namespace an enrollment can hold. A null
+    // verdict defers the decision to the namespace check below.
+    final bool? rootKeyVerdict = _decideRootKey(atKey, enrollDataStoreValue);
+    if (rootKeyVerdict != null) {
+      return rootKeyVerdict;
     }
 
     // If namespace is null or empty, fetch namespace from AtKey.
@@ -501,10 +508,116 @@ abstract class AbstractVerbHandler implements VerbHandler {
         access == 'rw';
   }
 
-  bool _isReservedKey(String? atKey) {
-    return atKey == null
-        ? false
-        : AtKey.getKeyType(atKey) == KeyType.reservedKey;
+  /// An atSign body, without the leading '@'. Reuses at_commons' own charset
+  /// (word characters, '-', '_' and emoji; 1..55) rather than a hand-rolled
+  /// `[\w\-_]{1,55}`, so emoji atSigns stay in lockstep with AtKey parsing.
+  /// Contains no named groups, so it is safe to interpolate more than once.
+  static const String _atSignBody = Regexes.ownershipFragmentWithoutAtPrefix;
+
+  /// Namespace-less keys that any approved enrollment may read and write: the
+  /// two encryption shared-key forms a client writes the first time it shares
+  /// with another atSign.
+  ///
+  /// Anchored at both ends, so it matches the whole key rather than a
+  /// substring of it.
+  ///
+  /// Neither atSign is compared against this server's own: the receiving side
+  /// reads `@<me>:shared_key@<them>`, which LookupVerbHandler synthesises for
+  /// an inbound `lookup:shared_key@<them>`.
+  static final RegExp _rootSharedKeyRegex = RegExp(
+      '^(?:@$_atSignBody:shared_key|shared_key\\.$_atSignBody)@$_atSignBody\$',
+      caseSensitive: false);
+
+  /// Namespace-less keys holding the atSign's own key material. Readable by
+  /// any approved enrollment; writable only by a root enrollment
+  /// ([isRootEnrollment]).
+  ///
+  /// Reads stay open because sync force-includes these keys
+  /// (`alwaysIncludeInSync` in utils/regex_util.dart admits any namespace-less
+  /// `public:` key) and then ANDs the result with this check.
+  static final RegExp _ownKeyMaterialRegex = RegExp(
+      '^(?:public:(?:publickey|signing_publickey)@$_atSignBody'
+      '|@$_atSignBody:signing_privatekey@$_atSignBody)\$',
+      caseSensitive: false);
+
+  /// Cached copies of another atSign's public key material. Readable by any
+  /// approved enrollment; writes are decided by the namespace check rather
+  /// than by a root enrollment, since the data is public at its origin and the
+  /// cached copy is local. DeleteVerbHandler treats cached keys the same way
+  /// in exempting them from `protectedKeys`.
+  static final RegExp _cachedKeyMaterialRegex = RegExp(
+      '^cached:public:(?:publickey|signing_publickey)@$_atSignBody\$',
+      caseSensitive: false);
+
+  /// Namespace-less keys writable only by a root enrollment. Reads are decided
+  /// by the namespace check, so sync membership is unaffected.
+  ///
+  /// The whole `privatekey:` prefix is covered. Its members hold the server's
+  /// own credentials and internal state, and are written by the server rather
+  /// than by an enrollment.
+  static final RegExp _rootOnlyWritableKeyRegex = RegExp(
+      '^(?:privatekey:[^\\s]+'
+      '|private:blocklist@$_atSignBody'
+      '|configkey)\$',
+      caseSensitive: false);
+
+  /// A "root" enrollment: read-write on every namespace AND on `__manage`.
+  /// This is what the first (CRAM-path) enrollment is auto-granted, and what a
+  /// later enrollment must be given explicitly to hold full privileges.
+  /// Holding '*' alone does not qualify.
+  static bool isRootEnrollment(EnrollDataStoreValue enrollDataStoreValue) {
+    return enrollDataStoreValue.namespaces[EnrollmentConstants.allNamespaces] ==
+            'rw' &&
+        enrollDataStoreValue
+                .namespaces[EnrollmentConstants.enrollManageNamespace] ==
+            'rw';
+  }
+
+  /// Whether the verb being handled mutates a key.
+  ///
+  /// Not derived from [_isWriteAllowed]: Config, Monitor and SyncFrom appear in
+  /// both that list and [_isReadAllowed], which would classify sync as a write.
+  ///
+  /// [UpdateMeta] is listed explicitly because it `extends Verb` rather than
+  /// Update, so `getVerb() is Update` does not match it.
+  bool isMutatingVerb() {
+    final Verb verb = getVerb();
+    return verb is Update ||
+        verb is UpdateMeta ||
+        verb is Delete ||
+        verb is Notify ||
+        verb is NotifyAll ||
+        verb is NotifyRemove;
+  }
+
+  /// Decides a namespace-less key for an enrollment, or returns null to let
+  /// the namespace check decide.
+  bool? _decideRootKey(
+      String? atKey, EnrollDataStoreValue enrollDataStoreValue) {
+    if (atKey == null) {
+      return null;
+    }
+    // Matched against the form the keystore writes: HiveKeyStoreHelper
+    // .prepareKey normalises with `trim().toLowerCase().replaceAll(' ', '')`.
+    final String key = atKey.trim().toLowerCase().replaceAll(' ', '');
+
+    if (_rootSharedKeyRegex.hasMatch(key)) {
+      return true;
+    }
+    // Cached copies of another atSign's public keys: readable by any
+    // enrollment; writes are decided by the namespace check.
+    if (_cachedKeyMaterialRegex.hasMatch(key)) {
+      return isMutatingVerb() ? null : true;
+    }
+    final bool isOwnKeyMaterial = _ownKeyMaterialRegex.hasMatch(key);
+    if (isOwnKeyMaterial || _rootOnlyWritableKeyRegex.hasMatch(key)) {
+      if (isMutatingVerb()) {
+        return isRootEnrollment(enrollDataStoreValue);
+      }
+      // Own key material stays readable; the rest is decided below.
+      return isOwnKeyMaterial ? true : null;
+    }
+    return null;
   }
 
   /// This function checks the validity of a provided OTP.
