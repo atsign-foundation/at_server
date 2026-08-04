@@ -216,13 +216,15 @@ class SqliteAtNotificationKeystore implements AtNotificationKeystore {
   int entriesCount() =>
       _db.raw.select('SELECT COUNT(*) c FROM notifications;').first['c'] as int;
 
+  /// Size in KB, matching the spec and the Hive stores -- this returned
+  /// raw bytes, over-reporting by 1024x.
   @override
   int getSize() {
     final pageCount =
         _db.raw.select('PRAGMA page_count;').first.values.first as int? ?? 0;
     final pageSize =
         _db.raw.select('PRAGMA page_size;').first.values.first as int? ?? 0;
-    return pageCount * pageSize;
+    return pageCount * pageSize ~/ 1024;
   }
 
   @override

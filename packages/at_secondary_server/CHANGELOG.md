@@ -12,6 +12,10 @@
   algorithm. Legacy PKAM has no enrollment record to be authoritative about and
   may legitimately present `ecc_secp256r1`, so it continues to use the value on
   the wire; a legacy enrollment predating the field keeps the existing default.
+- fix: deny, not throw, on an unparseable atKey in authz
+- fix: defensive code to properly handle a namespace named 'null'
+- fix: scope namespace-less keys to the legacy shared_key forms
+- fix: restrict config:block to root enrollments
 - feat: augmented pol challenge
 - perf: sync now pushes `skipDeletesUntil` into the commit-log query rather than
   filtering deletes out of the results. `SyncProgressiveVerbHandler` passed

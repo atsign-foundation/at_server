@@ -99,10 +99,12 @@ class SqliteAtAccessLog implements AtAccessLog {
   int entriesCount() =>
       _db.raw.select('SELECT COUNT(*) c FROM access_log;').first['c'] as int;
 
+  /// Size in KB, matching the spec and the Hive stores -- this returned
+  /// raw bytes, over-reporting by 1024x.
   @override
   int getSize() {
     final f = File(_db.path);
-    return f.existsSync() ? f.lengthSync() : 0;
+    return f.existsSync() ? f.lengthSync() ~/ 1024 : 0;
   }
 
   @override
