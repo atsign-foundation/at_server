@@ -7,6 +7,23 @@
   SQL `WHERE`, so those rows are never read or deserialised — while always
   yielding the single latest entry so the client can still advance its
   watermark. Legacy callers (no `skipDeletesUntil`) are unaffected.
+- perf: the SQLite skip-deletes query is now an index-driven range scan over a
+  new partial index of live entries (`commit_log_live`), not a `NOT (operation
+  = '-' ...)` filter over the full `commit_id` index. The filter form is correct
+  but its plan walks every row from `fromCommitId` to the tail in SQLite's C
+  layer, so a client near the head of a delete-dominated log still pays a
+  full-log scan; the partial index seeks straight to the live rows. Measured on
+  a 1M-entry log holding one live entry, the skip-deletes scan drops from ~253ms
+  to ~0.2ms. The index is created by `CREATE INDEX IF NOT EXISTS` on open, with
+  no contract-version bump — an existing database acquires it on next start.
+- perf: `SqliteAtCommitLog.iterate` streams rows through a prepared cursor
+  rather than an eager `select()` that materialised the whole result set before
+  the caller saw a row. Callers stop early (sync breaks after one page), so an
+  ordinary `sync` returning 25 entries against a 1M-entry log drops from ~500ms
+  to sub-millisecond.
+- fix: `getSize()` on the SQLite commit-log, access-log and notification stores
+  returned raw bytes; the spec and the Hive stores return KB. All three now
+  return KB (they had over-reported by 1024x).
 
 - fix: `PersistenceMigrator` now drops ORPHANED commit entries rather than
   copying them into the target — a non-delete commit entry whose key is absent
