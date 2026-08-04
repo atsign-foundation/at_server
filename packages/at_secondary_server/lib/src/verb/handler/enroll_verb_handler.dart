@@ -767,8 +767,16 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         }
 
         if (enrollParams.otp != null) {
-          //encryptedAPKAMSymmetricKey is mandatory for new client enrollments
-          if (enrollParams.encryptedAPKAMSymmetricKey.isNullOrEmpty) {
+          // encryptedAPKAMSymmetricKey is mandatory for new client enrollments,
+          // except when the request advertises a key package. Such a client
+          // never generates the symmetric key: the approver mints it and
+          // encapsulates it to the advertised public half, so the request has
+          // no RSA-wrapped secret to carry. Absence alongside a key package is
+          // therefore the signal that conveyance is expected, and the field
+          // stays mandatory for every other client so a legacy one still fails
+          // here rather than enrolling into a state it cannot decrypt.
+          if (enrollParams.encryptedAPKAMSymmetricKey.isNullOrEmpty &&
+              enrollParams.metadata?['keyPackage'] == null) {
             throw IllegalArgumentException(
                 'encrypted apkam symmetric key is mandatory for new client enroll:request');
           }

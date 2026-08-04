@@ -2324,6 +2324,39 @@ void main() {
               e.message ==
                   'encrypted apkam symmetric key is mandatory for new client enroll:request')));
     });
+    test(
+        'A test to validate a request advertising a key package may omit the '
+        'encrypted apkam symmetric key', () async {
+      Response response = Response();
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      // OTP Verb
+      HashMap<String, String?> otpVerbParams =
+          getVerbParam(VerbSyntax.otp, 'otp:get');
+      OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
+      await otpVerbHandler.processVerb(
+          response, otpVerbParams, inboundConnection);
+      // No encryptedAPKAMSymmetricKey: the approver mints the symmetric key and
+      // encapsulates it to the advertised key package, so the request carries
+      // no RSA-wrapped secret at all.
+      String enrollmentRequest =
+          'enroll:request:{"appName":"wavi1","deviceName":"mydevice1","namespaces":{"buzz":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key","metadata":{"keyPackage":{"v":1,"keys":[]}}}';
+      HashMap<String, String?> enrollmentRequestVerbParams =
+          getVerbParam(VerbSyntax.enroll, enrollmentRequest);
+      inboundConnection.metaData.isAuthenticated = false;
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
+      await enrollVerbHandler.processVerb(
+          response, enrollmentRequestVerbParams, inboundConnection);
+
+      final decoded = jsonDecode(response.data!);
+      expect(decoded['status'], 'pending');
+      final stored = await enMgr.getEnrollmentById(decoded['enrollmentId']);
+      expect(stored.encryptedAPKAMSymmetricKey, isNull);
+      expect(stored.metadata, {
+        'keyPackage': {'v': 1, 'keys': []}
+      });
+    });
     test('A test to validate namespace is mandatory for new client enrollment',
         () async {
       Response response = Response();
