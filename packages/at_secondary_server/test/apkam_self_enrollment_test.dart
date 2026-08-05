@@ -58,12 +58,14 @@ void main() {
     String appName = 'selfapp',
     String deviceName = 'selfdevice',
     String? signingAlgo,
+    Duration? apkamKeysExpiryDuration,
   }) async {
     final ep = EnrollParams()
       ..appName = appName
       ..deviceName = deviceName
       ..apkamPublicKey = 'pq apkam public key $appName $deviceName'
       ..signingAlgo = signingAlgo
+      ..apkamKeysExpiryDuration = apkamKeysExpiryDuration
       ..namespaces = namespaces;
     inboundConnection.metaData
       ..isAuthenticated = true
@@ -263,6 +265,155 @@ void main() {
         reason: 'the re-arm applies only within the enrollment\'s own '
             'key-expiry posture — a 1h apkamKeysExpiryDuration must not '
             'become a 30-day grace');
+  });
+
+  test('the child record expires per the posture it inherited', () async {
+    final parentId = (await etu.createEnrollments(n: 1)).$1.first;
+    // The parent lives under a 1h key-expiry posture.
+    final key = enMgr.buildEnrollmentKey(parentId);
+    final atData = await keyValueStore.get(key);
+    final value = EnrollDataStoreValue.fromJson(jsonDecode(atData!.data!));
+    value.apkamKeysExpiryDuration = Duration(hours: 1);
+    atData.data = jsonEncode(value.toJson());
+    await enMgr.put(parentId, atData, EnrollmentStatus.approved);
+
+    final r = await selfEnroll(
+        parentEnrollmentId: parentId, namespaces: {'app_1': 'rw'});
+    expect(r.isError, false, reason: '${r.errorMessage}');
+    final childId = jsonDecode(r.data!)['enrollmentId'] as String;
+
+    final child = await enMgr.getEnrollmentById(childId);
+    expect(child.apkamKeysExpiryDuration, Duration(hours: 1),
+        reason: 'precondition: the inheritance itself, recorded in the value');
+
+    final childTtl = (await keyValueStore.get(enMgr.buildEnrollmentKey(childId)))
+        ?.metaData
+        ?.ttl;
+    expect(childTtl, Duration(hours: 1).inMilliseconds,
+        reason: 'the retrofit copies the parent\'s expiry to the child — a '
+            'posture recorded only in the JSON value while the record carries '
+            'no ttl means the child never physically expires, which turns a '
+            '1h key-expiry policy into immortality for every retrofitted '
+            'enrollment');
+  });
+
+  test('a child expiry the request states wins over the inherited one',
+      () async {
+    final parentId = (await etu.createEnrollments(n: 1)).$1.first;
+
+    final r = await selfEnroll(
+        parentEnrollmentId: parentId,
+        namespaces: {'app_1': 'rw'},
+        apkamKeysExpiryDuration: Duration(hours: 2));
+    expect(r.isError, false, reason: '${r.errorMessage}');
+    final childId = jsonDecode(r.data!)['enrollmentId'] as String;
+
+    final childTtl = (await keyValueStore.get(enMgr.buildEnrollmentKey(childId)))
+        ?.metaData
+        ?.ttl;
+    expect(childTtl, Duration(hours: 2).inMilliseconds,
+        reason: 'the request may state its own posture instead of inheriting '
+            '— and the record must expire per whichever applied');
+
+    // Control: a parent with no posture begets a child with none — ttl 0 is
+    // the keystore\'s "never expires", exactly what the ordinary approve
+    // path writes for an enrollment without apkamKeysExpiryDuration.
+    final r2 = await selfEnroll(
+        parentEnrollmentId: parentId,
+        namespaces: {'app_1': 'rw'},
+        appName: 'selfapp2',
+        deviceName: 'selfdevice2');
+    final child2Id = jsonDecode(r2.data!)['enrollmentId'] as String;
+    final child2Ttl =
+        (await keyValueStore.get(enMgr.buildEnrollmentKey(child2Id)))
+            ?.metaData
+            ?.ttl;
+    expect(child2Ttl ?? 0, 0,
+        reason: 'no posture anywhere must not manufacture an expiry');
+  });
+
+  test('a child may not state an expiry that outlives its parent\'s posture',
+      () async {
+    final parentId = (await etu.createEnrollments(n: 1)).$1.first;
+    final key = enMgr.buildEnrollmentKey(parentId);
+    final atData = await keyValueStore.get(key);
+    final value = EnrollDataStoreValue.fromJson(jsonDecode(atData!.data!));
+    value.apkamKeysExpiryDuration = Duration(hours: 1);
+    atData.data = jsonEncode(value.toJson());
+    await enMgr.put(parentId, atData, EnrollmentStatus.approved);
+
+    final r = await selfEnroll(
+        parentEnrollmentId: parentId,
+        namespaces: {'app_1': 'rw'},
+        apkamKeysExpiryDuration: Duration(days: 3650));
+    expect(r.isError, false, reason: '${r.errorMessage}');
+    final childId = jsonDecode(r.data!)['enrollmentId'] as String;
+
+    final child = await enMgr.getEnrollmentById(childId);
+    expect(child.apkamKeysExpiryDuration, Duration(hours: 1),
+        reason: 'verifyNoEscalation covers namespaces; TIME is the other axis '
+            'a stolen keyfile would widen, and this is the one enrollment '
+            'path with no human in the loop to notice. A child that outlives '
+            'its parent defeats the very posture the parent was issued under');
+    expect(
+        (await keyValueStore.get(enMgr.buildEnrollmentKey(childId)))
+            ?.metaData
+            ?.ttl,
+        Duration(hours: 1).inMilliseconds);
+  });
+
+  test('a child may not state "never expires" against a bounded parent',
+      () async {
+    final parentId = (await etu.createEnrollments(n: 1)).$1.first;
+    final key = enMgr.buildEnrollmentKey(parentId);
+    final atData = await keyValueStore.get(key);
+    final value = EnrollDataStoreValue.fromJson(jsonDecode(atData!.data!));
+    value.apkamKeysExpiryDuration = Duration(hours: 1);
+    atData.data = jsonEncode(value.toJson());
+    await enMgr.put(parentId, atData, EnrollmentStatus.approved);
+
+    // Zero is the keystore's "never expires" — the most valuable thing a
+    // thief could ask for, and the cheapest to ask for.
+    final r = await selfEnroll(
+        parentEnrollmentId: parentId,
+        namespaces: {'app_1': 'rw'},
+        apkamKeysExpiryDuration: Duration.zero);
+    expect(r.isError, false, reason: '${r.errorMessage}');
+    final childId = jsonDecode(r.data!)['enrollmentId'] as String;
+
+    final childTtl = (await keyValueStore.get(enMgr.buildEnrollmentKey(childId)))
+        ?.metaData
+        ?.ttl;
+    expect(childTtl, Duration(hours: 1).inMilliseconds,
+        reason: 'ttl 0 means never-expires at both layers (_getExpiresAt '
+            'returns null), so honouring a stated zero against a time-bound '
+            'parent hands out a permanent credential for the asking');
+  });
+
+  test('a negative stated expiry is not honoured', () async {
+    final parentId = (await etu.createEnrollments(n: 1)).$1.first;
+
+    // A negative ttl skips the metadata builder's ttl >= 0 branch entirely,
+    // leaving expiresAt null — immortality by a different route.
+    final r = await selfEnroll(
+        parentEnrollmentId: parentId,
+        namespaces: {'app_1': 'rw'},
+        apkamKeysExpiryDuration: Duration(milliseconds: -1));
+    expect(r.isError, false, reason: '${r.errorMessage}');
+    final childId = jsonDecode(r.data!)['enrollmentId'] as String;
+
+    // The raw ttl, NOT `?? 0`: with the whole change reverted the child
+    // record carries no metadata at all, and a `?? 0` would read that absence
+    // as a written zero and pass for the very state this pins against.
+    final childTtl =
+        (await keyValueStore.get(enMgr.buildEnrollmentKey(childId)))
+            ?.metaData
+            ?.ttl;
+    expect(childTtl, 0,
+        reason: 'a negative posture is not a posture; it must fall back to '
+            'the parent\'s (unbounded, written as 0) rather than reaching the '
+            'keystore, where a negative ttl skips the expiry write entirely '
+            'and leaves the record immortal');
   });
 
   test(

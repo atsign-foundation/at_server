@@ -387,6 +387,26 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         enrollmentValue.apkamKeysExpiryDuration =
             parent.apkamKeysExpiryDuration;
       }
+      // A stated posture may narrow the parent's, never widen it.
+      // `verifyNoEscalation` covers namespaces; TIME is the other axis a
+      // stolen keyfile would want to widen, and this branch is the one
+      // enrollment path with no human in the loop to notice. Zero is the
+      // keystore's "never expires" and a negative value skips the ttl write
+      // altogether, so both are ways of asking for a permanent credential —
+      // against a time-bound parent, neither is honoured.
+      final parentExpiryMs = parent.apkamKeysExpiryDuration.inMilliseconds;
+      final statedExpiryMs =
+          enrollmentValue.apkamKeysExpiryDuration.inMilliseconds;
+      if (statedExpiryMs < 0 ||
+          (parentExpiryMs > 0 &&
+              (statedExpiryMs <= 0 || statedExpiryMs > parentExpiryMs))) {
+        logger.warning(
+            'Self-enrollment under $parentEnrollmentId asked for a key-expiry '
+            'of ${statedExpiryMs}ms against a parent bound to '
+            '${parentExpiryMs}ms; using the parent\'s');
+        enrollmentValue.apkamKeysExpiryDuration =
+            parent.apkamKeysExpiryDuration;
+      }
       // May be absent: a PQ self-enrollment conveys its legacy material
       // client-side, sealed to its own new key package.
       enrollmentValue.encryptedAPKAMSymmetricKey =
@@ -397,8 +417,17 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       await _publishApskSigningKey(
           newEnrollmentId, enrollParams.apkamPublicKey!, currentAtSign,
           signingAlgo: enrollmentValue.signingAlgo);
-      await enMgr.put(newEnrollmentId,
-          AtData()..data = jsonEncode(enrollmentValue.toJson()),
+      // The child's record expires per its (inherited or stated) key-expiry
+      // posture, exactly as the ordinary approve path writes it — the
+      // retrofit copies the parent's expiry, it does not grant immortality.
+      // A ttl of zero is the keystore's "never expires", matching a parent
+      // with no posture.
+      await enMgr.put(
+          newEnrollmentId,
+          AtData()
+            ..data = jsonEncode(enrollmentValue.toJson())
+            ..metaData = (AtMetaData()
+              ..ttl = enrollmentValue.apkamKeysExpiryDuration.inMilliseconds),
           EnrollmentStatus.approved);
 
       // Cap the parent WITHOUT removing it, re-arming the cap on every
