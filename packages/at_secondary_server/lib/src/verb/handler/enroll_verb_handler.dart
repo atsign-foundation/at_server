@@ -334,7 +334,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           skipCommit: true);
       // Keep the enrollment's `_apsk` signing key present for verifiers.
       await _publishApskSigningKey(
-          newEnrollmentId, enrollParams.apkamPublicKey!, currentAtSign);
+          newEnrollmentId, enrollParams.apkamPublicKey!, currentAtSign,
+          signingAlgo: enrollmentValue.signingAlgo);
       AtData enrollData = AtData()..data = jsonEncode(enrollmentValue.toJson());
 
       await enMgr.put(newEnrollmentId, enrollData, EnrollmentStatus.approved);
@@ -394,7 +395,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
       // Keep the enrollment's `_apsk` signing key present for verifiers.
       await _publishApskSigningKey(
-          newEnrollmentId, enrollParams.apkamPublicKey!, currentAtSign);
+          newEnrollmentId, enrollParams.apkamPublicKey!, currentAtSign,
+          signingAlgo: enrollmentValue.signingAlgo);
       await enMgr.put(newEnrollmentId,
           AtData()..data = jsonEncode(enrollmentValue.toJson()),
           EnrollmentStatus.approved);
@@ -577,7 +579,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (operation == 'approve') {
       await _storeEncryptionKeys(enId, enrollParams, enVal);
       // Keep the enrollment's `_apsk` signing key present for verifiers.
-      await _publishApskSigningKey(enId, enVal.apkamPublicKey, currentAtSign);
+      await _publishApskSigningKey(enId, enVal.apkamPublicKey, currentAtSign,
+          signingAlgo: enVal.signingAlgo);
     }
     responseJson['enrollmentId'] = enId;
   }
@@ -667,10 +670,25 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// can reach it via plookup. Idempotent: a re-publish is a harmless overwrite
   /// with the same value.
   Future<void> _publishApskSigningKey(
-      String enrollmentId, String apkamPublicKey, currentAtSign) async {
+      String enrollmentId, String apkamPublicKey, currentAtSign,
+      {String? signingAlgo}) async {
     final apskKey = 'public:_apsk.$enrollmentId'
         '.${EnrollmentConstants.perEnrollmentApproved}$currentAtSign';
-    await keyStore.put(apskKey, AtData()..data = apkamPublicKey);
+    // A legacy (rsa2048) enrollment publishes the bare value exactly as
+    // today, since deployed apps parse it as an RSA key. Any other algorithm
+    // publishes the tagged, self-describing form composed from the
+    // enrollment record's own (apkamPublicKey, signingAlgo) — the record
+    // PKAM reads stays the single source. The tagged shape is unmistakable
+    // to a bare-RSA parser: base64-decoding JSON throws, so an old consumer
+    // fails loudly rather than mis-reading the key.
+    final String value;
+    if (signingAlgo == null || signingAlgo == 'rsa2048') {
+      value = apkamPublicKey;
+    } else {
+      value = jsonEncode(
+          {'v': 1, 'signingAlgo': signingAlgo, 'publicKey': apkamPublicKey});
+    }
+    await keyStore.put(apskKey, AtData()..data = value);
   }
 
   EnrollmentStatus _getEnrollStatusEnum(String? enrollmentOperation) {

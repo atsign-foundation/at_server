@@ -21,7 +21,7 @@ dependencies:
   encrypt: ^5.0.3
   at_commons: ^5.13.0
   at_utils: ^3.4.0
-  at_chops: ^3.3.0
+  at_chops: ^3.4.2
   at_lookup: ^3.6.0
   at_server_spec: ^5.1.0
   at_persistence_secondary_server: ^5.2.1
@@ -45,3 +45,10 @@ dev_dependencies:
 dependency_overrides:
   at_persistence_secondary_server:
     path: ../at_persistence_secondary_server
+  # at_chops 3.4.2 is in progress in the at_client_sdk workspace and carries
+  # the synchronous mldsa65 verification dispatch PKAM's record-authoritative
+  # verify needs; published at_chops (<=3.4.1) either lacks the branch or
+  # returns an async verifier whose Future poisons the bool result. Remove
+  # when 3.4.2 publishes.
+  at_chops:
+    path: ../../../at_client_sdk/packages/at_chops

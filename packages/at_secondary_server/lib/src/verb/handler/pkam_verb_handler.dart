@@ -68,8 +68,13 @@ class PkamVerbHandler extends AbstractVerbHandler {
       // misstates the algorithm only fails its own verification — but it
       // closes off cross-algorithm confusion, where one key blob parses under
       // more than one algorithm. A legacy enrollment predating the field has
-      // none recorded, so it keeps the existing default.
-      recordSigningAlgo = apkamResult.signingAlgo;
+      // none recorded, so it keeps the existing default EXPLICITLY here: a
+      // null must not fall through to the wire claim in _validateSignature,
+      // or the claim picks the verify routine for exactly the enrollments
+      // that predate the field (an RSA record verified as ML-DSA fails a
+      // legitimate legacy client; the wire fallback exists for legacy
+      // no-enrollment PKAM, which may present ecc_secp256r1).
+      recordSigningAlgo = apkamResult.signingAlgo ?? _rsa2048Algo;
     } else {
       pkamAuthType = AuthType.pkamLegacy;
       var publicKeyData = await keyStore.get(AtConstants.atPkamPublicKey);

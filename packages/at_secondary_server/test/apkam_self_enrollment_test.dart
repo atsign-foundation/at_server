@@ -1,6 +1,12 @@
 import 'dart:convert';
 
+import 'dart:typed_data';
+
+import 'package:at_chops/at_chops.dart'
+    show AtChopsUtil, HashingAlgoType, MlDsa65PureDartAlgo, PkamSigningAlgo;
 import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/verb/handler/pkam_verb_handler.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
@@ -51,11 +57,13 @@ void main() {
     required Map<String, String> namespaces,
     String appName = 'selfapp',
     String deviceName = 'selfdevice',
+    String? signingAlgo,
   }) async {
     final ep = EnrollParams()
       ..appName = appName
       ..deviceName = deviceName
       ..apkamPublicKey = 'pq apkam public key $appName $deviceName'
+      ..signingAlgo = signingAlgo
       ..namespaces = namespaces;
     inboundConnection.metaData
       ..isAuthenticated = true
@@ -255,6 +263,185 @@ void main() {
         reason: 'the re-arm applies only within the enrollment\'s own '
             'key-expiry posture — a 1h apkamKeysExpiryDuration must not '
             'become a 30-day grace');
+  });
+
+  test(
+      'an mldsa65 self-enrollment publishes the tagged _apsk; an rsa one '
+      'stays bare', () async {
+    final parentId = (await etu.createEnrollments(n: 1)).$1.first;
+
+    final r = await selfEnroll(
+        parentEnrollmentId: parentId,
+        namespaces: {'app_1': 'rw'},
+        signingAlgo: 'mldsa65');
+    expect(r.isError, false, reason: '${r.errorMessage}');
+    final childId = jsonDecode(r.data!)['enrollmentId'] as String;
+
+    final childApsk = (await keyValueStore.get(
+            'public:_apsk.$childId.${EnrollmentConstants.perEnrollmentApproved}$alice'))!
+        .data!;
+    final tagged = jsonDecode(childApsk) as Map<String, dynamic>;
+    expect(tagged['signingAlgo'], 'mldsa65',
+        reason: 'a verifier fetching this _apsk must learn the algorithm '
+            'from the value itself, or it would parse a raw ML-DSA key as '
+            'RSA and fail on every signature');
+    expect(tagged['publicKey'], 'pq apkam public key selfapp selfdevice');
+    expect(tagged['v'], 1);
+
+    // Control: an enrollment without signingAlgo publishes the bare value
+    // exactly as today — deployed apps parse it as an RSA key.
+    final r2 = await selfEnroll(
+        parentEnrollmentId: parentId,
+        namespaces: {'app_1': 'rw'},
+        appName: 'selfapp2',
+        deviceName: 'selfdevice2');
+    final child2Id = jsonDecode(r2.data!)['enrollmentId'] as String;
+    final bareApsk = (await keyValueStore.get(
+            'public:_apsk.$child2Id.${EnrollmentConstants.perEnrollmentApproved}$alice'))!
+        .data!;
+    expect(bareApsk, 'pq apkam public key selfapp2 selfdevice2',
+        reason: 'the bare form is frozen for rsa2048 — the tagged form is '
+            'only for algorithms no deployed parser could read anyway');
+  });
+
+  test(
+      'an mldsa65 self-enrollment then AUTHENTICATES with a genuine ML-DSA '
+      'signature through the production verify dispatch', () async {
+    // The first end-to-end ML-DSA PKAM in this package: earlier coverage
+    // asserted record storage and enrollment status only, which is how a
+    // resolved at_chops without an mldsa65 verification branch could sit
+    // green while the live wire died in RSA ASN1 parsing of a raw ML-DSA
+    // key (caught 2026-08-05 by the at_client_sdk retrofit live test).
+    final parentId = (await etu.createEnrollments(n: 1)).$1.first;
+    final mlDsa = await MlDsa65PureDartAlgo().generateKeyPair();
+
+    final ep = EnrollParams()
+      ..appName = 'mldsa-auth-app'
+      ..deviceName = 'mldsa-auth-device'
+      ..apkamPublicKey = base64Encode(mlDsa.publicKey)
+      ..signingAlgo = 'mldsa65'
+      ..namespaces = {'app_1': 'rw'};
+    inboundConnection.metaData
+      ..isAuthenticated = true
+      ..authType = AuthType.apkam
+      ..sessionID = DateTime.now().millisecondsSinceEpoch.toString();
+    inboundConnection.metadata.enrollmentId = parentId;
+    final enrollResponse = Response();
+    await etu.evh.processVerb(
+      enrollResponse,
+      getVerbParam(
+          VerbSyntax.enroll, 'enroll:request:${jsonEncode(ep.toJson())}'),
+      inboundConnection,
+    );
+    expect(enrollResponse.isError, false,
+        reason: '${enrollResponse.errorMessage}');
+    final childId = jsonDecode(enrollResponse.data!)['enrollmentId'] as String;
+
+    // Seed the challenge the from: verb would have stored, sign it with the
+    // child's ML-DSA secret key, and authenticate.
+    const sessionId = 'mldsa-auth-session';
+    const challenge = 'a-per-connection-challenge';
+    await keyValueStore.put(
+        'private:$sessionId$alice', AtData()..data = challenge);
+    final signature = await MlDsa65PureDartAlgo().signBytes(
+        Uint8List.fromList(utf8.encode('$sessionId$alice:$challenge')),
+        secretKey: mlDsa.secretKey);
+
+    inboundConnection.metaData
+      ..isAuthenticated = false
+      ..sessionID = sessionId;
+    final pkamResponse = Response();
+    await PkamVerbHandler(keyValueStore).processVerb(
+      pkamResponse,
+      getVerbParam(
+          VerbSyntax.pkam,
+          'pkam:signingAlgo:mldsa65:enrollmentId:$childId:'
+          '${base64Encode(signature)}'),
+      inboundConnection,
+    );
+
+    expect(pkamResponse.isError, false,
+        reason: '${pkamResponse.errorMessage}');
+    expect(pkamResponse.data, 'success',
+        reason: 'record-authoritative ML-DSA verification through the real '
+            'at_chops dispatch — the whole point of the retrofit is that '
+            'the new enrollment can authenticate');
+    expect(inboundConnection.metaData.authType, AuthType.apkam);
+    expect(inboundConnection.metadata.enrollmentId, childId);
+
+    // Control: a tampered signature must be refused, or the assertion above
+    // proves routing rather than verification.
+    await keyValueStore.put(
+        'private:$sessionId$alice', AtData()..data = challenge);
+    final tampered = Uint8List.fromList(signature)..[0] ^= 0xff;
+    inboundConnection.metaData.isAuthenticated = false;
+    await expectLater(
+        () => PkamVerbHandler(keyValueStore).processVerb(
+              Response(),
+              getVerbParam(
+                  VerbSyntax.pkam,
+                  'pkam:signingAlgo:mldsa65:enrollmentId:$childId:'
+                  '${base64Encode(tampered)}'),
+              inboundConnection,
+            ),
+        throwsA(isA<UnAuthenticatedException>()));
+  });
+
+  test(
+      'an enrollment with NO recorded signingAlgo keeps the rsa2048 default '
+      'even when the wire claims mldsa65', () async {
+    // A legacy enrollment predates the signingAlgo field, so its record has
+    // none — and record-authoritative means ABSENT resolves to the rsa2048
+    // default, never to the wire claim. Before this was explicit, the null
+    // fell through to the claim, which picked the verify routine for
+    // exactly the enrollments that predate the field; the hole was masked
+    // while at_chops had no mldsa65 routine to mis-pick.
+    final parentId = (await etu.createEnrollments(n: 1)).$1.first;
+    final rsaPair = AtChopsUtil.generateAtPkamKeyPair();
+
+    final ep = EnrollParams()
+      ..appName = 'legacy-claim-app'
+      ..deviceName = 'legacy-claim-device'
+      ..apkamPublicKey = rsaPair.atPublicKey.publicKey
+      ..namespaces = {'app_1': 'rw'};
+    inboundConnection.metaData
+      ..isAuthenticated = true
+      ..authType = AuthType.apkam
+      ..sessionID = DateTime.now().millisecondsSinceEpoch.toString();
+    inboundConnection.metadata.enrollmentId = parentId;
+    final enrollResponse = Response();
+    await etu.evh.processVerb(
+      enrollResponse,
+      getVerbParam(
+          VerbSyntax.enroll, 'enroll:request:${jsonEncode(ep.toJson())}'),
+      inboundConnection,
+    );
+    final childId = jsonDecode(enrollResponse.data!)['enrollmentId'] as String;
+
+    const sessionId = 'legacy-claim-session';
+    const challenge = 'another-per-connection-challenge';
+    await keyValueStore.put(
+        'private:$sessionId$alice', AtData()..data = challenge);
+    final signature = PkamSigningAlgo(rsaPair, HashingAlgoType.sha256)
+        .sign(Uint8List.fromList(utf8.encode('$sessionId$alice:$challenge')));
+
+    inboundConnection.metaData
+      ..isAuthenticated = false
+      ..sessionID = sessionId;
+    final pkamResponse = Response();
+    await PkamVerbHandler(keyValueStore).processVerb(
+      pkamResponse,
+      getVerbParam(
+          VerbSyntax.pkam,
+          'pkam:signingAlgo:mldsa65:enrollmentId:$childId:'
+          '${base64Encode(signature)}'),
+      inboundConnection,
+    );
+
+    expect(pkamResponse.data, 'success',
+        reason: 'the record decides: absent signingAlgo = the rsa2048 '
+            'default, and the lying wire claim changes nothing — a legacy '
+            'client must not be locked out by a claim it never made');
   });
 
   test('an unapproved parent is refused', () async {
