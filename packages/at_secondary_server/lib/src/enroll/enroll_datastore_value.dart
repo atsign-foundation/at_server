@@ -29,6 +29,18 @@ class EnrollDataStoreValue {
   /// `mldsa65` (PQ). Recorded so PKAM verification can be record-authoritative.
   String? signingAlgo;
 
+  /// The enrollment whose authenticated connection self-spawned this one
+  /// (RF-SRV), or null for every other origin.
+  ///
+  /// Recorded so revocation can CASCADE: self-enrollment makes enrollments a
+  /// parent/child graph, and a stolen keyfile can spawn a child before the
+  /// theft is noticed — a child that survives its parent's revocation would
+  /// defeat revocation via the very feature that created it
+  /// (at_client_sdk docs/projects/pq/decisions.md 40). The cascade itself is
+  /// the revoke path's to implement; this field is what makes it possible on
+  /// records that already exist by then.
+  String? parentEnrollmentId;
+
   EnrollDataStoreValue(
       this.sessionId, this.appName, this.deviceName, this.apkamPublicKey);
 

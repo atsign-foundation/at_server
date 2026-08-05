@@ -334,6 +334,73 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       return;
     }
 
+    // An APKAM-authenticated connection self-enrolls a FRESH enrollment —
+    // RF-SRV, the "upgrade the enrollment" step every migration scenario in
+    // at_client_sdk docs/projects/pq/decisions.md 36-40 conjugates. Auto-
+    // approved with no human step and no OTP: the connection's existing
+    // approved enrollment is the authority, and the child can hold at most
+    // what the parent holds. The parent is capped, not removed, so sibling
+    // clones of the same keyfile can still retrofit until the cap elapses.
+    if (atConnection.metaData.authType == AuthType.apkam) {
+      final inboundConnectionMetadata =
+          atConnection.metaData as InboundConnectionMetadata;
+      final parentEnrollmentId = inboundConnectionMetadata.enrollmentId;
+      if (parentEnrollmentId == null) {
+        throw UnAuthorizedException(
+            'An APKAM-authenticated self-enrollment needs a resolvable '
+            'enrollment id on the connection');
+      }
+      final EnrollDataStoreValue parent;
+      try {
+        parent = await enMgr.getEnrollmentById(parentEnrollmentId);
+      } on KeyNotFoundException {
+        throw UnAuthorizedException(
+            'Parent enrollment $parentEnrollmentId does not exist or has '
+            'expired');
+      }
+      if (parent.approval?.state != EnrollmentStatus.approved.name) {
+        throw UnAuthorizedException(
+            'Parent enrollment $parentEnrollmentId is not approved');
+      }
+      // Reject escalation: every requested grant must be one the parent
+      // itself holds. Without this, any scoped keyfile could self-spawn a
+      // fully privileged enrollment.
+      verifyNoEscalation(parent.namespaces, enrollNamespaces);
+
+      enrollmentValue.approval =
+          EnrollApproval(EnrollmentStatus.approved.name);
+      // The child records its parent so revocation can CASCADE: a stolen
+      // keyfile must not spawn a child that survives the parent's
+      // revocation. (The cascade itself is the revoke path's to implement.)
+      enrollmentValue.parentEnrollmentId = parentEnrollmentId;
+      // The child inherits the parent's key-expiry posture unless the
+      // request states its own.
+      if (enrollParams.apkamKeysExpiryDuration == null) {
+        enrollmentValue.apkamKeysExpiryDuration =
+            parent.apkamKeysExpiryDuration;
+      }
+      // May be absent: a PQ self-enrollment conveys its legacy material
+      // client-side, sealed to its own new key package.
+      enrollmentValue.encryptedAPKAMSymmetricKey =
+          enrollParams.encryptedAPKAMSymmetricKey;
+      responseJson['status'] = 'approved';
+
+      // Keep the enrollment's `_apsk` signing key present for verifiers.
+      await _publishApskSigningKey(
+          newEnrollmentId, enrollParams.apkamPublicKey!, currentAtSign);
+      await enMgr.put(newEnrollmentId,
+          AtData()..data = jsonEncode(enrollmentValue.toJson()),
+          EnrollmentStatus.approved);
+
+      // Cap the parent to min(now + grace, its existing expiry) WITHOUT
+      // removing it. The grace default is deliberately generous — cloned
+      // keyfiles upgrade whenever each device next runs, and a short grace
+      // strands the laggards; the value is to-define (at_client_sdk
+      // docs/projects/pq/decisions.md 41 item 3).
+      await _capEnrollmentExpiry(parentEnrollmentId);
+      return;
+    }
+
     // OK it's a standard enrollment request.
     // - send a notification to be received by an approver app
     // - store the enrollment in 'pending' state
@@ -351,6 +418,60 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       ..metaData = (AtMetaData()..ttl = enrollmentExpiryInMills);
 
     await enMgr.put(newEnrollmentId, enrollData, EnrollmentStatus.pending);
+  }
+
+  /// Rejects any requested grant the parent enrollment does not itself hold.
+  ///
+  /// Subset per namespace and per access letter: `r` fits under `rw`, never
+  /// the reverse. A parent's `*` grant covers any ordinary namespace at the
+  /// letters it carries — mirroring the server's own authorisation — but
+  /// `__manage` and `*` themselves must be held literally: `*` does not imply
+  /// `__manage` anywhere else in the server, and it must not here.
+  @visibleForTesting
+  void verifyNoEscalation(
+      Map<String, String> parentGrants, Map<String, String> requested) {
+    for (final entry in requested.entries) {
+      String? parentAccess = parentGrants[entry.key];
+      final isSpecial = entry.key == EnrollmentConstants.allNamespaces ||
+          entry.key == EnrollmentConstants.enrollManageNamespace;
+      if (parentAccess == null && !isSpecial) {
+        parentAccess = parentGrants[EnrollmentConstants.allNamespaces];
+      }
+      final held = parentAccess;
+      if (held == null ||
+          !entry.value.split('').every(held.split('').contains)) {
+        throw UnAuthorizedException(
+            'Requested namespace "${entry.key}:${entry.value}" exceeds the '
+            'parent enrollment\'s grants — a self-enrollment can hold at '
+            'most what its parent holds');
+      }
+    }
+  }
+
+  /// Caps [enrollmentId]'s expiry to `min(now + grace, its existing expiry)`,
+  /// leaving the record in place.
+  Future<void> _capEnrollmentExpiry(String enrollmentId) async {
+    final key = enMgr.buildEnrollmentKey(enrollmentId);
+    final AtData? atData;
+    try {
+      atData = await keyStore.get(key);
+    } on KeyNotFoundException {
+      return;
+    }
+    if (atData == null) return;
+    final createdAt = atData.metaData?.createdAt ?? DateTime.now().toUtc();
+    final capFromNow = DateTime.now()
+            .toUtc()
+            .difference(createdAt.toUtc())
+            .inMilliseconds +
+        Duration(hours: AtSecondaryConfig.apkamSelfEnrollmentGraceHours)
+            .inMilliseconds;
+    final existingTtl = atData.metaData?.ttl;
+    final cappedTtl = (existingTtl == null || existingTtl <= 0)
+        ? capFromNow
+        : (existingTtl < capFromNow ? existingTtl : capFromNow);
+    atData.metaData = (atData.metaData ?? AtMetaData())..ttl = cappedTtl;
+    await enMgr.put(enrollmentId, atData, EnrollmentStatus.approved);
   }
 
   /// Handles enrollment approve, deny, revoke and unrevoke requests.
