@@ -269,15 +269,22 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       }
     }
 
-    if (atConnection.metaData.authType != AuthType.cram) {
-      // If this is not a CRAM-authenticated connection, then we need to ensure
-      // that there is not an existing enrollment with the same info.
-      await preventDuplicateEnrollRequest(enrollParams);
-    } else {
-      // However, if it is a CRAM-authenticated connection, then we should
-      // allow a 'duplicate' enrollment request. See #2208
+    if (atConnection.metaData.authType == AuthType.cram) {
+      // A CRAM-authenticated connection is allowed a 'duplicate' enrollment
+      // request. See #2208
       logger.warning('CRAM-authenticated connection - i.e. initial enrollment;'
           ' will replace the existing initial enrollment, if any');
+    } else if (atConnection.metaData.authType == AuthType.apkam) {
+      // An APKAM self-enrollment keeps its app's own (appName, deviceName):
+      // a retrofit is the same app re-enrolling itself, and sibling clones of
+      // one keyfile share those names, each needing to coexist with the
+      // approved enrollments the others already spawned. Uniqueness of
+      // (appName, deviceName) among live enrollments therefore ends on this
+      // branch by design.
+    } else {
+      // Every other connection must not duplicate an existing enrollment's
+      // (appName, deviceName).
+      await preventDuplicateEnrollRequest(enrollParams);
     }
 
     var enrollNamespaces = enrollParams.namespaces ?? {};
@@ -392,12 +399,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           AtData()..data = jsonEncode(enrollmentValue.toJson()),
           EnrollmentStatus.approved);
 
-      // Cap the parent to min(now + grace, its existing expiry) WITHOUT
-      // removing it. The grace default is deliberately generous — cloned
-      // keyfiles upgrade whenever each device next runs, and a short grace
-      // strands the laggards; the value is to-define (at_client_sdk
-      // docs/projects/pq/decisions.md 41 item 3).
-      await _capEnrollmentExpiry(parentEnrollmentId);
+      // Cap the parent WITHOUT removing it, re-arming the cap on every
+      // sibling retrofit: the legacy credential retires one grace period
+      // after the LAST clone upgrades, never past the expiry its own
+      // posture already imposes.
+      await _capEnrollmentExpiry(parentEnrollmentId, parent);
       return;
     }
 
@@ -448,9 +454,24 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  /// Caps [enrollmentId]'s expiry to `min(now + grace, its existing expiry)`,
-  /// leaving the record in place.
-  Future<void> _capEnrollmentExpiry(String enrollmentId) async {
+  /// Caps [enrollmentId] to expire `min(now + grace, its own expiry)` from
+  /// this moment, leaving the record in place.
+  ///
+  /// Re-applied on EVERY self-enrollment, computed fresh from the record's
+  /// own posture rather than folded into a previously written cap: sibling
+  /// clones of one keyfile retrofit whenever each device next runs, so the
+  /// cap must RE-ARM with each retrofit — a deadline fixed by the first
+  /// sibling's upgrade would strand every laggard whose next run falls
+  /// outside that first window. "Its own expiry" is re-derived from
+  /// [EnrollDataStoreValue.apkamKeysExpiryDuration], anchored at the
+  /// record's creation, so a key-expiry posture shorter than the grace
+  /// still wins.
+  ///
+  /// A written ttl anchors at the write (`expiresAt = now + ttl` in the
+  /// metadata builder), so the grace is written as-is — offsetting it by the
+  /// record's age would extend the cap by the enrollment's whole lifetime.
+  Future<void> _capEnrollmentExpiry(
+      String enrollmentId, EnrollDataStoreValue enrollment) async {
     final key = enMgr.buildEnrollmentKey(enrollmentId);
     final AtData? atData;
     try {
@@ -459,17 +480,22 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       return;
     }
     if (atData == null) return;
-    final createdAt = atData.metaData?.createdAt ?? DateTime.now().toUtc();
-    final capFromNow = DateTime.now()
-            .toUtc()
-            .difference(createdAt.toUtc())
-            .inMilliseconds +
+    final now = DateTime.now().toUtc();
+    int cappedTtl =
         Duration(hours: AtSecondaryConfig.apkamSelfEnrollmentGraceHours)
             .inMilliseconds;
-    final existingTtl = atData.metaData?.ttl;
-    final cappedTtl = (existingTtl == null || existingTtl <= 0)
-        ? capFromNow
-        : (existingTtl < capFromNow ? existingTtl : capFromNow);
+    final ownMs = enrollment.apkamKeysExpiryDuration.inMilliseconds;
+    if (ownMs > 0) {
+      final createdAt = (atData.metaData?.createdAt ?? now).toUtc();
+      final ownRemainingMs = createdAt
+          .add(Duration(milliseconds: ownMs))
+          .difference(now)
+          .inMilliseconds;
+      if (ownRemainingMs < cappedTtl) cappedTtl = ownRemainingMs;
+    }
+    // A ttl of zero means "never expires", and a spent posture must not
+    // become immortality — floor at one millisecond.
+    if (cappedTtl < 1) cappedTtl = 1;
     atData.metaData = (atData.metaData ?? AtMetaData())..ttl = cappedTtl;
     await enMgr.put(enrollmentId, atData, EnrollmentStatus.approved);
   }
@@ -885,6 +911,18 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         if (enrollParams.apkamPublicKey.isNullOrEmpty) {
           throw IllegalArgumentException(
               'apkam public key is mandatory for enroll:request');
+        }
+
+        if (inboundConnection.metaData.authType == AuthType.apkam &&
+            (enrollParams.namespaces == null ||
+                enrollParams.namespaces!.isEmpty)) {
+          // A self-enrollment names its grants explicitly: the child holds
+          // exactly what it requests, at most what the parent holds. An
+          // empty set would mint an approved credential that can do nothing,
+          // which is always a caller bug — refuse it loudly.
+          throw IllegalArgumentException(
+              'At least one namespace must be specified for an '
+              'APKAM-authenticated enroll:request');
         }
 
         if (enrollParams.otp != null) {

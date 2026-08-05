@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
+import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -22,8 +23,9 @@ import 'test_utils.dart';
 ///   self-spawn a fully privileged enrollment.
 /// - **The parent survives, capped**: sibling clones of the same keyfile
 ///   retrofit on their own schedules, so the parent keeps authenticating
-///   until `min(now + grace, its existing expiry)` — and the child records
-///   its parent so revocation can cascade.
+///   until one grace period after the NEWEST retrofit (the cap re-arms each
+///   time, never past the parent's own key-expiry posture) — and the child
+///   records its parent so revocation can cascade.
 void main() {
   verbTestsSetUpLogging();
 
@@ -170,6 +172,89 @@ void main() {
     expect(child.namespaces['__manage'], 'rw',
         reason: 'and __manage passes here only because the primary holds it '
             'LITERALLY — the wildcard test above is the control');
+  });
+
+  test('a retrofit may keep its own (appName, deviceName)', () async {
+    final parentId = (await etu.createEnrollments(n: 1)).$1.first;
+    final parent = await enMgr.getEnrollmentById(parentId);
+
+    final r = await selfEnroll(
+        parentEnrollmentId: parentId,
+        namespaces: {'app_1': 'rw'},
+        appName: parent.appName,
+        deviceName: parent.deviceName);
+
+    expect(r.isError, false,
+        reason: 'a retrofit is the same app re-enrolling itself, and sibling '
+            'clones of one keyfile share names — the (appName, deviceName) '
+            'duplicate refusal must not apply to the self-enrollment branch: '
+            '${r.errorMessage}');
+    final childId = jsonDecode(r.data!)['enrollmentId'] as String;
+    expect(childId, isNot(parentId));
+    expect((await enMgr.getEnrollmentById(childId)).approval?.state,
+        EnrollmentStatus.approved.name);
+  });
+
+  test('empty namespaces are refused', () async {
+    final parentId = (await etu.createEnrollments(n: 1)).$1.first;
+
+    await expectLater(
+        () => selfEnroll(parentEnrollmentId: parentId, namespaces: {}),
+        throwsA(isA<IllegalArgumentException>()),
+        reason: 'an approved credential that can do nothing is always a '
+            'caller bug — the child holds exactly what it names');
+  });
+
+  test('the cap re-arms on each sibling retrofit rather than keeping the '
+      'first deadline', () async {
+    final parentId = (await etu.createEnrollments(n: 1)).$1.first;
+    await selfEnroll(parentEnrollmentId: parentId, namespaces: {'app_1': 'rw'});
+
+    // Simulate that first retrofit having happened long ago by shrinking the
+    // parent's remaining ttl directly.
+    final key = enMgr.buildEnrollmentKey(parentId);
+    final aged = await keyValueStore.get(key);
+    aged!.metaData!.ttl = 60000;
+    await enMgr.put(parentId, aged, EnrollmentStatus.approved);
+
+    final r = await selfEnroll(
+        parentEnrollmentId: parentId,
+        namespaces: {'app_1': 'rw'},
+        appName: 'selfapp2',
+        deviceName: 'selfdevice2');
+    expect(r.isError, false, reason: '${r.errorMessage}');
+
+    final graceMillis =
+        Duration(hours: AtSecondaryConfig.apkamSelfEnrollmentGraceHours)
+            .inMilliseconds;
+    final ttl = (await keyValueStore.get(key))!.metaData!.ttl!;
+    expect(ttl, greaterThan(60000),
+        reason: 'a min-fold against the previously capped ttl keeps the '
+            'first sibling\'s deadline and strands every later one — the cap '
+            'must re-arm to a full grace period from now');
+    expect(ttl, lessThanOrEqualTo(graceMillis));
+  });
+
+  test('the cap never extends past the expiry the parent\'s own posture '
+      'imposes', () async {
+    final parentId = (await etu.createEnrollments(n: 1)).$1.first;
+    // Give the parent a key-expiry posture far shorter than the grace.
+    final key = enMgr.buildEnrollmentKey(parentId);
+    final atData = await keyValueStore.get(key);
+    final value = EnrollDataStoreValue.fromJson(jsonDecode(atData!.data!));
+    value.apkamKeysExpiryDuration = Duration(hours: 1);
+    atData.data = jsonEncode(value.toJson());
+    await enMgr.put(parentId, atData, EnrollmentStatus.approved);
+
+    final r = await selfEnroll(
+        parentEnrollmentId: parentId, namespaces: {'app_1': 'rw'});
+    expect(r.isError, false, reason: '${r.errorMessage}');
+
+    final ttl = (await keyValueStore.get(key))!.metaData!.ttl!;
+    expect(ttl, lessThanOrEqualTo(Duration(hours: 1).inMilliseconds),
+        reason: 'the re-arm applies only within the enrollment\'s own '
+            'key-expiry posture — a 1h apkamKeysExpiryDuration must not '
+            'become a 30-day grace');
   });
 
   test('an unapproved parent is refused', () async {

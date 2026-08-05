@@ -750,10 +750,11 @@ class AtSecondaryConfig {
   /// WITHOUT being removed, so sibling clones of the same keyfile can still
   /// retrofit until the cap elapses.
   ///
-  /// The default is deliberately generous: cloned keyfiles upgrade on
-  /// schedules measured in whenever-each-device-next-runs, and a short grace
-  /// strands the laggards (at_client_sdk docs/projects/pq/decisions.md 41
-  /// item 3 — the value is still to be ratified).
+  /// The default (30 days) is deliberately generous, and the cap RE-ARMS on
+  /// every sibling retrofit: cloned keyfiles upgrade on schedules measured in
+  /// whenever-each-device-next-runs, so the parent retires one grace period
+  /// after the LAST clone upgrades, not the first. A laggard stranded past
+  /// the window recovers via an ordinary OTP enrollment.
   static int get apkamSelfEnrollmentGraceHours {
     return _getIntEnvVar('apkamSelfEnrollmentGraceHours') ??
         getNullableIntFromYaml(['enrollment', 'apkamSelfEnrollmentGraceHours']) ??
