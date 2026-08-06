@@ -100,31 +100,118 @@ class SqliteAtCommitLog extends AtCommitLog {
     int? skipDeletesUntil,
     int? latestCommitId,
   }) async* {
-    final conditions = <String>[];
+    if (skipDeletesUntil != null) {
+      yield* _iterateSkippingDeletes(
+          fromCommitId ?? 0, skipDeletesUntil, latestCommitId, where);
+      return;
+    }
+    final sql = StringBuffer(
+        'SELECT atkey, commit_id, operation, op_time FROM commit_log ');
     final params = <Object?>[];
     if (fromCommitId != null) {
-      conditions.add('commit_id >= ?');
+      sql.write('WHERE commit_id >= ? ');
       params.add(fromCommitId);
     }
-    if (skipDeletesUntil != null) {
-      // Push sync's delete-skip into the query so below-watermark DELETE
-      // rows are filtered by SQLite and never read into Dart. Keep the
-      // single latest entry so the client can still advance its watermark.
-      // ('-' is the DELETE operation symbol; see _opFromSymbol.)
-      conditions.add("NOT (operation = '-' AND commit_id IS NOT NULL "
-          'AND commit_id <= ? AND commit_id <> ?)');
-      params.add(skipDeletesUntil);
-      params.add(latestCommitId ?? -1);
-    }
-    final whereSql =
-        conditions.isEmpty ? '' : 'WHERE ${conditions.join(' AND ')} ';
-    final rows = _db.raw.select(
+    sql.write('ORDER BY commit_id;');
+    yield* _cursor(sql.toString(), params, where);
+  }
+
+  /// The skip-deletes traversal, expressed as index-driven range scans
+  /// rather than a `NOT (operation = '-' ...)` filter over the full
+  /// commit_id index.
+  ///
+  /// The `NOT (...)` form is correct but reads every row: its plan is
+  /// `SEARCH ... USING INDEX commit_log_commit_id (commit_id>?)`, which
+  /// seeks to [fromCommitId] and then walks to the end evaluating the
+  /// predicate on each row -- so a client near the tail of a
+  /// delete-dominated log still causes a walk of the whole log in SQLite's
+  /// C layer (it just no longer materialises the deletes into Dart). The
+  /// decomposition below lets the partial index `commit_log_live` seek
+  /// straight to the live rows instead. Measured on a 1M-entry log holding
+  /// one live entry: the full-scan form is ~0.5-0.6s, this is sub-ms.
+  ///
+  ///   segment 1  live rows in [from .. skipDeletesUntil]  -> commit_log_live
+  ///   kept       the entry at [latestCommitId], if that is a below-
+  ///              watermark DELETE (a live one is already in segment 1, an
+  ///              above-watermark one in segment 2)
+  ///   segment 2  every op with commit_id > skipDeletesUntil -> commit_log_commit_id
+  ///
+  /// Ordering: segment 1 ids are all <= skipDeletesUntil < segment 2 ids,
+  /// so the two segments are globally ascending without a sort step. The
+  /// kept entry only exists when `latestCommitId <= skipDeletesUntil`; a
+  /// truthful [latestCommitId] is the store's max commit id, so nothing
+  /// sits above it and segment 2 is empty whenever the kept entry fires --
+  /// it is therefore the largest id in the stream and emitting it between
+  /// the segments keeps the output ordered.
+  Stream<CommitEntry> _iterateSkippingDeletes(
+    int fromCommitId,
+    int skipDeletesUntil,
+    int? latestCommitId,
+    bool Function(CommitEntry)? where,
+  ) async* {
+    // segment 1
+    yield* _cursor(
+      'SELECT atkey, commit_id, operation, op_time FROM commit_log '
+      "WHERE commit_id >= ? AND commit_id <= ? AND operation <> '-' "
+      'ORDER BY commit_id;',
+      [fromCommitId, skipDeletesUntil],
+      where,
+    );
+    // kept latest entry (only when it is a skipped below-watermark DELETE;
+    // matching `operation = '-'` also avoids double-emitting a live entry
+    // that segment 1 already yielded)
+    if (latestCommitId != null &&
+        latestCommitId >= fromCommitId &&
+        latestCommitId <= skipDeletesUntil) {
+      yield* _cursor(
         'SELECT atkey, commit_id, operation, op_time FROM commit_log '
-        '${whereSql}ORDER BY commit_id;',
-        params);
-    for (final row in rows) {
-      final entry = _entryFromRow(row);
-      if (where == null || where(entry)) yield entry;
+        "WHERE commit_id = ? AND operation = '-';",
+        [latestCommitId],
+        where,
+      );
+    }
+    // segment 2 -- one lower bound only. Writing `commit_id >= from AND
+    // commit_id > skipDeletesUntil` makes SQLite seek on one bound and
+    // filter the other row-by-row (a plan that still reads "SEARCH ...
+    // USING INDEX" while walking the whole span), so collapse the two to
+    // their max here.
+    final lower = fromCommitId > skipDeletesUntil + 1
+        ? fromCommitId
+        : skipDeletesUntil + 1;
+    yield* _cursor(
+      'SELECT atkey, commit_id, operation, op_time FROM commit_log '
+      'WHERE commit_id >= ? ORDER BY commit_id;',
+      [lower],
+      where,
+    );
+  }
+
+  /// Streams [sql] lazily via a prepared cursor, applying [where] and
+  /// disposing the statement even if the consumer stops early.
+  ///
+  /// `select()` is eager -- it materialises the whole result set into a
+  /// Dart list before the first row is seen. Callers of iterate() routinely
+  /// stop early (sync's prepareResponse breaks after one page), so on a
+  /// large log the eager form allocated every row to return a handful; an
+  /// ordinary sync returning 25 entries measured 501ms this way against
+  /// 0.16ms on Hive. A cursor does work proportional to what is consumed.
+  Stream<CommitEntry> _cursor(
+    String sql,
+    List<Object?> params,
+    bool Function(CommitEntry)? where,
+  ) async* {
+    final stmt = _db.raw.prepare(sql);
+    try {
+      final cursor = stmt.selectCursor(params);
+      while (cursor.moveNext()) {
+        final entry = _entryFromRow(cursor.current);
+        if (where == null || where(entry)) yield entry;
+      }
+    } finally {
+      // Runs on early termination too: a consumer breaking its `await for`
+      // closes the stream, resuming this generator at the yield to unwind
+      // here, so the statement is never leaked.
+      stmt.dispose();
     }
   }
 
@@ -147,8 +234,10 @@ class SqliteAtCommitLog extends AtCommitLog {
   int entriesCount() =>
       _db.raw.select('SELECT COUNT(*) c FROM commit_log;').first['c'] as int;
 
+  /// Size in KB, matching the spec and [HiveBase.getSize] -- this returned
+  /// raw bytes, over-reporting by 1024x.
   @override
-  int getSize() => _dbFileSize(_db.path);
+  int getSize() => _dbFileSize(_db.path) ~/ 1024;
 
   @override
   Future<void> close() async {

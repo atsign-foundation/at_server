@@ -72,7 +72,9 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       }
       try {
         AtKey.fromString(atKey);
-      } on InvalidSyntaxException catch (_) {
+      } catch (_) {
+        // AtKey.fromString raises Errors as well as Exceptions on some key
+        // shapes; skip the entry rather than ending the walk.
         logger.warning(
             'sync filter | found an invalid key "$atKey" in the commit log. Skipping.');
         return false;
