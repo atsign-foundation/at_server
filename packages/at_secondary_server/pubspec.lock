@@ -62,7 +62,7 @@ packages:
     description:
       path: "packages/at_chops"
       ref: gkc-pq-d1-spike
-      resolved-ref: f0c28fe16c57386bfd735d970fb317b0cc195d64
+      resolved-ref: "9c061470e12044031f755805905c3ae2cb4914d8"
       url: "https://github.com/atsign-foundation/at_client_sdk.git"
     source: git
     version: "3.5.0"
