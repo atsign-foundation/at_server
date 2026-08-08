@@ -613,6 +613,80 @@ void main() {
     });
 
     test(
+        'A test to verify a revoked enrollment cannot APKAM authenticate on subsequent connections',
+        () async {
+      // Send an enrollment request on the authenticated connection
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      String enrollRequest =
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+      String enrollResponse =
+          (await firstAtSignConnection.sendRequestToServer(enrollRequest))
+              .replaceAll('data:', '');
+      expect(jsonDecode(enrollResponse)['status'], 'approved');
+
+      String otpResponse =
+          (await firstAtSignConnection.sendRequestToServer('otp:get'))
+              .replaceFirst('data:', '')
+              .trim();
+
+      // connect to the second client and send an enroll request with the otp
+      OutboundConnectionFactory secondConnection =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
+      String secondEnrollRequest =
+          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otpResponse","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}\n';
+      String secondEnrollResponse =
+          (await secondConnection.sendRequestToServer(secondEnrollRequest))
+              .replaceAll('data:', '');
+      var enrollJson = jsonDecode(secondEnrollResponse);
+      expect(enrollJson['status'], 'pending');
+      String secondEnrollmentId = enrollJson['enrollmentId'];
+
+      // approve the enroll request from the first client
+      String approveResponse = (await firstAtSignConnection.sendRequestToServer(
+              'enroll:approve:{"enrollmentId":"$secondEnrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap["encryptedDefaultEncPrivateKey"]}","encryptedDefaultSelfEncryptionKey": "${apkamEncryptedKeysMap["encryptedSelfEncKey"]}"}'))
+          .replaceAll('data:', '');
+      expect(jsonDecode(approveResponse)['status'], 'approved');
+
+      // Assert the enrollment can APKAM authenticate before the revoke, so the
+      // refusal below is attributable to the revoke and not to a broken setup.
+      await secondConnection.close();
+      OutboundConnectionFactory beforeRevokeConnection =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
+      expect(
+          await beforeRevokeConnection.authenticateConnection(
+              authType: AuthType.apkam, enrollmentId: secondEnrollmentId),
+          'data:success');
+      await beforeRevokeConnection.close();
+
+      // Revoke the enrollment - no force flag; this is another client's
+      // enrollment, not the revoking connection's own.
+      String revokeEnrollmentResponse = (await firstAtSignConnection
+              .sendRequestToServer(
+                  'enroll:revoke:{"enrollmentId":"$secondEnrollmentId"}'))
+          .replaceAll('data:', '');
+      var revokeEnrollmentMap = jsonDecode(revokeEnrollmentResponse);
+      expect(revokeEnrollmentMap['status'], 'revoked');
+      expect(revokeEnrollmentMap['enrollmentId'], secondEnrollmentId);
+
+      // Every subsequent APKAM authentication on a fresh connection is refused
+      for (int attempt = 1; attempt <= 2; attempt++) {
+        OutboundConnectionFactory afterRevokeConnection =
+            await OutboundConnectionFactory().initiateConnectionWithListener(
+                firstAtSign, firstAtSignHost, firstAtSignPort);
+        String apkamAuthResponse =
+            await afterRevokeConnection.authenticateConnection(
+                authType: AuthType.apkam, enrollmentId: secondEnrollmentId);
+        await afterRevokeConnection.close();
+        expect(apkamAuthResponse.trim(),
+            'error:AT0027:enrollment_id: $secondEnrollmentId is revoked',
+            reason: 'APKAM attempt $attempt after revoke should be refused');
+      }
+    });
+
+    test(
         'A test to verify revoke operation cannot be performed on an unauthenticated connection',
         () async {
       // Send an enrollment request on the authenticated connection
