@@ -45,10 +45,14 @@ dev_dependencies:
 dependency_overrides:
   at_persistence_secondary_server:
     path: ../at_persistence_secondary_server
-  # at_chops 3.4.2 is in progress in the at_client_sdk workspace and carries
-  # the synchronous mldsa65 verification dispatch PKAM's record-authoritative
-  # verify needs; published at_chops (<=3.4.1) either lacks the branch or
-  # returns an async verifier whose Future poisons the bool result. Remove
-  # when 3.4.2 publishes.
+  # at_chops carries the synchronous mldsa65 verification dispatch PKAM's
+  # record-authoritative verify needs; published at_chops (<=3.4.1) either
+  # lacks the branch or returns an async verifier whose Future poisons the
+  # bool result. Pinned to the spike branch rather than a local path so the
+  # override resolves for anyone building this, not just a clone that happens
+  # to sit beside an at_client_sdk checkout. Remove when it publishes.
   at_chops:
-    path: ../../../at_client_sdk/packages/at_chops
+    git:
+      url: https://github.com/atsign-foundation/at_client_sdk.git
+      path: packages/at_chops
+      ref: gkc-pq-d1-spike

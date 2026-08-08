@@ -60,10 +60,12 @@ packages:
   at_chops:
     dependency: "direct main"
     description:
-      path: "../../../at_client_sdk/packages/at_chops"
-      relative: true
-    source: path
-    version: "3.4.2"
+      path: "packages/at_chops"
+      ref: gkc-pq-d1-spike
+      resolved-ref: f0c28fe16c57386bfd735d970fb317b0cc195d64
+      url: "https://github.com/atsign-foundation/at_client_sdk.git"
+    source: git
+    version: "3.5.0"
   at_commons:
     dependency: "direct main"
     description:
