@@ -9,11 +9,19 @@ environment:
 dependency_overrides:
   at_persistence_secondary_server:
     path: ../../packages/at_persistence_secondary_server
+  # Same tag the atServer itself resolves. The ML-DSA PKAM test needs to
+  # GENERATE an ML-DSA keypair and sign with it, which published at_chops
+  # cannot do. Drop this when at_chops publishes ML-DSA support.
+  at_chops:
+    git:
+      url: https://github.com/atsign-foundation/at_client_sdk.git
+      path: packages/at_chops
+      ref: at_chops-pq-spike-1 # at_client_sdk 55a78f16, off gkc-pq-d1-spike
 dependencies:
   hex: ^0.2.0
   at_persistence_secondary_server: ^4.3.5
   at_demo_data: ^1.2.0
-  at_chops: ^2.2.0
+  at_chops: ^3.5.0
   at_lookup: ^3.3.0
   at_commons: ^5.11.0
   at_utils: ^3.3.0
