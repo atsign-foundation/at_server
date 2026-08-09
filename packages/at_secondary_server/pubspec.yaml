@@ -48,11 +48,16 @@ dependency_overrides:
   # at_chops carries the synchronous mldsa65 verification dispatch PKAM's
   # record-authoritative verify needs; published at_chops (<=3.4.1) either
   # lacks the branch or returns an async verifier whose Future poisons the
-  # bool result. Pinned to the spike branch rather than a local path so the
-  # override resolves for anyone building this, not just a clone that happens
-  # to sit beside an at_client_sdk checkout. Remove when it publishes.
+  # bool result. Remove when it publishes.
+  #
+  # ref is a TAG, deliberately: pub fetches a git ref shallowly, reaching only
+  # branch and tag tips. A branch ref strands this pin the moment the branch
+  # head moves (the locked commit is then absent from a cold pub-cache, though
+  # it keeps resolving on any machine whose cache predates the move), and a
+  # bare commit SHA is worse — unresolvable as soon as it stops being a tip
+  # ("fatal: bad object"). A tag is both immutable and fetchable.
   at_chops:
     git:
       url: https://github.com/atsign-foundation/at_client_sdk.git
       path: packages/at_chops
-      ref: gkc-pq-d1-spike
+      ref: at_chops-pq-spike-1 # at_client_sdk 55a78f16, off gkc-pq-d1-spike
