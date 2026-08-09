@@ -141,8 +141,7 @@ void main() {
         // result with this authorization check.
         await bindScoped();
         await keyValueStore.put(key, AtData()..data = 'GENUINE');
-        await localLookupVerbHandler.process(
-            'llookup:$key', inboundConnection);
+        await localLookupVerbHandler.process('llookup:$key', inboundConnection);
         expect(inboundConnection.lastWrittenData, contains('GENUINE'));
       });
 
@@ -173,8 +172,7 @@ void main() {
       test('scoped enrollment CAN read and delete $key', () async {
         await bindScoped();
         await keyValueStore.put(key, AtData()..data = 'encryptedvalue');
-        await localLookupVerbHandler.process(
-            'llookup:$key', inboundConnection);
+        await localLookupVerbHandler.process('llookup:$key', inboundConnection);
         expect(inboundConnection.lastWrittenData, contains('encryptedvalue'));
         await deleteVerbHandler.process('delete:$key', inboundConnection);
       });
@@ -210,8 +208,7 @@ void main() {
         'shared_key.bob@alice.evil@alice',
         'prefix:privatekey:at_pkam_publickey',
       ]) {
-        expect(
-            updateVerbHandler.isAuthorizedSync(enroll, enrollId, atKey: key),
+        expect(updateVerbHandler.isAuthorizedSync(enroll, enrollId, atKey: key),
             isFalse,
             reason: '"$key" only contains an exempt form, it is not one');
       }
@@ -254,8 +251,12 @@ void main() {
 
     // ---- matching the key the keystore writes ----
 
-    for (final variant in ['public:publickey@alice ', ' public:publickey@alice',
-      'public:publickey@alice\t', 'PUBLIC:PUBLICKEY@ALICE']) {
+    for (final variant in [
+      'public:publickey@alice ',
+      ' public:publickey@alice',
+      'public:publickey@alice\t',
+      'PUBLIC:PUBLICKEY@ALICE'
+    ]) {
       test('a non-root enrollment is denied ${jsonEncode(variant)}', () async {
         // HiveKeyStoreHelper.prepareKey normalises with
         // trim().toLowerCase().replaceAll(' ',''), so these variants all
@@ -341,8 +342,7 @@ void main() {
         'config:block:add:@evil',
         'config:block:remove:@evil',
       ]) {
-        await expectLater(
-            configVerbHandler.process(command, inboundConnection),
+        await expectLater(configVerbHandler.process(command, inboundConnection),
             throwsA(isA<UnAuthorizedException>()),
             reason: '$command is an atSign-level privilege');
       }
@@ -352,7 +352,8 @@ void main() {
         () async {
       await bindWildcard();
       await expectLater(
-          configVerbHandler.process('config:block:add:@evil', inboundConnection),
+          configVerbHandler.process(
+              'config:block:add:@evil', inboundConnection),
           throwsA(isA<UnAuthorizedException>()));
     });
 
@@ -376,8 +377,8 @@ void main() {
         'cached:shared_key.bob@alice',
       ]) {
         expect(
-            () =>
-                updateVerbHandler.isAuthorizedSync(enroll, enrollId, atKey: key),
+            () => updateVerbHandler.isAuthorizedSync(enroll, enrollId,
+                atKey: key),
             returnsNormally,
             reason: '$key must not throw out of the authorization check');
       }

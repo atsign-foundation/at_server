@@ -757,7 +757,8 @@ class AtSecondaryConfig {
   /// the window recovers via an ordinary OTP enrollment.
   static int get apkamSelfEnrollmentGraceHours {
     return _getIntEnvVar('apkamSelfEnrollmentGraceHours') ??
-        getNullableIntFromYaml(['enrollment', 'apkamSelfEnrollmentGraceHours']) ??
+        getNullableIntFromYaml(
+            ['enrollment', 'apkamSelfEnrollmentGraceHours']) ??
         720;
   }
 

@@ -59,7 +59,8 @@ class PersistenceBackendMarker {
   static PersistenceBackendMarker? read(String path) {
     final file = File(path);
     if (!file.existsSync()) return null;
-    return fromJson(jsonDecode(file.readAsStringSync()) as Map<String, dynamic>);
+    return fromJson(
+        jsonDecode(file.readAsStringSync()) as Map<String, dynamic>);
   }
 
   /// Writes the marker to [path] (creating parent dirs).
@@ -161,9 +162,9 @@ class PersistenceBackendManager {
     final currentBackend = marker?.activeBackend ?? hive;
     if (currentBackend == targetBackend) return;
 
-    _logger.warning(
-        'Persistence backend change for $atSign: $currentBackend -> '
-        '$targetBackend. Migrating (abort-on-failure)...');
+    _logger
+        .warning('Persistence backend change for $atSign: $currentBackend -> '
+            '$targetBackend. Migrating (abort-on-failure)...');
 
     final sourceFactory = factoryFor(currentBackend);
     final targetFactory = factoryFor(targetBackend);
@@ -203,8 +204,7 @@ class PersistenceBackendManager {
         migratedAt: DateTime.now(),
       ),
     );
-    _logger.warning(
-        'Persistence backend for $atSign is now $targetBackend '
+    _logger.warning('Persistence backend for $atSign is now $targetBackend '
         '(previous $currentBackend data retained).');
   }
 

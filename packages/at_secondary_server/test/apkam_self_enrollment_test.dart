@@ -76,13 +76,15 @@ void main() {
     final r = Response();
     await etu.evh.processVerb(
       r,
-      getVerbParam(VerbSyntax.enroll, 'enroll:request:${jsonEncode(ep.toJson())}'),
+      getVerbParam(
+          VerbSyntax.enroll, 'enroll:request:${jsonEncode(ep.toJson())}'),
       inboundConnection,
     );
     return r;
   }
 
-  test('an approved enrollment self-enrolls a subset child, auto-approved, '
+  test(
+      'an approved enrollment self-enrolls a subset child, auto-approved, '
       'no OTP', () async {
     // The parent: an ordinary approved enrollment with scoped grants.
     final parentId = (await etu.createEnrollments(n: 1)).$1.first;
@@ -129,8 +131,7 @@ void main() {
         reason: 'and it is min(now + grace, existing expiry), not unbounded');
   });
 
-  test('escalation is refused: a namespace the parent does not hold',
-      () async {
+  test('escalation is refused: a namespace the parent does not hold', () async {
     final parentId = (await etu.createEnrollments(n: 1)).$1.first;
 
     await expectLater(
@@ -147,8 +148,8 @@ void main() {
     // The parent holds test:'r'.
 
     await expectLater(
-        () =>
-            selfEnroll(parentEnrollmentId: parentId, namespaces: {'test': 'rw'}),
+        () => selfEnroll(
+            parentEnrollmentId: parentId, namespaces: {'test': 'rw'}),
         throwsA(isA<UnAuthorizedException>()),
         reason: 'r under rw fits; rw under r is an escalation — per letter, '
             'not merely per namespace');
@@ -167,8 +168,7 @@ void main() {
             'anywhere else in the server, and must not here');
   });
 
-  test('a wildcard parent covers ordinary namespaces it never named',
-      () async {
+  test('a wildcard parent covers ordinary namespaces it never named', () async {
     // The primary (CRAM) enrollment holds *:rw and __manage:rw.
     final r = await selfEnroll(
         parentEnrollmentId: etu.primaryEnId,
@@ -215,7 +215,8 @@ void main() {
             'caller bug — the child holds exactly what it names');
   });
 
-  test('the cap re-arms on each sibling retrofit rather than keeping the '
+  test(
+      'the cap re-arms on each sibling retrofit rather than keeping the '
       'first deadline', () async {
     final parentId = (await etu.createEnrollments(n: 1)).$1.first;
     await selfEnroll(parentEnrollmentId: parentId, namespaces: {'app_1': 'rw'});
@@ -245,7 +246,8 @@ void main() {
     expect(ttl, lessThanOrEqualTo(graceMillis));
   });
 
-  test('the cap never extends past the expiry the parent\'s own posture '
+  test(
+      'the cap never extends past the expiry the parent\'s own posture '
       'imposes', () async {
     final parentId = (await etu.createEnrollments(n: 1)).$1.first;
     // Give the parent a key-expiry posture far shorter than the grace.
@@ -286,9 +288,10 @@ void main() {
     expect(child.apkamKeysExpiryDuration, Duration(hours: 1),
         reason: 'precondition: the inheritance itself, recorded in the value');
 
-    final childTtl = (await keyValueStore.get(enMgr.buildEnrollmentKey(childId)))
-        ?.metaData
-        ?.ttl;
+    final childTtl =
+        (await keyValueStore.get(enMgr.buildEnrollmentKey(childId)))
+            ?.metaData
+            ?.ttl;
     expect(childTtl, Duration(hours: 1).inMilliseconds,
         reason: 'the retrofit copies the parent\'s expiry to the child — a '
             'posture recorded only in the JSON value while the record carries '
@@ -308,9 +311,10 @@ void main() {
     expect(r.isError, false, reason: '${r.errorMessage}');
     final childId = jsonDecode(r.data!)['enrollmentId'] as String;
 
-    final childTtl = (await keyValueStore.get(enMgr.buildEnrollmentKey(childId)))
-        ?.metaData
-        ?.ttl;
+    final childTtl =
+        (await keyValueStore.get(enMgr.buildEnrollmentKey(childId)))
+            ?.metaData
+            ?.ttl;
     expect(childTtl, Duration(hours: 2).inMilliseconds,
         reason: 'the request may state its own posture instead of inheriting '
             '— and the record must expire per whichever applied');
@@ -381,9 +385,10 @@ void main() {
     expect(r.isError, false, reason: '${r.errorMessage}');
     final childId = jsonDecode(r.data!)['enrollmentId'] as String;
 
-    final childTtl = (await keyValueStore.get(enMgr.buildEnrollmentKey(childId)))
-        ?.metaData
-        ?.ttl;
+    final childTtl =
+        (await keyValueStore.get(enMgr.buildEnrollmentKey(childId)))
+            ?.metaData
+            ?.ttl;
     expect(childTtl, Duration(hours: 1).inMilliseconds,
         reason: 'ttl 0 means never-expires at both layers (_getExpiresAt '
             'returns null), so honouring a stated zero against a time-bound '
@@ -511,8 +516,7 @@ void main() {
       inboundConnection,
     );
 
-    expect(pkamResponse.isError, false,
-        reason: '${pkamResponse.errorMessage}');
+    expect(pkamResponse.isError, false, reason: '${pkamResponse.errorMessage}');
     expect(pkamResponse.data, 'success',
         reason: 'record-authoritative ML-DSA verification through the real '
             'at_chops dispatch — the whole point of the retrofit is that '

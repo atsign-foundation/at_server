@@ -375,8 +375,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // fully privileged enrollment.
       verifyNoEscalation(parent.namespaces, enrollNamespaces);
 
-      enrollmentValue.approval =
-          EnrollApproval(EnrollmentStatus.approved.name);
+      enrollmentValue.approval = EnrollApproval(EnrollmentStatus.approved.name);
       // The child records its parent so revocation can CASCADE: a stolen
       // keyfile must not spawn a child that survives the parent's
       // revocation. (The cascade itself is the revoke path's to implement.)

@@ -2198,14 +2198,16 @@ void main() {
           throwsA(isA<UnAuthorizedException>()));
     }
 
-    test('enroll:fetch — a caller can fetch its OWN enrollment without __manage',
+    test(
+        'enroll:fetch — a caller can fetch its OWN enrollment without __manage',
         () async {
       await seedEnrollment('self1', {'wavi': 'rw'});
       final r = await fetchAs('self1', 'self1');
       expect(r['encryptedAPKAMSymmetricKey'], 'secret-self1');
     });
 
-    test('enroll:fetch — fetching ANOTHER enrollment without __manage is denied',
+    test(
+        'enroll:fetch — fetching ANOTHER enrollment without __manage is denied',
         () async {
       await seedEnrollment('caller1', {'wavi': 'rw'});
       await seedEnrollment('target1', {'wavi': 'rw'});
