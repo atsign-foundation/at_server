@@ -215,6 +215,7 @@ class _FixedSecondaryAddressFinder implements SecondaryAddressFinder {
   _FixedSecondaryAddressFinder(this.host, this.port);
 
   @override
-  Future<SecondaryAddress> findSecondary(String atSign) async =>
+  Future<SecondaryAddress> findSecondary(String atSign,
+          {Duration? timeout}) async =>
       SecondaryAddress(host, port);
 }
