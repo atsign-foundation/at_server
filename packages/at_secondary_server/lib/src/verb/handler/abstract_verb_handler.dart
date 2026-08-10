@@ -27,9 +27,14 @@ abstract class AbstractVerbHandler implements VerbHandler {
   RegExp perEnrollmentRegex =
       RegExp(EnrollmentConstants.regexForPerEnrollmentNamespaces);
 
+  static final RegExp _dataPrefix = RegExp('^data:');
+
   AbstractVerbHandler(this.keyStore) {
     logger = AtSignLogger(runtimeType.toString());
   }
+
+  /// Strips the leading `data:` prefix from an outbound lookup response.
+  String? stripDataPrefix(String? value) => value?.replaceFirst(_dataPrefix, '');
 
   final rand = Random.secure();
 

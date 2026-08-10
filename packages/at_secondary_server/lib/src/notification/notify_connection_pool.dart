@@ -3,6 +3,7 @@ import 'package:at_lookup/at_lookup.dart' show SecondaryAddressFinder;
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_pool.dart';
+import 'package:at_secondary/src/crypto/signing_key_manager.dart';
 import 'package:at_utils/at_logger.dart';
 
 /// Class to maintains the pool of outbound connections for notifying.
@@ -15,9 +16,14 @@ class NotifyConnectionsPool {
   final OutboundConnectionFactory outboundConnectionFactory;
   final SecondaryAddressFinder secondaryAddressFinder;
 
+  /// Injected into every [OutboundClient] this pool creates, so notification
+  /// handshakes can sign with ML-DSA.
+  final SigningKeyManager signingKeyManager;
+
   NotifyConnectionsPool(
     this.secondaryAddressFinder,
-    this.outboundConnectionFactory, {
+    this.outboundConnectionFactory,
+    this.signingKeyManager, {
     int poolSize = defaultPoolSize,
   }) {
     _outboundClientPool = OutboundClientPool(size: poolSize);
@@ -69,6 +75,7 @@ class NotifyConnectionsPool {
       secondaryAddressFinder,
       true,
       outboundConnectionFactory,
+      signingKeyManager,
     );
     if (connect) {
       await newClient.connect();

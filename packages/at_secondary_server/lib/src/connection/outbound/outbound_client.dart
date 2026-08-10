@@ -10,6 +10,7 @@ import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_message_listener.dart';
+import 'package:at_secondary/src/crypto/signing_key_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/at_security_context_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -42,6 +43,12 @@ class OutboundClient {
 
   at_lookup.SecondaryAddressFinder secondaryAddressFinder;
 
+  /// Holds this server's negotiable signing keys. Signs the handshake
+  /// challenge with the best type the verifier advertised; otherwise the
+  /// handshake falls back to legacy RSA. Injected, not a singleton, so it is
+  /// unit-testable.
+  final SigningKeyManager signingKeyManager;
+
   /// When unit testing, we don't need to do all the things necessary
   /// to support server-to-server handshake - for example, actually signing
   /// a pol challenge, nor creating a key which stores that signature.
@@ -60,6 +67,7 @@ class OutboundClient {
     this.secondaryAddressFinder,
     this.handshakeRequired,
     this.outboundConnectionFactory,
+    this.signingKeyManager,
   );
 
   /// Connects to an secondary and performs required handshake to be ready to run rest of the commands
@@ -302,27 +310,31 @@ class OutboundClient {
 
       //3. Get the session ID and the pol challenge from the response
       var cookieParams = SecondaryUtil.getCookieParams(fromResult);
+      if (cookieParams.length < 4) {
+        throw HandShakeException(
+            'Malformed From response: expected at least 4 colon-delimited '
+            'fields, got ${cookieParams.length}');
+      }
       var sessionIdWithAtSign = cookieParams[2];
       var challenge = cookieParams[3];
 
       if (productionMode) {
-        // Before signing: if the verifier issued a verifier-bound challenge it
-        // names the atSign that issued it. Refuse to sign unless that matches
-        // the atSign we actually dialed.
-        // verifierOfBoundPolChallenge returns a canonical Atsign; toAtSign
-        // arrives un-normalised from the caller, so canonicalise it for the
-        // comparison. A malformed or invalid bound challenge throws (fail
-        // closed); a legacy bare challenge returns null and signs as before.
-        final Atsign? boundVerifier =
-            SecondaryUtil.verifierOfBoundPolChallenge(challenge);
-        if (boundVerifier != null && boundVerifier != toAtSign.toAtsign()) {
+        // One decode yields both the issuer and the advertised types. If the
+        // verifier issued a bound challenge it names the atSign that issued it:
+        // refuse to sign unless that matches the atSign we actually dialed.
+        // The decoded verifier is canonical; toAtSign arrives un-normalised from
+        // the caller, so canonicalise it for the comparison. A malformed or
+        // invalid bound challenge throws (fail closed); a legacy bare challenge
+        // decodes to null and signs as before.
+        final BoundPolChallenge? bound =
+            SecondaryUtil.decodeBoundPolChallenge(challenge);
+        if (bound != null && bound.verifier != toAtSign.toAtsign()) {
           throw HandShakeException(
-              'pol challenge names $boundVerifier but we dialed $toAtSign;'
+              'pol challenge names ${bound.verifier} but we dialed $toAtSign;'
               ' refusing to sign');
         }
-        var signedChallenge = SecondaryUtil.signChallenge(
-            challenge, AtSecondaryServerImpl.getInstance().signingKey);
-        await SecondaryUtil.saveCookie(sessionIdWithAtSign, signedChallenge,
+        final cookieValue = await selectAndSignChallenge(challenge, bound);
+        await SecondaryUtil.saveCookie(sessionIdWithAtSign, cookieValue,
             AtSecondaryServerImpl.getInstance().keyValueStore);
       }
 
@@ -348,6 +360,39 @@ class OutboundClient {
       await outboundConnection!.close();
       throw HandShakeException(e.toString());
     }
+  }
+
+  /// Signs [challenge] with the type the verifier demanded, framing the cookie
+  /// as `<type>:<signature>`; falls back to an untagged legacy RSA signature
+  /// when the verifier demands nothing.
+  ///
+  /// The choice of algorithm is the verifier's, not ours: [bound] carries the
+  /// single type it chose *inside the challenge it signed us*, so there is
+  /// nothing to select here, only to honour or refuse. Because the demand is
+  /// covered by our signature, stripping it in transit fails the handshake
+  /// rather than silently downgrading us to RSA.
+  ///
+  /// Falls back to RSA only when the verifier demanded nothing (pre-negotiation
+  /// peer, legacy bare challenge, or `disablePqAuth` on the verifier's side).
+  /// If it demanded a type we do not hold a key for, that is refused rather
+  /// than silently substituted — reachable only if the verifier's own record
+  /// lookup disagrees with our published keys, which should not happen absent
+  /// a bug or a mid-flight key withdrawal.
+  @visibleForTesting
+  Future<String> selectAndSignChallenge(
+      String challenge, BoundPolChallenge? bound) async {
+    final demanded = bound?.chosenAlgo;
+    if (demanded == null) {
+      return SecondaryUtil.signChallenge(
+          challenge, AtSecondaryServerImpl.getInstance().signingKey);
+    }
+    if (!signingKeyManager.isInitialised ||
+        !signingKeyManager.availableTypes.contains(demanded)) {
+      throw HandShakeException(
+          'Verifier ${bound!.verifier} demanded signature type "$demanded" '
+          'but we hold no such key');
+    }
+    return signingKeyManager.buildChallengeResponse(challenge, demanded);
   }
 
   /// Runs "lookup" verb on the secondary of the @sign that this instance represents.

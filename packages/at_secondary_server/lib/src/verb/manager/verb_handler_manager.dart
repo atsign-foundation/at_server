@@ -82,8 +82,8 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
 
   List<VerbHandler> _loadVerbHandlers() {
     _verbHandlers = [];
-    _verbHandlers.add(
-        FromVerbHandler(keyStore, commitLog: commitLog, accessLog: accessLog));
+    _verbHandlers.add(FromVerbHandler(keyStore,
+        accessLog: accessLog, outboundClientManager: outboundClientManager));
     // Cross-server 'to:' verb. Inbound understanding is always on; the
     // handler accepts any command starting with 'to:'.
     _verbHandlers.add(ToVerbHandler(keyStore));

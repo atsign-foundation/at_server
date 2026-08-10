@@ -202,6 +202,12 @@ sync:
 testing:
   testingMode: false
 
+# PQ (post-quantum) inter-server authentication
+pq:
+  # When true, this server withdraws any published PQ signing public key at boot
+  # and always signs handshake challenges with the legacy RSA key.
+  disablePqAuth: false
+
 # APKAM enrollment configurations
 enrollment:
   # The maximum time in hours for an enrollment to expire, beyond which any action on enrollment is forbidden.

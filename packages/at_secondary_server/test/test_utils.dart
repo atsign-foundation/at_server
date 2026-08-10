@@ -313,6 +313,7 @@ verbTestsSetUp() async {
     mockSecondaryAddressFinder,
     true,
     mockOutboundConnectionFactory,
+    atServer.signingKeyManager,
   )
     ..notifyTimeoutMillis = 100
     ..lookupTimeoutMillis = 100
@@ -325,6 +326,7 @@ verbTestsSetUp() async {
     mockSecondaryAddressFinder,
     false,
     mockOutboundConnectionFactory,
+    atServer.signingKeyManager,
   )
     ..notifyTimeoutMillis = 100
     ..lookupTimeoutMillis = 100
@@ -375,8 +377,8 @@ verbTestsSetUp() async {
   notificationManager = atServer.notificationManager = NotificationManager(
       alice,
       notifStore,
-      NotifyConnectionsPool(
-          mockSecondaryAddressFinder, mockOutboundConnectionFactory));
+      NotifyConnectionsPool(mockSecondaryAddressFinder,
+          mockOutboundConnectionFactory, atServer.signingKeyManager));
   registerFallbackValue(AtNotificationBuilder().build());
 
   cacheManager = atServer.cacheManager = AtCacheManager(

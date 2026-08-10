@@ -865,14 +865,24 @@ void main() {
 
   group('A group of test related to Rate limiting enrollment requests', () {
     String otp = '';
+
+    /// The rate-limit window these tests configure on the server.
+    ///
+    /// Deliberately generous: every test needs two enroll requests — with an
+    /// `otp:get` round trip between them — inside a *single* window. At the
+    /// previous 100ms the second request slipped past the window and was
+    /// allowed, failing intermittently in dual-persistence CI (every write hits
+    /// both hive and sqlite, on a 2-vCPU runner).
+    const rateLimitWindowMillis = 2000;
+
     setUp(() async {
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.cram);
       String configResponse = await firstAtSignConnection
           .sendRequestToServer('config:set:maxRequestsPerTimeFrame=1');
       expect(configResponse.trim(), 'data:ok');
-      configResponse = await firstAtSignConnection
-          .sendRequestToServer('config:set:timeFrameInMillis=100');
+      configResponse = await firstAtSignConnection.sendRequestToServer(
+          'config:set:timeFrameInMillis=$rateLimitWindowMillis');
       expect(configResponse.trim(), 'data:ok');
     });
 
@@ -935,7 +945,8 @@ void main() {
           enrollmentResponse.contains(
               'Enrollment requests have exceeded the limit within the specified time frame'),
           true);
-      await Future.delayed(Duration(milliseconds: 110));
+      // Derived from the window, not hardcoded, so the two can't drift apart.
+      await Future.delayed(Duration(milliseconds: rateLimitWindowMillis + 100));
       enrollmentResponse =
           (await unAuthenticatedConnection.sendRequestToServer(enrollRequest))
               .replaceAll('data:', '');

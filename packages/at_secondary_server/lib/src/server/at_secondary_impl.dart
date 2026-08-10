@@ -23,6 +23,8 @@ import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
 import 'package:at_secondary/src/server/at_certificate_validation.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/crypto/signing_key_constants.dart';
+import 'package:at_secondary/src/crypto/signing_key_manager.dart';
 import 'package:at_secondary/src/server/persistence_backend.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
@@ -49,6 +51,13 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late SecondaryAddressFinder secondaryAddressFinder;
   late OutboundClientManager outboundClientManager;
   late OutboundConnectionFactory outboundConnectionFactory;
+
+  /// The handshake signing keypairs — one per negotiable challenge type.
+  /// Initialised and published during [start]. As a verifier, [FromVerbHandler]
+  /// reads [SigningKeyManager.availableTypes] to choose the one type it demands
+  /// of the peer; as a prover, outbound clients honour whichever single type
+  /// the peer demanded of us, or refuse if we hold no key for it.
+  final SigningKeyManager signingKeyManager = SigningKeyManager();
 
   late bool _isPaused;
 
@@ -101,6 +110,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     outboundClientManager = OutboundClientManager(
       secondaryAddressFinder,
       outboundConnectionFactory,
+      signingKeyManager,
     );
   }
 
@@ -272,6 +282,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     outboundClientManager = OutboundClientManager(
       secondaryAddressFinder,
       outboundConnectionFactory,
+      signingKeyManager,
       poolSize: serverContext!.outboundConnectionLimit,
     );
 
@@ -281,6 +292,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         NotifyConnectionsPool(
           secondaryAddressFinder,
           outboundConnectionFactory,
+          signingKeyManager,
           poolSize: serverContext!.outboundConnectionLimit,
         ));
 
@@ -900,6 +912,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     notificationKeystore = bundle.notificationKeystore!;
     keyValueStore = bundle.keyValueStore;
 
+    await initializePqAuth(currentAtSign, keyValueStore);
+
     serverContext!.isKeyStoreInitialized = true;
 
     // Plant the CRAM secret for first-time activation only — never resurrect
@@ -923,6 +937,50 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     } on KeyNotFoundException {
       logger.info(
           'signing key generated? ${await keyValueStore.exists(AtConstants.atSigningKeypairGenerated)}');
+    }
+  }
+
+  /// Initialise this server's negotiable signing keypairs and publish their
+  /// public halves so peers can verify our signatures. On the kill-switch or an
+  /// init failure, withdraw the published record.
+  ///
+  /// Withdrawing matters beyond tidiness: a verifier advertises only the types
+  /// it holds keys for, and a prover only signs with a type it was offered — but
+  /// a *stale published record* would leave peers able to fetch a key for a type
+  /// this server can no longer sign or verify. Removing it keeps the record and
+  /// the advert telling peers the same story.
+  ///
+  /// Extracted from [_initializePersistentInstances] so the kill switch — the
+  /// path a fleet rollout most needs proven — is testable without a real
+  /// persistence bundle and a bound TLS socket.
+  @visibleForTesting
+  Future<void> initializePqAuth(String currentAtSign,
+      AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore) async {
+    if (AtSecondaryConfig.disablePqAuth) {
+      logger.info('PQ auth disabled via config — withdrawing any published '
+          'signing public keys so peers fall back to legacy auth');
+      await _withdrawSigningPublicKeys(currentAtSign, keyValueStore,
+          because: 'PQ auth is disabled');
+      return;
+    }
+    try {
+      await signingKeyManager.init(currentAtSign, keyValueStore);
+    } catch (e) {
+      logger.severe('Signing key initialisation failed — withdrawing any '
+          'published signing public keys so peers fall back to legacy auth: $e');
+      await _withdrawSigningPublicKeys(currentAtSign, keyValueStore,
+          because: 'key initialisation failed');
+    }
+  }
+
+  Future<void> _withdrawSigningPublicKeys(String currentAtSign,
+      AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore,
+      {required String because}) async {
+    try {
+      await keyValueStore.remove(signingPublicKeysRecordKey(currentAtSign));
+    } catch (e) {
+      logger.severe(
+          'Failed to withdraw signing public keys ($because): $e');
     }
   }
 

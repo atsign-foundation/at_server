@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/crypto/signing_key_constants.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
@@ -134,6 +135,17 @@ void main() {
     test('verify deletion of signing private key throws exception', () {
       inboundConnection.metadata.isAuthenticated = true;
       var command = 'delete:$alice:${AtConstants.atSigningPrivateKey}$alice';
+      expect(
+          () => handler.processInternal(command, inboundConnection),
+          throwsA(
+              predicate((exception) => exception is UnAuthorizedException)));
+    });
+
+    test(
+        'verify deletion of PQ signing public key throws exception even '
+        'with a case-variant key', () {
+      inboundConnection.metadata.isAuthenticated = true;
+      var command = 'delete:public:${signingPublicKeysRecordName.toUpperCase()}$alice';
       expect(
           () => handler.processInternal(command, inboundConnection),
           throwsA(
@@ -296,13 +308,14 @@ void main() {
       'signing_publickey<@atsign>',
       'signing_privatekey<@atsign>',
       'publickey<@atsign>',
-      'at_pkam_publickey'
+      'at_pkam_publickey',
+      'signing_publickeys<@atsign>',
     };
 
     test('Verify with test_config_yaml1 that has 3 additional protected keys',
         () {
       TestConfigUtil.setTestConfig(1);
-      expect(AtSecondaryConfig.protectedKeys.length, 7);
+      expect(AtSecondaryConfig.protectedKeys.length, 8);
       assert(AtSecondaryConfig.protectedKeys.containsAll(serverProtectedKeys));
       TestConfigUtil.resetTestConfig();
     });
@@ -310,7 +323,7 @@ void main() {
     test('Verify with test_config_yaml2 that has 2 additional protected keys',
         () {
       TestConfigUtil.setTestConfig(2);
-      expect(AtSecondaryConfig.protectedKeys.length, 6);
+      expect(AtSecondaryConfig.protectedKeys.length, 7);
       assert(AtSecondaryConfig.protectedKeys.containsAll(serverProtectedKeys));
       TestConfigUtil.resetTestConfig();
     });
@@ -318,7 +331,7 @@ void main() {
     test('Verify with test_config_yaml3 that has 0 additional protected keys',
         () {
       TestConfigUtil.setTestConfig(3);
-      expect(AtSecondaryConfig.protectedKeys.length, 4);
+      expect(AtSecondaryConfig.protectedKeys.length, 5);
       assert(AtSecondaryConfig.protectedKeys.containsAll(serverProtectedKeys));
       TestConfigUtil.resetTestConfig();
     });

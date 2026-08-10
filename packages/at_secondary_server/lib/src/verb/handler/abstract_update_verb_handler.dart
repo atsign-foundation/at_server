@@ -33,6 +33,11 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
 
   final String atSign;
 
+  /// Backing cache for [_updateProtectedKeys]. Handlers live for the whole
+  /// process (see DefaultVerbHandlerManager), so this is computed once per
+  /// instance rather than on every update.
+  Set<String>? _updateProtectedKeysCache;
+
   AbstractUpdateVerbHandler(
     super.keyStore,
     super.statsNotificationService,
@@ -70,6 +75,19 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       'Connection with enrollment ID $enId'
       ' is not authorized to update key: $key';
 
+  /// Protected-key templates for the guard in [preProcessAndNotify], expanded
+  /// for [atSign] and lowercased, minus
+  /// [AtSecondaryConfig.encryptionPublicKeyTemplate] (delete-protected only).
+  Set<String> _updateProtectedKeys() {
+    return _updateProtectedKeysCache ??= hu
+        .expandProtectedKeyTemplates(
+            AtSecondaryConfig.protectedKeys.where((template) =>
+                template != AtSecondaryConfig.encryptionPublicKeyTemplate),
+            atSign)
+        .map((e) => e.toLowerCase())
+        .toSet();
+  }
+
   /// - Construct an AtKey and AtData and AtMetaData from the verb params
   /// - Fetch existing record from data store
   /// - If existing record,
@@ -84,6 +102,20 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       InboundConnection atConnection) async {
     // Sets Response bean to the response bean in ChangeVerbHandler
     await super.processVerb(response, verbParams, atConnection);
+
+    // Reject writes to protected keys this server exclusively manages (see
+    // [_updateProtectedKeys]). Compared bare, before the sharedWith/public:
+    // prefixing below, so `update:cached:public:signing_publickeys@bob` and
+    // friends can't slip past a prefixed comparison.
+    //
+    // Deliberately over-broad: this also rejects the unrelated self key
+    // `@alice:signing_publickeys@alice`. Refusing a key no client writes is
+    // the safe side of that trade.
+    final bareUpdateKey = '${updateParams.atKey}${updateParams.sharedBy ?? ''}';
+    if (_updateProtectedKeys().contains(bareUpdateKey.toLowerCase())) {
+      throw UnAuthorizedException(
+          'Cannot update protected key: \'$bareUpdateKey\'');
+    }
 
     // Get the key and update the value
     final sharedWith = updateParams.sharedWith;

@@ -1,3 +1,22 @@
+# 3.15.2
+
+- feat: post-quantum inter-server authentication. FROM/POL now negotiate an
+  ML-DSA-65 signature challenge-response, falling back to legacy RSA against
+  pre-PQ peers; the negotiated algorithm cannot be downgraded by a malicious
+  prover.
+- feat: signing public keys are published (read-only to clients) at
+  `public:signing_publickeys@atsign`, keyed by algorithm, with secret halves at
+  `local:signing_secretkey.<type>@atsign`. Pol cookies gain a `<type>:` tag
+  identifying the algorithm; untagged means legacy RSA.
+- feat: `pq.disablePqAuth` turns PQ auth off and withdraws published signing keys;
+  `pq.failClosedOnNegotiationFetchFailure` refuses a handshake when the peer's
+  record cannot be fetched instead of falling back to RSA. Both default false.
+- fix: malformed peer key material on the pol path now fails as an authentication
+  error rather than an internal server error, legacy RSA path included.
+- fix: a signing keypair whose stored secret and published public key no longer
+  match is now detected at boot and regenerated, instead of being loaded
+  silently and breaking every handshake against it.
+
 # 3.15.1
 - fix: deny, not throw, on an unparseable atKey in authz
 - fix: defensive code to properly handle a namespace named 'null'
@@ -13,6 +32,14 @@
 
 # 3.15.0
 
+- **Behaviour change** — invalid values in bool and int environment variables
+  are now logged and ignored (falling through to `config.yaml` and then the
+  hardcoded default) instead of being coerced. Previously any bool env var that
+  was not literally `true` evaluated to `false`, and a non-numeric int env var
+  threw at startup. This affects every env-var-driven config in the server, not
+  just the PQ ones: e.g. `testingMode=1` previously meant `false` and now
+  inherits whatever `config.yaml` specifies. Check deployments for env vars
+  that relied on the old coercion.
 - fix: tighten enrollment-management authorization (defense-in-depth). `otp:get`
   (OTP issuance) now requires `__manage` access — a no-`enrollmentId` owner/CRAM
   connection still bootstraps the first enrollment. `enroll:fetch` (which returns

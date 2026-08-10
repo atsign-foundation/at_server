@@ -26,8 +26,10 @@ void main() async {
         outboundIdleTimeMillis;
     AtSecondaryServerImpl.getInstance().serverContext = serverContext;
     outboundClientPool = OutboundClientPool();
-    notifyConnectionsPool = NotifyConnectionsPool(MockSecondaryAddressFinder(),
-        DefaultOutboundConnectionFactory(clientCertificateRequired: false));
+    notifyConnectionsPool = NotifyConnectionsPool(
+        MockSecondaryAddressFinder(),
+        DefaultOutboundConnectionFactory(clientCertificateRequired: false),
+        AtSecondaryServerImpl.getInstance().signingKeyManager);
 
     notifyConnectionsPool.size = 2;
   });
@@ -54,6 +56,7 @@ void main() async {
         AtSecondaryServerImpl.getInstance().secondaryAddressFinder,
         false,
         outboundConnectionFactory,
+        AtSecondaryServerImpl.getInstance().signingKeyManager,
       );
       outboundClient.outboundConnection =
           OutboundConnectionImpl(mockSocket, toAtSign);

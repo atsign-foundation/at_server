@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/conf/config_util.dart';
+import 'package:at_secondary/src/crypto/signing_key_constants.dart';
 import 'package:meta/meta.dart';
 import 'package:yaml/yaml.dart';
 
@@ -126,11 +127,18 @@ class AtSecondaryConfig {
 
   // Protected Keys
   // <@atsign> is a placeholder. To be replaced with actual atsign during runtime
+
+  /// The one client-writable entry in [_protectedKeys]: at_client publishes and
+  /// rotates its own `publickey` via `update`. Protected from delete only —
+  /// `AbstractUpdateVerbHandler`'s guard excludes it.
+  static const String encryptionPublicKeyTemplate = 'publickey<@atsign>';
+
   static final Set<String> _protectedKeys = {
     'signing_publickey<@atsign>',
     'signing_privatekey<@atsign>',
-    'publickey<@atsign>',
-    'at_pkam_publickey'
+    encryptionPublicKeyTemplate,
+    'at_pkam_publickey',
+    '$signingPublicKeysRecordName<@atsign>',
   };
 
   //version
@@ -198,6 +206,35 @@ class AtSecondaryConfig {
     } on ElementNotFoundException {
       return _clientCertificateRequired;
     }
+  }
+
+  /// When true, this server withdraws any published PQ signing public key at
+  /// boot and always signs handshake challenges with the legacy RSA key. Set
+  /// via the `disablePqAuth` env var or `pq.disablePqAuth` in config.yaml.
+  static bool get disablePqAuth {
+    return _getBoolEnvVar('disablePqAuth') ??
+        getNullableBoolFromYaml(['pq', 'disablePqAuth']) ??
+        false;
+  }
+
+  /// When true, a failure fetching the peer's `signing_publickeys` record at
+  /// FROM time (needed to choose a mutual signature algorithm) makes the
+  /// `from:` command fail, rather than falling back to legacy RSA as if the
+  /// peer had published no record.
+  ///
+  /// Default false (fail open): while RSA remains strong, forcing a handshake
+  /// down to RSA gains an attacker who can disrupt just this one fetch nothing
+  /// they could not already do, so failing open trades that non-risk for
+  /// surviving transient peer blips. Flip to true fleet-wide once PQ is
+  /// universal and RSA can no longer be trusted as a fallback — the same
+  /// shape as [disablePqAuth]. Set via the
+  /// `failClosedOnPqNegotiationFetchFailure` env var or
+  /// `pq.failClosedOnNegotiationFetchFailure` in config.yaml.
+  static bool get failClosedOnPqNegotiationFetchFailure {
+    return _getBoolEnvVar('failClosedOnPqNegotiationFetchFailure') ??
+        getNullableBoolFromYaml(
+            ['pq', 'failClosedOnNegotiationFetchFailure']) ??
+        false;
   }
 
   /// Gates outbound emission of the cross-server `to:` verb as the first verb
@@ -726,10 +763,13 @@ class AtSecondaryConfig {
 
   static Set<String> get protectedKeys {
     try {
-      YamlList keys = getConfigFromYaml(['hive', 'protectedKeys']);
+      final rawKeys = getConfigFromYaml(['hive', 'protectedKeys']);
+      if (rawKeys is! YamlList) {
+        return _protectedKeys;
+      }
       Set<String> protectedKeysFromConfig = {};
-      for (var key in keys) {
-        protectedKeysFromConfig.add(key);
+      for (var key in rawKeys) {
+        if (key is String) protectedKeysFromConfig.add(key);
       }
       protectedKeysFromConfig.addAll(_protectedKeys);
       return protectedKeysFromConfig;
@@ -854,35 +894,56 @@ class AtSecondaryConfig {
       case ModifiableConfigs.maxRequestsPerTimeFrame:
         return maxEnrollRequestsAllowed;
       case ModifiableConfigs.timeFrameInMillis:
-        return Duration(hours: _timeFrameInHours).inMilliseconds;
+        return timeFrameInMillis;
     }
   }
 
   static int? _getIntEnvVar(String envVar) {
-    if (_envVars.containsKey(envVar)) {
-      return int.parse(_envVars[envVar]!);
+    final v = _envVars[envVar];
+    if (v == null) return null;
+    final parsed = int.tryParse(v);
+    if (parsed == null) {
+      stderr.writeln(
+          'Warning: env var $envVar="$v" is not a valid int, ignoring');
     }
-    return null;
+    return parsed;
   }
 
   static bool? _getBoolEnvVar(String envVar) {
-    if (_envVars.containsKey(envVar)) {
-      return (_envVars[envVar]!.toLowerCase() == 'true') ? true : false;
+    final v = _envVars[envVar];
+    if (v == null) return null;
+    switch (v.toLowerCase()) {
+      case 'true':
+        return true;
+      case 'false':
+        return false;
+      default:
+        stderr.writeln(
+            'Warning: env var $envVar="$v" is not a valid bool, ignoring');
+        return null;
     }
-    return null;
   }
 
   static String? _getStringEnvVar(String envVar) {
-    if (_envVars.containsKey(envVar)) {
-      return _envVars[envVar];
-    }
-    return null;
+    return _envVars[envVar];
   }
 
   static int? getNullableIntFromYaml(List<String> args) {
     try {
       return getConfigFromYaml(args);
     } on ElementNotFoundException catch (_) {
+      return null;
+    } on TypeError catch (_) {
+      return null;
+    }
+  }
+
+  static bool? getNullableBoolFromYaml(List<String> args) {
+    try {
+      return getConfigFromYaml(args);
+    } on ElementNotFoundException catch (_) {
+      return null;
+    } on TypeError catch (_) {
       return null;
     }
   }
@@ -896,14 +957,16 @@ class AtSecondaryConfig {
         if (i == 0) {
           value = yamlMap[args[i]];
         } else {
-          if (value != null) {
+          if (value is YamlMap) {
             value = value[args[i]];
+          } else {
+            value = null;
           }
         }
       }
     }
     // If value not found throw exception
-    if (value == Null || value == null) {
+    if (value == null) {
       throw ElementNotFoundException(
           'Element ${args.toString()} Not Found in yaml');
     }
@@ -919,14 +982,16 @@ class AtSecondaryConfig {
         if (i == 0) {
           value = yamlMap[keyParts[i]];
         } else {
-          if (value != null) {
+          if (value is YamlMap) {
             value = value[keyParts[i]];
+          } else {
+            value = null;
           }
         }
       }
     }
     // If value not found throw exception
-    if (value == Null || value == null) {
+    if (value == null) {
       return null;
     } else {
       return value.toString();

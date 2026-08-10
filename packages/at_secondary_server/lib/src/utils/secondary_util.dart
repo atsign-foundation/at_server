@@ -123,22 +123,41 @@ class SecondaryUtil {
   /// inspecting it — so every version pairing interoperates.
   static const String polChallengeV1Prefix = 'pol1.';
 
-  /// Builds a verifier-bound pol challenge naming [verifierAtSign].
-  static String buildBoundPolChallenge(Atsign verifierAtSign) {
-    final payload = jsonEncode({'v': verifierAtSign, 'n': Uuid().v4()});
-    return '$polChallengeV1Prefix${base64Url.encode(utf8.encode(payload))}';
+  /// Builds a verifier-bound pol challenge naming [verifierAtSign] and, when
+  /// non-null, demanding the one signature type the verifier has chosen.
+  ///
+  /// The choice lives *inside* the challenge rather than beside it on the
+  /// `proof:` line because the prover signs the challenge verbatim: a sibling
+  /// field would be unsigned and could be stripped in transit to force a silent
+  /// downgrade to RSA. Here, stripping it changes the signed bytes, so the
+  /// handshake fails instead.
+  ///
+  /// `alg` is omitted entirely when [chosenAlgo] is `null` — the verifier
+  /// demands nothing, so the prover falls back to legacy RSA. This keeps a
+  /// server with no negotiable keys, or no mutual type with this peer, emitting
+  /// a token byte-identical to one built before this field existed.
+  static String buildBoundPolChallenge(Atsign verifierAtSign,
+      {String? chosenAlgo}) {
+    final payload = <String, dynamic>{'v': verifierAtSign, 'n': Uuid().v4()};
+    if (chosenAlgo != null) {
+      payload['alg'] = chosenAlgo;
+    }
+    return '$polChallengeV1Prefix${base64Url.encode(utf8.encode(jsonEncode(payload)))}';
   }
 
-  /// If [challenge] is a verifier-bound pol challenge, returns the verifier
-  /// [Atsign] it names; returns `null` for a legacy bare-UUID challenge.
+  /// If [challenge] is a verifier-bound pol challenge, decodes it; returns
+  /// `null` for a legacy bare-UUID challenge.
   ///
   /// Fails closed rather than signing something it cannot validate: throws
   /// [FormatException] on a malformed bound challenge (bad base64/JSON, or a
   /// missing/empty `v`), and [InvalidAtSignException] (via [String.toAtsign])
-  /// if `v` is present but is not a valid atSign. The returned [Atsign] is
-  /// canonicalised, so the caller can compare it directly against a
-  /// canonicalised dialed atSign.
-  static Atsign? verifierOfBoundPolChallenge(String challenge) {
+  /// if `v` is present but is not a valid atSign.
+  ///
+  /// `alg`, by contrast, is lenient — absent or unparseable means "nothing
+  /// demanded", never an exception. That opens no downgrade hole: a *stripped*
+  /// or mangled `alg` is already caught when the signature over the challenge
+  /// is verified against the copy the verifier stored.
+  static BoundPolChallenge? decodeBoundPolChallenge(String challenge) {
     if (!challenge.startsWith(polChallengeV1Prefix)) {
       return null;
     }
@@ -149,7 +168,10 @@ class SecondaryUtil {
         (decoded['v'] as String).isEmpty) {
       throw const FormatException('malformed bound pol challenge');
     }
-    return (decoded['v'] as String).toAtsign();
+    final rawAlg = decoded['alg'];
+    return BoundPolChallenge(
+        verifier: (decoded['v'] as String).toAtsign(),
+        chosenAlgo: (rawAlg is String && rawAlg.isNotEmpty) ? rawAlg : null);
   }
 
   /// When [key] is supplied, it will be used even if the [atData] already has a key.
@@ -251,5 +273,88 @@ class SecondaryUtil {
       return true;
     }
     return false;
+  }
+}
+
+/// A decoded verifier-bound pol challenge — see
+/// [SecondaryUtil.buildBoundPolChallenge].
+///
+/// Both fields come out of one decode, so a caller checking the verifier and
+/// reading the demand parses the token once.
+class BoundPolChallenge {
+  /// The atSign that issued this challenge, canonicalised so a caller can
+  /// compare it directly against a canonicalised dialed atSign. The prover
+  /// refuses to sign when this is not who it dialed.
+  final Atsign verifier;
+
+  /// The one signature type the verifier has chosen and demands, or `null` if
+  /// it demands nothing — the prover then falls back to legacy RSA. The
+  /// verifier alone decides this (see [StoredPolChallenge]); it is never the
+  /// prover's choice.
+  final String? chosenAlgo;
+
+  const BoundPolChallenge({required this.verifier, this.chosenAlgo});
+}
+
+/// The verifier's own local record of a pol challenge it issued — what
+/// [FromVerbHandler] stores at FROM time and [PolVerbHandler] reads back at
+/// POL time, keyed by session and expiring with it.
+///
+/// This is never sent to the peer as-is (the peer only ever sees [challenge],
+/// via [SecondaryUtil.buildBoundPolChallenge]) and is never parsed by anyone
+/// but this server, so its shape is free to evolve — unlike [BoundPolChallenge]
+/// it carries no wire-compatibility obligation to older builds. It *is*
+/// stored under a `public:` key, though, so it is technically fetchable by
+/// anyone who guesses the session ID; nothing in it is secret (the peer's
+/// public key least of all), but the format still deserves the same care as
+/// anything keystore-visible.
+///
+/// Verification at POL trusts [chosenAlgo] and [peerPublicKey] from here —
+/// never anything read off the peer's cookie — which is what makes the
+/// verifier's choice of algorithm authoritative rather than advisory.
+class StoredPolChallenge {
+  /// The exact challenge string handed to the peer, verbatim — what the
+  /// peer's signature must be verified against.
+  final String challenge;
+
+  /// The signature type this verifier chose and demanded, or `null` if it
+  /// demanded nothing (legacy RSA fallback — no mutual type, no peer record,
+  /// or this server holds no negotiable key of its own).
+  final String? chosenAlgo;
+
+  /// The peer's public key for [chosenAlgo], fetched and cached at FROM time
+  /// so POL needs no record fetch of its own. `null` iff [chosenAlgo] is
+  /// `null` — the legacy path fetches the peer's RSA key fresh at POL time
+  /// instead, since it was never cached.
+  final String? peerPublicKey;
+
+  const StoredPolChallenge(
+      {required this.challenge, this.chosenAlgo, this.peerPublicKey});
+
+  /// Encodes this record for storage. Deliberately not reusing
+  /// [SecondaryUtil.buildBoundPolChallenge]'s wire format: that format has
+  /// interop obligations to peers' provers this record does not.
+  String encode() => jsonEncode({
+        'challenge': challenge,
+        if (chosenAlgo != null) 'alg': chosenAlgo,
+        if (peerPublicKey != null) 'key': peerPublicKey,
+      });
+
+  /// Decodes a value previously produced by [encode]. Throws
+  /// [FormatException] on anything else — this server wrote every record it
+  /// reads back here, so a decode failure is an internal invariant violation,
+  /// not peer-supplied input to fail gracefully on.
+  static StoredPolChallenge decode(String raw) {
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map || decoded['challenge'] is! String) {
+      throw const FormatException('malformed stored pol challenge');
+    }
+    final alg = decoded['alg'];
+    final key = decoded['key'];
+    return StoredPolChallenge(
+      challenge: decoded['challenge'] as String,
+      chosenAlgo: alg is String ? alg : null,
+      peerPublicKey: key is String ? key : null,
+    );
   }
 }
