@@ -54,7 +54,8 @@ void main() {
     expect(read.migratedAt!.toUtc(), now.toUtc());
   });
 
-  test('migrateIfNeeded hive -> sqlite migrates, verifies, flips marker, '
+  test(
+      'migrateIfNeeded hive -> sqlite migrates, verifies, flips marker, '
       'retains source', () async {
     const atSign = '@migrate_alice';
 
@@ -72,13 +73,13 @@ void main() {
     await PersistenceBackendManager.migrateIfNeeded(atSign, 'sqlite');
 
     // Marker flipped, source retained.
-    final marker =
-        PersistenceBackendMarker.read('$tmp/.persistence_backend')!;
+    final marker = PersistenceBackendMarker.read('$tmp/.persistence_backend')!;
     expect(marker.activeBackend, 'sqlite');
     expect(marker.previousBackend, 'hive');
     expect(marker.previousPaths, isNotEmpty);
     expect(marker.migratedAt, isNotNull);
-    expect(Directory('$tmp/hive').existsSync(), true, reason: 'source retained');
+    expect(Directory('$tmp/hive').existsSync(), true,
+        reason: 'source retained');
 
     // The SQLite target has the data.
     final sqliteFactory = SqliteAtPersistenceFactory();
@@ -109,16 +110,15 @@ void main() {
 
     await PersistenceBackendManager.migrateIfNeeded(atSign, 'hive');
 
-    final marker =
-        PersistenceBackendMarker.read('$tmp/.persistence_backend')!;
+    final marker = PersistenceBackendMarker.read('$tmp/.persistence_backend')!;
     expect(marker.activeBackend, 'hive');
     expect(marker.previousBackend, 'sqlite');
 
     final hiveFactory = PersistenceBackendManager.factoryFor('hive');
     final hiveBundle = await hiveFactory.initialize(
         atSign, PersistenceBackendManager.configFor('hive'));
-    expect((await hiveBundle.keyValueStore.get('loc.wavi$atSign'))!.data,
-        'paris');
+    expect(
+        (await hiveBundle.keyValueStore.get('loc.wavi$atSign'))!.data, 'paris');
     await hiveFactory.close();
   });
 

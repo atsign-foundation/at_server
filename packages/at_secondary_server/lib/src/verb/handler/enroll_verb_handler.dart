@@ -269,15 +269,22 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       }
     }
 
-    if (atConnection.metaData.authType != AuthType.cram) {
-      // If this is not a CRAM-authenticated connection, then we need to ensure
-      // that there is not an existing enrollment with the same info.
-      await preventDuplicateEnrollRequest(enrollParams);
-    } else {
-      // However, if it is a CRAM-authenticated connection, then we should
-      // allow a 'duplicate' enrollment request. See #2208
+    if (atConnection.metaData.authType == AuthType.cram) {
+      // A CRAM-authenticated connection is allowed a 'duplicate' enrollment
+      // request. See #2208
       logger.warning('CRAM-authenticated connection - i.e. initial enrollment;'
           ' will replace the existing initial enrollment, if any');
+    } else if (atConnection.metaData.authType == AuthType.apkam) {
+      // An APKAM self-enrollment keeps its app's own (appName, deviceName):
+      // a retrofit is the same app re-enrolling itself, and sibling clones of
+      // one keyfile share those names, each needing to coexist with the
+      // approved enrollments the others already spawned. Uniqueness of
+      // (appName, deviceName) among live enrollments therefore ends on this
+      // branch by design.
+    } else {
+      // Every other connection must not duplicate an existing enrollment's
+      // (appName, deviceName).
+      await preventDuplicateEnrollRequest(enrollParams);
     }
 
     var enrollNamespaces = enrollParams.namespaces ?? {};
@@ -327,10 +334,106 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           skipCommit: true);
       // Keep the enrollment's `_apsk` signing key present for verifiers.
       await _publishApskSigningKey(
-          newEnrollmentId, enrollParams.apkamPublicKey!, currentAtSign);
+          newEnrollmentId, enrollParams.apkamPublicKey!, currentAtSign,
+          signingAlgo: enrollmentValue.signingAlgo);
       AtData enrollData = AtData()..data = jsonEncode(enrollmentValue.toJson());
 
       await enMgr.put(newEnrollmentId, enrollData, EnrollmentStatus.approved);
+      return;
+    }
+
+    // An APKAM-authenticated connection self-enrolls a FRESH enrollment —
+    // RF-SRV, the "upgrade the enrollment" step every migration scenario in
+    // at_client_sdk docs/projects/pq/decisions.md 36-40 conjugates. Auto-
+    // approved with no human step and no OTP: the connection's existing
+    // approved enrollment is the authority, and the child can hold at most
+    // what the parent holds. The parent is capped, not removed, so sibling
+    // clones of the same keyfile can still retrofit until the cap elapses.
+    if (atConnection.metaData.authType == AuthType.apkam) {
+      final inboundConnectionMetadata =
+          atConnection.metaData as InboundConnectionMetadata;
+      final parentEnrollmentId = inboundConnectionMetadata.enrollmentId;
+      if (parentEnrollmentId == null) {
+        throw UnAuthorizedException(
+            'An APKAM-authenticated self-enrollment needs a resolvable '
+            'enrollment id on the connection');
+      }
+      final EnrollDataStoreValue parent;
+      try {
+        parent = await enMgr.getEnrollmentById(parentEnrollmentId);
+      } on KeyNotFoundException {
+        throw UnAuthorizedException(
+            'Parent enrollment $parentEnrollmentId does not exist or has '
+            'expired');
+      }
+      if (parent.approval?.state != EnrollmentStatus.approved.name) {
+        throw UnAuthorizedException(
+            'Parent enrollment $parentEnrollmentId is not approved');
+      }
+      // Reject escalation: every requested grant must be one the parent
+      // itself holds. Without this, any scoped keyfile could self-spawn a
+      // fully privileged enrollment.
+      verifyNoEscalation(parent.namespaces, enrollNamespaces);
+
+      enrollmentValue.approval = EnrollApproval(EnrollmentStatus.approved.name);
+      // The child records its parent so revocation can CASCADE: a stolen
+      // keyfile must not spawn a child that survives the parent's
+      // revocation. (The cascade itself is the revoke path's to implement.)
+      enrollmentValue.parentEnrollmentId = parentEnrollmentId;
+      // The child inherits the parent's key-expiry posture unless the
+      // request states its own.
+      if (enrollParams.apkamKeysExpiryDuration == null) {
+        enrollmentValue.apkamKeysExpiryDuration =
+            parent.apkamKeysExpiryDuration;
+      }
+      // A stated posture may narrow the parent's, never widen it.
+      // `verifyNoEscalation` covers namespaces; TIME is the other axis a
+      // stolen keyfile would want to widen, and this branch is the one
+      // enrollment path with no human in the loop to notice. Zero is the
+      // keystore's "never expires" and a negative value skips the ttl write
+      // altogether, so both are ways of asking for a permanent credential —
+      // against a time-bound parent, neither is honoured.
+      final parentExpiryMs = parent.apkamKeysExpiryDuration.inMilliseconds;
+      final statedExpiryMs =
+          enrollmentValue.apkamKeysExpiryDuration.inMilliseconds;
+      if (statedExpiryMs < 0 ||
+          (parentExpiryMs > 0 &&
+              (statedExpiryMs <= 0 || statedExpiryMs > parentExpiryMs))) {
+        logger.warning(
+            'Self-enrollment under $parentEnrollmentId asked for a key-expiry '
+            'of ${statedExpiryMs}ms against a parent bound to '
+            '${parentExpiryMs}ms; using the parent\'s');
+        enrollmentValue.apkamKeysExpiryDuration =
+            parent.apkamKeysExpiryDuration;
+      }
+      // May be absent: a PQ self-enrollment conveys its legacy material
+      // client-side, sealed to its own new key package.
+      enrollmentValue.encryptedAPKAMSymmetricKey =
+          enrollParams.encryptedAPKAMSymmetricKey;
+      responseJson['status'] = 'approved';
+
+      // Keep the enrollment's `_apsk` signing key present for verifiers.
+      await _publishApskSigningKey(
+          newEnrollmentId, enrollParams.apkamPublicKey!, currentAtSign,
+          signingAlgo: enrollmentValue.signingAlgo);
+      // The child's record expires per its (inherited or stated) key-expiry
+      // posture, exactly as the ordinary approve path writes it — the
+      // retrofit copies the parent's expiry, it does not grant immortality.
+      // A ttl of zero is the keystore's "never expires", matching a parent
+      // with no posture.
+      await enMgr.put(
+          newEnrollmentId,
+          AtData()
+            ..data = jsonEncode(enrollmentValue.toJson())
+            ..metaData = (AtMetaData()
+              ..ttl = enrollmentValue.apkamKeysExpiryDuration.inMilliseconds),
+          EnrollmentStatus.approved);
+
+      // Cap the parent WITHOUT removing it, re-arming the cap on every
+      // sibling retrofit: the legacy credential retires one grace period
+      // after the LAST clone upgrades, never past the expiry its own
+      // posture already imposes.
+      await _capEnrollmentExpiry(parentEnrollmentId, parent);
       return;
     }
 
@@ -351,6 +454,80 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       ..metaData = (AtMetaData()..ttl = enrollmentExpiryInMills);
 
     await enMgr.put(newEnrollmentId, enrollData, EnrollmentStatus.pending);
+  }
+
+  /// Rejects any requested grant the parent enrollment does not itself hold.
+  ///
+  /// Subset per namespace and per access letter: `r` fits under `rw`, never
+  /// the reverse. A parent's `*` grant covers any ordinary namespace at the
+  /// letters it carries — mirroring the server's own authorisation — but
+  /// `__manage` and `*` themselves must be held literally: `*` does not imply
+  /// `__manage` anywhere else in the server, and it must not here.
+  @visibleForTesting
+  void verifyNoEscalation(
+      Map<String, String> parentGrants, Map<String, String> requested) {
+    for (final entry in requested.entries) {
+      String? parentAccess = parentGrants[entry.key];
+      final isSpecial = entry.key == EnrollmentConstants.allNamespaces ||
+          entry.key == EnrollmentConstants.enrollManageNamespace;
+      if (parentAccess == null && !isSpecial) {
+        parentAccess = parentGrants[EnrollmentConstants.allNamespaces];
+      }
+      final held = parentAccess;
+      if (held == null ||
+          !entry.value.split('').every(held.split('').contains)) {
+        throw UnAuthorizedException(
+            'Requested namespace "${entry.key}:${entry.value}" exceeds the '
+            'parent enrollment\'s grants — a self-enrollment can hold at '
+            'most what its parent holds');
+      }
+    }
+  }
+
+  /// Caps [enrollmentId] to expire `min(now + grace, its own expiry)` from
+  /// this moment, leaving the record in place.
+  ///
+  /// Re-applied on EVERY self-enrollment, computed fresh from the record's
+  /// own posture rather than folded into a previously written cap: sibling
+  /// clones of one keyfile retrofit whenever each device next runs, so the
+  /// cap must RE-ARM with each retrofit — a deadline fixed by the first
+  /// sibling's upgrade would strand every laggard whose next run falls
+  /// outside that first window. "Its own expiry" is re-derived from
+  /// [EnrollDataStoreValue.apkamKeysExpiryDuration], anchored at the
+  /// record's creation, so a key-expiry posture shorter than the grace
+  /// still wins.
+  ///
+  /// A written ttl anchors at the write (`expiresAt = now + ttl` in the
+  /// metadata builder), so the grace is written as-is — offsetting it by the
+  /// record's age would extend the cap by the enrollment's whole lifetime.
+  Future<void> _capEnrollmentExpiry(
+      String enrollmentId, EnrollDataStoreValue enrollment) async {
+    final key = enMgr.buildEnrollmentKey(enrollmentId);
+    final AtData? atData;
+    try {
+      atData = await keyStore.get(key);
+    } on KeyNotFoundException {
+      return;
+    }
+    if (atData == null) return;
+    final now = DateTime.now().toUtc();
+    int cappedTtl =
+        Duration(hours: AtSecondaryConfig.apkamSelfEnrollmentGraceHours)
+            .inMilliseconds;
+    final ownMs = enrollment.apkamKeysExpiryDuration.inMilliseconds;
+    if (ownMs > 0) {
+      final createdAt = (atData.metaData?.createdAt ?? now).toUtc();
+      final ownRemainingMs = createdAt
+          .add(Duration(milliseconds: ownMs))
+          .difference(now)
+          .inMilliseconds;
+      if (ownRemainingMs < cappedTtl) cappedTtl = ownRemainingMs;
+    }
+    // A ttl of zero means "never expires", and a spent posture must not
+    // become immortality — floor at one millisecond.
+    if (cappedTtl < 1) cappedTtl = 1;
+    atData.metaData = (atData.metaData ?? AtMetaData())..ttl = cappedTtl;
+    await enMgr.put(enrollmentId, atData, EnrollmentStatus.approved);
   }
 
   /// Handles enrollment approve, deny, revoke and unrevoke requests.
@@ -430,7 +607,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (operation == 'approve') {
       await _storeEncryptionKeys(enId, enrollParams, enVal);
       // Keep the enrollment's `_apsk` signing key present for verifiers.
-      await _publishApskSigningKey(enId, enVal.apkamPublicKey, currentAtSign);
+      await _publishApskSigningKey(enId, enVal.apkamPublicKey, currentAtSign,
+          signingAlgo: enVal.signingAlgo);
     }
     responseJson['enrollmentId'] = enId;
   }
@@ -520,10 +698,25 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// can reach it via plookup. Idempotent: a re-publish is a harmless overwrite
   /// with the same value.
   Future<void> _publishApskSigningKey(
-      String enrollmentId, String apkamPublicKey, currentAtSign) async {
+      String enrollmentId, String apkamPublicKey, currentAtSign,
+      {String? signingAlgo}) async {
     final apskKey = 'public:_apsk.$enrollmentId'
         '.${EnrollmentConstants.perEnrollmentApproved}$currentAtSign';
-    await keyStore.put(apskKey, AtData()..data = apkamPublicKey);
+    // A legacy (rsa2048) enrollment publishes the bare value exactly as
+    // today, since deployed apps parse it as an RSA key. Any other algorithm
+    // publishes the tagged, self-describing form composed from the
+    // enrollment record's own (apkamPublicKey, signingAlgo) — the record
+    // PKAM reads stays the single source. The tagged shape is unmistakable
+    // to a bare-RSA parser: base64-decoding JSON throws, so an old consumer
+    // fails loudly rather than mis-reading the key.
+    final String value;
+    if (signingAlgo == null || signingAlgo == 'rsa2048') {
+      value = apkamPublicKey;
+    } else {
+      value = jsonEncode(
+          {'v': 1, 'signingAlgo': signingAlgo, 'publicKey': apkamPublicKey});
+    }
+    await keyStore.put(apskKey, AtData()..data = value);
   }
 
   EnrollmentStatus _getEnrollStatusEnum(String? enrollmentOperation) {
@@ -766,9 +959,29 @@ class EnrollVerbHandler extends AbstractVerbHandler {
               'apkam public key is mandatory for enroll:request');
         }
 
+        if (inboundConnection.metaData.authType == AuthType.apkam &&
+            (enrollParams.namespaces == null ||
+                enrollParams.namespaces!.isEmpty)) {
+          // A self-enrollment names its grants explicitly: the child holds
+          // exactly what it requests, at most what the parent holds. An
+          // empty set would mint an approved credential that can do nothing,
+          // which is always a caller bug — refuse it loudly.
+          throw IllegalArgumentException(
+              'At least one namespace must be specified for an '
+              'APKAM-authenticated enroll:request');
+        }
+
         if (enrollParams.otp != null) {
-          //encryptedAPKAMSymmetricKey is mandatory for new client enrollments
-          if (enrollParams.encryptedAPKAMSymmetricKey.isNullOrEmpty) {
+          // encryptedAPKAMSymmetricKey is mandatory for new client enrollments,
+          // except when the request advertises a key package. Such a client
+          // never generates the symmetric key: the approver mints it and
+          // encapsulates it to the advertised public half, so the request has
+          // no RSA-wrapped secret to carry. Absence alongside a key package is
+          // therefore the signal that conveyance is expected, and the field
+          // stays mandatory for every other client so a legacy one still fails
+          // here rather than enrolling into a state it cannot decrypt.
+          if (enrollParams.encryptedAPKAMSymmetricKey.isNullOrEmpty &&
+              enrollParams.metadata?['keyPackage'] == null) {
             throw IllegalArgumentException(
                 'encrypted apkam symmetric key is mandatory for new client enroll:request');
           }

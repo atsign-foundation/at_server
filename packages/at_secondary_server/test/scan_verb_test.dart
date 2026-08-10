@@ -469,7 +469,8 @@ void main() {
           scanResponseList[0], '$enrollmentId.new.enrollments.__manage$alice');
     });
 
-    test('A test to verify a *:rw enrollment does NOT see __manage keys in scan',
+    test(
+        'A test to verify a *:rw enrollment does NOT see __manage keys in scan',
         () async {
       var enrollmentId = Uuid().v4();
       inboundConnection.metaData.isAuthenticated = true;

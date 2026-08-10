@@ -744,6 +744,24 @@ class AtSecondaryConfig {
         48;
   }
 
+  /// How long a parent enrollment keeps authenticating after one of its
+  /// APKAM-authenticated connections self-enrolls a fresh enrollment
+  /// (RF-SRV). The parent is capped to `min(now + this, its existing expiry)`
+  /// WITHOUT being removed, so sibling clones of the same keyfile can still
+  /// retrofit until the cap elapses.
+  ///
+  /// The default (30 days) is deliberately generous, and the cap RE-ARMS on
+  /// every sibling retrofit: cloned keyfiles upgrade on schedules measured in
+  /// whenever-each-device-next-runs, so the parent retires one grace period
+  /// after the LAST clone upgrades, not the first. A laggard stranded past
+  /// the window recovers via an ordinary OTP enrollment.
+  static int get apkamSelfEnrollmentGraceHours {
+    return _getIntEnvVar('apkamSelfEnrollmentGraceHours') ??
+        getNullableIntFromYaml(
+            ['enrollment', 'apkamSelfEnrollmentGraceHours']) ??
+        720;
+  }
+
   static final int _enrollmentResponseDelayIntervalInSeconds = 55;
 
   static int? _maxEnrollRequestsAllowed;

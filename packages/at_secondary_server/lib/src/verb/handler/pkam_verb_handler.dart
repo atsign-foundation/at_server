@@ -18,6 +18,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
   static Pkam pkam = Pkam();
   static const String _eccAlgo = 'ecc_secp256r1';
   static const String _rsa2048Algo = 'rsa2048';
+  static const String _mlDsa65Algo = 'mldsa65';
   static const String _sha256 = 'sha256';
   static const String _sha512 = 'sha512';
   AtChops? atChops;
@@ -43,6 +44,9 @@ class PkamVerbHandler extends AbstractVerbHandler {
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     AuthType pkamAuthType;
     String? publicKey;
+    // Legacy PKAM has no enrollment record to be authoritative about, and may
+    // legitimately present ecc_secp256r1, so it goes on using the wire value.
+    String? recordSigningAlgo;
 
     // Use APKAM public key for verification if enrollId is passed.
     // Otherwise use legacy pkam public key.
@@ -57,6 +61,20 @@ class PkamVerbHandler extends AbstractVerbHandler {
         return;
       }
       publicKey = apkamResult.publicKey;
+      // Record-authoritative: an APKAM keypair's algorithm is a property of
+      // the enrollment it was registered under, not something the client
+      // restates on each connect. Hardening rather than a fix — the signature
+      // is checked against the stored public key either way, so a client that
+      // misstates the algorithm only fails its own verification — but it
+      // closes off cross-algorithm confusion, where one key blob parses under
+      // more than one algorithm. A legacy enrollment predating the field has
+      // none recorded, so it keeps the existing default EXPLICITLY here: a
+      // null must not fall through to the wire claim in _validateSignature,
+      // or the claim picks the verify routine for exactly the enrollments
+      // that predate the field (an RSA record verified as ML-DSA fails a
+      // legitimate legacy client; the wire fallback exists for legacy
+      // no-enrollment PKAM, which may present ecc_secp256r1).
+      recordSigningAlgo = apkamResult.signingAlgo ?? _rsa2048Algo;
     } else {
       pkamAuthType = AuthType.pkamLegacy;
       var publicKeyData = await keyStore.get(AtConstants.atPkamPublicKey);
@@ -73,6 +91,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
       sessionID,
       atSign,
       publicKey,
+      recordSigningAlgo,
       storedSecretId,
     );
 
@@ -121,6 +140,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
       return apkamResult;
     }
     apkamResult.publicKey = enVal.apkamPublicKey;
+    apkamResult.signingAlgo = enVal.signingAlgo;
     return apkamResult;
   }
 
@@ -155,15 +175,22 @@ class PkamVerbHandler extends AbstractVerbHandler {
     return response;
   }
 
+  /// [recordSigningAlgo] is the algorithm recorded on the enrollment, when
+  /// this connection authenticates as one. It wins over whatever the wire
+  /// says, so the client stops choosing how its own signature is interpreted.
+  /// Null for legacy PKAM — there is no record — in which case the wire value
+  /// still decides, as it always has.
   Future<bool> _validateSignature(
     var verbParams,
     var sessionId,
     String atSign,
     String publicKey,
+    String? recordSigningAlgo,
     String storedSecretId,
   ) async {
     var signature = verbParams[AtConstants.atPkamSignature]!;
-    var signingAlgo = verbParams[AtConstants.atPkamSigningAlgo];
+    var signingAlgo =
+        recordSigningAlgo ?? verbParams[AtConstants.atPkamSigningAlgo];
     var hashingAlgo = verbParams[AtConstants.atPkamHashingAlgo];
     bool isValidSignature = false;
     var storedSecretData = await keyStore.get(storedSecretId);
@@ -204,9 +231,13 @@ class PkamVerbHandler extends AbstractVerbHandler {
     logger.finer('signingAlgo: $signingAlgo');
     if (signingAlgo == _eccAlgo) {
       return SigningAlgoType.ecc_secp256r1;
-      // inputSignature = Uint8List.fromList(signature.codeUnits);
     } else if (signingAlgo == _rsa2048Algo) {
       return SigningAlgoType.rsa2048;
+    } else if (signingAlgo == _mlDsa65Algo) {
+      // Without this branch a post-quantum APKAM keypair falls through to the
+      // RSA default below and can never authenticate at all — the signature is
+      // well-formed, just interpreted under the wrong algorithm.
+      return SigningAlgoType.mldsa65;
     }
     return SigningAlgoType.rsa2048;
   }
@@ -226,4 +257,8 @@ class PkamVerbHandler extends AbstractVerbHandler {
 class ApkamVerificationResult {
   Response response = Response();
   String? publicKey;
+
+  /// The signing algorithm recorded on the enrollment, which is what
+  /// [publicKey] actually is. Null on a legacy enrollment predating the field.
+  String? signingAlgo;
 }

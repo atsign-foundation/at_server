@@ -1,8 +1,21 @@
-# 3.15.1
+# 3.16.0
 - fix: deny, not throw, on an unparseable atKey in authz
 - fix: defensive code to properly handle a namespace named 'null'
 - fix: scope namespace-less keys to the legacy shared_key forms
 - fix: restrict config:block to root enrollments
+- feat: PKAM verification accepts `signingAlgo:mldsa65`. Without the branch a
+  post-quantum APKAM keypair fell through to the RSA default and could never
+  authenticate at all — the signature was well formed, just interpreted under
+  the wrong algorithm.
+- feat: for an APKAM-authenticated connection, the signing algorithm is now
+  read from the **enrollment record** rather than restated by the client on
+  each connect. It is hardening rather than a fix: the signature is checked
+  against the stored public key either way, so a client that misstates the
+  algorithm only fails its own verification. What it closes off is
+  cross-algorithm confusion, where one key blob parses under more than one
+  algorithm. Legacy PKAM has no enrollment record to be authoritative about and
+  may legitimately present `ecc_secp256r1`, so it continues to use the value on
+  the wire; a legacy enrollment predating the field keeps the existing default.
 - feat: augmented pol challenge
 - perf: sync now pushes `skipDeletesUntil` into the commit-log query rather than
   filtering deletes out of the results. `SyncProgressiveVerbHandler` passed

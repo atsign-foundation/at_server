@@ -165,7 +165,8 @@ void main() {
           keysVerbHandler.process(
               'keys:delete:keyName:$foreignKey', inboundConnection),
           throwsA(isA<UnAuthorizedException>()),
-          reason: 'must not delete a keys-verb key owned by another enrollment');
+          reason:
+              'must not delete a keys-verb key owned by another enrollment');
       expect(await keyValueStore.exists(foreignKey), isTrue);
     });
   });

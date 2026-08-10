@@ -95,8 +95,8 @@ void main() {
           throwsA(isA<UnAuthorizedException>()),
           reason:
               'a *:rw enrollment must not read another enrollment\'s a.__e');
-      expect(
-          inboundConnection.lastWrittenData ?? '', isNot(contains('topsecret')));
+      expect(inboundConnection.lastWrittenData ?? '',
+          isNot(contains('topsecret')));
     });
 
     test('*:rw enrollment CAN update its OWN a.__e key', () async {
@@ -116,8 +116,7 @@ void main() {
       await bindWildcardEnrollment();
       final foreignEnId = Uuid().v4();
       // The encrypted default-encryption-private-key (PEK) of another enrollment.
-      final pekKey =
-          '$foreignEnId.default_enc_private_key.__manage$alice';
+      final pekKey = '$foreignEnId.default_enc_private_key.__manage$alice';
 
       await expectLater(
           updateVerbHandler.process(
@@ -130,8 +129,7 @@ void main() {
         () async {
       await bindWildcardEnrollment();
       final foreignEnId = Uuid().v4();
-      final pekKey =
-          '$foreignEnId.default_enc_private_key.__manage$alice';
+      final pekKey = '$foreignEnId.default_enc_private_key.__manage$alice';
       await keyValueStore.put(pekKey, AtData()..data = 'ciphertext');
 
       await expectLater(

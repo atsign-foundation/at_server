@@ -119,6 +119,14 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       AtConnection atConnection, AtNotification notification) async {
     if (!(await isAuthorized(atConnection.metaData as InboundConnectionMetadata,
         atKey: notification.notification))) {
+      // A dropped notification is indistinguishable from one that was never
+      // sent, so a receiver-side refusal presents as "the sender didn't
+      // send" and gets attributed to the wrong side. Name what was dropped
+      // and for whom, at a level an operator sees.
+      logger.warning('Not delivering notification'
+          ' ${notification.notification} to enrollment'
+          ' ${(atConnection.metaData as InboundConnectionMetadata).enrollmentId}'
+          ' — not authorized for that key');
       return;
     }
 

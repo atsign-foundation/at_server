@@ -67,6 +67,12 @@ void main() {
 
       // enroll:request on a CRAM connection is auto-approved. metadata and
       // signingAlgo ride the request and are persisted on the record.
+      //
+      // This is the enrollment under inspection, not the one we authenticate
+      // as. It is labelled mldsa65 while carrying an RSA key, and PKAM reads
+      // the algorithm from the enrollment record rather than the wire, so it
+      // cannot authenticate — correctly, since the record is what a verifier
+      // would trust. The roster it appears in is what this test is about.
       final enrollRequest = 'enroll:request:${jsonEncode({
             'appName': 'listns-app',
             'deviceName': 'device-${Uuid().v4().hashCode}',
@@ -82,9 +88,38 @@ void main() {
       expect(enrollmentId, isNotEmpty);
       expect(enrollJson['status'], 'approved');
 
-      // APKAM-authenticate as the new enrollment, then query the roster.
-      await firstAtSignConnection.authenticateConnection(
-          authType: AuthType.pkam, enrollmentId: enrollmentId);
+      // A second, unlabelled (so rsa2048) enrollment on the same namespace is
+      // the CALLER: listns needs an APKAM-authenticated connection holding at
+      // least read access to the namespace.
+      //
+      // On its own connection: the enrollment rate limiter is per-connection,
+      // and another file in this pack lowers maxRequestsPerTimeFrame to 1
+      // server-wide without restoring it, so a second request on the
+      // connection above would fail depending on run order.
+      final callerConnection = await OutboundConnectionFactory()
+          .initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
+      await callerConnection.authenticateConnection(authType: AuthType.cram);
+      final callerRequest = 'enroll:request:${jsonEncode({
+            'appName': 'listns-caller',
+            'deviceName': 'device-${Uuid().v4().hashCode}',
+            'namespaces': {namespace: 'rw'},
+            'apkamPublicKey': apkamPublicKey,
+          })}\n';
+      final callerJson = jsonDecode(
+          (await callerConnection.sendRequestToServer(callerRequest))
+              .replaceFirst('data:', ''));
+      expect(callerJson['status'], 'approved');
+      await callerConnection.close();
+
+      // Assert the authentication itself: without this a failure here surfaces
+      // much later as a JSON parse error on an unrelated line.
+      expect(
+          (await firstAtSignConnection.authenticateConnection(
+                  authType: AuthType.pkam,
+                  enrollmentId: callerJson['enrollmentId']))
+              .trim(),
+          'data:success');
 
       final roster = jsonDecode(
           (await firstAtSignConnection

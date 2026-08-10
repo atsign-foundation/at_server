@@ -25,7 +25,8 @@ EnrollDataStoreValue _$EnrollDataStoreValueFromJson(
       ..apkamKeysExpiryDuration =
           Duration(milliseconds: json['apkamKeysExpiryInMillis'] ?? 0)
       ..metadata = (json['metadata'] as Map<String, dynamic>?)
-      ..signingAlgo = json['signingAlgo'] as String?;
+      ..signingAlgo = json['signingAlgo'] as String?
+      ..parentEnrollmentId = json['parentEnrollmentId'] as String?;
 
 Map<String, dynamic> _$EnrollDataStoreValueToJson(
         EnrollDataStoreValue instance) =>
@@ -42,6 +43,8 @@ Map<String, dynamic> _$EnrollDataStoreValueToJson(
           instance.apkamKeysExpiryDuration.inMilliseconds,
       if (instance.metadata != null) 'metadata': instance.metadata,
       if (instance.signingAlgo != null) 'signingAlgo': instance.signingAlgo,
+      if (instance.parentEnrollmentId != null)
+        'parentEnrollmentId': instance.parentEnrollmentId,
     };
 
 const _$EnrollRequestTypeEnumMap = {

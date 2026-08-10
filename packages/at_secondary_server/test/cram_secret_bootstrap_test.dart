@@ -69,7 +69,8 @@ void main() {
           'real-secret');
     });
 
-    test('does NOT resurrect a deleted secret (deleted-marker suppresses plant)',
+    test(
+        'does NOT resurrect a deleted secret (deleted-marker suppresses plant)',
         () async {
       // Onboarding deleted the secret and left the tombstone marker behind.
       await keyValueStore.put(
