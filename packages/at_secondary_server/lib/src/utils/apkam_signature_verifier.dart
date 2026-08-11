@@ -67,11 +67,11 @@ class ApkamSignatureVerifier {
   /// that is how it is stored on the enrollment record and how it arrives on
   /// the wire.
   ///
-  /// Every argument is chosen by whoever is trying to authenticate, so "this
-  /// did not verify" is the honest answer to a bad signature — including one
-  /// that is not valid base64, which previously escaped both call sites as an
-  /// uncaught [FormatException] because each decoded before entering its
-  /// guard.
+  /// Never throws. Every argument is chosen by whoever is trying to
+  /// authenticate, so "this did not verify" is the honest answer to every
+  /// shape of bad input, including a signature that is not valid base64 —
+  /// which previously escaped both call sites as an uncaught [FormatException]
+  /// because each decoded before entering its guard.
   static Future<bool> verify({
     required Uint8List message,
     required String base64Signature,
@@ -112,8 +112,25 @@ class ApkamSignatureVerifier {
       return await AtChopsImpl(AtChopsKeys.create(null, null))
           .verify(input)
           .result;
-    } on Exception catch (e) {
-      _logger.finer('APKAM signature verification failed: $e');
+    } catch (e, stackTrace) {
+      // Total, deliberately. Every argument here is chosen by whoever is
+      // trying to authenticate — `enroll:update` takes the public key straight
+      // off the request — and at_chops' backends reject bad input in three
+      // different ways: an AtSigningVerificationException, a FormatException
+      // out of base64Decode, and, for ecc_secp256r1, a bare thrown String from
+      // package:elliptic that `on Exception` does not catch at all (plus a
+      // RangeError for a hex key shorter than two characters). A malformed key
+      // has to fail the authentication, not escape the verb handler.
+      //
+      // An Error is a defect in this server rather than a bad signature, so it
+      // is logged at severe with its stack rather than disappearing into
+      // finer. Either way this fails closed: nothing is authenticated by a
+      // verification that crashed.
+      if (e is Error) {
+        _logger.severe('APKAM signature verification threw $e\n$stackTrace');
+      } else {
+        _logger.finer('APKAM signature verification failed: $e');
+      }
       return false;
     }
   }

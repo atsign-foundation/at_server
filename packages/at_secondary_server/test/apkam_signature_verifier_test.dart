@@ -235,6 +235,36 @@ void main() {
     });
   });
 
+  group('malformed input is refused, never thrown', () {
+    // Every one of these arrives from whoever is trying to authenticate. Before
+    // the verifier existed, base64Decode ran outside each call site's guard, so
+    // a signature that was not valid base64 escaped as an uncaught
+    // FormatException instead of failing the authentication.
+    for (final algo in SigningAlgoType.values) {
+      test('a signature that is not base64 — ${algo.name}', () async {
+        expect(
+            await ApkamSignatureVerifier.verify(
+              message: message,
+              base64Signature: 'not!valid!base64!',
+              publicKey: 'irrelevant',
+              signingAlgo: algo,
+            ),
+            false);
+      });
+
+      test('a public key the algorithm cannot parse — ${algo.name}', () async {
+        expect(
+            await ApkamSignatureVerifier.verify(
+              message: message,
+              base64Signature: base64Encode(Uint8List.fromList([1, 2, 3])),
+              publicKey: 'not a key of any kind',
+              signingAlgo: algo,
+            ),
+            false);
+      });
+    }
+  });
+
   group('algorithm token resolution', () {
     // Raw literals deliberately: these tokens are the wire vocabulary, shared
     // with at_client and recorded on enrollment records. Asserting them against

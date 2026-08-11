@@ -89,6 +89,15 @@
   compact-hex code units. Both would change what verifies on the
   authentication path.
 
+- fix: a malformed APKAM public key or signature now fails the verification
+  instead of escaping the verb handler. `enroll:update` takes `apkamPublicKey`
+  straight off the request, and `package:elliptic` rejects a bad
+  `ecc_secp256r1` key by throwing a bare `String` — which `on Exception` does
+  not catch — or a `RangeError` for a key under two characters. `base64Decode`
+  of the signature also ran outside both call sites' guards. Verification is
+  now total and fails closed; an `Error`, being a defect in this server rather
+  than a bad signature, is logged at `severe` with its stack rather than at
+  `finer`.
 - fix: `await` the result of an `AtChops` signature verification. Published
   at_chops 3.5.0 verifies `rsa2048` and `ecc_secp256r1` synchronously but
   `mldsa65` asynchronously, while `AtChopsImpl.verify` is synchronous either
