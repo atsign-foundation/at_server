@@ -19,7 +19,7 @@ dependencies:
   basic_utils: ^5.7.0
   ecdsa: ^0.1.2
   encrypt: ^5.0.3
-  at_commons: ^5.13.0
+  at_commons: ^5.14.0
   at_utils: ^3.4.0
   at_chops: ^3.5.0
   at_lookup: ^3.6.0
@@ -45,17 +45,3 @@ dev_dependencies:
 dependency_overrides:
   at_persistence_secondary_server:
     path: ../at_persistence_secondary_server
-  # TEMPORARY: at_commons carries EnrollParams.apsk, the client-composed
-  # signing-key value this server stores and publishes, plus
-  # EnrollParams.apkamPublicKeySignature and EnrollOperationEnum.update.
-  # Remove entirely when at_commons 5.14.0 publishes.
-  #
-  # A TAG, not a path and not a branch: a path escapes the Docker build
-  # context so the VE image cannot be built from it, and a branch ref strands
-  # the pin when the head moves (pub fetches a git ref shallowly, reaching
-  # only branch and tag tips).
-  at_commons:
-    git:
-      url: https://github.com/atsign-foundation/at_client_sdk.git
-      path: packages/at_commons
-      ref: at_commons-apsk-1 # at_client_sdk 54ccffdd0, off gkc-apsk-auto-publish
