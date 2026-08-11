@@ -2,7 +2,7 @@
 
 # at_end2end_test
 
-Runs end to end tests on atProtocol server.
+Runs end to end tests on Atsign Protocol server.
 
 ## Running locally
 

@@ -1,4 +1,4 @@
-# The atProtocol root server configuration
+# The Atsign Protocol root server configuration
 root_server:
   # The port to connect to root server
   port: 64
