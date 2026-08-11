@@ -69,9 +69,11 @@ packages:
   at_commons:
     dependency: "direct main"
     description:
-      path: "../../../at_client_sdk-wt-apsk/packages/at_commons"
-      relative: true
-    source: path
+      path: "packages/at_commons"
+      ref: at_commons-apsk-1
+      resolved-ref: "54ccffdd01ae2106c96edbbacb7fac444b15fe38"
+      url: "https://github.com/atsign-foundation/at_client_sdk.git"
+    source: git
     version: "5.14.0"
   at_lookup:
     dependency: "direct main"

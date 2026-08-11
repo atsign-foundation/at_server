@@ -89,14 +89,21 @@ void main() {
   ///
   /// Its own fresh connection each time, because a failed authentication is
   /// not something a connection is expected to survive.
+  ///
+  /// The challenge handling mirrors `_apkamAuthentication` in
+  /// outbound_connection_wrapper.dart EXACTLY — same clientConfig, and
+  /// `replaceAll('data:', '')` and nothing more. Trimming it or stripping the
+  /// `@<atSign>@` prompt changes the bytes the digest covers, and the only
+  /// symptom is an authentication that fails for a reason having nothing to
+  /// do with the key. This helper exists at all because the library helper
+  /// signs with the demo-data key, and half the point here is authenticating
+  /// with a key that was minted during the test.
   Future<bool> canAuthenticate(String enrollmentId, String privateKey) async {
     OutboundConnectionFactory c = await newConnection();
-    String fromResponse =
-        await c.sendRequestToServer('from:$atSign:clientConfig:{}');
-    String challenge =
-        fromResponse.replaceAll('data:', '').replaceAll('@$atSign@', '').trim();
-    String signature =
-        AuthenticationUtils.generatePKAMDigest(privateKey, challenge);
+    String fromResponse = await c.sendRequestToServer(
+        'from:$atSign:clientConfig:${jsonEncode({'version': '3.0.57'})}');
+    String signature = AuthenticationUtils.generatePKAMDigest(
+        privateKey, fromResponse.replaceAll('data:', ''));
     try {
       String r = await c
           .sendRequestToServer('pkam:enrollmentId:$enrollmentId:$signature');

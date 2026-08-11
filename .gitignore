@@ -46,3 +46,7 @@ packages/at_secondary_server/secondary
 tests/at_end2end_test/config/config.yaml
 
 .DS_Store
+
+# Working docs — audits, plans, drafts. Same convention as at_client_sdk:
+# scaffolding for in-flight work lives here and is never committed.
+/untracked/
