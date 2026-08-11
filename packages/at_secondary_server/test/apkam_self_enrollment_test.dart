@@ -59,6 +59,7 @@ void main() {
     String deviceName = 'selfdevice',
     String? signingAlgo,
     Duration? apkamKeysExpiryDuration,
+    Map<String, dynamic>? apsk,
   }) async {
     final ep = EnrollParams()
       ..appName = appName
@@ -66,6 +67,7 @@ void main() {
       ..apkamPublicKey = 'pq apkam public key $appName $deviceName'
       ..signingAlgo = signingAlgo
       ..apkamKeysExpiryDuration = apkamKeysExpiryDuration
+      ..apsk = apsk
       ..namespaces = namespaces;
     inboundConnection.metaData
       ..isAuthenticated = true
@@ -422,42 +424,51 @@ void main() {
   });
 
   test(
-      'an mldsa65 self-enrollment publishes the tagged _apsk; an rsa one '
-      'stays bare', () async {
+      'a self-enrollment publishes the apsk it composed, and none when it '
+      'composes none', () async {
     final parentId = (await etu.createEnrollments(n: 1)).$1.first;
 
+    // The child composes its own value. signingAlgo is set too and is
+    // deliberately NOT what gets published: it is the record PKAM reads, and
+    // the two are now independent.
+    final composed = {
+      'v': 1,
+      'signingAlgo': 'mldsa65',
+      'publicKey': 'cHEtYXBrYW0tcHVibGlj',
+    };
     final r = await selfEnroll(
         parentEnrollmentId: parentId,
         namespaces: {'app_1': 'rw'},
-        signingAlgo: 'mldsa65');
+        signingAlgo: 'mldsa65',
+        apsk: composed);
     expect(r.isError, false, reason: '${r.errorMessage}');
     final childId = jsonDecode(r.data!)['enrollmentId'] as String;
 
     final childApsk = (await keyValueStore.get(
             'public:_apsk.$childId.${EnrollmentConstants.perEnrollmentApproved}$alice'))!
         .data!;
-    final tagged = jsonDecode(childApsk) as Map<String, dynamic>;
-    expect(tagged['signingAlgo'], 'mldsa65',
-        reason: 'a verifier fetching this _apsk must learn the algorithm '
-            'from the value itself, or it would parse a raw ML-DSA key as '
-            'RSA and fail on every signature');
-    expect(tagged['publicKey'], 'pq apkam public key selfapp selfdevice');
-    expect(tagged['v'], 1);
+    expect(jsonDecode(childApsk), composed,
+        reason: 'the value is opaque, so it is published exactly as sent — '
+            'not recomposed from the record\'s apkamPublicKey, which here is '
+            'a different string entirely');
 
-    // Control: an enrollment without signingAlgo publishes the bare value
-    // exactly as today — deployed apps parse it as an RSA key.
+    // The record still carries the algorithm PKAM verifies under, unchanged
+    // by any of this.
+    expect((await enMgr.getEnrollmentById(childId)).signingAlgo, 'mldsa65');
+
+    // Control: a self-enrollment that sends no apsk gets no record. The
+    // server does not fall back to composing one.
     final r2 = await selfEnroll(
         parentEnrollmentId: parentId,
         namespaces: {'app_1': 'rw'},
         appName: 'selfapp2',
-        deviceName: 'selfdevice2');
+        deviceName: 'selfdevice2',
+        signingAlgo: 'mldsa65');
     final child2Id = jsonDecode(r2.data!)['enrollmentId'] as String;
-    final bareApsk = (await keyValueStore.get(
-            'public:_apsk.$child2Id.${EnrollmentConstants.perEnrollmentApproved}$alice'))!
-        .data!;
-    expect(bareApsk, 'pq apkam public key selfapp2 selfdevice2',
-        reason: 'the bare form is frozen for rsa2048 — the tagged form is '
-            'only for algorithms no deployed parser could read anyway');
+    expect(
+        await keyValueStore.exists(
+            'public:_apsk.$child2Id.${EnrollmentConstants.perEnrollmentApproved}$alice'),
+        false);
   });
 
   test(

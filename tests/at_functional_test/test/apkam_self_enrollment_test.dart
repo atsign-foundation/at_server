@@ -90,7 +90,8 @@ void main() {
       String? appName,
       String? deviceName,
       int? apkamKeysExpiryInMillis,
-      String? signingAlgo}) async {
+      String? signingAlgo,
+      Map<String, dynamic>? apsk}) async {
     OutboundConnectionFactory parent = await newConnection();
     expect(
         (await parent.authenticateConnection(
@@ -102,8 +103,9 @@ void main() {
         ? ''
         : ',"apkamKeysExpiryInMillis":$apkamKeysExpiryInMillis';
     String algo = signingAlgo == null ? '' : ',"signingAlgo":"$signingAlgo"';
+    String apskField = apsk == null ? '' : ',"apsk":${jsonEncode(apsk)}';
     return (await parent.sendRequestToServer(
-            'enroll:request:{"appName":"${appName ?? 'child-${Uuid().v4().hashCode}'}","deviceName":"${deviceName ?? 'device-${Uuid().v4().hashCode}'}","namespaces":${jsonEncode(namespaces)},"apkamPublicKey":"$apkamPublicKey"$expiry$algo}'))
+            'enroll:request:{"appName":"${appName ?? 'child-${Uuid().v4().hashCode}'}","deviceName":"${deviceName ?? 'device-${Uuid().v4().hashCode}'}","namespaces":${jsonEncode(namespaces)},"apkamPublicKey":"$apkamPublicKey"$expiry$algo$apskField}'))
         .trim();
   }
 
@@ -113,13 +115,15 @@ void main() {
       String? appName,
       String? deviceName,
       int? apkamKeysExpiryInMillis,
-      String? signingAlgo}) async {
+      String? signingAlgo,
+      Map<String, dynamic>? apsk}) async {
     String response = await selfEnroll(parentId,
         namespaces: namespaces,
         appName: appName,
         deviceName: deviceName,
         apkamKeysExpiryInMillis: apkamKeysExpiryInMillis,
-        signingAlgo: signingAlgo);
+        signingAlgo: signingAlgo,
+        apsk: apsk);
     Map decoded = jsonDecode(response.replaceFirst('data:', ''));
     expect(decoded['status'], 'approved',
         reason: 'a self-enrollment is auto-approved with no human step');
@@ -459,7 +463,7 @@ void main() {
     });
   });
 
-  group('The published _apsk describes its own algorithm', () {
+  group('The published _apsk is whatever the client composed', () {
     Future<String> apskValue(
         OutboundConnectionFactory owner, String enrollmentId) async {
       return (await owner
@@ -468,31 +472,40 @@ void main() {
           .replaceFirst('data:', '');
     }
 
-    test('an rsa2048 enrollment publishes the bare public key', () async {
-      // Deployed apps parse the bare value as an RSA key, so this one may not
-      // change shape.
+    test('the value sent on enroll:request is published verbatim', () async {
+      // A shape with a field the atServer has no code for, on purpose: the
+      // value is opaque, so what a verifier resolves must be what the enrollee
+      // composed and nothing the server could have derived from the record.
+      Map<String, dynamic> composed = {
+        'v': 1,
+        'signingAlgo': 'mldsa65',
+        'publicKey': 'Y2xpZW50LWNvbXBvc2VkLWtleQ==',
+        'extraFieldTheServerMustNotDrop': ['a', 'b'],
+      };
+
       OutboundConnectionFactory owner = await ownerConnection();
       String parentId =
           await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
-      String childId = await selfEnrollId(parentId, namespaces: {'wavi': 'r'});
+      String childId = await selfEnrollId(parentId,
+          namespaces: {'wavi': 'r'}, signingAlgo: 'mldsa65', apsk: composed);
 
-      expect(await apskValue(owner, childId), apkamPublicKey);
+      expect(jsonDecode(await apskValue(owner, childId)), composed);
     });
 
-    test('a non-rsa2048 enrollment publishes the tagged, self-describing form',
-        () async {
-      // Without the tag a verifier reads a raw ML-DSA key as RSA and every
-      // signature from the enrollment fails.
+    test('an enrollment that sends no apsk gets no _apsk record', () async {
+      // The atServer composes nothing from (apkamPublicKey, signingAlgo):
+      // PKAM verification reads the enrollment record, so this key is the
+      // enrollee's to publish from its own connection, or to go without.
       OutboundConnectionFactory owner = await ownerConnection();
       String parentId =
           await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
       String childId = await selfEnrollId(parentId,
           namespaces: {'wavi': 'r'}, signingAlgo: 'mldsa65');
 
-      Map published = jsonDecode(await apskValue(owner, childId));
-      expect(published['v'], 1);
-      expect(published['signingAlgo'], 'mldsa65');
-      expect(published['publicKey'], apkamPublicKey);
+      expect(
+          await apskValue(owner, childId),
+          contains('key not found : public:_apsk.$childId.a.__e$atSign '
+              'does not exist in keystore'));
     });
   });
 

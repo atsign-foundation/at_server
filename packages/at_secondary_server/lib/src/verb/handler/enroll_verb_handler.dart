@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 
+import 'package:at_chops/at_chops.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
@@ -35,6 +36,16 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   int maxDelayInMillis = Duration(
           seconds: AtSecondaryConfig.enrollmentResponseDelayIntervalInSeconds)
       .inMilliseconds;
+
+  /// The largest `EnrollParams.apsk` the atServer will store, measured on its
+  /// JSON encoding — the string that lands in the keystore.
+  ///
+  /// The value is opaque, so nothing about it can be validated; a bound is all
+  /// the server can meaningfully impose. 20KB is far above any signing key
+  /// (ML-DSA-65's public half is ~2.6KB base64-encoded, the largest in play)
+  /// and far below anything that would make the enrollment record awkward to
+  /// store or return from `enroll:listns`.
+  static const int maxApskLengthBytes = 20 * 1024;
 
   final EnrollmentManager enMgr;
   final NotificationManager notifManager;
@@ -167,6 +178,16 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           response,
         );
         break;
+      case 'update':
+        await _handleEnrollmentUpdate(
+          enMgr,
+          (atConnection.metaData as InboundConnectionMetadata),
+          enrollVerbParams!,
+          currentAtSign,
+          responseJson,
+          response,
+        );
+        break;
     }
     response.data = jsonEncode(responseJson);
     return;
@@ -252,6 +273,20 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'Enrollment requests have exceeded the limit within the specified time frame');
     }
 
+    // Bound the one field the server stores without understanding, before
+    // anything is created or an OTP is spent. Refused rather than truncated:
+    // a truncated signing key is a key nothing can verify against, published
+    // at the address every verifier resolves, and the enrollee would have no
+    // way to tell that from a key it composed wrong.
+    final apskLength = enrollParams.apsk == null
+        ? 0
+        : utf8.encode(jsonEncode(enrollParams.apsk)).length;
+    if (apskLength > maxApskLengthBytes) {
+      throw IllegalArgumentException(
+          'apsk is $apskLength bytes encoded, which exceeds the '
+          '$maxApskLengthBytes byte limit');
+    }
+
     // OTP is sent only in enrollment request which is submitted on
     // unauthenticated connection.
     if (atConnection.metaData.isAuthenticated == false) {
@@ -301,15 +336,18 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     enrollmentValue.namespaces = enrollNamespaces;
     enrollmentValue.requestType = EnrollRequestType.newEnrollment;
 
-    // The X-Wing key package (at `metadata.keyPackage`) and the APKAM
-    // `signingAlgo` ride EnrollParams on enroll:request and are persisted
-    // verbatim onto the enrollment record — there is no separate
-    // enroll:metadata write.
+    // The X-Wing key package (at `metadata.keyPackage`), the APKAM
+    // `signingAlgo` and the client-composed `_apsk` value ride EnrollParams on
+    // enroll:request and are persisted verbatim onto the enrollment record —
+    // there is no separate enroll:metadata write.
     if (enrollParams.metadata != null) {
       enrollmentValue.metadata = enrollParams.metadata;
     }
     if (enrollParams.signingAlgo != null) {
       enrollmentValue.signingAlgo = enrollParams.signingAlgo;
+    }
+    if (enrollParams.apsk != null) {
+      enrollmentValue.apsk = enrollParams.apsk;
     }
 
     if (enrollParams.apkamKeysExpiryDuration != null) {
@@ -332,10 +370,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       await keyStore.put(AtConstants.atPkamPublicKey,
           AtData()..data = enrollParams.apkamPublicKey!,
           skipCommit: true);
-      // Keep the enrollment's `_apsk` signing key present for verifiers.
+      // Publish the client-composed `_apsk` signing key, if it sent one.
       await _publishApskSigningKey(
-          newEnrollmentId, enrollParams.apkamPublicKey!, currentAtSign,
-          signingAlgo: enrollmentValue.signingAlgo);
+          newEnrollmentId, enrollmentValue.apsk, currentAtSign);
       AtData enrollData = AtData()..data = jsonEncode(enrollmentValue.toJson());
 
       await enMgr.put(newEnrollmentId, enrollData, EnrollmentStatus.approved);
@@ -412,10 +449,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           enrollParams.encryptedAPKAMSymmetricKey;
       responseJson['status'] = 'approved';
 
-      // Keep the enrollment's `_apsk` signing key present for verifiers.
+      // Publish the client-composed `_apsk` signing key, if it sent one.
       await _publishApskSigningKey(
-          newEnrollmentId, enrollParams.apkamPublicKey!, currentAtSign,
-          signingAlgo: enrollmentValue.signingAlgo);
+          newEnrollmentId, enrollmentValue.apsk, currentAtSign);
       // The child's record expires per its (inherited or stated) key-expiry
       // posture, exactly as the ordinary approve path writes it — the
       // retrofit copies the parent's expiry, it does not grant immortality.
@@ -606,12 +642,198 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // when enrollment is approved store the encrypted encryption keys
     if (operation == 'approve') {
       await _storeEncryptionKeys(enId, enrollParams, enVal);
-      // Keep the enrollment's `_apsk` signing key present for verifiers.
-      await _publishApskSigningKey(enId, enVal.apkamPublicKey, currentAtSign,
-          signingAlgo: enVal.signingAlgo);
+      // Publish the `_apsk` signing key the enrollee composed on its request.
+      // Read off the RECORD, not off these approve params: the value is the
+      // enrollee's, and an approver must not be able to substitute a signing
+      // key for the enrollment it is approving.
+      await _publishApskSigningKey(enId, enVal.apsk, currentAtSign);
     }
     responseJson['enrollmentId'] = enId;
   }
+
+  /// `enroll:update` — an approved enrollment amending its OWN record.
+  ///
+  /// Reaches `apkamPublicKey`, `signingAlgo`, `apsk` and `metadata`, and
+  /// nothing else. `namespaces` and the approval state are permanently out of
+  /// reach: this operation is self-only, so an enrollment that could reach
+  /// them could widen its own grant, which is privilege escalation with a
+  /// valid signature on it.
+  ///
+  /// Replacing `apkamPublicKey` is how an enrollment rotates its
+  /// authentication keypair while keeping its id. Before this existed the only
+  /// route was a new enrollment, which strands every record addressed to the
+  /// old id.
+  ///
+  /// Metadata is a per-key set, never a whole-map replace: keys the request
+  /// does not name survive untouched. A whole-map replace is read-mutate-write
+  /// against shared durable state, so a client that does not know about a
+  /// future sibling field would clobber it.
+  Future<void> _handleEnrollmentUpdate(
+    EnrollmentManager enMgr,
+    InboundConnectionMetadata connectionMetadata,
+    EnrollParams enrollParams,
+    String currentAtSign,
+    Map<dynamic, dynamic> responseJson,
+    Response response,
+  ) async {
+    final enId = enrollParams.enrollmentId!;
+
+    // Self-only. An explicit exception to `isAuthorized`'s "no enrollmentId
+    // means full permissions" default: an owner or legacy-PKAM connection is
+    // refused here, not waved through. An owner cannot sign anything with this
+    // enrollment's APKAM private, so anything it wrote would fail every
+    // reader's verification and buys only a denial of service — and self-only
+    // is what makes replace semantics safe, because the only party who can
+    // reinstate a stale value is the holder of the key it was signed with.
+    if (connectionMetadata.enrollmentId != enId) {
+      throw AtEnrollmentException(
+          'enroll:update is self-only: this connection is authenticated as '
+          '${connectionMetadata.enrollmentId ?? "the owner"}, not $enId');
+    }
+
+    final enVal = await enMgr.getEnrollmentById(enId);
+    final status = EnrollmentStatus.values.byName(enVal.approval!.state);
+    if (status != EnrollmentStatus.approved) {
+      throw AtEnrollmentException(
+          'enroll:update requires an approved enrollment; $enId is '
+          '${status.name}');
+    }
+
+    // Same cap and the same reason as enroll:request: an oversized value is
+    // refused before anything is written, never truncated, because a truncated
+    // signing key is a key nothing can verify against sitting at the address
+    // every verifier resolves.
+    if (enrollParams.apsk != null) {
+      final apskLength = utf8.encode(jsonEncode(enrollParams.apsk)).length;
+      if (apskLength > maxApskLengthBytes) {
+        throw IllegalArgumentException(
+            'apsk is $apskLength bytes encoded, which exceeds the '
+            '$maxApskLengthBytes byte limit');
+      }
+    }
+
+    if (enrollParams.apkamPublicKey != null) {
+      final newSigningAlgo = enrollParams.signingAlgo ?? enVal.signingAlgo;
+      await _verifyApkamPublicKeyPossession(
+        enrollmentId: enId,
+        apkamPublicKey: enrollParams.apkamPublicKey!,
+        signingAlgo: newSigningAlgo,
+        signature: enrollParams.apkamPublicKeySignature,
+      );
+      enVal.apkamPublicKey = enrollParams.apkamPublicKey!;
+      if (enrollParams.signingAlgo != null) {
+        enVal.signingAlgo = enrollParams.signingAlgo;
+      }
+    } else if (enrollParams.signingAlgo != null) {
+      // The algorithm describes the key, so moving one without the other would
+      // leave the record claiming a spelling its key is not in — and PKAM
+      // verification is record-authoritative, so that record is what every
+      // later authentication is judged against.
+      throw IllegalArgumentException(
+          'signingAlgo cannot be changed without apkamPublicKey: the '
+          'algorithm describes the key');
+    }
+
+    if (enrollParams.apsk != null) {
+      enVal.apsk = enrollParams.apsk;
+    }
+
+    if (enrollParams.metadata != null) {
+      final merged = Map<String, dynamic>.from(enVal.metadata ?? {});
+      merged.addAll(enrollParams.metadata!);
+      enVal.metadata = merged;
+    }
+
+    // The state and TTL are untouched: this is the same put the approve path
+    // uses, with an already-approved status, so nothing about the enrollment's
+    // lifecycle moves.
+    await enMgr.put(
+        enId, AtData()..data = jsonEncode(enVal), EnrollmentStatus.approved);
+
+    // Republish only when the request carried a new value. An update that says
+    // nothing about apsk leaves the published record exactly as it was.
+    if (enrollParams.apsk != null) {
+      await _publishApskSigningKey(enId, enVal.apsk, currentAtSign);
+    }
+
+    responseJson['enrollmentId'] = enId;
+    responseJson['status'] = EnrollmentStatus.approved.name;
+  }
+
+  /// Verifies that whoever sent this `enroll:update` holds the private half of
+  /// the [apkamPublicKey] it is asking to install.
+  ///
+  /// The connection proves possession of the enrollment's **current** key;
+  /// nothing else proves possession of the new one. Without this check a
+  /// compromised-but-authenticated client can install a public key whose
+  /// private half is held by an attacker, locking out the legitimate holder
+  /// while the enrollment record still looks entirely valid.
+  ///
+  /// The signature covers `<enrollmentId>|<apkamPublicKey>|<signingAlgo>` and
+  /// is verified against the new public key carried in the same request —
+  /// a self-signature, which is exactly what proof of possession is.
+  ///
+  /// No nonce, deliberately: the operation is self-only over an authenticated
+  /// connection, and the old key stops authenticating the moment the rotation
+  /// lands, so a replayed request can only be sent by the current holder. That
+  /// makes a rollback self-harm rather than an attack.
+  Future<void> _verifyApkamPublicKeyPossession({
+    required String enrollmentId,
+    required String apkamPublicKey,
+    required String? signingAlgo,
+    required String? signature,
+  }) async {
+    if (signature == null || signature.isEmpty) {
+      throw AtEnrollmentException(
+          'enroll:update changing apkamPublicKey requires '
+          'apkamPublicKeySignature: proof the sender holds the private half '
+          'of the key it is installing');
+    }
+
+    // Verified through the same AtChops compatibility API `pkam_verb_handler`
+    // uses, deprecated and all. That is deliberate: PKAM is the other place
+    // that verifies an APKAM signature against a record's algorithm, and two
+    // verification paths that have to agree byte-for-byte about how a
+    // signature is framed is a worse problem than one shared deprecation.
+    // Migrate both to AtSignatureAlgorithm.verifyBytes together, once at_chops
+    // offers a SigningAlgoType-to-algorithm dispatcher.
+    final signable = '$enrollmentId|$apkamPublicKey|$signingAlgo';
+    final verificationInput = AtSigningVerificationInput(
+        utf8.encode(signable), base64Decode(signature), apkamPublicKey)
+      ..signingAlgoType = _signingAlgoTypeOf(signingAlgo)
+      ..hashingAlgoType = HashingAlgoType.sha256
+      // pkam, not data: AtSigningMode.data signs with the ENCRYPTION keypair,
+      // and what is being proved here is possession of an APKAM signing key.
+      // It is also the mode PKAM verification itself uses, so the two agree
+      // about how the bytes are framed.
+      ..signingMode = AtSigningMode.pkam;
+
+    bool verified = false;
+    try {
+      verified = AtChopsImpl(AtChopsKeys.create(null, null))
+          .verify(verificationInput)
+          .result;
+    } on Exception catch (e) {
+      logger.finer('apkamPublicKeySignature verification threw: $e');
+    }
+    if (!verified) {
+      throw AtEnrollmentException(
+          'apkamPublicKeySignature does not verify against the '
+          'apkamPublicKey being installed');
+    }
+  }
+
+  /// The [SigningAlgoType] a `signingAlgo` token names.
+  ///
+  /// Defaults to `rsa2048` for an absent token, matching PKAM's own
+  /// resolution, so a record written before the field existed keeps behaving
+  /// as it always did.
+  SigningAlgoType _signingAlgoTypeOf(String? signingAlgo) =>
+      switch (signingAlgo) {
+        'ecc_secp256r1' => SigningAlgoType.ecc_secp256r1,
+        'mldsa65' => SigningAlgoType.mldsa65,
+        _ => SigningAlgoType.rsa2048,
+      };
 
   Future<void> _dropRevokedClientConnection(String enrollmentId, bool forceFlag,
       InboundConnection currentInboundConnection, responseJson) async {
@@ -688,35 +910,33 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         skipCommit: true);
   }
 
-  /// Publishes the enrollment's APKAM public key as its `_apsk` signing key at
-  /// `public:_apsk.<enrollmentId>.a.__e@<atSign>` (the location the at_client
-  /// `ApkamSigning` mixin reads). The atServer keeps this key present — rather
-  /// than leaving it to the client-side `publishPublicSigningKey` — so a
-  /// verifier can always fetch it to verify APKAM signatures on `__ssenv`
-  /// envelopes and on advertised recipient keys (key package, `nskey` public,
-  /// `pqpublickey`). World-readable so a same-atSign or a peer-atSign verifier
-  /// can reach it via plookup. Idempotent: a re-publish is a harmless overwrite
-  /// with the same value.
+  /// Publishes [apsk] — the value the CLIENT composed and sent on
+  /// `enroll:request` — at `public:_apsk.<enrollmentId>.a.__e@<atSign>`, the
+  /// location the at_client `ApkamSigning` mixin reads.
+  ///
+  /// A no-op when [apsk] is null. The atServer composes nothing: PKAM
+  /// verification reads the enrollment record's `apkamPublicKey` and
+  /// `signingAlgo`, so `_apsk` is a client-side artefact and its format
+  /// belongs to the side that parses it. An enrollment that sent no value
+  /// publishes its own signing key from its own connection, or goes without.
+  ///
+  /// The server writes it despite never reading it because `_apsk` accepts
+  /// writes only from its own enrollment's connection, and at approval that
+  /// connection has never existed. The approver needs the record immediately —
+  /// it verifies the enrollee's key package against it and signs signing-chain
+  /// links over it — so this is the only party that can put it there in time.
+  ///
+  /// World-readable, so a same-atSign or peer-atSign verifier can reach it via
+  /// plookup. Idempotent: a re-publish is a harmless overwrite with the same
+  /// value.
   Future<void> _publishApskSigningKey(
-      String enrollmentId, String apkamPublicKey, currentAtSign,
-      {String? signingAlgo}) async {
+      String enrollmentId, Map<String, dynamic>? apsk, currentAtSign) async {
+    if (apsk == null) {
+      return;
+    }
     final apskKey = 'public:_apsk.$enrollmentId'
         '.${EnrollmentConstants.perEnrollmentApproved}$currentAtSign';
-    // A legacy (rsa2048) enrollment publishes the bare value exactly as
-    // today, since deployed apps parse it as an RSA key. Any other algorithm
-    // publishes the tagged, self-describing form composed from the
-    // enrollment record's own (apkamPublicKey, signingAlgo) — the record
-    // PKAM reads stays the single source. The tagged shape is unmistakable
-    // to a bare-RSA parser: base64-decoding JSON throws, so an old consumer
-    // fails loudly rather than mis-reading the key.
-    final String value;
-    if (signingAlgo == null || signingAlgo == 'rsa2048') {
-      value = apkamPublicKey;
-    } else {
-      value = jsonEncode(
-          {'v': 1, 'signingAlgo': signingAlgo, 'publicKey': apkamPublicKey});
-    }
-    await keyStore.put(apskKey, AtData()..data = value);
+    await keyStore.put(apskKey, AtData()..data = jsonEncode(apsk));
   }
 
   EnrollmentStatus _getEnrollStatusEnum(String? enrollmentOperation) {
@@ -1015,6 +1235,33 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         if (enrollParams!.enrollmentId.isNullOrEmpty) {
           throw IllegalArgumentException(
               'enrollmentId is mandatory for enroll:$operation');
+        }
+        break;
+      case 'update':
+        if (enrollParams!.enrollmentId.isNullOrEmpty) {
+          throw IllegalArgumentException(
+              'enrollmentId is mandatory for enroll:update');
+        }
+        // An update that names nothing to change is a caller bug, not a no-op
+        // worth accepting: it costs a write and a sync round for nothing, and
+        // it usually means the field the caller meant to set is misspelled.
+        if (enrollParams.apkamPublicKey == null &&
+            enrollParams.signingAlgo == null &&
+            enrollParams.apsk == null &&
+            enrollParams.metadata == null) {
+          throw IllegalArgumentException(
+              'enroll:update must name at least one of apkamPublicKey, '
+              'signingAlgo, apsk or metadata');
+        }
+        // Named explicitly rather than silently ignored. These are the two
+        // fields the operation must never reach — an enrollment amending
+        // itself must not be able to widen its own grant or change its own
+        // approval — so a request that asks is told why, not quietly obeyed
+        // in part.
+        if (enrollParams.namespaces != null) {
+          throw IllegalArgumentException(
+              'enroll:update cannot change namespaces: an enrollment amending '
+              'itself must not be able to widen its own grant');
         }
         break;
       // list / listns carry no enrollParams; listns validates its namespace

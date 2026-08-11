@@ -51,11 +51,14 @@ class ETU {
     return r.data!;
   }
 
+  /// [apsk] is the client-composed signing-key value; leaving it null is the
+  /// ordinary case and means no `_apsk` is published for this enrollment.
   Future<String> createPendingEnrollment(
       {required String appName,
       required String deviceName,
       required Map<String, String> namespaces,
-      required Duration? apkamKeysExpiryDuration}) async {
+      required Duration? apkamKeysExpiryDuration,
+      Map<String, dynamic>? apsk}) async {
     final EnrollParams ep = EnrollParams()
       ..appName = appName
       ..deviceName = deviceName
@@ -64,6 +67,7 @@ class ETU {
           'encrypted apkam aes key $appName $deviceName'
       ..namespaces = namespaces
       ..apkamKeysExpiryDuration = apkamKeysExpiryDuration
+      ..apsk = apsk
       ..otp = await getOtp();
 
     final String enrollmentRequest = 'enroll:request:'
@@ -159,12 +163,13 @@ class ETU {
     expect(m['enrollmentId'], enIdToDelete);
   }
 
-  Future<String> createPrimaryEnrollment() async {
+  Future<String> createPrimaryEnrollment({Map<String, dynamic>? apsk}) async {
     EnrollParams ep = EnrollParams()
       ..appName = 'primary'
       ..deviceName = 'primary'
       ..apkamPublicKey = 'apkam public key'
       ..encryptedAPKAMSymmetricKey = 'encrypted apkam aes key'
+      ..apsk = apsk
       ..namespaces = {'*': 'rw'};
     String enrollmentRequest = 'enroll:request:'
         '${jsonEncode(ep.toJson())}';

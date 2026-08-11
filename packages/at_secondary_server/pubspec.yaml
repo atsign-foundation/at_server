@@ -45,6 +45,20 @@ dev_dependencies:
 dependency_overrides:
   at_persistence_secondary_server:
     path: ../at_persistence_secondary_server
+  # TEMPORARY, MUST NOT MERGE AS A PATH: at_commons carries EnrollParams.apsk,
+  # the client-composed signing-key value this server stores and publishes,
+  # plus EnrollParams.apkamPublicKeySignature and EnrollOperationEnum.update.
+  # Replace with a git ref on an at_client_sdk TAG (see the at_chops note
+  # below for why a tag and not a branch), and remove entirely when at_commons
+  # 5.14.0 publishes.
+  #
+  # Points at the wt-apsk worktree rather than the main at_client_sdk checkout:
+  # that checkout follows whichever branch is in flight there, so a path into
+  # it silently resolves to whatever at_commons that branch happens to carry.
+  # The worktree is pinned to gkc-apsk-auto-publish, which is the branch this
+  # server's at_commons dependency actually comes from.
+  at_commons:
+    path: ../../../at_client_sdk-wt-apsk/packages/at_commons
   # at_chops carries the synchronous mldsa65 verification dispatch PKAM's
   # record-authoritative verify needs; published at_chops (<=3.4.1) either
   # lacks the branch or returns an async verifier whose Future poisons the

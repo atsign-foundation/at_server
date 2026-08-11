@@ -1,6 +1,7 @@
 import 'dart:collection';
 import 'dart:convert';
 
+import 'package:at_chops/at_chops.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/hive.dart';
@@ -3082,29 +3083,157 @@ void main() {
           throwsA(isA<UnAuthorizedException>()));
     });
 
-    test('_apsk signing key is published on approval (CRAM + enroll:approve)',
+    test(
+        'the client-composed apsk is published VERBATIM on approval '
+        '(CRAM + enroll:approve)', () async {
+      // A shape the server has no code for, deliberately: the value is opaque,
+      // so what comes back out must be what went in and nothing the server
+      // could have composed from (apkamPublicKey, signingAlgo).
+      final composed = {
+        'v': 7,
+        'signingAlgo': 'some-algo-this-server-never-heard-of',
+        'publicKey': 'Y2xpZW50LWNvbXBvc2Vk',
+        'extraFieldTheServerMustNotDrop': ['a', 'b'],
+      };
+
+      // The CRAM auto-approve path.
+      final cramEnId = await etu.createPrimaryEnrollment(apsk: composed);
+      final cramKey = 'public:_apsk.$cramEnId'
+          '.${EnrollmentConstants.perEnrollmentApproved}$alice';
+      expect(await keyValueStore.exists(cramKey), true);
+      expect(jsonDecode((await keyValueStore.get(cramKey))!.data!), composed);
+
+      // The standard enroll:approve path.
+      final pendingEnId = await etu.createPendingEnrollment(
+          appName: 'apskApp',
+          deviceName: 'd',
+          namespaces: {'wavi': 'rw'},
+          apkamKeysExpiryDuration: null,
+          apsk: composed);
+      final pendingKey = 'public:_apsk.$pendingEnId'
+          '.${EnrollmentConstants.perEnrollmentApproved}$alice';
+      expect(await keyValueStore.exists(pendingKey), false,
+          reason: 'nothing is published while the enrollment is only pending');
+
+      await etu.approveEnrollment(etu.primaryEnId, pendingEnId);
+      expect(await keyValueStore.exists(pendingKey), true);
+      expect(jsonDecode((await keyValueStore.get(pendingKey))!.data!), composed);
+    });
+
+    test('an enrollment that sends no apsk gets no _apsk record at all',
         () async {
-      // primary was CRAM auto-approved in ETU.init()
+      // The server composes nothing from (apkamPublicKey, signingAlgo): PKAM
+      // verification reads the record, so an unsent signing key is the
+      // enrollee's own to publish, or to go without.
+      final (enIds, _) = await etu.createEnrollments(n: 1);
+      final apskKey = 'public:_apsk.${enIds[0]}'
+          '.${EnrollmentConstants.perEnrollmentApproved}$alice';
+      expect(await keyValueStore.exists(apskKey), false);
+
+      // Including on the CRAM path, which is where an atSign's very first
+      // enrollment is auto-approved.
       final primaryApsk = 'public:_apsk.${etu.primaryEnId}'
           '.${EnrollmentConstants.perEnrollmentApproved}$alice';
-      expect(await keyValueStore.exists(primaryApsk), true);
-      expect((await keyValueStore.get(primaryApsk))?.data, 'apkam public key');
+      expect(await keyValueStore.exists(primaryApsk), false);
+    });
 
-      // a standard enroll:approve path
-      final (enIds, _) = await etu.createEnrollments(n: 1);
-      final apsk = 'public:_apsk.${enIds[0]}'
-          '.${EnrollmentConstants.perEnrollmentApproved}$alice';
-      expect(await keyValueStore.exists(apsk), true);
+    test('an apsk over the 20KB cap is refused, and creates no enrollment',
+        () async {
+      // Sized on the ENCODED length, which is what lands in the keystore.
+      final overCap = {
+        'publicKey': 'x' * (EnrollVerbHandler.maxApskLengthBytes + 1)
+      };
       expect(
-          (await keyValueStore.get(apsk))?.data, 'apkam public key app_1 test');
+          jsonEncode(overCap).length > EnrollVerbHandler.maxApskLengthBytes,
+          true,
+          reason: 'the arm only tests the cap if it actually exceeds it');
+
+      final before = (await enMgr.getEnrollmentsAsJson()).length;
+      inboundConnection.metaData.isAuthenticated = true;
+      final ep = EnrollParams()
+        ..appName = 'tooBig'
+        ..deviceName = 'd'
+        ..apkamPublicKey = 'apkam pub'
+        ..namespaces = {'wavi': 'rw'}
+        ..apsk = overCap
+        ..otp = await etu.getOtp();
+      inboundConnection.metaData.isAuthenticated = false;
+      inboundConnection.metaData.authType = null;
+      inboundConnection.metaData.sessionID =
+          DateTime.now().millisecondsSinceEpoch.toString();
+
+      await expectLater(
+          etu.evh.processVerb(
+              Response(),
+              getVerbParam(
+                  VerbSyntax.enroll, 'enroll:request:${jsonEncode(ep.toJson())}'),
+              inboundConnection),
+          throwsA(isA<IllegalArgumentException>()));
+
+      expect((await enMgr.getEnrollmentsAsJson()).length, before,
+          reason: 'the refusal lands before the record is created, so an '
+              'oversized value cannot leave a half-made enrollment behind');
+    });
+
+    test('an apsk exactly at the 20KB cap is accepted', () async {
+      // The boundary is inclusive; pinned so a later ">= vs >" edit is caught.
+      final filler = 'x' *
+          (EnrollVerbHandler.maxApskLengthBytes -
+              jsonEncode({'publicKey': ''}).length);
+      final atCap = {'publicKey': filler};
+      expect(jsonEncode(atCap).length, EnrollVerbHandler.maxApskLengthBytes);
+
+      final enId = await etu.createPendingEnrollment(
+          appName: 'atCap',
+          deviceName: 'd',
+          namespaces: {'wavi': 'rw'},
+          apkamKeysExpiryDuration: null,
+          apsk: atCap);
+      await etu.approveEnrollment(etu.primaryEnId, enId);
+      final apskKey = 'public:_apsk.$enId'
+          '.${EnrollmentConstants.perEnrollmentApproved}$alice';
+      expect(jsonDecode((await keyValueStore.get(apskKey))!.data!), atCap);
+    });
+
+    test('an approver cannot substitute the apsk it publishes for an enrollee',
+        () async {
+      // The publish reads the RECORD, so an approve-time value is ignored:
+      // the signing key an enrollment advertises is the enrollee's alone.
+      final enrolleeApsk = {'v': 1, 'publicKey': 'the-enrollees-own-key'};
+      final enId = await etu.createPendingEnrollment(
+          appName: 'substApp',
+          deviceName: 'd',
+          namespaces: {'wavi': 'rw'},
+          apkamKeysExpiryDuration: null,
+          apsk: enrolleeApsk);
+
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.enrollmentId = etu.primaryEnId;
+      final approve = EnrollParams()
+        ..enrollmentId = enId
+        ..encryptedDefaultEncryptionPrivateKey = 'encrypted priv'
+        ..encryptedDefaultSelfEncryptionKey = 'encrypted self'
+        ..apsk = {'v': 1, 'publicKey': 'an-approver-substituted-key'};
+      final r = Response();
+      await etu.evh.processVerb(
+          r,
+          getVerbParam(
+              VerbSyntax.enroll, 'enroll:approve:${jsonEncode(approve.toJson())}'),
+          inboundConnection);
+      expect(r.isError, false);
+
+      final apskKey = 'public:_apsk.$enId'
+          '.${EnrollmentConstants.perEnrollmentApproved}$alice';
+      expect(jsonDecode((await keyValueStore.get(apskKey))!.data!), enrolleeApsk);
     });
 
     test('metadata + signingAlgo on enroll:request are persisted on the record',
         () async {
       inboundConnection.metaData.isAuthenticated = true;
       final otp = await etu.getOtp();
-      // The pinned at_commons EnrollParams does not type metadata/signingAlgo,
-      // so append them to the raw request JSON tail (the server persists them).
+      // Built as raw request JSON rather than through EnrollParams: these are
+      // the wire spellings the server reads, and going through the typed
+      // builder would let a field rename pass unnoticed on both sides.
       final reqJson = {
         'appName': 'metaApp',
         'deviceName': 'd',
@@ -3113,6 +3242,7 @@ void main() {
         'namespaces': {'wavi': 'rw'},
         'otp': otp,
         'signingAlgo': 'mldsa65',
+        'apsk': {'v': 1, 'signingAlgo': 'mldsa65', 'publicKey': 'bWxkc2E='},
         'metadata': {
           'keyPackage': {
             'v': 1,
@@ -3136,6 +3266,8 @@ void main() {
       final enId = jsonDecode(r.data!)['enrollmentId'];
       final ev = await enMgr.getEnrollmentById(enId);
       expect(ev.signingAlgo, 'mldsa65');
+      expect(ev.apsk,
+          {'v': 1, 'signingAlgo': 'mldsa65', 'publicKey': 'bWxkc2E='});
       expect(ev.metadata, {
         'keyPackage': {
           'v': 1,
@@ -3144,6 +3276,172 @@ void main() {
           ]
         }
       });
+    });
+  });
+
+  group('enroll:update', () {
+    final etu = ETU();
+    setUp(() async {
+      await verbTestsSetUp();
+      await etu.init();
+    });
+
+    tearDown(() async {
+      await verbTestsTearDown();
+    });
+
+    /// Signs `<enrollmentId>|<apkamPublicKey>|<signingAlgo>` with [keyPair]'s
+    /// private half, the way a client rotating its key must. Real crypto, not
+    /// a stand-in: a fake string would make the accept arm pass for the wrong
+    /// reason and the reject arm pass for no reason at all.
+    String popSignature(
+        AtPkamKeyPair keyPair, String enId, String pub, String algo) {
+      final input = AtSigningInput('$enId|$pub|$algo')
+        ..signingAlgoType = SigningAlgoType.rsa2048
+        ..hashingAlgoType = HashingAlgoType.sha256
+        ..signingMode = AtSigningMode.pkam;
+      return AtChopsImpl(AtChopsKeys.create(null, keyPair)).sign(input).result;
+    }
+
+    Future<Response> sendUpdate(String asEnrollmentId, EnrollParams p) async {
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.enrollmentId = asEnrollmentId;
+      final r = Response();
+      await etu.evh.processVerb(
+        r,
+        getVerbParam(VerbSyntax.enroll, 'enroll:update:${jsonEncode(p.toJson())}'),
+        inboundConnection,
+      );
+      return r;
+    }
+
+    test('a valid rotation replaces the key, and an invalid one does not', () async {
+      // Both arms in one test deliberately: the accept arm is the control that
+      // proves the reject arm is refusing the signature rather than refusing
+      // everything.
+      final enId = (await etu.createEnrollments(n: 1)).$1.first;
+      final newPair = AtChopsUtil.generateAtPkamKeyPair();
+      final newPub = newPair.atPublicKey.publicKey;
+
+      // Reject arm: signed by a DIFFERENT key than the one being installed.
+      final wrongPair = AtChopsUtil.generateAtPkamKeyPair();
+      await expectLater(
+        sendUpdate(
+            enId,
+            EnrollParams()
+              ..enrollmentId = enId
+              ..apkamPublicKey = newPub
+              ..signingAlgo = 'rsa2048'
+              ..apkamPublicKeySignature =
+                  popSignature(wrongPair, enId, newPub, 'rsa2048')),
+        throwsA(isA<AtEnrollmentException>()),
+      );
+      expect((await etu.evh.enMgr.getEnrollmentById(enId)).apkamPublicKey,
+          isNot(newPub),
+          reason: 'a refused rotation must not have written anything');
+
+      // Accept arm: signed by the key being installed.
+      final r = await sendUpdate(
+          enId,
+          EnrollParams()
+            ..enrollmentId = enId
+            ..apkamPublicKey = newPub
+            ..signingAlgo = 'rsa2048'
+            ..apkamPublicKeySignature =
+                popSignature(newPair, enId, newPub, 'rsa2048'));
+      expect(r.isError, false);
+      final enVal = await etu.evh.enMgr.getEnrollmentById(enId);
+      expect(enVal.apkamPublicKey, newPub);
+      expect(enVal.signingAlgo, 'rsa2048');
+      expect(enVal.approval!.state, EnrollmentStatus.approved.name,
+          reason: 'a rotation must not move the enrollment lifecycle');
+    });
+
+    test('changing apkamPublicKey without a signature is refused', () async {
+      final enId = (await etu.createEnrollments(n: 1)).$1.first;
+      await expectLater(
+        sendUpdate(
+            enId,
+            EnrollParams()
+              ..enrollmentId = enId
+              ..apkamPublicKey = 'a key nobody proved they hold'),
+        throwsA(isA<AtEnrollmentException>()),
+      );
+    });
+
+    test('enroll:update is self-only', () async {
+      final enIds = (await etu.createEnrollments(n: 2)).$1;
+      await expectLater(
+        sendUpdate(
+            enIds[0],
+            EnrollParams()
+              ..enrollmentId = enIds[1]
+              ..metadata = {'anything': 'at all'}),
+        throwsA(isA<AtEnrollmentException>()),
+        reason: 'one enrollment must not amend another',
+      );
+    });
+
+    test('enroll:update cannot change namespaces', () async {
+      // The privilege-escalation guard: self-only plus reachable namespaces
+      // would let an enrollment widen its own grant.
+      final enId = (await etu.createEnrollments(n: 1)).$1.first;
+      await expectLater(
+        sendUpdate(
+            enId,
+            EnrollParams()
+              ..enrollmentId = enId
+              ..namespaces = {'__manage': 'rw'}),
+        throwsA(isA<IllegalArgumentException>()),
+      );
+    });
+
+    test('metadata is a per-key set, not a whole-map replace', () async {
+      final enId = (await etu.createEnrollments(n: 1)).$1.first;
+
+      await sendUpdate(
+          enId,
+          EnrollParams()
+            ..enrollmentId = enId
+            ..metadata = {'first': 'one', 'second': 'two'});
+      await sendUpdate(
+          enId,
+          EnrollParams()
+            ..enrollmentId = enId
+            ..metadata = {'second': 'changed'});
+
+      final md = (await etu.evh.enMgr.getEnrollmentById(enId)).metadata!;
+      expect(md['second'], 'changed');
+      expect(md['first'], 'one',
+          reason: 'a key the second request did not name must survive: a '
+              'whole-map replace would clobber a sibling field the caller '
+              'does not know about');
+    });
+
+    test('an update naming nothing to change is refused', () async {
+      final enId = (await etu.createEnrollments(n: 1)).$1.first;
+      await expectLater(
+        sendUpdate(enId, EnrollParams()..enrollmentId = enId),
+        throwsA(isA<IllegalArgumentException>()),
+      );
+    });
+
+    test('apsk is republished when the update carries one', () async {
+      final enId = (await etu.createEnrollments(n: 1)).$1.first;
+      final apsk = {
+        'v': 1,
+        'keys': [
+          {'use': 'sign', 'alg': 'mldsa65', 'pub': 'bmV3', 'status': 'active'}
+        ]
+      };
+
+      final r = await sendUpdate(
+          enId, EnrollParams()..enrollmentId = enId..apsk = apsk);
+      expect(r.isError, false);
+
+      final published = await etu.evh.keyStore.get(
+          'public:_apsk.$enId.${EnrollmentConstants.perEnrollmentApproved}$alice');
+      expect(jsonDecode(published!.data!), apsk);
     });
   });
 }

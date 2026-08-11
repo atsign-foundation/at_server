@@ -1,4 +1,69 @@
 # 3.16.0
+- feat: `enroll:update` — an approved enrollment amending its OWN record's
+  `apkamPublicKey`, `signingAlgo`, `apsk` and `metadata`. Self-only: the
+  connection's enrollment id must equal the target's, which is an explicit
+  exception to `isAuthorized`'s "no enrollmentId means full permissions"
+  default, so an owner or legacy-PKAM connection is refused rather than waved
+  through.
+
+  This is what lets an enrollment rotate its APKAM authentication keypair while
+  keeping its id. Before it, the only route was a new enrollment, which strands
+  every record addressed to the old one.
+
+  `namespaces` and the approval state are permanently out of reach, and are
+  refused by name rather than ignored: an enrollment amending itself must not
+  be able to widen its own grant. `metadata` is a per-key set — keys the
+  request does not name survive untouched — because a whole-map replace is
+  read-mutate-write against shared durable state, so a client that does not
+  know about a future sibling field would clobber it. The enrollment's state
+  and TTL are untouched, and an update naming nothing to change is refused
+  rather than accepted as a no-op.
+
+- feat: `enroll:update` changing `apkamPublicKey` requires
+  `EnrollParams.apkamPublicKeySignature` — a signature by the **new** private
+  key over `<enrollmentId>|<apkamPublicKey>|<signingAlgo>`, verified against
+  the new public key carried in the same request.
+
+  The connection proves possession of the enrollment's *current* key, and
+  nothing else proves possession of the new one. Without this check a
+  compromised-but-authenticated client can install a public key whose private
+  half is held by an attacker, locking out the legitimate holder while the
+  record still looks entirely valid.
+
+  Signed and verified with `AtSigningMode.pkam` and SHA-256. Not
+  `AtSigningMode.data`, which signs with the encryption keypair and so cannot
+  express possession of an APKAM signing key at all. No nonce: the operation is
+  self-only and the old key stops authenticating the moment the rotation lands,
+  so a replayed request can only be sent by the current holder, which makes a
+  rollback self-harm rather than an attack.
+
+- **behaviour change**: the atServer no longer composes an enrollment's `_apsk`
+  signing key. It publishes `EnrollParams.apsk` — a value the CLIENT composes
+  and sends on `enroll:request` — verbatim at
+  `public:_apsk.<enrollmentId>.a.__e@<atSign>`, and publishes **nothing** when
+  the request carries no such value. The old behaviour (bare `apkamPublicKey`
+  for `rsa2048`, a `{v, signingAlgo, publicKey}` object composed from the
+  record for anything else) is gone, along with the server's only opinion about
+  how a signing key is spelled.
+
+  PKAM verification reads the enrollment record's `apkamPublicKey` and
+  `signingAlgo`, never `_apsk`, so this key is a client-side artefact the
+  server had no use for. What it *was* doing is bootstrapping: `_apsk` accepts
+  writes only from its own enrollment's connection, and at approval that
+  connection has never existed, while the approver must verify the enrollee's
+  key package against the record and sign signing-chain links over it
+  immediately. The server still does that bootstrapping — it just no longer
+  invents the payload, so a new signing-key shape needs no server release. The
+  value is stored on the enrollment record (`EnrollDataStoreValue.apsk`) at
+  request time and published from there at approval, so an approver cannot
+  substitute a signing key for the enrollment it is approving.
+
+  Requires at_commons with `EnrollParams.apsk`. Capped at
+  `EnrollVerbHandler.maxApskLengthBytes` (20KB, measured on the JSON encoding);
+  an oversized value is refused with `IllegalArgumentException` before the
+  enrollment record is created, never truncated — a truncated signing key would
+  be a key nothing can verify against, sitting at the address every verifier
+  resolves.
 - fix: deny, not throw, on an unparseable atKey in authz
 - fix: defensive code to properly handle a namespace named 'null'
 - fix: scope namespace-less keys to the legacy shared_key forms
