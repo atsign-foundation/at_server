@@ -29,6 +29,27 @@ class EnrollDataStoreValue {
   /// `mldsa65` (PQ). Recorded so PKAM verification can be record-authoritative.
   String? signingAlgo;
 
+  /// The client-composed value published at
+  /// `public:_apsk.<enrollmentId>.a.__e@<atSign>` when this enrollment is
+  /// approved, carried on `enroll:request` as `EnrollParams.apsk`.
+  ///
+  /// Opaque, exactly like [metadata]: the server stores it and JSON-encodes it
+  /// into the record it publishes, and has no opinion on the contents. It is
+  /// deliberately NOT composed from [apkamPublicKey] and [signingAlgo] — PKAM
+  /// verification reads this record, so `_apsk` is a client-side artefact and
+  /// the format belongs to the side that reads it.
+  ///
+  /// Null means no `_apsk` is published for this enrollment at all. The
+  /// enrollee publishes its own from its own connection, or goes without.
+  ///
+  /// Why the server writes it at all, given it never reads it: `_apsk` accepts
+  /// writes only from its own enrollment's connection, and at approval that
+  /// connection has never existed. The approver needs the record in place
+  /// immediately — it verifies the enrollee's key package against it and signs
+  /// signing-chain links over it — so the server is the only party that can
+  /// put it there in time.
+  Map<String, dynamic>? apsk;
+
   /// The enrollment whose authenticated connection self-spawned this one
   /// (RF-SRV), or null for every other origin.
   ///
