@@ -19,9 +19,9 @@ dependencies:
   basic_utils: ^5.7.0
   ecdsa: ^0.1.2
   encrypt: ^5.0.3
-  at_commons: ^5.13.0
+  at_commons: ^5.14.0
   at_utils: ^3.4.0
-  at_chops: ^3.4.2
+  at_chops: ^3.5.0
   at_lookup: ^3.6.0
   at_server_spec: ^5.1.0
   at_persistence_secondary_server: ^5.2.1
@@ -41,23 +41,11 @@ dev_dependencies:
   coverage: ^1.15.1
   lints: ^6.1.0
   mocktail: ^1.0.5
+  # Generating an secp256r1 keypair to sign an ecc_secp256r1 APKAM signature
+  # with, in apkam_signature_verifier_test. Declared rather than leaned on
+  # transitively through ecdsa, matching tests/at_functional_test.
+  elliptic: ^0.3.11
 
 dependency_overrides:
   at_persistence_secondary_server:
     path: ../at_persistence_secondary_server
-  # at_chops carries the synchronous mldsa65 verification dispatch PKAM's
-  # record-authoritative verify needs; published at_chops (<=3.4.1) either
-  # lacks the branch or returns an async verifier whose Future poisons the
-  # bool result. Remove when it publishes.
-  #
-  # ref is a TAG, deliberately: pub fetches a git ref shallowly, reaching only
-  # branch and tag tips. A branch ref strands this pin the moment the branch
-  # head moves (the locked commit is then absent from a cold pub-cache, though
-  # it keeps resolving on any machine whose cache predates the move), and a
-  # bare commit SHA is worse — unresolvable as soon as it stops being a tip
-  # ("fatal: bad object"). A tag is both immutable and fetchable.
-  at_chops:
-    git:
-      url: https://github.com/atsign-foundation/at_client_sdk.git
-      path: packages/at_chops
-      ref: at_chops-pq-spike-1 # at_client_sdk 55a78f16, off gkc-pq-d1-spike

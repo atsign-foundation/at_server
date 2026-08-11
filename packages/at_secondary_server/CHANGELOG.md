@@ -1,4 +1,113 @@
 # 3.16.0
+- feat: `enroll:update` — an approved enrollment amending its OWN record's
+  `apkamPublicKey`, `signingAlgo`, `apsk` and `metadata`. Self-only: the
+  connection's enrollment id must equal the target's, which is an explicit
+  exception to `isAuthorized`'s "no enrollmentId means full permissions"
+  default, so an owner or legacy-PKAM connection is refused rather than waved
+  through.
+
+  This is what lets an enrollment rotate its APKAM authentication keypair while
+  keeping its id. Before it, the only route was a new enrollment, which strands
+  every record addressed to the old one.
+
+  `namespaces` and the approval state are permanently out of reach, and are
+  refused by name rather than ignored: an enrollment amending itself must not
+  be able to widen its own grant. `metadata` is a per-key set — keys the
+  request does not name survive untouched — because a whole-map replace is
+  read-mutate-write against shared durable state, so a client that does not
+  know about a future sibling field would clobber it. The enrollment's state
+  and TTL are untouched, and an update naming nothing to change is refused
+  rather than accepted as a no-op.
+
+- feat: `enroll:update` changing `apkamPublicKey` requires
+  `EnrollParams.apkamPublicKeySignature` — a signature by the **new** private
+  key over `<enrollmentId>|<apkamPublicKey>|<signingAlgo>`, verified against
+  the new public key carried in the same request.
+
+  The connection proves possession of the enrollment's *current* key, and
+  nothing else proves possession of the new one. Without this check a
+  compromised-but-authenticated client can install a public key whose private
+  half is held by an attacker, locking out the legitimate holder while the
+  record still looks entirely valid.
+
+  Signed and verified with `AtSigningMode.pkam` and SHA-256. Not
+  `AtSigningMode.data`, which signs with the encryption keypair and so cannot
+  express possession of an APKAM signing key at all. No nonce: the operation is
+  self-only and the old key stops authenticating the moment the rotation lands,
+  so a replayed request can only be sent by the current holder, which makes a
+  rollback self-harm rather than an attack.
+
+- **behaviour change**: the atServer no longer composes an enrollment's `_apsk`
+  signing key. It publishes `EnrollParams.apsk` — a value the CLIENT composes
+  and sends on `enroll:request` — verbatim at
+  `public:_apsk.<enrollmentId>.a.__e@<atSign>`, and publishes **nothing** when
+  the request carries no such value. The old behaviour (bare `apkamPublicKey`
+  for `rsa2048`, a `{v, signingAlgo, publicKey}` object composed from the
+  record for anything else) is gone, along with the server's only opinion about
+  how a signing key is spelled.
+
+  PKAM verification reads the enrollment record's `apkamPublicKey` and
+  `signingAlgo`, never `_apsk`, so this key is a client-side artefact the
+  server had no use for. What it *was* doing is bootstrapping: `_apsk` accepts
+  writes only from its own enrollment's connection, and at approval that
+  connection has never existed, while the approver must verify the enrollee's
+  key package against the record and sign signing-chain links over it
+  immediately. The server still does that bootstrapping — it just no longer
+  invents the payload, so a new signing-key shape needs no server release. The
+  value is stored on the enrollment record (`EnrollDataStoreValue.apsk`) at
+  request time and published from there at approval, so an approver cannot
+  substitute a signing key for the enrollment it is approving.
+
+  Requires at_commons with `EnrollParams.apsk`. Capped at
+  `EnrollVerbHandler.maxApskLengthBytes` (20KB, measured on the JSON encoding);
+  an oversized value is refused with `IllegalArgumentException` before the
+  enrollment record is created, never truncated — a truncated signing key would
+  be a key nothing can verify against, sitting at the address every verifier
+  resolves.
+- refactor: APKAM signature verification now goes through one place,
+  `ApkamSignatureVerifier`, rather than being assembled separately by `pkam:`
+  and by `enroll:update`'s proof-of-possession check. The two have to agree
+  byte-for-byte about how a signature is framed — a key that can authenticate
+  must be installable, and a key installed must then authenticate — and each
+  previously carried its own copy of the `signingAlgo`-token mapping.
+
+  The boundary returns `Future<bool>`. at_chops answers through
+  `AtSigningResult.result`, a `dynamic` holding a `FutureOr<bool>`, and that
+  `dynamic` is what let an unawaited ML-DSA `Future` reach a `bool` at both
+  sites; a typed boundary makes the same promise in a form the analyzer
+  enforces. `mldsa65` is verified through the stateless
+  `MlDsa65PureDartAlgo.verifyBytes`, which is declared `Future<bool>`, so the
+  one algorithm that verifies asynchronously never travels as a `dynamic` at
+  all. A test pins that it answers exactly what the `AtChopsImpl` path it
+  replaced answered, over a genuine signature, a wrong message and a wrong key.
+
+  `rsa2048` and `ecc_secp256r1` deliberately keep the `AtChopsImpl` path.
+  `RsaSignatureAlgo` refuses any modulus that is not exactly 2048 bits, which
+  `PkamSigningAlgo` never checked, so adopting it would stop an enrollment
+  holding an off-size RSA key from authenticating; and at_chops has no
+  `AtSignatureAlgorithm` for ECC at all, its key being hex and its signature
+  compact-hex code units. Both would change what verifies on the
+  authentication path.
+
+- fix: a malformed APKAM public key or signature now fails the verification
+  instead of escaping the verb handler. `enroll:update` takes `apkamPublicKey`
+  straight off the request, and `package:elliptic` rejects a bad
+  `ecc_secp256r1` key by throwing a bare `String` — which `on Exception` does
+  not catch — or a `RangeError` for a key under two characters. `base64Decode`
+  of the signature also ran outside both call sites' guards. Verification is
+  now total and fails closed; an `Error`, being a defect in this server rather
+  than a bad signature, is logged at `severe` with its stack rather than at
+  `finer`.
+- fix: `await` the result of an `AtChops` signature verification. Published
+  at_chops 3.5.0 verifies `rsa2048` and `ecc_secp256r1` synchronously but
+  `mldsa65` asynchronously, while `AtChopsImpl.verify` is synchronous either
+  way — so `AtSigningResult.result` carries a `FutureOr<bool>` and an ML-DSA
+  verification handed the caller an unawaited `Future` where it read a `bool`.
+  Every `mldsa65` PKAM authentication died on
+  `type 'Future<bool>' is not a subtype of type 'bool'`, and an `enroll:update`
+  rotating to an ML-DSA key would have died the same way. The at_chops git
+  override this replaced pinned a spike tag whose ML-DSA verifier was
+  synchronous, which is why the two verification sites read `.result` directly.
 - fix: deny, not throw, on an unparseable atKey in authz
 - fix: defensive code to properly handle a namespace named 'null'
 - fix: scope namespace-less keys to the legacy shared_key forms

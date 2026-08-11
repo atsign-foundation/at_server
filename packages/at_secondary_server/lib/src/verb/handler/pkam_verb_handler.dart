@@ -1,13 +1,12 @@
 import 'dart:collection';
 import 'dart:convert';
-import 'dart:typed_data';
 
-import 'package:at_chops/at_chops.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/apkam_signature_verifier.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -16,12 +15,6 @@ import 'package:meta/meta.dart';
 
 class PkamVerbHandler extends AbstractVerbHandler {
   static Pkam pkam = Pkam();
-  static const String _eccAlgo = 'ecc_secp256r1';
-  static const String _rsa2048Algo = 'rsa2048';
-  static const String _mlDsa65Algo = 'mldsa65';
-  static const String _sha256 = 'sha256';
-  static const String _sha512 = 'sha512';
-  AtChops? atChops;
 
   PkamVerbHandler(super.keyStore);
 
@@ -74,7 +67,8 @@ class PkamVerbHandler extends AbstractVerbHandler {
       // that predate the field (an RSA record verified as ML-DSA fails a
       // legitimate legacy client; the wire fallback exists for legacy
       // no-enrollment PKAM, which may present ecc_secp256r1).
-      recordSigningAlgo = apkamResult.signingAlgo ?? _rsa2048Algo;
+      recordSigningAlgo =
+          apkamResult.signingAlgo ?? ApkamSignatureVerifier.rsa2048Algo;
     } else {
       pkamAuthType = AuthType.pkamLegacy;
       var publicKeyData = await keyStore.get(AtConstants.atPkamPublicKey);
@@ -200,57 +194,16 @@ class PkamVerbHandler extends AbstractVerbHandler {
       return false;
     }
 
-    Uint8List? inputSignature = base64Decode(signature);
-    SigningAlgoType signingAlgoEnum = _getSigningAlgoType(signingAlgo);
-    logger.finer('signingAlgoEnum: $signingAlgoEnum');
-
-    HashingAlgoType hashingAlgoEnum = _getHashingAlgoType(hashingAlgo);
-    logger.finer('hashingAlgoEnum: $hashingAlgoEnum');
-
-    final verificationInput = AtSigningVerificationInput(
-        utf8.encode('$sessionId$atSign:$storedSecret'),
-        inputSignature,
-        publicKey);
-    verificationInput.signingAlgoType = signingAlgoEnum;
-    verificationInput.hashingAlgoType = hashingAlgoEnum;
-    verificationInput.signingMode = AtSigningMode.pkam;
-    try {
-      atChops ??= AtChopsImpl(AtChopsKeys.create(null, null));
-      final verificationResult = atChops!.verify(verificationInput);
-      isValidSignature = verificationResult.result;
-    } on Exception catch (e) {
-      logger.finer('Exception in pkam signature verification: ${e.toString()}');
-    }
+    logger.finer('signingAlgo: $signingAlgo, hashingAlgo: $hashingAlgo');
+    isValidSignature = await ApkamSignatureVerifier.verify(
+      message: utf8.encode('$sessionId$atSign:$storedSecret'),
+      base64Signature: signature,
+      publicKey: publicKey,
+      signingAlgo: ApkamSignatureVerifier.signingAlgoTypeOf(signingAlgo),
+      hashingAlgo: ApkamSignatureVerifier.hashingAlgoTypeOf(hashingAlgo),
+    );
     logger.finer('PKAM auth: $isValidSignature');
     return isValidSignature;
-  }
-
-  SigningAlgoType _getSigningAlgoType(String? signingAlgo) {
-    // if no signature algorithm is passed, default to RSA verification. This preserves
-    // backward compatibility for old pkam messages without signing algo.
-    logger.finer('signingAlgo: $signingAlgo');
-    if (signingAlgo == _eccAlgo) {
-      return SigningAlgoType.ecc_secp256r1;
-    } else if (signingAlgo == _rsa2048Algo) {
-      return SigningAlgoType.rsa2048;
-    } else if (signingAlgo == _mlDsa65Algo) {
-      // Without this branch a post-quantum APKAM keypair falls through to the
-      // RSA default below and can never authenticate at all — the signature is
-      // well-formed, just interpreted under the wrong algorithm.
-      return SigningAlgoType.mldsa65;
-    }
-    return SigningAlgoType.rsa2048;
-  }
-
-  HashingAlgoType _getHashingAlgoType(String? hashingAlgo) {
-    logger.finer('hashingAlgo: $hashingAlgo');
-    if (hashingAlgo == _sha256) {
-      return HashingAlgoType.sha256;
-    } else if (hashingAlgo == _sha512) {
-      return HashingAlgoType.sha512;
-    }
-    // defaults to SHA-256
-    return HashingAlgoType.sha256;
   }
 }
 
