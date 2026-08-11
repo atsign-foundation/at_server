@@ -60,11 +60,10 @@ packages:
   at_chops:
     dependency: "direct main"
     description:
-      path: "packages/at_chops"
-      ref: at_chops-pq-spike-1
-      resolved-ref: "55a78f161e91e9dfe1f168247e26b8af09ff073f"
-      url: "https://github.com/atsign-foundation/at_client_sdk.git"
-    source: git
+      name: at_chops
+      sha256: "0ed0084d583f4cf7d2fb0290a7d4e941e83f537b79fffd33247199b715fb7ca1"
+      url: "https://pub.dev"
+    source: hosted
     version: "3.5.0"
   at_commons:
     dependency: "direct main"
