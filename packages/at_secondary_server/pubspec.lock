@@ -296,7 +296,7 @@ packages:
     source: hosted
     version: "0.1.2"
   elliptic:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: elliptic
       sha256: "67931d408faa353bdebac9f7a1df0c3f6f828f4e8439cdf084573cd1601a2f4b"

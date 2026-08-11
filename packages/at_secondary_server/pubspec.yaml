@@ -41,6 +41,10 @@ dev_dependencies:
   coverage: ^1.15.1
   lints: ^6.1.0
   mocktail: ^1.0.5
+  # Generating an secp256r1 keypair to sign an ecc_secp256r1 APKAM signature
+  # with, in apkam_signature_verifier_test. Declared rather than leaned on
+  # transitively through ecdsa, matching tests/at_functional_test.
+  elliptic: ^0.3.11
 
 dependency_overrides:
   at_persistence_secondary_server:

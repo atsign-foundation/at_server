@@ -64,6 +64,31 @@
   enrollment record is created, never truncated — a truncated signing key would
   be a key nothing can verify against, sitting at the address every verifier
   resolves.
+- refactor: APKAM signature verification now goes through one place,
+  `ApkamSignatureVerifier`, rather than being assembled separately by `pkam:`
+  and by `enroll:update`'s proof-of-possession check. The two have to agree
+  byte-for-byte about how a signature is framed — a key that can authenticate
+  must be installable, and a key installed must then authenticate — and each
+  previously carried its own copy of the `signingAlgo`-token mapping.
+
+  The boundary returns `Future<bool>`. at_chops answers through
+  `AtSigningResult.result`, a `dynamic` holding a `FutureOr<bool>`, and that
+  `dynamic` is what let an unawaited ML-DSA `Future` reach a `bool` at both
+  sites; a typed boundary makes the same promise in a form the analyzer
+  enforces. `mldsa65` is verified through the stateless
+  `MlDsa65PureDartAlgo.verifyBytes`, which is declared `Future<bool>`, so the
+  one algorithm that verifies asynchronously never travels as a `dynamic` at
+  all. A test pins that it answers exactly what the `AtChopsImpl` path it
+  replaced answered, over a genuine signature, a wrong message and a wrong key.
+
+  `rsa2048` and `ecc_secp256r1` deliberately keep the `AtChopsImpl` path.
+  `RsaSignatureAlgo` refuses any modulus that is not exactly 2048 bits, which
+  `PkamSigningAlgo` never checked, so adopting it would stop an enrollment
+  holding an off-size RSA key from authenticating; and at_chops has no
+  `AtSignatureAlgorithm` for ECC at all, its key being hex and its signature
+  compact-hex code units. Both would change what verifies on the
+  authentication path.
+
 - fix: `await` the result of an `AtChops` signature verification. Published
   at_chops 3.5.0 verifies `rsa2048` and `ecc_secp256r1` synchronously but
   `mldsa65` asynchronously, while `AtChopsImpl.verify` is synchronous either

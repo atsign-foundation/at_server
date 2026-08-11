@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 
-import 'package:at_chops/at_chops.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
@@ -11,6 +10,7 @@ import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/apkam_signature_verifier.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:meta/meta.dart';
@@ -790,54 +790,24 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'of the key it is installing');
     }
 
-    // Verified through the same AtChops compatibility API `pkam_verb_handler`
-    // uses, deprecated and all. That is deliberate: PKAM is the other place
-    // that verifies an APKAM signature against a record's algorithm, and two
-    // verification paths that have to agree byte-for-byte about how a
-    // signature is framed is a worse problem than one shared deprecation.
-    // Migrate both to AtSignatureAlgorithm.verifyBytes together, once at_chops
-    // offers a SigningAlgoType-to-algorithm dispatcher.
+    // Verified through ApkamSignatureVerifier, the same path `pkam:` uses.
+    // PKAM is the other place that verifies an APKAM signature against a
+    // record's algorithm, and the two must agree byte-for-byte about how a
+    // signature is framed: a key that can authenticate has to be installable,
+    // and a key installed here has to be able to authenticate afterwards.
     final signable = '$enrollmentId|$apkamPublicKey|$signingAlgo';
-    final verificationInput = AtSigningVerificationInput(
-        utf8.encode(signable), base64Decode(signature), apkamPublicKey)
-      ..signingAlgoType = _signingAlgoTypeOf(signingAlgo)
-      ..hashingAlgoType = HashingAlgoType.sha256
-      // pkam, not data: AtSigningMode.data signs with the ENCRYPTION keypair,
-      // and what is being proved here is possession of an APKAM signing key.
-      // It is also the mode PKAM verification itself uses, so the two agree
-      // about how the bytes are framed.
-      ..signingMode = AtSigningMode.pkam;
-
-    bool verified = false;
-    try {
-      // await, because AtSigningResult.result is a FutureOr<bool>: at_chops
-      // verifies mldsa65 asynchronously and the other algorithms
-      // synchronously, while AtChopsImpl.verify is synchronous either way.
-      // Awaiting a non-Future returns it unchanged, so both arrive as a bool.
-      verified = await AtChopsImpl(AtChopsKeys.create(null, null))
-          .verify(verificationInput)
-          .result;
-    } on Exception catch (e) {
-      logger.finer('apkamPublicKeySignature verification threw: $e');
-    }
+    final verified = await ApkamSignatureVerifier.verify(
+      message: utf8.encode(signable),
+      base64Signature: signature,
+      publicKey: apkamPublicKey,
+      signingAlgo: ApkamSignatureVerifier.signingAlgoTypeOf(signingAlgo),
+    );
     if (!verified) {
       throw AtEnrollmentException(
           'apkamPublicKeySignature does not verify against the '
           'apkamPublicKey being installed');
     }
   }
-
-  /// The [SigningAlgoType] a `signingAlgo` token names.
-  ///
-  /// Defaults to `rsa2048` for an absent token, matching PKAM's own
-  /// resolution, so a record written before the field existed keeps behaving
-  /// as it always did.
-  SigningAlgoType _signingAlgoTypeOf(String? signingAlgo) =>
-      switch (signingAlgo) {
-        'ecc_secp256r1' => SigningAlgoType.ecc_secp256r1,
-        'mldsa65' => SigningAlgoType.mldsa65,
-        _ => SigningAlgoType.rsa2048,
-      };
 
   Future<void> _dropRevokedClientConnection(String enrollmentId, bool forceFlag,
       InboundConnection currentInboundConnection, responseJson) async {
