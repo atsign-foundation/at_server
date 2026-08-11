@@ -810,7 +810,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
     bool verified = false;
     try {
-      verified = AtChopsImpl(AtChopsKeys.create(null, null))
+      // await, because AtSigningResult.result is a FutureOr<bool>: at_chops
+      // verifies mldsa65 asynchronously and the other algorithms
+      // synchronously, while AtChopsImpl.verify is synchronous either way.
+      // Awaiting a non-Future returns it unchanged, so both arrive as a bool.
+      verified = await AtChopsImpl(AtChopsKeys.create(null, null))
           .verify(verificationInput)
           .result;
     } on Exception catch (e) {

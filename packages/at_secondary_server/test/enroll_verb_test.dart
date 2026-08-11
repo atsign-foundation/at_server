@@ -3357,6 +3357,46 @@ void main() {
           reason: 'a rotation must not move the enrollment lifecycle');
     });
 
+    test('an mldsa65 rotation proves possession of the ML-DSA key', () async {
+      // The rsa2048 arms above cannot reach this: at_chops verifies rsa2048
+      // synchronously and mldsa65 asynchronously, so only the ML-DSA path
+      // hands the handler a Future where it reads a bool. Real ML-DSA
+      // material for the same reason the rsa2048 test uses real keys.
+      final enId = (await etu.createEnrollments(n: 1)).$1.first;
+      final newKey = await MlDsa65PureDartAlgo().generateKeyPair();
+      final wrongKey = await MlDsa65PureDartAlgo().generateKeyPair();
+      final newPub = base64Encode(newKey.publicKey);
+      final signable = utf8.encode('$enId|$newPub|mldsa65');
+
+      EnrollParams rotation(String signature) => EnrollParams()
+        ..enrollmentId = enId
+        ..apkamPublicKey = newPub
+        ..signingAlgo = 'mldsa65'
+        ..apkamPublicKeySignature = signature;
+
+      // Reject arm: signed by a different ML-DSA key than the one installed.
+      await expectLater(
+        sendUpdate(
+            enId,
+            rotation(base64Encode(await MlDsa65PureDartAlgo()
+                .signBytes(signable, secretKey: wrongKey.secretKey)))),
+        throwsA(isA<AtEnrollmentException>()),
+      );
+      expect((await etu.evh.enMgr.getEnrollmentById(enId)).apkamPublicKey,
+          isNot(newPub),
+          reason: 'a refused rotation must not have written anything');
+
+      // Accept arm: the control proving the refusal was about the signature.
+      final r = await sendUpdate(
+          enId,
+          rotation(base64Encode(await MlDsa65PureDartAlgo()
+              .signBytes(signable, secretKey: newKey.secretKey))));
+      expect(r.isError, false);
+      final enVal = await etu.evh.enMgr.getEnrollmentById(enId);
+      expect(enVal.apkamPublicKey, newPub);
+      expect(enVal.signingAlgo, 'mldsa65');
+    });
+
     test('changing apkamPublicKey without a signature is refused', () async {
       final enId = (await etu.createEnrollments(n: 1)).$1.first;
       await expectLater(

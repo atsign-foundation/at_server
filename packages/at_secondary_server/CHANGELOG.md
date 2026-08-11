@@ -64,6 +64,16 @@
   enrollment record is created, never truncated — a truncated signing key would
   be a key nothing can verify against, sitting at the address every verifier
   resolves.
+- fix: `await` the result of an `AtChops` signature verification. Published
+  at_chops 3.5.0 verifies `rsa2048` and `ecc_secp256r1` synchronously but
+  `mldsa65` asynchronously, while `AtChopsImpl.verify` is synchronous either
+  way — so `AtSigningResult.result` carries a `FutureOr<bool>` and an ML-DSA
+  verification handed the caller an unawaited `Future` where it read a `bool`.
+  Every `mldsa65` PKAM authentication died on
+  `type 'Future<bool>' is not a subtype of type 'bool'`, and an `enroll:update`
+  rotating to an ML-DSA key would have died the same way. The at_chops git
+  override this replaced pinned a spike tag whose ML-DSA verifier was
+  synchronous, which is why the two verification sites read `.result` directly.
 - fix: deny, not throw, on an unparseable atKey in authz
 - fix: defensive code to properly handle a namespace named 'null'
 - fix: scope namespace-less keys to the legacy shared_key forms

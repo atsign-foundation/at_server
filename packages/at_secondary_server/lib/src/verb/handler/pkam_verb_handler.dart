@@ -217,7 +217,12 @@ class PkamVerbHandler extends AbstractVerbHandler {
     try {
       atChops ??= AtChopsImpl(AtChopsKeys.create(null, null));
       final verificationResult = atChops!.verify(verificationInput);
-      isValidSignature = verificationResult.result;
+      // AtSigningResult.result carries a FutureOr<bool>: at_chops verifies
+      // rsa2048 and ecc_secp256r1 synchronously but mldsa65 asynchronously,
+      // and AtChopsImpl.verify is synchronous, so the Future reaches us
+      // unawaited. `await` on a non-Future returns it unchanged, so this
+      // handles both without asking which algorithm ran.
+      isValidSignature = await verificationResult.result;
     } on Exception catch (e) {
       logger.finer('Exception in pkam signature verification: ${e.toString()}');
     }
