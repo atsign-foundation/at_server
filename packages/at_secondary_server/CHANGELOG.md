@@ -1,3 +1,12 @@
+# 3.16.1
+- feat: honour `EnrollParams.apskLegacy` — the bare RSA `_apsk` string,
+  published verbatim rather than JSON-encoded. A request carrying both it and
+  `apsk` is refused.
+- feat: one 500KB limit on the whole enrollment record, replacing the
+  per-field `apsk` cap. `metadata` was uncapped, so the old bound sat on the
+  one field nobody would use to make a record big.
+- fix: fix race in enrollment manager
+
 # 3.16.0
 - feat: `enroll:update` — an approved enrollment amending its OWN record's
   `apkamPublicKey`, `signingAlgo`, `apsk` and `metadata`. Self-only: the

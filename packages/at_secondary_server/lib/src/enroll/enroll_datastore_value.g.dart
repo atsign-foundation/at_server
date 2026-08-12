@@ -27,6 +27,7 @@ EnrollDataStoreValue _$EnrollDataStoreValueFromJson(
       ..metadata = (json['metadata'] as Map<String, dynamic>?)
       ..signingAlgo = json['signingAlgo'] as String?
       ..apsk = (json['apsk'] as Map<String, dynamic>?)
+      ..apskLegacy = json['apskLegacy'] as String?
       ..parentEnrollmentId = json['parentEnrollmentId'] as String?;
 
 Map<String, dynamic> _$EnrollDataStoreValueToJson(
@@ -45,6 +46,7 @@ Map<String, dynamic> _$EnrollDataStoreValueToJson(
       if (instance.metadata != null) 'metadata': instance.metadata,
       if (instance.signingAlgo != null) 'signingAlgo': instance.signingAlgo,
       if (instance.apsk != null) 'apsk': instance.apsk,
+      if (instance.apskLegacy != null) 'apskLegacy': instance.apskLegacy,
       if (instance.parentEnrollmentId != null)
         'parentEnrollmentId': instance.parentEnrollmentId,
     };

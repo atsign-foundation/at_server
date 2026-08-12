@@ -3137,54 +3137,134 @@ void main() {
       expect(await keyValueStore.exists(primaryApsk), false);
     });
 
-    test('an apsk over the 20KB cap is refused, and creates no enrollment',
-        () async {
-      // Sized on the ENCODED length, which is what lands in the keystore.
-      final overCap = {
-        'publicKey': 'x' * (EnrollVerbHandler.maxApskLengthBytes + 1)
-      };
-      expect(
-          jsonEncode(overCap).length > EnrollVerbHandler.maxApskLengthBytes,
-          true,
-          reason: 'the arm only tests the cap if it actually exceeds it');
-
-      final before = (await enMgr.getEnrollmentsAsJson()).length;
-      inboundConnection.metaData.isAuthenticated = true;
-      final ep = EnrollParams()
-        ..appName = 'tooBig'
-        ..deviceName = 'd'
-        ..apkamPublicKey = 'apkam pub'
-        ..namespaces = {'wavi': 'rw'}
-        ..apsk = overCap
-        ..otp = await etu.getOtp();
+    /// Submits an unauthenticated `enroll:request` built from [ep] and returns
+    /// the future, so a caller can assert on how it is refused.
+    Future<void> submitRequest(EnrollParams ep) async {
       inboundConnection.metaData.isAuthenticated = false;
       inboundConnection.metaData.authType = null;
       inboundConnection.metaData.sessionID =
           DateTime.now().millisecondsSinceEpoch.toString();
+      await etu.evh.processVerb(
+          Response(),
+          getVerbParam(
+              VerbSyntax.enroll, 'enroll:request:${jsonEncode(ep.toJson())}'),
+          inboundConnection);
+    }
 
-      await expectLater(
-          etu.evh.processVerb(
-              Response(),
-              getVerbParam(
-                  VerbSyntax.enroll, 'enroll:request:${jsonEncode(ep.toJson())}'),
-              inboundConnection),
-          throwsA(isA<IllegalArgumentException>()));
+    /// An `enroll:request` params object with everything mandatory filled in
+    /// and a fresh OTP, ready for a size arm to load up.
+    ///
+    /// `encryptedAPKAMSymmetricKey` is not optional dressing here: without it
+    /// `_validateParams` refuses the request — as an IllegalArgumentException,
+    /// the same class the size refusal throws — before the size check is ever
+    /// reached. Every arm below therefore matches on the MESSAGE too, or it
+    /// goes green on a refusal that has nothing to do with the cap.
+    Future<EnrollParams> sizedRequest(String appName) async {
+      inboundConnection.metaData.isAuthenticated = true;
+      final otp = await etu.getOtp();
+      return EnrollParams()
+        ..appName = appName
+        ..deviceName = 'd'
+        ..apkamPublicKey = 'apkam pub'
+        ..encryptedAPKAMSymmetricKey = 'encrypted apkam aes key'
+        ..namespaces = {'wavi': 'rw'}
+        ..otp = otp;
+    }
+
+    /// Matches only a refusal that names the size bound.
+    final refusedForSize = throwsA(isA<IllegalArgumentException>().having(
+        (e) => e.message,
+        'message',
+        anyOf(contains('enrollment record is'), contains('enroll params are'))));
+
+    test('a record over the cap is refused, and creates no enrollment',
+        () async {
+      final before = (await enMgr.getEnrollmentsAsJson()).length;
+      final ep = await sizedRequest('tooBig')
+        ..apsk = {
+          'publicKey': 'x' * (EnrollVerbHandler.maxEnrollmentRecordBytes + 1)
+        };
+
+      await expectLater(submitRequest(ep), refusedForSize);
 
       expect((await enMgr.getEnrollmentsAsJson()).length, before,
           reason: 'the refusal lands before the record is created, so an '
               'oversized value cannot leave a half-made enrollment behind');
     });
 
-    test('an apsk exactly at the 20KB cap is accepted', () async {
-      // The boundary is inclusive; pinned so a later ">= vs >" edit is caught.
-      final filler = 'x' *
-          (EnrollVerbHandler.maxApskLengthBytes -
-              jsonEncode({'publicKey': ''}).length);
-      final atCap = {'publicKey': filler};
-      expect(jsonEncode(atCap).length, EnrollVerbHandler.maxApskLengthBytes);
+    test('an oversized request does not spend the OTP', () async {
+      // What the params pre-filter buys, and the only thing that distinguishes
+      // it from the record check that follows: the size refusal lands before
+      // isPasscodeValid, which deletes the OTP on use. Without it a client
+      // that sent too much would have to go back to the user for a new
+      // passcode to retry.
+      final ep = await sizedRequest('otpPreserved')
+        ..apsk = {
+          'publicKey': 'x' * (EnrollVerbHandler.maxEnrollmentRecordBytes + 1)
+        };
+      final otp = ep.otp!;
+
+      await expectLater(submitRequest(ep), refusedForSize);
+
+      // The same one-shot OTP still works, which it would not had the
+      // oversized request reached isPasscodeValid.
+      await submitRequest(EnrollParams()
+        ..appName = 'otpPreserved'
+        ..deviceName = 'd2'
+        ..apkamPublicKey = 'apkam pub'
+        ..encryptedAPKAMSymmetricKey = 'encrypted apkam aes key'
+        ..namespaces = {'wavi': 'rw'}
+        ..otp = otp);
+    });
+
+    test('the cap covers metadata, not just apsk', () async {
+      // The reason the cap moved from the field to the record. metadata
+      // carries the enrollment's key package — the largest blob in play — and
+      // was uncapped while apsk was capped, so the bound applied to the one
+      // field nobody would use to make a record big.
+      final before = (await enMgr.getEnrollmentsAsJson()).length;
+      final ep = await sizedRequest('bigMetadata')
+        ..metadata = {
+          'keyPackage': {
+            'pub': 'x' * (EnrollVerbHandler.maxEnrollmentRecordBytes + 1)
+          }
+        };
+
+      await expectLater(submitRequest(ep), refusedForSize);
+      expect((await enMgr.getEnrollmentsAsJson()).length, before);
+    });
+
+    test('the cap counts the whole record, not each field separately',
+        () async {
+      // Neither field is over the cap on its own; together they are. A
+      // per-field bound goes green here, which is exactly the hole that made
+      // the old one worth replacing.
+      final half = EnrollVerbHandler.maxEnrollmentRecordBytes ~/ 2;
+      final before = (await enMgr.getEnrollmentsAsJson()).length;
+      final ep = await sizedRequest('sumOverCap')
+        ..apsk = {'publicKey': 'x' * half}
+        ..metadata = {
+          'keyPackage': {'pub': 'x' * half}
+        };
+      expect(utf8.encode(jsonEncode(ep.apsk)).length <
+              EnrollVerbHandler.maxEnrollmentRecordBytes,
+          true,
+          reason: 'neither field alone may exceed the cap, or the arm is '
+              'testing the per-field bound it is meant to distinguish from');
+
+      await expectLater(submitRequest(ep), refusedForSize);
+      expect((await enMgr.getEnrollmentsAsJson()).length, before);
+    });
+
+    test('a record comfortably under the cap is accepted and published',
+        () async {
+      // The other arm of the bound: a large-but-legitimate value goes through
+      // untouched. ~100KB is far more than any real key package and well
+      // inside 500KB.
+      final atCap = {'publicKey': 'x' * (100 * 1024)};
 
       final enId = await etu.createPendingEnrollment(
-          appName: 'atCap',
+          appName: 'underCap',
           deviceName: 'd',
           namespaces: {'wavi': 'rw'},
           apkamKeysExpiryDuration: null,
@@ -3225,6 +3305,89 @@ void main() {
       final apskKey = 'public:_apsk.$enId'
           '.${EnrollmentConstants.perEnrollmentApproved}$alice';
       expect(jsonDecode((await keyValueStore.get(apskKey))!.data!), enrolleeApsk);
+    });
+
+    test('apskLegacy is published as the BARE string, never JSON-encoded',
+        () async {
+      // The whole point of the second field: every deployed _apsk consumer
+      // base64-decodes the value as an RSA key, and a JSON string — quotes and
+      // all — is not what that parser reads. So the assertion is on the raw
+      // stored bytes, and it explicitly rejects the jsonEncode spelling: an
+      // `expect(jsonDecode(stored), bare)` would pass on BOTH, which is the
+      // mistake this pins against.
+      const bare = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtestkey';
+
+      // The CRAM auto-approve path.
+      final cramEnId = await etu.createPrimaryEnrollment(apskLegacy: bare);
+      final cramKey = 'public:_apsk.$cramEnId'
+          '.${EnrollmentConstants.perEnrollmentApproved}$alice';
+      final cramStored = (await keyValueStore.get(cramKey))!.data!;
+      expect(cramStored, bare);
+      expect(cramStored, isNot(jsonEncode(bare)),
+          reason: 'a quoted string is not what a bare-RSA parser reads');
+
+      // The standard enroll:approve path.
+      final pendingEnId = await etu.createPendingEnrollment(
+          appName: 'apskLegacyApp',
+          deviceName: 'd',
+          namespaces: {'wavi': 'rw'},
+          apkamKeysExpiryDuration: null,
+          apskLegacy: bare);
+      final pendingKey = 'public:_apsk.$pendingEnId'
+          '.${EnrollmentConstants.perEnrollmentApproved}$alice';
+      expect(await keyValueStore.exists(pendingKey), false,
+          reason: 'nothing is published while the enrollment is only pending');
+
+      await etu.approveEnrollment(etu.primaryEnId, pendingEnId);
+      expect((await keyValueStore.get(pendingKey))!.data!, bare);
+
+      // And it is on the record, so it survives a restart rather than living
+      // only in the published copy.
+      final enVal = await enMgr.getEnrollmentById(pendingEnId);
+      expect(enVal.apskLegacy, bare);
+      expect(enVal.apsk, isNull);
+    });
+
+    test('a request carrying BOTH apsk and apskLegacy is refused, and creates '
+        'no enrollment', () async {
+      // Not a precedence question: one record publishes one value, and the
+      // server has no basis for choosing between two the client disagreed with
+      // itself about. Refusing is also what keeps the choice observable.
+      final before = (await enMgr.getEnrollmentsAsJson()).length;
+
+      await expectLater(
+          etu.createPendingEnrollment(
+              appName: 'bothShapes',
+              deviceName: 'd',
+              namespaces: {'wavi': 'rw'},
+              apkamKeysExpiryDuration: null,
+              apsk: {'v': 1, 'keys': []},
+              apskLegacy: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A'),
+          // Matched on the message, not just the type: several unrelated
+          // refusals on this path are also IllegalArgumentException, so a
+          // type-only matcher would go green on the wrong one.
+          throwsA(isA<IllegalArgumentException>().having(
+              (e) => e.message, 'message', contains('mutually exclusive'))));
+
+      expect((await enMgr.getEnrollmentsAsJson()).length, before,
+          reason: 'the refusal lands before the record is created');
+    });
+
+    test('an apskLegacy over the cap is refused, and creates no enrollment',
+        () async {
+      final overCap = 'x' * (EnrollVerbHandler.maxEnrollmentRecordBytes + 1);
+      final before = (await enMgr.getEnrollmentsAsJson()).length;
+
+      await expectLater(
+          etu.createPendingEnrollment(
+              appName: 'legacyTooBig',
+              deviceName: 'd',
+              namespaces: {'wavi': 'rw'},
+              apkamKeysExpiryDuration: null,
+              apskLegacy: overCap),
+          refusedForSize);
+
+      expect((await enMgr.getEnrollmentsAsJson()).length, before);
     });
 
     test('metadata + signingAlgo on enroll:request are persisted on the record',
@@ -3482,6 +3645,115 @@ void main() {
       final published = await etu.evh.keyStore.get(
           'public:_apsk.$enId.${EnrollmentConstants.perEnrollmentApproved}$alice');
       expect(jsonDecode(published!.data!), apsk);
+    });
+
+    test('an update that moves an enrollment between the two shapes clears the '
+        'one it left', () async {
+      // This is the operation that moves an enrollment across: a retrofit that
+      // gains a structured key must stop the record claiming the bare one, or
+      // the record holds both and the published value depends on a precedence
+      // rule nobody stated.
+      const bare = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A';
+      final array = {
+        'v': 1,
+        'keys': [
+          {'kid': 'k', 'use': 'sign', 'alg': 'mldsa65', 'pub': 'bmV3'}
+        ]
+      };
+      final apskKey =
+          'public:_apsk.\$id.${EnrollmentConstants.perEnrollmentApproved}$alice';
+
+      final enId = (await etu.createEnrollments(n: 1)).$1.first;
+      final key = apskKey.replaceFirst('\$id', enId);
+
+      // bare, then array
+      expect(
+          (await sendUpdate(
+                  enId, EnrollParams()..enrollmentId = enId..apskLegacy = bare))
+              .isError,
+          false);
+      expect((await etu.evh.keyStore.get(key))!.data!, bare);
+      expect((await enMgr.getEnrollmentById(enId)).apskLegacy, bare);
+
+      expect(
+          (await sendUpdate(
+                  enId, EnrollParams()..enrollmentId = enId..apsk = array))
+              .isError,
+          false);
+      expect(jsonDecode((await etu.evh.keyStore.get(key))!.data!), array);
+      final afterArray = await enMgr.getEnrollmentById(enId);
+      expect(afterArray.apsk, array);
+      expect(afterArray.apskLegacy, isNull,
+          reason: 'the shape it left must not linger on the record');
+
+      // and back again
+      expect(
+          (await sendUpdate(
+                  enId, EnrollParams()..enrollmentId = enId..apskLegacy = bare))
+              .isError,
+          false);
+      expect((await etu.evh.keyStore.get(key))!.data!, bare);
+      final afterBare = await enMgr.getEnrollmentById(enId);
+      expect(afterBare.apskLegacy, bare);
+      expect(afterBare.apsk, isNull);
+    });
+
+    test('an update carrying BOTH shapes is refused', () async {
+      final enId = (await etu.createEnrollments(n: 1)).$1.first;
+      await expectLater(
+        sendUpdate(
+            enId,
+            EnrollParams()
+              ..enrollmentId = enId
+              ..apsk = {'v': 1, 'keys': []}
+              ..apskLegacy = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A'),
+        // On the message, not just the type: enroll:update's own "names
+        // nothing to change" refusal is the same exception class, and this
+        // arm has to fail for the reason it is testing.
+        throwsA(isA<IllegalArgumentException>().having(
+            (e) => e.message, 'message', contains('mutually exclusive'))),
+      );
+    });
+
+    test('an update is refused when the MERGED record would exceed the cap',
+        () async {
+      // Why the record check is the authority and the params pre-filter is
+      // not: metadata merges rather than replaces, so two updates that are
+      // each comfortably inside the cap can leave a record outside it. Only a
+      // measurement taken after the merge can see that.
+      final enId = (await etu.createEnrollments(n: 1)).$1.first;
+      final chunk = EnrollVerbHandler.maxEnrollmentRecordBytes ~/ 2;
+
+      final first = await sendUpdate(
+          enId,
+          EnrollParams()
+            ..enrollmentId = enId
+            ..metadata = {'first': 'x' * chunk});
+      expect(first.isError, false,
+          reason: 'the first half must be accepted, or the second is not '
+              'testing the merge');
+
+      await expectLater(
+        sendUpdate(
+            enId,
+            EnrollParams()
+              ..enrollmentId = enId
+              ..metadata = {'second': 'x' * chunk}),
+        throwsA(isA<IllegalArgumentException>().having((e) => e.message,
+            'message', contains('enrollment record is'))),
+      );
+    });
+
+    test('an update naming ONLY apskLegacy is accepted', () async {
+      // The "names nothing to change" guard lists the fields an update may
+      // reach; a field added to the operation and not to that list is refused
+      // by a check written before it existed, which is how this one was caught.
+      final enId = (await etu.createEnrollments(n: 1)).$1.first;
+      const bare = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A';
+      final r = await sendUpdate(
+          enId, EnrollParams()..enrollmentId = enId..apskLegacy = bare);
+      expect(r.isError, false);
+      expect((await enMgr.getEnrollmentById(enId)).apskLegacy, bare);
     });
   });
 }

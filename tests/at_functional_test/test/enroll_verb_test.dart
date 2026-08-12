@@ -535,6 +535,151 @@ void main() {
     });
   });
 
+  group('The published _apsk is the client\'s own, in the shape it sent', () {
+    // Observable surface, so exercised over the wire rather than only in the
+    // handler's unit tests. Two things are observable and neither is visible
+    // to a unit test: the BYTES a verifier resolves at
+    // `public:_apsk.<id>.a.__e@<atSign>`, and what an operator sees on the
+    // enrollment record through `enroll:list`.
+    //
+    // This is also the enroll:approve branch specifically — the self-enrollment
+    // tests cover the auto-approve one, which publishes from a different call
+    // site with a different value in hand.
+
+    /// CRAM-authenticates [firstAtSignConnection] and gives it an approved
+    /// enrollment, which is what carries `__manage` and therefore the
+    /// authority to approve the enrollments under test.
+    ///
+    /// Called once per test, not from [enrolThroughApproval]: CRAM is a
+    /// once-per-connection step, and a test that enrols twice must not try to
+    /// re-run it.
+    Future<void> becomeApprover() async {
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      expect(
+          jsonDecode((await firstAtSignConnection.sendRequestToServer(
+                  'enroll:request:{"appName":"apsk-approver","deviceName":"device-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"apkamPublicKey":"${at_demos.pkamPublicKeyMap[firstAtSign]!}"}\n'))
+              .replaceAll('data:', ''))['status'],
+          'approved');
+    }
+
+    /// Runs the standard OTP -> pending -> approve flow with [apskField]
+    /// spliced into the `enroll:request` JSON, and returns the enrollment id.
+    /// [becomeApprover] must have run on this connection first.
+    Future<String> enrolThroughApproval(String apskField) async {
+      final otp = (await firstAtSignConnection.sendRequestToServer('otp:get'))
+          .replaceFirst('data:', '')
+          .trim();
+
+      // On its own connection: the enrollment rate limiter is per-connection.
+      final enrolee = await OutboundConnectionFactory()
+          .initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
+      final requested = jsonDecode((await enrolee.sendRequestToServer(
+              'enroll:request:{"appName":"apsk-app","deviceName":"device-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${at_demos.apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"$apskField}\n'))
+          .replaceAll('data:', ''));
+      expect(requested['status'], 'pending');
+      final enrollmentId = requested['enrollmentId'];
+      await enrolee.close();
+
+      // Nothing is published while the enrollment is only pending — the
+      // approval is what puts the key in place.
+      expect(
+          await firstAtSignConnection.sendRequestToServer(
+              'llookup:public:_apsk.$enrollmentId.a.__e$firstAtSign'),
+          contains('key not found'));
+
+      expect(
+          jsonDecode((await firstAtSignConnection.sendRequestToServer(
+                  'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}"}'))
+              .replaceAll('data:', ''))['status'],
+          'approved');
+
+      return enrollmentId;
+    }
+
+    /// What a verifier resolves — the raw stored value, `data:` stripped and
+    /// nothing decoded.
+    Future<String> resolveApsk(String enrollmentId) async =>
+        (await firstAtSignConnection.sendRequestToServer(
+                'llookup:public:_apsk.$enrollmentId.a.__e$firstAtSign'))
+            .trim()
+            .replaceFirst('data:', '');
+
+    test('the array form is published on approval, JSON-encoded and intact',
+        () async {
+      // Carries a field the atServer has no code for, on purpose: the value is
+      // opaque, so what a verifier resolves must be what the enrollee composed
+      // and nothing the server could have derived from the record.
+      final composed = {
+        'v': 1,
+        'keys': [
+          {'kid': 'k', 'use': 'sign', 'alg': 'mldsa65', 'pub': 'bWxkc2E='}
+        ],
+        'extraFieldTheServerMustNotDrop': ['a', 'b'],
+      };
+
+      await becomeApprover();
+      final enrollmentId =
+          await enrolThroughApproval(',"apsk":${jsonEncode(composed)}');
+      expect(jsonDecode(await resolveApsk(enrollmentId)), composed);
+    });
+
+    test('the bare form is published on approval VERBATIM, not JSON-encoded',
+        () async {
+      // The property that matters is about the bytes, not the record: every
+      // deployed _apsk consumer base64-decodes what it fetches as an RSA key,
+      // and a quoted string is not what that parser reads. A
+      // jsonDecode-based assertion would pass on both spellings, so this one
+      // compares raw and rejects the encoded form explicitly.
+      const bare =
+          'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAapprovepathkey';
+
+      await becomeApprover();
+      final enrollmentId =
+          await enrolThroughApproval(',"apskLegacy":${jsonEncode(bare)}');
+      final resolved = await resolveApsk(enrollmentId);
+      expect(resolved, bare);
+      expect(resolved, isNot(jsonEncode(bare)));
+    });
+
+    test('enroll:list shows which shape an enrollment carries, and only that '
+        'one', () async {
+      // enroll:list returns the whole enrollment record, so the shape is
+      // operator-visible. The "only that one" half is what stops a record
+      // holding both, where the published value would depend on a precedence
+      // rule nobody stated.
+      final array = {
+        'v': 1,
+        'keys': [
+          {'kid': 'k', 'use': 'sign', 'alg': 'mldsa65', 'pub': 'YXJyYXk='}
+        ]
+      };
+      const bare = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlistedkey';
+
+      await becomeApprover();
+      final arrayId = await enrolThroughApproval(',"apsk":${jsonEncode(array)}');
+      final bareId =
+          await enrolThroughApproval(',"apskLegacy":${jsonEncode(bare)}');
+
+      final listed = jsonDecode(
+          (await firstAtSignConnection.sendRequestToServer('enroll:list'))
+              .replaceFirst('data:', '')) as Map;
+
+      Map recordFor(String id) => listed.entries
+          .firstWhere((e) => (e.key as String).startsWith('$id.'))
+          .value as Map;
+
+      final arrayRecord = recordFor(arrayId);
+      expect(arrayRecord['apsk'], array);
+      expect(arrayRecord.containsKey('apskLegacy'), false);
+
+      final bareRecord = recordFor(bareId);
+      expect(bareRecord['apskLegacy'], bare);
+      expect(bareRecord.containsKey('apsk'), false);
+    });
+  });
+
   group('A group of tests related to APKAM revoke operation', () {
     test(
         'A test to verify enrollment revoke operation on own connection results in error',

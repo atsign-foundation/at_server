@@ -246,5 +246,119 @@ void main() {
           await owner.sendRequestToServer('llookup:public:_apsk.$enId.a.__e$atSign');
       expect(jsonDecode(published.replaceFirst('data:', '').trim()), apsk);
     });
+
+    test('an update carrying apskLegacy republishes the BARE form', () async {
+      // The move an enrollment makes going the other way. Asserted on the
+      // resolved bytes because that is what a deployed consumer
+      // base64-decodes: a JSON-encoded string would fail its parse, and a
+      // jsonDecode-based assertion would pass on either.
+      const bare =
+          'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAupdatedbarekey';
+
+      final owner = await ownerConnection();
+      final enId =
+          await createApprovedEnrollment(owner, namespaces: {'buzz': 'rw'});
+
+      final self = await newConnection();
+      expect(
+          (await self.authenticateConnection(
+                  authType: AuthType.apkam, enrollmentId: enId))
+              .trim(),
+          'data:success');
+      final response = await self.sendRequestToServer(
+          'enroll:update:{"enrollmentId":"$enId","apskLegacy":${jsonEncode(bare)}}');
+      expect(jsonDecode(response.replaceFirst('data:', ''))['status'],
+          'approved');
+
+      final resolved = (await owner
+              .sendRequestToServer('llookup:public:_apsk.$enId.a.__e$atSign'))
+          .trim()
+          .replaceFirst('data:', '');
+      expect(resolved, bare);
+      expect(resolved, isNot(jsonEncode(bare)));
+    });
+
+    test('switching shapes republishes AND clears the shape it left', () async {
+      // enroll:update is the operation that moves an enrollment across, so it
+      // is the one that can leave a record holding both. Both halves are
+      // observable: the bytes a verifier resolves, and the record enroll:list
+      // returns.
+      const bare = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAswitchedkey';
+      final array = {
+        'v': 1,
+        'keys': [
+          {'kid': 'k', 'use': 'sign', 'alg': 'mldsa65', 'pub': 'c3dpdGNo'}
+        ]
+      };
+
+      final owner = await ownerConnection();
+      final enId =
+          await createApprovedEnrollment(owner, namespaces: {'buzz': 'rw'});
+
+      final self = await newConnection();
+      expect(
+          (await self.authenticateConnection(
+                  authType: AuthType.apkam, enrollmentId: enId))
+              .trim(),
+          'data:success');
+
+      Future<String> resolved() async => (await owner
+              .sendRequestToServer('llookup:public:_apsk.$enId.a.__e$atSign'))
+          .trim()
+          .replaceFirst('data:', '');
+
+      Future<Map> record() async {
+        final listed = jsonDecode(
+            (await owner.sendRequestToServer('enroll:list'))
+                .replaceFirst('data:', '')) as Map;
+        return listed.entries
+            .firstWhere((e) => (e.key as String).startsWith('$enId.'))
+            .value as Map;
+      }
+
+      // bare, then array, then back — each direction has to clear the other,
+      // and a one-way test would pass on a handler that only clears one of them.
+      await self.sendRequestToServer(
+          'enroll:update:{"enrollmentId":"$enId","apskLegacy":${jsonEncode(bare)}}');
+      expect(await resolved(), bare);
+      expect((await record())['apskLegacy'], bare);
+
+      await self.sendRequestToServer(
+          'enroll:update:{"enrollmentId":"$enId","apsk":${jsonEncode(array)}}');
+      expect(jsonDecode(await resolved()), array);
+      final afterArray = await record();
+      expect(afterArray['apsk'], array);
+      expect(afterArray.containsKey('apskLegacy'), false,
+          reason: 'the shape it left must not linger on the record');
+
+      await self.sendRequestToServer(
+          'enroll:update:{"enrollmentId":"$enId","apskLegacy":${jsonEncode(bare)}}');
+      expect(await resolved(), bare);
+      final afterBare = await record();
+      expect(afterBare['apskLegacy'], bare);
+      expect(afterBare.containsKey('apsk'), false);
+    });
+
+    test('an update carrying BOTH shapes is refused', () async {
+      final owner = await ownerConnection();
+      final enId =
+          await createApprovedEnrollment(owner, namespaces: {'buzz': 'rw'});
+
+      final self = await newConnection();
+      expect(
+          (await self.authenticateConnection(
+                  authType: AuthType.apkam, enrollmentId: enId))
+              .trim(),
+          'data:success');
+
+      final response = await self.sendRequestToServer(
+          'enroll:update:{"enrollmentId":"$enId","apsk":{"v":1,"keys":[]},'
+          '"apskLegacy":"MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A"}');
+      expect(response.trim(), startsWith('error:'));
+      expect(response, contains('mutually exclusive'),
+          reason: 'matched on the message: enroll:update has other refusals '
+              'that are also errors, so a startsWith check alone could go '
+              'green on the wrong one');
+    });
   });
 }
