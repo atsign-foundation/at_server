@@ -91,7 +91,8 @@ void main() {
       String? deviceName,
       int? apkamKeysExpiryInMillis,
       String? signingAlgo,
-      Map<String, dynamic>? apsk}) async {
+      Map<String, dynamic>? apsk,
+      String? apskLegacy}) async {
     OutboundConnectionFactory parent = await newConnection();
     expect(
         (await parent.authenticateConnection(
@@ -104,8 +105,13 @@ void main() {
         : ',"apkamKeysExpiryInMillis":$apkamKeysExpiryInMillis';
     String algo = signingAlgo == null ? '' : ',"signingAlgo":"$signingAlgo"';
     String apskField = apsk == null ? '' : ',"apsk":${jsonEncode(apsk)}';
+    // JSON-encoded HERE because this is the request envelope, which is JSON.
+    // What the server must not do is encode it again when it publishes the
+    // value; the tests below assert exactly that.
+    String apskLegacyField =
+        apskLegacy == null ? '' : ',"apskLegacy":${jsonEncode(apskLegacy)}';
     return (await parent.sendRequestToServer(
-            'enroll:request:{"appName":"${appName ?? 'child-${Uuid().v4().hashCode}'}","deviceName":"${deviceName ?? 'device-${Uuid().v4().hashCode}'}","namespaces":${jsonEncode(namespaces)},"apkamPublicKey":"$apkamPublicKey"$expiry$algo$apskField}'))
+            'enroll:request:{"appName":"${appName ?? 'child-${Uuid().v4().hashCode}'}","deviceName":"${deviceName ?? 'device-${Uuid().v4().hashCode}'}","namespaces":${jsonEncode(namespaces)},"apkamPublicKey":"$apkamPublicKey"$expiry$algo$apskField$apskLegacyField}'))
         .trim();
   }
 
@@ -116,14 +122,16 @@ void main() {
       String? deviceName,
       int? apkamKeysExpiryInMillis,
       String? signingAlgo,
-      Map<String, dynamic>? apsk}) async {
+      Map<String, dynamic>? apsk,
+      String? apskLegacy}) async {
     String response = await selfEnroll(parentId,
         namespaces: namespaces,
         appName: appName,
         deviceName: deviceName,
         apkamKeysExpiryInMillis: apkamKeysExpiryInMillis,
         signingAlgo: signingAlgo,
-        apsk: apsk);
+        apsk: apsk,
+        apskLegacy: apskLegacy);
     Map decoded = jsonDecode(response.replaceFirst('data:', ''));
     expect(decoded['status'], 'approved',
         reason: 'a self-enrollment is auto-approved with no human step');
@@ -506,6 +514,53 @@ void main() {
           await apskValue(owner, childId),
           contains('key not found : public:_apsk.$childId.a.__e$atSign '
               'does not exist in keystore'));
+    });
+
+    test('apskLegacy is published as the BARE string a deployed consumer reads',
+        () async {
+      // This is the arm only the wire can settle. Every deployed `_apsk`
+      // consumer base64-decodes what it fetches as an RSA key, so what has to
+      // be true is a property of the BYTES a verifier resolves, not of the
+      // enrollment record: no quotes, no escaping, nothing the server added.
+      const bare =
+          'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAfunctionaltestkey';
+
+      OutboundConnectionFactory owner = await ownerConnection();
+      String parentId =
+          await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
+      String childId = await selfEnrollId(parentId,
+          namespaces: {'wavi': 'r'}, apskLegacy: bare);
+
+      final resolved = await apskValue(owner, childId);
+      expect(resolved, bare);
+      expect(resolved, isNot(jsonEncode(bare)),
+          reason: 'a quoted string is not what a bare-RSA parser reads, and '
+              'a jsonDecode-based assertion would pass on both');
+    });
+
+    test('a request carrying BOTH apsk and apskLegacy is refused', () async {
+      // One record publishes one value, so this is a client error rather than
+      // a precedence question — and it is refused at the verb, which is the
+      // only place the client finds out.
+      OutboundConnectionFactory owner = await ownerConnection();
+      String parentId =
+          await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
+
+      final response = await selfEnroll(parentId,
+          namespaces: {'wavi': 'r'},
+          apsk: {
+            'v': 1,
+            'keys': [
+              {'kid': 'k', 'use': 'sign', 'alg': 'mldsa65', 'pub': 'cA=='}
+            ]
+          },
+          apskLegacy: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A');
+
+      expect(response, startsWith('error:'));
+      expect(response, contains('mutually exclusive'),
+          reason: 'matched on the message: several unrelated refusals on this '
+              'path are also errors, so a startsWith check alone would go '
+              'green on the wrong one');
     });
   });
 

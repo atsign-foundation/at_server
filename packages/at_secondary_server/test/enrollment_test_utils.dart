@@ -51,14 +51,19 @@ class ETU {
     return r.data!;
   }
 
-  /// [apsk] is the client-composed signing-key value; leaving it null is the
-  /// ordinary case and means no `_apsk` is published for this enrollment.
+  /// [apsk] is the client-composed signing-key value and [apskLegacy] the bare
+  /// RSA string a plain-legacy enrollment publishes instead. Leaving both null
+  /// is the ordinary case and means no `_apsk` is published for this
+  /// enrollment. Sending both is what a client is refused for, so the pair is
+  /// exposed here rather than made exclusive — a test has to be able to send
+  /// the refused combination.
   Future<String> createPendingEnrollment(
       {required String appName,
       required String deviceName,
       required Map<String, String> namespaces,
       required Duration? apkamKeysExpiryDuration,
-      Map<String, dynamic>? apsk}) async {
+      Map<String, dynamic>? apsk,
+      String? apskLegacy}) async {
     final EnrollParams ep = EnrollParams()
       ..appName = appName
       ..deviceName = deviceName
@@ -68,6 +73,7 @@ class ETU {
       ..namespaces = namespaces
       ..apkamKeysExpiryDuration = apkamKeysExpiryDuration
       ..apsk = apsk
+      ..apskLegacy = apskLegacy
       ..otp = await getOtp();
 
     final String enrollmentRequest = 'enroll:request:'
@@ -163,13 +169,15 @@ class ETU {
     expect(m['enrollmentId'], enIdToDelete);
   }
 
-  Future<String> createPrimaryEnrollment({Map<String, dynamic>? apsk}) async {
+  Future<String> createPrimaryEnrollment(
+      {Map<String, dynamic>? apsk, String? apskLegacy}) async {
     EnrollParams ep = EnrollParams()
       ..appName = 'primary'
       ..deviceName = 'primary'
       ..apkamPublicKey = 'apkam public key'
       ..encryptedAPKAMSymmetricKey = 'encrypted apkam aes key'
       ..apsk = apsk
+      ..apskLegacy = apskLegacy
       ..namespaces = {'*': 'rw'};
     String enrollmentRequest = 'enroll:request:'
         '${jsonEncode(ep.toJson())}';

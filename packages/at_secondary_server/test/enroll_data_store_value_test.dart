@@ -55,5 +55,35 @@ void main() {
       expect(enrollValueObject.apkamPublicKey, 'mykey');
       expect(enrollValueObject.requestType, EnrollRequestType.newEnrollment);
     });
+
+    test('the two _apsk shapes survive a round trip under their own names', () {
+      // The record is what survives a restart, so a shape that does not
+      // round-trip is a signing key the enrollment silently stops publishing
+      // the next time the server comes up. Asserted on the RAW wire names
+      // because the serialisation is hand-maintained here — there is no
+      // json_serializable dev dependency to regenerate it, so a typo in
+      // enroll_datastore_value.g.dart has nothing else to catch it.
+      final array = {
+        'v': 1,
+        'keys': [
+          {'kid': 'k', 'use': 'sign', 'alg': 'mldsa65', 'pub': 'bWxkc2E='}
+        ]
+      };
+      final withArray =
+          EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey')
+            ..apsk = array;
+      expect(withArray.toJson()['apsk'], array);
+      expect(withArray.toJson().containsKey('apskLegacy'), false,
+          reason: 'an absent shape is omitted, not written as null');
+      expect(EnrollDataStoreValue.fromJson(withArray.toJson()).apsk, array);
+
+      const bare = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A';
+      final withBare =
+          EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey')
+            ..apskLegacy = bare;
+      expect(withBare.toJson()['apskLegacy'], bare);
+      expect(withBare.toJson().containsKey('apsk'), false);
+      expect(EnrollDataStoreValue.fromJson(withBare.toJson()).apskLegacy, bare);
+    });
   });
 }

@@ -50,6 +50,23 @@ class EnrollDataStoreValue {
   /// put it there in time.
   Map<String, dynamic>? apsk;
 
+  /// The **bare** `_apsk` value — an RSA public key string exactly as the
+  /// record has always carried it — carried on `enroll:request` as
+  /// `EnrollParams.apskLegacy` and published verbatim, NOT JSON-encoded.
+  ///
+  /// It exists because every deployed `_apsk` consumer base64-decodes the
+  /// value as an RSA key, so a JSON one fails their parse. That is fail-closed
+  /// but service-breaking for anything already running, so a plain-legacy
+  /// enrollment publishes the shape they expect through the same verb every
+  /// other enrollment uses.
+  ///
+  /// Mutually exclusive with [apsk], on the wire and at rest: one record
+  /// publishes one value, and a record holding both would make the published
+  /// value depend on a precedence rule nobody stated. The request that carries
+  /// both is refused, and an `enroll:update` that sets either one clears the
+  /// other.
+  String? apskLegacy;
+
   /// The enrollment whose authenticated connection self-spawned this one
   /// (RF-SRV), or null for every other origin.
   ///

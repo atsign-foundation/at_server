@@ -37,15 +37,32 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           seconds: AtSecondaryConfig.enrollmentResponseDelayIntervalInSeconds)
       .inMilliseconds;
 
-  /// The largest `EnrollParams.apsk` the atServer will store, measured on its
+  /// The largest enrollment record the atServer will store, measured on its
   /// JSON encoding — the string that lands in the keystore.
   ///
-  /// The value is opaque, so nothing about it can be validated; a bound is all
-  /// the server can meaningfully impose. 20KB is far above any signing key
-  /// (ML-DSA-65's public half is ~2.6KB base64-encoded, the largest in play)
-  /// and far below anything that would make the enrollment record awkward to
-  /// store or return from `enroll:listns`.
-  static const int maxApskLengthBytes = 20 * 1024;
+  /// One bound on the whole record rather than one per opaque field. A
+  /// per-field cap bounds nothing while a sibling field is uncapped, and that
+  /// was the state this replaced: `apsk` was capped while `metadata` — which
+  /// carries the enrollment's key package, the largest blob in play — was not,
+  /// so the cap sat on the one field nobody would use to make a record big.
+  /// It also means a field added later is covered without anyone remembering
+  /// to cap it.
+  ///
+  /// The record's contents are opaque, so nothing about them can be validated;
+  /// a bound is all the server can meaningfully impose. What it protects is
+  /// not disk: the record is read on every verb command and held in
+  /// [EnrollmentManager]'s cache, which is evicted only on write, so an
+  /// oversized record occupies server memory for the process's life. It is
+  /// also returned whole by `enroll:list`, and its `metadata` by
+  /// `enroll:listns` for every approved enrollment in a namespace — so one fat
+  /// record inflates every discovery response, for every caller.
+  ///
+  /// 500KB is far above any legitimate record (ML-DSA-65's public half, the
+  /// largest key in play, is ~2.6KB base64-encoded, and a record holds a
+  /// handful) and far below the ~10MB an inbound connection will buffer, which
+  /// is otherwise the only ceiling on a request that reaches this path with
+  /// nothing but an OTP.
+  static const int maxEnrollmentRecordBytes = 500 * 1024;
 
   final EnrollmentManager enMgr;
   final NotificationManager notifManager;
@@ -273,19 +290,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'Enrollment requests have exceeded the limit within the specified time frame');
     }
 
-    // Bound the one field the server stores without understanding, before
-    // anything is created or an OTP is spent. Refused rather than truncated:
-    // a truncated signing key is a key nothing can verify against, published
-    // at the address every verifier resolves, and the enrollee would have no
-    // way to tell that from a key it composed wrong.
-    final apskLength = enrollParams.apsk == null
-        ? 0
-        : utf8.encode(jsonEncode(enrollParams.apsk)).length;
-    if (apskLength > maxApskLengthBytes) {
-      throw IllegalArgumentException(
-          'apsk is $apskLength bytes encoded, which exceeds the '
-          '$maxApskLengthBytes byte limit');
-    }
+    // Structural checks plus a size pre-filter, before anything is created
+    // or an OTP is spent. The record itself is bounded at each write.
+    _validateEnrollParams(enrollParams);
 
     // OTP is sent only in enrollment request which is submitted on
     // unauthenticated connection.
@@ -346,8 +353,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (enrollParams.signingAlgo != null) {
       enrollmentValue.signingAlgo = enrollParams.signingAlgo;
     }
+    // At most one of the two is set — _validateEnrollParams refused the request
+    // that carried both, above.
     if (enrollParams.apsk != null) {
       enrollmentValue.apsk = enrollParams.apsk;
+    }
+    if (enrollParams.apskLegacy != null) {
+      enrollmentValue.apskLegacy = enrollParams.apskLegacy;
     }
 
     if (enrollParams.apkamKeysExpiryDuration != null) {
@@ -365,6 +377,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       final inboundConnectionMetadata =
           atConnection.metaData as InboundConnectionMetadata;
       inboundConnectionMetadata.enrollmentId = newEnrollmentId;
+      // Before any write: a refusal must not leave a published _apsk or a
+      // rewritten default pkam public key behind for an enrollment that was
+      // never created.
+      _validateRecordSize(enrollmentValue);
       // store this apkam as default pkam public key for old clients
       // The keys with AT_PKAM_PUBLIC_KEY does not sync to client.
       await keyStore.put(AtConstants.atPkamPublicKey,
@@ -372,7 +388,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           skipCommit: true);
       // Publish the client-composed `_apsk` signing key, if it sent one.
       await _publishApskSigningKey(
-          newEnrollmentId, enrollmentValue.apsk, currentAtSign);
+          newEnrollmentId, enrollmentValue, currentAtSign);
       AtData enrollData = AtData()..data = jsonEncode(enrollmentValue.toJson());
 
       await enMgr.put(newEnrollmentId, enrollData, EnrollmentStatus.approved);
@@ -449,9 +465,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           enrollParams.encryptedAPKAMSymmetricKey;
       responseJson['status'] = 'approved';
 
+      // Before any write, so a refusal leaves no published _apsk behind for an
+      // enrollment that was never created.
+      _validateRecordSize(enrollmentValue);
       // Publish the client-composed `_apsk` signing key, if it sent one.
       await _publishApskSigningKey(
-          newEnrollmentId, enrollmentValue.apsk, currentAtSign);
+          newEnrollmentId, enrollmentValue, currentAtSign);
       // The child's record expires per its (inherited or stated) key-expiry
       // posture, exactly as the ordinary approve path writes it — the
       // retrofit copies the parent's expiry, it does not grant immortality.
@@ -481,6 +500,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     enrollmentValue.approval = EnrollApproval(EnrollmentStatus.pending.name);
     await _storeNotification(enrollmentKey, enrollParams, currentAtSign);
     responseJson['status'] = 'pending';
+    _validateRecordSize(enrollmentValue);
     AtData enrollData = AtData()
       ..data = jsonEncode(enrollmentValue.toJson())
       // Set TTL to the pending enrollments.
@@ -646,7 +666,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // Read off the RECORD, not off these approve params: the value is the
       // enrollee's, and an approver must not be able to substitute a signing
       // key for the enrollment it is approving.
-      await _publishApskSigningKey(enId, enVal.apsk, currentAtSign);
+      await _publishApskSigningKey(enId, enVal, currentAtSign);
     }
     responseJson['enrollmentId'] = enId;
   }
@@ -699,18 +719,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           '${status.name}');
     }
 
-    // Same cap and the same reason as enroll:request: an oversized value is
-    // refused before anything is written, never truncated, because a truncated
-    // signing key is a key nothing can verify against sitting at the address
-    // every verifier resolves.
-    if (enrollParams.apsk != null) {
-      final apskLength = utf8.encode(jsonEncode(enrollParams.apsk)).length;
-      if (apskLength > maxApskLengthBytes) {
-        throw IllegalArgumentException(
-            'apsk is $apskLength bytes encoded, which exceeds the '
-            '$maxApskLengthBytes byte limit');
-      }
-    }
+    // Same checks and the same reasons as enroll:request, applied before
+    // anything is written.
+    _validateEnrollParams(enrollParams);
 
     if (enrollParams.apkamPublicKey != null) {
       final newSigningAlgo = enrollParams.signingAlgo ?? enVal.signingAlgo;
@@ -734,8 +745,16 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'algorithm describes the key');
     }
 
+    // Setting either shape clears the other: one record publishes one value,
+    // and this is the operation that moves an enrollment between them — a
+    // retrofit that gains a structured key must stop the record claiming the
+    // bare one it used to publish.
     if (enrollParams.apsk != null) {
       enVal.apsk = enrollParams.apsk;
+      enVal.apskLegacy = null;
+    } else if (enrollParams.apskLegacy != null) {
+      enVal.apskLegacy = enrollParams.apskLegacy;
+      enVal.apsk = null;
     }
 
     if (enrollParams.metadata != null) {
@@ -744,6 +763,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enVal.metadata = merged;
     }
 
+    // Measured AFTER the merge: metadata merges rather than replaces, so a
+    // request nowhere near the cap can still push the record past it.
+    _validateRecordSize(enVal);
+
     // The state and TTL are untouched: this is the same put the approve path
     // uses, with an already-approved status, so nothing about the enrollment's
     // lifecycle moves.
@@ -751,9 +774,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         enId, AtData()..data = jsonEncode(enVal), EnrollmentStatus.approved);
 
     // Republish only when the request carried a new value. An update that says
-    // nothing about apsk leaves the published record exactly as it was.
-    if (enrollParams.apsk != null) {
-      await _publishApskSigningKey(enId, enVal.apsk, currentAtSign);
+    // nothing about either shape leaves the published record exactly as it was.
+    if (enrollParams.apsk != null || enrollParams.apskLegacy != null) {
+      await _publishApskSigningKey(enId, enVal, currentAtSign);
     }
 
     responseJson['enrollmentId'] = enId;
@@ -884,15 +907,93 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         skipCommit: true);
   }
 
-  /// Publishes [apsk] — the value the CLIENT composed and sent on
-  /// `enroll:request` — at `public:_apsk.<enrollmentId>.a.__e@<atSign>`, the
+  /// Refuses a request carrying both `_apsk` shapes, and refuses one whose
+  /// payload cannot fit in an enrollment record.
+  ///
+  /// Both shapes at once is a client error rather than a precedence question:
+  /// one record publishes one value, and the server has no basis for choosing
+  /// between two the client disagreed with itself about. Refusing is also what
+  /// keeps the choice observable — silently preferring one would publish a
+  /// signing key the enrollee did not think it had asked for.
+  ///
+  /// The size check here is a **pre-filter**, not the authority. It runs
+  /// before the OTP is validated so an oversized request does not spend a
+  /// one-shot passcode on its way to being refused, and it is safe to do early
+  /// because these params are strictly larger than the part of the record they
+  /// become. [_validateRecordSize] is what actually holds the bound, because
+  /// `enroll:update` merges `metadata` and so can grow a record past the cap
+  /// with a request that is nowhere near it.
+  void _validateEnrollParams(EnrollParams enrollParams) {
+    if (enrollParams.apsk != null && enrollParams.apskLegacy != null) {
+      throw IllegalArgumentException(
+          'apsk and apskLegacy are mutually exclusive: one enrollment '
+          'publishes one _apsk value');
+    }
+
+    final length = utf8.encode(jsonEncode(enrollParams.toJson())).length;
+    if (length > maxEnrollmentRecordBytes) {
+      throw IllegalArgumentException(
+          'enroll params are $length bytes encoded, which exceeds the '
+          '$maxEnrollmentRecordBytes byte enrollment record limit');
+    }
+  }
+
+  /// Refuses an enrollment record over [maxEnrollmentRecordBytes], measured on
+  /// the JSON that would land in the keystore.
+  ///
+  /// Called before every write of a record, on the record as it will be
+  /// stored — after any merge — because that is the only measurement the
+  /// bound can be stated in. Refused rather than truncated: a truncated record
+  /// is unparseable, and the enrollment it describes would be unusable with
+  /// nothing to say why.
+  ///
+  /// On the `enroll:request` path the pre-filter in [_validateEnrollParams]
+  /// almost always refuses first, because `EnrollParams.toJson()` emits every
+  /// field including the null ones and so encodes larger than the record it
+  /// becomes. `enroll:update` is where this check does the work: `metadata`
+  /// merges rather than replaces, so a request nowhere near the cap can still
+  /// leave a record past it, and no measurement of the request can see that.
+  void _validateRecordSize(EnrollDataStoreValue enVal) {
+    final length = utf8.encode(jsonEncode(enVal.toJson())).length;
+    if (length > maxEnrollmentRecordBytes) {
+      throw IllegalArgumentException(
+          'enrollment record is $length bytes encoded, which exceeds the '
+          '$maxEnrollmentRecordBytes byte limit');
+    }
+  }
+
+  /// The exact string this enrollment publishes as its `_apsk`, or null when
+  /// it publishes none.
+  ///
+  /// The two shapes are stored differently because they are read differently.
+  /// [EnrollDataStoreValue.apskLegacy] goes out **verbatim**: every deployed
+  /// `_apsk` consumer base64-decodes the value as an RSA key, and a JSON string
+  /// — quotes and all — is not what that parser reads. [EnrollDataStoreValue.apsk]
+  /// is JSON-encoded, which is what makes it unmistakable to those same
+  /// consumers: they fail loudly on it rather than mis-reading it.
+  ///
+  /// The two are mutually exclusive on the wire, so the order here decides
+  /// nothing; it is written as a chain only so the null case has one answer.
+  static String? _apskRecordValue(EnrollDataStoreValue enVal) {
+    if (enVal.apskLegacy != null) {
+      return enVal.apskLegacy;
+    }
+    if (enVal.apsk != null) {
+      return jsonEncode(enVal.apsk);
+    }
+    return null;
+  }
+
+  /// Publishes the `_apsk` value the CLIENT composed and sent on
+  /// `enroll:request` at `public:_apsk.<enrollmentId>.a.__e@<atSign>`, the
   /// location the at_client `ApkamSigning` mixin reads.
   ///
-  /// A no-op when [apsk] is null. The atServer composes nothing: PKAM
-  /// verification reads the enrollment record's `apkamPublicKey` and
-  /// `signingAlgo`, so `_apsk` is a client-side artefact and its format
-  /// belongs to the side that parses it. An enrollment that sent no value
-  /// publishes its own signing key from its own connection, or goes without.
+  /// A no-op when [enVal] carries neither shape. The atServer composes
+  /// nothing: PKAM verification reads the enrollment record's
+  /// `apkamPublicKey` and `signingAlgo`, so `_apsk` is a client-side artefact
+  /// and its format belongs to the side that parses it. An enrollment that
+  /// sent no value publishes its own signing key from its own connection, or
+  /// goes without.
   ///
   /// The server writes it despite never reading it because `_apsk` accepts
   /// writes only from its own enrollment's connection, and at approval that
@@ -900,17 +1001,22 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// it verifies the enrollee's key package against it and signs signing-chain
   /// links over it — so this is the only party that can put it there in time.
   ///
+  /// Takes the RECORD rather than a value, so every call site publishes what
+  /// the enrollee asked for: an approver handing its own value in would be
+  /// substituting a signing key for the enrollment it is approving.
+  ///
   /// World-readable, so a same-atSign or peer-atSign verifier can reach it via
   /// plookup. Idempotent: a re-publish is a harmless overwrite with the same
   /// value.
   Future<void> _publishApskSigningKey(
-      String enrollmentId, Map<String, dynamic>? apsk, currentAtSign) async {
-    if (apsk == null) {
+      String enrollmentId, EnrollDataStoreValue enVal, currentAtSign) async {
+    final value = _apskRecordValue(enVal);
+    if (value == null) {
       return;
     }
     final apskKey = 'public:_apsk.$enrollmentId'
         '.${EnrollmentConstants.perEnrollmentApproved}$currentAtSign';
-    await keyStore.put(apskKey, AtData()..data = jsonEncode(apsk));
+    await keyStore.put(apskKey, AtData()..data = value);
   }
 
   EnrollmentStatus _getEnrollStatusEnum(String? enrollmentOperation) {
@@ -1222,10 +1328,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         if (enrollParams.apkamPublicKey == null &&
             enrollParams.signingAlgo == null &&
             enrollParams.apsk == null &&
+            enrollParams.apskLegacy == null &&
             enrollParams.metadata == null) {
           throw IllegalArgumentException(
               'enroll:update must name at least one of apkamPublicKey, '
-              'signingAlgo, apsk or metadata');
+              'signingAlgo, apsk, apskLegacy or metadata');
         }
         // Named explicitly rather than silently ignored. These are the two
         // fields the operation must never reach — an enrollment amending
