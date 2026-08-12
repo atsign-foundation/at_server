@@ -91,10 +91,6 @@ class EnrollmentManager {
       String enId, AtData atData, EnrollmentStatus newStatus) async {
     String ek = buildEnrollmentKey(enId);
 
-    // invalidate the cache
-    cacheInvalidations++;
-    atDataCache.remove(ek);
-
     switch (newStatus) {
       case EnrollmentStatus.approved:
         await movePerEnrollmentData(enId,
@@ -109,6 +105,10 @@ class EnrollmentManager {
     }
 
     await keyStore.put(ek, atData, skipCommit: true);
+
+    // invalidate the cache
+    cacheInvalidations++;
+    atDataCache.remove(ek);
   }
 
   RegExp reForPerEnrollmentNamespaces =
@@ -244,11 +244,11 @@ class EnrollmentManager {
     }
     String ek = buildEnrollmentKey(enId);
 
+    await keyStore.remove(ek, skipCommit: true);
+
     // invalidate the cache
     cacheInvalidations++;
     atDataCache.remove(ek);
-
-    await keyStore.remove(ek, skipCommit: true);
   }
 
   Future<List<String>> getAllEnrollmentKeys() async {
