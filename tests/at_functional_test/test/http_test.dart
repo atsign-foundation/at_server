@@ -33,7 +33,7 @@ void main() {
       int.tryParse(Platform.environment['VIRTUALENV_ATDIRECTORY_HTTPS_PORT'] ?? '') ??
           (basePort != null ? basePort + 98 : 443);
 
-  // When that override is set, the atProtocol-lookup half of the redirect tests
+  // When that override is set, the Atsign Protocol-lookup half of the redirect tests
   // must connect straight to the atServer (root:httpsPort) rather than resolving
   // each atSign via the atDirectory; a fixed finder points every atSign there.
   // Unset (ve) => null => AtLookupImpl's default CacheableSecondaryAddressFinder.
@@ -207,7 +207,7 @@ HttpClient newHttpClient() {
 }
 
 /// A [SecondaryAddressFinder] that returns a fixed host:port for every atSign —
-/// used when the atServer serves directly (atProtocol + HTTP GET-for-key on one
+/// used when the atServer serves directly (Atsign Protocol + HTTP GET-for-key on one
 /// TLS port) and there is no atDirectory to resolve per-atSign addresses.
 class _FixedSecondaryAddressFinder implements SecondaryAddressFinder {
   final String host;

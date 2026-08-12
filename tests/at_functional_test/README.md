@@ -2,4 +2,4 @@
 
 # at_functional_test
 
-Runs functional test on atProtocol server.
+Runs functional test on Atsign Protocol server.
