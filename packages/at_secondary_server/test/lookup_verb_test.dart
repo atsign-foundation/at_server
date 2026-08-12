@@ -15,7 +15,7 @@ import 'package:uuid/uuid.dart';
 
 import 'test_utils.dart';
 
-/// From the atProtocol specification:
+/// From the Atsign Protocol specification:
 /// The `lookup` verb should be used to fetch the value of the key shared by another @sign user. If there is a public and
 /// user key with the same name then the result should be based on whether the user is trying to lookup is authenticated or
 /// not. If the user is authenticated then the user key has to be returned, otherwise the public key has to be returned.

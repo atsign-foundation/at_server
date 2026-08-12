@@ -503,7 +503,7 @@ class AtCacheManager {
     await keyStore.put(cachedKeyName, atData);
   }
 
-  /// Does the remote lookup - returns the atProtocol string which it receives
+  /// Does the remote lookup - returns the Atsign Protocol string which it receives
   Future<String?> _remoteLookUp(String key,
       {required bool handshakeRequired}) async {
     logger.info("_remoteLookup: $key");

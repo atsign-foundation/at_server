@@ -9,7 +9,7 @@
 
 # at_server
 
-This repo contains the core software implementation of the atProtocol:
+This repo contains the core software implementation of the Atsign Protocol:
 
 ## packages
 
