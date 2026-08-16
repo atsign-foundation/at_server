@@ -1,3 +1,10 @@
+# 3.16.2
+- fix(at_secondary_server): an expired immutable record no longer blocks 
+creation of a new one until the delete-expired-keys sweep has run.
+  - An update that finds an expired record now deletes it before proceeding,
+  - so that the cache-metadata validation, the immutability check and the 
+   keystore's own metadata merge all see the same absence.
+
 # 3.16.1
 - feat: honour `EnrollParams.apskLegacy` — the bare RSA `_apsk` string,
   published verbatim rather than JSON-encoded. A request carrying both it and
