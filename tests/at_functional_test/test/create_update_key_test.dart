@@ -60,38 +60,56 @@ void main() {
     test(
         'A test to assert of default fields in metadata are populated on update of a key',
         () async {
-      // The test asserts the following on update of a key
-      // 1. The version of the key should be set to 1
-      // 2. The createdAt should be populated with currentDateTime (now),
-      // 3. The updatedAt should be populated with DateTime which is higher than now,
-      // 4. The createdBy should be populated with atSign.
-      // Insert a new key. To ensure the key is always new, append UUID.
-      var keyCreationDateTime = DateTime.now().toUtc();
+      // What updating a key must do to its metadata:
+      // 1. version increments to 1
+      // 2. createdAt is PRESERVED from the create
+      // 3. updatedAt is REGENERATED, so it moves forward
+      // 4. createdBy / updatedBy name the atSign
+      //
+      // Every comparison here is between two values the SERVER produced, one
+      // per update.
       String key = 'newkey-$uniqueId';
-      var response = await firstAtSignConnection
+
+      Future<Map<String, dynamic>> metadataOf(String k) async =>
+          jsonDecode((await firstAtSignConnection
+                      .sendRequestToServer('llookup:all:public:$k$firstAtSign'))
+                  .replaceAll('data:', ''))['metaData']
+              as Map<String, dynamic>;
+
+      await firstAtSignConnection
           .sendRequestToServer('update:public:$key$firstAtSign new-value');
-      var keyUpdateDateTime = DateTime.now().toUtc();
-      response = await firstAtSignConnection
+      final afterCreate = await metadataOf(key);
+
+      var response = await firstAtSignConnection
           .sendRequestToServer('update:public:$key$firstAtSign updated-value');
       assert((!response.contains('Invalid syntax')) &&
           (!response.contains('null')));
-      response = (await firstAtSignConnection
-              .sendRequestToServer('llookup:all:public:$key$firstAtSign'))
-          .replaceAll('data:', '');
-      var atData = jsonDecode(response);
-      expect(atData['metaData']['version'], 1);
+      final afterUpdate = await metadataOf(key);
+
+      expect(afterCreate['version'], 0);
+      expect(afterUpdate['version'], 1);
+
+      // Both present before either is parsed, so a metadata field that stops
+      // being populated at all fails by name rather than as a cast error
+      // several lines later.
+      expect(afterCreate['updatedAt'], isNotNull);
+      expect(afterUpdate['updatedAt'], isNotNull);
+
+      expect(afterUpdate['createdAt'], afterCreate['createdAt'],
+          reason: 'createdAt is fixed when the record is created and preserved '
+              'by every later update');
       expect(
-          DateTime.parse(atData['metaData']['createdAt'])
-                  .millisecondsSinceEpoch >=
-              keyCreationDateTime.millisecondsSinceEpoch,
-          true);
-      expect(
-          DateTime.parse(atData['metaData']['updatedAt'])
-                  .millisecondsSinceEpoch >=
-              keyUpdateDateTime.millisecondsSinceEpoch,
-          true);
-      expect(atData['metaData']['createdBy'], firstAtSign);
-      expect(atData['metaData']['updatedBy'], firstAtSign);
+          DateTime.parse(afterUpdate['updatedAt'])
+              .isAfter(DateTime.parse(afterCreate['updatedAt'])),
+          true,
+          reason: 'updatedAt is regenerated on every update. Retaining it — '
+              'which is what happens if AtMetadataBuilder stops overwriting it '
+              'and the retain-from-existing merge takes over — is the defect '
+              'this guards, and the two updates are separated by a full round '
+              'trip so there is real headroom');
+
+      expect(afterUpdate['createdBy'], firstAtSign);
+      expect(afterUpdate['updatedBy'], firstAtSign);
     });
   });
 

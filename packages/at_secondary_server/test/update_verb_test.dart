@@ -1123,6 +1123,121 @@ void main() {
           throwsA(isA<IllegalStateException>()));
     });
 
+    test('An EXPIRED immutable record may be created again', () async {
+      // A short-ttl immutable record is how several clients of one atSign hold
+      // a create-once interlock between them: the server's refusal of the
+      // second create IS the lock, and the ttl is what releases it if the
+      // holder dies mid-operation.
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(
+        keyValueStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
+      inboundConnection.metaData.isAuthenticated = true;
+
+      final atKey = AtKey.fromString('expiring_lock.wavi$alice');
+      await updateHandler.process(
+          'update:ttl:1:immutable:true:$atKey first holder', inboundConnection);
+
+      // Control: while it is alive, the refusal still stands. Without this the
+      // test below could pass because immutability stopped working at all
+      // rather than because the record expired.
+      await expectLater(
+          updateHandler.process(
+              'update:immutable:true:$atKey second holder', inboundConnection),
+          throwsA(isA<IllegalStateException>()),
+          reason: 'a LIVE immutable record must still refuse a second create — '
+              'that refusal is the interlock');
+
+      await Future.delayed(Duration(milliseconds: 20));
+
+      // The record has expired, so a reader is already told it is gone. The
+      // writer must agree.
+      expect(SecondaryUtil.isActiveKey(await keyValueStore.get(atKey.toString())),
+          false,
+          reason: 'the premise: this record is expired, so a lookup answers '
+              'null for it. If it is somehow still active the assertion below '
+              'proves nothing about expiry');
+
+      await updateHandler.process(
+          'update:ttl:1000:immutable:true:$atKey second holder',
+          inboundConnection);
+      AtData d = (await keyValueStore.get(atKey.toString()))!;
+      expect(d.data, 'second holder',
+          reason: 'an expired record is gone — a lookup of it answers null — '
+              'so it must not go on refusing a create. Otherwise the server '
+              'gives two different answers about whether the record exists');
+      expect(d.metaData?.immutable, true);
+    });
+
+    test('A create over an EXPIRED record inherits nothing from it', () async {
+      // The other half of treating an expired record as absent. Metadata is
+      // merged from the existing record wherever the new one leaves a field
+      // null — so if a dead record can still be seen here, a plain create over
+      // it silently becomes immutable and is born already expired, because it
+      // inherits both `immutable` and a past `expiresAt`.
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(
+        keyValueStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
+      inboundConnection.metaData.isAuthenticated = true;
+
+      final atKey = AtKey.fromString('expired_inherits.wavi$alice');
+      await updateHandler.process(
+          'update:ttl:1:immutable:true:$atKey first holder', inboundConnection);
+      await Future.delayed(Duration(milliseconds: 20));
+
+      // A plain create: not immutable, no ttl.
+      await updateHandler.process(
+          'update:$atKey second holder', inboundConnection);
+      AtData d = (await keyValueStore.get(atKey.toString()))!;
+
+      expect(d.data, 'second holder');
+      expect(d.metaData?.immutable, false,
+          reason: 'the dead record was immutable and this create did not ask '
+              'to be — inheriting the flag makes a record permanent that '
+              'nobody declared permanent');
+      expect(d.metaData?.expiresAt, isNull,
+          reason: 'inheriting the dead record\'s expiresAt would give this one '
+              'an expiry already in the past, so it would be born expired');
+    });
+
+    test('A not-yet-born immutable record still refuses a second create',
+        () async {
+      // The other side of the same rule, and the reason the check is expiry
+      // only rather than SecondaryUtil.isActiveKey: a record inside its ttb
+      // has NOT stopped existing, it has not started yet. Treating it as
+      // absent would let a second writer replace a record that is about to
+      // become visible.
+      UpdateVerbHandler updateHandler = UpdateVerbHandler(
+        keyValueStore,
+        statsNotificationService,
+        notificationManager,
+        alice,
+      );
+      inboundConnection.metaData.isAuthenticated = true;
+
+      final atKey = AtKey.fromString('unborn_lock.wavi$alice');
+      await updateHandler.process(
+          'update:ttb:60000:immutable:true:$atKey first holder',
+          inboundConnection);
+
+      expect(SecondaryUtil.isActiveKey(await keyValueStore.get(atKey.toString())),
+          false,
+          reason: 'the premise: isActiveKey answers false here too, which is '
+              'exactly why the immutability check must not use it');
+
+      await expectLater(
+          updateHandler.process(
+              'update:immutable:true:$atKey second holder', inboundConnection),
+          throwsA(isA<IllegalStateException>()),
+          reason: 'not-yet-born is not gone. The record exists and will become '
+              'visible, so a second create must still be refused');
+    });
+
     test('Create records with random metadata and verify correctness',
         () async {
       UpdateVerbHandler updateHandler = UpdateVerbHandler(

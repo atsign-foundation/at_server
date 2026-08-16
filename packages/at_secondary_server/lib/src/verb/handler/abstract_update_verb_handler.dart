@@ -120,6 +120,41 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     }
 
     var existingAtMetaData = await keyStore.getMeta(atKey);
+
+    // An EXPIRED record is gone — a lookup of it already answers null — so it
+    // must not shape the record that replaces it. Delete it outright rather
+    // than teaching each reader below to look past it: once it is out of the
+    // store, the cache-metadata validation, the immutability check and the
+    // keystore's OWN retain-from-existing merge all see the same absence that
+    // a reader already sees, instead of three places agreeing to pretend.
+    //
+    // Teaching the readers here would not have been enough. The keystore
+    // re-reads the record for itself when it merges metadata
+    // (AtMetadataBuilder), so an expired record would still have supplied
+    // `immutable`, `createdAt` and `version` to the record replacing it — and
+    // a create that asked for neither would be born immutable with an expiry
+    // already in the past.
+    //
+    // Without this the server gave two different answers about whether a
+    // record existed. It refused a create over an expired immutable record,
+    // which made a ttl on such a record meaningless: the ttl expired the value
+    // but the record stayed in the keystore until next expired-keys-cleanup
+    // sweep, so a create-once interlock whose holder died blocked its own
+    // atSign for longer than intended.
+    //
+    // skipCommit because nothing observable changes. Whenever we delete
+    // expired records, we skip commit, because clients with sync'd copies will
+    // also see the expiration and delete their local copy.
+    //
+    // Expiry only, and deliberately NOT SecondaryUtil.isActiveKey, which also
+    // answers false before a record's ttb has elapsed. A not-yet-born record
+    // still exists and must still refuse a second create; only an expired one
+    // has stopped existing.
+    if (existingAtMetaData != null && _hasExpired(existingAtMetaData)) {
+      await keyStore.remove(atKey, skipCommit: true);
+      existingAtMetaData = null;
+    }
+
     var cacheRefreshMetaMap = hu.validateCacheMetadata(existingAtMetaData,
         updateParams.metadata!.ttr, updateParams.metadata!.ccd);
     updateParams.metadata!.ttr = cacheRefreshMetaMap[AtConstants.ttr];
@@ -140,7 +175,8 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     atData.metaData =
         AtMetaData.fromCommonsMetadata(updateParams.metadata!, atSign);
 
-    // Enforce the immutable feature
+    // Enforce the immutable feature. An expired record has already been
+    // dropped above, so this asks about a record that still exists.
     if (existingAtMetaData?.immutable == true) {
       throw IllegalStateException('Immutable records may not be updated');
     }
@@ -359,6 +395,18 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     newAtMetadata.appMetadata ??= existing?.appMetadata;
 
     return newAtMetadata;
+  }
+
+  /// Whether [metaData]'s record has passed its ttl.
+  ///
+  /// Compared on epoch milliseconds like [SecondaryUtil.isActiveKey], so the
+  /// two agree about when a record dies even though they are asked different
+  /// questions — that one folds in ttb and this one deliberately does not.
+  static bool _hasExpired(AtMetaData metaData) {
+    final expiresAt = metaData.expiresAt;
+    if (expiresAt == null) return false;
+    return expiresAt.toUtc().millisecondsSinceEpoch <
+        DateTime.now().millisecondsSinceEpoch;
   }
 
   static String? _mergeStringField(String? newValue, String? existingValue) {
