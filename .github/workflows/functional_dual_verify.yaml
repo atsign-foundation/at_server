@@ -71,9 +71,11 @@ jobs:
           context: tools/build_virtual_environment/ve
           tags: at_virtual_env:dual
 
+      # No --rm: the DB snapshot below is taken from the *stopped* container,
+      # so it has to survive `docker stop`. The final step removes it.
       - name: Run docker container in DUAL persistence mode
         run: |
-          docker run -d --rm --name at_virtual_env_dual_cont \
+          docker run -d --name at_virtual_env_dual_cont \
             -e testingMode="true" -e httpsEnabled="true" -e persistenceBackend="dual" \
             -p 6379:6379 -p 25000-25099:25000-25099 -p 64:64 -p 443:443 \
             at_virtual_env:dual
@@ -100,13 +102,28 @@ jobs:
         working-directory: ${{ env.ftest-working-directory }}
         run: dart run test --concurrency=1
 
+      # The DB sets have to be snapshotted from a quiescent container: while the
+      # atServers are running, background jobs (stats notifications, expiry
+      # sweep, compaction) keep writing between the sequential `docker cp`s of
+      # the Hive files and atsign.db, so the two halves of one snapshot can
+      # disagree. Enumerate the databases while the container is up (needs
+      # `docker exec`), then stop it; `docker cp` works fine on a stopped
+      # container. -t 60 gives supervisord room to stop every atServer
+      # gracefully, so each store is closed rather than killed mid-write.
+      - name: Stop container before snapshotting the DB sets
+        run: |
+          CONT=at_virtual_env_dual_cont
+          docker exec "$CONT" sh -c "find / -name atsign.db 2>/dev/null" \
+            | tr -d '\r' > "$RUNNER_TEMP/dual_dbs.txt"
+          docker stop -t 60 "$CONT"
+
       - name: Verify every atSign's Hive and SQLite DB sets are identical
         run: |
           CONT=at_virtual_env_dual_cont
           OUT=$(mktemp -d)
           fail=0
           total=0
-          dbs=$(docker exec "$CONT" sh -c "find / -name atsign.db 2>/dev/null" | tr -d '\r')
+          dbs=$(cat "$RUNNER_TEMP/dual_dbs.txt")
           if [ -z "$dbs" ]; then
             echo "::error::dual mode produced no SQLite databases"
             exit 1
@@ -130,6 +147,6 @@ jobs:
             exit 1
           fi
 
-      - name: Stop container
+      - name: Remove container
         if: always()
-        run: docker stop at_virtual_env_dual_cont || true
+        run: docker rm -f at_virtual_env_dual_cont || true
