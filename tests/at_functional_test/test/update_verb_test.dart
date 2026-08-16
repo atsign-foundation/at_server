@@ -78,6 +78,114 @@ void main() async {
     await updateLookupUpdateDeleteForceDeleteImmutable(atKey);
   });
 
+  /// An immutable record carrying a ttl is a create-once interlock that
+  /// releases itself: the refusal of the second create IS the lock, and the
+  /// ttl is what stops a holder that died mid-operation from blocking its own
+  /// atSign for good. Several clients of one atSign use it to elect exactly
+  /// one of themselves to perform an operation.
+  ///
+  /// That only works if expiry frees the NAME and not merely the value.
+  /// Before this was fixed the two disagreed — `llookup` answered that the
+  /// record was gone while `update` went on refusing to create it — so the
+  /// ttl expired the value but the record remained in the data store
+  /// until the expired-keys cleanup sweep next ran.
+  group('immutable records with a ttl', () {
+    test('an EXPIRED immutable record may be created again', () async {
+      String atKey = 'expiringlock-$uniqueId$firstAtSign';
+
+      var response = await firstAtSignConnection.sendRequestToServer(
+          'update:ttl:1000:immutable:true:$atKey first holder');
+      expect(response, contains(RegExp(r'data:\d+')));
+
+      // Control. Without this, the acceptance below could mean immutability
+      // stopped working altogether rather than that the record expired.
+      response = await firstAtSignConnection.sendRequestToServer(
+          'update:immutable:true:$atKey second holder');
+      expect(response, contains('error:{"errorCode":"AT0032",'),
+          reason: 'while it is LIVE the record must still refuse a second '
+              'create — that refusal is the interlock itself');
+
+      await Future.delayed(Duration(milliseconds: 1500));
+
+      // The reader already says it is gone. Asserted as "does not carry the
+      // value" rather than against a particular error shape, so this pins the
+      // property rather than the spelling of a response.
+      response =
+          await firstAtSignConnection.sendRequestToServer('llookup:$atKey');
+      expect(response, isNot(contains('first holder')),
+          reason: 'the premise: past its ttl the record is gone to a reader. '
+              'If it still reads, the assertion below proves nothing about '
+              'expiry');
+
+      // …and the writer must agree.
+      response = await firstAtSignConnection.sendRequestToServer(
+          'update:ttl:60000:immutable:true:$atKey second holder');
+      expect(response, contains(RegExp(r'data:\d+')),
+          reason: 'an expired record is gone, so it must not go on refusing a '
+              'create. Otherwise a ttl on an immutable record expires the '
+              'value while reserving the name for ever, and a lock whose '
+              'holder crashed blocks its atSign permanently');
+
+      response =
+          await firstAtSignConnection.sendRequestToServer('llookup:$atKey');
+      expect(response, contains('data:second holder'));
+
+      await firstAtSignConnection.sendRequestToServer('delete:force:$atKey');
+    });
+
+    test('a NOT-YET-BORN immutable record still refuses a second create',
+        () async {
+      // The other half of the rule, and the reason the check is expiry only
+      // rather than the server's general is-this-record-active test: a record
+      // inside its ttb has not stopped existing, it has not started yet.
+      // Treating it as absent would let a second writer replace a record that
+      // is about to become visible.
+      String atKey = 'unbornlock-$uniqueId$firstAtSign';
+
+      var response = await firstAtSignConnection.sendRequestToServer(
+          'update:ttb:60000:immutable:true:$atKey first holder');
+      expect(response, contains(RegExp(r'data:\d+')));
+
+      response =
+          await firstAtSignConnection.sendRequestToServer('llookup:$atKey');
+      expect(response, isNot(contains('first holder')),
+          reason: 'the premise: inside its ttb the record does not read either '
+              '— which is exactly why "does not read" cannot be the test for '
+              'whether a create is allowed');
+
+      response = await firstAtSignConnection.sendRequestToServer(
+          'update:immutable:true:$atKey second holder');
+      expect(response, contains('error:{"errorCode":"AT0032",'),
+          reason: 'not-yet-born is not gone. The record exists and will become '
+              'visible, so a second create must still be refused');
+
+      await firstAtSignConnection.sendRequestToServer('delete:force:$atKey');
+    });
+
+    test('an immutable record with NO ttl still refuses a create for ever',
+        () async {
+      // The behaviour that must not change. Everything above narrows when
+      // immutability stops applying; this pins that it still applies at all.
+      String atKey = 'permanentlock-$uniqueId$firstAtSign';
+
+      try {
+        var response = await firstAtSignConnection
+            .sendRequestToServer('update:immutable:true:$atKey first holder');
+        expect(response, contains(RegExp(r'data:\d+')));
+
+        await Future.delayed(Duration(milliseconds: 1500));
+
+        response = await firstAtSignConnection
+            .sendRequestToServer('update:immutable:true:$atKey second holder');
+        expect(response, contains('error:{"errorCode":"AT0032",'),
+            reason: 'with no ttl there is nothing to expire, so the record '
+                'refuses a create for as long as it exists');
+      } finally {
+        await firstAtSignConnection.sendRequestToServer('delete:force:$atKey');
+      }
+    });
+  });
+
   test('update-llookup verb with public key', () async {
     /// UPDATE VERB
     var value = 'Hyderabad$lastValue';
