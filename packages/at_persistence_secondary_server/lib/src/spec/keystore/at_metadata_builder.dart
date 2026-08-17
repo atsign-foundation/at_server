@@ -42,13 +42,26 @@ class AtMetadataBuilder {
 
     // Ensure that if there was existing metadata and it had immutable == true
     // then that value is preserved regardless of what the new update is trying
-    // to do
-    // Note: this condition never occurs right now but we will leave it here
-    // for safety's sake
+    // to do.
+    //
+    // No update or update:meta arrives here with an immutable record. Both
+    // share AbstractUpdateVerbHandler.preProcessAndNotify, which refuses one
+    // outright ('Immutable records may not be updated'). That stays true for an
+    // EXPIRED immutable record, but for the opposite reason: such a record is
+    // deleted before the write, so this builder is handed existingMetaData ==
+    // null and inherits nothing from it. The test 'A create over an EXPIRED
+    // record inherits nothing from it', in at_secondary_server's
+    // test/update_verb_test.dart, is what pins that.
+    //
+    // The guard is not dead code: the verb handlers are not the only writers.
+    // The caching, enrollment, otp and config paths call keyStore.put/putMeta
+    // directly, and that refusal is the only immutability check in the tree, so
+    // none of them consults it. This is the backstop for those — which is why
+    // the warning below logs what it was asked to do.
     if (existingMetaData?.immutable == true) {
       if (newAtMetaData?.immutable != true) {
         logger.warning('Existing metadata.immutable is true,'
-            ' but new metadata.immutable is newAtMetaData?.immutable'
+            ' but new metadata.immutable is ${newAtMetaData?.immutable}'
             ' : will preserve immutable == true'
             ' : logging stack trace for reference');
         logger.warning(StackTrace.current);
