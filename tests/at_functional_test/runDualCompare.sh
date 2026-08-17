@@ -35,26 +35,43 @@ echo "== build VE image (with libsqlite3) =="
   docker build -f ./Dockerfile -t at_virtual_env:local . ) || exit 1
 
 echo "== run container in DUAL mode =="
-docker stop $CONT 2>/dev/null
-docker run -d --rm --name $CONT \
+# No --rm: the DB snapshot is taken from the *stopped* container, so it has to
+# survive `docker stop`. It is removed at the end (and here, in case a previous
+# run left one behind).
+docker rm -f $CONT 2>/dev/null
+docker run -d --name $CONT \
   -e testingMode="true" -e httpsEnabled="true" -e persistenceBackend="dual" \
   -p 6379:6379 -p 25000-25040:25000-25040 -p 64:64 -p 443:443 \
   at_virtual_env:local || exit 1
 
 echo "== readiness + keys =="
 cd "${repoDir}/tests/at_functional_test"
-dart run test/check_docker_readiness.dart || { docker stop $CONT; exit 1; }
-dart run test/check_root_server_readiness.dart || { docker stop $CONT; exit 1; }
+dart run test/check_docker_readiness.dart || { docker rm -f $CONT; exit 1; }
+dart run test/check_root_server_readiness.dart || { docker rm -f $CONT; exit 1; }
 ( cd "${repoDir}/tools/build_virtual_environment/install_PKAM_Keys" && \
-  dart pub get && dart bin/install_PKAM_Keys.dart ) || { docker stop $CONT; exit 1; }
-dart run test/check_test_env.dart || { docker stop $CONT; exit 1; }
+  dart pub get && dart bin/install_PKAM_Keys.dart ) || { docker rm -f $CONT; exit 1; }
+dart run test/check_test_env.dart || { docker rm -f $CONT; exit 1; }
 
 echo "== run functional pack (dual mode) =="
 dart run test --concurrency=1
 PACK_RC=$?
 echo "functional pack rc=$PACK_RC"
 
-echo "== discover per-atSign databases in $CONT and compare Hive vs SQLite =="
+echo "== discover per-atSign databases in $CONT =="
+# Enumerate while the container is up (needs docker exec), then stop it before
+# copying anything out: with the atServers running, background jobs (stats
+# notifications, expiry sweep, compaction) keep writing between the sequential
+# copies of the Hive files and atsign.db, so the two halves of one snapshot can
+# disagree. `docker cp` works fine on a stopped container, and -t 60 gives
+# supervisord room to close every store gracefully rather than be killed
+# mid-write.
+DB_LIST="$(mktemp)"
+docker exec $CONT sh -c "find / -name atsign.db 2>/dev/null" | tr -d '\r' > "$DB_LIST"
+
+echo "== stop container (quiesce before snapshot) =="
+docker stop -t 60 $CONT >/dev/null
+
+echo "== compare Hive vs SQLite for each atSign =="
 # The VE lays Hive stores out as hive/ commit_log/ access_log/ notification_log/
 # (legacy names) and SQLite under storage/sqlite/. The checked-in tool
 # tool/dual_compare_ve.dart compares those exact paths; run it from inside the
@@ -62,7 +79,7 @@ echo "== discover per-atSign databases in $CONT and compare Hive vs SQLite =="
 ( cd "$PERSIST_PKG" && dart pub get >/dev/null 2>&1 ) || true
 CMP_FAIL=0
 OUT=$(mktemp -d)
-docker exec $CONT sh -c "find / -name atsign.db 2>/dev/null" | tr -d '\r' | while IFS= read -r db; do
+while IFS= read -r db; do
   secdir=$(echo "$db" | sed 's|/storage/sqlite/.*||')   # /atsign/secondary/<name>
   atSign=$(basename "$(dirname "$db")")                  # @name
   dest="$OUT/$RANDOM"
@@ -70,7 +87,8 @@ docker exec $CONT sh -c "find / -name atsign.db 2>/dev/null" | tr -d '\r' | whil
   res=$(cd "$PERSIST_PKG" && dart run tool/dual_compare_ve.dart "$dest" "$atSign" 2>/dev/null | grep -vE "^(SHOUT|INFO|WARNING|FINE)")
   echo "$res"
   rm -rf "$dest"
-done | tee "$OUT/results.txt"
+done < "$DB_LIST" | tee "$OUT/results.txt"
+rm -f "$DB_LIST"
 IDENT=$(grep -c "^IDENTICAL" "$OUT/results.txt")
 TOTAL=$(grep -cE "^(IDENTICAL|MISMATCH)" "$OUT/results.txt")
 grep -q "^MISMATCH" "$OUT/results.txt" && CMP_FAIL=1
@@ -81,8 +99,8 @@ fi
 echo "atSigns: $TOTAL   IDENTICAL: $IDENT"
 rm -rf "$OUT"
 
-echo "== stop container =="
-docker stop $CONT >/dev/null
+echo "== remove container =="
+docker rm -f $CONT >/dev/null
 
 echo "======================================================"
 echo "functional pack : $([[ $PACK_RC -eq 0 ]] && echo PASS || echo FAIL)"
