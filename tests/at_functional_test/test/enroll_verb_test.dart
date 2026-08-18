@@ -1083,15 +1083,36 @@ void main() {
   });
 
   group('A group of test related to Rate limiting enrollment requests', () {
-    String otp = '';
+    /// One OTP. Each is stored under its own key, so several can be
+    /// outstanding at once - which is what lets these tests fetch every OTP
+    /// they need BEFORE the rate-limit window opens, instead of spending a
+    /// round trip inside the window they are measuring.
+    Future<String> freshOtp(OutboundConnectionFactory conn) async =>
+        (await conn.sendRequestToServer('otp:get'))
+            .replaceAll('data:', '')
+            .trim();
+
+    /// An enroll request with a unique (appName, deviceName) and the given
+    /// OTP. Only the OTP varies between the requests these tests send.
+    String enrollRequestFor(String otp) =>
+        'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+
     setUp(() async {
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.cram);
       String configResponse = await firstAtSignConnection
           .sendRequestToServer('config:set:maxRequestsPerTimeFrame=1');
       expect(configResponse.trim(), 'data:ok');
+      // 2000ms, not 100ms. Every test below has to fit its two enroll
+      // requests inside this window, and at 100ms the window was smaller than
+      // the round trips the tests themselves make - so on a loaded runner the
+      // first request aged out before the second arrived and the refusal
+      // under test never came. Measured against a dual-mode VE, the in-window
+      // work is ~25ms, so this is roughly an 80x margin. The limiter is a
+      // sliding window over request timestamps, so widening it changes only
+      // the room the test has, not what is being tested.
       configResponse = await firstAtSignConnection
-          .sendRequestToServer('config:set:timeFrameInMillis=100');
+          .sendRequestToServer('config:set:timeFrameInMillis=2000');
       expect(configResponse.trim(), 'data:ok');
     });
 
@@ -1101,10 +1122,12 @@ void main() {
       OutboundConnectionFactory unAuthenticatedConnection =
           await OutboundConnectionFactory().initiateConnectionWithListener(
               firstAtSign, firstAtSignHost, firstAtSignPort);
-      otp = await firstAtSignConnection.sendRequestToServer('otp:get');
-      otp = otp.replaceAll('data:', '').trim();
-      var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+      // Both OTPs are fetched BEFORE the first request, so no otp:get round
+      // trip sits inside the window the test is measuring. Each OTP is stored
+      // under its own key, so two can be outstanding at once.
+      String otp1 = await freshOtp(firstAtSignConnection);
+      String otp2 = await freshOtp(firstAtSignConnection);
+      var enrollRequest = enrollRequestFor(otp1);
       String enrollmentResponse =
           await unAuthenticatedConnection.sendRequestToServer(enrollRequest);
       Map enrollmentResponseMap =
@@ -1112,10 +1135,8 @@ void main() {
       expect(enrollmentResponseMap['status'], 'pending');
       expect(enrollmentResponseMap['enrollmentId'], isNotNull);
 
-      otp = await firstAtSignConnection.sendRequestToServer('otp:get');
-      otp = otp.replaceAll('data:', '').trim();
-      enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}\n';
+      // Immediately, with nothing in between.
+      enrollRequest = '${enrollRequestFor(otp2)}\n';
       enrollmentResponse =
           (await unAuthenticatedConnection.sendRequestToServer(enrollRequest))
               .replaceAll('error:', '');
@@ -1131,10 +1152,10 @@ void main() {
           await OutboundConnectionFactory().initiateConnectionWithListener(
               firstAtSign, firstAtSignHost, firstAtSignPort);
 
-      otp = await firstAtSignConnection.sendRequestToServer('otp:get');
-      otp = otp.replaceAll('data:', '').trim();
-      String enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+      // Pre-fetched, so the window contains only the two enroll requests.
+      String otp1 = await freshOtp(firstAtSignConnection);
+      String otp2 = await freshOtp(firstAtSignConnection);
+      String enrollRequest = enrollRequestFor(otp1);
       String enrollmentResponse =
           (await unAuthenticatedConnection.sendRequestToServer(enrollRequest))
               .replaceAll('data:', '');
@@ -1143,10 +1164,7 @@ void main() {
       expect(enrollmentResponseMap['status'], 'pending');
       expect(enrollmentResponseMap['enrollmentId'], isNotNull);
 
-      otp = await firstAtSignConnection.sendRequestToServer('otp:get');
-      otp = otp.replaceAll('data:', '').trim();
-      enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+      enrollRequest = enrollRequestFor(otp2);
       enrollmentResponse =
           (await unAuthenticatedConnection.sendRequestToServer(enrollRequest))
               .replaceAll('error:', '');
@@ -1154,7 +1172,11 @@ void main() {
           enrollmentResponse.contains(
               'Enrollment requests have exceeded the limit within the specified time frame'),
           true);
-      await Future.delayed(Duration(milliseconds: 110));
+      // Past the window, so the first request has aged out of it. Must exceed
+      // the 2000ms configured in setUp; the refused request above spent no
+      // OTP, because the limit is checked before the OTP is validated, so the
+      // same request can simply be retried.
+      await Future.delayed(Duration(milliseconds: 2200));
       enrollmentResponse =
           (await unAuthenticatedConnection.sendRequestToServer(enrollRequest))
               .replaceAll('data:', '');
@@ -1168,10 +1190,20 @@ void main() {
           await OutboundConnectionFactory().initiateConnectionWithListener(
               firstAtSign, firstAtSignHost, firstAtSignPort);
 
-      otp = await firstAtSignConnection.sendRequestToServer('otp:get');
-      otp = otp.replaceAll('data:', '').trim();
-      var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+      // All three OTPs and the second connection are prepared BEFORE the
+      // window opens. The third request has to land INSIDE the window for
+      // this test to mean anything: if it arrives after the window has rolled
+      // over it is accepted because the limit expired, not because limits are
+      // per connection, and the test passes without testing anything.
+      String otp1 = await freshOtp(firstAtSignConnection);
+      String otp2 = await freshOtp(firstAtSignConnection);
+      String otp3 = await freshOtp(firstAtSignConnection);
+      OutboundConnectionFactory secondUnAuthenticatedConnection2 =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
+
+      final windowOpened = Stopwatch()..start();
+      var enrollRequest = enrollRequestFor(otp1);
       String enrollmentResponse =
           (await unAuthenticatedConnection.sendRequestToServer(enrollRequest))
               .replaceAll('data:', '');
@@ -1180,10 +1212,7 @@ void main() {
       expect(enrollmentResponseMap['status'], 'pending');
       expect(enrollmentResponseMap['enrollmentId'], isNotNull);
 
-      otp = await firstAtSignConnection.sendRequestToServer('otp:get');
-      otp = otp.replaceAll('data:', '').trim();
-      enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+      enrollRequest = enrollRequestFor(otp2);
       enrollmentResponse =
           (await unAuthenticatedConnection.sendRequestToServer(enrollRequest))
               .replaceAll('error:', '');
@@ -1191,20 +1220,20 @@ void main() {
           enrollmentResponse.contains(
               'Enrollment requests have exceeded the limit within the specified time frame'),
           true);
-      OutboundConnectionFactory secondUnAuthenticatedConnection2 =
-          await OutboundConnectionFactory().initiateConnectionWithListener(
-              firstAtSign, firstAtSignHost, firstAtSignPort);
 
-      otp = await firstAtSignConnection.sendRequestToServer('otp:get');
-      otp = otp.replaceAll('data:', '').trim();
-      enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+      enrollRequest = enrollRequestFor(otp3);
       enrollmentResponse = await secondUnAuthenticatedConnection2
           .sendRequestToServer(enrollRequest);
+      windowOpened.stop();
       enrollmentResponseMap =
           jsonDecode(enrollmentResponse.replaceAll('data:', ''));
       expect(enrollmentResponseMap['status'], 'pending');
       expect(enrollmentResponseMap['enrollmentId'], isNotNull);
+      expect(windowOpened.elapsedMilliseconds, lessThan(2000),
+          reason: 'the acceptance above only demonstrates per-connection '
+              'limits if it happened while the first connection was still '
+              'rate limited. If this run took longer than the window, the '
+              'third request was accepted because the window rolled over');
     });
 
     tearDown(() async {

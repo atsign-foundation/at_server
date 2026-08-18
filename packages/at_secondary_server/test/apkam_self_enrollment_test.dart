@@ -6,12 +6,15 @@ import 'package:at_chops/at_chops.dart'
     show AtChopsUtil, HashingAlgoType, MlDsa65PureDartAlgo, PkamSigningAlgo;
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/verb/handler/enroll_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/pkam_verb_handler.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
+import 'package:at_secondary/src/conf/config_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 import 'enrollment_test_utils.dart';
 import 'test_utils.dart';
@@ -127,9 +130,13 @@ void main() {
     final graceMillis =
         Duration(hours: AtSecondaryConfig.apkamSelfEnrollmentGraceHours)
             .inMilliseconds;
-    expect(parentData?.metaData?.ttl, isNotNull,
+    // expiresAt rather than ttl: an uncapped enrollment record already
+    // carries ttl 0 - the keystore's "never expires" - so `ttl isNotNull`
+    // holds whether or not the cap was applied.
+    expect(parentData?.metaData?.expiresAt, isNotNull,
         reason: 'the cap is real: the parent record now carries an expiry');
-    expect(parentData!.metaData!.ttl!, lessThanOrEqualTo(graceMillis + 60000),
+    expect(parentData!.metaData!.ttl!, greaterThan(0));
+    expect(parentData.metaData!.ttl!, lessThanOrEqualTo(graceMillis + 60000),
         reason: 'and it is min(now + grace, existing expiry), not unbounded');
   });
 
@@ -623,5 +630,201 @@ void main() {
         throwsA(isA<UnAuthorizedException>()),
         reason: 'a pending enrollment cannot vouch for anything — only an '
             'approved parent is an authority');
+  });
+
+  /// The atSign's FIRST enrollment - the CRAM-path root every later
+  /// enrollment is approved by - is the one credential this server cannot
+  /// re-issue. AtSecondaryConfig.preserveFirstEnrollmentOnRetrofit exempts it
+  /// from the cap so that retiring it stays the owner's explicit act.
+  group('preserveFirstEnrollmentOnRetrofit', () {
+    /// Points the config at [preserve], leaving the rest of the yaml alone.
+    void setPreserve(bool preserve) {
+      AtSecondaryConfig.configYamlMap = YamlMap.wrap({
+        'enrollment': {'preserveFirstEnrollmentOnRetrofit': preserve}
+      });
+      expect(AtSecondaryConfig.preserveFirstEnrollmentOnRetrofit, preserve,
+          reason: 'the arms of every differential below differ only in this '
+              'value, so it has to have actually taken');
+    }
+
+    tearDown(() {
+      AtSecondaryConfig.configYamlMap = ConfigUtil.getYaml();
+    });
+
+    Future<AtData?> parentRecord(String enId) async =>
+        keyValueStore.get(enMgr.buildEnrollmentKey(enId));
+
+    test('defaults to true', () {
+      AtSecondaryConfig.configYamlMap = YamlMap.wrap({});
+      expect(AtSecondaryConfig.preserveFirstEnrollmentOnRetrofit, true,
+          reason: 'an atSign whose owner never noticed the retrofit must not '
+              'be left with no root credential at all');
+    });
+
+    test('the first enrollment is NOT capped when it is retrofitted',
+        () async {
+      setPreserve(true);
+      final firstId = etu.primaryEnId;
+      final before = await parentRecord(firstId);
+      expect(before?.metaData?.expiresAt, isNull,
+          reason: 'the premise: the CRAM-path root is written with no expiry. '
+              'If it already carried one there would be no absence to '
+              'preserve and this test would prove nothing');
+
+      final r = await selfEnroll(
+          parentEnrollmentId: firstId,
+          namespaces: {'*': 'rw', '__manage': 'rw'});
+      expect(r.isError, false, reason: '${r.errorMessage}');
+      final childId = jsonDecode(r.data!)['enrollmentId'] as String;
+
+      // Control: the retrofit really happened. Without this, a refused
+      // self-enrollment would leave the parent uncapped for the wrong reason
+      // and look exactly like the behaviour under test.
+      final child = await enMgr.getEnrollmentById(childId);
+      expect(child.parentEnrollmentId, firstId,
+          reason: 'the child records this parent, so the parent WAS the one '
+              'retrofitted');
+
+      final after = await parentRecord(firstId);
+      expect(after?.metaData?.expiresAt, isNull,
+          reason: 'the first enrollment keeps its absence of expiry — the '
+              'owner revokes it, the server does not retire it');
+      expect(after?.metaData?.ttl == null || after?.metaData?.ttl == 0, true,
+          reason: 'no clock was started: ttl is absent, or 0 which is the '
+              'keystore\'s "never expires"');
+      expect((await enMgr.getEnrollmentById(firstId)).approval?.state,
+          EnrollmentStatus.approved.name);
+    });
+
+    test('...and IS capped when the config is false', () async {
+      setPreserve(false);
+      final firstId = etu.primaryEnId;
+
+      final r = await selfEnroll(
+          parentEnrollmentId: firstId,
+          namespaces: {'*': 'rw', '__manage': 'rw'});
+      expect(r.isError, false, reason: '${r.errorMessage}');
+
+      final after = await parentRecord(firstId);
+      // expiresAt, not ttl: an uncapped enrollment record carries ttl 0, the
+      // keystore's "never expires", so `ttl isNotNull` would pass without any
+      // cap having been applied and this differential would prove nothing.
+      expect(after?.metaData?.expiresAt, isNotNull,
+          reason: 'the config is what drives the exemption: with it off the '
+              'first enrollment ages out like any other parent');
+      expect(after!.metaData!.ttl!, greaterThan(0));
+      expect(
+          after.metaData!.ttl!,
+          lessThanOrEqualTo(
+              Duration(hours: AtSecondaryConfig.apkamSelfEnrollmentGraceHours)
+                      .inMilliseconds +
+                  60000),
+          reason: 'and it is the ordinary min(now + grace, existing expiry)');
+    });
+
+    test('a LATER fully-privileged enrollment is still capped', () async {
+      setPreserve(true);
+      // Root grants, but not the first enrollment: created after the primary.
+      final laterRootId = await etu.createPendingEnrollment(
+          appName: 'later_root',
+          deviceName: 'later_root_device',
+          namespaces: {'*': 'rw', '__manage': 'rw'},
+          apkamKeysExpiryDuration: null);
+      await etu.approveEnrollment(etu.primaryEnId, laterRootId);
+      final later = await enMgr.getEnrollmentById(laterRootId);
+      expect(later.namespaces, {'*': 'rw', '__manage': 'rw'},
+          reason: 'the premise: this enrollment is fully privileged, so the '
+              'only property it lacks is being FIRST');
+      expect((await parentRecord(laterRootId))?.metaData?.expiresAt, isNull,
+          reason: 'and it has no expiry either — so createdAt is the only '
+              'thing left that can decide this test');
+
+      final r = await selfEnroll(
+          parentEnrollmentId: laterRootId,
+          namespaces: {'*': 'rw', '__manage': 'rw'},
+          appName: 'later_child',
+          deviceName: 'later_child_device');
+      expect(r.isError, false, reason: '${r.errorMessage}');
+
+      final laterAfter = await parentRecord(laterRootId);
+      expect(laterAfter?.metaData?.expiresAt, isNotNull,
+          reason: 'privileges alone do not earn the exemption — being the '
+              'atSign\'s first enrollment does');
+      expect(laterAfter!.metaData!.ttl!, greaterThan(0),
+          reason: 'a real clock, not the ttl 0 an uncapped record carries');
+      expect((await parentRecord(etu.primaryEnId))?.metaData?.expiresAt, isNull,
+          reason: 'and the actual first enrollment, which was not the parent '
+              'here, is untouched');
+    });
+
+    group('disqualifiesAsFirst - the millisecond tie', () {
+      // The keystore gives no way to build this case: AtMetadataBuilder
+      // stamps createdAt itself and retains the existing value on update, so
+      // no sequence of puts produces two records sharing a millisecond on
+      // demand. The rule is therefore pinned directly.
+      final t = DateTime.utc(2026, 8, 18, 12, 0, 0, 500);
+
+      test('a strictly earlier sibling disqualifies', () {
+        expect(
+            EnrollVerbHandler.disqualifiesAsFirst(
+                t, t.subtract(Duration(milliseconds: 1))),
+            isTrue);
+      });
+
+      test('the same millisecond does NOT disqualify', () {
+        expect(EnrollVerbHandler.disqualifiesAsFirst(t, t), isFalse,
+            reason: 'the retrofit writes its child before the exemption is '
+                'decided, so the first enrollment ties with its own child '
+                'whenever both land in one millisecond — clock granularity '
+                'must not cost the atSign its root credential');
+      });
+
+      test('a later sibling does not disqualify', () {
+        expect(
+            EnrollVerbHandler.disqualifiesAsFirst(
+                t, t.add(Duration(milliseconds: 1))),
+            isFalse);
+      });
+
+      test('an unreadable creation time disqualifies', () {
+        expect(EnrollVerbHandler.disqualifiesAsFirst(t, null), isTrue,
+            reason: 'a sibling that cannot be dated cannot be ruled out as '
+                'older, and capping is the safe direction');
+      });
+
+      test('the comparison is timezone-independent', () {
+        expect(
+            EnrollVerbHandler.disqualifiesAsFirst(
+                t.toLocal(), t.toLocal().subtract(Duration(milliseconds: 1))),
+            isTrue,
+            reason: 'records can carry either, and a wrong answer here would '
+                'depend on where the server runs');
+      });
+    });
+
+    test('an already-capped first enrollment is not un-capped', () async {
+      // Spend the absence of expiry with the exemption off...
+      setPreserve(false);
+      final firstId = etu.primaryEnId;
+      await selfEnroll(
+          parentEnrollmentId: firstId,
+          namespaces: {'*': 'rw', '__manage': 'rw'});
+      final capped = await parentRecord(firstId);
+      expect(capped?.metaData?.expiresAt, isNotNull,
+          reason: 'the premise: this retrofit started the clock');
+
+      // ...then retrofit again with it on. The exemption preserves an absence
+      // of expiry; it must not restore one that has already been spent.
+      setPreserve(true);
+      await selfEnroll(
+          parentEnrollmentId: firstId,
+          namespaces: {'*': 'rw', '__manage': 'rw'},
+          appName: 'second_child',
+          deviceName: 'second_child_device');
+
+      expect((await parentRecord(firstId))?.metaData?.expiresAt, isNotNull,
+          reason: 'a credential already retiring must not be made permanent '
+              'again by a later retrofit');
+    });
   });
 }

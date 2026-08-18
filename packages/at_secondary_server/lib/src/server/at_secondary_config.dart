@@ -762,6 +762,38 @@ class AtSecondaryConfig {
         720;
   }
 
+  static final bool _preserveFirstEnrollmentOnRetrofit = true;
+
+  /// Whether the atSign's FIRST enrollment is exempt from the retrofit cap
+  /// that [apkamSelfEnrollmentGraceHours] applies to every other parent.
+  ///
+  /// A retrofit normally starts an expiry clock on the enrollment it
+  /// supersedes. The first enrollment is the one credential that cannot be
+  /// re-issued by this server: it is minted on the CRAM path at onboarding,
+  /// is the atSign's root (`*` and `__manage`, both `rw`), and every later
+  /// enrollment is approved BY it. Letting a retrofit start its clock means
+  /// an atSign whose owner never noticed can be left with no root credential
+  /// at all once the grace elapses, and no enrollment able to approve a new
+  /// one.
+  ///
+  /// So when this is true the superseded first enrollment keeps its absence
+  /// of expiry, and retiring it stays an explicit act: the owner revokes it.
+  /// Exempting it is a deliberate choice to prefer a recoverable atSign over
+  /// an automatically retired credential — set this false to have the first
+  /// enrollment age out like any other.
+  static bool get preserveFirstEnrollmentOnRetrofit {
+    var result = _getBoolEnvVar('preserveFirstEnrollmentOnRetrofit');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(
+          ['enrollment', 'preserveFirstEnrollmentOnRetrofit']);
+    } on ElementNotFoundException {
+      return _preserveFirstEnrollmentOnRetrofit;
+    }
+  }
+
   static final int _enrollmentResponseDelayIntervalInSeconds = 55;
 
   static int? _maxEnrollRequestsAllowed;

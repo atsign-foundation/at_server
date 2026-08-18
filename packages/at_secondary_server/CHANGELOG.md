@@ -1,4 +1,15 @@
 # 3.16.2
+- feat(at_secondary_server): the atSign's FIRST enrollment is no longer given
+an expiry clock when a retrofit supersedes it.
+  - A retrofit (APKAM self-enrollment) caps the parent it supersedes. The first
+   enrollment - the CRAM-path root that approves every later enrollment, and
+   the one credential the server cannot re-issue - is now exempt, so retiring
+   it stays the owner's explicit act via `enroll:revoke`.
+  - Identified by all three of: root grants (`*` and `__manage`, both `rw`), no
+   expiry on its record, and no other existing enrollment created before it.
+  - Driven by `preserveFirstEnrollmentOnRetrofit` (config.yaml `enrollment:`
+   section, or the env var of the same name), default `true`. Set it false for
+   the previous behaviour.
 - fix(at_secondary_server): an expired immutable record no longer blocks 
 creation of a new one until the delete-expired-keys sweep has run.
   - An update that finds an expired record now deletes it before proceeding,
