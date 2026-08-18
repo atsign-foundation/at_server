@@ -1137,8 +1137,14 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
 
       final atKey = AtKey.fromString('expiring_lock.wavi$alice');
+      // ttl long enough that the control below cannot race it. At ttl:1 the
+      // record was already dead by the time the control ran, so the control
+      // failed on any machine slower than the CI runner — it asserts against a
+      // LIVE record and needs one to still exist. The functional twin of this
+      // test uses the same 1000/1500 pair for the same reason.
       await updateHandler.process(
-          'update:ttl:1:immutable:true:$atKey first holder', inboundConnection);
+          'update:ttl:1000:immutable:true:$atKey first holder',
+          inboundConnection);
 
       // Control: while it is alive, the refusal still stands. Without this the
       // test below could pass because immutability stopped working at all
@@ -1150,7 +1156,7 @@ void main() {
           reason: 'a LIVE immutable record must still refuse a second create — '
               'that refusal is the interlock');
 
-      await Future.delayed(Duration(milliseconds: 20));
+      await Future.delayed(Duration(milliseconds: 1500));
 
       // The record has expired, so a reader is already told it is gone. The
       // writer must agree.
