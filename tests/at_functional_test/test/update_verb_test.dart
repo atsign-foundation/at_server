@@ -363,7 +363,21 @@ void main() async {
     await Future.delayed(Duration(seconds: 3));
     response = await firstAtSignConnection.sendRequestToServer(
         'llookup:$firstAtSign:offer-$uniqueId$firstAtSign');
-    expect(response, contains('data:null'));
+    // Past its ttl the record is gone to a reader — but WHICH of the two
+    // "gone" answers comes back is a race with the expiry sweep, not a
+    // property of expiry. While the record is still in the keystore llookup
+    // finds it, sees it is inactive, and returns data:null; once the sweep has
+    // removed it, keyStore.get throws and llookup answers key-not-found.
+    // Asserting only the first spelling made this test fail whenever the sweep
+    // landed in the gap. Assert the property instead, and still refuse any
+    // OTHER answer.
+    expect(response, isNot(contains(value)),
+        reason: 'the value must not be served once its ttl has elapsed');
+    expect(
+        response,
+        anyOf(contains('data:null'), contains('does not exist in keystore')),
+        reason: 'and it is gone in one of those two ways, not by some other '
+            'error');
   });
 
   test('update-llookup for ttb ', () async {
@@ -420,7 +434,21 @@ void main() async {
     await Future.delayed(Duration(seconds: 4));
     response = await firstAtSignConnection.sendRequestToServer(
         'llookup:$firstAtSign:login-code-$uniqueId$firstAtSign');
-    expect(response, contains('data:null'));
+    // Past its ttl the record is gone to a reader — but WHICH of the two
+    // "gone" answers comes back is a race with the expiry sweep, not a
+    // property of expiry. While the record is still in the keystore llookup
+    // finds it, sees it is inactive, and returns data:null; once the sweep has
+    // removed it, keyStore.get throws and llookup answers key-not-found.
+    // Asserting only the first spelling made this test fail whenever the sweep
+    // landed in the gap. Assert the property instead, and still refuse any
+    // OTHER answer.
+    expect(response, isNot(contains(value)),
+        reason: 'the value must not be served once its ttl has elapsed');
+    expect(
+        response,
+        anyOf(contains('data:null'), contains('does not exist in keystore')),
+        reason: 'and it is gone in one of those two ways, not by some other '
+            'error');
   });
 
   tearDownAll(() async {
