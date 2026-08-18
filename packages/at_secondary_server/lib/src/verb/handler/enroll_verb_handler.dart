@@ -11,6 +11,7 @@ import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/apkam_signature_verifier.dart';
+import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:meta/meta.dart';
@@ -488,7 +489,20 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // sibling retrofit: the legacy credential retires one grace period
       // after the LAST clone upgrades, never past the expiry its own
       // posture already imposes.
-      await _capEnrollmentExpiry(parentEnrollmentId, parent);
+      //
+      // The atSign's FIRST enrollment is exempt (see
+      // AtSecondaryConfig.preserveFirstEnrollmentOnRetrofit): it is the one
+      // credential this server cannot re-issue, so retiring it stays the
+      // owner's explicit act via revoke.
+      if (AtSecondaryConfig.preserveFirstEnrollmentOnRetrofit &&
+          await _isFirstEnrollment(parentEnrollmentId, parent)) {
+        logger.info(
+            'Enrollment $parentEnrollmentId is this atSign\'s first '
+            'enrollment - retrofitted by $newEnrollmentId but NOT capped. It '
+            'keeps authenticating until the owner revokes it');
+      } else {
+        await _capEnrollmentExpiry(parentEnrollmentId, parent);
+      }
       return;
     }
 
@@ -537,6 +551,94 @@ class EnrollVerbHandler extends AbstractVerbHandler {
             'parent enrollment\'s grants — a self-enrollment can hold at '
             'most what its parent holds');
       }
+    }
+  }
+
+  /// Whether [enrollmentId] is this atSign's FIRST enrollment — the root
+  /// credential minted on the CRAM path at onboarding, which a retrofit must
+  /// leave unexpiring when
+  /// [AtSecondaryConfig.preserveFirstEnrollmentOnRetrofit] is set.
+  ///
+  /// All three of the properties that identify it are required, and each is
+  /// read from the authority that owns it rather than inferred:
+  ///
+  /// 1. **Fully privileged** — [AbstractVerbHandler.isRootEnrollment], the
+  ///    same test the rest of the server uses for a root enrollment: `rw` on
+  ///    both `*` and `__manage`. Holding `*` alone does not qualify.
+  /// 2. **No expiration** — asked of the RECORD (`expiresAt`), not of the
+  ///    posture that wrote it. A parent already capped by an earlier retrofit
+  ///    carries an expiry, so it fails here and stays capped: this exemption
+  ///    can only ever preserve an absence of expiry, never restore one that
+  ///    has already been spent.
+  /// 3. **No other enrollment that currently exists was created before it** —
+  ///    see [disqualifiesAsFirst], which is where the millisecond tie is
+  ///    decided and why.
+  ///
+  /// An absent record or an absent `createdAt` answers false: those leave the
+  /// claim unestablished, and capping is the safe direction when nothing can
+  /// be established.
+  Future<bool> _isFirstEnrollment(
+      String enrollmentId, EnrollDataStoreValue enrollment) async {
+    if (!AbstractVerbHandler.isRootEnrollment(enrollment)) return false;
+
+    final key = enMgr.buildEnrollmentKey(enrollmentId);
+    final AtData? atData = await _getOrNull(key);
+    if (atData == null) return false;
+    // An expiry already written - by this enrollment's own posture or by a
+    // previous retrofit's cap - is not an absence to preserve.
+    if (atData.metaData?.expiresAt != null) return false;
+    final createdAt = atData.metaData?.createdAt;
+    if (createdAt == null) return false;
+
+    for (final otherKey in await enMgr.getAllEnrollmentKeys()) {
+      if (otherKey == key) continue;
+      final other = await _getOrNull(otherKey);
+      if (other == null) continue;
+      // An expired record is gone: a reader is already told so, and the
+      // delete-expired sweep has simply not reached it yet. It must not
+      // decide whether this enrollment was the first.
+      if (!SecondaryUtil.isActiveKey(other)) continue;
+      if (disqualifiesAsFirst(createdAt, other.metaData?.createdAt)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Whether an enrollment created at [otherCreatedAt] rules out the
+  /// enrollment created at [candidateCreatedAt] being this atSign's first.
+  ///
+  /// Only a STRICTLY earlier sibling does. The same millisecond does not:
+  /// `createdAt` is millisecond-precision, and the retrofit writes its child
+  /// record before the exemption is decided, so the first enrollment ties
+  /// with its own child whenever the two land in one millisecond. Under a
+  /// strict "earlier than everything" reading the atSign's root would lose
+  /// its protection for no reason but clock granularity — the exact harm the
+  /// exemption exists to prevent, where allowing the tie costs at most one
+  /// same-millisecond sibling also keeping its absence of expiry.
+  ///
+  /// A null [otherCreatedAt] disqualifies: a sibling whose creation time
+  /// cannot be read cannot be ruled out as older, and capping is the safe
+  /// direction when nothing can be established.
+  ///
+  /// Exposed because the keystore gives a caller no way to construct the tie:
+  /// AtMetadataBuilder stamps `createdAt` itself and retains the existing
+  /// record's value on update, so no sequence of puts can produce two records
+  /// sharing a millisecond on demand.
+  @visibleForTesting
+  static bool disqualifiesAsFirst(
+      DateTime candidateCreatedAt, DateTime? otherCreatedAt) {
+    if (otherCreatedAt == null) return true;
+    return otherCreatedAt.toUtc().isBefore(candidateCreatedAt.toUtc());
+  }
+
+  /// [keyStore.get] for a key that may legitimately be absent, which it
+  /// signals by throwing rather than by returning null.
+  Future<AtData?> _getOrNull(String key) async {
+    try {
+      return await keyStore.get(key);
+    } on KeyNotFoundException {
+      return null;
     }
   }
 
