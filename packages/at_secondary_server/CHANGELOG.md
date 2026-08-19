@@ -1,4 +1,10 @@
 # 3.16.2
+- fix(at_secondary_server): a closed `NotificationManager` now stops its
+delivery retries.
+  - `PerAtSignNotifSender.send()` retries until delivery succeeds or the
+   atSign leaves the atDirectory, and did not consult `closed` - so every
+   undelivered notification kept retrying past `AtSecondaryServerImpl.stop()`,
+   against a keystore that `stop()` closes immediately afterwards.
 - feat(at_secondary_server): the atSign's FIRST enrollment is no longer given
 an expiry clock when a retrofit supersedes it.
   - A retrofit (APKAM self-enrollment) caps the parent it supersedes. The first

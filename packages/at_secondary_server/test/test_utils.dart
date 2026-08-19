@@ -216,11 +216,32 @@ late NotificationManager notificationManager;
 late MockStatsNotificationService statsNotificationService;
 late EnrollmentManager enMgr;
 
-late Function(dynamic data) socketOnDataFn;
-// ignore: unused_local_variable
-late Function() socketOnDoneFn;
-// ignore: unused_local_variable
-late Function(Exception e, StackTrace st) socketOnErrorFn;
+/// The socket callbacks registered by one *generation* of mocks — i.e.
+/// by one [verbTestsSetUp] call.
+///
+/// Every mock built in a given [verbTestsSetUp] captures that call's
+/// holder, so a connection left behind by an earlier test can only ever
+/// answer into its own (by then unread) holder. Without that, a stray
+/// write — most often a `notify:` still being retried by an earlier
+/// test's [PerAtSignNotifSender] — reaches whichever test is reading
+/// now, and that test fails on a request it never made (issue #2747).
+class MockSocketListener {
+  late Function(dynamic data) onData;
+  late Function() onDone;
+  late Function(Exception e, StackTrace st) onError;
+}
+
+MockSocketListener _currentSocketListener = MockSocketListener();
+
+/// The current generation's socket `onData`. Test files push mock
+/// responses through this; see [MockSocketListener] for why it is a
+/// getter rather than a variable.
+Function(dynamic data) get socketOnDataFn => _currentSocketListener.onData;
+
+Function() get socketOnDoneFn => _currentSocketListener.onDone;
+
+Function(Exception e, StackTrace st) get socketOnErrorFn =>
+    _currentSocketListener.onError;
 
 String storageDir = '${Directory.current.path}/unit_test_storage';
 // Default to bare mocks so handler-construction tests that never run
@@ -286,17 +307,26 @@ verbTestsSetUp() async {
   atServer.accessLog = atAccessLog = bundle.accessLog!;
   keyValueStore = bundle.keyValueStore;
 
-  mockSecondaryAddressFinder = MockSecondaryAddressFinder();
-  when(() => mockSecondaryAddressFinder.findSecondary(bob))
-      .thenAnswer((_) async {
+  // Everything below is built into locals first and only then published
+  // to the top-level `late` variables. Every stub closure captures the
+  // local, so the mocks of one `verbTestsSetUp` call form a
+  // self-consistent generation: work still in flight from an earlier
+  // test keeps talking to the mocks it started with instead of reaching
+  // into whichever test is running now (issue #2747).
+  final socketListener = _currentSocketListener = MockSocketListener();
+
+  final addressFinder = mockSecondaryAddressFinder =
+      MockSecondaryAddressFinder();
+  when(() => addressFinder.findSecondary(bob)).thenAnswer((_) async {
     return at_lookup.SecondaryAddress(bobHost, bobPort);
   });
 
-  mockOutboundConnection = MockOutboundConnection();
-  mockOutboundConnectionFactory = MockOutboundConnectionFactory();
-  when(() => mockOutboundConnectionFactory.createOutboundConnection(
+  final outboundConnection = mockOutboundConnection = MockOutboundConnection();
+  final outboundConnectionFactory =
+      mockOutboundConnectionFactory = MockOutboundConnectionFactory();
+  when(() => outboundConnectionFactory.createOutboundConnection(
       bobHost, bobPort, bob)).thenAnswer((invocation) async {
-    return mockOutboundConnection;
+    return outboundConnection;
   });
 
   inboundConnection = DummyInboundConnection();
@@ -307,24 +337,25 @@ verbTestsSetUp() async {
   // inboundPool.init(5);
   // inboundPool.add(inboundConnection);
 
-  outboundClientWithHandshake = OutboundClient(
+  final clientWithHandshake = outboundClientWithHandshake = OutboundClient(
     inboundConnection,
     bob,
-    mockSecondaryAddressFinder,
+    addressFinder,
     true,
-    mockOutboundConnectionFactory,
+    outboundConnectionFactory,
   )
     ..notifyTimeoutMillis = 100
     ..lookupTimeoutMillis = 100
     ..toHost = bobHost
     ..toPort = bobPort.toString()
     ..productionMode = false;
-  outboundClientWithoutHandshake = OutboundClient(
+  final clientWithoutHandshake =
+      outboundClientWithoutHandshake = OutboundClient(
     inboundConnection,
     bob,
-    mockSecondaryAddressFinder,
+    addressFinder,
     false,
-    mockOutboundConnectionFactory,
+    outboundConnectionFactory,
   )
     ..notifyTimeoutMillis = 100
     ..lookupTimeoutMillis = 100
@@ -332,40 +363,37 @@ verbTestsSetUp() async {
     ..toPort = bobPort.toString()
     ..productionMode = false;
 
-  mockOutboundClientManager = MockOutboundClientManager();
-  when(() => mockOutboundClientManager.getClient(bob, any(),
-      handshakeRequired: true)).thenAnswer((_) async {
-    await outboundClientWithHandshake.connect();
-    return outboundClientWithHandshake;
+  final clientManager = mockOutboundClientManager = MockOutboundClientManager();
+  when(() => clientManager.getClient(bob, any(), handshakeRequired: true))
+      .thenAnswer((_) async {
+    await clientWithHandshake.connect();
+    return clientWithHandshake;
   });
-  when(() => mockOutboundClientManager.getClient(bob, any(),
-      handshakeRequired: false)).thenAnswer((_) async {
-    await outboundClientWithoutHandshake.connect();
-    return outboundClientWithoutHandshake;
+  when(() => clientManager.getClient(bob, any(), handshakeRequired: false))
+      .thenAnswer((_) async {
+    await clientWithoutHandshake.connect();
+    return clientWithoutHandshake;
   });
 
   AtConnectionMetaData outboundConnectionMetadata =
       OutboundConnectionMetadata();
   outboundConnectionMetadata.sessionID = 'mock-session-id';
-  when(() => mockOutboundConnection.metaData)
-      .thenReturn(outboundConnectionMetadata);
-  when(() => mockOutboundConnection.metaData)
+  when(() => outboundConnection.metaData)
       .thenReturn(outboundConnectionMetadata);
 
-  mockSecureSocket = MockSecureSocket();
-  when(() => mockOutboundConnection.underlying)
-      .thenAnswer((_) => mockSecureSocket);
-  when(() => mockOutboundConnection.isInValid()).thenReturn(false);
-  when(() => mockOutboundConnection.close()).thenAnswer((_) async => {});
+  final secureSocket = mockSecureSocket = MockSecureSocket();
+  when(() => outboundConnection.underlying).thenAnswer((_) => secureSocket);
+  when(() => outboundConnection.isInValid()).thenReturn(false);
+  when(() => outboundConnection.close()).thenAnswer((_) async => {});
 
-  when(() => mockSecureSocket.listen(
+  when(() => secureSocket.listen(
         any(),
         onDone: any(named: "onDone"),
         onError: any(named: "onError"),
       )).thenAnswer((Invocation invocation) {
-    socketOnDataFn = invocation.positionalArguments[0];
-    socketOnDoneFn = invocation.namedArguments[#onDone];
-    socketOnErrorFn = invocation.namedArguments[#onError];
+    socketListener.onData = invocation.positionalArguments[0];
+    socketListener.onDone = invocation.namedArguments[#onDone];
+    socketListener.onError = invocation.namedArguments[#onError];
 
     return MockStreamSubscription();
   });
@@ -375,20 +403,18 @@ verbTestsSetUp() async {
   notificationManager = atServer.notificationManager = NotificationManager(
       alice,
       notifStore,
-      NotifyConnectionsPool(
-          mockSecondaryAddressFinder, mockOutboundConnectionFactory));
+      NotifyConnectionsPool(addressFinder, outboundConnectionFactory));
   registerFallbackValue(AtNotificationBuilder().build());
 
   cacheManager = atServer.cacheManager = AtCacheManager(
     alice,
     keyValueStore,
-    mockOutboundClientManager,
+    clientManager,
     notificationManager,
   );
 
   AtSecondaryServerImpl.getInstance().keyValueStore = keyValueStore;
-  AtSecondaryServerImpl.getInstance().outboundClientManager =
-      mockOutboundClientManager;
+  AtSecondaryServerImpl.getInstance().outboundClientManager = clientManager;
   AtSecondaryServerImpl.getInstance().currentAtSign = alice;
   AtSecondaryServerImpl.getInstance().signingKey =
       bobServerSigningKeypair.privateKey.toString();
@@ -406,31 +432,32 @@ verbTestsSetUp() async {
     ..ttr = -1
     ..createdAt = now
     ..updatedAt = now;
-  bobOriginalPublicKeyAsJson = SecondaryUtil.prepareResponseData(
-      'all', bobOriginalPublicKeyAtData,
-      key: 'public:publickey$bob')!;
+  final publicKeyAsJson = bobOriginalPublicKeyAsJson =
+      SecondaryUtil.prepareResponseData('all', bobOriginalPublicKeyAtData,
+          key: 'public:publickey$bob')!;
   bobOriginalPublicKeyAtData =
-      AtData().fromJson(jsonDecode(bobOriginalPublicKeyAsJson));
+      AtData().fromJson(jsonDecode(publicKeyAsJson));
 
-  when(() => mockOutboundConnection.write(any()))
+  when(() => outboundConnection.write(any()))
       .thenAnswer((Invocation invocation) async {
-    socketOnDataFn('error:AT0001-Mock exception : '
+    socketListener.onData('error:AT0001-Mock exception : '
             'No mock response defined for request '
             '[${invocation.positionalArguments[0]}]\n$alice@'
         .codeUnits);
   });
-  when(() => mockOutboundConnection.write('from:$alice\n'))
+  when(() => outboundConnection.write('from:$alice\n'))
       .thenAnswer((Invocation invocation) async {
-    socketOnDataFn("data:proof:mock-session-id$bob:server-challenge-text\n@"
-        .codeUnits); // actual challenge is different, of course, but not important for unit tests
+    socketListener.onData(
+        "data:proof:mock-session-id$bob:server-challenge-text\n@"
+            .codeUnits); // actual challenge is different, of course, but not important for unit tests
   });
-  when(() => mockOutboundConnection.write('pol\n'))
+  when(() => outboundConnection.write('pol\n'))
       .thenAnswer((Invocation invocation) async {
-    socketOnDataFn("$alice@".codeUnits);
+    socketListener.onData("$alice@".codeUnits);
   });
-  when(() => mockOutboundConnection.write('lookup:all:publickey@bob\n'))
+  when(() => outboundConnection.write('lookup:all:publickey@bob\n'))
       .thenAnswer((Invocation invocation) async {
-    socketOnDataFn("data:$bobOriginalPublicKeyAsJson\n$alice@".codeUnits);
+    socketListener.onData("data:$publicKeyAsJson\n$alice@".codeUnits);
   });
 
   statsNotificationService = MockStatsNotificationService();
@@ -439,6 +466,11 @@ verbTestsSetUp() async {
 Future<void> verbTestsTearDown() async {
   keyValueStore.preRemoveHooks.clear();
   keyValueStore.postRemoveHooks.clear();
+  // Undelivered notifications are retried until they succeed, and the
+  // mock outbound connection never lets one succeed. Closing the
+  // manager — as the server's own stop() does — stops those senders
+  // rather than leaving one spinning per test for the rest of the file.
+  await notificationManager.close();
   // factory.close() cascades to commit log, access log, notification
   // keystore and the Hive persistence manager, and clears the legacy
   // singletons' caches.
