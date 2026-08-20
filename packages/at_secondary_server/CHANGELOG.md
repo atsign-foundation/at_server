@@ -14,6 +14,18 @@
   - `delete:dAt` — recorded as the DELETE commit entry's opTime. Works with
     `:nc` for commit-log cruft management: a `delete:nc` of a key that no
     longer exists still purges the key's leftover entry.
+- feat: server-to-server faithfulness for the four timestamps (#2678):
+  outbound notifications emit `:cAt`/`:uAt`/`:eAt`/`:aAt` from the
+  notification's metadata (for auto-notifications, the STORED record's
+  values); a delete auto-notification carries its deletion time as `:uAt`
+  and deliberately nothing else (deployed receivers default an absent
+  isEncrypted to true for non-public keys). The receiving side stores
+  cached keys with the transmitted origin timestamps — on first cache and
+  on every refresh — and records a transmitted deletion time as the cached
+  key's DELETE commit entry opTime. The lookup-driven cache does the same
+  for data keys; `cached:public:publickey@` keeps its own createdAt
+  semantics (it records when THIS server learned of a changed key — the
+  signal PK-change handling is built on).
 - fix: the update/update:meta auto-notification is queued AFTER the
   keystore write, carrying the metadata that was actually stored — the old
   order transmitted pre-merge values (e.g. a freshly-fabricated createdAt

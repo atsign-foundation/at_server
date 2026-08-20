@@ -256,7 +256,19 @@ class NotificationManager {
       commandBody = '$commandBody:${atNotification.atValue}';
     }
     var atMetaData = atNotification.atMetadata;
-    if (atMetaData != null) {
+    if (atMetaData != null && atNotification.opType == OperationType.delete) {
+      // A delete notification's metadata exists only to carry the deletion
+      // time as :uAt:. Emit nothing else: the receiver treats an ABSENT
+      // isEncrypted as true for non-public keys, and delete notifications
+      // have never carried a metadata fragment, so emitting the usual
+      // unconditional isEncrypted:false here would silently flip that
+      // default on every deployed receiver.
+      if (atMetaData.updatedAt != null) {
+        commandBody = 'uAt:'
+            '${VerbUtil.formatIso8601Micros(atMetaData.updatedAt!)}'
+            ':$commandBody';
+      }
+    } else if (atMetaData != null) {
       // appMetadata is the LAST group in VerbSyntax.metadataFragment;
       // since this body is built back-to-front, it is prepended first.
       if (atNotification.atMetadata!.appMetadata != null) {
@@ -302,6 +314,31 @@ class NotificationManager {
       String? isEncryptedStr =
           (atNotification.atMetadata!.isEncrypted ?? false) ? 'true' : 'false';
       commandBody = '${AtConstants.isEncrypted}:$isEncryptedStr:$commandBody';
+
+      // The four timestamp groups sit between ccd and dataSignature in
+      // VerbSyntax.metadataFragment, so in this back-to-front build they
+      // are prepended (in reverse order) between the isEncrypted prepend
+      // above and the ttr:ccd prepend below.
+      if (atMetaData.availableAt != null) {
+        commandBody = 'aAt:'
+            '${VerbUtil.formatIso8601Micros(atMetaData.availableAt!)}'
+            ':$commandBody';
+      }
+      if (atMetaData.expiresAt != null) {
+        commandBody = 'eAt:'
+            '${VerbUtil.formatIso8601Micros(atMetaData.expiresAt!)}'
+            ':$commandBody';
+      }
+      if (atMetaData.updatedAt != null) {
+        commandBody = 'uAt:'
+            '${VerbUtil.formatIso8601Micros(atMetaData.updatedAt!)}'
+            ':$commandBody';
+      }
+      if (atMetaData.createdAt != null) {
+        commandBody = 'cAt:'
+            '${VerbUtil.formatIso8601Micros(atMetaData.createdAt!)}'
+            ':$commandBody';
+      }
 
       if (atMetaData.ttr != null) {
         commandBody =

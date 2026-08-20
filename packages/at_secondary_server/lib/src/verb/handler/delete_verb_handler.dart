@@ -63,6 +63,16 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     if (verbParams[AtConstants.atSign] != null) {
       atSign = AtUtils.fixAtSign(verbParams[AtConstants.atSign]!);
     }
+    // :dAt — the caller-asserted deletion time. Recorded as the DELETE
+    // commit entry's opTime, and carried to the sharedWith atServer on the
+    // auto-notification (as :uAt: — the notify grammar has no dAt group)
+    // so the receiver's cached-key delete records the origin deletion
+    // time. With :nc there is no commit entry, so it has nothing to stamp
+    // locally. The verb grammar pins the value to ISO 8601 UTC.
+    DateTime? deletedAt;
+    if (verbParams[WireParams.deletedAt] != null) {
+      deletedAt = DateTime.parse(verbParams[WireParams.deletedAt]!);
+    }
     var deleteKey = verbParams[AtConstants.atKey];
     // If key is cram secret do not append atsign.
     if (verbParams[AtConstants.atKey] != AtConstants.atCramSecret) {
@@ -126,16 +136,6 @@ class DeleteVerbHandler extends ChangeVerbHandler {
           }
         }
       }
-      // The :nc flag maps to skipCommit: write no DELETE commit entry AND
-      // purge the key's existing entry (the response is then -1). Works for
-      // a key that is already gone — remove() tolerates a missing key and
-      // still purges, which is the commit-log cruft-management case. The
-      // :dAt timestamp is recorded as the DELETE entry's opTime; with :nc
-      // there is no entry, so it has nothing to stamp.
-      DateTime? deletedAt;
-      if (verbParams[WireParams.deletedAt] != null) {
-        deletedAt = DateTime.parse(verbParams[WireParams.deletedAt]!);
-      }
       var result = await keyStore.remove(deleteKey,
           skipCommit: verbParams[WireParams.noCommit] != null,
           deletedAt: deletedAt);
@@ -167,7 +167,8 @@ class DeleteVerbHandler extends ChangeVerbHandler {
               atSign,
               key,
               SecondaryUtil.getNotificationPriority(
-                  verbParams[AtConstants.priority]));
+                  verbParams[AtConstants.priority]),
+              deletedAt: deletedAt);
         } catch (exception) {
           logger.severe(
               'Exception while sending notification ${exception.toString()}');
@@ -179,18 +180,26 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     }
   }
 
-  Future<void> _notify(forAtSign, atSign, key, priority) async {
+  Future<void> _notify(forAtSign, atSign, key, priority,
+      {DateTime? deletedAt}) async {
     if (forAtSign == null) {
       return;
     }
     key = '$forAtSign:$key$atSign';
+    // The deletion time travels as the metadata's updatedAt and is emitted
+    // on the wire as :uAt: (the notify grammar has no dAt group — a
+    // deletion is the record's last update). The emitter special-cases
+    // delete notifications to emit ONLY that fragment.
     var atNotification = (AtNotificationBuilder()
           ..type = NotificationType.sent
           ..fromAtSign = atSign
           ..toAtSign = forAtSign
           ..notification = key
           ..priority = priority
-          ..opType = OperationType.delete)
+          ..opType = OperationType.delete
+          ..atMetaData = (AtMetaData()
+            ..updatedAt =
+                (deletedAt ?? DateTime.now()).toUtcMillisecondsPrecision()))
         .build();
     await notificationManager.notify(atNotification);
   }

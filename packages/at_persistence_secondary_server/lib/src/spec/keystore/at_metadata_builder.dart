@@ -67,7 +67,7 @@ class AtMetadataBuilder {
     // to do.
     //
     // No update or update:meta arrives here with an immutable record. Both
-    // share AbstractUpdateVerbHandler.preProcessAndNotify, which refuses one
+    // share AbstractUpdateVerbHandler.preProcess, which refuses one
     // outright ('Immutable records may not be updated'). That stays true for an
     // EXPIRED immutable record, but for the opposite reason: such a record is
     // deleted before the write, so this builder is handed existingMetaData ==
