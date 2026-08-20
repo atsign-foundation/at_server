@@ -1,4 +1,7 @@
 ## 5.2.0
+- docs: the Scan/Update/UpdateMeta/Delete verb dartdocs describe the
+  at_commons 5.10.0 wire options: `scan:cl`, `:nc`, `delete:dAt` and the
+  `:cAt`/`:uAt`/`:eAt`/`:aAt` timestamp fragments.
 - chore: dependency bump — `at_commons` to `^5.12.0`
 
 ## 5.1.0
