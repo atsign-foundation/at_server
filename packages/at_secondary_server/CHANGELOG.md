@@ -14,6 +14,15 @@
   - `delete:dAt` — recorded as the DELETE commit entry's opTime. Works with
     `:nc` for commit-log cruft management: a `delete:nc` of a key that no
     longer exists still purges the key's leftover entry.
+- feat: `scan:cl` — scan the commit log instead of the keystore (#2678),
+  so a client can inspect its entries and `delete:nc` the cruft. Returns a
+  JSON array in ascending commitId order of
+  `{"atKey", "operation" (the CommitOp symbol sync uses), "commitId",
+  "opTime" (ISO 8601 UTC)}`; DELETE entries included. Authenticated
+  connections only; the same regex / hidden-key / enrollment-namespace
+  filters as a keystore scan apply. `scan:cl:@other` is refused loudly —
+  the outbound scan proxy cannot forward `:cl`, so it would silently
+  degrade to a plain remote scan.
 - feat: server-to-server faithfulness for the four timestamps (#2678):
   outbound notifications emit `:cAt`/`:uAt`/`:eAt`/`:aAt` from the
   notification's metadata (for auto-notifications, the STORED record's
