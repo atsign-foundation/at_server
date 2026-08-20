@@ -1,5 +1,12 @@
 ## 5.2.1
 
+- fix: the Hive commit-log `iterate` skips an entry whose `commitId` is
+  still null — `add` stores the entry and stamps its `commitId` in two
+  awaited steps, so a concurrent iterator (sync running while another write
+  commits) could observe the half-written entry and crash dereferencing the
+  id. Skipping is safe: the entry is fully visible on the next iteration,
+  and commit-id sequences are gap-tolerant by design. SQLite is unaffected
+  (the row and its id are written in one transaction).
 - feat: keystore write paths accept caller-asserted timestamps
   (`AtAssertedTimestamps`): `put`/`create`/`putMeta` store an asserted
   `createdAt`/`updatedAt`/`expiresAt`/`availableAt` faithfully instead of
