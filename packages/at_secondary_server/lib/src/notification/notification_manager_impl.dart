@@ -406,6 +406,15 @@ class PerAtSignNotifSender {
     // (2) atSign no longer in directory
     Duration delay = initialDelay;
     while (true) {
+      // Delivery is retried until it succeeds or the atSign leaves the
+      // directory, so a closed manager must break the loop explicitly:
+      // otherwise every undelivered notification keeps retrying past
+      // server shutdown, against a keystore that `stop()` closes right
+      // after us.
+      if (notifMgr.closed) {
+        logger.info('NotificationManager is closed - abandoning ${n.id}');
+        return;
+      }
       try {
         // not much point in sending expired notifications, is there
         if (n.isExpired()) {

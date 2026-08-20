@@ -1,4 +1,5 @@
 import 'package:at_commons/at_commons.dart';
+import 'package:at_lookup/at_lookup.dart' as at_lookup;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart'
     show OutboundClient;
@@ -150,6 +151,50 @@ void main() async {
       await nm.close();
       await expectLater(nm.notify(AtNotificationBuilder().build()),
           throwsA(predicate((dynamic e) => e is StateError)));
+    });
+
+    test('send() abandons its retry loop once the manager is closed',
+        () async {
+      final savedInitialDelay = PerAtSignNotifSender.initialDelay;
+      PerAtSignNotifSender.initialDelay = Duration(milliseconds: 5);
+      addTearDown(
+          () => PerAtSignNotifSender.initialDelay = savedInitialDelay);
+
+      var nm = makeMgr();
+      var addressFinder = MockSecondaryAddressFinder();
+      when(() => addressFinder.findSecondary(bob)).thenAnswer(
+          (_) async => at_lookup.SecondaryAddress('bob.example.com', 1234));
+      when(() => nm.notifyConnectionsPool.secondaryAddressFinder)
+          .thenReturn(addressFinder);
+
+      // Delivery never succeeds, so `send()` sits in its retry loop.
+      var attempts = 0;
+      when(() => nm.notifyConnectionsPool.getOutboundClient(bob))
+          .thenAnswer((_) async {
+        attempts++;
+        throw Exception('mock: delivery fails');
+      });
+
+      await nm.notify((AtNotificationBuilder()
+            ..id = 'retry-loop-stops-on-close'
+            ..type = NotificationType.sent
+            ..fromAtSign = alice
+            ..toAtSign = '@bob'
+            ..notification = '@bob:verify_retry_stops$alice')
+          .build());
+
+      await Future.delayed(Duration(milliseconds: 100));
+      expect(attempts, greaterThan(1),
+          reason: 'precondition: the retry loop should be running');
+
+      await nm.close();
+      // Let whichever iteration was already in flight finish.
+      await Future.delayed(Duration(milliseconds: 100));
+      var attemptsAfterClose = attempts;
+
+      await Future.delayed(Duration(milliseconds: 200));
+      expect(attempts, attemptsAfterClose,
+          reason: 'send() kept retrying after the manager was closed');
     });
 
     test('Verify close', () async {
