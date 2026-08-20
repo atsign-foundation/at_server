@@ -178,6 +178,12 @@ class _DualWriteKeyStore
     final entry = _primary.commitLog?.getLatestCommitEntry(key);
     if (entry != null) {
       await _secondary.commitLog?.replay(entry);
+    } else {
+      // No entry in primary. Not only the never-committed case: a
+      // skipCommit put/create/putMeta PURGES the key's entry while the
+      // key itself lives on, so the secondary may hold a stale entry
+      // that must be purged too — "same commit entry, or same absence".
+      await _secondary.commitLog?.removeEntryFor(key);
     }
   }
 

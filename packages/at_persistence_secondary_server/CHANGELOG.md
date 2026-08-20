@@ -1,5 +1,11 @@
 ## 5.2.1
 
+- fix: the dual-write mirror purges the secondary's commit entry when the
+  primary holds none for a just-written key. A skipCommit put/create/putMeta
+  purges the primary's entry while the key lives on, so "no entry to replay"
+  no longer implies "never committed" — without the purge the secondary kept
+  a stale entry that would resurface in sync after a backend switch (caught
+  by runDualCompare.sh: 79 vs 80 commit entries).
 - fix: the Hive commit-log `iterate` skips an entry whose `commitId` is
   still null — `add` stores the entry and stamps its `commitId` in two
   awaited steps, so a concurrent iterator (sync running while another write
