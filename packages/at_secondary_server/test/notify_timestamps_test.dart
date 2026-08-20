@@ -118,8 +118,12 @@ void main() {
               ':@bob:phone.wavi$alice\$')));
     });
 
-    test('delete notification carries :uAt: and NOTHING else — no '
-        'isEncrypted (wire-shape pin)', () {
+    test('a dAt-asserted delete notification carries :uAt: through the '
+        'ordinary metadata block (wire-shape pin)', () {
+      // DeleteVerbHandler attaches metadata (updatedAt only) exactly when
+      // the client asserted :dAt, so this shape appears only for the new
+      // feature — and goes through the same emission block as every other
+      // metadata-bearing notification.
       final n = (AtNotificationBuilder()
             ..id = 'del-pin-1'
             ..fromAtSign = alice
@@ -137,16 +141,62 @@ void main() {
           matches(RegExp(r'^id:del-pin-1:delete:messageType:key'
               r':notifier:system:ttln:\d+'
               ':uAt:$uAtWire'
+              ':isEncrypted:false'
               ':@bob:phone.wavi$alice\$')));
-      expect(body, isNot(contains('isEncrypted')),
-          reason: 'delete notifications have never carried a metadata '
-              'fragment; deployed receivers default an ABSENT isEncrypted '
-              'to true for non-public keys, so emitting isEncrypted:false '
-              'here would silently flip that default');
 
       final HashMap<String, String?> reParsed =
           getVerbParam(Notify().syntax(), 'notify:$body');
       expect(reParsed[AtConstants.updatedAt], uAtWire);
+    });
+
+    test('an ordinary (no-dAt) delete notification keeps its historical '
+        'metadata-free wire shape (wire-shape pin)', () {
+      // No metadata attached — the shape a receiver built before the
+      // timestamp syntax existed still parses.
+      final n = (AtNotificationBuilder()
+            ..id = 'del-pin-2'
+            ..fromAtSign = alice
+            ..toAtSign = '@bob'
+            ..notification = '@bob:phone.wavi$alice'
+            ..type = NotificationType.sent
+            ..opType = OperationType.delete
+            ..ttl = 60000)
+          .build();
+      final body = notificationManager.prepareNotifyCommandBody(n);
+      expect(
+          body,
+          matches(RegExp(r'^id:del-pin-2:delete:messageType:key'
+              r':notifier:system:ttln:\d+'
+              ':@bob:phone.wavi$alice\$')));
+    });
+
+    test('a client-issued delete notification\'s metadata still goes on '
+        'the wire (regression pin)', () {
+      // notify:delete from a client carries metadata (isEncrypted always,
+      // ttr:ccd when supplied); a delete-op special case in the emitter
+      // must not swallow it — the receiver defaults an ABSENT isEncrypted
+      // by key shape, flipping an explicit value.
+      final n = (AtNotificationBuilder()
+            ..id = 'del-pin-3'
+            ..fromAtSign = alice
+            ..toAtSign = '@bob'
+            ..notification = '@bob:phone.wavi$alice'
+            ..type = NotificationType.sent
+            ..opType = OperationType.delete
+            ..ttl = 60000
+            ..atMetaData = (AtMetaData()
+              ..ttr = 2000
+              ..isCascade = true
+              ..isEncrypted = false))
+          .build();
+      final body = notificationManager.prepareNotifyCommandBody(n);
+      expect(
+          body,
+          matches(RegExp(r'^id:del-pin-3:delete:messageType:key'
+              r':notifier:system:ttln:\d+'
+              r':ttr:2000:ccd:true'
+              ':isEncrypted:false'
+              ':@bob:phone.wavi$alice\$')));
     });
   });
 
@@ -161,8 +211,12 @@ void main() {
 
     test('a ttr notification with cAt/uAt/eAt stores the cached key with '
         'the origin values; a refresh updates them', () async {
+      // ttl accompanies eAt so the assertion is proven to BEAT the ttl
+      // derivation on the receive path (without ttl the value would pass
+      // through whether or not the assertion mechanism ran).
       await notifyHandler.process(
-          'notify:id:rcv-1:update:messageType:key:ttr:100000:ccd:true'
+          'notify:id:rcv-1:update:messageType:key'
+          ':ttl:600000:ttr:100000:ccd:true'
           ':cAt:$cAtWire:uAt:$uAtWire:eAt:$eAtWire'
           ':$alice:phone.wavi$bob:hello',
           inboundConnection);

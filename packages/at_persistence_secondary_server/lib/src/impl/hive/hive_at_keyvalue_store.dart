@@ -1106,8 +1106,10 @@ class HiveAtKeyValueStore
   /// caller-asserted `expiresAt`/`availableAt` can be set with no ttl/ttb at
   /// all — a key gated on ttl presence would never be swept and would be
   /// served past its expiry. A key with neither field is active forever and
-  /// is removed from the cache (covers ttl/ttb unset AND ttl:0/ttb:0, which
-  /// the builder maps to null).
+  /// is removed from the cache. ttl:0 lands in that removal branch (the
+  /// builder maps it to a null expiresAt); ttb:0 does NOT — the builder
+  /// derives availableAt = the write instant, so a ttb:0 key stays cached
+  /// with an already-past birth time, which every reader treats as "born".
   void _updateMetadataCache(String key, AtMetaData? atMetaData) {
     if (atMetaData == null ||
         (atMetaData.expiresAt == null && atMetaData.availableAt == null)) {

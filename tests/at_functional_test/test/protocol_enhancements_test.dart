@@ -64,7 +64,10 @@ void main() {
       String response = await firstAtSignConnection.sendRequestToServer(
           'update:cAt:$cAtWire:uAt:$uAtWire'
           ':ts1-$uniqueId.wavi$firstAtSign hello');
-      expect(response, matches(RegExp(r'^data:-?\d+$')));
+      expect(response, matches(RegExp(r'^data:\d+$')),
+          reason: 'an asserted-timestamp write is an ordinary COMMITTED '
+              'write — a -1 here would mean it silently skipped its '
+              'commit entry');
 
       response = await firstAtSignConnection
           .sendRequestToServer('llookup:all:ts1-$uniqueId.wavi$firstAtSign');
@@ -77,7 +80,10 @@ void main() {
       String response = await firstAtSignConnection.sendRequestToServer(
           'update:ttl:86400000:eAt:$eAtWire'
           ':ts2-$uniqueId.wavi$firstAtSign hello');
-      expect(response, matches(RegExp(r'^data:-?\d+$')));
+      expect(response, matches(RegExp(r'^data:\d+$')),
+          reason: 'an asserted-timestamp write is an ordinary COMMITTED '
+              'write — a -1 here would mean it silently skipped its '
+              'commit entry');
 
       response = await firstAtSignConnection
           .sendRequestToServer('llookup:all:ts2-$uniqueId.wavi$firstAtSign');
@@ -100,7 +106,10 @@ void main() {
       });
       String response =
           await firstAtSignConnection.sendRequestToServer('update:json:$json');
-      expect(response, matches(RegExp(r'^data:-?\d+$')));
+      expect(response, matches(RegExp(r'^data:\d+$')),
+          reason: 'an asserted-timestamp write is an ordinary COMMITTED '
+              'write — a -1 here would mean it silently skipped its '
+              'commit entry');
 
       response = await firstAtSignConnection
           .sendRequestToServer('llookup:all:ts3-$uniqueId.wavi$firstAtSign');
@@ -113,7 +122,10 @@ void main() {
           DateTime.now().toUtc().add(Duration(seconds: 3)));
       String response = await firstAtSignConnection.sendRequestToServer(
           'update:eAt:$soon:ts4-$uniqueId.wavi$firstAtSign fleeting');
-      expect(response, matches(RegExp(r'^data:-?\d+$')));
+      expect(response, matches(RegExp(r'^data:\d+$')),
+          reason: 'an asserted-timestamp write is an ordinary COMMITTED '
+              'write — a -1 here would mean it silently skipped its '
+              'commit entry');
 
       response =
           await firstAtSignConnection.sendRequestToServer('scan $uniqueId');

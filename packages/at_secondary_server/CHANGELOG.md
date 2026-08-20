@@ -25,22 +25,39 @@
   degrade to a plain remote scan.
 - feat: server-to-server faithfulness for the four timestamps (#2678):
   outbound notifications emit `:cAt`/`:uAt`/`:eAt`/`:aAt` from the
-  notification's metadata (for auto-notifications, the STORED record's
-  values); a delete auto-notification carries its deletion time as `:uAt`
-  and deliberately nothing else (deployed receivers default an absent
-  isEncrypted to true for non-public keys). The receiving side stores
-  cached keys with the transmitted origin timestamps — on first cache and
-  on every refresh — and records a transmitted deletion time as the cached
-  key's DELETE commit entry opTime. The lookup-driven cache does the same
-  for data keys; `cached:public:publickey@` keeps its own createdAt
-  semantics (it records when THIS server learned of a changed key — the
-  signal PK-change handling is built on).
+  notification's metadata — for update auto-notifications, the STORED
+  record's values, so every update auto-notification now carries `:cAt`
+  and `:uAt` on the wire. NOTE: an atServer built with at_commons older
+  than 5.10.0 (before 2026-05-12; releases ≤ c3.12.0 built before then)
+  rejects that shape outright — its notify grammar has no timestamp
+  groups — so auto-notifications from an upgraded sender to such a server
+  fail and retry until they expire; the receiver must upgrade. A delete
+  auto-notification attaches metadata ONLY when the client asserted
+  `:dAt` (emitted as `:uAt`); an ordinary delete's wire shape is
+  byte-identical to before, and client-issued `notify:delete` /
+  `notify:all:delete` metadata still goes on the wire exactly as it
+  always has. The receiving side stores cached keys with the transmitted
+  origin timestamps — on first cache and on every refresh — and records a
+  transmitted deletion time as the cached key's DELETE commit entry
+  opTime. The lookup-driven cache does the same for data keys;
+  `cached:public:publickey@` keeps its own createdAt semantics (it
+  records when THIS server learned of a changed key — the signal
+  PK-change handling is built on).
 - fix: the update/update:meta auto-notification is queued AFTER the
   keystore write, carrying the metadata that was actually stored — the old
   order transmitted pre-merge values (e.g. a freshly-fabricated createdAt
   for an existing record) and queued a notification even when the write
-  then failed. A notify-queueing failure after a successful write is logged
-  at warning and does not fail the client's request.
+  then failed. If the record was deleted concurrently before the
+  read-back, the update notification is skipped (at warning) rather than
+  queued after the delete's own notification, which could have
+  resurrected the receiver's cached copy; a transient read-back failure
+  falls back to the written metadata instead. A notify-queueing failure
+  after a successful write is logged at warning and does not fail the
+  client's request.
+- fix: the per-key update mutex is keyed on the lowercased record name.
+  The keystore canonicalizes keys to lowercase, so two case-variants of
+  one update command name the same stored record; keyed on the original
+  case they took different mutexes and raced.
 - fix(at_secondary_server): a closed `NotificationManager` now stops its
 delivery retries.
   - `PerAtSignNotifSender.send()` retries until delivery succeeds or the

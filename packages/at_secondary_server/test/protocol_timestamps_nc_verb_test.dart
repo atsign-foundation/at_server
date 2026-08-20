@@ -18,12 +18,14 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_update_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
+import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
@@ -373,6 +375,36 @@ void main() {
   });
 
   group('the auto-notification carries the STORED metadata', () {
+    test('the auto-notification is SKIPPED when the record vanished before '
+        'the read-back', () async {
+      // Delete takes no per-key mutex, so a record can vanish between the
+      // put and notifyAfterStore's read-back. Queueing the update
+      // notification then could overtake the delete's own notification and
+      // resurrect the receiver's cached copy — so it must be skipped.
+      AbstractUpdateVerbHandler.setAutoNotify(true);
+      try {
+        final command = 'update:$bob:ghost.wavi$alice v1';
+        final verbParams = getVerbParam(Update().syntax(), command);
+        final updateParams = updateHandler.getUpdateParams(verbParams);
+        // The record does NOT exist (never written): the read-back
+        // returns null exactly as it would after a concurrent delete.
+        final result = UpdatePreProcessResult(
+            '$bob:ghost.wavi$alice',
+            AtData()
+              ..data = 'v1'
+              ..metaData = AtMetaData());
+        final before = (await (await notifStore.getKeys()).toList()).length;
+        await updateHandler.notifyAfterStore(
+            verbParams, updateParams, result);
+        final after = (await (await notifStore.getKeys()).toList()).length;
+        expect(after, before,
+            reason: 'no notification may be queued for a record the '
+                'read-back found deleted');
+      } finally {
+        AbstractUpdateVerbHandler.setAutoNotify(false);
+      }
+    });
+
     test('updating an existing key notifies with the stored (old) createdAt, '
         'not a freshly-fabricated one', () async {
       AbstractUpdateVerbHandler.setAutoNotify(true);

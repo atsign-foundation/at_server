@@ -198,18 +198,41 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   /// exactly what was stored (client-asserted timestamps included).
   ///
   /// The caller still holds the per-key mutex, but delete and the TTL sweep
-  /// take no mutex — if the record vanished in that window, fall back to the
-  /// metadata that was written rather than dropping the notification.
+  /// take no mutex, so the record can vanish between the write and the
+  /// read-back. The two outcomes are deliberately different:
   ///
-  /// A notify failure is logged at warning and NOT rethrown: the write
-  /// happened, and the client's response must report it faithfully.
+  ///   * read-back returns NULL — the record was concurrently deleted, and
+  ///     the deleter has queued (or is queueing) its own delete
+  ///     notification. Queueing this update notification anyway could land
+  ///     it AFTER the delete notification and resurrect the receiver's
+  ///     cached key, so it is skipped, at warning.
+  ///   * read-back THROWS — a transient store error; the record is
+  ///     presumed present, so the notification is queued from the metadata
+  ///     that was written rather than being dropped.
+  ///
+  /// A notify-queueing failure is logged at warning and NOT rethrown: the
+  /// write happened, and the client's response must report it faithfully.
   Future<void> notifyAfterStore(
       HashMap<String, String?> verbParams,
       UpdateParams updateParams,
       UpdatePreProcessResult result) async {
+    AtMetaData? stored;
+    var readBackFailed = false;
     try {
-      AtMetaData? stored = await keyStore.getMeta(result.atKey);
-      stored ??= result.atData.metaData;
+      stored = await keyStore.getMeta(result.atKey);
+    } catch (e) {
+      readBackFailed = true;
+      logger.warning('metadata read-back for ${result.atKey} failed ($e);'
+          ' queueing the auto-notification from the written metadata');
+    }
+    if (stored == null && !readBackFailed) {
+      logger.warning('auto-notification for ${result.atKey} skipped: the'
+          ' record was deleted concurrently, and queueing an update'
+          ' notification now could overtake the delete notification');
+      return;
+    }
+    stored ??= result.atData.metaData;
+    try {
       await notify(
           updateParams.sharedBy,
           updateParams.sharedWith,

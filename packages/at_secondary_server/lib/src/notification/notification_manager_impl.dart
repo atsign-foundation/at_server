@@ -256,19 +256,15 @@ class NotificationManager {
       commandBody = '$commandBody:${atNotification.atValue}';
     }
     var atMetaData = atNotification.atMetadata;
-    if (atMetaData != null && atNotification.opType == OperationType.delete) {
-      // A delete notification's metadata exists only to carry the deletion
-      // time as :uAt:. Emit nothing else: the receiver treats an ABSENT
-      // isEncrypted as true for non-public keys, and delete notifications
-      // have never carried a metadata fragment, so emitting the usual
-      // unconditional isEncrypted:false here would silently flip that
-      // default on every deployed receiver.
-      if (atMetaData.updatedAt != null) {
-        commandBody = 'uAt:'
-            '${VerbUtil.formatIso8601Micros(atMetaData.updatedAt!)}'
-            ':$commandBody';
-      }
-    } else if (atMetaData != null) {
+    if (atMetaData != null) {
+      // One emission block for every notification that carries metadata —
+      // client-issued delete notifications carry it too (isEncrypted at
+      // minimum, ttr:ccd etc. when supplied) and their wire shape must not
+      // change. The AUTO-delete stays metadata-free unless the client
+      // asserted :dAt (DeleteVerbHandler._notify attaches metadata only
+      // then), so an ordinary delete's wire shape is exactly what it
+      // always was.
+      //
       // appMetadata is the LAST group in VerbSyntax.metadataFragment;
       // since this body is built back-to-front, it is prepended first.
       if (atNotification.atMetadata!.appMetadata != null) {

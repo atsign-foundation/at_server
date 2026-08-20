@@ -41,7 +41,10 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
       InboundConnection atConnection) async {
     UpdateParams updateParams = getUpdateParams(verbParams);
 
-    String dataStoreKey = getDataStoreKey(updateParams);
+    // Lowercased: the keystore canonicalizes keys to lowercase, so two
+    // case-variants of one command name the same stored record and must
+    // contend for the same mutex.
+    String dataStoreKey = getDataStoreKey(updateParams).toLowerCase();
 
     final mutexRef = updateMutexes.putIfAbsent(dataStoreKey, MutexRef.new);
 

@@ -6,11 +6,11 @@
 //   * a delete:dAt propagates: the receiver's cached-key DELETE commit
 //     entry records the origin deletion time (visible via scan:cl)
 //
-// Both tests self-skip when either atServer predates the capability: every
-// deployed server PARSES the syntax (it rolled out ahead of this), so the
-// probe must test behaviour, not grammar — scan:cl returns a list of maps
-// on a capable server and falls through to a plain scan (a list of
-// strings) on one that ignores the :cl flag.
+// Both tests skip (visibly, via markTestSkipped) when either atServer
+// predates the capability: every deployed server PARSES the syntax (it
+// rolled out ahead of this), so the probe must test behaviour, not grammar —
+// scan:cl returns a list of maps on a capable server and falls through to a
+// plain scan (a list of strings) on one that ignores the :cl flag.
 
 import 'dart:convert';
 
@@ -36,14 +36,38 @@ void main() {
   const uAt2Json = '2021-06-01 12:00:00.000Z';
   const dAtWire = '2023-05-05T11:59:44.123000Z';
 
+  /// Sends [command] on [sh] every 500ms until [done] accepts the response
+  /// or [timeoutMillis] elapses; returns the last response either way, so a
+  /// timeout surfaces as a normal assertion failure on real observed state.
+  Future<String> pollUntil(e2e.SimpleOutboundConnection sh, String command,
+      bool Function(String response) done,
+      {int timeoutMillis = 30000}) async {
+    final deadline = DateTime.now().add(Duration(milliseconds: timeoutMillis));
+    String response = '';
+    while (DateTime.now().isBefore(deadline)) {
+      await sh.writeCommand(command);
+      response = await sh.read();
+      if (done(response)) {
+        return response;
+      }
+      await Future.delayed(Duration(milliseconds: 500));
+    }
+    return response;
+  }
+
   /// Whether the atServer behind [sh] implements scan:cl (the probe for the
   /// whole 5.10.0 feature set: it lands in the same release). Seeds a key
   /// first so the response is never an empty list, which would be
-  /// indistinguishable between the two behaviours.
+  /// indistinguishable between the two behaviours. A failed seed is a rig
+  /// failure and throws — it must not read as 'predates the feature'.
   Future<bool> supportsProtocolEnhancements(
       e2e.SimpleOutboundConnection sh, String atSign) async {
     await sh.writeCommand('update:capprobe-$lastValue.e2e$atSign probe');
-    await sh.read();
+    final seedResponse = await sh.read();
+    if (!RegExp(r'^data:-?\d+$').hasMatch(seedResponse.trim())) {
+      throw StateError('capability-probe seed update on $atSign failed:'
+          ' $seedResponse');
+    }
     await sh.writeCommand('scan:cl capprobe-$lastValue');
     final response = await sh.read();
     if (!response.startsWith('data:')) {
@@ -63,10 +87,6 @@ void main() {
     sh2 = await e2e.getSocketHandler(atSign_2);
     bothSidesCapable = await supportsProtocolEnhancements(sh1, atSign_1) &&
         await supportsProtocolEnhancements(sh2, atSign_2);
-    if (!bothSidesCapable) {
-      print('An atServer in this pairing predates the 5.10.0 protocol '
-          'enhancements; the tests in this file will self-skip.');
-    }
   });
 
   tearDownAll(() {
@@ -82,6 +102,8 @@ void main() {
   test('a notification carrying cAt/uAt stores the cached key with the '
       'origin values; a refresh updates them', () async {
     if (!bothSidesCapable) {
+      markTestSkipped('an atServer in this pairing predates the 5.10.0 '
+          'protocol enhancements');
       return;
     }
     var key = 'tskey-$lastValue';
@@ -96,10 +118,12 @@ void main() {
     String notificationId = response.replaceAll('data:', '');
     await notification.getNotifyStatus(sh1, notificationId,
         returnWhenStatusIn: ['delivered'], timeOutMillis: 60000);
-    await Future.delayed(Duration(seconds: 2));
 
-    await sh2.writeCommand('llookup:all:cached:$atSign_2:$key$atSign_1');
-    response = await sh2.read();
+    // Delivery confirms the wire hop; poll for receive-side processing.
+    response = await pollUntil(
+        sh2,
+        'llookup:all:cached:$atSign_2:$key$atSign_1',
+        (r) => r.startsWith('data:'));
     Map metaData = jsonDecode(response.replaceAll('data:', ''))['metaData'];
     expect(metaData['createdAt'], cAtJson,
         reason: 'the cached copy must carry the ORIGIN\'s createdAt, not '
@@ -114,35 +138,41 @@ void main() {
     notificationId = response.replaceAll('data:', '');
     await notification.getNotifyStatus(sh1, notificationId,
         returnWhenStatusIn: ['delivered'], timeOutMillis: 60000);
-    await Future.delayed(Duration(seconds: 2));
 
-    await sh2.writeCommand('llookup:all:cached:$atSign_2:$key$atSign_1');
-    response = await sh2.read();
+    response = await pollUntil(
+        sh2,
+        'llookup:all:cached:$atSign_2:$key$atSign_1',
+        (r) =>
+            r.startsWith('data:') &&
+            jsonDecode(r.replaceAll('data:', ''))['metaData']['updatedAt'] ==
+                uAt2Json);
     metaData = jsonDecode(response.replaceAll('data:', ''))['metaData'];
     expect(metaData['updatedAt'], uAt2Json,
         reason: 'a refresh notification transmits the origin\'s newer '
             'updatedAt and the cached copy adopts it');
     expect(metaData['createdAt'], cAtJson);
-  }, timeout: Timeout(Duration(seconds: 120)));
+  }, timeout: Timeout(Duration(seconds: 180)));
 
   test('delete:dAt propagates: the receiver\'s cached-key DELETE entry '
       'records the origin deletion time', () async {
     if (!bothSidesCapable) {
+      markTestSkipped('an atServer in this pairing predates the 5.10.0 '
+          'protocol enhancements');
       return;
     }
     var key = 'delkey-$lastValue';
     var value = 'del-value-$lastValue';
 
     // Cache the key on atSign_2 with cascade delete, via autoNotify.
-    await sh1
-        .writeCommand('update:ttr:100000:ccd:true:$atSign_2:$key$atSign_1 $value');
+    await sh1.writeCommand(
+        'update:ttr:100000:ccd:true:$atSign_2:$key$atSign_1 $value');
     String response = await sh1.read();
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
-    await Future.delayed(Duration(seconds: 3));
 
-    await sh2.writeCommand('llookup:cached:$atSign_2:$key$atSign_1');
-    response = await sh2.read();
+    // autoNotify returns no notification id, so poll for the cached copy.
+    response = await pollUntil(sh2, 'llookup:cached:$atSign_2:$key$atSign_1',
+        (r) => r.contains('data:$value'));
     expect(response, contains('data:$value'),
         reason: 'the cached key must exist before the delete propagates');
 
@@ -151,10 +181,9 @@ void main() {
     response = await sh1.read();
     assert(
         (!response.contains('Invalid syntax')) && (!response.contains('null')));
-    await Future.delayed(Duration(seconds: 3));
 
-    await sh2.writeCommand('llookup:cached:$atSign_2:$key$atSign_1');
-    response = await sh2.read();
+    response = await pollUntil(sh2, 'llookup:cached:$atSign_2:$key$atSign_1',
+        (r) => r.contains('does not exist in keystore'));
     expect(response, contains('does not exist in keystore'),
         reason: 'ccd:true means the cascade delete removes the cached copy');
 
@@ -162,11 +191,12 @@ void main() {
     await sh2.writeCommand('scan:cl $key');
     response = await sh2.read();
     final List entries = jsonDecode(response.replaceAll('data:', ''));
-    final Map entry = entries.cast<Map>().firstWhere(
-        (e) => e['atKey'] == 'cached:$atSign_2:$key$atSign_1');
+    final Map entry = entries
+        .cast<Map>()
+        .firstWhere((e) => e['atKey'] == 'cached:$atSign_2:$key$atSign_1');
     expect(entry['operation'], '-');
     expect(entry['opTime'], dAtWire,
         reason: 'the delete auto-notification carries dAt as :uAt: and the '
             'receiver records it as the DELETE entry\'s opTime');
-  }, timeout: Timeout(Duration(seconds: 120)));
+  }, timeout: Timeout(Duration(seconds: 180)));
 }

@@ -186,10 +186,12 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       return;
     }
     key = '$forAtSign:$key$atSign';
-    // The deletion time travels as the metadata's updatedAt and is emitted
+    // A client-asserted :dAt travels as the metadata's updatedAt, emitted
     // on the wire as :uAt: (the notify grammar has no dAt group — a
-    // deletion is the record's last update). The emitter special-cases
-    // delete notifications to emit ONLY that fragment.
+    // deletion is the record's last update). Without an assertion, no
+    // metadata is attached at all, keeping an ordinary delete
+    // notification's wire shape exactly what it always was — a receiver
+    // built before the timestamp syntax existed still parses it.
     var atNotification = (AtNotificationBuilder()
           ..type = NotificationType.sent
           ..fromAtSign = atSign
@@ -197,9 +199,10 @@ class DeleteVerbHandler extends ChangeVerbHandler {
           ..notification = key
           ..priority = priority
           ..opType = OperationType.delete
-          ..atMetaData = (AtMetaData()
-            ..updatedAt =
-                (deletedAt ?? DateTime.now()).toUtcMillisecondsPrecision()))
+          ..atMetaData = deletedAt == null
+              ? null
+              : (AtMetaData()
+                ..updatedAt = deletedAt.toUtcMillisecondsPrecision()))
         .build();
     await notificationManager.notify(atNotification);
   }
