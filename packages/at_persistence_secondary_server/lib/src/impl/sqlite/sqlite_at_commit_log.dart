@@ -28,7 +28,10 @@ class SqliteAtCommitLog extends AtCommitLog {
   /// allocated commit id, or `-1` for an elided key. Re-entrant via
   /// [SqliteDatabase.runInTransaction]: joins the caller's transaction
   /// when there is one, else opens its own.
-  int? commitSync(String atKey, CommitOp operation) {
+  ///
+  /// [opTime] as on [AtCommitLog.commit]: caller-asserted operation
+  /// time when supplied, else now.
+  int? commitSync(String atKey, CommitOp operation, {DateTime? opTime}) {
     if (_isElided(atKey)) return -1;
     return _db.runInTransaction(() {
       _db.raw.execute(
@@ -48,7 +51,9 @@ class SqliteAtCommitLog extends AtCommitLog {
           atKey,
           commitId,
           operation.name,
-          DateTime.now().toUtcMillisecondsPrecision().millisecondsSinceEpoch,
+          (opTime ?? DateTime.now())
+              .toUtcMillisecondsPrecision()
+              .millisecondsSinceEpoch,
         ],
       );
       return commitId;
@@ -63,8 +68,12 @@ class SqliteAtCommitLog extends AtCommitLog {
   }
 
   @override
-  Future<int?> commit(String key, CommitOp operation) async =>
-      commitSync(key, operation);
+  Future<int?> commit(String key, CommitOp operation,
+          {DateTime? opTime}) async =>
+      commitSync(key, operation, opTime: opTime);
+
+  @override
+  Future<void> removeEntryFor(String key) async => purgeSync(key);
 
   @override
   Future<void> replay(CommitEntry entry) async {

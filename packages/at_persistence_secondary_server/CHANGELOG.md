@@ -1,5 +1,32 @@
 ## 5.2.1
 
+- feat: keystore write paths accept caller-asserted timestamps
+  (`AtAssertedTimestamps`): `put`/`create`/`putMeta` store an asserted
+  `createdAt`/`updatedAt`/`expiresAt`/`availableAt` faithfully instead of
+  rederiving, and an asserted `expiresAt`/`availableAt` suppresses the
+  ttl/ttb derivation for that write only. `remove` accepts `deletedAt`.
+  Assertions travel as an explicit argument rather than through nullable
+  `AtMetaData` fields, so internal callers that recycle stored metadata keep
+  today's server-derived stamping. NOTE for the next release: these are new
+  named parameters on the `AtKeyValueStore` interface methods — breaking for
+  external implementers of the interface (none known besides test mocks,
+  which tolerate it), fine for callers.
+- feat: `AtCommitLog.commit` accepts an `opTime` (caller-asserted operation
+  time — a delete's `deletedAt`, an update's asserted `updatedAt`), recorded
+  on the commit entry; and `AtCommitLog.removeEntryFor` removes a key's
+  commit entry on both backends (previously reachable only through
+  backend-specific escape hatches).
+- feat: `put`/`create`/`putMeta` with `skipCommit: true` now purge the key's
+  existing commit entry as well as writing none, matching `remove`'s
+  established skipCommit behaviour; `putMeta` gains `skipCommit`.
+- fix: the Hive expiry cache tracks keys by their stored
+  `expiresAt`/`availableAt` rather than by ttl/ttb presence, so a record
+  whose only expiry signal is an asserted `expiresAt` is swept and stops
+  being served at its expiry instead of living forever.
+- fix: Hive `remove`/`removeMany` passed the raw key to the commit log,
+  which utf7-decodes its argument — a second decode that mangled keys
+  containing utf7 escape sequences. Commit-log calls now take the prepared
+  key on every path.
 - feat: `AtCommitLog.iterate` accepts `skipDeletesUntil`/`latestCommitId`,
   pushing sync's delete-skip into the query. Previously sync fetched every
   commit entry from `fromCommitId` and discarded below-watermark DELETE entries

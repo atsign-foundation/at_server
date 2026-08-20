@@ -13,7 +13,25 @@ abstract class AtCommitLog implements Compactable {
   /// Append a new entry for [key] / [operation]. Returns the
   /// assigned `commitId`, or `-1` for keys that bypass the commit
   /// log (`private:`, `privatekey:`, `public:_`, `local:`, ...).
-  Future<int?> commit(String key, CommitOp operation);
+  ///
+  /// [opTime] is the operation time recorded on the entry: pass a
+  /// caller-asserted time (a delete's `deletedAt`, an update's
+  /// asserted `updatedAt`) when the protocol supplied one; when
+  /// null, now. Truncated to millisecond precision. Informational —
+  /// entry ordering is by `commitId`, never by `opTime`.
+  Future<int?> commit(String key, CommitOp operation, {DateTime? opTime});
+
+  /// Remove the commit entry for [key], if one exists. The log
+  /// holds at most one entry per atKey, so at most one entry is
+  /// removed; removing none is not an error. Used by the
+  /// skipCommit write paths: a write that must leave no commit
+  /// entry also scrubs the key's previous entry, otherwise sync
+  /// would keep serving a stale entry for a record whose latest
+  /// change was deliberately uncommitted.
+  ///
+  /// [key] takes the same form that [commit] accepts on the same
+  /// backend.
+  Future<void> removeEntryFor(String key);
 
   /// Replay [entry] under its existing `commitId` WITHOUT firing
   /// change-event listeners. Used by the persistence migrator to

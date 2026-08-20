@@ -13,25 +13,47 @@ class AtMetadataBuilder {
 
   static final AtSignLogger logger = AtSignLogger('AtMetadataBuilder');
 
-  /// Requires an AtMetaData
+  /// Requires an AtMetaData.
+  ///
+  /// [asserted] carries caller-asserted timestamps (see
+  /// [AtAssertedTimestamps]). An asserted value is stored faithfully:
+  ///
+  ///   * `createdAt`: asserted value wins — on creation and on update of an
+  ///     existing record alike (the protocol treats a transmitted createdAt
+  ///     as the record's true creation time, e.g. when a record moves
+  ///     between atServers). Absent an assertion, a new record is stamped
+  ///     now and an existing record keeps its stored value.
+  ///   * `updatedAt`: asserted value wins; else stamped now.
+  ///   * `expiresAt` / `availableAt`: an asserted value wins AT THIS WRITE,
+  ///     suppressing the ttl/ttb derivation that would otherwise recompute
+  ///     it from now — that derivation is exactly what a faithful transfer
+  ///     must avoid, since it would restart the expiry clock on arrival.
+  ///     A later write without an assertion derives from ttl/ttb as usual.
   AtMetadataBuilder({
     required String atSign,
     required AtMetaData? newAtMetaData,
     AtMetaData? existingMetaData,
+    AtAssertedTimestamps? asserted,
   }) {
     atMetaData = newAtMetaData ?? existingMetaData ?? AtMetaData();
     // createdAt indicates the date and time of the key created.
     // For a new key, the currentDateTime is set and remains unchanged
-    // on an update event.
-    (existingMetaData?.createdAt == null)
-        ? atMetaData.createdAt = currentUtcTimeToMillisecondPrecision
-        : atMetaData.createdAt = existingMetaData?.createdAt;
+    // on an update event — unless the caller asserts a createdAt.
+    if (asserted?.createdAt != null) {
+      atMetaData.createdAt = asserted!.createdAt;
+    } else {
+      (existingMetaData?.createdAt == null)
+          ? atMetaData.createdAt = currentUtcTimeToMillisecondPrecision
+          : atMetaData.createdAt = existingMetaData?.createdAt;
+    }
     atMetaData.createdBy ??= atSign;
     atMetaData.updatedBy = atSign;
     // updatedAt indicates the date and time of the key updated.
     // For a new key, the updatedAt is same as createdAt and on key
-    // update, set the updatedAt to the currentDateTime.
-    atMetaData.updatedAt = currentUtcTimeToMillisecondPrecision;
+    // update, set the updatedAt to the currentDateTime — unless the
+    // caller asserts an updatedAt.
+    atMetaData.updatedAt =
+        asserted?.updatedAt ?? currentUtcTimeToMillisecondPrecision;
     atMetaData.status = 'active';
     // The version indicates the number of updates a key has received.
     // Version is set to 0 for a new key and for each update the key receives,
@@ -69,12 +91,17 @@ class AtMetadataBuilder {
       atMetaData.immutable = true;
     }
 
-    // set expiresAt based on the ttl
-    if (atMetaData.ttl != null && atMetaData.ttl! >= 0) {
+    // set expiresAt based on the ttl — an asserted expiresAt wins over
+    // the derivation at this write (ttl itself is still stored)
+    if (asserted?.expiresAt != null) {
+      atMetaData.expiresAt = asserted!.expiresAt;
+    } else if (atMetaData.ttl != null && atMetaData.ttl! >= 0) {
       setTTL(atMetaData.ttl, ttb: atMetaData.ttb);
     }
-    // set availableAt based on the ttb
-    if (atMetaData.ttb != null && atMetaData.ttb! >= 0) {
+    // set availableAt based on the ttb — same assertion-wins rule
+    if (asserted?.availableAt != null) {
+      atMetaData.availableAt = asserted!.availableAt;
+    } else if (atMetaData.ttb != null && atMetaData.ttb! >= 0) {
       setTTB(atMetaData.ttb);
     }
     // Set refreshAt based on the TTR

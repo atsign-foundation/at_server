@@ -73,10 +73,13 @@ class SqliteAtKeyValueStore
   }
 
   @override
-  Future<int?> put(String key, AtData value, {bool skipCommit = false}) async {
+  Future<int?> put(String key, AtData value,
+      {bool skipCommit = false,
+      AtAssertedTimestamps? assertedTimestamps}) async {
     final k = _validateAndNormalize(key);
     if (!_existsSync(k)) {
-      return create(key, value, skipCommit: skipCommit);
+      return create(key, value,
+          skipCommit: skipCommit, assertedTimestamps: assertedTimestamps);
     }
     final existing = _getSync(k);
     final toStore = AtData()
@@ -85,10 +88,19 @@ class SqliteAtKeyValueStore
         atSign: atSign,
         newAtMetaData: value.metaData,
         existingMetaData: existing?.metaData,
+        asserted: assertedTimestamps,
       ).build();
     final result = _db.runInTransaction(() {
       _upsertAtData(k, toStore);
-      return skipCommit ? -1 : _commitOrNull(k, CommitOp.UPDATE_ALL);
+      if (skipCommit) {
+        // A skipCommit write leaves no trace in the commit log: purge
+        // the key's previous entry as well as writing none, matching
+        // remove()'s behaviour.
+        _sqliteCommitLog?.purgeSync(k);
+        return -1;
+      }
+      return _commitOrNull(k, CommitOp.UPDATE_ALL,
+          opTime: assertedTimestamps?.updatedAt);
     });
     _changes.add(KeyUpdated(k));
     return result;
@@ -96,18 +108,27 @@ class SqliteAtKeyValueStore
 
   @override
   Future<int?> create(String key, AtData value,
-      {bool skipCommit = false}) async {
+      {bool skipCommit = false,
+      AtAssertedTimestamps? assertedTimestamps}) async {
     final k = _validateAndNormalize(key);
     _checkMaxLength(k);
     final toStore = AtData()
       ..data = value.data
-      ..metaData =
-          AtMetadataBuilder(atSign: atSign, newAtMetaData: value.metaData)
-              .build();
+      ..metaData = AtMetadataBuilder(
+              atSign: atSign,
+              newAtMetaData: value.metaData,
+              asserted: assertedTimestamps)
+          .build();
     final commitOp = _commitOpForNewWrite(value.metaData);
     final result = _db.runInTransaction(() {
       _upsertAtData(k, toStore);
-      return skipCommit ? -1 : _commitOrNull(k, commitOp);
+      if (skipCommit) {
+        // Purge any previous entry for this key, matching put/remove's
+        // skipCommit behaviour.
+        _sqliteCommitLog?.purgeSync(k);
+        return -1;
+      }
+      return _commitOrNull(k, commitOp, opTime: assertedTimestamps?.updatedAt);
     });
     _changes.add(KeyAdded(k));
     return result;
@@ -133,7 +154,9 @@ class SqliteAtKeyValueStore
   }
 
   @override
-  Future<int?> putMeta(String key, AtMetaData? metadata) async {
+  Future<int?> putMeta(String key, AtMetaData? metadata,
+      {bool skipCommit = false,
+      AtAssertedTimestamps? assertedTimestamps}) async {
     final k = _validateAndNormalize(key);
     final existing = _existsSync(k) ? _getSync(k)! : AtData();
     final toStore = AtData()
@@ -142,10 +165,18 @@ class SqliteAtKeyValueStore
         atSign: atSign,
         newAtMetaData: metadata,
         existingMetaData: existing.metaData,
+        asserted: assertedTimestamps,
       ).build();
     final result = _db.runInTransaction(() {
       _upsertAtData(k, toStore);
-      return _commitOrNull(k, CommitOp.UPDATE_META);
+      if (skipCommit) {
+        // Purge any previous entry for this key, matching put/remove's
+        // skipCommit behaviour.
+        _sqliteCommitLog?.purgeSync(k);
+        return -1;
+      }
+      return _commitOrNull(k, CommitOp.UPDATE_META,
+          opTime: assertedTimestamps?.updatedAt);
     });
     _changes.add(KeyUpdated(k));
     return result;
@@ -170,7 +201,8 @@ class SqliteAtKeyValueStore
   }
 
   @override
-  Future<int?> remove(String key, {bool skipCommit = false}) async {
+  Future<int?> remove(String key,
+      {bool skipCommit = false, DateTime? deletedAt}) async {
     final lowered = key.toLowerCase();
     for (final hook in preRemoveHooks) {
       await hook(lowered, skipCommit: skipCommit);
@@ -182,7 +214,7 @@ class SqliteAtKeyValueStore
         _sqliteCommitLog?.purgeSync(k);
         return -1;
       }
-      return _commitOrNull(k, CommitOp.DELETE);
+      return _commitOrNull(k, CommitOp.DELETE, opTime: deletedAt);
     });
     _changes.add(KeyRemoved(k));
     for (final hook in postRemoveHooks) {
@@ -558,8 +590,8 @@ class SqliteAtKeyValueStore
     );
   }
 
-  int? _commitOrNull(String atkey, CommitOp op) =>
-      _sqliteCommitLog?.commitSync(atkey, op);
+  int? _commitOrNull(String atkey, CommitOp op, {DateTime? opTime}) =>
+      _sqliteCommitLog?.commitSync(atkey, op, opTime: opTime);
 
   AtData _atDataFromRow(Row row, String atkey) => AtData()
     ..data = row['value'] as String?

@@ -29,7 +29,8 @@ class HiveAtCommitLog extends AtCommitLog {
   /// throws [DataStoreException] if there is an exception writing to hive box
   @override
   @server
-  Future<int?> commit(String key, CommitOp operation) async {
+  Future<int?> commit(String key, CommitOp operation,
+      {DateTime? opTime}) async {
     // If key starts with "public:__", it is a public hidden key which gets synced
     // between cloud and local secondary. So increment commitId.
     // If key starts with "public:_" it is a public hidden key but does not get synced.
@@ -43,8 +44,8 @@ class HiveAtCommitLog extends AtCommitLog {
     }
     int result;
     key = Utf7.decode(key);
-    var entry = CommitEntry(
-        key, operation, DateTime.now().toUtcMillisecondsPrecision());
+    var entry = CommitEntry(key, operation,
+        (opTime ?? DateTime.now()).toUtcMillisecondsPrecision());
     try {
       result = await _commitLogKeyStore.add(entry);
     } on Exception catch (e) {
@@ -121,6 +122,20 @@ class HiveAtCommitLog extends AtCommitLog {
   @server
   CommitEntry? getLatestCommitEntry(String key) {
     return _commitLogKeyStore.getLatestCommitEntry(key);
+  }
+
+  /// [key] is utf7-decoded first, matching [commit]'s treatment, so
+  /// callers pass the same (encoded) form to both. Routes through
+  /// [HiveCommitLogKeyStore.remove], which also evicts the entry
+  /// from the in-memory cache map.
+  @override
+  @server
+  Future<void> removeEntryFor(String key) async {
+    key = Utf7.decode(key);
+    final CommitEntry? entry = _commitLogKeyStore.getLatestCommitEntry(key);
+    if (entry?.commitId != null) {
+      await _commitLogKeyStore.remove(entry!.commitId!);
+    }
   }
 
   /// Closes the [HiveServerCommitLogKeyStore] instance.

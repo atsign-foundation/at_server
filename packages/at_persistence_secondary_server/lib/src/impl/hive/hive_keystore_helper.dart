@@ -1,3 +1,4 @@
+import 'package:at_persistence_secondary_server/src/spec/keystore/at_asserted_timestamps.dart';
 import 'package:at_persistence_secondary_server/src/spec/keystore/at_data.dart';
 import 'package:at_persistence_secondary_server/src/spec/keystore/at_metadata_builder.dart';
 import 'package:at_utf7/at_utf7.dart';
@@ -18,15 +19,19 @@ class HiveKeyStoreHelper {
 
   /// Builds the [AtData] that should land in the keystore for an
   /// `update`-style operation, merging the new payload with any
-  /// existing metadata.
+  /// existing metadata. [asserted] carries caller-asserted
+  /// timestamps for the builder (see [AtAssertedTimestamps]).
   static AtData prepareDataForKeystoreOperation(AtData newAtData,
-      {AtData? existingAtData, required String atSign}) {
+      {AtData? existingAtData,
+      required String atSign,
+      AtAssertedTimestamps? asserted}) {
     var atData = AtData();
     atData.data = newAtData.data;
     atData.metaData = AtMetadataBuilder(
       atSign: atSign,
       newAtMetaData: newAtData.metaData,
       existingMetaData: existingAtData?.metaData,
+      asserted: asserted,
     ).build();
     return atData;
   }

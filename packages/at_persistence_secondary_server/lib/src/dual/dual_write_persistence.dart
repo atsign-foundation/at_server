@@ -182,16 +182,21 @@ class _DualWriteKeyStore
   }
 
   @override
-  Future<int?> put(String key, AtData value, {bool skipCommit = false}) async {
-    final id = await _primary.put(key, value, skipCommit: skipCommit);
+  Future<int?> put(String key, AtData value,
+      {bool skipCommit = false,
+      AtAssertedTimestamps? assertedTimestamps}) async {
+    final id = await _primary.put(key, value,
+        skipCommit: skipCommit, assertedTimestamps: assertedTimestamps);
     await _mirror(key);
     return id;
   }
 
   @override
   Future<int?> create(String key, AtData value,
-      {bool skipCommit = false}) async {
-    final id = await _primary.create(key, value, skipCommit: skipCommit);
+      {bool skipCommit = false,
+      AtAssertedTimestamps? assertedTimestamps}) async {
+    final id = await _primary.create(key, value,
+        skipCommit: skipCommit, assertedTimestamps: assertedTimestamps);
     await _mirror(key);
     return id;
   }
@@ -204,8 +209,11 @@ class _DualWriteKeyStore
   }
 
   @override
-  Future<int?> putMeta(String key, AtMetaData? metadata) async {
-    final id = await _primary.putMeta(key, metadata);
+  Future<int?> putMeta(String key, AtMetaData? metadata,
+      {bool skipCommit = false,
+      AtAssertedTimestamps? assertedTimestamps}) async {
+    final id = await _primary.putMeta(key, metadata,
+        skipCommit: skipCommit, assertedTimestamps: assertedTimestamps);
     await _mirror(key);
     return id;
   }
@@ -217,8 +225,10 @@ class _DualWriteKeyStore
   }
 
   @override
-  Future<int?> remove(String key, {bool skipCommit = false}) async {
-    final id = await _primary.remove(key, skipCommit: skipCommit);
+  Future<int?> remove(String key,
+      {bool skipCommit = false, DateTime? deletedAt}) async {
+    final id = await _primary.remove(key,
+        skipCommit: skipCommit, deletedAt: deletedAt);
     await _mirror(key);
     return id;
   }
