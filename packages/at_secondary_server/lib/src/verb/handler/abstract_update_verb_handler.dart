@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/constants/wire_param_names.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as hu;
@@ -77,7 +78,12 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   ///   has a null value
   ///   - Iterate through the verb params again; if there is a metadata param
   ///   supplied with a value of 'null' then set the AtMetaData field to null
-  Future<UpdatePreProcessResult> preProcessAndNotify(
+  ///
+  /// The auto-notification is NOT queued here — the handler queues it via
+  /// [notifyAfterStore] once the keystore write has succeeded, so the
+  /// notification carries the metadata that was actually stored and a failed
+  /// write queues nothing.
+  Future<UpdatePreProcessResult> preProcess(
       Response response,
       HashMap<String, String?> verbParams,
       UpdateParams updateParams,
@@ -86,7 +92,6 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     await super.processVerb(response, verbParams, atConnection);
 
     // Get the key and update the value
-    final sharedWith = updateParams.sharedWith;
     final sharedBy = updateParams.sharedBy;
     final value = updateParams.value;
     final atData = AtData();
@@ -185,15 +190,56 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       existingAtMetaData,
     );
 
-    await notify(
-        sharedBy,
-        sharedWith,
-        verbParams[AtConstants.atKey],
-        value,
-        SecondaryUtil.getNotificationPriority(verbParams[AtConstants.priority]),
-        atData.metaData!);
-
     return UpdatePreProcessResult(atKey, atData);
+  }
+
+  /// Queues the auto-notification for a write that has already succeeded,
+  /// reading the metadata back from the store so the notification carries
+  /// exactly what was stored (client-asserted timestamps included).
+  ///
+  /// The caller still holds the per-key mutex, but delete and the TTL sweep
+  /// take no mutex — if the record vanished in that window, fall back to the
+  /// metadata that was written rather than dropping the notification.
+  ///
+  /// A notify failure is logged at warning and NOT rethrown: the write
+  /// happened, and the client's response must report it faithfully.
+  Future<void> notifyAfterStore(
+      HashMap<String, String?> verbParams,
+      UpdateParams updateParams,
+      UpdatePreProcessResult result) async {
+    try {
+      AtMetaData? stored = await keyStore.getMeta(result.atKey);
+      stored ??= result.atData.metaData;
+      await notify(
+          updateParams.sharedBy,
+          updateParams.sharedWith,
+          verbParams[AtConstants.atKey],
+          updateParams.value,
+          SecondaryUtil.getNotificationPriority(
+              verbParams[AtConstants.priority]),
+          stored!);
+    } catch (e) {
+      logger.warning('auto-notification for ${result.atKey} was not queued'
+          ' ($e); the write itself succeeded');
+    }
+  }
+
+  /// The caller-asserted timestamps carried by [metadata]'s
+  /// createdAt/updatedAt/expiresAt/availableAt fields (parsed off the wire
+  /// by [getUpdateParams] or, for `update:json`, by commons
+  /// `Metadata.fromJson`), or null when none were supplied.
+  AtAssertedTimestamps? assertedTimestampsOf(Metadata metadata) {
+    if (metadata.createdAt == null &&
+        metadata.updatedAt == null &&
+        metadata.expiresAt == null &&
+        metadata.availableAt == null) {
+      return null;
+    }
+    return AtAssertedTimestamps(
+        createdAt: metadata.createdAt,
+        updatedAt: metadata.updatedAt,
+        expiresAt: metadata.expiresAt,
+        availableAt: metadata.availableAt);
   }
 
   UpdateParams getUpdateParams(HashMap<String, String?> verbParams) {
@@ -227,6 +273,21 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     if (verbParams[AtConstants.ccd] != null) {
       metadata.ccd =
           AtMetadataUtil.getBoolVerbParams(verbParams[AtConstants.ccd]);
+    }
+    // Caller-asserted timestamps (:cAt/:uAt/:eAt/:aAt) — the verb grammar
+    // pins these to ISO 8601 UTC, so DateTime.parse cannot see a local time.
+    if (verbParams[AtConstants.createdAt] != null) {
+      metadata.createdAt = DateTime.parse(verbParams[AtConstants.createdAt]!);
+    }
+    if (verbParams[AtConstants.updatedAt] != null) {
+      metadata.updatedAt = DateTime.parse(verbParams[AtConstants.updatedAt]!);
+    }
+    if (verbParams[WireParams.expiresAt] != null) {
+      metadata.expiresAt = DateTime.parse(verbParams[WireParams.expiresAt]!);
+    }
+    if (verbParams[WireParams.availableAt] != null) {
+      metadata.availableAt =
+          DateTime.parse(verbParams[WireParams.availableAt]!);
     }
     metadata.dataSignature = verbParams[AtConstants.publicDataSignature];
     if (verbParams[AtConstants.isBinary] != null) {

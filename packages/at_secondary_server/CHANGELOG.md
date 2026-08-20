@@ -1,4 +1,25 @@
 # 3.16.2
+- feat: implement the at_commons 5.10.0 protocol enhancements on the
+  update/update:meta/update:json/delete surface (#2678):
+  - `:cAt`/`:uAt`/`:eAt`/`:aAt` — caller-asserted
+    createdAt/updatedAt/expiresAt/availableAt are stored faithfully instead
+    of rederived. An asserted cAt wins on create and update alike; an
+    asserted eAt/aAt suppresses the ttl/ttb derivation for that write only
+    (later writes without an assertion derive as before). Values are
+    truncated to millisecond precision. An asserted updatedAt is also
+    recorded as the commit entry's opTime.
+  - `:nc` (no-commit) — the operation runs as usual (auto-notification
+    included) but writes no commit entry AND purges the key's existing
+    entry; the response is `data:-1`.
+  - `delete:dAt` — recorded as the DELETE commit entry's opTime. Works with
+    `:nc` for commit-log cruft management: a `delete:nc` of a key that no
+    longer exists still purges the key's leftover entry.
+- fix: the update/update:meta auto-notification is queued AFTER the
+  keystore write, carrying the metadata that was actually stored — the old
+  order transmitted pre-merge values (e.g. a freshly-fabricated createdAt
+  for an existing record) and queued a notification even when the write
+  then failed. A notify-queueing failure after a successful write is logged
+  at warning and does not fail the client's request.
 - fix(at_secondary_server): a closed `NotificationManager` now stops its
 delivery retries.
   - `PerAtSignNotifSender.send()` retries until delivery succeeds or the

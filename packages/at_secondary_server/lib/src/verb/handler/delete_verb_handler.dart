@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/constants/wire_param_names.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -125,7 +126,19 @@ class DeleteVerbHandler extends ChangeVerbHandler {
           }
         }
       }
-      var result = await keyStore.remove(deleteKey);
+      // The :nc flag maps to skipCommit: write no DELETE commit entry AND
+      // purge the key's existing entry (the response is then -1). Works for
+      // a key that is already gone — remove() tolerates a missing key and
+      // still purges, which is the commit-log cruft-management case. The
+      // :dAt timestamp is recorded as the DELETE entry's opTime; with :nc
+      // there is no entry, so it has nothing to stamp.
+      DateTime? deletedAt;
+      if (verbParams[WireParams.deletedAt] != null) {
+        deletedAt = DateTime.parse(verbParams[WireParams.deletedAt]!);
+      }
+      var result = await keyStore.remove(deleteKey,
+          skipCommit: verbParams[WireParams.noCommit] != null,
+          deletedAt: deletedAt);
       response.data = result?.toString();
       logger.finer('delete success. delete key: $deleteKey');
     } on KeyNotFoundException {
