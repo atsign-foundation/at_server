@@ -256,6 +256,41 @@ void main() {
       expect(cached.metaData!.updatedAt!.isBefore(before), isFalse);
     });
 
+    test('a notification transmitting uAt but no ttb does not fabricate a '
+        'ttb on the cached key', () async {
+      // The receive path coerces an absent ttb to 0 before the keystore
+      // write, and setTTB(0) stamps availableAt to arrival time. A
+      // derivation that trusted the merged metadata would then store
+      // ttb = arrival - origin uAt: milliseconds on a fast link, days if
+      // this server was offline and the notification was retried — a
+      // birth window the origin record does not have.
+      await notifyHandler.process(
+          'notify:id:rcv-nofab:update:messageType:key:ttr:100000'
+          ':uAt:$uAtWire'
+          ':$alice:phone.wavi$bob:hello',
+          inboundConnection);
+      final cached = await keyValueStore.get('cached:$alice:phone.wavi$bob');
+      expect(cached!.metaData!.ttb ?? 0, 0,
+          reason: 'no ttb was transmitted, so none may be fabricated from '
+              'transfer latency');
+    });
+
+    test('a notification with eAt and no ttl derives ttl = eAt - uAt on '
+        'the cached key, not eAt - arrival time', () async {
+      await notifyHandler.process(
+          'notify:id:rcv-derive:update:messageType:key:ttr:100000'
+          ':uAt:$uAtWire:eAt:$eAtWire'
+          ':$alice:phone.wavi$bob:hello',
+          inboundConnection);
+      final cached = await keyValueStore.get('cached:$alice:phone.wavi$bob');
+      expect(cached!.metaData!.expiresAt, eAt);
+      expect(cached.metaData!.ttl, eAt.difference(uAt).inMilliseconds,
+          reason: 'the derivation must measure from the transmitted '
+              'updatedAt so every server derives the same ttl from the '
+              'same notification — measuring from arrival time would '
+              'erode the ttl by the transfer latency at every hop');
+    });
+
     test('a delete notification\'s :uAt: becomes the cached key\'s DELETE '
         'commit entry opTime (ccd case)', () async {
       await notifyHandler.process(

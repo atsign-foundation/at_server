@@ -190,7 +190,14 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       existingAtMetaData,
     );
 
-    return UpdatePreProcessResult(atKey, atData);
+    // Computed here, where existingAtMetaData reflects the expired-record
+    // drop above — an expired record must not have its old expiry carried
+    // forward into the record replacing it.
+    return UpdatePreProcessResult(
+        atKey,
+        atData,
+        effectiveAssertedTimestamps(updateParams.metadata!,
+            existingAtMetaData));
   }
 
   /// Queues the auto-notification for a write that has already succeeded,
@@ -247,22 +254,64 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     }
   }
 
-  /// The caller-asserted timestamps carried by [metadata]'s
-  /// createdAt/updatedAt/expiresAt/availableAt fields (parsed off the wire
-  /// by [getUpdateParams] or, for `update:json`, by commons
-  /// `Metadata.fromJson`), or null when none were supplied.
-  AtAssertedTimestamps? assertedTimestampsOf(Metadata metadata) {
+  /// The timestamps this write must store faithfully: the request's own
+  /// assertions ([metadata]'s createdAt/updatedAt/expiresAt/availableAt,
+  /// parsed off the wire by [getUpdateParams] or, for `update:json`, by
+  /// commons `Metadata.fromJson`) — plus, when the request says nothing at
+  /// all about an expiry axis, the [existing] record's absolute for that
+  /// axis, carried forward as an assertion so this write cannot move it.
+  ///
+  /// Without the carry, the retain-from-existing merge re-feeds the stored
+  /// ttl/ttb into the metadata builder, which re-derives the absolute from
+  /// now — so a write that never mentioned expiry would restart the expiry
+  /// clock (and re-open a ttb record's not-yet-born window). Once set, an
+  /// absolute moves only when a request speaks about its axis: a new
+  /// assertion stores faithfully, a fresh ttl/ttb re-derives from now,
+  /// ttl:0 clears the expiry, and ttb:0 re-stamps availableAt to now
+  /// (immediate availability — the birth axis has no cleared state).
+  ///
+  /// A request that asserts an absolute WITHOUT supplying its relative
+  /// (an eAt with no ttl, an aAt with no ttb) additionally asks the store
+  /// to derive the relative the absolute implies — deriveTtl/deriveTtb on
+  /// the returned assertions — replacing any ttl/ttb the retain-merge or
+  /// the json coercion may have put on the write's metadata. That decision
+  /// belongs here because only the request layer can tell a caller-
+  /// supplied relative from a retained or coerced one.
+  ///
+  /// "Says nothing" is judged per axis on the request's own metadata,
+  /// where absent means null. On the update:json path commons
+  /// `Metadata.fromJson` coerces an absent ttl/ttb to 0, which is
+  /// indistinguishable from an explicit 0 and therefore counts as the
+  /// request speaking (ttl:0 clears expiry, as it always has) — except
+  /// alongside an asserted absolute, where a 0 contradicts the absolute
+  /// and counts as unsupplied, so the derivation wins on both encodings.
+  ///
+  /// Returns null when there is nothing to assert.
+  AtAssertedTimestamps? effectiveAssertedTimestamps(
+      Metadata metadata, AtMetaData? existing) {
+    final expiryCarry = (metadata.expiresAt == null && metadata.ttl == null)
+        ? existing?.expiresAt
+        : null;
+    final birthCarry = (metadata.availableAt == null && metadata.ttb == null)
+        ? existing?.availableAt
+        : null;
     if (metadata.createdAt == null &&
         metadata.updatedAt == null &&
         metadata.expiresAt == null &&
-        metadata.availableAt == null) {
+        metadata.availableAt == null &&
+        expiryCarry == null &&
+        birthCarry == null) {
       return null;
     }
     return AtAssertedTimestamps(
         createdAt: metadata.createdAt,
         updatedAt: metadata.updatedAt,
-        expiresAt: metadata.expiresAt,
-        availableAt: metadata.availableAt);
+        expiresAt: metadata.expiresAt ?? expiryCarry,
+        availableAt: metadata.availableAt ?? birthCarry,
+        deriveTtl: metadata.expiresAt != null &&
+            (metadata.ttl == null || metadata.ttl == 0),
+        deriveTtb: metadata.availableAt != null &&
+            (metadata.ttb == null || metadata.ttb == 0));
   }
 
   UpdateParams getUpdateParams(HashMap<String, String?> verbParams) {
@@ -516,7 +565,12 @@ class UpdatePreProcessResult {
   String atKey;
   AtData atData;
 
-  UpdatePreProcessResult(this.atKey, this.atData);
+  /// What the store must keep faithfully for this write — the request's
+  /// own timestamp assertions plus the silent-write expiry carry. See
+  /// [AbstractUpdateVerbHandler.effectiveAssertedTimestamps].
+  AtAssertedTimestamps? assertedTimestamps;
+
+  UpdatePreProcessResult(this.atKey, this.atData, this.assertedTimestamps);
 }
 
 /// Mutable holder for the per-key update mutex and its waiter count, so that

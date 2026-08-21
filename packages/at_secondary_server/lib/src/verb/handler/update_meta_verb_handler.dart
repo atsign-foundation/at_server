@@ -52,14 +52,15 @@ class UpdateMetaVerbHandler extends AbstractUpdateVerbHandler {
 
       // update the key in data store. The :nc flag maps to skipCommit
       // (write no commit entry AND purge the key's existing one, so the
-      // response is -1); asserted timestamps are stored faithfully.
+      // response is -1); asserted timestamps — the request's own plus the
+      // silent-write expiry carry — are stored faithfully.
       logger.finer(
           'calling keyValueStore.putMeta(${updatePreProcessResult.atKey}, ${updatePreProcessResult.atData.metaData!}');
       var result = await keyStore.putMeta(
         updatePreProcessResult.atKey,
         updatePreProcessResult.atData.metaData!,
         skipCommit: verbParams[WireParams.noCommit] != null,
-        assertedTimestamps: assertedTimestampsOf(updateParams.metadata!),
+        assertedTimestamps: updatePreProcessResult.assertedTimestamps,
       );
       response.data = result?.toString();
 

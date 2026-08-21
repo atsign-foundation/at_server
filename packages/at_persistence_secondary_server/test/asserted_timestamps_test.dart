@@ -76,6 +76,20 @@ void main() {
         asserted: AtAssertedTimestamps(expiresAt: eAt),
       ).build();
       expect(built.expiresAt, eAt);
+      expect(built.ttl, 0,
+          reason: 'without deriveTtl the builder must not touch the '
+              'metadata\'s ttl — deciding that a 0 means "unsupplied" is '
+              'the request layer\'s call, made via the deriveTtl flag');
+
+      final derived = AtMetadataBuilder(
+        atSign: '@alice',
+        newAtMetaData: AtMetaData()..ttl = 0,
+        asserted: AtAssertedTimestamps(expiresAt: eAt, deriveTtl: true),
+      ).build();
+      expect(derived.ttl, eAt.difference(derived.updatedAt!).inMilliseconds,
+          reason: 'with deriveTtl (set by the request layer when the json '
+              'path\'s coerced ttl:0 accompanies an asserted expiry) the '
+              'implied ttl replaces the 0');
 
       final cleared = AtMetadataBuilder(
         atSign: '@alice',
@@ -94,6 +108,119 @@ void main() {
       ).build();
       expect(built.availableAt, aAt);
       expect(built.ttb, 60000);
+    });
+
+    test('an asserted expiresAt with deriveTtl derives and stores the ttl '
+        'it implies', () {
+      final eAt = DateTime.utc(2030, 1, 1);
+      final built = AtMetadataBuilder(
+        atSign: '@alice',
+        newAtMetaData: AtMetaData(),
+        asserted: AtAssertedTimestamps(
+            updatedAt: uAt, expiresAt: eAt, deriveTtl: true),
+      ).build();
+      expect(built.expiresAt, eAt);
+      expect(built.ttl, eAt.difference(uAt).inMilliseconds,
+          reason: 'a record with an absolute expiry also carries the ttl it '
+              'implies — measured from the stored updatedAt, so every server '
+              'derives the same value from the same assertions');
+    });
+
+    test('deriveTtl replaces a ttl the write\'s metadata carries', () {
+      // The metadata's ttl may be a stale value the verb layer retained
+      // from the stored record; the caller set deriveTtl because its own
+      // request supplied no ttl, and the derivation must win.
+      final eAt = DateTime.utc(2030, 1, 1);
+      final built = AtMetadataBuilder(
+        atSign: '@alice',
+        newAtMetaData: AtMetaData()..ttl = 86400000,
+        asserted: AtAssertedTimestamps(
+            updatedAt: uAt, expiresAt: eAt, deriveTtl: true),
+      ).build();
+      expect(built.ttl, eAt.difference(uAt).inMilliseconds,
+          reason: 'a stale retained ttl stored beside a fresh asserted '
+              'expiresAt would contradict it, and any consumer re-deriving '
+              'expiry from that ttl would restart the expiry clock');
+    });
+
+    test('an asserted availableAt with deriveTtb derives and stores the ttb '
+        'it implies', () {
+      final built = AtMetadataBuilder(
+        atSign: '@alice',
+        newAtMetaData: AtMetaData(),
+        asserted: AtAssertedTimestamps(
+            updatedAt: uAt, availableAt: aAt, deriveTtb: true),
+      ).build();
+      expect(built.availableAt, aAt);
+      expect(built.ttb, aAt.difference(uAt).inMilliseconds);
+    });
+
+    test('with availableAt and expiresAt both asserted, ttl spans '
+        'birth-to-expiry', () {
+      final eAt = DateTime.utc(2030, 1, 1);
+      final built = AtMetadataBuilder(
+        atSign: '@alice',
+        newAtMetaData: AtMetaData(),
+        asserted: AtAssertedTimestamps(
+            updatedAt: uAt,
+            availableAt: aAt,
+            expiresAt: eAt,
+            deriveTtl: true,
+            deriveTtb: true),
+      ).build();
+      expect(built.ttb, aAt.difference(uAt).inMilliseconds);
+      expect(built.ttl, eAt.difference(aAt).inMilliseconds,
+          reason: 'forward, expiresAt = now + ttb + ttl — a record lives '
+              'ttl ms from when it becomes available — so the inverse '
+              'measures ttl from availableAt');
+    });
+
+    test('the derivation ignores an availableAt that setTTB(0) manufactured',
+        () {
+      // A coerced ttb:0 (how "no ttb" arrives from update:json and from
+      // the notify wire layer) makes setTTB stamp availableAt to this
+      // server's clock. That manufactured availableAt is NOT an asserted
+      // birth: it must neither become the base of the ttl derivation
+      // (which would store expiresAt - arrival-time instead of the
+      // reproducible expiresAt - updatedAt) nor spawn a fabricated ttb.
+      final eAt = DateTime.utc(2030, 1, 1);
+      final built = AtMetadataBuilder(
+        atSign: '@alice',
+        newAtMetaData: AtMetaData()..ttb = 0,
+        asserted: AtAssertedTimestamps(
+            updatedAt: uAt, expiresAt: eAt, deriveTtl: true),
+      ).build();
+      expect(built.ttl, eAt.difference(uAt).inMilliseconds,
+          reason: 'the ttl derivation must measure from the asserted '
+              'updatedAt, not from the availableAt setTTB(0) stamped from '
+              'this server\'s clock');
+      expect(built.ttb, 0,
+          reason: 'no aAt was asserted and deriveTtb was not requested, so '
+              'the ttb must stay exactly as the metadata carried it — a '
+              'positive ttb here would be fabricated from transfer latency');
+    });
+
+    test('a non-positive derived ttl/ttb clears the relative', () {
+      // updatedAt asserted at-or-after the absolutes — e.g. a transfer
+      // from a server whose clock runs ahead. The absolutes are stored
+      // faithfully; the implied relatives are non-positive, and a ttl of 0
+      // would mean "never expires", so the relatives are cleared to null
+      // (a retained value would contradict the asserted absolute).
+      final past = DateTime.utc(2019, 1, 1);
+      final built = AtMetadataBuilder(
+        atSign: '@alice',
+        newAtMetaData: AtMetaData()..ttl = 86400000,
+        asserted: AtAssertedTimestamps(
+            updatedAt: uAt,
+            availableAt: past,
+            expiresAt: past,
+            deriveTtl: true,
+            deriveTtb: true),
+      ).build();
+      expect(built.expiresAt, past);
+      expect(built.availableAt, past);
+      expect(built.ttl, isNull);
+      expect(built.ttb, isNull);
     });
 
     test('assertions are truncated to millisecond precision', () {
@@ -204,11 +331,35 @@ void main() {
         expect(meta.expiresAt!.isAfter(before), isTrue);
       });
 
+      test('put with asserted expiresAt and deriveTtl stores the derived ttl',
+          () async {
+        final eAt = DateTime.utc(2030, 1, 1);
+        await keyStore.put('phone.wavi@alice', AtData()..data = 'v1',
+            assertedTimestamps: AtAssertedTimestamps(
+                updatedAt: uAt, expiresAt: eAt, deriveTtl: true));
+        final meta = (await keyStore.getMeta('phone.wavi@alice'))!;
+        expect(meta.expiresAt, eAt);
+        expect(meta.ttl, eAt.difference(uAt).inMilliseconds);
+      });
+
       test('a record with asserted expiresAt and no ttl actually expires',
           () async {
+        // The only reachable expiresAt-without-ttl state: the implied ttl
+        // is non-positive (updatedAt asserted at-or-after expiresAt — a
+        // transfer from a clock that runs ahead), so the derivation clears
+        // it. The expiry machinery must still see such a record —
+        // otherwise it is immortal.
         final eAt = DateTime.now().add(Duration(milliseconds: 150));
         await keyStore.put('otp.wavi@alice', AtData()..data = 'v1',
-            assertedTimestamps: AtAssertedTimestamps(expiresAt: eAt));
+            assertedTimestamps: AtAssertedTimestamps(
+                updatedAt: DateTime.now().add(Duration(seconds: 10)),
+                expiresAt: eAt,
+                deriveTtl: true));
+        final meta = (await keyStore.getMeta('otp.wavi@alice'))!;
+        expect(meta.ttl, isNull,
+            reason: 'this test exists to cover the expiresAt-without-ttl '
+                'state; if a ttl were derived here, the expiry cache could '
+                'be seeing the ttl rather than the asserted expiresAt');
         expect(await keyStore.exists('otp.wavi@alice'), isTrue);
         expect(await keyStore.nextExpiresAt(), isNotNull,
             reason: 'the expiry machinery must see an asserted expiresAt '

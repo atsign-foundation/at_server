@@ -4,10 +4,27 @@
   - `:cAt`/`:uAt`/`:eAt`/`:aAt` — caller-asserted
     createdAt/updatedAt/expiresAt/availableAt are stored faithfully instead
     of rederived. An asserted cAt wins on create and update alike; an
-    asserted eAt/aAt suppresses the ttl/ttb derivation for that write only
-    (later writes without an assertion derive as before). Values are
-    truncated to millisecond precision. An asserted updatedAt is also
-    recorded as the commit entry's opTime.
+    asserted eAt/aAt suppresses the ttl/ttb derivation for that write.
+    Values are truncated to millisecond precision. An asserted updatedAt
+    is also recorded as the commit entry's opTime.
+  - a request that supplies an absolute without its relative gets the
+    relative derived and stored: an `:eAt` with no ttl derives the ttl
+    (measured from the stored updatedAt — from the asserted availableAt
+    when that lies ahead — so every server derives the same value from the
+    same assertions), and an `:aAt` with no ttb derives the ttb, in each
+    case replacing any relative retained from the stored record. A
+    supplied 0 counts as unsupplied (the update:json path and the notify
+    receiver coerce an absent ttl/ttb to 0); a non-positive implied value
+    clears the relative instead.
+  - once set, expiresAt/availableAt move only when a request speaks about
+    that axis: an asserted `:eAt`/`:aAt` stores faithfully, an explicit
+    ttl/ttb re-derives from now (a ttl-only write on a record whose birth
+    is pinned expires at exactly now + ttl — the record's retained ttb is
+    no longer folded in), ttl:0 clears the expiry, and ttb:0 re-stamps
+    availableAt to now. A write that says nothing about expiry no longer
+    restarts the expiry clock from the record's retained ttl (and no
+    longer re-opens a ttb record's not-yet-born window) — the update verbs
+    carry the stored absolutes forward as assertions.
   - `:nc` (no-commit) — the operation runs as usual (auto-notification
     included) but writes no commit entry AND purges the key's existing
     entry; the response is `data:-1`.

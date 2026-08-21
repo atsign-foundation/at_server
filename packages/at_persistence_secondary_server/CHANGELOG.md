@@ -18,6 +18,18 @@
   `createdAt`/`updatedAt`/`expiresAt`/`availableAt` faithfully instead of
   rederiving, and an asserted `expiresAt`/`availableAt` suppresses the
   ttl/ttb derivation for that write only. `remove` accepts `deletedAt`.
+  `AtMetadataBuilder` also derives the inverse on request
+  (`AtAssertedTimestamps.deriveTtl`/`deriveTtb`, set by callers whose own
+  request supplied the absolute without its relative): an asserted
+  `expiresAt` stores the ttl it implies (measured from the stored
+  updatedAt — from the asserted availableAt when that lies ahead of it),
+  and an asserted `availableAt` stores the implied ttb, in each case
+  replacing whatever retained or coerced relative the write's metadata
+  carries; a non-positive implied value clears the relative instead. A
+  ttl-only write on a record whose birth is pinned by an asserted
+  availableAt expires at exactly now + ttl — the metadata's ttb is folded
+  into the expiry derivation only when the same write re-derives the birth
+  window too.
   Assertions travel as an explicit argument rather than through nullable
   `AtMetaData` fields, so internal callers that recycle stored metadata keep
   today's server-derived stamping. NOTE for the next release: these are new

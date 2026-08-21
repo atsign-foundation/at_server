@@ -523,11 +523,18 @@ class AtCacheManager {
             metadata.availableAt == null)) {
       return null;
     }
+    // Derive the relative a remote absolute implies when the remote record
+    // carries none (an older origin that never derived one) — 0 included,
+    // since a 0 beside an absolute is a coercion artefact, not a value.
     return AtAssertedTimestamps(
         createdAt: metadata.createdAt,
         updatedAt: metadata.updatedAt,
         expiresAt: metadata.expiresAt,
-        availableAt: metadata.availableAt);
+        availableAt: metadata.availableAt,
+        deriveTtl: metadata.expiresAt != null &&
+            (metadata.ttl == null || metadata.ttl == 0),
+        deriveTtb: metadata.availableAt != null &&
+            (metadata.ttb == null || metadata.ttb == 0));
   }
 
   /// Does the remote lookup - returns the Atsign Protocol string which it receives

@@ -26,8 +26,15 @@ import 'package:at_commons/at_commons.dart';
 /// cAt / uAt / eAt / aAt:
 ///   Caller-asserted createdAt / updatedAt / expiresAt / availableAt, as
 ///   ISO 8601 UTC timestamps, stored faithfully instead of being rederived
-///   on the server — an asserted cAt wins on create and update alike, and an
-///   asserted eAt/aAt suppresses the ttl/ttb derivation for that write only.
+///   on the server. An asserted cAt wins on create and update alike. An
+///   asserted eAt/aAt wins over the ttl/ttb derivation at that write, and
+///   when no ttl/ttb accompanies it the relative the absolute implies is
+///   derived and stored alongside (replacing any relative the record
+///   already carried). Once set, expiresAt/availableAt move only when a
+///   request speaks about that axis: a new assertion (stored faithfully),
+///   a fresh ttl/ttb (rederives from now), ttl:0 (clears the expiry), or
+///   ttb:0 (re-stamps availableAt to now) — a write that says nothing
+///   about expiry leaves it untouched.
 ///   Example: update:cAt:2026-05-05T11:59:44.123456Z:phone@alice +1 123
 /// nc (no-commit):
 ///   Performs the update as usual (auto-notification included) but writes no

@@ -100,6 +100,12 @@ void main() {
       expect(meta.updatedAt, uAtStored);
       expect(meta.expiresAt, eAtStored);
       expect(meta.availableAt, aAtStored);
+      expect(meta.ttb, aAtStored.difference(uAtStored).inMilliseconds,
+          reason: 'no ttb was supplied, so the one the absolutes imply is '
+              'derived and stored');
+      expect(meta.ttl, eAtStored.difference(aAtStored).inMilliseconds,
+          reason: 'no ttl was supplied; the record lives ttl ms from when '
+              'it becomes available, so ttl spans availableAt→expiresAt');
     });
 
     test('asserted cAt on an EXISTING key overwrites stored createdAt',
@@ -186,6 +192,67 @@ void main() {
       final meta = await llookupAllAtMetaData('@bob:phone.wavi$alice');
       expect(meta.expiresAt, eAtStored);
       expect(meta.availableAt, aAtStored);
+      expect(meta.ttl, eAtStored.difference(meta.updatedAt!).inMilliseconds,
+          reason: 'the coerced ttl:0 counts as unsupplied, so the implied '
+              'ttl is derived — from updatedAt, because this availableAt '
+              'lies in the past');
+      expect(meta.ttb, isNull,
+          reason: 'the implied ttb is negative (availableAt is in the '
+              'past), so the derivation clears the coerced 0 — a stored '
+              'ttb:0 would read as "born at the write" beside an '
+              'availableAt that says otherwise');
+    });
+
+    test('update with eAt and no ttl derives and stores the implied ttl',
+        () async {
+      await updateHandler.process(
+          'update:uAt:$uAtWire:eAt:$eAtWire:@bob:phone.wavi$alice v1',
+          inboundConnection);
+      final meta = await llookupAllAtMetaData('@bob:phone.wavi$alice');
+      expect(meta.expiresAt, eAtStored);
+      expect(meta.ttl, eAtStored.difference(uAtStored).inMilliseconds,
+          reason: 'a record with an absolute expiry also carries the ttl '
+              'it implies — measured from the stored updatedAt, so every '
+              'server derives the same value from the same assertions');
+    });
+
+    test('update with aAt and no ttb derives and stores the implied ttb',
+        () async {
+      await updateHandler.process(
+          'update:uAt:$uAtWire:aAt:$aAtWire:@bob:phone.wavi$alice v1',
+          inboundConnection);
+      final meta = await llookupAllAtMetaData('@bob:phone.wavi$alice');
+      expect(meta.availableAt, aAtStored);
+      expect(meta.ttb, aAtStored.difference(uAtStored).inMilliseconds);
+    });
+
+    test('eAt on an existing ttl-record derives the implied ttl, replacing '
+        'the stale one', () async {
+      await updateHandler.process(
+          'update:ttl:86400000:@bob:phone.wavi$alice v1', inboundConnection);
+      await updateHandler.process(
+          'update:eAt:$eAtWire:@bob:phone.wavi$alice v2', inboundConnection);
+      final meta = await llookupAllAtMetaData('@bob:phone.wavi$alice');
+      expect(meta.expiresAt, eAtStored);
+      expect(meta.ttl, eAtStored.difference(meta.updatedAt!).inMilliseconds,
+          reason: 'the request supplied the absolute without a ttl, so the '
+              'implied ttl replaces the record\'s stale one — keeping the '
+              'retained 86400000 beside a 2030 expiry would contradict it, '
+              'and the same request sent as update:json would derive, so '
+              'the two encodings must agree');
+    });
+
+    test('aAt on an existing ttb-record derives the implied ttb, replacing '
+        'the stale one', () async {
+      await updateHandler.process(
+          'update:ttb:86400000:@bob:phone.wavi$alice v1', inboundConnection);
+      await updateHandler.process(
+          'update:uAt:$uAtWire:aAt:$aAtWire:@bob:phone.wavi$alice v2',
+          inboundConnection);
+      final meta = await llookupAllAtMetaData('@bob:phone.wavi$alice');
+      expect(meta.availableAt, aAtStored);
+      expect(meta.ttb, aAtStored.difference(uAtStored).inMilliseconds,
+          reason: 'mirror of the eAt/ttl rule on the birth axis');
     });
 
     test('update:json with createdAt/updatedAt stores them faithfully',
@@ -221,6 +288,153 @@ void main() {
               'update:cAt:2020-01-02T03:04:05.678901:@bob:phone.wavi$alice v',
               inboundConnection),
           throwsA(isA<InvalidSyntaxException>()));
+    });
+  });
+
+  group('once set, an absolute moves only when a request speaks about it',
+      () {
+    test('a write that says nothing about expiry does not move expiresAt',
+        () async {
+      await updateHandler.process(
+          'update:ttl:86400000:@bob:phone.wavi$alice v1', inboundConnection);
+      final before = await llookupAllAtMetaData('@bob:phone.wavi$alice');
+      expect(before.expiresAt, isNotNull,
+          reason: 'guards the comparison below — null == null would pass '
+              'without the axis ever having been populated');
+      // Far enough apart that a re-derivation from now would visibly move
+      // the millisecond-precision expiresAt.
+      await Future.delayed(Duration(milliseconds: 50));
+      await updateHandler.process(
+          'update:@bob:phone.wavi$alice v2', inboundConnection);
+      final after = await llookupAllAtMetaData('@bob:phone.wavi$alice');
+      expect(after.expiresAt, before.expiresAt,
+          reason: 'once set, expiresAt moves only when a request speaks '
+              'about expiry: an eAt assertion, a fresh ttl, or ttl:0 — '
+              'a value update must not restart the expiry clock');
+      expect(after.ttl, 86400000);
+      expect(after.updatedAt!.isAfter(before.updatedAt!), isTrue,
+          reason: 'proves the second write actually happened — the '
+              'unchanged expiresAt must not be because the write was lost');
+    });
+
+    test('update:meta that says nothing about expiry does not move '
+        'expiresAt', () async {
+      await updateHandler.process(
+          'update:ttl:86400000:@bob:phone.wavi$alice v1', inboundConnection);
+      final before = await llookupAllAtMetaData('@bob:phone.wavi$alice');
+      expect(before.expiresAt, isNotNull);
+      await Future.delayed(Duration(milliseconds: 50));
+      await updateMetaHandler.process(
+          'update:meta:@bob:phone.wavi$alice:isBinary:true',
+          inboundConnection);
+      final after = await llookupAllAtMetaData('@bob:phone.wavi$alice');
+      expect(after.expiresAt, before.expiresAt);
+      expect(after.isBinary, true,
+          reason: 'proves the metadata write actually happened');
+    });
+
+    test('a ttl-only write leaves a pinned birth axis alone and expires at '
+        'exactly now + ttl', () async {
+      await updateHandler.process(
+          'update:ttb:100:@bob:phone.wavi$alice v1', inboundConnection);
+      // Wait out the birth window so llookup can see the record at all.
+      await Future.delayed(Duration(milliseconds: 150));
+      final before = await llookupAllAtMetaData('@bob:phone.wavi$alice');
+      expect(before.availableAt, isNotNull);
+
+      await updateHandler.process(
+          'update:ttl:60000:@bob:phone.wavi$alice v2', inboundConnection);
+      final after = await llookupAllAtMetaData('@bob:phone.wavi$alice');
+      expect(after.availableAt, before.availableAt,
+          reason: 'the request said nothing about the birth axis');
+      expect(after.ttb, before.ttb,
+          reason: 'the silent axis keeps its relative too');
+      expect(after.expiresAt!.difference(after.updatedAt!).inMilliseconds,
+          60000,
+          reason: 'a ttl-only write on a born record must expire at '
+              'exactly now + ttl — folding the record\'s retained ttb in '
+              'would stretch the lifetime by a birth delay that is not '
+              'restarting');
+    });
+
+    test('a ttb-only write leaves a pinned expiry axis alone and is born at '
+        'exactly now + ttb', () async {
+      await updateHandler.process(
+          'update:ttl:86400000:@bob:phone.wavi$alice v1', inboundConnection);
+      final before = await llookupAllAtMetaData('@bob:phone.wavi$alice');
+      expect(before.expiresAt, isNotNull);
+      await Future.delayed(Duration(milliseconds: 50));
+
+      await updateHandler.process(
+          'update:ttb:100:@bob:phone.wavi$alice v2', inboundConnection);
+      // Wait out the new birth window before looking.
+      await Future.delayed(Duration(milliseconds: 150));
+      final after = await llookupAllAtMetaData('@bob:phone.wavi$alice');
+      expect(after.expiresAt, before.expiresAt,
+          reason: 'the request said nothing about the expiry axis');
+      expect(after.ttl, before.ttl);
+      expect(after.availableAt!.difference(after.updatedAt!).inMilliseconds,
+          100,
+          reason: 'the explicit ttb re-derives availableAt = now + ttb');
+    });
+
+    test('an expiry-silent update:json clears expiry (the json encoding '
+        'cannot say nothing about expiry)', () async {
+      // commons Metadata.fromJson coerces an absent ttl to 0, and a 0
+      // with no asserted expiry is indistinguishable from an explicit
+      // clear — so the no-slide carry is unreachable via update:json.
+      // This pins that documented limitation.
+      await updateHandler.process(
+          'update:ttl:86400000:@bob:phone.wavi$alice v1', inboundConnection);
+      final before = await llookupAllAtMetaData('@bob:phone.wavi$alice');
+      expect(before.expiresAt, isNotNull);
+
+      final json = jsonEncode({
+        'atKey': 'phone.wavi',
+        'value': 'v2',
+        'sharedBy': alice,
+        'sharedWith': '@bob',
+        'metadata': Metadata().toJson(),
+      });
+      await updateHandler.process('update:json:$json', inboundConnection);
+      final after = await llookupAllAtMetaData('@bob:phone.wavi$alice');
+      expect(after.expiresAt, isNull,
+          reason: 'the coerced ttl:0 counts as the request speaking, and '
+              'ttl:0 clears — an update:json client that wants to keep a '
+              'record\'s expiry must send its metadata back');
+    });
+
+    test('a write that says nothing about availability does not move '
+        'availableAt (no re-opened not-yet-born window)', () async {
+      await updateHandler.process(
+          'update:ttb:100:@bob:phone.wavi$alice v1', inboundConnection);
+      // Wait out the birth window so llookup can see the record at all.
+      await Future.delayed(Duration(milliseconds: 150));
+      final before = await llookupAllAtMetaData('@bob:phone.wavi$alice');
+      expect(before.availableAt, isNotNull,
+          reason: 'guards the comparison below — null == null would pass '
+              'without the axis ever having been populated');
+      await Future.delayed(Duration(milliseconds: 50));
+      await updateHandler.process(
+          'update:@bob:phone.wavi$alice v2', inboundConnection);
+      final after = await llookupAllAtMetaData('@bob:phone.wavi$alice');
+      expect(after.availableAt, before.availableAt,
+          reason: 'a value update must not re-derive availableAt = '
+              'now + ttb, which would make the record unavailable again '
+              'for ttb ms after every write');
+      expect(after.updatedAt!.isAfter(before.updatedAt!), isTrue);
+    });
+
+    test('ttl:0 still clears expiry on a record whose expiresAt is set',
+        () async {
+      await updateHandler.process(
+          'update:ttl:86400000:@bob:phone.wavi$alice v1', inboundConnection);
+      await updateHandler.process(
+          'update:ttl:0:@bob:phone.wavi$alice v2', inboundConnection);
+      final meta = await llookupAllAtMetaData('@bob:phone.wavi$alice');
+      expect(meta.expiresAt, isNull,
+          reason: 'clearing is not deriving: an explicit ttl:0 still '
+              'removes the expiry');
     });
   });
 
@@ -392,7 +606,8 @@ void main() {
             '$bob:ghost.wavi$alice',
             AtData()
               ..data = 'v1'
-              ..metaData = AtMetaData());
+              ..metaData = AtMetaData(),
+            null);
         final before = (await (await notifStore.getKeys()).toList()).length;
         await updateHandler.notifyAfterStore(
             verbParams, updateParams, result);

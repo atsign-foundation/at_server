@@ -226,6 +226,14 @@ class NotifyVerbHandler extends AbstractVerbHandler {
 
   /// The sender-asserted timestamps carried by this notification's
   /// :cAt/:uAt/:eAt/:aAt params, or null when none were transmitted.
+  ///
+  /// The derive flags are judged on the WIRE params, before this handler's
+  /// metadata assembly coerces an absent ttl/ttb to 0: a notification that
+  /// transmits an absolute without its relative asks the store to derive
+  /// the relative the absolute implies, replacing that coerced 0. Without
+  /// the flags, the coerced ttb:0 would make setTTB stamp availableAt to
+  /// arrival time on the cached copy, and any derivation reading the
+  /// merged metadata would treat the coercion as the sender's value.
   AtAssertedTimestamps? _assertedTimestampsFromParams(
       HashMap<String, String?> verbParams) {
     DateTime? parse(String? v) => v == null ? null : DateTime.parse(v);
@@ -243,7 +251,10 @@ class NotifyVerbHandler extends AbstractVerbHandler {
         createdAt: createdAt,
         updatedAt: updatedAt,
         expiresAt: expiresAt,
-        availableAt: availableAt);
+        availableAt: availableAt,
+        deriveTtl: expiresAt != null && verbParams[AtConstants.ttl] == null,
+        deriveTtb:
+            availableAt != null && verbParams[AtConstants.ttb] == null);
   }
 
   Future<void> _handleAuthenticatedConnection(

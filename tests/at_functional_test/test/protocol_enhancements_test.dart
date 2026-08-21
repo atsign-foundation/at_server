@@ -118,10 +118,18 @@ void main() {
     });
 
     test('a key with asserted eAt and no ttl actually expires', () async {
+      // uAt is asserted BEYOND the eAt so the implied ttl is non-positive
+      // and none is stored (a clock-skewed transfer) — this is the only
+      // reachable expiresAt-without-ttl state now that an eAt-only write
+      // derives and stores the ttl it implies, and it is the state that
+      // proves the expiry machinery sees the asserted eAt itself.
       final soon = VerbUtil.formatIso8601Micros(
           DateTime.now().toUtc().add(Duration(seconds: 3)));
+      final beyond = VerbUtil.formatIso8601Micros(
+          DateTime.now().toUtc().add(Duration(seconds: 30)));
       String response = await firstAtSignConnection.sendRequestToServer(
-          'update:eAt:$soon:ts4-$uniqueId.wavi$firstAtSign fleeting');
+          'update:uAt:$beyond:eAt:$soon:ts4-$uniqueId.wavi$firstAtSign '
+          'fleeting');
       expect(response, matches(RegExp(r'^data:\d+$')),
           reason: 'an asserted-timestamp write is an ordinary COMMITTED '
               'write — a -1 here would mean it silently skipped its '
@@ -137,6 +145,61 @@ void main() {
       expect(response, isNot(contains('"ts4-$uniqueId.wavi$firstAtSign"')),
           reason: 'a key whose only expiry signal is an asserted eAt must '
               'stop being served at that instant');
+    });
+
+    test('update with eAt and no ttl derives and stores the implied ttl',
+        () async {
+      String response = await firstAtSignConnection.sendRequestToServer(
+          'update:uAt:$uAtWire:eAt:$eAtWire'
+          ':ts5-$uniqueId.wavi$firstAtSign hello');
+      expect(response, matches(RegExp(r'^data:\d+$')));
+
+      response = await firstAtSignConnection
+          .sendRequestToServer('llookup:all:ts5-$uniqueId.wavi$firstAtSign');
+      final metaData = metaDataOfLlookupAll(response);
+      expect(metaData['expiresAt'], eAtJson);
+      expect(
+          metaData['ttl'],
+          DateTime.parse(eAtWire)
+              .difference(DateTime.parse(uAtWire))
+              .inMilliseconds,
+          reason: 'a record with an absolute expiry also carries the ttl '
+              'it implies, measured from the stored updatedAt');
+    });
+
+    test('a write that says nothing about expiry does not move expiresAt',
+        () async {
+      String response = await firstAtSignConnection.sendRequestToServer(
+          'update:ttl:86400000:ts6-$uniqueId.wavi$firstAtSign v1');
+      expect(response, matches(RegExp(r'^data:\d+$')));
+      response = await firstAtSignConnection
+          .sendRequestToServer('llookup:all:ts6-$uniqueId.wavi$firstAtSign');
+      final before = metaDataOfLlookupAll(response);
+      expect(before['expiresAt'], isNotNull,
+          reason: 'guards the comparison below — null == null would pass '
+              'without the axis ever having been populated');
+
+      // Far enough apart that a re-derivation from now would visibly move
+      // the millisecond-precision expiresAt.
+      await Future.delayed(Duration(milliseconds: 50));
+      response = await firstAtSignConnection
+          .sendRequestToServer('update:ts6-$uniqueId.wavi$firstAtSign v2');
+      expect(response, matches(RegExp(r'^data:\d+$')));
+      response = await firstAtSignConnection
+          .sendRequestToServer('llookup:all:ts6-$uniqueId.wavi$firstAtSign');
+      final after = metaDataOfLlookupAll(response);
+
+      expect(after['expiresAt'], before['expiresAt'],
+          reason: 'once set, expiresAt moves only when a request speaks '
+              'about expiry: an eAt assertion, a fresh ttl, or ttl:0 — '
+              'a value update must not restart the expiry clock');
+      expect(after['ttl'], 86400000);
+      expect(
+          DateTime.parse(after['updatedAt'])
+              .isAfter(DateTime.parse(before['updatedAt'])),
+          isTrue,
+          reason: 'proves the second write actually happened — the '
+              'unchanged expiresAt must not be because the write was lost');
     });
   });
 
