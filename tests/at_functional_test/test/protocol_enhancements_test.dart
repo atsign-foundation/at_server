@@ -167,6 +167,130 @@ void main() {
       expect(response, 'data:v2', reason: 'the write itself still happens');
     });
 
+    test('a key created with update:nc never appears in sync', () async {
+      // A committed sibling provides the sync watermark.
+      String response = await firstAtSignConnection
+          .sendRequestToServer('update:sibling-$uniqueId.wavi$firstAtSign s');
+      expect(response, matches(RegExp(r'^data:\d+$')));
+      final watermark = int.parse(response.replaceAll('data:', ''));
+
+      response = await firstAtSignConnection
+          .sendRequestToServer('update:nc:born-$uniqueId.wavi$firstAtSign v1');
+      expect(response, 'data:-1');
+
+      response = await firstAtSignConnection.sendRequestToServer(
+          'sync:from:${watermark - 1}:limit:50:$uniqueId');
+      expect(response, contains('"sibling-$uniqueId.wavi$firstAtSign"'),
+          reason: 'the committed sibling proves the sync request itself '
+              'sees this test\'s keys');
+      expect(response, isNot(contains('"born-$uniqueId.wavi$firstAtSign"')),
+          reason: 'a key born with :nc has no commit entry to sync');
+
+      response = await firstAtSignConnection
+          .sendRequestToServer('llookup:born-$uniqueId.wavi$firstAtSign');
+      expect(response, 'data:v1');
+    });
+
+    test('update:meta:nc removes the entry from sync', () async {
+      String response = await firstAtSignConnection
+          .sendRequestToServer('update:ncm-$uniqueId.wavi$firstAtSign v1');
+      expect(response, matches(RegExp(r'^data:\d+$')));
+      final commitId = int.parse(response.replaceAll('data:', ''));
+
+      response = await firstAtSignConnection.sendRequestToServer(
+          'sync:from:${commitId - 1}:limit:50:$uniqueId');
+      expect(response, contains('"ncm-$uniqueId.wavi$firstAtSign"'));
+
+      response = await firstAtSignConnection.sendRequestToServer(
+          'update:meta:nc:ncm-$uniqueId.wavi$firstAtSign:ttl:60000');
+      expect(response, 'data:-1');
+
+      response = await firstAtSignConnection.sendRequestToServer(
+          'sync:from:${commitId - 1}:limit:50:$uniqueId');
+      expect(response, isNot(contains('"ncm-$uniqueId.wavi$firstAtSign"')),
+          reason: 'the no-commit metadata write purges the key\'s entry');
+    });
+
+    test('a normal update after :nc re-enters sync with a fresh, higher '
+        'commitId', () async {
+      String response = await firstAtSignConnection
+          .sendRequestToServer('update:again-$uniqueId.wavi$firstAtSign v1');
+      expect(response, matches(RegExp(r'^data:\d+$')));
+      final firstId = int.parse(response.replaceAll('data:', ''));
+
+      response = await firstAtSignConnection
+          .sendRequestToServer('update:nc:again-$uniqueId.wavi$firstAtSign v2');
+      expect(response, 'data:-1');
+
+      response = await firstAtSignConnection
+          .sendRequestToServer('update:again-$uniqueId.wavi$firstAtSign v3');
+      expect(response, matches(RegExp(r'^data:\d+$')));
+      final secondId = int.parse(response.replaceAll('data:', ''));
+      expect(secondId > firstId, isTrue,
+          reason: ':nc is not permanent — a later normal write re-commits '
+              'under a fresh id');
+
+      response = await firstAtSignConnection.sendRequestToServer(
+          'sync:from:${firstId - 1}:limit:50:again-$uniqueId');
+      final List entries = jsonDecode(response.replaceAll('data:', ''));
+      expect(entries.length, 1,
+          reason: 'sync serves exactly the one re-committed entry — the '
+              'purged first entry must not reappear');
+      expect(entries[0]['commitId'], secondId);
+      expect(entries[0]['value'], 'v3');
+    });
+
+    test('delete:nc removes the DELETE tombstone from sync', () async {
+      String response = await firstAtSignConnection
+          .sendRequestToServer('update:tomb-$uniqueId.wavi$firstAtSign v1');
+      expect(response, matches(RegExp(r'^data:\d+$')));
+      final commitId = int.parse(response.replaceAll('data:', ''));
+
+      response = await firstAtSignConnection
+          .sendRequestToServer('delete:tomb-$uniqueId.wavi$firstAtSign');
+      expect(response, matches(RegExp(r'^data:\d+$')));
+
+      response = await firstAtSignConnection.sendRequestToServer(
+          'sync:from:${commitId - 1}:limit:50:tomb-$uniqueId');
+      List entries = jsonDecode(response.replaceAll('data:', ''));
+      expect(entries.length, 1);
+      expect(entries[0]['operation'], '-',
+          reason: 'a normal delete leaves a tombstone that sync serves');
+
+      response = await firstAtSignConnection
+          .sendRequestToServer('delete:nc:tomb-$uniqueId.wavi$firstAtSign');
+      expect(response, 'data:-1');
+
+      response = await firstAtSignConnection.sendRequestToServer(
+          'sync:from:${commitId - 1}:limit:50:tomb-$uniqueId');
+      entries = jsonDecode(response.replaceAll('data:', ''));
+      expect(entries, isEmpty,
+          reason: 'delete:nc of the already-deleted key purges the '
+              'tombstone; sync serves nothing for the key');
+    });
+
+    test('update:nc:json is absent from sync', () async {
+      String response = await firstAtSignConnection
+          .sendRequestToServer('update:sib2-$uniqueId.wavi$firstAtSign s');
+      expect(response, matches(RegExp(r'^data:\d+$')));
+      final watermark = int.parse(response.replaceAll('data:', ''));
+
+      final json = jsonEncode({
+        'atKey': 'jnc-$uniqueId.wavi',
+        'value': 'jv',
+        'sharedBy': firstAtSign,
+        'metadata': Metadata().toJson(),
+      });
+      response = await firstAtSignConnection
+          .sendRequestToServer('update:nc:json:$json');
+      expect(response, 'data:-1');
+
+      response = await firstAtSignConnection.sendRequestToServer(
+          'sync:from:${watermark - 1}:limit:50:$uniqueId');
+      expect(response, contains('"sib2-$uniqueId.wavi$firstAtSign"'));
+      expect(response, isNot(contains('"jnc-$uniqueId.wavi$firstAtSign"')));
+    });
+
     test('update:meta:nc responds data:-1', () async {
       String response = await firstAtSignConnection
           .sendRequestToServer('update:nc2-$uniqueId.wavi$firstAtSign v1');

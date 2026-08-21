@@ -35,6 +35,8 @@ void main() {
   const uAt2Wire = '2021-06-01T12:00:00.000000Z';
   const uAt2Json = '2021-06-01 12:00:00.000Z';
   const dAtWire = '2023-05-05T11:59:44.123000Z';
+  const eAtWire = '2030-01-01T00:00:00.000000Z';
+  const eAtJson = '2030-01-01 00:00:00.000Z';
 
   /// Sends [command] on [sh] every 500ms until [done] accepts the response
   /// or [timeoutMillis] elapses; returns the last response either way, so a
@@ -198,5 +200,99 @@ void main() {
     expect(entry['opTime'], dAtWire,
         reason: 'the delete auto-notification carries dAt as :uAt: and the '
             'receiver records it as the DELETE entry\'s opTime');
+  }, timeout: Timeout(Duration(seconds: 180)));
+
+  test('autoNotify transmits the STORED timestamps: a plain update with cAt '
+      'yields a cached key carrying that cAt on the receiver', () async {
+    if (!bothSidesCapable) {
+      markTestSkipped('an atServer in this pairing predates the 5.10.0 '
+          'protocol enhancements');
+      return;
+    }
+    var key = 'ankey-$lastValue';
+    var value = 'an-value-$lastValue';
+
+    // No explicit notify: the plain update's auto-notification must read the
+    // STORED record (asserted cAt included) and transmit it.
+    await sh1.writeCommand(
+        'update:ttr:100000:cAt:$cAtWire:$atSign_2:$key$atSign_1 $value');
+    String response = await sh1.read();
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+
+    response = await pollUntil(
+        sh2,
+        'llookup:all:cached:$atSign_2:$key$atSign_1',
+        (r) => r.startsWith('data:'));
+    final Map metaData =
+        jsonDecode(response.replaceAll('data:', ''))['metaData'];
+    expect(metaData['createdAt'], cAtJson,
+        reason: 'the auto-notification is queued after the write, from the '
+            'stored metadata — a pre-store fabricated createdAt would '
+            'arrive here instead of the asserted one');
+  }, timeout: Timeout(Duration(seconds: 180)));
+
+  test('an origin absolute expiry survives the hop: eAt alongside ttl is '
+      'not rederived on the receiver', () async {
+    if (!bothSidesCapable) {
+      markTestSkipped('an atServer in this pairing predates the 5.10.0 '
+          'protocol enhancements');
+      return;
+    }
+    var key = 'eatkey-$lastValue';
+    var value = 'eat-value-$lastValue';
+
+    // ttl accompanies eAt: a receiver that rederived would store
+    // now+ttl, not the transmitted absolute instant.
+    await sh1.writeCommand('notify:update:ttl:600000:ttr:-1'
+        ':eAt:$eAtWire'
+        ':$atSign_2:$key$atSign_1:$value');
+    String response = await sh1.read();
+    assert(
+        (!response.contains('Invalid syntax')) && (!response.contains('null')));
+    String notificationId = response.replaceAll('data:', '');
+    await notification.getNotifyStatus(sh1, notificationId,
+        returnWhenStatusIn: ['delivered'], timeOutMillis: 60000);
+
+    response = await pollUntil(
+        sh2,
+        'llookup:all:cached:$atSign_2:$key$atSign_1',
+        (r) => r.startsWith('data:'));
+    final Map metaData =
+        jsonDecode(response.replaceAll('data:', ''))['metaData'];
+    expect(metaData['expiresAt'], eAtJson,
+        reason: 'the cached copy must hold the origin\'s absolute expiry, '
+            'not one rederived from now+ttl at cache time');
+    expect(metaData['ttl'], 600000);
+  }, timeout: Timeout(Duration(seconds: 180)));
+
+  test('update:nc still auto-notifies: the receiver caches the key although '
+      'the sender wrote no commit entry', () async {
+    if (!bothSidesCapable) {
+      markTestSkipped('an atServer in this pairing predates the 5.10.0 '
+          'protocol enhancements');
+      return;
+    }
+    var key = 'nckey-$lastValue';
+    var value = 'nc-value-$lastValue';
+
+    await sh1.writeCommand(
+        'update:nc:ttr:100000:$atSign_2:$key$atSign_1 $value');
+    String response = await sh1.read();
+    expect(response.trim(), 'data:-1',
+        reason: 'the no-commit write returns -1 on the sender');
+
+    // :nc changes commit-log behaviour ONLY — the auto-notification still
+    // crosses to the other atServer and caches the key there.
+    response = await pollUntil(sh2, 'llookup:cached:$atSign_2:$key$atSign_1',
+        (r) => r.contains('data:$value'));
+    expect(response, contains('data:$value'));
+
+    // And the sender's own commit log holds nothing for the key.
+    await sh1.writeCommand('scan:cl $key');
+    response = await sh1.read();
+    final List entries = jsonDecode(response.replaceAll('data:', ''));
+    expect(entries, isEmpty,
+        reason: 'the sender wrote no commit entry for the :nc update');
   }, timeout: Timeout(Duration(seconds: 180)));
 }
