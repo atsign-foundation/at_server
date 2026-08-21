@@ -1,4 +1,4 @@
-# 3.16.2
+# 3.16.3
 - feat: implement the at_commons 5.10.0 protocol enhancements on the
   update/update:meta/update:json/delete surface (#2678):
   - `:cAt`/`:uAt`/`:eAt`/`:aAt` — caller-asserted
@@ -58,6 +58,8 @@
   The keystore canonicalizes keys to lowercase, so two case-variants of
   one update command name the same stored record; keyed on the original
   case they took different mutexes and raced.
+
+# 3.16.2
 - fix(at_secondary_server): a closed `NotificationManager` now stops its
 delivery retries.
   - `PerAtSignNotifSender.send()` retries until delivery succeeds or the
