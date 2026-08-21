@@ -1,4 +1,4 @@
-## 5.2.1
+## 5.3.0
 
 - fix: the dual-write mirror purges the secondary's commit entry when the
   primary holds none for a just-written key. A skipCommit put/create/putMeta
@@ -40,6 +40,9 @@
   which utf7-decodes its argument — a second decode that mangled keys
   containing utf7 escape sequences. Commit-log calls now take the prepared
   key on every path.
+
+## 5.2.1
+
 - feat: `AtCommitLog.iterate` accepts `skipDeletesUntil`/`latestCommitId`,
   pushing sync's delete-skip into the query. Previously sync fetched every
   commit entry from `fromCommitId` and discarded below-watermark DELETE entries
