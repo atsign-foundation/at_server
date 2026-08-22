@@ -283,7 +283,9 @@ class HiveAtKeyValueStore
   /// hive does not support directly storing emoji characters, therefore keys
   /// are encoded in [HiveKeyStoreHelper.prepareKey] using utf7 before storing.
   @override
-  Future<int?> put(String key, AtData value, {bool skipCommit = false}) async {
+  Future<int?> put(String key, AtData value,
+      {bool skipCommit = false,
+      AtAssertedTimestamps? assertedTimestamps}) async {
     key = key.toLowerCase();
     final atKey = AtKey.getKeyType(key, enforceNameSpace: false);
     if (atKey == KeyType.invalidKey) {
@@ -298,24 +300,33 @@ class HiveAtKeyValueStore
       // If does not exist, create a new key,
       // else update existing key.
       if (!await exists(key)) {
-        result = await create(key, value, skipCommit: skipCommit);
+        result = await create(key, value,
+            skipCommit: skipCommit, assertedTimestamps: assertedTimestamps);
       } else {
         AtData? existingData = await get(key);
         String hive_key = HiveKeyStoreHelper.prepareKey(key);
         var hive_value = HiveKeyStoreHelper.prepareDataForKeystoreOperation(
             value,
             existingAtData: existingData!,
-            atSign: atSign);
+            atSign: atSign,
+            asserted: assertedTimestamps);
         logger.finest('hive key:$hive_key');
         logger.finest('hive value:$hive_value');
         await getBox().put(hive_key, hive_value);
         _updateMetadataCache(key, hive_value.metaData);
         if (skipCommit) {
+          // A skipCommit write leaves no trace in the commit log: as
+          // well as writing no entry, purge the key's previous entry —
+          // sync would otherwise keep serving a stale entry for a
+          // record whose latest change was deliberately uncommitted.
+          // (No-op on a commit-log-free keystore.)
+          await _commitLog?.removeEntryFor(hive_key);
           result = -1;
         } else {
           // `_commitLog` is null on a commit-log-free keystore — the
           // write still succeeds, it just produces no sequence number.
-          result = await _commitLog?.commit(hive_key, commitOp);
+          result = await _commitLog?.commit(hive_key, commitOp,
+              opTime: assertedTimestamps?.updatedAt);
         }
         _changesController.add(KeyUpdated(key));
       }
@@ -337,7 +348,8 @@ class HiveAtKeyValueStore
   @override
   @server
   Future<int?> create(String key, AtData value,
-      {bool skipCommit = false}) async {
+      {bool skipCommit = false,
+      AtAssertedTimestamps? assertedTimestamps}) async {
     key = key.toLowerCase();
     final atKey = AtKey.getKeyType(key, enforceNameSpace: false);
     if (atKey == KeyType.invalidKey) {
@@ -351,6 +363,7 @@ class HiveAtKeyValueStore
     var hive_data = HiveKeyStoreHelper.prepareDataForKeystoreOperation(
       value,
       atSign: atSign,
+      asserted: assertedTimestamps,
     );
     // Default commitOp to Update.
     commitOp = CommitOp.UPDATE;
@@ -384,11 +397,15 @@ class HiveAtKeyValueStore
       _updateMetadataCache(key, hive_data.metaData);
       _changesController.add(KeyAdded(key));
       if (skipCommit) {
+        // Purge any previous entry for this key, matching put/remove's
+        // skipCommit behaviour. (No-op on a commit-log-free keystore.)
+        await _commitLog?.removeEntryFor(hive_key);
         return -1;
       } else {
         // `_commitLog` is null on a commit-log-free keystore — the
         // write still succeeds, it just produces no sequence number.
-        return await _commitLog?.commit(hive_key, commitOp);
+        return await _commitLog?.commit(hive_key, commitOp,
+            opTime: assertedTimestamps?.updatedAt);
       }
     } on Exception catch (exception) {
       logger.severe('HiveAtKeyValueStore create exception: $exception');
@@ -430,7 +447,8 @@ class HiveAtKeyValueStore
 
   /// Returns an integer if the key to be deleted is present in keystore or cache.
   @override
-  Future<int?> remove(String key, {bool skipCommit = false}) async {
+  Future<int?> remove(String key,
+      {bool skipCommit = false, DateTime? deletedAt}) async {
     key = key.toLowerCase();
 
     for (final hook in preRemoveHooks) {
@@ -439,26 +457,27 @@ class HiveAtKeyValueStore
 
     int? retVal;
     try {
-      await getBox().delete(HiveKeyStoreHelper.prepareKey(key));
+      // The prepared (utf7-encoded) form is the one every commit-log call
+      // takes — commit() and removeEntryFor() both decode internally.
+      // Passing the raw key here would get decoded a second time, which
+      // mangles keys containing utf7 escape sequences.
+      String hiveKey = HiveKeyStoreHelper.prepareKey(key);
+      await getBox().delete(hiveKey);
       // On deleting the key, remove it from the expiryKeyCache.
       _expiryKeysCache.remove(key);
       final commitLog = _commitLog;
       if (skipCommit) {
-        // When skipping commits, remove any existing commit entries for this
+        // When skipping commits, remove any existing commit entry for this
         // key from commitLog. This is critical for synchronization - during
         // sync, other commit entries for this key might be considered valid
         // if we don't remove them. (No-op on a commit-log-free keystore.)
-        if (commitLog != null) {
-          CommitEntry? commitEntry = commitLog.getLatestCommitEntry(key);
-          if (commitEntry != null) {
-            await commitLog.commitLogKeyStore.remove(commitEntry.commitId!);
-          }
-        }
+        await commitLog?.removeEntryFor(hiveKey);
         retVal = -1;
       } else {
         // `commitLog` is null on a commit-log-free keystore — the
         // delete still succeeds, it just produces no sequence number.
-        retVal = await commitLog?.commit(key, CommitOp.DELETE);
+        retVal = await commitLog?.commit(hiveKey, CommitOp.DELETE,
+            opTime: deletedAt);
       }
       _changesController.add(KeyRemoved(key));
     } on Exception catch (exception) {
@@ -684,7 +703,9 @@ class HiveAtKeyValueStore
   }
 
   @override
-  Future<int?> putMeta(String key, AtMetaData? metadata) async {
+  Future<int?> putMeta(String key, AtMetaData? metadata,
+      {bool skipCommit = false,
+      AtAssertedTimestamps? assertedTimestamps}) async {
     key = key.toLowerCase();
     try {
       String hive_key = HiveKeyStoreHelper.prepareKey(key);
@@ -698,14 +719,24 @@ class HiveAtKeyValueStore
       newData.metaData = AtMetadataBuilder(
               newAtMetaData: metadata!,
               existingMetaData: existingData?.metaData,
-              atSign: atSign)
+              atSign: atSign,
+              asserted: assertedTimestamps)
           .build();
 
       await getBox().put(hive_key, newData);
       _updateMetadataCache(key, newData.metaData);
-      // `_commitLog` is null on a commit-log-free keystore — the write
-      // still succeeds, it just produces no sequence number.
-      var result = await _commitLog?.commit(hive_key, CommitOp.UPDATE_META);
+      int? result;
+      if (skipCommit) {
+        // Purge any previous entry for this key, matching put/remove's
+        // skipCommit behaviour. (No-op on a commit-log-free keystore.)
+        await _commitLog?.removeEntryFor(hive_key);
+        result = -1;
+      } else {
+        // `_commitLog` is null on a commit-log-free keystore — the write
+        // still succeeds, it just produces no sequence number.
+        result = await _commitLog?.commit(hive_key, CommitOp.UPDATE_META,
+            opTime: assertedTimestamps?.updatedAt);
+      }
       _changesController
           .add(existingData == null ? KeyAdded(key) : KeyUpdated(key));
       return result;
@@ -758,20 +789,19 @@ class HiveAtKeyValueStore
       await box.deleteAll(preparedToDelete);
 
       // 4. Per-key cache + commit-log bookkeeping. The commit-log
-      //    steps are no-ops on a commit-log-free keystore.
+      //    steps are no-ops on a commit-log-free keystore. Commit-log
+      //    calls take the prepared (utf7-encoded) form, as in remove().
       final commitLog = _commitLog;
       for (final lowered in present) {
         _expiryKeysCache.remove(lowered);
         if (commitLog == null) continue;
+        final hiveKey = HiveKeyStoreHelper.prepareKey(lowered);
         if (skipCommit) {
-          // Match remove(): purge any existing commit entries for this
-          // key, otherwise sync may consider them valid post-delete.
-          CommitEntry? commitEntry = commitLog.getLatestCommitEntry(lowered);
-          if (commitEntry != null) {
-            await commitLog.commitLogKeyStore.remove(commitEntry.commitId!);
-          }
+          // Match remove(): purge any existing commit entry for this
+          // key, otherwise sync may consider it valid post-delete.
+          await commitLog.removeEntryFor(hiveKey);
         } else {
-          await commitLog.commit(lowered, CommitOp.DELETE);
+          await commitLog.commit(hiveKey, CommitOp.DELETE);
         }
       }
     } on Exception catch (exception) {
@@ -1058,7 +1088,7 @@ class HiveAtKeyValueStore
   /// If key is active, returns "true", else returns "false"
   bool _isKeyAvailable(key, {DateTime? now}) {
     // If _expiryKeyCache does not contain the key, then it implies
-    // that key does not have TTL or TTB set.
+    // that the key has neither an expiresAt nor an availableAt.
     // So, the key never expires; return true.
     if (!_expiryKeysCache.containsKey(key)) {
       return true;
@@ -1070,24 +1100,21 @@ class HiveAtKeyValueStore
   /// Adds an entry where key is AtKey and value is Map containing the "expiresAt"
   /// and "availableAt" into the [_expiryKeysCache] map.
   ///
-  /// Adds only the keys whose TTL or TTB is set in the metadata; otherwise ignored.
+  /// Keyed on the FINAL stored `expiresAt`/`availableAt` values rather than
+  /// on ttl/ttb presence: by the time this runs, the metadata builder has
+  /// already derived those fields from ttl/ttb where applicable, and a
+  /// caller-asserted `expiresAt`/`availableAt` can be set with no ttl/ttb at
+  /// all — a key gated on ttl presence would never be swept and would be
+  /// served past its expiry. A key with neither field is active forever and
+  /// is removed from the cache. ttl:0 lands in that removal branch (the
+  /// builder maps it to a null expiresAt); ttb:0 does NOT — the builder
+  /// derives availableAt = the write instant, so a ttb:0 key stays cached
+  /// with an already-past birth time, which every reader treats as "born".
   void _updateMetadataCache(String key, AtMetaData? atMetaData) {
-    // If the metadata of a key does not have TTL or TTB set, then the key is active forever.
-    // Do not add it to _expiryKeyCache.
     if (atMetaData == null ||
-        (atMetaData.ttb == null && atMetaData.ttl == null)) {
-      // On an existing key, if TTL or TTB is unset, then TTL/TTB value will be null.
-      // Therefore, the new metadata will not be updated in the _expiryKeyCache.
-      // To prevent the stale metadata being returned from getMeta, remove the entry from
-      // _expiryKeyCache
-      _expiryKeysCache.remove(key);
-      return;
-    }
-    // Setting TTL/TTB to 0 (Zero) implies to unset the metadata.
-    // Therefore, the key will be active forever. Hence remove the existing key
-    // (if any)from expiryKeyCache
-    if ((atMetaData.ttl == null && atMetaData.ttb == 0) ||
-        (atMetaData.ttb == null && atMetaData.ttl == 0)) {
+        (atMetaData.expiresAt == null && atMetaData.availableAt == null)) {
+      // To prevent stale expiry state being consulted for this key,
+      // remove any existing entry from _expiryKeysCache.
       _expiryKeysCache.remove(key);
       return;
     }

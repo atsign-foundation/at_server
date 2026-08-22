@@ -1,3 +1,58 @@
+## 5.3.0
+
+- fix: the dual-write mirror purges the secondary's commit entry when the
+  primary holds none for a just-written key. A skipCommit put/create/putMeta
+  purges the primary's entry while the key lives on, so "no entry to replay"
+  no longer implies "never committed" — without the purge the secondary kept
+  a stale entry that would resurface in sync after a backend switch (caught
+  by runDualCompare.sh: 79 vs 80 commit entries).
+- fix: the Hive commit-log `iterate` skips an entry whose `commitId` is
+  still null — `add` stores the entry and stamps its `commitId` in two
+  awaited steps, so a concurrent iterator (sync running while another write
+  commits) could observe the half-written entry and crash dereferencing the
+  id. Skipping is safe: the entry is fully visible on the next iteration,
+  and commit-id sequences are gap-tolerant by design. SQLite is unaffected
+  (the row and its id are written in one transaction).
+- feat: keystore write paths accept caller-asserted timestamps
+  (`AtAssertedTimestamps`): `put`/`create`/`putMeta` store an asserted
+  `createdAt`/`updatedAt`/`expiresAt`/`availableAt` faithfully instead of
+  rederiving, and an asserted `expiresAt`/`availableAt` suppresses the
+  ttl/ttb derivation for that write only. `remove` accepts `deletedAt`.
+  `AtMetadataBuilder` also derives the inverse on request
+  (`AtAssertedTimestamps.deriveTtl`/`deriveTtb`, set by callers whose own
+  request supplied the absolute without its relative): an asserted
+  `expiresAt` stores the ttl it implies (measured from the stored
+  updatedAt — from the asserted availableAt when that lies ahead of it),
+  and an asserted `availableAt` stores the implied ttb, in each case
+  replacing whatever retained or coerced relative the write's metadata
+  carries; a non-positive implied value clears the relative instead. A
+  ttl-only write on a record whose birth is pinned by an asserted
+  availableAt expires at exactly now + ttl — the metadata's ttb is folded
+  into the expiry derivation only when the same write re-derives the birth
+  window too.
+  Assertions travel as an explicit argument rather than through nullable
+  `AtMetaData` fields, so internal callers that recycle stored metadata keep
+  today's server-derived stamping. NOTE for the next release: these are new
+  named parameters on the `AtKeyValueStore` interface methods — breaking for
+  external implementers of the interface (none known besides test mocks,
+  which tolerate it), fine for callers.
+- feat: `AtCommitLog.commit` accepts an `opTime` (caller-asserted operation
+  time — a delete's `deletedAt`, an update's asserted `updatedAt`), recorded
+  on the commit entry; and `AtCommitLog.removeEntryFor` removes a key's
+  commit entry on both backends (previously reachable only through
+  backend-specific escape hatches).
+- feat: `put`/`create`/`putMeta` with `skipCommit: true` now purge the key's
+  existing commit entry as well as writing none, matching `remove`'s
+  established skipCommit behaviour; `putMeta` gains `skipCommit`.
+- fix: the Hive expiry cache tracks keys by their stored
+  `expiresAt`/`availableAt` rather than by ttl/ttb presence, so a record
+  whose only expiry signal is an asserted `expiresAt` is swept and stops
+  being served at its expiry instead of living forever.
+- fix: Hive `remove`/`removeMany` passed the raw key to the commit log,
+  which utf7-decodes its argument — a second decode that mangled keys
+  containing utf7 escape sequences. Commit-log calls now take the prepared
+  key on every path.
+
 ## 5.2.1
 
 - feat: `AtCommitLog.iterate` accepts `skipDeletesUntil`/`latestCommitId`,

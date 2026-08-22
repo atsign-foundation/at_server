@@ -16,7 +16,8 @@ class MockAtKeyValueStore extends Mock
   }
 
   @override
-  Future<int?> remove(String key, {bool skipCommit = false}) async {
+  Future<int?> remove(String key,
+      {bool skipCommit = false, DateTime? deletedAt}) async {
     dummyKeyStore.remove(key);
     return 1;
   }

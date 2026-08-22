@@ -1,3 +1,81 @@
+# 3.16.3
+- feat: implement the at_commons 5.10.0 protocol enhancements on the
+  update/update:meta/update:json/delete surface (#2678):
+  - `:cAt`/`:uAt`/`:eAt`/`:aAt` — caller-asserted
+    createdAt/updatedAt/expiresAt/availableAt are stored faithfully instead
+    of rederived. An asserted cAt wins on create and update alike; an
+    asserted eAt/aAt suppresses the ttl/ttb derivation for that write.
+    Values are truncated to millisecond precision. An asserted updatedAt
+    is also recorded as the commit entry's opTime.
+  - a request that supplies an absolute without its relative gets the
+    relative derived and stored: an `:eAt` with no ttl derives the ttl
+    (measured from the stored updatedAt — from the asserted availableAt
+    when that lies ahead — so every server derives the same value from the
+    same assertions), and an `:aAt` with no ttb derives the ttb, in each
+    case replacing any relative retained from the stored record. A
+    supplied 0 counts as unsupplied (the update:json path and the notify
+    receiver coerce an absent ttl/ttb to 0); a non-positive implied value
+    clears the relative instead.
+  - once set, expiresAt/availableAt move only when a request speaks about
+    that axis: an asserted `:eAt`/`:aAt` stores faithfully, an explicit
+    ttl/ttb re-derives from now (a ttl-only write on a record whose birth
+    is pinned expires at exactly now + ttl — the record's retained ttb is
+    no longer folded in), ttl:0 clears the expiry, and ttb:0 re-stamps
+    availableAt to now. A write that says nothing about expiry no longer
+    restarts the expiry clock from the record's retained ttl (and no
+    longer re-opens a ttb record's not-yet-born window) — the update verbs
+    carry the stored absolutes forward as assertions.
+  - `:nc` (no-commit) — the operation runs as usual (auto-notification
+    included) but writes no commit entry AND purges the key's existing
+    entry; the response is `data:-1`.
+  - `delete:dAt` — recorded as the DELETE commit entry's opTime. Works with
+    `:nc` for commit-log cruft management: a `delete:nc` of a key that no
+    longer exists still purges the key's leftover entry.
+- feat: `scan:cl` — scan the commit log instead of the keystore (#2678),
+  so a client can inspect its entries and `delete:nc` the cruft. Returns a
+  JSON array in ascending commitId order of
+  `{"atKey", "operation" (the CommitOp symbol sync uses), "commitId",
+  "opTime" (ISO 8601 UTC)}`; DELETE entries included. Authenticated
+  connections only; the same regex / hidden-key / enrollment-namespace
+  filters as a keystore scan apply. `scan:cl:@other` is refused loudly —
+  the outbound scan proxy cannot forward `:cl`, so it would silently
+  degrade to a plain remote scan.
+- feat: server-to-server faithfulness for the four timestamps (#2678):
+  outbound notifications emit `:cAt`/`:uAt`/`:eAt`/`:aAt` from the
+  notification's metadata — for update auto-notifications, the STORED
+  record's values, so every update auto-notification now carries `:cAt`
+  and `:uAt` on the wire. NOTE: an atServer built with at_commons older
+  than 5.10.0 (before 2026-05-12; releases ≤ c3.12.0 built before then)
+  rejects that shape outright — its notify grammar has no timestamp
+  groups — so auto-notifications from an upgraded sender to such a server
+  fail and retry until they expire; the receiver must upgrade. A delete
+  auto-notification attaches metadata ONLY when the client asserted
+  `:dAt` (emitted as `:uAt`); an ordinary delete's wire shape is
+  byte-identical to before, and client-issued `notify:delete` /
+  `notify:all:delete` metadata still goes on the wire exactly as it
+  always has. The receiving side stores cached keys with the transmitted
+  origin timestamps — on first cache and on every refresh — and records a
+  transmitted deletion time as the cached key's DELETE commit entry
+  opTime. The lookup-driven cache does the same for data keys;
+  `cached:public:publickey@` keeps its own createdAt semantics (it
+  records when THIS server learned of a changed key — the signal
+  PK-change handling is built on).
+- fix: the update/update:meta auto-notification is queued AFTER the
+  keystore write, carrying the metadata that was actually stored — the old
+  order transmitted pre-merge values (e.g. a freshly-fabricated createdAt
+  for an existing record) and queued a notification even when the write
+  then failed. If the record was deleted concurrently before the
+  read-back, the update notification is skipped (at warning) rather than
+  queued after the delete's own notification, which could have
+  resurrected the receiver's cached copy; a transient read-back failure
+  falls back to the written metadata instead. A notify-queueing failure
+  after a successful write is logged at warning and does not fail the
+  client's request.
+- fix: the per-key update mutex is keyed on the lowercased record name.
+  The keystore canonicalizes keys to lowercase, so two case-variants of
+  one update command name the same stored record; keyed on the original
+  case they took different mutexes and raced.
+
 # 3.16.2
 - fix(at_secondary_server): a closed `NotificationManager` now stops its
 delivery retries.

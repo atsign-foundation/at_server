@@ -309,7 +309,8 @@ class AtCacheManager {
     }
 
     if (!cachedKeyName.startsWith('cached:public:publickey@')) {
-      await keyStore.put(cachedKeyName, atData);
+      await keyStore.put(cachedKeyName, atData,
+          assertedTimestamps: _assertedFromRemote(atData.metaData));
       if (existingAtData == null) {
         return CacheUpdateResult(
           newEntry: true,
@@ -501,6 +502,39 @@ class AtCacheManager {
     await keyStore.remove(cachedKeyName);
     atData.metaData!.ttr = -1;
     await keyStore.put(cachedKeyName, atData);
+  }
+
+  /// The origin's timestamps as carried on remotely-looked-up [metadata],
+  /// asserted into the cached copy's write so the cache holds the origin's
+  /// createdAt/updatedAt/expiresAt/availableAt rather than values rederived
+  /// on this server's clock at cache time. Null when the remote record
+  /// carries none (the builder then stamps as it always has).
+  ///
+  /// Deliberately NOT used for `cached:public:publickey@` writes
+  /// ([putCachedPublicKey]): that flow re-creates the cached entry on a
+  /// public-key change precisely so its createdAt records when THIS server
+  /// learned of the new key — the signal the PK-change handling is built
+  /// on — and asserting the origin's createdAt would erase it.
+  AtAssertedTimestamps? _assertedFromRemote(AtMetaData? metadata) {
+    if (metadata == null ||
+        (metadata.createdAt == null &&
+            metadata.updatedAt == null &&
+            metadata.expiresAt == null &&
+            metadata.availableAt == null)) {
+      return null;
+    }
+    // Derive the relative a remote absolute implies when the remote record
+    // carries none (an older origin that never derived one) — 0 included,
+    // since a 0 beside an absolute is a coercion artefact, not a value.
+    return AtAssertedTimestamps(
+        createdAt: metadata.createdAt,
+        updatedAt: metadata.updatedAt,
+        expiresAt: metadata.expiresAt,
+        availableAt: metadata.availableAt,
+        deriveTtl: metadata.expiresAt != null &&
+            (metadata.ttl == null || metadata.ttl == 0),
+        deriveTtb: metadata.availableAt != null &&
+            (metadata.ttb == null || metadata.ttb == 0));
   }
 
   /// Does the remote lookup - returns the Atsign Protocol string which it receives

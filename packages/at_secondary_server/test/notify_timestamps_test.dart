@@ -1,0 +1,356 @@
+// The notify half of the at_commons 5.10.0 protocol enhancements:
+// server-to-server transmission of cAt/uAt/eAt/aAt.
+//
+//   * the outbound notify command body emits the four timestamps between
+//     ccd and isEncrypted (wire-shape pins, raw literals)
+//   * a delete notification carries its deletion time as :uAt: and NOTHING
+//     else — in particular no isEncrypted, whose absence deployed receivers
+//     default to true for non-public keys
+//   * the receiving side stores cached keys with the ORIGIN's timestamps,
+//     on first cache and on refresh, and records a transmitted deletion
+//     time as the cached key's DELETE commit entry opTime
+//   * the lookup-driven cache (AtCacheManager) stores the origin's
+//     timestamps on the cached copy
+//
+// Isolation: per-test, via verbTestsSetUp/verbTestsTearDown.
+
+import 'dart:collection';
+
+import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/utils/handler_util.dart';
+import 'package:at_secondary/src/utils/secondary_util.dart';
+import 'package:at_secondary/src/verb/handler/lookup_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
+import 'package:at_server_spec/at_verb_spec.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:test/test.dart';
+
+import 'test_utils.dart';
+
+void main() {
+  // Millisecond-precision instants (what the store holds) and their exact
+  // wire spellings (formatIso8601Micros pads to six fractional digits).
+  final cAt = DateTime.utc(2020, 1, 2, 3, 4, 5, 678);
+  const cAtWire = '2020-01-02T03:04:05.678000Z';
+  final uAt = DateTime.utc(2021, 2, 3, 4, 5, 6, 789);
+  const uAtWire = '2021-02-03T04:05:06.789000Z';
+  final eAt = DateTime.utc(2030, 1, 1);
+  const eAtWire = '2030-01-01T00:00:00.000000Z';
+  final aAt = DateTime.utc(2022, 3, 4, 5, 6, 7, 890);
+  const aAtWire = '2022-03-04T05:06:07.890000Z';
+
+  verbTestsSetUpLogging();
+
+  setUpAll(() async {
+    await verbTestsSetUpAll();
+  });
+
+  setUp(() async {
+    await verbTestsSetUp();
+  });
+
+  tearDown(() async {
+    await verbTestsTearDown();
+  });
+
+  group('outbound notify command body', () {
+    test('update notification emits cAt/uAt/eAt/aAt between ccd and '
+        'isEncrypted (wire-shape pin)', () {
+      final n = (AtNotificationBuilder()
+            ..id = 'ts-pin-1'
+            ..fromAtSign = alice
+            ..toAtSign = '@bob'
+            ..notification = '@bob:phone.wavi$alice'
+            ..type = NotificationType.sent
+            ..opType = OperationType.update
+            ..ttl = 60000
+            ..atValue = 'hello'
+            ..atMetaData = (AtMetaData()
+              ..ttr = 10
+              ..isCascade = false
+              ..isEncrypted = true
+              ..createdAt = cAt
+              ..updatedAt = uAt
+              ..expiresAt = eAt
+              ..availableAt = aAt))
+          .build();
+
+      final body = notificationManager.prepareNotifyCommandBody(n);
+      // Wire-shape pin: this is the contract every deployed receiver's
+      // regex must accept — the fragment order is frozen by
+      // VerbSyntax.metadataFragment (timestamps sit between ccd and
+      // isEncrypted). Only ttln's value is clock-dependent.
+      expect(
+          body,
+          matches(RegExp(r'^id:ts-pin-1:update:messageType:key'
+              r':notifier:system:ttln:\d+'
+              r':ttr:10:ccd:false'
+              ':cAt:$cAtWire:uAt:$uAtWire:eAt:$eAtWire:aAt:$aAtWire'
+              ':isEncrypted:true'
+              ':@bob:phone.wavi$alice:hello\$')));
+
+      // And the receiving grammar accepts it verbatim.
+      final HashMap<String, String?> reParsed =
+          getVerbParam(Notify().syntax(), 'notify:$body');
+      expect(reParsed[AtConstants.createdAt], cAtWire);
+      expect(reParsed[AtConstants.updatedAt], uAtWire);
+      expect(reParsed['expiresAt'], eAtWire);
+      expect(reParsed['availableAt'], aAtWire);
+    });
+
+    test('a metadata-less notification emits no timestamp fragments '
+        '(unchanged wire shape)', () {
+      final n = (AtNotificationBuilder()
+            ..id = 'ts-pin-2'
+            ..fromAtSign = alice
+            ..toAtSign = '@bob'
+            ..notification = '@bob:phone.wavi$alice'
+            ..type = NotificationType.sent
+            ..opType = OperationType.update
+            ..ttl = 60000)
+          .build();
+      final body = notificationManager.prepareNotifyCommandBody(n);
+      expect(
+          body,
+          matches(RegExp(r'^id:ts-pin-2:update:messageType:key'
+              r':notifier:system:ttln:\d+'
+              ':@bob:phone.wavi$alice\$')));
+    });
+
+    test('a dAt-asserted delete notification carries :uAt: through the '
+        'ordinary metadata block (wire-shape pin)', () {
+      // DeleteVerbHandler attaches metadata (updatedAt only) exactly when
+      // the client asserted :dAt, so this shape appears only for the new
+      // feature — and goes through the same emission block as every other
+      // metadata-bearing notification.
+      final n = (AtNotificationBuilder()
+            ..id = 'del-pin-1'
+            ..fromAtSign = alice
+            ..toAtSign = '@bob'
+            ..notification = '@bob:phone.wavi$alice'
+            ..type = NotificationType.sent
+            ..opType = OperationType.delete
+            ..ttl = 60000
+            ..atMetaData = (AtMetaData()..updatedAt = uAt))
+          .build();
+
+      final body = notificationManager.prepareNotifyCommandBody(n);
+      expect(
+          body,
+          matches(RegExp(r'^id:del-pin-1:delete:messageType:key'
+              r':notifier:system:ttln:\d+'
+              ':uAt:$uAtWire'
+              ':isEncrypted:false'
+              ':@bob:phone.wavi$alice\$')));
+
+      final HashMap<String, String?> reParsed =
+          getVerbParam(Notify().syntax(), 'notify:$body');
+      expect(reParsed[AtConstants.updatedAt], uAtWire);
+    });
+
+    test('an ordinary (no-dAt) delete notification keeps its historical '
+        'metadata-free wire shape (wire-shape pin)', () {
+      // No metadata attached — the shape a receiver built before the
+      // timestamp syntax existed still parses.
+      final n = (AtNotificationBuilder()
+            ..id = 'del-pin-2'
+            ..fromAtSign = alice
+            ..toAtSign = '@bob'
+            ..notification = '@bob:phone.wavi$alice'
+            ..type = NotificationType.sent
+            ..opType = OperationType.delete
+            ..ttl = 60000)
+          .build();
+      final body = notificationManager.prepareNotifyCommandBody(n);
+      expect(
+          body,
+          matches(RegExp(r'^id:del-pin-2:delete:messageType:key'
+              r':notifier:system:ttln:\d+'
+              ':@bob:phone.wavi$alice\$')));
+    });
+
+    test('a client-issued delete notification\'s metadata still goes on '
+        'the wire (regression pin)', () {
+      // notify:delete from a client carries metadata (isEncrypted always,
+      // ttr:ccd when supplied); a delete-op special case in the emitter
+      // must not swallow it — the receiver defaults an ABSENT isEncrypted
+      // by key shape, flipping an explicit value.
+      final n = (AtNotificationBuilder()
+            ..id = 'del-pin-3'
+            ..fromAtSign = alice
+            ..toAtSign = '@bob'
+            ..notification = '@bob:phone.wavi$alice'
+            ..type = NotificationType.sent
+            ..opType = OperationType.delete
+            ..ttl = 60000
+            ..atMetaData = (AtMetaData()
+              ..ttr = 2000
+              ..isCascade = true
+              ..isEncrypted = false))
+          .build();
+      final body = notificationManager.prepareNotifyCommandBody(n);
+      expect(
+          body,
+          matches(RegExp(r'^id:del-pin-3:delete:messageType:key'
+              r':notifier:system:ttln:\d+'
+              r':ttr:2000:ccd:true'
+              ':isEncrypted:false'
+              ':@bob:phone.wavi$alice\$')));
+    });
+  });
+
+  group('receiving side: cached keys carry the origin\'s timestamps', () {
+    late NotifyVerbHandler notifyHandler;
+
+    setUp(() {
+      notifyHandler = NotifyVerbHandler(keyValueStore, notificationManager);
+      inboundConnection.metadata.isPolAuthenticated = true;
+      inboundConnection.metadata.fromAtSign = bob;
+    });
+
+    test('a ttr notification with cAt/uAt/eAt stores the cached key with '
+        'the origin values; a refresh updates them', () async {
+      // ttl accompanies eAt so the assertion is proven to BEAT the ttl
+      // derivation on the receive path (without ttl the value would pass
+      // through whether or not the assertion mechanism ran).
+      await notifyHandler.process(
+          'notify:id:rcv-1:update:messageType:key'
+          ':ttl:600000:ttr:100000:ccd:true'
+          ':cAt:$cAtWire:uAt:$uAtWire:eAt:$eAtWire'
+          ':$alice:phone.wavi$bob:hello',
+          inboundConnection);
+
+      var cached = await keyValueStore.get('cached:$alice:phone.wavi$bob');
+      expect(cached!.metaData!.createdAt, cAt,
+          reason: 'the cached copy must carry the ORIGIN\'s createdAt, not '
+              'one stamped on this server\'s clock at cache time');
+      expect(cached.metaData!.updatedAt, uAt);
+      expect(cached.metaData!.expiresAt, eAt,
+          reason: 'an origin absolute expiry must not be rederived');
+
+      // A refresh notification transmits newer values; the cached copy
+      // adopts them (direct keystore writes have no retain-merge, so the
+      // receiver re-passes what each notification transmits).
+      final uAt2 = DateTime.utc(2021, 6, 1, 12);
+      const uAt2Wire = '2021-06-01T12:00:00.000000Z';
+      await notifyHandler.process(
+          'notify:id:rcv-2:update:messageType:key:ttr:100000:ccd:true'
+          ':cAt:$cAtWire:uAt:$uAt2Wire'
+          ':$alice:phone.wavi$bob:hello2',
+          inboundConnection);
+      cached = await keyValueStore.get('cached:$alice:phone.wavi$bob');
+      expect(cached!.metaData!.updatedAt, uAt2);
+      expect(cached.metaData!.createdAt, cAt);
+    });
+
+    test('a ttr notification without timestamps stamps them on this '
+        'server\'s clock (unchanged behaviour)', () async {
+      final before = DateTime.now().toUtcMillisecondsPrecision();
+      await notifyHandler.process(
+          'notify:id:rcv-3:update:messageType:key:ttr:100000'
+          ':$alice:phone.wavi$bob:hello',
+          inboundConnection);
+      final cached = await keyValueStore.get('cached:$alice:phone.wavi$bob');
+      expect(cached!.metaData!.createdAt!.isBefore(before), isFalse);
+      expect(cached.metaData!.updatedAt!.isBefore(before), isFalse);
+    });
+
+    test('a notification transmitting uAt but no ttb does not fabricate a '
+        'ttb on the cached key', () async {
+      // The receive path coerces an absent ttb to 0 before the keystore
+      // write, and setTTB(0) stamps availableAt to arrival time. A
+      // derivation that trusted the merged metadata would then store
+      // ttb = arrival - origin uAt: milliseconds on a fast link, days if
+      // this server was offline and the notification was retried — a
+      // birth window the origin record does not have.
+      await notifyHandler.process(
+          'notify:id:rcv-nofab:update:messageType:key:ttr:100000'
+          ':uAt:$uAtWire'
+          ':$alice:phone.wavi$bob:hello',
+          inboundConnection);
+      final cached = await keyValueStore.get('cached:$alice:phone.wavi$bob');
+      expect(cached!.metaData!.ttb ?? 0, 0,
+          reason: 'no ttb was transmitted, so none may be fabricated from '
+              'transfer latency');
+    });
+
+    test('a notification with eAt and no ttl derives ttl = eAt - uAt on '
+        'the cached key, not eAt - arrival time', () async {
+      await notifyHandler.process(
+          'notify:id:rcv-derive:update:messageType:key:ttr:100000'
+          ':uAt:$uAtWire:eAt:$eAtWire'
+          ':$alice:phone.wavi$bob:hello',
+          inboundConnection);
+      final cached = await keyValueStore.get('cached:$alice:phone.wavi$bob');
+      expect(cached!.metaData!.expiresAt, eAt);
+      expect(cached.metaData!.ttl, eAt.difference(uAt).inMilliseconds,
+          reason: 'the derivation must measure from the transmitted '
+              'updatedAt so every server derives the same ttl from the '
+              'same notification — measuring from arrival time would '
+              'erode the ttl by the transfer latency at every hop');
+    });
+
+    test('a delete notification\'s :uAt: becomes the cached key\'s DELETE '
+        'commit entry opTime (ccd case)', () async {
+      await notifyHandler.process(
+          'notify:id:rcv-4:update:messageType:key:ttr:100000:ccd:true'
+          ':$alice:phone.wavi$bob:hello',
+          inboundConnection);
+      expect(await keyValueStore.exists('cached:$alice:phone.wavi$bob'),
+          isTrue);
+
+      await notifyHandler.process(
+          'notify:id:rcv-5:delete:messageType:key'
+          ':uAt:$uAtWire'
+          ':$alice:phone.wavi$bob',
+          inboundConnection);
+
+      expect(await keyValueStore.exists('cached:$alice:phone.wavi$bob'),
+          isFalse,
+          reason: 'the cached key was stored with isCascade, so the delete '
+              'notification removes it');
+      final entry =
+          atCommitLog.getLatestCommitEntry('cached:$alice:phone.wavi$bob')!;
+      expect(entry.operation, CommitOp.DELETE);
+      expect(entry.opTime, uAt,
+          reason: 'the DELETE entry records the origin deletion time');
+    });
+  });
+
+  group('lookup-driven cache (AtCacheManager)', () {
+    test('the cached copy of a remotely-looked-up key carries the origin\'s '
+        'timestamps', () async {
+      inboundConnection.metadata.isAuthenticated = true;
+      const keyName = 'some_key.some_namespace@bob';
+
+      final AtData bobData = createRandomAtData(bob);
+      bobData.metaData!.ttr = 10;
+      bobData.metaData!.ttb = null;
+      bobData.metaData!.ttl = null;
+      bobData.metaData!.createdAt = cAt;
+      bobData.metaData!.updatedAt = uAt;
+      bobData.metaData!.expiresAt = eAt;
+      final String bobDataAsJsonWithKey = SecondaryUtil.prepareResponseData(
+          'all', bobData,
+          key: '$alice:$keyName')!;
+
+      when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
+          .thenAnswer((Invocation invocation) async {
+        socketOnDataFn("data:$bobDataAsJsonWithKey\n$alice@".codeUnits);
+      });
+
+      final lookupHandler = LookupVerbHandler(
+          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+          accessLog: atAccessLog);
+      await lookupHandler.process('lookup:all:$keyName', inboundConnection);
+
+      final cached = await keyValueStore.get('cached:$alice:$keyName');
+      expect(cached!.metaData!.createdAt, cAt,
+          reason: 'the cache must hold the origin\'s createdAt, not a '
+              'cache-time stamp');
+      expect(cached.metaData!.updatedAt, uAt);
+      expect(cached.metaData!.expiresAt, eAt);
+    });
+  });
+}

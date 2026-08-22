@@ -64,6 +64,29 @@ void main() {
     await ks.create('bye.wavi$atSign', d('later'));
     await ks.remove('bye.wavi$atSign');
 
+    // Caller-asserted timestamps and opTimes must mirror byte-exactly.
+    await ks.create('faithful.wavi$atSign', d('x'),
+        assertedTimestamps: AtAssertedTimestamps(
+            createdAt: DateTime.utc(2020, 1, 2, 3, 4, 5, 678),
+            updatedAt: DateTime.utc(2021, 2, 3, 4, 5, 6, 789),
+            expiresAt: DateTime.utc(2030, 1, 1)));
+    await ks.create('dat.wavi$atSign', d('y'));
+    await ks.remove('dat.wavi$atSign',
+        deletedAt: DateTime.utc(2023, 5, 5, 11, 59, 44, 123));
+
+    // A skipCommit write purges the key's commit entry while the key lives
+    // on (the update:nc shape); the mirror must purge the secondary's stale
+    // entry too — "same commit entry, or same absence".
+    await ks.create('quiet.wavi$atSign', d('v1'));
+    await ks.put('quiet.wavi$atSign', d('v2'), skipCommit: true);
+    expect(
+        bundle.secondary.keyValueStore.commitLog!
+            .getLatestCommitEntry('quiet.wavi$atSign'),
+        isNull,
+        reason: 'a skipCommit write purged the primary\'s commit entry; a '
+            'stale secondary entry would resurface in sync after a '
+            'backend switch');
+
     // Expired TTL key swept via deleteExpiredKeys.
     await ks.restore(
         'exp.wavi$atSign',

@@ -4,11 +4,17 @@
 # (Hive primary + SQLite secondary, every write mirrored), then compares each
 # hosted atSign's Hive and SQLite DB sets for byte-identity.
 #
-#   ./runDualCompare.sh [--build]
+#   ./runDualCompare.sh [--build] [BASE_PORT]
 #
 # --build recompiles the root/secondary binaries first; without it, the
 # binaries already staged in ve/contents (e.g. from a prior runLocal.sh) are
 # reused. The VE image is always rebuilt so it picks up libsqlite3.
+#
+# Optional VE base port, as in runLocal.sh: set VIRTUALENV_BASE_PORT (env) or
+# pass it as a positional argument. Shifts the whole VE port range —
+# atDirectory to BASE, atServers to BASE+1.., Redis to BASE+99 — so this run
+# coexists with anything squatting the default 64/443/6379/25000+ ports. The
+# harness reads VIRTUALENV_BASE_PORT too (config_util, the readiness checks).
 #
 # Exit: 0 = pack passed AND every atSign's Hive == SQLite; non-zero otherwise.
 
@@ -17,7 +23,28 @@ cd "$(dirname -- "$0")"; cd ../../; repoDir=$(pwd)
 CONT=at_server_func_cont
 PERSIST_PKG="${repoDir}/packages/at_persistence_secondary_server"
 
-if [[ "${1:-}" == "--build" ]]; then
+BUILD=""
+for arg in "$@"; do
+  case "$arg" in
+    --build) BUILD="--build" ;;
+    *) VIRTUALENV_BASE_PORT="$arg" ;;
+  esac
+done
+VIRTUALENV_BASE_PORT="${VIRTUALENV_BASE_PORT:-}"
+if [[ -n "$VIRTUALENV_BASE_PORT" ]]; then
+  export VIRTUALENV_BASE_PORT
+  export rootServerPort="$VIRTUALENV_BASE_PORT" # install_PKAM_Keys reads this
+  veEnvArgs="-e VIRTUALENV_BASE_PORT=${VIRTUALENV_BASE_PORT}"
+  vePortArgs="-p ${VIRTUALENV_BASE_PORT}-$((VIRTUALENV_BASE_PORT + 99)):${VIRTUALENV_BASE_PORT}-$((VIRTUALENV_BASE_PORT + 99))"
+  veCmd="bash /atsign/entrypoint.sh"
+  echo "Using VE base port ${VIRTUALENV_BASE_PORT} (atServers ${VIRTUALENV_BASE_PORT}+1.., Redis +99)"
+else
+  veEnvArgs=""
+  vePortArgs="-p 6379:6379 -p 25000-25040:25000-25040 -p 64:64 -p 443:443"
+  veCmd=""
+fi
+
+if [[ "$BUILD" == "--build" ]]; then
   echo "== compile root =="
   docker run --rm -v "${repoDir}:/app" -w /app/packages/at_root_server \
     dart:3.11.2 sh -c 'dart pub get && dart compile exe bin/main.dart -o root' || exit 1
@@ -41,8 +68,8 @@ echo "== run container in DUAL mode =="
 docker rm -f $CONT 2>/dev/null
 docker run -d --name $CONT \
   -e testingMode="true" -e httpsEnabled="true" -e persistenceBackend="dual" \
-  -p 6379:6379 -p 25000-25040:25000-25040 -p 64:64 -p 443:443 \
-  at_virtual_env:local || exit 1
+  $veEnvArgs $vePortArgs \
+  at_virtual_env:local $veCmd || exit 1
 
 echo "== readiness + keys =="
 cd "${repoDir}/tests/at_functional_test"

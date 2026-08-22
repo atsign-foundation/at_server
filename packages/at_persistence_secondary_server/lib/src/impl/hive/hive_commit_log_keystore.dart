@@ -205,6 +205,13 @@ class HiveCommitLogKeyStore with HiveBase<CommitEntry?> {
     for (final key in getBox().keys) {
       if (fromCommitId != null && (key as int) < fromCommitId) continue;
       final entry = await getValue(key) as CommitEntry;
+      // A null commitId is an entry [add] is mid-way through writing: the
+      // box.add has landed (entry visible) but the follow-up put that
+      // stamps the commitId has not. Skip it — consumers dereference
+      // commitId, and a client simply picks the entry up on its next
+      // iteration. (Legacy at-rest nulls are repaired at init by
+      // [repairNullCommitIDs], so mid-write is the only live source.)
+      if (entry.commitId == null) continue;
       // Sync's delete-skip: drop below-watermark DELETE entries, keeping
       // only the latest so the client can still advance its watermark.
       if (skipDeletesUntil != null &&

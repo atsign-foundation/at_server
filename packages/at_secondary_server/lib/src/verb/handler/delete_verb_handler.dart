@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/constants/wire_param_names.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -61,6 +62,16 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     String atSign = '';
     if (verbParams[AtConstants.atSign] != null) {
       atSign = AtUtils.fixAtSign(verbParams[AtConstants.atSign]!);
+    }
+    // :dAt — the caller-asserted deletion time. Recorded as the DELETE
+    // commit entry's opTime, and carried to the sharedWith atServer on the
+    // auto-notification (as :uAt: — the notify grammar has no dAt group)
+    // so the receiver's cached-key delete records the origin deletion
+    // time. With :nc there is no commit entry, so it has nothing to stamp
+    // locally. The verb grammar pins the value to ISO 8601 UTC.
+    DateTime? deletedAt;
+    if (verbParams[WireParams.deletedAt] != null) {
+      deletedAt = DateTime.parse(verbParams[WireParams.deletedAt]!);
     }
     var deleteKey = verbParams[AtConstants.atKey];
     // If key is cram secret do not append atsign.
@@ -125,7 +136,9 @@ class DeleteVerbHandler extends ChangeVerbHandler {
           }
         }
       }
-      var result = await keyStore.remove(deleteKey);
+      var result = await keyStore.remove(deleteKey,
+          skipCommit: verbParams[WireParams.noCommit] != null,
+          deletedAt: deletedAt);
       response.data = result?.toString();
       logger.finer('delete success. delete key: $deleteKey');
     } on KeyNotFoundException {
@@ -154,7 +167,8 @@ class DeleteVerbHandler extends ChangeVerbHandler {
               atSign,
               key,
               SecondaryUtil.getNotificationPriority(
-                  verbParams[AtConstants.priority]));
+                  verbParams[AtConstants.priority]),
+              deletedAt: deletedAt);
         } catch (exception) {
           logger.severe(
               'Exception while sending notification ${exception.toString()}');
@@ -166,18 +180,29 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     }
   }
 
-  Future<void> _notify(forAtSign, atSign, key, priority) async {
+  Future<void> _notify(forAtSign, atSign, key, priority,
+      {DateTime? deletedAt}) async {
     if (forAtSign == null) {
       return;
     }
     key = '$forAtSign:$key$atSign';
+    // A client-asserted :dAt travels as the metadata's updatedAt, emitted
+    // on the wire as :uAt: (the notify grammar has no dAt group — a
+    // deletion is the record's last update). Without an assertion, no
+    // metadata is attached at all, keeping an ordinary delete
+    // notification's wire shape exactly what it always was — a receiver
+    // built before the timestamp syntax existed still parses it.
     var atNotification = (AtNotificationBuilder()
           ..type = NotificationType.sent
           ..fromAtSign = atSign
           ..toAtSign = forAtSign
           ..notification = key
           ..priority = priority
-          ..opType = OperationType.delete)
+          ..opType = OperationType.delete
+          ..atMetaData = deletedAt == null
+              ? null
+              : (AtMetaData()
+                ..updatedAt = deletedAt.toUtcMillisecondsPrecision()))
         .build();
     await notificationManager.notify(atNotification);
   }

@@ -84,10 +84,49 @@ abstract interface class AtKeyValueStore<K, V, T>
     int? limit,
   });
 
+  /// Associates [value] with [key]. Overrides [KeyValueStore.put]
+  /// with the atKey-aware extras:
+  ///
+  ///   * [skipCommit] — as well as writing no commit entry, the
+  ///     key's existing commit entry (if any) is purged, so the
+  ///     commit log carries no trace of the key's history. Sync
+  ///     would otherwise keep serving a stale entry for a record
+  ///     whose latest change was deliberately uncommitted.
+  ///   * [assertedTimestamps] — caller-asserted timestamps stored
+  ///     faithfully instead of being rederived; see
+  ///     [AtAssertedTimestamps] for the precedence rules. An
+  ///     asserted `updatedAt` is also recorded as the commit
+  ///     entry's `opTime`.
+  @override
+  Future<int?> put(K key, V value,
+      {bool skipCommit = false, AtAssertedTimestamps? assertedTimestamps});
+
+  /// Creates [key] with [value]. Overrides [KeyValueStore.create]
+  /// with the same [skipCommit]-purges and [assertedTimestamps]
+  /// extras as [put].
+  @override
+  Future<int?> create(K key, V value,
+      {bool skipCommit = false, AtAssertedTimestamps? assertedTimestamps});
+
+  /// Removes the mapping for [key] if present. Overrides
+  /// [KeyValueStore.remove]:
+  ///
+  ///   * [skipCommit] — as for [put]: no DELETE entry is written
+  ///     AND the key's existing commit entry is purged.
+  ///   * [deletedAt] — caller-asserted deletion time, recorded as
+  ///     the DELETE commit entry's `opTime` (truncated to
+  ///     millisecond precision). Ignored when [skipCommit] is true
+  ///     — there is no entry to stamp.
+  @override
+  Future<int?> remove(K key, {bool skipCommit = false, DateTime? deletedAt});
+
   /// Updates the metadata for [key] without touching its value.
   /// Returns the commit-log sequence number assigned to this
   /// write, or `null` if no sequence number was produced.
-  Future<int?> putMeta(K key, T metadata);
+  ///
+  /// [skipCommit] and [assertedTimestamps] behave as on [put].
+  Future<int?> putMeta(K key, T metadata,
+      {bool skipCommit = false, AtAssertedTimestamps? assertedTimestamps});
 
   /// Writes [value] and [metadata] for [key] atomically. Returns
   /// the commit-log sequence number assigned to this write, or

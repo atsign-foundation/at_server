@@ -2,8 +2,10 @@ import 'dart:collection';
 import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/constants/wire_param_names.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -62,6 +64,25 @@ class ScanVerbHandler extends AbstractVerbHandler {
 
     try {
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+      if (verbParams[WireParams.commitLog] != null) {
+        // scan:cl — scan the commit log instead of the keystore, so a
+        // client can inspect (and then delete:nc) its entries.
+        if (!atConnectionMetadata.isAuthenticated) {
+          throw UnAuthenticatedException(
+              'scan:cl requires an authenticated connection');
+        }
+        if ((forAtSign != null && forAtSign.isNotEmpty) &&
+            forAtSign != currentAtSign) {
+          // The outbound scan proxy cannot forward :cl, so a remote
+          // commit-log scan would silently degrade to a plain remote
+          // scan — refuse loudly instead.
+          throw InvalidRequestException(
+              'scan:cl can only scan this atSign\'s own commit log');
+        }
+        response.data = jsonEncode(await getCommitLogEntries(
+            atConnectionMetadata, scanRegex, showHiddenKeys, currentAtSign));
+        return;
+      }
       // If forAtSign is set, fetch keys that are sharedBy the "forAtSign" to the currentAtSign
       // If currentAtSign is @alice and forAtSign is @bob, fetch all the keys that @bob has
       // created for @alice.
@@ -156,6 +177,64 @@ class ScanVerbHandler extends AbstractVerbHandler {
       }
       return localKeysList;
     }
+  }
+
+  /// The commit-log entries visible to this connection, as the JSON-ready
+  /// maps `scan:cl` returns, in ascending commitId order:
+  /// `{"atKey", "operation" (the CommitOp symbol sync also uses),
+  /// "commitId", "opTime" (ISO 8601 UTC)}`.
+  ///
+  /// The same filters as a keystore scan apply: [scanRegex] against the
+  /// atKey, the hidden-key rules ([_isPrivateKeyForAtSign] with
+  /// [showHiddenKeys]), and — for an APKAM connection — the enrollment
+  /// namespace filter ([_filterKeysBasedOnEnrollmentId]). DELETE entries
+  /// are included: an entry for a key that no longer exists is exactly
+  /// what commit-log cruft management is looking for.
+  @visibleForTesting
+  Future<List<Map<String, Object?>>> getCommitLogEntries(
+      InboundConnectionMetadata atConnectionMetadata,
+      String? scanRegex,
+      bool showHiddenKeys,
+      String currentAtSign) async {
+    final commitLog = keyStore.commitLog;
+    if (commitLog == null) {
+      return [];
+    }
+    final regex = scanRegex == null ? null : RegExp(scanRegex);
+    // The commit log holds at most one entry per atKey, so entries can be
+    // keyed by atKey and scan's own enrollment filter reused verbatim.
+    final byKey = <String, CommitEntry>{};
+    await for (final entry in commitLog.iterate()) {
+      final atKey = entry.atKey;
+      if (atKey == null || entry.commitId == null) {
+        continue;
+      }
+      if (_isPrivateKeyForAtSign(atKey, showHiddenKeys)) {
+        continue;
+      }
+      if (regex != null && !regex.hasMatch(atKey)) {
+        continue;
+      }
+      byKey[atKey] = entry;
+    }
+    List<String> visibleKeys = byKey.keys.toList();
+    if (atConnectionMetadata.enrollmentId != null &&
+        atConnectionMetadata.enrollmentId!.isNotEmpty) {
+      visibleKeys = await _filterKeysBasedOnEnrollmentId(
+          atConnectionMetadata, visibleKeys, currentAtSign);
+    }
+    final entries = visibleKeys.map((key) => byKey[key]!).toList()
+      ..sort((a, b) => a.commitId!.compareTo(b.commitId!));
+    return entries
+        .map((entry) => <String, Object?>{
+              'atKey': entry.atKey,
+              'operation': entry.operation.name,
+              'commitId': entry.commitId,
+              'opTime': entry.opTime == null
+                  ? null
+                  : VerbUtil.formatIso8601Micros(entry.opTime!),
+            })
+        .toList();
   }
 
   /// Checks if a key starts with `public:_`, `private:`, `privatekey:`.

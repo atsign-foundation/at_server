@@ -325,6 +325,11 @@ void main() async {
           matches(RegExp('id:1234:update:messageType:key:notifier:system'
               ':ttln:\\d{5}'
               ':ttr:1:ccd:true'
+              // fromCommonsMetadata's builder pass stamps
+              // createdAt/updatedAt, and the emitter transmits whatever
+              // timestamps the notification's metadata carries.
+              ':cAt:\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z'
+              ':uAt:\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z'
               ':isEncrypted:false'
               ':sharedKeyEnc:abc:pubKeyCS:123'
               ':pubKeyHash:someHash:hashingAlgo:someAlgo'

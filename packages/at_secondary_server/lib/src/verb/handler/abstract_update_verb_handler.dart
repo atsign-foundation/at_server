@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/constants/wire_param_names.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as hu;
@@ -77,7 +78,12 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   ///   has a null value
   ///   - Iterate through the verb params again; if there is a metadata param
   ///   supplied with a value of 'null' then set the AtMetaData field to null
-  Future<UpdatePreProcessResult> preProcessAndNotify(
+  ///
+  /// The auto-notification is NOT queued here — the handler queues it via
+  /// [notifyAfterStore] once the keystore write has succeeded, so the
+  /// notification carries the metadata that was actually stored and a failed
+  /// write queues nothing.
+  Future<UpdatePreProcessResult> preProcess(
       Response response,
       HashMap<String, String?> verbParams,
       UpdateParams updateParams,
@@ -86,7 +92,6 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     await super.processVerb(response, verbParams, atConnection);
 
     // Get the key and update the value
-    final sharedWith = updateParams.sharedWith;
     final sharedBy = updateParams.sharedBy;
     final value = updateParams.value;
     final atData = AtData();
@@ -185,15 +190,128 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       existingAtMetaData,
     );
 
-    await notify(
-        sharedBy,
-        sharedWith,
-        verbParams[AtConstants.atKey],
-        value,
-        SecondaryUtil.getNotificationPriority(verbParams[AtConstants.priority]),
-        atData.metaData!);
+    // Computed here, where existingAtMetaData reflects the expired-record
+    // drop above — an expired record must not have its old expiry carried
+    // forward into the record replacing it.
+    return UpdatePreProcessResult(
+        atKey,
+        atData,
+        effectiveAssertedTimestamps(updateParams.metadata!,
+            existingAtMetaData));
+  }
 
-    return UpdatePreProcessResult(atKey, atData);
+  /// Queues the auto-notification for a write that has already succeeded,
+  /// reading the metadata back from the store so the notification carries
+  /// exactly what was stored (client-asserted timestamps included).
+  ///
+  /// The caller still holds the per-key mutex, but delete and the TTL sweep
+  /// take no mutex, so the record can vanish between the write and the
+  /// read-back. The two outcomes are deliberately different:
+  ///
+  ///   * read-back returns NULL — the record was concurrently deleted, and
+  ///     the deleter has queued (or is queueing) its own delete
+  ///     notification. Queueing this update notification anyway could land
+  ///     it AFTER the delete notification and resurrect the receiver's
+  ///     cached key, so it is skipped, at warning.
+  ///   * read-back THROWS — a transient store error; the record is
+  ///     presumed present, so the notification is queued from the metadata
+  ///     that was written rather than being dropped.
+  ///
+  /// A notify-queueing failure is logged at warning and NOT rethrown: the
+  /// write happened, and the client's response must report it faithfully.
+  Future<void> notifyAfterStore(
+      HashMap<String, String?> verbParams,
+      UpdateParams updateParams,
+      UpdatePreProcessResult result) async {
+    AtMetaData? stored;
+    var readBackFailed = false;
+    try {
+      stored = await keyStore.getMeta(result.atKey);
+    } catch (e) {
+      readBackFailed = true;
+      logger.warning('metadata read-back for ${result.atKey} failed ($e);'
+          ' queueing the auto-notification from the written metadata');
+    }
+    if (stored == null && !readBackFailed) {
+      logger.warning('auto-notification for ${result.atKey} skipped: the'
+          ' record was deleted concurrently, and queueing an update'
+          ' notification now could overtake the delete notification');
+      return;
+    }
+    stored ??= result.atData.metaData;
+    try {
+      await notify(
+          updateParams.sharedBy,
+          updateParams.sharedWith,
+          verbParams[AtConstants.atKey],
+          updateParams.value,
+          SecondaryUtil.getNotificationPriority(
+              verbParams[AtConstants.priority]),
+          stored!);
+    } catch (e) {
+      logger.warning('auto-notification for ${result.atKey} was not queued'
+          ' ($e); the write itself succeeded');
+    }
+  }
+
+  /// The timestamps this write must store faithfully: the request's own
+  /// assertions ([metadata]'s createdAt/updatedAt/expiresAt/availableAt,
+  /// parsed off the wire by [getUpdateParams] or, for `update:json`, by
+  /// commons `Metadata.fromJson`) — plus, when the request says nothing at
+  /// all about an expiry axis, the [existing] record's absolute for that
+  /// axis, carried forward as an assertion so this write cannot move it.
+  ///
+  /// Without the carry, the retain-from-existing merge re-feeds the stored
+  /// ttl/ttb into the metadata builder, which re-derives the absolute from
+  /// now — so a write that never mentioned expiry would restart the expiry
+  /// clock (and re-open a ttb record's not-yet-born window). Once set, an
+  /// absolute moves only when a request speaks about its axis: a new
+  /// assertion stores faithfully, a fresh ttl/ttb re-derives from now,
+  /// ttl:0 clears the expiry, and ttb:0 re-stamps availableAt to now
+  /// (immediate availability — the birth axis has no cleared state).
+  ///
+  /// A request that asserts an absolute WITHOUT supplying its relative
+  /// (an eAt with no ttl, an aAt with no ttb) additionally asks the store
+  /// to derive the relative the absolute implies — deriveTtl/deriveTtb on
+  /// the returned assertions — replacing any ttl/ttb the retain-merge or
+  /// the json coercion may have put on the write's metadata. That decision
+  /// belongs here because only the request layer can tell a caller-
+  /// supplied relative from a retained or coerced one.
+  ///
+  /// "Says nothing" is judged per axis on the request's own metadata,
+  /// where absent means null. On the update:json path commons
+  /// `Metadata.fromJson` coerces an absent ttl/ttb to 0, which is
+  /// indistinguishable from an explicit 0 and therefore counts as the
+  /// request speaking (ttl:0 clears expiry, as it always has) — except
+  /// alongside an asserted absolute, where a 0 contradicts the absolute
+  /// and counts as unsupplied, so the derivation wins on both encodings.
+  ///
+  /// Returns null when there is nothing to assert.
+  AtAssertedTimestamps? effectiveAssertedTimestamps(
+      Metadata metadata, AtMetaData? existing) {
+    final expiryCarry = (metadata.expiresAt == null && metadata.ttl == null)
+        ? existing?.expiresAt
+        : null;
+    final birthCarry = (metadata.availableAt == null && metadata.ttb == null)
+        ? existing?.availableAt
+        : null;
+    if (metadata.createdAt == null &&
+        metadata.updatedAt == null &&
+        metadata.expiresAt == null &&
+        metadata.availableAt == null &&
+        expiryCarry == null &&
+        birthCarry == null) {
+      return null;
+    }
+    return AtAssertedTimestamps(
+        createdAt: metadata.createdAt,
+        updatedAt: metadata.updatedAt,
+        expiresAt: metadata.expiresAt ?? expiryCarry,
+        availableAt: metadata.availableAt ?? birthCarry,
+        deriveTtl: metadata.expiresAt != null &&
+            (metadata.ttl == null || metadata.ttl == 0),
+        deriveTtb: metadata.availableAt != null &&
+            (metadata.ttb == null || metadata.ttb == 0));
   }
 
   UpdateParams getUpdateParams(HashMap<String, String?> verbParams) {
@@ -227,6 +345,21 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     if (verbParams[AtConstants.ccd] != null) {
       metadata.ccd =
           AtMetadataUtil.getBoolVerbParams(verbParams[AtConstants.ccd]);
+    }
+    // Caller-asserted timestamps (:cAt/:uAt/:eAt/:aAt) — the verb grammar
+    // pins these to ISO 8601 UTC, so DateTime.parse cannot see a local time.
+    if (verbParams[AtConstants.createdAt] != null) {
+      metadata.createdAt = DateTime.parse(verbParams[AtConstants.createdAt]!);
+    }
+    if (verbParams[AtConstants.updatedAt] != null) {
+      metadata.updatedAt = DateTime.parse(verbParams[AtConstants.updatedAt]!);
+    }
+    if (verbParams[WireParams.expiresAt] != null) {
+      metadata.expiresAt = DateTime.parse(verbParams[WireParams.expiresAt]!);
+    }
+    if (verbParams[WireParams.availableAt] != null) {
+      metadata.availableAt =
+          DateTime.parse(verbParams[WireParams.availableAt]!);
     }
     metadata.dataSignature = verbParams[AtConstants.publicDataSignature];
     if (verbParams[AtConstants.isBinary] != null) {
@@ -432,7 +565,12 @@ class UpdatePreProcessResult {
   String atKey;
   AtData atData;
 
-  UpdatePreProcessResult(this.atKey, this.atData);
+  /// What the store must keep faithfully for this write — the request's
+  /// own timestamp assertions plus the silent-write expiry carry. See
+  /// [AbstractUpdateVerbHandler.effectiveAssertedTimestamps].
+  AtAssertedTimestamps? assertedTimestamps;
+
+  UpdatePreProcessResult(this.atKey, this.atData, this.assertedTimestamps);
 }
 
 /// Mutable holder for the per-key update mutex and its waiter count, so that

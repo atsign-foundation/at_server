@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/constants/wire_param_names.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -167,11 +168,19 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       throw InvalidAtKeyException(
           'notification key length ${cachedNotificationKey.length} is greater than $_maxKeyLength chars');
     }
+    // Sender-asserted timestamps travel to the keystore explicitly, so the
+    // cached key is stored with the origin's values. Passed on EVERY write
+    // that transmits them — a refresh of an existing cached key included —
+    // because direct keystore writes have no retain-merge to carry a
+    // previously-asserted expiry forward.
+    final asserted = _assertedTimestampsFromParams(verbParams);
+
     // If operationType is delete, remove the cached key only
     // when cascade delete is set to true
     int? cachedKeyCommitId;
     if (operationType == OperationType.delete) {
-      cachedKeyCommitId = await _removeCachedKey(cachedNotificationKey);
+      cachedKeyCommitId = await _removeCachedKey(cachedNotificationKey,
+          deletedAt: atNotificationBuilder.atMetaData?.updatedAt);
       //write the latest commit id to the StatsNotificationService
       _writeStats(cachedKeyCommitId, operationType.name);
       response.data = 'data:success';
@@ -193,7 +202,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
               existingMetaData: atMetadata)
           .build();
       cachedKeyCommitId = await _storeCachedKey(cachedNotificationKey, metadata,
-          atValue: atNotificationBuilder.atValue);
+          atValue: atNotificationBuilder.atValue, assertedTimestamps: asserted);
       //write the latest commit id to the StatsNotificationService
       _writeStats(cachedKeyCommitId, operationType.name);
       response.data = 'data:success';
@@ -203,8 +212,9 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     // cached key metadata.
     else if (isKeyPresent) {
       var atMetaData = atNotificationBuilder.atMetaData;
-      cachedKeyCommitId =
-          await _updateMetadata(cachedNotificationKey, atMetaData);
+      cachedKeyCommitId = await _updateMetadata(
+          cachedNotificationKey, atMetaData,
+          assertedTimestamps: asserted);
       //write the latest commit id to the StatsNotificationService
       _writeStats(cachedKeyCommitId, operationType.name);
       response.data = 'data:success';
@@ -212,6 +222,39 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     }
     response.data = 'data:success';
     return;
+  }
+
+  /// The sender-asserted timestamps carried by this notification's
+  /// :cAt/:uAt/:eAt/:aAt params, or null when none were transmitted.
+  ///
+  /// The derive flags are judged on the WIRE params, before this handler's
+  /// metadata assembly coerces an absent ttl/ttb to 0: a notification that
+  /// transmits an absolute without its relative asks the store to derive
+  /// the relative the absolute implies, replacing that coerced 0. Without
+  /// the flags, the coerced ttb:0 would make setTTB stamp availableAt to
+  /// arrival time on the cached copy, and any derivation reading the
+  /// merged metadata would treat the coercion as the sender's value.
+  AtAssertedTimestamps? _assertedTimestampsFromParams(
+      HashMap<String, String?> verbParams) {
+    DateTime? parse(String? v) => v == null ? null : DateTime.parse(v);
+    final createdAt = parse(verbParams[AtConstants.createdAt]);
+    final updatedAt = parse(verbParams[AtConstants.updatedAt]);
+    final expiresAt = parse(verbParams[WireParams.expiresAt]);
+    final availableAt = parse(verbParams[WireParams.availableAt]);
+    if (createdAt == null &&
+        updatedAt == null &&
+        expiresAt == null &&
+        availableAt == null) {
+      return null;
+    }
+    return AtAssertedTimestamps(
+        createdAt: createdAt,
+        updatedAt: updatedAt,
+        expiresAt: expiresAt,
+        availableAt: availableAt,
+        deriveTtl: expiresAt != null && verbParams[AtConstants.ttl] == null,
+        deriveTtb:
+            availableAt != null && verbParams[AtConstants.ttb] == null);
   }
 
   Future<void> _handleAuthenticatedConnection(
@@ -255,31 +298,36 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   /// AtMetadata metadata of the key.
   /// atValue value of the key to cache.
   Future<int?> _storeCachedKey(String cachedKey, AtMetaData? atMetaData,
-      {String? atValue}) async {
+      {String? atValue, AtAssertedTimestamps? assertedTimestamps}) async {
     var atData = AtData();
     atData.data = atValue;
     atData.metaData = atMetaData;
     if (logger.isLoggable('info')) {
       logger.info('Cached $cachedKey :  $atMetaData');
     }
-    return await keyStore.put(cachedKey, atData);
+    return await keyStore.put(cachedKey, atData,
+        assertedTimestamps: assertedTimestamps);
   }
 
-  Future<int?> _updateMetadata(String cachedKey, AtMetaData? atMetaData) async {
+  Future<int?> _updateMetadata(String cachedKey, AtMetaData? atMetaData,
+      {AtAssertedTimestamps? assertedTimestamps}) async {
     if (logger.isLoggable('info')) {
       logger.info('Updating the metadata of $cachedKey');
     }
-    return await keyStore.putMeta(cachedKey, atMetaData);
+    return await keyStore.putMeta(cachedKey, atMetaData,
+        assertedTimestamps: assertedTimestamps);
   }
 
-  ///Removes the cached key from the keystore.
-  Future<int?> _removeCachedKey(String cachedKey) async {
+  ///Removes the cached key from the keystore. [deletedAt] is the origin's
+  ///deletion time (transmitted as the delete notification's :uAt:),
+  ///recorded as the DELETE commit entry's opTime.
+  Future<int?> _removeCachedKey(String cachedKey, {DateTime? deletedAt}) async {
     var metadata = await keyStore.getMeta(cachedKey);
     if (metadata != null && metadata.isCascade == true) {
       if (logger.isLoggable('info')) {
         logger.info('Removed cached key $cachedKey');
       }
-      return await keyStore.remove(cachedKey);
+      return await keyStore.remove(cachedKey, deletedAt: deletedAt);
     } else {
       return null;
     }
@@ -408,6 +456,23 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     if (verbParams[AtConstants.immutable] != null) {
       atMetadata.immutable =
           SecondaryUtil.getBoolFromString(verbParams[AtConstants.immutable]);
+    }
+    // Sender-asserted timestamps (:cAt/:uAt/:eAt/:aAt) — carried on the
+    // notification so a cached key on this side can be stored with the
+    // ORIGIN's values rather than rederiving them on this server's clock.
+    // The grammar pins them to ISO 8601 UTC.
+    if (verbParams[AtConstants.createdAt] != null) {
+      atMetadata.createdAt = DateTime.parse(verbParams[AtConstants.createdAt]!);
+    }
+    if (verbParams[AtConstants.updatedAt] != null) {
+      atMetadata.updatedAt = DateTime.parse(verbParams[AtConstants.updatedAt]!);
+    }
+    if (verbParams[WireParams.expiresAt] != null) {
+      atMetadata.expiresAt = DateTime.parse(verbParams[WireParams.expiresAt]!);
+    }
+    if (verbParams[WireParams.availableAt] != null) {
+      atMetadata.availableAt =
+          DateTime.parse(verbParams[WireParams.availableAt]!);
     }
     // Arrives base64(JSON)-encoded on the wire; decodeAppMetadata also
     // maps an absent param (or the literal 'null') to null.

@@ -13,25 +13,59 @@ class AtMetadataBuilder {
 
   static final AtSignLogger logger = AtSignLogger('AtMetadataBuilder');
 
-  /// Requires an AtMetaData
+  /// Requires an AtMetaData.
+  ///
+  /// [asserted] carries caller-asserted timestamps (see
+  /// [AtAssertedTimestamps]). An asserted value is stored faithfully:
+  ///
+  ///   * `createdAt`: asserted value wins — on creation and on update of an
+  ///     existing record alike (the protocol treats a transmitted createdAt
+  ///     as the record's true creation time, e.g. when a record moves
+  ///     between atServers). Absent an assertion, a new record is stamped
+  ///     now and an existing record keeps its stored value.
+  ///   * `updatedAt`: asserted value wins; else stamped now.
+  ///   * `expiresAt` / `availableAt`: an asserted value wins AT THIS WRITE,
+  ///     suppressing the ttl/ttb derivation that would otherwise recompute
+  ///     it from now — that derivation is exactly what a faithful transfer
+  ///     must avoid, since it would restart the expiry clock on arrival.
+  ///     A later write that supplies a ttl/ttb without an assertion
+  ///     derives from now as usual. A caller that wants a write to leave
+  ///     an expiry axis untouched carries the record's stored absolute
+  ///     forward as an assertion — that is how the update verbs keep a
+  ///     write that says nothing about expiry from restarting the expiry
+  ///     clock.
+  ///
+  /// The inverse derivation also holds, on the caller's request: when
+  /// [asserted] carries `deriveTtl`/`deriveTtb` (set by callers whose own
+  /// request supplied the absolute without its relative), the ttl/ttb the
+  /// asserted absolute implies is derived and stored, replacing whatever
+  /// retained or coerced relative the write's metadata carries. See the
+  /// derivation block in the constructor body for the formulas.
   AtMetadataBuilder({
     required String atSign,
     required AtMetaData? newAtMetaData,
     AtMetaData? existingMetaData,
+    AtAssertedTimestamps? asserted,
   }) {
     atMetaData = newAtMetaData ?? existingMetaData ?? AtMetaData();
     // createdAt indicates the date and time of the key created.
     // For a new key, the currentDateTime is set and remains unchanged
-    // on an update event.
-    (existingMetaData?.createdAt == null)
-        ? atMetaData.createdAt = currentUtcTimeToMillisecondPrecision
-        : atMetaData.createdAt = existingMetaData?.createdAt;
+    // on an update event — unless the caller asserts a createdAt.
+    if (asserted?.createdAt != null) {
+      atMetaData.createdAt = asserted!.createdAt;
+    } else {
+      (existingMetaData?.createdAt == null)
+          ? atMetaData.createdAt = currentUtcTimeToMillisecondPrecision
+          : atMetaData.createdAt = existingMetaData?.createdAt;
+    }
     atMetaData.createdBy ??= atSign;
     atMetaData.updatedBy = atSign;
     // updatedAt indicates the date and time of the key updated.
     // For a new key, the updatedAt is same as createdAt and on key
-    // update, set the updatedAt to the currentDateTime.
-    atMetaData.updatedAt = currentUtcTimeToMillisecondPrecision;
+    // update, set the updatedAt to the currentDateTime — unless the
+    // caller asserts an updatedAt.
+    atMetaData.updatedAt =
+        asserted?.updatedAt ?? currentUtcTimeToMillisecondPrecision;
     atMetaData.status = 'active';
     // The version indicates the number of updates a key has received.
     // Version is set to 0 for a new key and for each update the key receives,
@@ -45,7 +79,7 @@ class AtMetadataBuilder {
     // to do.
     //
     // No update or update:meta arrives here with an immutable record. Both
-    // share AbstractUpdateVerbHandler.preProcessAndNotify, which refuses one
+    // share AbstractUpdateVerbHandler.preProcess, which refuses one
     // outright ('Immutable records may not be updated'). That stays true for an
     // EXPIRED immutable record, but for the opposite reason: such a record is
     // deleted before the write, so this builder is handed existingMetaData ==
@@ -69,14 +103,69 @@ class AtMetadataBuilder {
       atMetaData.immutable = true;
     }
 
-    // set expiresAt based on the ttl
-    if (atMetaData.ttl != null && atMetaData.ttl! >= 0) {
-      setTTL(atMetaData.ttl, ttb: atMetaData.ttb);
+    // set expiresAt based on the ttl — an asserted expiresAt wins over
+    // the derivation at this write (the write's ttl, if any, is still
+    // stored unless the caller asked for a derivation below)
+    if (asserted?.expiresAt != null) {
+      atMetaData.expiresAt = asserted!.expiresAt;
+    } else if (atMetaData.ttl != null && atMetaData.ttl! >= 0) {
+      // The ttb offset (forward: expiresAt = now + ttb + ttl, a record
+      // lives ttl ms from when it becomes available) applies only when
+      // this same write is re-deriving the birth window too. When an
+      // asserted availableAt pins the birth (a caller assertion, or the
+      // update verbs' expiry-silent carry), folding the metadata's ttb in
+      // would stretch the lifetime by a birth delay that is not
+      // restarting: a ttl-only write on a born record must expire at
+      // now + ttl exactly.
+      setTTL(atMetaData.ttl,
+          ttb: asserted?.availableAt == null ? atMetaData.ttb : null);
     }
-    // set availableAt based on the ttb
-    if (atMetaData.ttb != null && atMetaData.ttb! >= 0) {
+    // set availableAt based on the ttb — same assertion-wins rule
+    if (asserted?.availableAt != null) {
+      atMetaData.availableAt = asserted!.availableAt;
+    } else if (atMetaData.ttb != null && atMetaData.ttb! >= 0) {
       setTTB(atMetaData.ttb);
     }
+
+    // A record stored with an asserted absolute also carries the relative
+    // it implies — when the caller ASKED for that, via deriveTtb/deriveTtl
+    // (set when the caller's own request supplied the absolute without the
+    // relative; only the caller can tell, because a caller-supplied ttl
+    // and one retained from the stored record or coerced from an absent
+    // field are indistinguishable here). The derivation happens once, at
+    // this write; reads return the stored values verbatim and never
+    // recompute. It REPLACES whatever ttl/ttb the write's metadata
+    // carries — that value is retained or coerced, not the caller's. The
+    // formulas invert setTTB/setTTL's forward derivations, computed from
+    // the ASSERTED absolutes only (never from an availableAt that
+    // setTTB(0) manufactured from this server's clock three lines up):
+    // ttb spans updatedAt→availableAt, and ttl spans birth→expiresAt,
+    // where birth is the asserted availableAt when that lies ahead of
+    // updatedAt. Measuring from the stored updatedAt rather than this
+    // server's clock makes the result reproducible: a faithful transfer
+    // asserting uAt derives the same ttl on every server. A non-positive
+    // result clears the relative instead (null, never 0 — ttl 0 would
+    // mean "never expires"): the record is simply already available /
+    // already expired, and a retained relative would contradict the
+    // asserted absolute.
+    if (asserted != null) {
+      final updatedAt = atMetaData.updatedAt!;
+      if (asserted.deriveTtb && asserted.availableAt != null) {
+        final ttb =
+            asserted.availableAt!.difference(updatedAt).inMilliseconds;
+        atMetaData.ttb = ttb > 0 ? ttb : null;
+      }
+      if (asserted.deriveTtl && asserted.expiresAt != null) {
+        final assertedAvailableAt = asserted.availableAt;
+        final birth = (assertedAvailableAt != null &&
+                assertedAvailableAt.isAfter(updatedAt))
+            ? assertedAvailableAt
+            : updatedAt;
+        final ttl = asserted.expiresAt!.difference(birth).inMilliseconds;
+        atMetaData.ttl = ttl > 0 ? ttl : null;
+      }
+    }
+
     // Set refreshAt based on the TTR
     if (atMetaData.ttr != null && atMetaData.ttr! > 0 || atMetaData.ttr == -1) {
       setTTR(atMetaData.ttr);
