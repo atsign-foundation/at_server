@@ -254,6 +254,40 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     }
   }
 
+  /// Puts back the "this request said nothing about it" state that commons
+  /// `Metadata.fromJson` cannot represent.
+  ///
+  /// That parser turns an absent — or explicitly null — ttl/ttb/ttr into 0,
+  /// and `Metadata.toJson` always writes the three, so a null makes the
+  /// round trip as a 0. An `update:json` that never mentions expiry is then
+  /// indistinguishable from one asking for `ttl:0`, which clears the
+  /// record's expiry; the same goes for `ttb:0`, and for `ttr:0`, which
+  /// stops the record being cached at the receiver.
+  ///
+  /// The metadata-fragment form of the same request leaves an unmentioned
+  /// ttl/ttb/ttr null, and the retain-merge then keeps what the record
+  /// already holds — so without this the two encodings of one request store
+  /// different things, and only the json one moves an axis it never named.
+  /// Read from the decoded map the DTO was built from, which still has the
+  /// null.
+  ///
+  /// An at_commons that preserves the null makes this a no-op rather than a
+  /// correction: it reads the same map to the same answer either way.
+  void _restoreUnmentionedRelatives(Metadata? metadata, dynamic rawMetadata) {
+    if (metadata == null || rawMetadata is! Map) {
+      return;
+    }
+    if (rawMetadata[AtConstants.ttl] == null) {
+      metadata.ttl = null;
+    }
+    if (rawMetadata[AtConstants.ttb] == null) {
+      metadata.ttb = null;
+    }
+    if (rawMetadata[AtConstants.ttr] == null) {
+      metadata.ttr = null;
+    }
+  }
+
   /// The timestamps this write must store faithfully: the request's own
   /// assertions ([metadata]'s createdAt/updatedAt/expiresAt/availableAt,
   /// parsed off the wire by [getUpdateParams] or, for `update:json`, by
@@ -318,7 +352,9 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     if (verbParams['json'] != null) {
       var jsonString = verbParams['json']!;
       Map jsonMap = jsonDecode(jsonString);
-      return UpdateParams.fromJson(jsonMap);
+      final updateParams = UpdateParams.fromJson(jsonMap);
+      _restoreUnmentionedRelatives(updateParams.metadata, jsonMap['metadata']);
+      return updateParams;
     }
     var updateParams = UpdateParams();
     if (verbParams[AtConstants.atSign] != null) {
