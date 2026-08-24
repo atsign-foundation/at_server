@@ -523,18 +523,25 @@ class AtCacheManager {
             metadata.availableAt == null)) {
       return null;
     }
-    // Derive the relative a remote absolute implies when the remote record
-    // carries none (an older origin that never derived one) — 0 included,
-    // since a 0 beside an absolute is a coercion artefact, not a value.
+    // Derive the relative a remote absolute implies only when the remote
+    // record carries NONE of it. A 0 here is the origin's own value, never
+    // a coercion artefact: this path parses the remote record with
+    // AtMetaData.fromJson, which preserves a null ttl/ttb, unlike commons
+    // Metadata.fromJson on the update:json verb path, which turns an absent
+    // one into 0. So a `ttb: 0` ("available with no delay") is cached as it
+    // stands rather than replaced by the gap between the record's
+    // updatedAt and its availableAt — which is not that record's ttb
+    // whenever the two were stamped from different clocks, as they are for
+    // a record reaching the cache with a ttb but no availableAt of its own
+    // (setTTB then stamps one here, from this server's clock, while
+    // updatedAt stays the origin's).
     return AtAssertedTimestamps(
         createdAt: metadata.createdAt,
         updatedAt: metadata.updatedAt,
         expiresAt: metadata.expiresAt,
         availableAt: metadata.availableAt,
-        deriveTtl: metadata.expiresAt != null &&
-            (metadata.ttl == null || metadata.ttl == 0),
-        deriveTtb: metadata.availableAt != null &&
-            (metadata.ttb == null || metadata.ttb == 0));
+        deriveTtl: metadata.expiresAt != null && metadata.ttl == null,
+        deriveTtb: metadata.availableAt != null && metadata.ttb == null);
   }
 
   /// Does the remote lookup - returns the Atsign Protocol string which it receives

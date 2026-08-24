@@ -12,10 +12,15 @@
     (measured from the stored updatedAt — from the asserted availableAt
     when that lies ahead — so every server derives the same value from the
     same assertions), and an `:aAt` with no ttb derives the ttb, in each
-    case replacing any relative retained from the stored record. A
-    supplied 0 counts as unsupplied (the update:json path and the notify
-    receiver coerce an absent ttl/ttb to 0); a non-positive implied value
-    clears the relative instead.
+    case replacing any relative retained from the stored record. A 0
+    counts as unsupplied only where an absent value genuinely arrives as
+    one — the `update:json` path, where commons `Metadata.fromJson` turns
+    an absent ttl/ttb into 0. Where a missing relative is a real null —
+    the notify receiver, which keys on what the wire carried, and the
+    lookup-driven cache, which keys on the origin's own stored value — a
+    `ttb: 0` ("available with no delay") is cached as it stands rather
+    than re-derived. A non-positive implied value clears the relative
+    instead.
   - once set, expiresAt/availableAt move only when a request speaks about
     that axis: an asserted `:eAt`/`:aAt` stores faithfully, an explicit
     ttl/ttb re-derives from now (a ttl-only write on a record whose birth
