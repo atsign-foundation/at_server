@@ -352,5 +352,80 @@ void main() {
       expect(cached.metaData!.updatedAt, uAt);
       expect(cached.metaData!.expiresAt, eAt);
     });
+
+    // A relative the origin actually holds is cached as it stands. The
+    // derive-the-missing-relative rule keys on null, and a 0 is not
+    // missing: this path parses the remote record with AtMetaData.fromJson,
+    // which preserves a null ttl/ttb rather than coercing it to 0 the way
+    // commons Metadata.fromJson does on the update:json verb path.
+    //
+    // The origin's availableAt/expiresAt sit a long way from its updatedAt
+    // in both tests, so a derivation would not merely be wrong, it would
+    // store an unmistakable ~year-in-milliseconds number.
+    test('a cached copy keeps the origin\'s ttb of 0 rather than deriving '
+        'one from its availableAt', () async {
+      inboundConnection.metadata.isAuthenticated = true;
+      const keyName = 'ttb_zero.some_namespace@bob';
+
+      final AtData bobData = createRandomAtData(bob);
+      bobData.metaData!.ttr = 10;
+      bobData.metaData!.ttl = null;
+      bobData.metaData!.ttb = 0;
+      bobData.metaData!.updatedAt = uAt;
+      bobData.metaData!.availableAt = aAt;
+      final String bobDataAsJsonWithKey = SecondaryUtil.prepareResponseData(
+          'all', bobData,
+          key: '$alice:$keyName')!;
+
+      when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
+          .thenAnswer((Invocation invocation) async {
+        socketOnDataFn("data:$bobDataAsJsonWithKey\n$alice@".codeUnits);
+      });
+
+      final lookupHandler = LookupVerbHandler(
+          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+          accessLog: atAccessLog);
+      await lookupHandler.process('lookup:all:$keyName', inboundConnection);
+
+      final cached = await keyValueStore.get('cached:$alice:$keyName');
+      expect(cached!.metaData!.ttb, 0,
+          reason: 'ttb 0 means "available with no delay" — the origin\'s own '
+              'value, not a missing one. Deriving over it stores the gap '
+              'between the origin\'s updatedAt and its availableAt instead');
+      expect(cached.metaData!.availableAt, aAt,
+          reason: 'the absolute is still cached faithfully');
+    });
+
+    test('a cached copy keeps the origin\'s ttl of 0 rather than deriving '
+        'one from its expiresAt', () async {
+      inboundConnection.metadata.isAuthenticated = true;
+      const keyName = 'ttl_zero.some_namespace@bob';
+
+      final AtData bobData = createRandomAtData(bob);
+      bobData.metaData!.ttr = 10;
+      bobData.metaData!.ttb = null;
+      bobData.metaData!.ttl = 0;
+      bobData.metaData!.updatedAt = uAt;
+      bobData.metaData!.expiresAt = eAt;
+      final String bobDataAsJsonWithKey = SecondaryUtil.prepareResponseData(
+          'all', bobData,
+          key: '$alice:$keyName')!;
+
+      when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
+          .thenAnswer((Invocation invocation) async {
+        socketOnDataFn("data:$bobDataAsJsonWithKey\n$alice@".codeUnits);
+      });
+
+      final lookupHandler = LookupVerbHandler(
+          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+          accessLog: atAccessLog);
+      await lookupHandler.process('lookup:all:$keyName', inboundConnection);
+
+      final cached = await keyValueStore.get('cached:$alice:$keyName');
+      expect(cached!.metaData!.ttl, 0,
+          reason: 'a ttl the origin holds is cached as it stands');
+      expect(cached.metaData!.expiresAt, eAt,
+          reason: 'the absolute is still cached faithfully');
+    });
   });
 }
