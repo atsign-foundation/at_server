@@ -117,10 +117,15 @@ void main() {
   });
 
   group('concurrent OutboundClientManager.getClient for one pool key', () {
-    /// Long enough that two of these running together and two running one
-    /// after the other are far apart in wall clock, so the assertion below
-    /// has room either side of its threshold on a loaded machine.
-    const connectDelay = Duration(milliseconds: 150);
+    /// Wide enough that a caller reaching address resolution while another
+    /// is still inside it will do so within the window. Nothing asserts on
+    /// elapsed time, so the value only has to exceed scheduling jitter.
+    const connectDelay = Duration(milliseconds: 50);
+
+    /// Records entry to and exit from address resolution, so a test can say
+    /// whether two callers were inside [OutboundClient.connect] together
+    /// rather than inferring it from how long they took.
+    final resolutionEvents = <String>[];
 
     /// Delays address resolution so that both callers are inside
     /// [OutboundClient.connect] at once — the window between finding no
@@ -128,10 +133,14 @@ void main() {
     void slowDownConnecting() {
       when(() => mockSecondaryAddressFinder.findSecondary(bob))
           .thenAnswer((_) async {
+        resolutionEvents.add('enter $bob');
         await Future.delayed(connectDelay);
+        resolutionEvents.add('exit $bob');
         return at_lookup.SecondaryAddress(bobHost, bobPort);
       });
     }
+
+    setUp(resolutionEvents.clear);
 
     test('two callers that both miss share one client rather than each'
         ' creating one', () async {
@@ -162,7 +171,9 @@ void main() {
       slowDownConnecting();
       when(() => mockSecondaryAddressFinder.findSecondary(alice))
           .thenAnswer((_) async {
+        resolutionEvents.add('enter $alice');
         await Future.delayed(connectDelay);
+        resolutionEvents.add('exit $alice');
         return at_lookup.SecondaryAddress(bobHost, bobPort);
       });
       when(() => mockOutboundConnectionFactory.createOutboundConnection(
@@ -174,23 +185,21 @@ void main() {
           mockSecondaryAddressFinder, mockOutboundConnectionFactory,
           poolSize: 5);
 
-      final stopwatch = Stopwatch()..start();
       await Future.wait([
         manager.getClient(bob, DummyInboundConnection(),
             handshakeRequired: false),
         manager.getClient(alice, DummyInboundConnection(),
             handshakeRequired: false),
       ]);
-      stopwatch.stop();
 
       expect(manager.getActiveConnectionSize(), 2);
-      // Two resolutions run together take about one [connectDelay];
-      // serialised they take two. Measured on the fixed build: ~170ms
-      // together, ~320ms when getClient takes one lock for the whole
-      // manager rather than one per pool key.
-      expect(stopwatch.elapsedMilliseconds, lessThan(250),
+      // Assert the overlap itself rather than how long the pair took: both
+      // callers must be inside address resolution before either leaves it.
+      // A lock covering the whole manager would produce
+      // [enter, exit, enter, exit] instead.
+      expect(resolutionEvents.take(2), containsAll(['enter $bob', 'enter $alice']),
           reason: 'connecting to one atSign must not hold up connecting to'
-              ' another');
+              ' another: both callers should be inside connect() together');
     });
 
     test('the per-key lock table does not retain entries', () async {

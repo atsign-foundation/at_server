@@ -43,6 +43,13 @@ class OutboundClientManager {
   ///
   /// Per key rather than one lock for the whole manager, so that connecting
   /// to one atSign does not hold up connecting to another.
+  ///
+  /// The guarantee is per key and nothing more. [OutboundClientPool]'s
+  /// capacity check, its eviction of the least recently used client and its
+  /// add are shared across every key, and callers for different keys hold
+  /// different locks, so concurrent misses for different keys can each pass
+  /// the capacity check before either adds: [poolSize] bounds the pool only
+  /// when misses do not overlap.
   final Map<(String, Object, bool), _MutexRef> _getClientMutexes = {};
 
   /// Which callers contend for the same lock, following the rule
