@@ -1,4 +1,11 @@
 # 3.16.3
+- fix: answer each cross-atSign request with its own response. A pooled
+  `OutboundClient` is shared by every caller that needs the same remote
+  atServer, and its response queue is in arrival order with nothing pairing
+  a response to the request that caused it, so two requests in flight on one
+  socket could each be answered with the other's record — well formed, but
+  not what was asked for. Each request/response pair now completes on the
+  socket before the next request is written to it.
 - feat: implement the at_commons 5.10.0 protocol enhancements on the
   update/update:meta/update:json/delete surface (#2678):
   - `:cAt`/`:uAt`/`:eAt`/`:aAt` — caller-asserted
