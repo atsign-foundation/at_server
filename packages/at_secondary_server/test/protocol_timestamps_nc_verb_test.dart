@@ -378,16 +378,21 @@ void main() {
           reason: 'the explicit ttb re-derives availableAt = now + ttb');
     });
 
-    test('an expiry-silent update:json clears expiry (the json encoding '
-        'cannot say nothing about expiry)', () async {
-      // commons Metadata.fromJson coerces an absent ttl to 0, and a 0
-      // with no asserted expiry is indistinguishable from an explicit
-      // clear — so the no-slide carry is unreachable via update:json.
-      // This pins that documented limitation.
+    // The two encodings of one request must store the same thing. commons
+    // Metadata.fromJson turns an absent — or explicitly null — ttl/ttb/ttr
+    // into 0 and Metadata.toJson always writes the three, so what a json
+    // request never mentioned used to arrive as `0`: an explicit "clear the
+    // expiry" / "no delay" / "do not cache". getUpdateParams puts the null
+    // back from the decoded map, so a json request moves an axis only when
+    // it names one, exactly as the metadata-fragment form does.
+    test('an expiry-silent update:json leaves expiresAt alone, like the '
+        'metadata-fragment form', () async {
       await updateHandler.process(
           'update:ttl:86400000:@bob:phone.wavi$alice v1', inboundConnection);
       final before = await llookupAllAtMetaData('@bob:phone.wavi$alice');
-      expect(before.expiresAt, isNotNull);
+      expect(before.expiresAt, isNotNull,
+          reason: 'guards the comparison below — null == null would pass '
+              'without the axis ever having been populated');
 
       final json = jsonEncode({
         'atKey': 'phone.wavi',
@@ -398,10 +403,41 @@ void main() {
       });
       await updateHandler.process('update:json:$json', inboundConnection);
       final after = await llookupAllAtMetaData('@bob:phone.wavi$alice');
-      expect(after.expiresAt, isNull,
-          reason: 'the coerced ttl:0 counts as the request speaking, and '
-              'ttl:0 clears — an update:json client that wants to keep a '
-              'record\'s expiry must send its metadata back');
+      expect(after.expiresAt, before.expiresAt,
+          reason: 'this request named no expiry, so it must not clear one');
+      expect(after.ttl, 86400000);
+      await llookupHandler.process(
+          'llookup:@bob:phone.wavi$alice', inboundConnection);
+      expect(inboundConnection.lastWrittenData, startsWith('data:v2'),
+          reason: 'proves the json write actually happened — an unchanged '
+              'expiry must not be because the write was lost');
+    });
+
+    test('a ttr-silent update:json leaves the record cacheable', () async {
+      // ttr 0 means "do not cache", so the coerced 0 silently switched off
+      // caching for a key whose json update never mentioned ttr.
+      await updateHandler.process(
+          'update:ttr:100000:ccd:true:@bob:phone.wavi$alice v1',
+          inboundConnection);
+      final before = await llookupAllAtMetaData('@bob:phone.wavi$alice');
+      expect(before.ttr, 100000);
+
+      final json = jsonEncode({
+        'atKey': 'phone.wavi',
+        'value': 'v2',
+        'sharedBy': alice,
+        'sharedWith': '@bob',
+        'metadata': Metadata().toJson(),
+      });
+      await updateHandler.process('update:json:$json', inboundConnection);
+      final after = await llookupAllAtMetaData('@bob:phone.wavi$alice');
+      expect(after.ttr, 100000,
+          reason: 'this request named no ttr, so it must not stop the '
+              'record being cached at the receiver');
+      await llookupHandler.process(
+          'llookup:@bob:phone.wavi$alice', inboundConnection);
+      expect(inboundConnection.lastWrittenData, startsWith('data:v2'),
+          reason: 'proves the json write actually happened');
     });
 
     test('a write that says nothing about availability does not move '

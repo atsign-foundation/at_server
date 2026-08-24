@@ -80,6 +80,17 @@
   The keystore canonicalizes keys to lowercase, so two case-variants of
   one update command name the same stored record; keyed on the original
   case they took different mutexes and raced.
+- fix: an `update:json` moves a record's ttl, ttb or ttr only when the
+  request names one, matching the metadata-fragment form of the same
+  request. commons `Metadata.fromJson` turns an absent — or explicitly
+  null — ttl/ttb/ttr into 0 and `Metadata.toJson` always writes the
+  three, so what a json request never mentioned arrived as an explicit
+  `ttl:0` (clear the record's expiry), `ttb:0` (available with no delay)
+  or `ttr:0` (do not cache): a value-only json update silently dropped a
+  record's expiry and stopped it being cached at the receiver. The verb
+  layer now reads the nulls back off the decoded map the DTO was built
+  from. A future at_commons that preserves them makes this a no-op
+  rather than a correction.
 
 # 3.16.2
 - fix(at_secondary_server): a closed `NotificationManager` now stops its
