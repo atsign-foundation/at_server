@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
@@ -179,6 +181,53 @@ void main() async {
           throwsA(predicate((dynamic e) => e is AtConnectException)),
           reason: 'a bare prompt is not an answer to an ordinary request, so'
               ' it must fail loudly rather than be handed back as data');
+    });
+  });
+
+  /// read() bounds an exchange two ways: a total budget, and the gap it will
+  /// tolerate between chunks. One budget cannot do both jobs — it either cuts
+  /// off a response that is still arriving, or waits out the whole budget on a
+  /// peer that has stopped answering.
+  group('the inter-chunk budget', () {
+    test('fires long before the total budget when the peer goes quiet',
+        () async {
+      OutboundMessageListener listener =
+          OutboundMessageListener(mockOutboundClient);
+
+      final stopwatch = Stopwatch()..start();
+      await expectLater(
+          () => listener.read(
+              maxWaitMilliSeconds: 10000, transientWaitTimeMillis: 100),
+          throwsA(predicate((dynamic e) =>
+              e is AtTimeoutException &&
+              e.message.contains('Nothing received for 100 millis'))),
+          reason: 'a silent peer must be given up on after the inter-chunk'
+              ' budget, not after the whole exchange budget');
+      stopwatch.stop();
+      expect(stopwatch.elapsedMilliseconds, lessThan(5000),
+          reason: 'it must not have waited out the 10s total budget');
+    });
+
+    test('is reset by every chunk, so a response still arriving survives',
+        () async {
+      OutboundMessageListener listener =
+          OutboundMessageListener(mockOutboundClient);
+
+      // Four chunks, each gap inside the 300ms inter-chunk budget, together
+      // well past it. This succeeds only if each chunk restarts the clock.
+      unawaited(() async {
+        for (final chunk in ['data:A', 'BB', 'CCC', '\n$alice@']) {
+          await Future.delayed(Duration(milliseconds: 120));
+          await listener.messageHandler(chunk.codeUnits);
+        }
+      }());
+
+      expect(
+          await listener.read(
+              maxWaitMilliSeconds: 10000, transientWaitTimeMillis: 300),
+          'data:ABBCCC',
+          reason: 'a large response arriving steadily is not a peer that has'
+              ' stopped answering, and must not be cut off as one');
     });
   });
 

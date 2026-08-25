@@ -28,6 +28,16 @@ class OutboundMessageListener {
   /// around its `pol` exchange and nowhere else.
   bool expectingHandshakePrompt = false;
 
+  /// When the peer was last heard from, on this connection.
+  ///
+  /// [read] bounds a response two ways: a total budget for the whole
+  /// exchange, and this, the gap it will tolerate between one chunk and the
+  /// next. A large response arriving steadily is not the same thing as a
+  /// peer that has stopped answering, and a single total budget cannot tell
+  /// them apart — it either cuts off a response that was still coming, or
+  /// waits out the full budget on a peer that is never going to reply.
+  DateTime _lastReceivedTime = DateTime.now();
+
   OutboundMessageListener(this.outboundClient);
 
   /// Listens to the underlying connection's socket if the connection is created.
@@ -57,6 +67,9 @@ class OutboundMessageListener {
       _buffer.clear();
       return;
     }
+    // The peer is alive and sending, whether or not this chunk completes a
+    // response. [read]'s inter-chunk budget is measured from here.
+    _lastReceivedTime = DateTime.now();
     String result;
     if (!_buffer.isOverFlow(data)) {
       // skip @ prompt. byte code for @ is 64
@@ -115,13 +128,18 @@ class OutboundMessageListener {
   /// Note: Exceptions thrown here, if not handled anywhere else, will be handled in [AtSecondaryServerImpl._executeVerbCallBack].
   /// Throws [AtConnectException] upon an 'error:...' response from the remote secondary.
   /// Throws [AtConnectException] upon a bad response (not 'data:...', not 'error:...') from remote secondary.
-  /// Throws [TimeoutException] If there is no message in queue after [maxWaitMilliSeconds].
-  Future<String> read({int maxWaitMilliSeconds = 3000}) async {
+  /// Throws [AtTimeoutException] if the whole exchange exceeds
+  /// [maxWaitMilliSeconds], or if nothing arrives from the peer for
+  /// [transientWaitTimeMillis]. Both are needed: the first alone cannot tell
+  /// a large response still arriving from a peer that has stopped answering.
+  Future<String> read(
+      {int maxWaitMilliSeconds = 30000,
+      int transientWaitTimeMillis = 10000}) async {
     var loopMillis = 10;
-    //wait maxWaitMilliSeconds seconds for response from remote socket
-    var loopCount = (maxWaitMilliSeconds / loopMillis).round();
+    var startTime = DateTime.now();
+    _lastReceivedTime = startTime;
 
-    for (var i = 0; i < loopCount; i++) {
+    while (true) {
       var queueLength = _queue.length;
       if (queueLength > 0) {
         String result = _queue.removeFirst();
@@ -166,13 +184,27 @@ class OutboundMessageListener {
             ' at ${outboundClient.toHost}:${outboundClient.toPort}'
             ' was closed before a response was received');
       }
+      // The whole exchange has run out of time.
+      if (DateTime.now().difference(startTime).inMilliseconds >
+          maxWaitMilliSeconds) {
+        _buffer.clear();
+        _closeOutboundClient();
+        throw AtTimeoutException(
+            "No response after $maxWaitMilliSeconds millis from remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort}");
+      }
+      // Nothing has arrived for a while. A response that is still coming
+      // keeps resetting this, so reaching it means the peer has gone quiet
+      // rather than that the response is merely large.
+      if (DateTime.now().difference(_lastReceivedTime).inMilliseconds >
+          transientWaitTimeMillis) {
+        _buffer.clear();
+        _closeOutboundClient();
+        throw AtTimeoutException(
+            "Nothing received for $transientWaitTimeMillis millis from remote"
+            " secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort}");
+      }
       await Future.delayed(Duration(milliseconds: loopMillis));
     }
-    // No response ... that's probably bad, so in addition to throwing an exception, let's also close the connection
-    _buffer.clear();
-    _closeOutboundClient();
-    throw AtTimeoutException(
-        "No response after $maxWaitMilliSeconds millis from remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort}");
   }
 
   AtException _throwAtExceptionFromErrorResponse(String errorResponse) {

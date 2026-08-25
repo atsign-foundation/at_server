@@ -38,8 +38,12 @@ class OutboundClient {
   bool isHandShakeDone = false;
   bool handshakeRequired;
   DateTime lastUsed = DateTime.now();
-  int lookupTimeoutMillis = 5 * 1000;
-  int notifyTimeoutMillis = 10 * 1000;
+  /// Total budget for one exchange. Generous because
+  /// [OutboundMessageListener.read]'s inter-chunk budget is what detects a
+  /// peer that has stopped answering; this bounds only how long a response
+  /// that is genuinely still arriving may take.
+  int lookupTimeoutMillis = 30 * 1000;
+  int notifyTimeoutMillis = 30 * 1000;
 
   at_lookup.SecondaryAddressFinder secondaryAddressFinder;
 

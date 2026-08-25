@@ -10,6 +10,13 @@
 - fix: a chunk arriving mid-response that happens to begin and end with `@`
   is treated as payload rather than as a prompt, so a value containing an
   atSign at a segment boundary is no longer flushed as a truncated response.
+- fix: bound an outbound read two ways, by the whole exchange and by the gap
+  between chunks. A single budget could not tell a large response still
+  arriving from a peer that had stopped answering: it cut the first off and
+  waited out the full budget on the second. A peer that goes quiet is now
+  given up on after 10s rather than up to 30s, while a response that keeps
+  arriving may take up to 30s rather than being cut off at 5s. The outbound
+  lookup and notify budgets move from 5s and 10s to 30s accordingly.
 - fix: discard a partial response when an outbound read fails. A read that
   timed out, hit an `error:` response or found the connection closed left
   whatever had arrived so far in the buffer, where it prefixed the next
