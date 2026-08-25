@@ -139,9 +139,14 @@ class OutboundMessageListener {
           // So right now, the right thing to do here is to throw an exception.
           // We can leave the connection open since an 'error:' response indicates normal functioning on the other end
           result = result.replaceFirst(_errorPrefix, '');
+          // A partial response left in the buffer belongs to an exchange that
+          // is over. Discard it, or it prefixes the next response and the
+          // caller after this one is answered with a corrupted record.
+          _buffer.clear();
           _throwAtExceptionFromErrorResponse(result);
         } else {
           // any other response is unexpected and bad, so close the connection and throw an exception
+          _buffer.clear();
           _closeOutboundClient();
           throw AtConnectException(
               "Unexpected response '$result' from remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort}");
@@ -154,6 +159,7 @@ class OutboundMessageListener {
       // it does not understand (atServers up to v3.0.28 do this).
       if (outboundClient.outboundConnection == null ||
           outboundClient.outboundConnection!.metaData.isClosed) {
+        _buffer.clear();
         _closeOutboundClient();
         throw AtConnectException(
             'Connection to remote secondary ${outboundClient.toAtSign}'
@@ -163,6 +169,7 @@ class OutboundMessageListener {
       await Future.delayed(Duration(milliseconds: loopMillis));
     }
     // No response ... that's probably bad, so in addition to throwing an exception, let's also close the connection
+    _buffer.clear();
     _closeOutboundClient();
     throw AtTimeoutException(
         "No response after $maxWaitMilliSeconds millis from remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort}");

@@ -10,6 +10,10 @@
 - fix: a chunk arriving mid-response that happens to begin and end with `@`
   is treated as payload rather than as a prompt, so a value containing an
   atSign at a segment boundary is no longer flushed as a truncated response.
+- fix: discard a partial response when an outbound read fails. A read that
+  timed out, hit an `error:` response or found the connection closed left
+  whatever had arrived so far in the buffer, where it prefixed the next
+  response and handed the following caller a corrupted record.
 - fix: answer each cross-atSign request with its own response. A pooled
   `OutboundClient` is shared by every caller that needs the same remote
   atServer, and its response queue is in arrival order with nothing pairing

@@ -182,6 +182,25 @@ void main() async {
     });
   });
 
+  group('a partial response left behind by a failed read', () {
+    test('does not prefix the response the next exchange reads', () async {
+      OutboundMessageListener listener =
+          OutboundMessageListener(mockOutboundClient);
+
+      // A response that never terminates, so nothing is ever queued and the
+      // caller gives up with the fragment still in the buffer.
+      await listener.messageHandler('data:half-a-respon'.codeUnits);
+      await expectLater(() => listener.read(maxWaitMilliSeconds: 200),
+          throwsA(predicate((dynamic e) => e is AtTimeoutException)));
+
+      // The next exchange must be answered with its own response, whole.
+      await listener.messageHandler('data:NEXT\n$alice@'.codeUnits);
+      expect(await listener.read(), 'data:NEXT',
+          reason: 'a fragment from an exchange that is over must be discarded,'
+              ' not carried forward to corrupt the next response');
+    });
+  });
+
   group('a mid-response chunk that begins and ends with @', () {
     test('is kept as payload rather than flushing a truncated response',
         () async {
