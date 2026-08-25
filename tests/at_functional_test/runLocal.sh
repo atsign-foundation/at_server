@@ -61,6 +61,7 @@ docker run --rm \
 echo "copy root and secondary binaries to tools/build_virtual_environment/ve"
 cd $repoDir
 mkdir -p tools/build_virtual_environment/ve/contents/atsign/root
+mkdir -p tools/build_virtual_environment/ve/contents/atsign/secondary
 cp packages/at_root_server/root tools/build_virtual_environment/ve/contents/atsign/root/
 cp packages/at_root_server/pubspec.yaml tools/build_virtual_environment/ve/contents/atsign/root/
 chmod 755 tools/build_virtual_environment/ve/contents/atsign/root/root
