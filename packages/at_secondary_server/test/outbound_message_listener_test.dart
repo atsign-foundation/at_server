@@ -112,4 +112,91 @@ void main() async {
                   'Request to remote secondary $alice at localhost:25000 received error response \' key not found : phone$alice does not exist in keystore\'')));
     });
   });
+
+  /// A response and the prompt that follows it are written by the peer as one
+  /// string, but the network may deliver them as two reads. A bare
+  /// `@<atSign>@` on an empty buffer is then indistinguishable from the `pol`
+  /// response, which is the one response shaped that way — so the client
+  /// declares when it is expecting one.
+  group('a prompt segmented away from the response it follows', () {
+    test('is not queued as a response when no handshake prompt is expected',
+        () async {
+      OutboundMessageListener listener =
+          OutboundMessageListener(mockOutboundClient);
+
+      await listener.messageHandler('data:phone$alice\n'.codeUnits);
+      await listener.messageHandler('$alice@'.codeUnits);
+
+      expect(await listener.read(), 'data:phone$alice');
+      // The prompt must not be sitting in the queue behind it.
+      await expectLater(() => listener.read(maxWaitMilliSeconds: 200),
+          throwsA(predicate((dynamic e) => e is AtTimeoutException)),
+          reason: 'the trailing prompt carries no payload and no caller is'
+              ' waiting for it, so nothing should remain to be read');
+    });
+
+    test('leaves the next exchange answered by its own response', () async {
+      OutboundMessageListener listener =
+          OutboundMessageListener(mockOutboundClient);
+
+      // First exchange: response and prompt arrive as separate reads.
+      await listener.messageHandler('data:FIRST\n'.codeUnits);
+      await listener.messageHandler('$alice@'.codeUnits);
+      expect(await listener.read(), 'data:FIRST');
+
+      // Second exchange, answered normally.
+      await listener.messageHandler('data:SECOND\n$alice@'.codeUnits);
+      expect(await listener.read(), 'data:SECOND',
+          reason: 'the second exchange must be answered with its own response,'
+              ' not with the prompt left over from the first');
+    });
+
+    test('is delivered when the client IS expecting a handshake prompt',
+        () async {
+      OutboundMessageListener listener =
+          OutboundMessageListener(mockOutboundClient);
+
+      listener.expectingHandshakePrompt = true;
+      await listener.messageHandler('$alice@'.codeUnits);
+
+      expect(await listener.read(), '$alice@',
+          reason: 'the pol response is a bare prompt and must still be'
+              ' readable while the handshake is in flight');
+    });
+
+    test('queued during a handshake is refused once the handshake is over',
+        () async {
+      OutboundMessageListener listener =
+          OutboundMessageListener(mockOutboundClient);
+
+      // A pol prompt that was queued but never consumed — the handshake gave
+      // up between the queue and the read — and the flag has since cleared.
+      listener.expectingHandshakePrompt = true;
+      await listener.messageHandler('$alice@'.codeUnits);
+      listener.expectingHandshakePrompt = false;
+
+      expect(() async => await listener.read(maxWaitMilliSeconds: 200),
+          throwsA(predicate((dynamic e) => e is AtConnectException)),
+          reason: 'a bare prompt is not an answer to an ordinary request, so'
+              ' it must fail loudly rather than be handed back as data');
+    });
+  });
+
+  group('a mid-response chunk that begins and ends with @', () {
+    test('is kept as payload rather than flushing a truncated response',
+        () async {
+      OutboundMessageListener listener =
+          OutboundMessageListener(mockOutboundClient);
+
+      // A record whose value contains an atSign, segmented so that the middle
+      // chunk both begins and ends with '@'. It is payload, not a prompt.
+      await listener.messageHandler('data:{"k":"a'.codeUnits);
+      await listener.messageHandler('@bob.and.@'.codeUnits);
+      await listener.messageHandler('carol"}\n$alice@'.codeUnits);
+
+      expect(await listener.read(), 'data:{"k":"a@bob.and.@carol"}',
+          reason: 'every byte of the response must survive reassembly: a chunk'
+              ' is only a prompt when the buffer is empty');
+    });
+  });
 }

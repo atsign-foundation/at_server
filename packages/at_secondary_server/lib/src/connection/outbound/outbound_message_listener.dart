@@ -18,6 +18,16 @@ class OutboundMessageListener {
   final _buffer = ByteBuffer(capacity: 10240000);
   final Queue _queue = Queue();
 
+  /// Whether a bare `@<atSign>@` arriving on the wire is a response in its
+  /// own right, rather than the prompt trailing a response already queued.
+  ///
+  /// `pol` is the only response carrying no `data:` prefix and no
+  /// terminating newline, so it is the only one shaped like a bare prompt.
+  /// The two are indistinguishable from the bytes alone — both arrive on an
+  /// empty buffer immediately after a flush — so [OutboundClient] sets this
+  /// around its `pol` exchange and nowhere else.
+  bool expectingHandshakePrompt = false;
+
   OutboundMessageListener(this.outboundClient);
 
   /// Listens to the underlying connection's socket if the connection is created.
@@ -57,11 +67,29 @@ class OutboundMessageListener {
       if (data.last == 64 && data.contains(10)) {
         data = data.sublist(0, data.lastIndexOf(10) + 1);
         _buffer.append(data);
-      } else if (data.length > 1 && data.first == 64 && data.last == 64) {
+      } else if (data.length > 1 &&
+          data.first == 64 &&
+          data.last == 64 &&
+          _buffer.length() == 0) {
+        // A bare `@<atSign>@` on an empty buffer is either the pol response
+        // or the prompt trailing a response that has already been queued,
+        // segmented away from it by the network. Only the caller knows which,
+        // and it says so via [expectingHandshakePrompt].
+        if (!expectingHandshakePrompt) {
+          // The trailing prompt. It carries no payload and no caller is
+          // waiting for it, so queueing it would answer the NEXT request
+          // with it and leave every later response one behind.
+          logger.finer('Discarding the prompt that trailed a response already'
+              ' read from ${outboundClient.toAtSign}');
+          return;
+        }
         // pol responses do not end with '\n'. Add \n for buffer completion
         _buffer.append(data);
         _buffer.addByte(10);
       } else {
+        // Everything else is response payload — including a mid-response
+        // chunk that happens to begin and end with '@', which the branch
+        // above must not claim, or the response is silently truncated.
         _buffer.append(data);
       }
     } else {
@@ -97,9 +125,14 @@ class OutboundMessageListener {
       var queueLength = _queue.length;
       if (queueLength > 0) {
         String result = _queue.removeFirst();
-        // result from another secondary should be either data: or error: or a @<atSign>@ denoting handshake completion
+        // result from another secondary should be either data: or error: or,
+        // when the pol exchange is in flight, a @<atSign>@ denoting handshake
+        // completion. A bare prompt at any other time is not an answer to
+        // anything, so it must not be handed back as one.
         if (result.startsWith('data:') ||
-            (result.startsWith('@') && result.endsWith('@'))) {
+            (expectingHandshakePrompt &&
+                result.startsWith('@') &&
+                result.endsWith('@'))) {
           return result;
         } else if (result.startsWith('error:')) {
           // Right now, all callers of this method only expect there ever to be a 'data:' response.

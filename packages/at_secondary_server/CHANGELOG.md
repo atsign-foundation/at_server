@@ -1,4 +1,15 @@
 # 3.16.3
+- fix: don't answer a request with the prompt that trailed the previous
+  response. A peer writes a response and its trailing prompt as one string,
+  but the network may deliver them as two reads. The outbound message
+  listener then queued the bare prompt as a response in its own right, so
+  the next request was answered with it and every later response was one
+  behind for as long as the connection lived. A prompt arriving on its own
+  is now discarded, except while the `pol` handshake — the one response
+  genuinely shaped like a bare prompt — is in flight.
+- fix: a chunk arriving mid-response that happens to begin and end with `@`
+  is treated as payload rather than as a prompt, so a value containing an
+  atSign at a segment boundary is no longer flushed as a truncated response.
 - fix: answer each cross-atSign request with its own response. A pooled
   `OutboundClient` is shared by every caller that needs the same remote
   atServer, and its response queue is in arrival order with nothing pairing

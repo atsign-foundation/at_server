@@ -358,19 +358,31 @@ class OutboundClient {
       }
 
       //4. Create pol request
-      await outboundConnection!.write(AtRequestFormatter.createPolRequest());
+      // The pol response is a bare `@<atSign>@` — no `data:` prefix, no
+      // terminating newline — which is otherwise indistinguishable from the
+      // prompt trailing an earlier response. Tell the listener to expect one,
+      // before the write, since the response can arrive as soon as it
+      // completes. Cleared unconditionally afterwards so that a prompt
+      // arriving late, after this exchange has given up, is discarded rather
+      // than answering whatever runs next.
+      messageListener.expectingHandshakePrompt = true;
+      try {
+        await outboundConnection!.write(AtRequestFormatter.createPolRequest());
 
-      // 5. wait for handshake result - @<current_atsign>@
-      var handShakeResult = await messageListener.read();
-      var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-      if (handShakeResult.startsWith('$currentAtSign@')) {
-        logger.info("pol handshake complete");
-        outboundConnection!.authenticated = true;
-        return true;
-      } else {
-        logger.info(
-            "pol handshake failed - handShakeResult was $handShakeResult");
-        return false;
+        // 5. wait for handshake result - @<current_atsign>@
+        var handShakeResult = await messageListener.read();
+        var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+        if (handShakeResult.startsWith('$currentAtSign@')) {
+          logger.info("pol handshake complete");
+          outboundConnection!.authenticated = true;
+          return true;
+        } else {
+          logger.info(
+              "pol handshake failed - handShakeResult was $handShakeResult");
+          return false;
+        }
+      } finally {
+        messageListener.expectingHandshakePrompt = false;
       }
     } on ConnectionInvalidException catch (e) {
       logger.severe('$this | encountered $e');
