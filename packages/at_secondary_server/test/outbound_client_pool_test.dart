@@ -1,13 +1,23 @@
+import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_pool.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection_impl.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_message_listener.dart';
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
+
+/// [FakeSocket] does not implement `write`, so a request sent over it throws
+/// before the exchange begins. This accepts the write and never answers, which
+/// is what leaves a client holding its request/response mutex.
+class SilentPeerSocket extends FakeSocket {
+  @override
+  void write(Object? obj) {}
+}
 
 void main() async {
   // ignore: prefer_typing_uninitialized_variables
@@ -134,6 +144,69 @@ void main() async {
 
       expect(poolInstance.removeLeastRecentlyUsed(), client_2);
       expect(poolInstance.getCurrentSize(), 1);
+
+      poolInstance.clearAllClients();
+    });
+
+    test('test evicting the least recently used client closes its connection',
+        () async {
+      var poolInstance = outboundClientPool;
+      poolInstance.size = 5;
+
+      var client_1 = newOutboundClient('alice');
+      poolInstance.add(client_1);
+      await Future.delayed(Duration(milliseconds: 1));
+      poolInstance.add(newOutboundClient('bob'));
+
+      expect(client_1.outboundConnection!.metaData.isClosed, false);
+
+      expect(poolInstance.removeLeastRecentlyUsed(), client_1);
+      expect(client_1.outboundConnection!.metaData.isClosed, true,
+          reason: 'the pool holds the last reference to an evicted client, so'
+              ' if it does not close it the socket is never released');
+
+      poolInstance.clearAllClients();
+    });
+
+    test('test a client with a request in flight is not the one evicted',
+        () async {
+      var poolInstance = outboundClientPool;
+      poolInstance.size = 5;
+
+      // Added first, so it is the least recently used and would be the one
+      // evicted on lastUsed alone.
+      var silentPeer = SilentPeerSocket();
+      var busy = OutboundClient(
+        InboundConnectionImpl(mockSocket, 'alice'),
+        'alice',
+        AtSecondaryServerImpl.getInstance().secondaryAddressFinder,
+        false,
+        outboundConnectionFactory,
+      )..outboundConnection = OutboundConnectionImpl(silentPeer, 'alice');
+      busy.messageListener = OutboundMessageListener(busy);
+      busy.lookupTimeoutMillis = 5000;
+      poolInstance.add(busy);
+
+      await Future.delayed(Duration(milliseconds: 2));
+      var idle = newOutboundClient('bob');
+      poolInstance.add(idle);
+
+      // An exchange the peer never answers, so it keeps holding the socket.
+      var inFlight = busy.lookUp('all:phone@alice', handshake: false);
+      await Future.delayed(Duration(milliseconds: 20));
+      expect(busy.isBusy, true, reason: 'precondition: the exchange is live');
+
+      expect(poolInstance.removeLeastRecentlyUsed(), idle,
+          reason: 'lastUsed is stamped when an exchange ENDS, so the client'
+              ' that just started one looks least recently used -- evicting it'
+              ' would close the socket under the caller waiting on it');
+      expect(busy.outboundConnection!.metaData.isClosed, false,
+          reason: 'the in-flight client must still have its connection');
+
+      // Let the in-flight request fail so it is not left dangling.
+      busy.outboundConnection!.metaData.isClosed = true;
+      await expectLater(
+          inFlight, throwsA(predicate((dynamic e) => e is AtConnectException)));
 
       poolInstance.clearAllClients();
     });

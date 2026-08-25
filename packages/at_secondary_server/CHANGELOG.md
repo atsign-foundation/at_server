@@ -10,6 +10,16 @@
 - fix: a chunk arriving mid-response that happens to begin and end with `@`
   is treated as payload rather than as a prompt, so a value containing an
   atSign at a segment boundary is no longer flushed as a truncated response.
+- fix: close the outbound client evicted from the pool. The pool held the
+  last reference to an evicted client and dropped it without closing, so
+  every eviction leaked an open socket to another atServer. A client with a
+  request in flight is now skipped rather than evicted, because `lastUsed`
+  is stamped when an exchange ends -- so the client that had just begun a
+  long request was the one eviction picked, and closing it would have
+  destroyed the socket under the caller waiting on it. When every pooled
+  client is busy the pool now refuses rather than evicting one; on the
+  notification path that turns into a retry, so a notification can be
+  delayed where it previously went out over a socket that was then leaked.
 - fix: bound an outbound read two ways, by the whole exchange and by the gap
   between chunks. A single budget could not tell a large response still
   arriving from a peer that had stopped answering: it cut the first off and

@@ -495,6 +495,15 @@ class OutboundClient {
     }
   }
 
+  /// True while a request/response exchange is holding this client's socket.
+  ///
+  /// [OutboundClientPool.removeLeastRecentlyUsed] needs this because
+  /// [lastUsed] is stamped when an exchange *finishes*: a pooled client that
+  /// has only just started a long request still carries its previous
+  /// timestamp, so it looks like the least recently used one and would be the
+  /// first chosen for eviction.
+  bool get isBusy => _requestResponseMutex.isLocked;
+
   bool isInValid() {
     bool isInvalid = false;
     if (inboundConnection.isInValid()) {

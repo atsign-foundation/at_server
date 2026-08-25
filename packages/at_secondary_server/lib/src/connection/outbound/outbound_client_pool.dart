@@ -1,9 +1,12 @@
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_utils/at_logger.dart';
 import 'package:meta/meta.dart';
 
 /// Pool to hold [OutboundClient]
 class OutboundClientPool {
+  var logger = AtSignLogger('OutboundClientPool');
+
   int size;
   final List<OutboundClient> _clients = [];
 
@@ -19,8 +22,19 @@ class OutboundClientPool {
     return _clients.length < size;
   }
 
-  /// Removes the least recently used OutboundClient from the pool. Returns the removed client,
-  /// or returns null if there are fewer than 2 items currently in the pool.
+  /// Removes the least recently used OutboundClient from the pool and closes
+  /// it. Returns the removed client, or null if there are fewer than 2 items
+  /// currently in the pool, or if every candidate has a request in flight.
+  ///
+  /// Closing here is what releases the socket: the pool holds the last
+  /// reference to an evicted client, since both
+  /// [OutboundClientManager] and [NotifyConnectionsPool] log it and drop it.
+  ///
+  /// Clients with an exchange in flight are skipped rather than evicted.
+  /// [OutboundClient.lastUsed] is stamped when an exchange finishes, so a
+  /// client that has just begun a long request is exactly the one this method
+  /// would otherwise pick — and closing it would destroy the socket under the
+  /// caller waiting on it.
   OutboundClient? removeLeastRecentlyUsed() {
     if (closed) {
       throw StateError(
@@ -28,10 +42,25 @@ class OutboundClientPool {
     }
     if (_clients.length < 2) {
       return null;
-    } else {
-      _clients.sort((a, b) => a.lastUsed.compareTo(b.lastUsed));
-      return _clients.removeAt(0);
     }
+    _clients.sort((a, b) => a.lastUsed.compareTo(b.lastUsed));
+    var index = _clients.indexWhere((client) => !client.isBusy);
+    if (index < 0) {
+      logger.info('removeLeastRecentlyUsed: every pooled client has a request'
+          ' in flight; not evicting');
+      return null;
+    }
+    var evicted = _clients.removeAt(index);
+    // Never throw from here: callers evict while deciding whether they have
+    // capacity, and an exception would fail a request that has nothing to do
+    // with the client being closed.
+    try {
+      evicted.close();
+    } catch (e) {
+      logger.severe(
+          'removeLeastRecentlyUsed: exception closing $evicted : $e');
+    }
+    return evicted;
   }
 
   // Returns a copy of the list of clients in this pool, sorted by lastUsed, ascending
