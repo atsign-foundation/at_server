@@ -16,6 +16,7 @@ import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:meta/meta.dart';
+import 'package:mutex/mutex.dart';
 
 // Connects to an secondary and performs required handshake to be ready to run rest of the commands
 /// Handshake involves running "from", "pol" verbs on the secondary
@@ -41,6 +42,26 @@ class OutboundClient {
   int notifyTimeoutMillis = 10 * 1000;
 
   at_lookup.SecondaryAddressFinder secondaryAddressFinder;
+
+  /// Serialises each request/response pair on this client's outbound socket.
+  ///
+  /// A pooled [OutboundClient] is shared by every caller needing the same
+  /// remote atServer, and a request is two steps: write the verb, then take
+  /// the next message off [OutboundMessageListener]'s queue. That queue is
+  /// in arrival order with nothing tying a response back to the request which
+  /// caused it, so two callers interleaving those steps on one socket are
+  /// each answered with whichever response arrives first — a well-formed
+  /// record, but not the one that was asked for.
+  ///
+  /// Held across the write and the read of a single exchange only, never
+  /// across [connect], so establishing one client does not block requests on
+  /// another. [_establishHandShake] is one critical section rather than two
+  /// because its `from:` and `pol:` exchanges must not be split.
+  ///
+  /// The lock is not reentrant: anything called while it is held must reach
+  /// the socket through the `...OnWire` methods, not through the public
+  /// operations that take it.
+  final Mutex _requestResponseMutex = Mutex();
 
   /// When unit testing, we don't need to do all the things necessary
   /// to support server-to-server handshake - for example, actually signing
@@ -258,7 +279,12 @@ class OutboundClient {
   /// [checkRemotePublicKey], which [connect] calls before the handshake), so it
   /// declares the target tenant to the peer before any `from:`.
   /// Mirrors [scan]'s raw write/read; only used when toVerbOutboundEnabled.
-  Future<String> _sendToVerb() async {
+  Future<String> _sendToVerb() =>
+      _requestResponseMutex.protect(_sendToVerbOnWire);
+
+  /// Writes the `to:` request and reads its response. Runs under
+  /// [_requestResponseMutex].
+  Future<String> _sendToVerbOnWire() async {
     var toRequest = AtRequestFormatter.createToRequest(toAtSign);
     try {
       await outboundConnection!.write(toRequest);
@@ -283,7 +309,12 @@ class OutboundClient {
     return address.toString();
   }
 
-  Future<bool> _establishHandShake() async {
+  Future<bool> _establishHandShake() =>
+      _requestResponseMutex.protect(_establishHandShakeOnWire);
+
+  /// Runs the `from:`/`pol:` exchanges as a single unit. Runs under
+  /// [_requestResponseMutex].
+  Future<bool> _establishHandShakeOnWire() async {
     if (!isConnectionCreated) {
       throw HandShakeException(
           'Handshake cannot be initiated without an outbound connection');
@@ -358,8 +389,15 @@ class OutboundClient {
   /// Throws a [UnAuthorizedException] if lookup if invoked with handshake=true and without a successful handshake
   /// Throws a [LookupException] if there is exception during lookup
   /// Throws a [OutBoundConnectionInvalidException] if we are trying to write to an invalid connection
-  Future<String?> lookUp(String key, {bool handshake = true}) async {
+  Future<String?> lookUp(String key, {bool handshake = true}) {
     logger.finer('lookUp($key, handshake:$handshake) called for $toAtSign');
+    return _requestResponseMutex
+        .protect(() => _lookUpOnWire(key, handshake: handshake));
+  }
+
+  /// Writes the lookup request and reads its response. Runs under
+  /// [_requestResponseMutex].
+  Future<String?> _lookUpOnWire(String key, {bool handshake = true}) async {
     if (handshake && !isHandShakeDone) {
       throw LookupException(
           'OutboundClient.lookUp: Handshake not done, but lookUp was called with handshake: true');
@@ -388,7 +426,13 @@ class OutboundClient {
     return lookupResult;
   }
 
-  Future<String?> scan({bool handshake = true, String? regex}) async {
+  Future<String?> scan({bool handshake = true, String? regex}) =>
+      _requestResponseMutex
+          .protect(() => _scanOnWire(handshake: handshake, regex: regex));
+
+  /// Writes the scan request and reads its response. Runs under
+  /// [_requestResponseMutex].
+  Future<String?> _scanOnWire({bool handshake = true, String? regex}) async {
     if (handshake && !isHandShakeDone) {
       throw UnAuthorizedException(
           'Handshake did not succeed. Cannot perform a outbound scan');
@@ -419,6 +463,8 @@ class OutboundClient {
   /// @param key - key to be looked up
   /// @returns result of the plookup returned by the secondary
   /// Throws a [LookupException] if there is exception during lookup
+  /// Delegates to [lookUp], which takes [_requestResponseMutex]; this method
+  /// must not take it as well, since the lock is not reentrant.
   Future<String?> plookUp(String key) async {
     var result = await lookUp(key, handshake: false);
     lastUsed = DateTime.now();
@@ -448,6 +494,13 @@ class OutboundClient {
   }
 
   Future<String?> notify(String notifyCommandBody,
+          {bool handshake = true}) =>
+      _requestResponseMutex.protect(
+          () => _notifyOnWire(notifyCommandBody, handshake: handshake));
+
+  /// Writes the notify request and reads its response. Runs under
+  /// [_requestResponseMutex].
+  Future<String?> _notifyOnWire(String notifyCommandBody,
       {bool handshake = true}) async {
     if (handshake && !isHandShakeDone) {
       throw UnAuthorizedException('Handshake failed. Cannot perform a lookup');
