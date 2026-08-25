@@ -386,8 +386,12 @@ class OutboundMessageListener {
 
   /// Frames a response the peer terminated with a newline but never followed
   /// with a prompt, which is what it writes when it is about to hang up (see
-  /// the connection-limit path in GlobalExceptionHandler). Nothing more is
-  /// coming, so the newline is the end of the message.
+  /// the connection-limit path in GlobalExceptionHandler).
+  ///
+  /// Called from [read] once the connection is known to be gone: nothing more
+  /// can arrive, so the newline is the end of the message. Doing it here
+  /// rather than in the socket's done handler keeps it on the path that has a
+  /// caller waiting for the answer.
   ///
   /// Returns true if a message was queued.
   bool _flushIfTerminated() {
@@ -402,7 +406,6 @@ class OutboundMessageListener {
   /// Closes the [OutboundClient]
   void _finishedHandler() async {
     logger.info('_finishedHandler called - closing connection');
-    _flushIfTerminated();
     _closeOutboundClient();
   }
 
