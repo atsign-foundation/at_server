@@ -26,6 +26,24 @@
   client is busy the pool now refuses rather than evicting one; on the
   notification path that turns into a retry, so a notification can be
   delayed where it previously went out over a socket that was then leaked.
+- fix: frame outbound responses by scanning the accumulated bytes rather than
+  by inspecting the last byte of whichever chunk arrived. A response and the
+  prompt that follows it are one write on the peer's side, delivered in
+  however many pieces the network chooses, and the old rule lost or corrupted
+  bytes whenever a split landed awkwardly: a payload byte that happened to be
+  an atSign was deleted, a chunk ending in `@` lost everything after its last
+  newline, two responses in one segment were welded into one and the second
+  silently dropped, and a bare newline was queued as an empty response that
+  tore down the next exchange. Malformed bytes are now dropped rather than
+  throwing out of the socket callback and leaving the buffer poisoned for
+  every response after them, and a zero-length read no longer closes the
+  connection.
+- fix: discard anything left over from a finished exchange before writing the
+  next request. A message that no caller claimed stayed queued and was handed
+  to the following request as its answer -- a well-formed record for a key
+  nobody asked for, with no exception and no log.
+- fix: an outbound read now also gives up promptly when the connection has
+  gone stale, as it already did when it was closed.
 - fix: bound an outbound read two ways, by the whole exchange and by the gap
   between chunks. A single budget could not tell a large response still
   arriving from a peer that had stopped answering: it cut the first off and

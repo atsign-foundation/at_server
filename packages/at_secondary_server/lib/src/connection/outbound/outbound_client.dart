@@ -28,6 +28,10 @@ class OutboundClient {
 
   final InboundConnection inboundConnection;
   final String toAtSign;
+  /// Assigned here and replaced by [_createConnectionAndListener] whenever a
+  /// connection is established, so it is never unset: an operation on a
+  /// client that was never connected must fail on the connection, not on a
+  /// missing listener.
   late OutboundMessageListener messageListener;
   final OutboundConnectionFactory outboundConnectionFactory;
 
@@ -44,6 +48,14 @@ class OutboundClient {
   /// that is genuinely still arriving may take.
   int lookupTimeoutMillis = 30 * 1000;
   int notifyTimeoutMillis = 30 * 1000;
+
+  /// Budgets for the handshake exchanges. Deliberately tighter than the ones
+  /// above: `from:` and `pol:` trade tiny control messages, so there is no
+  /// large-response-still-arriving case for the inter-chunk budget to protect,
+  /// and a peer that has gone quiet during a handshake should be given up on
+  /// promptly -- these reads happen while the pool's per-key lock is held.
+  int handshakeTimeoutMillis = 10 * 1000;
+  int handshakeSilenceMillis = 3 * 1000;
 
   at_lookup.SecondaryAddressFinder secondaryAddressFinder;
 
@@ -126,7 +138,9 @@ class OutboundClient {
     this.secondaryAddressFinder,
     this.handshakeRequired,
     this.outboundConnectionFactory,
-  );
+  ) {
+    messageListener = OutboundMessageListener(this);
+  }
 
   /// Connects to an secondary and performs required handshake to be ready to run rest of the commands
   /// Handshake involves running "from", "pol" verbs on the secondary
@@ -332,6 +346,7 @@ class OutboundClient {
   Future<String> _sendToVerbOnWire() async {
     var toRequest = AtRequestFormatter.createToRequest(toAtSign);
     try {
+      messageListener.beginExchange();
       await outboundConnection!.write(toRequest);
     } on AtIOException catch (e) {
       await outboundConnection!.close();
@@ -366,11 +381,14 @@ class OutboundClient {
     }
     try {
       //1. create from request
+      messageListener.beginExchange();
       await outboundConnection!.write(AtRequestFormatter.createFromRequest(
           AtSecondaryServerImpl.getInstance().currentAtSign));
 
       //2. Receive proof
-      var fromResult = await messageListener.read();
+      var fromResult = await messageListener.read(
+          maxWaitMilliSeconds: handshakeTimeoutMillis,
+          transientWaitTimeMillis: handshakeSilenceMillis);
       if (fromResult == '') {
         throw HandShakeException(
             'No response received for From:$toAtSign command');
@@ -412,10 +430,13 @@ class OutboundClient {
       // than answering whatever runs next.
       messageListener.expectingHandshakePrompt = true;
       try {
+        messageListener.beginExchange();
         await outboundConnection!.write(AtRequestFormatter.createPolRequest());
 
         // 5. wait for handshake result - @<current_atsign>@
-        var handShakeResult = await messageListener.read();
+        var handShakeResult = await messageListener.read(
+            maxWaitMilliSeconds: handshakeTimeoutMillis,
+            transientWaitTimeMillis: handshakeSilenceMillis);
         var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
         if (handShakeResult.startsWith('$currentAtSign@')) {
           logger.info("pol handshake complete");
@@ -464,6 +485,7 @@ class OutboundClient {
     }
     var lookUpRequest = AtRequestFormatter.createLookUpRequest(key);
     try {
+      messageListener.beginExchange();
       await outboundConnection!.write(lookUpRequest);
     } on AtIOException catch (e) {
       await outboundConnection!.close();
@@ -498,6 +520,7 @@ class OutboundClient {
       scanRequest = 'scan $regex\n';
     }
     try {
+      messageListener.beginExchange();
       await outboundConnection!.write(scanRequest);
     } on AtIOException catch (e) {
       await outboundConnection!.close();
@@ -507,7 +530,8 @@ class OutboundClient {
       logger.severe('$this | encountered $e');
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
-    var scanResult = await messageListener.read();
+    var scanResult =
+        await messageListener.read(maxWaitMilliSeconds: lookupTimeoutMillis);
     scanResult = scanResult.replaceFirst(_trailingPrompt, '');
     lastUsed = DateTime.now();
     return scanResult;
@@ -570,6 +594,7 @@ class OutboundClient {
     }
     try {
       var notificationRequest = 'notify:$notifyCommandBody\n';
+      messageListener.beginExchange();
       await outboundConnection!.write(notificationRequest);
     } on AtIOException catch (e) {
       await outboundConnection!.close();

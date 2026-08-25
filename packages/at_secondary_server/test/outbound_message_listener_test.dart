@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
@@ -265,6 +266,201 @@ void main() async {
       expect(await listener.read(), 'data:{"k":"a@bob.and.@carol"}',
           reason: 'every byte of the response must survive reassembly: a chunk'
               ' is only a prompt when the buffer is empty');
+    });
+  });
+
+  /// A response and the prompt that follows it are one write on the peer's
+  /// side, delivered in however many pieces the network chooses. These drive
+  /// segmentations a well-behaved peer would never produce, because the
+  /// framing must not depend on where a chunk happens to end.
+  group('segmentation', () {
+    test('a payload byte that is an atSign survives on its own chunk',
+        () async {
+      var l = OutboundMessageListener(mockOutboundClient);
+      await l.messageHandler('data:a'.codeUnits);
+      await l.messageHandler('@'.codeUnits);
+      await l.messageHandler('b\n$alice@'.codeUnits);
+      expect(await l.read(), 'data:a@b',
+          reason: 'a lone @ is only a prompt when nothing is part-assembled');
+    });
+
+    test('a chunk whose tail is payload keeps its tail', () async {
+      var l = OutboundMessageListener(mockOutboundClient);
+      await l.messageHandler('data:{"x":1}\nyz@'.codeUnits);
+      await l.messageHandler('w\n$alice@'.codeUnits);
+      expect(await l.read(), 'data:{"x":1}\nyz@w',
+          reason: 'everything after the last newline of a chunk is not a'
+              ' prompt just because the chunk happens to end with @');
+    });
+
+    test('two responses delivered in one segment are two answers', () async {
+      var l = OutboundMessageListener(mockOutboundClient);
+      await l.messageHandler('data:A\n$alice@data:B\n$alice@'.codeUnits);
+      expect(await l.read(), 'data:A');
+      expect(await l.read(), 'data:B',
+          reason: 'the second response must not be welded onto the first and'
+              ' silently lost');
+    });
+
+    test('a response delivered one byte at a time is reassembled', () async {
+      var l = OutboundMessageListener(mockOutboundClient);
+      for (var b in 'data:{"k":"v@w"}\n$alice@'.codeUnits) {
+        await l.messageHandler([b]);
+      }
+      expect(await l.read(), 'data:{"k":"v@w"}',
+          reason: 'the framing must not depend on chunk boundaries at all');
+    });
+
+    test('a prompt split in the middle does not swallow its response',
+        () async {
+      var l = OutboundMessageListener(mockOutboundClient);
+      await l.messageHandler('data:SPLIT\n@ali'.codeUnits);
+      await l.messageHandler('ce@'.codeUnits);
+      expect(await l.read(), 'data:SPLIT');
+    });
+
+    test('a prompt arriving entirely on its own is not a response', () async {
+      var l = OutboundMessageListener(mockOutboundClient);
+      await l.messageHandler('data:ONLY\n'.codeUnits);
+      await l.messageHandler('$alice@'.codeUnits);
+      expect(await l.read(), 'data:ONLY');
+      await expectLater(() => l.read(maxWaitMilliSeconds: 150),
+          throwsA(predicate((dynamic e) => e is AtTimeoutException)),
+          reason: 'nothing should remain to be read');
+    });
+  });
+
+  group('hostile and malformed input', () {
+    test('a zero-length chunk is a no-op', () async {
+      var l = OutboundMessageListener(mockOutboundClient);
+      await l.messageHandler(<int>[]);
+      await l.messageHandler('data:OK\n$alice@'.codeUnits);
+      expect(await l.read(), 'data:OK',
+          reason: 'indexing an empty chunk would throw out of the socket'
+              ' callback and take the connection down');
+    });
+
+    test('bytes that are not valid UTF-8 do not throw out of the handler',
+        () async {
+      var l = OutboundMessageListener(mockOutboundClient);
+      await l.messageHandler([0xFF, 0xFE, 0x0A, 0x40]);
+      await l.messageHandler('data:AFTER\n$alice@'.codeUnits);
+      expect(await l.read(), 'data:AFTER',
+          reason: 'a malformed message must be dropped, not left in the buffer'
+              ' to corrupt every response after it');
+    });
+
+    test('a UTF-8 character split across chunks is reassembled', () async {
+      var l = OutboundMessageListener(mockOutboundClient);
+      // utf8.encode, not codeUnits: 'é' is one UTF-16 unit but TWO UTF-8
+      // bytes, and it is the byte sequence the socket delivers.
+      var payload = utf8.encode('data:café\n');
+      var splitAt = payload.length - 2; // between the two bytes of 'é'
+      await l.messageHandler(payload.sublist(0, splitAt));
+      await l.messageHandler(payload.sublist(splitAt));
+      await l.messageHandler('$alice@'.codeUnits);
+      expect(await l.read(), 'data:café',
+          reason: 'a character split across two reads must be decoded from the'
+              ' reassembled bytes, not from either half');
+    });
+
+    test('a bare newline does not become an empty response', () async {
+      var l = OutboundMessageListener(mockOutboundClient);
+      await l.messageHandler('\n'.codeUnits);
+      await l.messageHandler('data:REAL\n$alice@'.codeUnits);
+      expect(await l.read(), 'data:REAL',
+          reason: 'an empty flush must not be queued, or it tears down the'
+              ' next exchange as an unexpected response');
+    });
+
+    test('a stream of nothing but prompts is given up on at the inter-chunk'
+        ' budget', () async {
+      var l = OutboundMessageListener(mockOutboundClient);
+      unawaited(() async {
+        for (var i = 0; i < 20; i++) {
+          await Future.delayed(Duration(milliseconds: 20));
+          await l.messageHandler('@'.codeUnits);
+        }
+      }());
+      await expectLater(
+          () => l.read(
+              maxWaitMilliSeconds: 10000, transientWaitTimeMillis: 150),
+          throwsA(predicate((dynamic e) =>
+              e is AtTimeoutException &&
+              e.message.contains('Nothing received'))),
+          reason: 'discarded bytes are not progress -- a peer dripping prompts'
+              ' must not look like a response still arriving');
+    });
+
+    test('a chunk larger than the buffer capacity is refused and leaves no'
+        ' residue', () async {
+      var l = OutboundMessageListener(mockOutboundClient);
+      await expectLater(l.messageHandler(List.filled(10240001, 65)),
+          throwsA(predicate((dynamic e) => e is BufferOverFlowException)));
+      await l.messageHandler('data:AFTER\n$alice@'.codeUnits);
+      expect(await l.read(), 'data:AFTER');
+    });
+  });
+
+  group('exchange boundaries', () {
+    test('an unread message does not answer the next exchange', () async {
+      var l = OutboundMessageListener(mockOutboundClient);
+      await l.messageHandler('data:FIRST\n$alice@'.codeUnits);
+      await l.messageHandler('data:UNSOLICITED\n$alice@'.codeUnits);
+      expect(await l.read(), 'data:FIRST');
+
+      l.beginExchange();
+      await l.messageHandler('data:SECOND\n$alice@'.codeUnits);
+      expect(await l.read(), 'data:SECOND',
+          reason: 'a message left over from a finished exchange must never be'
+              ' handed to the next request as its answer');
+    });
+
+    test('a partial message does not prefix the next exchange', () async {
+      var l = OutboundMessageListener(mockOutboundClient);
+      await l.messageHandler('data:half-a-mess'.codeUnits);
+      l.beginExchange();
+      await l.messageHandler('data:WHOLE\n$alice@'.codeUnits);
+      expect(await l.read(), 'data:WHOLE');
+    });
+  });
+
+  group('connection state', () {
+    test('a closed connection fails fast rather than waiting the budget',
+        () async {
+      var l = OutboundMessageListener(mockOutboundClient);
+      when(() => mockAtConnectionMetaData.isClosed).thenReturn(true);
+      var sw = Stopwatch()..start();
+      await expectLater(
+          () => l.read(maxWaitMilliSeconds: 10000),
+          throwsA(predicate((dynamic e) => e is AtConnectException)));
+      sw.stop();
+      expect(sw.elapsedMilliseconds, lessThan(5000));
+      when(() => mockAtConnectionMetaData.isClosed).thenReturn(false);
+    });
+
+    test('a stale connection fails fast rather than waiting the budget',
+        () async {
+      var l = OutboundMessageListener(mockOutboundClient);
+      when(() => mockAtConnectionMetaData.isStale).thenReturn(true);
+      var sw = Stopwatch()..start();
+      await expectLater(
+          () => l.read(maxWaitMilliSeconds: 10000),
+          throwsA(predicate((dynamic e) => e is AtConnectException)));
+      sw.stop();
+      expect(sw.elapsedMilliseconds, lessThan(5000),
+          reason: 'a stale connection can no more deliver a response than a'
+              ' closed one');
+      when(() => mockAtConnectionMetaData.isStale).thenReturn(false);
+    });
+
+    test('data arriving on a stale connection is dropped', () async {
+      var l = OutboundMessageListener(mockOutboundClient);
+      when(() => mockAtConnectionMetaData.isStale).thenReturn(true);
+      await l.messageHandler('data:GHOST\n$alice@'.codeUnits);
+      when(() => mockAtConnectionMetaData.isStale).thenReturn(false);
+      await expectLater(() => l.read(maxWaitMilliSeconds: 150),
+          throwsA(predicate((dynamic e) => e is AtTimeoutException)));
     });
   });
 }

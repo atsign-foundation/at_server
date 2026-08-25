@@ -30,6 +30,13 @@ class OutboundClientPool {
   /// subtracts these, since a reserved slot is not free.
   int get reservedSize => _reserved;
 
+  /// Whether a slot is free right now.
+  ///
+  /// Production code must take a slot with [tryReserve] instead. Asking this
+  /// and adding later is the check-then-add race the reservation exists to
+  /// close: creating a client awaits its connect, and another caller can take
+  /// the slot in between.
+  @visibleForTesting
   bool hasCapacity() {
     if (closed) {
       throw StateError('add() called, but we are in closed state');

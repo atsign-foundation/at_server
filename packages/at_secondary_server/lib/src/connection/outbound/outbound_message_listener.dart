@@ -28,7 +28,12 @@ class OutboundMessageListener {
   /// around its `pol` exchange and nowhere else.
   bool expectingHandshakePrompt = false;
 
-  /// When the peer was last heard from, on this connection.
+  /// How long since the peer last sent bytes this listener KEPT.
+  ///
+  /// A [Stopwatch] rather than wall-clock timestamps: [DateTime.now] can step
+  /// backwards (an NTP correction), which would make an elapsed-time check
+  /// negative and leave [read] spinning while it holds the client's
+  /// request/response mutex.
   ///
   /// [read] bounds a response two ways: a total budget for the whole
   /// exchange, and this, the gap it will tolerate between one chunk and the
@@ -36,7 +41,7 @@ class OutboundMessageListener {
   /// peer that has stopped answering, and a single total budget cannot tell
   /// them apart — it either cuts off a response that was still coming, or
   /// waits out the full budget on a peer that is never going to reply.
-  DateTime _lastReceivedTime = DateTime.now();
+  final Stopwatch _sinceLastReceived = Stopwatch()..start();
 
   OutboundMessageListener(this.outboundClient);
 
@@ -57,70 +62,176 @@ class OutboundMessageListener {
     });
   }
 
-  /// Handles responses from the remote secondary, adds to [_queue] for processing in [read] method
-  /// Throws a [BufferOverFlowException] if buffer is unable to hold incoming data
+  static const int _atChar = 64;
+  static const int _newLine = 10;
+
+  /// The last byte appended to [_buffer], or -1 when the buffer is empty.
+  ///
+  /// Tracked rather than read back from the buffer because
+  /// `ByteBuffer.getData()` copies the whole buffer, and the framing below
+  /// asks "was the previous byte a newline?" once per candidate boundary.
+  int _lastByte = -1;
+
+  /// Discards anything held for an exchange that is over, and starts the
+  /// inter-chunk clock for a new one.
+  ///
+  /// [OutboundClient] calls this immediately before writing a request, under
+  /// its request/response mutex, so nothing is in flight. An outbound client
+  /// only ever sends strict request/response verbs and the peer never pushes,
+  /// so a queued message or a partial one at that moment belongs to an
+  /// exchange that has already been answered or abandoned. Left in place it
+  /// would answer THIS request instead -- a well-formed record for a key
+  /// nobody asked for.
+  void beginExchange() {
+    if (_queue.isNotEmpty || _buffer.length() > 0) {
+      logger.warning('Discarding ${_queue.length} unread message(s) and'
+          ' ${_buffer.length()} buffered bytes from ${outboundClient.toAtSign}'
+          ' left over from a previous exchange');
+      _queue.clear();
+      _clearBuffer();
+    }
+    _sinceLastReceived.reset();
+  }
+
+  void _clearBuffer() {
+    _buffer.clear();
+    _lastByte = -1;
+  }
+
+  void _appendRange(List<int> data, int start, int end) {
+    if (end <= start) {
+      return;
+    }
+    _buffer.append(data.sublist(start, end));
+    _lastByte = data[end - 1];
+  }
+
+  /// Takes the message the buffer now holds, and queues it.
+  ///
+  /// The terminating newline is removed; a prompt carried over from the
+  /// previous response is stripped from the front.
+  void _flushMessage() {
+    if (_buffer.length() == 0) {
+      return;
+    }
+    var bytes = _buffer.getData().toList();
+    if (bytes.isNotEmpty && bytes.last == _newLine) {
+      bytes.removeLast();
+    }
+    _clearBuffer();
+    String result;
+    try {
+      result = utf8.decode(bytes);
+    } on FormatException catch (e) {
+      // Malformed bytes are not a reason to take the connection down from
+      // inside a socket callback, and they must not stay in the buffer to
+      // corrupt every response after them.
+      logger.warning('Discarding a malformed message from'
+          ' ${outboundClient.toAtSign}: $e');
+      return;
+    }
+    result = _stripPrompt(result.trim());
+    if (result.isEmpty) {
+      logger.finer('Ignoring an empty message from ${outboundClient.toAtSign}');
+      return;
+    }
+    if (logger.logger.isLoggable(Level.INFO)) {
+      logger.info(logger.getAtConnectionLogMessage(
+          outboundClient.outboundConnection!.metaData,
+          'RCVD: ${BaseSocketConnection.truncateForLogging(result)}'));
+    }
+    _queue.add(result);
+  }
+
+  /// Removes a prompt the peer wrote ahead of this response.
+  ///
+  /// A prompt has no terminator of its own, so it is carried into the next
+  /// message rather than framed separately: `@alice@data:x` is the response
+  /// `data:x` behind the prompt that closed the previous one.
+  String _stripPrompt(String result) {
+    var colonIndex = result.indexOf(':');
+    if (colonIndex < 0) {
+      return result;
+    }
+    var prefix = result.substring(0, colonIndex);
+    if (!prefix.contains('@')) {
+      return result;
+    }
+    return '${prefix.substring(prefix.lastIndexOf('@') + 1)}'
+        '${result.substring(colonIndex)}';
+  }
+
+  /// Handles responses from the remote secondary, adds to [_queue] for
+  /// processing in the [read] method.
+  ///
+  /// Messages are framed by scanning for a newline followed by the `@` that
+  /// begins the peer's prompt, walking the accumulated buffer rather than
+  /// inspecting the last byte of whichever chunk happened to arrive. The
+  /// distinction matters: a response and its prompt are written by the peer
+  /// as one string but delivered in however many pieces the network chooses,
+  /// so any rule keyed on a chunk boundary loses or corrupts bytes when the
+  /// split lands somewhere awkward.
+  ///
+  /// Throws a [BufferOverFlowException] if the buffer cannot hold the data.
   @visibleForTesting
   Future<void> messageHandler(data) async {
     //ignore the data if connection is closed or stale
     if (outboundClient.outboundConnection!.metaData.isStale ||
         outboundClient.outboundConnection!.metaData.isClosed) {
-      _buffer.clear();
+      _clearBuffer();
       return;
     }
-    // The peer is alive and sending, whether or not this chunk completes a
-    // response. [read]'s inter-chunk budget is measured from here.
-    _lastReceivedTime = DateTime.now();
-    String result;
-    if (!_buffer.isOverFlow(data)) {
-      // skip @ prompt. byte code for @ is 64
-      if (data.length == 1 && data.first == 64) {
-        return;
-      }
-      //ignore prompt(@ or @<atSign>@) after '\n'. byte code for \n is 10
-      if (data.last == 64 && data.contains(10)) {
-        data = data.sublist(0, data.lastIndexOf(10) + 1);
-        _buffer.append(data);
-      } else if (data.length > 1 &&
-          data.first == 64 &&
-          data.last == 64 &&
-          _buffer.length() == 0) {
-        // A bare `@<atSign>@` on an empty buffer is either the pol response
-        // or the prompt trailing a response that has already been queued,
-        // segmented away from it by the network. Only the caller knows which,
-        // and it says so via [expectingHandshakePrompt].
-        if (!expectingHandshakePrompt) {
-          // The trailing prompt. It carries no payload and no caller is
-          // waiting for it, so queueing it would answer the NEXT request
-          // with it and leave every later response one behind.
-          logger.finer('Discarding the prompt that trailed a response already'
-              ' read from ${outboundClient.toAtSign}');
-          return;
-        }
-        // pol responses do not end with '\n'. Add \n for buffer completion
-        _buffer.append(data);
-        _buffer.addByte(10);
-      } else {
-        // Everything else is response payload — including a mid-response
-        // chunk that happens to begin and end with '@', which the branch
-        // above must not claim, or the response is silently truncated.
-        _buffer.append(data);
-      }
-    } else {
-      _buffer.clear();
+    // A zero-length read carries nothing. Indexing it would throw out of a
+    // socket callback, which runZonedGuarded turns into a closed connection.
+    if (data.isEmpty) {
+      return;
+    }
+    if (_buffer.isOverFlow(data)) {
+      _clearBuffer();
       throw BufferOverFlowException('OutboundBuffer overflow: server sent'
           ' request which was longer than the maximum of bytes.'
           ' Terminating the connection.');
     }
-    if (_buffer.isEnd()) {
-      result = utf8.decode(_buffer.getData());
-      result = result.trim();
-      _buffer.clear();
-      if (logger.logger.isLoggable(Level.INFO)) {
-        logger.info(logger.getAtConnectionLogMessage(
-            outboundClient.outboundConnection!.metaData,
-            'RCVD: ${BaseSocketConnection.truncateForLogging(result)}'));
+    // The bare prompt the peer writes on connect, and again when it is not
+    // authenticated. It only means "send me a request" -- but only when
+    // nothing is part-assembled, or it is a payload byte that happens to be
+    // an atSign.
+    if (data.length == 1 && data.first == _atChar && _buffer.length() == 0) {
+      _sinceLastReceived.reset();
+      return;
+    }
+
+    var segmentStart = 0;
+    for (var i = 0; i < data.length; i++) {
+      if (data[i] != _atChar) {
+        continue;
       }
-      _queue.add(result);
+      // The byte before this one: from this chunk if there is one, otherwise
+      // whatever the buffer already ends with.
+      var previous = i > 0 ? data[i - 1] : _lastByte;
+      if (previous != _newLine) {
+        continue;
+      }
+      // A newline followed by the start of a prompt ends a message.
+      _appendRange(data, segmentStart, i);
+      _flushMessage();
+      // The prompt itself starts the next buffer, and _stripPrompt takes it
+      // off the front of whatever response follows it.
+      segmentStart = i;
+    }
+    _appendRange(data, segmentStart, data.length);
+    _sinceLastReceived.reset();
+
+    // `pol` is the one response with no terminator of any kind: a bare
+    // `@<atSign>@`. Nothing in the byte stream marks its end, so it is framed
+    // only while the client says it is waiting for one.
+    if (expectingHandshakePrompt &&
+        _lastByte == _atChar &&
+        _buffer.length() >= 2) {
+      var bytes = _buffer.getData();
+      if (bytes.first == _atChar) {
+        _flushMessage();
+      }
     }
   }
 
@@ -136,8 +247,8 @@ class OutboundMessageListener {
       {int maxWaitMilliSeconds = 30000,
       int transientWaitTimeMillis = 10000}) async {
     var loopMillis = 10;
-    var startTime = DateTime.now();
-    _lastReceivedTime = startTime;
+    final sinceStart = Stopwatch()..start();
+    _sinceLastReceived.reset();
 
     while (true) {
       var queueLength = _queue.length;
@@ -176,7 +287,8 @@ class OutboundMessageListener {
       // connection instead of replying with an error upon receiving a verb
       // it does not understand (atServers up to v3.0.28 do this).
       if (outboundClient.outboundConnection == null ||
-          outboundClient.outboundConnection!.metaData.isClosed) {
+          outboundClient.outboundConnection!.metaData.isClosed ||
+          outboundClient.outboundConnection!.metaData.isStale) {
         _buffer.clear();
         _closeOutboundClient();
         throw AtConnectException(
@@ -185,8 +297,7 @@ class OutboundMessageListener {
             ' was closed before a response was received');
       }
       // The whole exchange has run out of time.
-      if (DateTime.now().difference(startTime).inMilliseconds >
-          maxWaitMilliSeconds) {
+      if (sinceStart.elapsedMilliseconds > maxWaitMilliSeconds) {
         _buffer.clear();
         _closeOutboundClient();
         throw AtTimeoutException(
@@ -195,8 +306,7 @@ class OutboundMessageListener {
       // Nothing has arrived for a while. A response that is still coming
       // keeps resetting this, so reaching it means the peer has gone quiet
       // rather than that the response is merely large.
-      if (DateTime.now().difference(_lastReceivedTime).inMilliseconds >
-          transientWaitTimeMillis) {
+      if (_sinceLastReceived.elapsedMilliseconds > transientWaitTimeMillis) {
         _buffer.clear();
         _closeOutboundClient();
         throw AtTimeoutException(
