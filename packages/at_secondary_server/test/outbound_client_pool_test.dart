@@ -283,6 +283,76 @@ void main() async {
       poolInstance.clearAllClients();
     });
 
+    test('test a busy client that has merely gone idle is not cleared',
+        () async {
+      var poolInstance = outboundClientPool;
+      poolInstance.size = 5;
+
+      var busy = OutboundClient(
+        InboundConnectionImpl(mockSocket, 'alice'),
+        'alice',
+        AtSecondaryServerImpl.getInstance().secondaryAddressFinder,
+        false,
+        outboundConnectionFactory,
+      )..outboundConnection =
+          OutboundConnectionImpl(SilentPeerSocket(), 'alice');
+      busy.messageListener = OutboundMessageListener(busy);
+      busy.lookupTimeoutMillis = 5000;
+      poolInstance.add(busy);
+
+      var inFlight = busy.lookUp('all:phone@alice', handshake: false);
+      // Past the idle window, so isInValid() is true on the OUTBOUND side --
+      // but only because nothing has been written recently, which is exactly
+      // what waiting on a slow peer looks like.
+      await Future.delayed(Duration(milliseconds: outboundIdleTimeMillis + 50));
+      expect(busy.isInValid(), true, reason: 'precondition: looks invalid');
+      expect(busy.isBusy, true, reason: 'precondition: still exchanging');
+
+      poolInstance.clearInvalidClients();
+      expect(poolInstance.getCurrentSize(), 1,
+          reason: 'idle is not dead: closing a client that is waiting on a'
+              ' slow peer destroys the socket under the caller');
+
+      busy.outboundConnection!.metaData.isClosed = true;
+      await expectLater(
+          inFlight, throwsA(predicate((dynamic e) => e is AtConnectException)));
+      poolInstance.clearAllClients();
+    });
+
+    test('test a busy client whose socket has actually gone IS cleared',
+        () async {
+      var poolInstance = outboundClientPool;
+      poolInstance.size = 5;
+
+      var busy = OutboundClient(
+        InboundConnectionImpl(mockSocket, 'alice'),
+        'alice',
+        AtSecondaryServerImpl.getInstance().secondaryAddressFinder,
+        false,
+        outboundConnectionFactory,
+      )..outboundConnection =
+          OutboundConnectionImpl(SilentPeerSocket(), 'alice');
+      busy.messageListener = OutboundMessageListener(busy);
+      busy.lookupTimeoutMillis = 5000;
+      poolInstance.add(busy);
+
+      var inFlight = busy.lookUp('all:phone@alice', handshake: false);
+      await Future.delayed(Duration(milliseconds: 20));
+      expect(busy.isBusy, true, reason: 'precondition');
+
+      // Mark it stale and sweep in the same synchronous run, so the in-flight
+      // read has not had a chance to notice and release.
+      busy.outboundConnection!.metaData.isStale = true;
+      poolInstance.clearInvalidClients();
+      expect(poolInstance.getCurrentSize(), 0,
+          reason: 'there is nothing left to protect once the socket itself is'
+              ' gone, and leaving it hands the next caller a dead connection');
+
+      await expectLater(
+          inFlight, throwsA(predicate((dynamic e) => e is AtConnectException)));
+      poolInstance.clearAllClients();
+    });
+
     test('test every pooled client being busy means nothing is evicted',
         () async {
       var poolInstance = outboundClientPool;

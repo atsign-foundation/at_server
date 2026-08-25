@@ -8,7 +8,9 @@
   chunk's last newline, weld two responses into one and lose the second, or
   queue an empty response that tore down the next request. Responses are now
   framed from the accumulated bytes, so where the splits fall no longer
-  matters.
+  matters. A peer that answers and then hangs up without writing its usual
+  trailing prompt is still heard: its response is delivered rather than
+  reported as a closed connection, so the error code it sent survives.
 - fix: never answer a request with a message left over from a previous one.
   A response that no caller claimed stayed queued and was handed to the next
   request as its answer: a well-formed record for a key nobody asked for,

@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:logging/logging.dart' as logging;
+
 import 'package:at_commons/at_commons.dart';
+import 'package:at_utils/at_logger.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection_impl.dart';
@@ -376,20 +379,33 @@ void main() async {
     test('a stream of nothing but prompts is given up on at the inter-chunk'
         ' budget', () async {
       var l = OutboundMessageListener(mockOutboundClient);
+      var dripping = true;
+      // Keeps dripping well past the inter-chunk budget, with every gap
+      // comfortably inside it. If a discarded byte counted as progress the
+      // budget would never fire while this runs, and the read would instead
+      // survive until the drip stops -- so the ELAPSED time is what
+      // discriminates, not the exception on its own.
       unawaited(() async {
-        for (var i = 0; i < 20; i++) {
-          await Future.delayed(Duration(milliseconds: 20));
+        while (dripping) {
+          await Future.delayed(Duration(milliseconds: 50));
           await l.messageHandler('@'.codeUnits);
         }
       }());
+
+      var stopwatch = Stopwatch()..start();
       await expectLater(
           () => l.read(
-              maxWaitMilliSeconds: 10000, transientWaitTimeMillis: 150),
+              maxWaitMilliSeconds: 20000, transientWaitTimeMillis: 200),
           throwsA(predicate((dynamic e) =>
               e is AtTimeoutException &&
               e.message.contains('Nothing received'))),
           reason: 'discarded bytes are not progress -- a peer dripping prompts'
               ' must not look like a response still arriving');
+      stopwatch.stop();
+      dripping = false;
+      expect(stopwatch.elapsedMilliseconds, lessThan(2000),
+          reason: 'it must give up at the inter-chunk budget while the prompts'
+              ' are still arriving, not wait for them to stop');
     });
 
     test('a chunk larger than the buffer capacity is refused and leaves no'
@@ -403,6 +419,51 @@ void main() async {
   });
 
   group('exchange boundaries', () {
+    test('the prompt a completed exchange leaves behind is not reported as a'
+        ' fault', () async {
+      // The suite runs at 'shout', which is above warning, so a warning
+      // would never be emitted and the assertion below would hold for the
+      // wrong reason. The companion test is the control that proves it.
+      AtSignLogger.root_level = 'warning';
+      var l = OutboundMessageListener(mockOutboundClient);
+      var warnings = <String>[];
+      // Records reach the logger's own stream, not Logger.root's:
+      // hierarchicalLoggingEnabled is false in this tree.
+      var sub = l.logger.logger.onRecord.listen((r) {
+        if (r.level >= logging.Level.WARNING) warnings.add(r.message);
+      });
+
+      await l.messageHandler('data:FIRST\n$alice@'.codeUnits);
+      expect(await l.read(), 'data:FIRST');
+      // The prompt is deliberately retained to be stripped from the next
+      // response, so it is present at the start of every later exchange.
+      l.beginExchange();
+      await sub.cancel();
+      AtSignLogger.root_level = 'shout';
+
+      expect(warnings.where((w) => w.contains('left over')), isEmpty,
+          reason: 'warning on the normal case makes the diagnostic useless:'
+              ' it would fire on every exchange and could never distinguish a'
+              ' genuine leftover from designed steady state');
+    });
+
+    test('a genuine leftover IS reported', () async {
+      AtSignLogger.root_level = 'warning';
+      var l = OutboundMessageListener(mockOutboundClient);
+      var warnings = <String>[];
+      var sub = l.logger.logger.onRecord.listen((r) {
+        if (r.level >= logging.Level.WARNING) warnings.add(r.message);
+      });
+
+      await l.messageHandler('data:UNCLAIMED\n$alice@'.codeUnits);
+      l.beginExchange();
+      await sub.cancel();
+      AtSignLogger.root_level = 'shout';
+
+      expect(warnings.where((w) => w.contains('left over')), isNotEmpty,
+          reason: 'an unread message is exactly what this diagnostic is for');
+    });
+
     test('an unread message does not answer the next exchange', () async {
       var l = OutboundMessageListener(mockOutboundClient);
       await l.messageHandler('data:FIRST\n$alice@'.codeUnits);
@@ -426,6 +487,20 @@ void main() async {
   });
 
   group('connection state', () {
+    test('a response the peer terminated but never prompted is still'
+        ' delivered', () async {
+      var l = OutboundMessageListener(mockOutboundClient);
+      // What the server writes when it is about to hang up: a newline and no
+      // prompt (see the connection-limit path in GlobalExceptionHandler).
+      await l.messageHandler('data:LAST\n'.codeUnits);
+      when(() => mockAtConnectionMetaData.isClosed).thenReturn(true);
+
+      expect(await l.read(maxWaitMilliSeconds: 500), 'data:LAST',
+          reason: 'a peer that answers and then hangs up has still answered;'
+              ' reporting the close over the top of it loses the answer');
+      when(() => mockAtConnectionMetaData.isClosed).thenReturn(false);
+    });
+
     test('a closed connection fails fast rather than waiting the budget',
         () async {
       var l = OutboundMessageListener(mockOutboundClient);

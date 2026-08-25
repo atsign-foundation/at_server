@@ -144,12 +144,16 @@ class OutboundClientPool {
 
   /// Closes and removes every pooled client whose connection has gone bad.
   ///
-  /// A client with an exchange in flight is left alone even when it looks
-  /// invalid. [OutboundClient.isInValid] is true when the *inbound*
-  /// connection has gone away, which says nothing about the outbound socket
-  /// a caller is still reading from; closing it there would destroy that
-  /// socket underneath them. It is picked up on a later pass, once the
-  /// exchange has ended.
+  /// A client whose OUTBOUND socket is still good is left alone while an
+  /// exchange is in flight. [OutboundClient.isInValid] ORs the two sides
+  /// together, so it is also true when only the *inbound* connection has gone
+  /// away -- which says nothing about the socket a caller is still reading
+  /// from, and closing it there would destroy that socket underneath them.
+  /// Such a client is picked up on a later pass, once the exchange has ended.
+  ///
+  /// A client whose outbound socket has itself gone is removed even when it
+  /// looks busy: there is nothing left to protect, and leaving it would hand
+  /// the next caller a dead connection.
   ///
   /// Never throws: callers run this while deciding whether they have
   /// capacity, and a failure to close one client must not fail their request.
@@ -159,7 +163,13 @@ class OutboundClientPool {
     }
     var invalidClients = [];
     for (var client in _clients) {
-      if (client.isInValid() && !client.isBusy) {
+      // Dead means closed or stale, NOT idle: a client waiting on a slow
+      // peer has not been written to recently and so looks idle, and that is
+      // precisely the exchange the busy check exists to protect.
+      var outboundDead = client.outboundConnection == null ||
+          client.outboundConnection!.metaData.isClosed ||
+          client.outboundConnection!.metaData.isStale;
+      if (client.isInValid() && !(client.isBusy && !outboundDead)) {
         invalidClients.add(client);
         try {
           client.close();

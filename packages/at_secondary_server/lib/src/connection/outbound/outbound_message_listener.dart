@@ -83,14 +83,35 @@ class OutboundMessageListener {
   /// would answer THIS request instead -- a well-formed record for a key
   /// nobody asked for.
   void beginExchange() {
-    if (_queue.isNotEmpty || _buffer.length() > 0) {
+    // The prompt that closed the previous response is left in the buffer on
+    // purpose -- it is stripped from the front of whatever comes next -- so
+    // finding one here is the normal case and says nothing. Report only what
+    // a caller should not have left behind.
+    if (_queue.isNotEmpty || !_residueIsOnlyAPrompt()) {
       logger.warning('Discarding ${_queue.length} unread message(s) and'
           ' ${_buffer.length()} buffered bytes from ${outboundClient.toAtSign}'
           ' left over from a previous exchange');
-      _queue.clear();
-      _clearBuffer();
     }
+    _queue.clear();
+    _clearBuffer();
     _sinceLastReceived.reset();
+  }
+
+  /// Whether the buffer holds nothing but a prompt (`@` or `@<atSign>@`),
+  /// which is what a completed exchange legitimately leaves behind.
+  bool _residueIsOnlyAPrompt() {
+    var length = _buffer.length();
+    if (length == 0) {
+      return true;
+    }
+    // An atSign is bounded well below this; anything longer is a response.
+    if (length > 64) {
+      return false;
+    }
+    var bytes = _buffer.getData();
+    return bytes.first == _atChar &&
+        bytes.last == _atChar &&
+        !bytes.contains(_newLine);
   }
 
   void _clearBuffer() {
@@ -197,7 +218,9 @@ class OutboundMessageListener {
     // nothing is part-assembled, or it is a payload byte that happens to be
     // an atSign.
     if (data.length == 1 && data.first == _atChar && _buffer.length() == 0) {
-      _sinceLastReceived.reset();
+      // Deliberately does NOT reset the inter-chunk clock: the byte is
+      // discarded, and discarded bytes are not a response still arriving. A
+      // peer emitting nothing but prompts must still look quiet.
       return;
     }
 
@@ -289,6 +312,11 @@ class OutboundMessageListener {
       if (outboundClient.outboundConnection == null ||
           outboundClient.outboundConnection!.metaData.isClosed ||
           outboundClient.outboundConnection!.metaData.isStale) {
+        // A peer that answers and then hangs up has still answered. Take the
+        // message before reporting the close over the top of it.
+        if (_flushIfTerminated()) {
+          continue;
+        }
         _clearBuffer();
         _closeOutboundClient();
         throw AtConnectException(
@@ -356,9 +384,25 @@ class OutboundMessageListener {
     _closeOutboundClient();
   }
 
+  /// Frames a response the peer terminated with a newline but never followed
+  /// with a prompt, which is what it writes when it is about to hang up (see
+  /// the connection-limit path in GlobalExceptionHandler). Nothing more is
+  /// coming, so the newline is the end of the message.
+  ///
+  /// Returns true if a message was queued.
+  bool _flushIfTerminated() {
+    if (_buffer.length() == 0 || _lastByte != _newLine) {
+      return false;
+    }
+    var before = _queue.length;
+    _flushMessage();
+    return _queue.length > before;
+  }
+
   /// Closes the [OutboundClient]
   void _finishedHandler() async {
     logger.info('_finishedHandler called - closing connection');
+    _flushIfTerminated();
     _closeOutboundClient();
   }
 
