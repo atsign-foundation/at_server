@@ -117,6 +117,40 @@ void main() {
     });
   });
 
+  group('queue depth on one pooled client', () {
+    test('counts the exchanges waiting, and returns to zero', () async {
+      when(() => mockOutboundConnection.write('lookup:all:slow$bob\n'))
+          .thenAnswer((_) async {
+        Future.delayed(Duration(milliseconds: 150),
+            () => socketOnDataFn('data:SLOW\n$alice@'.codeUnits));
+      });
+      when(() => mockOutboundConnection.write('lookup:all:fast$bob\n'))
+          .thenAnswer((_) async {
+        Future.delayed(Duration(milliseconds: 10),
+            () => socketOnDataFn('data:FAST\n$alice@'.codeUnits));
+      });
+
+      await outboundClientWithoutHandshake.connect();
+      outboundClientWithoutHandshake.lookupTimeoutMillis = 5000;
+      expect(outboundClientWithoutHandshake.queuedRequests, 0);
+
+      final slow = outboundClientWithoutHandshake.lookUp('all:slow$bob',
+          handshake: false);
+      final fast = outboundClientWithoutHandshake.lookUp('all:fast$bob',
+          handshake: false);
+
+      expect(outboundClientWithoutHandshake.queuedRequests, 2,
+          reason: 'both exchanges are on this client -- one holding the socket'
+              ' and one waiting for it');
+
+      await slow;
+      await fast;
+      expect(outboundClientWithoutHandshake.queuedRequests, 0,
+          reason: 'the count must come back down, or it reports a queue that'
+              ' has long since drained');
+    });
+  });
+
   group('concurrent OutboundClientManager.getClient for one pool key', () {
     /// Wide enough that a caller reaching address resolution while another
     /// is still inside it will do so within the window. Nothing asserts on

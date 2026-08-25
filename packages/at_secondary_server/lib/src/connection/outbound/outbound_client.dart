@@ -67,6 +67,47 @@ class OutboundClient {
   /// operations that take it.
   final Mutex _requestResponseMutex = Mutex();
 
+  int _queuedRequests = 0;
+
+  /// Exchanges holding or waiting for [_requestResponseMutex] on this client.
+  ///
+  /// The wait is unbounded by design. A caller queues behind everything
+  /// already queued here, so the worst case is queue depth times the
+  /// per-exchange budget. A peer that stops answering self-limits at roughly
+  /// one budget, because [OutboundMessageListener.read] closes the connection
+  /// on timeout and everything queued behind it then fails immediately; the
+  /// linear case only arises while the peer *is* answering.
+  ///
+  /// Depth is driven by the pool key, not by this lock. [AtCacheManager]
+  /// looks up through a single shared [DummyInboundConnection], and any dummy
+  /// matches any other, so every cache-miss `lookup:`/`plookup:` in the
+  /// server bound for one remote atSign shares one client. Scan passes the
+  /// real inbound connection, so it gets a client each, and the notify path
+  /// is already one exchange at a time per atSign. If this is seen growing,
+  /// the fix is to widen that pool key rather than to time out here: the
+  /// mutex has no try-acquire, and a timed-out acquire still takes the lock
+  /// later and never releases it.
+  int get queuedRequests => _queuedRequests;
+
+  /// Depth at which the queue on one client is worth reporting.
+  @visibleForTesting
+  static int queueDepthWarningThreshold = 10;
+
+  /// Runs one exchange under [_requestResponseMutex], counting how many are
+  /// waiting for it.
+  Future<T> _serialise<T>(Future<T> Function() exchange) async {
+    _queuedRequests++;
+    if (_queuedRequests == queueDepthWarningThreshold) {
+      logger.warning('$_queuedRequests requests are queued on the single'
+          ' outbound connection to $toAtSign');
+    }
+    try {
+      return await _requestResponseMutex.protect(exchange);
+    } finally {
+      _queuedRequests--;
+    }
+  }
+
   /// When unit testing, we don't need to do all the things necessary
   /// to support server-to-server handshake - for example, actually signing
   /// a pol challenge, nor creating a key which stores that signature.
@@ -284,7 +325,7 @@ class OutboundClient {
   /// declares the target tenant to the peer before any `from:`.
   /// Mirrors [scan]'s raw write/read; only used when toVerbOutboundEnabled.
   Future<String> _sendToVerb() =>
-      _requestResponseMutex.protect(_sendToVerbOnWire);
+      _serialise(_sendToVerbOnWire);
 
   /// Writes the `to:` request and reads its response. Runs under
   /// [_requestResponseMutex].
@@ -314,7 +355,7 @@ class OutboundClient {
   }
 
   Future<bool> _establishHandShake() =>
-      _requestResponseMutex.protect(_establishHandShakeOnWire);
+      _serialise(_establishHandShakeOnWire);
 
   /// Runs the `from:`/`pol:` exchanges as a single unit. Runs under
   /// [_requestResponseMutex].
@@ -407,8 +448,7 @@ class OutboundClient {
   /// Throws a [OutBoundConnectionInvalidException] if we are trying to write to an invalid connection
   Future<String?> lookUp(String key, {bool handshake = true}) {
     logger.finer('lookUp($key, handshake:$handshake) called for $toAtSign');
-    return _requestResponseMutex
-        .protect(() => _lookUpOnWire(key, handshake: handshake));
+    return _serialise(() => _lookUpOnWire(key, handshake: handshake));
   }
 
   /// Writes the lookup request and reads its response. Runs under
@@ -443,8 +483,7 @@ class OutboundClient {
   }
 
   Future<String?> scan({bool handshake = true, String? regex}) =>
-      _requestResponseMutex
-          .protect(() => _scanOnWire(handshake: handshake, regex: regex));
+      _serialise(() => _scanOnWire(handshake: handshake, regex: regex));
 
   /// Writes the scan request and reads its response. Runs under
   /// [_requestResponseMutex].
@@ -520,8 +559,7 @@ class OutboundClient {
 
   Future<String?> notify(String notifyCommandBody,
           {bool handshake = true}) =>
-      _requestResponseMutex.protect(
-          () => _notifyOnWire(notifyCommandBody, handshake: handshake));
+      _serialise(() => _notifyOnWire(notifyCommandBody, handshake: handshake));
 
   /// Writes the notify request and reads its response. Runs under
   /// [_requestResponseMutex].
