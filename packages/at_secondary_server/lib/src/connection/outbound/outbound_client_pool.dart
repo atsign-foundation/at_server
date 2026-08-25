@@ -15,11 +15,52 @@ class OutboundClientPool {
   @visibleForTesting
   bool closed = false;
 
+  /// Slots taken by a caller that is creating a client but has not added it
+  /// yet. Creating one means awaiting [OutboundClient.connect], and without
+  /// counting the gap two callers -- who hold different locks, because the
+  /// lock is per pool key -- each see the same free slot and both create.
+  ///
+  /// Reserving, evicting and refusing all happen in one synchronous run, so
+  /// they are atomic on Dart's single event loop without a lock of their own,
+  /// and connect() still runs unlocked: connecting to one atSign does not
+  /// hold up connecting to another.
+  int _reserved = 0;
+
+  /// Slots taken but not yet filled. [NotifyConnectionsPool.getCapacity]
+  /// subtracts these, since a reserved slot is not free.
+  int get reservedSize => _reserved;
+
   bool hasCapacity() {
     if (closed) {
       throw StateError('add() called, but we are in closed state');
     }
-    return _clients.length < size;
+    return _clients.length + _reserved < size;
+  }
+
+  /// Takes a slot if one is free. A caller that gets true must later call
+  /// exactly one of [addReserved] or [releaseReservation].
+  bool tryReserve() {
+    if (closed) {
+      throw StateError('tryReserve() called, but we are in closed state');
+    }
+    if (_clients.length + _reserved >= size) {
+      return false;
+    }
+    _reserved++;
+    return true;
+  }
+
+  /// Gives back a slot taken by [tryReserve] whose client never arrived.
+  void releaseReservation() {
+    if (_reserved > 0) {
+      _reserved--;
+    }
+  }
+
+  /// Adds the client a [tryReserve] slot was taken for.
+  void addReserved(OutboundClient outBoundClient) {
+    releaseReservation();
+    add(outBoundClient);
   }
 
   /// Removes the least recently used OutboundClient from the pool and closes

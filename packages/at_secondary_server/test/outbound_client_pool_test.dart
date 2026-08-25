@@ -148,6 +148,38 @@ void main() async {
       poolInstance.clearAllClients();
     });
 
+    test('test a reserved slot counts against capacity until the client arrives',
+        () async {
+      var poolInstance = outboundClientPool;
+      poolInstance.size = 1;
+
+      expect(poolInstance.tryReserve(), true);
+      expect(poolInstance.hasCapacity(), false,
+          reason: 'the reserved slot is not free -- a second caller must not'
+              ' see it as available while the first is still connecting');
+      expect(poolInstance.tryReserve(), false);
+
+      poolInstance.addReserved(newOutboundClient('alice'));
+      expect(poolInstance.getCurrentSize(), 1);
+      expect(poolInstance.reservedSize, 0,
+          reason: 'adding the client consumes the reservation rather than'
+              ' leaving the pool permanently one slot smaller');
+
+      poolInstance.clearAllClients();
+    });
+
+    test('test releasing a reservation gives the slot back', () async {
+      var poolInstance = outboundClientPool;
+      poolInstance.size = 1;
+
+      expect(poolInstance.tryReserve(), true);
+      poolInstance.releaseReservation();
+
+      expect(poolInstance.reservedSize, 0);
+      expect(poolInstance.hasCapacity(), true,
+          reason: 'a caller whose connect failed must not shrink the pool');
+    });
+
     test('test evicting the least recently used client closes its connection',
         () async {
       var poolInstance = outboundClientPool;

@@ -44,12 +44,10 @@ class OutboundClientManager {
   /// Per key rather than one lock for the whole manager, so that connecting
   /// to one atSign does not hold up connecting to another.
   ///
-  /// The guarantee is per key and nothing more. [OutboundClientPool]'s
-  /// capacity check, its eviction of the least recently used client and its
-  /// add are shared across every key, and callers for different keys hold
-  /// different locks, so concurrent misses for different keys can each pass
-  /// the capacity check before either adds: [poolSize] bounds the pool only
-  /// when misses do not overlap.
+  /// This lock covers duplicate creation for one key. Capacity across all
+  /// keys is handled separately, by [OutboundClientPool.tryReserve], because
+  /// a lock that could cover it would have to span [OutboundClient.connect]
+  /// and would serialise connecting to unrelated atSigns.
   final Map<(String, Object, bool), _MutexRef> _getClientMutexes = {};
 
   /// Which callers contend for the same lock, following the rule
@@ -118,32 +116,45 @@ class OutboundClientManager {
       return client;
     }
 
-    if (!_pool.hasCapacity()) {
+    // Take the slot before connecting. Reserve, evict and refuse run with no
+    // await between them, so a caller for another pool key -- holding a
+    // different lock -- cannot claim the same slot while this one is inside
+    // connect().
+    if (!_pool.tryReserve()) {
       OutboundClient? evictedClient = _pool.removeLeastRecentlyUsed();
       logger.info("Evicted LRU client from pool : $evictedClient");
-      if (!_pool.hasCapacity()) {
+      if (!_pool.tryReserve()) {
         throw OutboundConnectionLimitException(
             'max limit reached on outbound pool');
       }
     }
 
-    // No existing client found, and Pool has capacity - create a new client
-    var newClient = OutboundClient(
-      inboundConnection,
-      toAtSign,
-      secondaryAddressFinder,
-      handshakeRequired,
-      outboundConnectionFactory,
-    );
-    if (connect) {
-      await newClient.connect();
-    } else {
-      logger.warning('Created new client but not connecting it');
+    var reserved = true;
+    try {
+      // No existing client found, and Pool has capacity - create a new client
+      var newClient = OutboundClient(
+        inboundConnection,
+        toAtSign,
+        secondaryAddressFinder,
+        handshakeRequired,
+        outboundConnectionFactory,
+      );
+      if (connect) {
+        await newClient.connect();
+      } else {
+        logger.warning('Created new client but not connecting it');
+      }
+      _pool.addReserved(newClient);
+      reserved = false;
+      logger.info(
+          'Created new outbound client to $toAtSign (handshake: $handshakeRequired) and added to pool');
+      return newClient;
+    } finally {
+      // A connect that threw must not leave the pool permanently smaller.
+      if (reserved) {
+        _pool.releaseReservation();
+      }
     }
-    _pool.add(newClient);
-    logger.info(
-        'Created new outbound client to $toAtSign (handshake: $handshakeRequired) and added to pool');
-    return newClient;
   }
 
   int getActiveConnectionSize() {

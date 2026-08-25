@@ -10,6 +10,12 @@
 - fix: a chunk arriving mid-response that happens to begin and end with `@`
   is treated as payload rather than as a prompt, so a value containing an
   atSign at a segment boundary is no longer flushed as a truncated response.
+- fix: enforce the outbound pool size across pool keys. Creating a client
+  awaits its connect, and callers for different remote atSigns hold
+  different locks, so two that both found the pool empty could each pass the
+  capacity check and add a client -- taking the pool past its configured
+  maximum, without the limit exception ever being raised. A slot is now
+  taken before connecting and given back if the connect fails.
 - fix: close the outbound client evicted from the pool. The pool held the
   last reference to an evicted client and dropped it without closing, so
   every eviction leaked an open socket to another atServer. A client with a
