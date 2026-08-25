@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/base_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:logging/logging.dart' show Level;
@@ -43,7 +44,19 @@ class OutboundMessageListener {
   /// waits out the full budget on a peer that is never going to reply.
   final Stopwatch _sinceLastReceived = Stopwatch()..start();
 
-  OutboundMessageListener(this.outboundClient);
+  /// The connection this listener was created for.
+  ///
+  /// Held rather than read back from [outboundClient] each time, because a
+  /// client can replace both its connection and its listener
+  /// ([OutboundClient] does exactly that when a peer closes the socket rather
+  /// than answering a verb it does not understand). The listener left behind
+  /// stays subscribed to the socket it was made for, and when that socket
+  /// finally ends it must tear down THAT connection -- not whichever one has
+  /// since taken its place.
+  final OutboundSocketConnection? _connection;
+
+  OutboundMessageListener(this.outboundClient)
+      : _connection = outboundClient.outboundConnection;
 
   /// Listens to the underlying connection's socket if the connection is created.
   /// @throws [AtConnectException] if the connection is not yet created
@@ -52,9 +65,9 @@ class OutboundMessageListener {
         'Calling outbound underlying.listen within runZonedGuarded block');
 
     runZonedGuarded(() {
-      outboundClient.outboundConnection?.underlying.listen(messageHandler,
+      _connection?.underlying.listen(messageHandler,
           onDone: _finishedHandler, onError: _errorHandler);
-      outboundClient.outboundConnection?.metaData.isListening = true;
+      _connection?.metaData.isListening = true;
     }, (Object error, StackTrace st) {
       logger.warning(
           'runZonedGuarded received error $error - calling _errorHandler to close connection');
@@ -158,7 +171,7 @@ class OutboundMessageListener {
     }
     if (logger.logger.isLoggable(Level.INFO)) {
       logger.info(logger.getAtConnectionLogMessage(
-          outboundClient.outboundConnection!.metaData,
+          _connection!.metaData,
           'RCVD: ${BaseSocketConnection.truncateForLogging(result)}'));
     }
     _queue.add(result);
@@ -197,8 +210,9 @@ class OutboundMessageListener {
   @visibleForTesting
   Future<void> messageHandler(data) async {
     //ignore the data if connection is closed or stale
-    if (outboundClient.outboundConnection!.metaData.isStale ||
-        outboundClient.outboundConnection!.metaData.isClosed) {
+    if (_connection == null ||
+        _connection!.metaData.isStale ||
+        _connection!.metaData.isClosed) {
       _clearBuffer();
       return;
     }
@@ -309,9 +323,9 @@ class OutboundMessageListener {
       // don't wait out the timeout. This matters when a peer closes the
       // connection instead of replying with an error upon receiving a verb
       // it does not understand (atServers up to v3.0.28 do this).
-      if (outboundClient.outboundConnection == null ||
-          outboundClient.outboundConnection!.metaData.isClosed ||
-          outboundClient.outboundConnection!.metaData.isStale) {
+      if (_connection == null ||
+          _connection!.metaData.isClosed ||
+          _connection!.metaData.isStale) {
         // A peer that answers and then hangs up has still answered. Take the
         // message before reporting the close over the top of it.
         if (_flushIfTerminated()) {
@@ -410,6 +424,18 @@ class OutboundMessageListener {
   }
 
   _closeOutboundClient() {
+    // A listener outlives its connection when the client reconnects, and it
+    // stays subscribed to the socket it was made for. When that socket
+    // finally ends, closing through the client would tear down whichever
+    // connection the client holds NOW -- a live one this listener has nothing
+    // to do with. Close only our own and leave the rest alone.
+    if (!identical(_connection, outboundClient.outboundConnection)) {
+      logger.info('The socket for a replaced connection to'
+          ' ${outboundClient.toAtSign} ended; closing that connection and'
+          ' leaving the current one alone');
+      _connection?.close();
+      return;
+    }
     // Changed the code here to no longer check if the client is invalid or not, since the outbound client can be
     // invalid if the *inbound* connection has become invalid, which can happen if the inbound client has closed
     // its socket immediately after making a request; this would in turn lead to the outbound client here not being

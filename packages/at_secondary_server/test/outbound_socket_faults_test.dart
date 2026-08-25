@@ -28,7 +28,11 @@ class InjectableSocket extends Fake implements Socket {
 
   /// Everything the server wrote to this socket, in order.
   final List<String> written = [];
-  bool destroyed = false;
+
+  /// How many times the server destroyed this socket. A count rather than a
+  /// flag, so a double-close is visible.
+  int destroyCount = 0;
+  bool get destroyed => destroyCount > 0;
 
   void emit(String data) =>
       _controller.add(Uint8List.fromList(utf8.encode(data)));
@@ -46,8 +50,20 @@ class InjectableSocket extends Fake implements Socket {
 
   @override
   void destroy() {
-    destroyed = true;
+    destroyCount++;
+    // A real Socket.destroy() tears down the read side too, so the close the
+    // server performs comes back to it as onDone. Without this the double
+    // exercises only half of what the runtime does on every close path.
+    if (!_controller.isClosed) _controller.close();
     if (!_doneCompleter.isCompleted) _doneCompleter.complete();
+  }
+
+  /// Delivers [data] and destroys in the same turn -- the one production route
+  /// to bytes arriving after a close, since already-queued events still
+  /// dispatch after the controller is closed.
+  void emitThenDestroy(String data) {
+    emit(data);
+    destroy();
   }
 
   @override
@@ -237,8 +253,7 @@ void main() {
           reason: 'the second request must never reach a dead socket');
     });
 
-    test('an answer arriving after the caller gave up does not answer the next'
-        ' one', () async {
+    test('the peer cannot answer at all once the caller has given up', () async {
       var socket = InjectableSocket();
       var client = clientOn(socket);
       client.lookupTimeoutMillis = 200;
@@ -246,14 +261,98 @@ void main() {
       await expectLater(() => client.lookUp('all:x@alice', handshake: false),
           throwsA(predicate((dynamic e) => e is AtTimeoutException)));
 
-      socket.emit('data:TOO_LATE\n@alice@');
+      // The timeout destroys the socket, which tears down the read side, so a
+      // late answer cannot reach us -- attempting to deliver one is a state
+      // the transport does not permit. Pinned because an earlier version of
+      // this double completed `done` without closing the stream, which made
+      // the unreachable look reachable.
+      expect(socket.destroyed, true);
+      expect(() => socket.emit('data:TOO_LATE\n@alice@'), throwsStateError,
+          reason: 'no bytes can arrive on a destroyed socket');
+    });
+
+    test('an answer already in flight when the socket dies is still delivered',
+        () async {
+      var socket = InjectableSocket();
+      var client = clientOn(socket);
+
+      // Delivered and then destroyed in the same turn: the peer answered, and
+      // the connection died immediately afterwards.
+      socket.emitThenDestroy('data:IN_FLIGHT\n@alice@');
       await Future.delayed(Duration(milliseconds: 30));
 
-      await expectLater(
-          () => client.messageListener.read(maxWaitMilliSeconds: 300),
-          throwsA(predicate((dynamic e) => e is AtConnectException)),
-          reason: 'the request it belonged to is over; returning it would'
-              ' answer a different caller with it');
+      expect(await client.messageListener.read(maxWaitMilliSeconds: 300),
+          'data:IN_FLIGHT',
+          reason: 'the queue is checked before the connection state, because a'
+              ' peer that answered and then died has still answered');
+    });
+  });
+
+  group('a connection that was replaced', () {
+    /// Swaps in a new connection and listener exactly as
+    /// OutboundClient._createConnectionAndListener does, leaving the previous
+    /// listener still subscribed to the previous socket.
+    OutboundClient reconnect(OutboundClient client, InjectableSocket next) {
+      client.outboundConnection = OutboundConnectionImpl(next, 'alice');
+      client.messageListener = OutboundMessageListener(client);
+      client.messageListener.listen();
+      return client;
+    }
+
+    test('does not take the replacement down when its old socket ends',
+        () async {
+      var first = InjectableSocket();
+      var client = clientOn(first);
+      var second = InjectableSocket();
+      reconnect(client, second);
+
+      // The abandoned socket finally hangs up.
+      await first.emitDone();
+      await Future.delayed(Duration(milliseconds: 30));
+
+      expect(client.outboundConnection!.metaData.isClosed, false,
+          reason: 'the listener left behind must close the connection IT was'
+              ' made for, not whichever one the client holds now');
+      expect(second.destroyCount, 0);
+
+      second.emit('data:STILL_WORKING\n@alice@');
+      await Future.delayed(Duration(milliseconds: 30));
+      expect(await client.messageListener.read(maxWaitMilliSeconds: 300),
+          'data:STILL_WORKING');
+    });
+
+    test('does not take the replacement down when its old socket errors',
+        () async {
+      var first = InjectableSocket();
+      var client = clientOn(first);
+      var second = InjectableSocket();
+      reconnect(client, second);
+
+      first.emitError(SocketException('the abandoned socket faults'));
+      await Future.delayed(Duration(milliseconds: 50));
+
+      expect(client.outboundConnection!.metaData.isClosed, false);
+      second.emit('data:STILL_WORKING\n@alice@');
+      await Future.delayed(Duration(milliseconds: 30));
+      expect(await client.messageListener.read(maxWaitMilliSeconds: 300),
+          'data:STILL_WORKING');
+    });
+
+    test('late bytes on the old socket do not reach the new exchange',
+        () async {
+      var first = InjectableSocket();
+      var client = clientOn(first);
+      var second = InjectableSocket();
+      reconnect(client, second);
+
+      first.emit('data:FROM_THE_OLD_SOCKET\n@alice@');
+      second.emit('data:FROM_THE_NEW_SOCKET\n@alice@');
+      await Future.delayed(Duration(milliseconds: 30));
+
+      expect(await client.messageListener.read(maxWaitMilliSeconds: 300),
+          'data:FROM_THE_NEW_SOCKET',
+          reason: 'the old socket has its own listener and its own queue; its'
+              ' traffic must not surface on the current one');
     });
   });
 
