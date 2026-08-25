@@ -3,6 +3,7 @@ import 'package:at_lookup/at_lookup.dart' as at_lookup;
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
+import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
@@ -114,6 +115,49 @@ void main() {
           reason: 'the serialisation must hold across different verbs on the'
               ' shared socket, not just between two lookups');
       expect(await notify, 'data:NOTIFY_RESULT');
+    });
+  });
+
+  group('NotifyConnectionsPool capacity', () {
+    test('is enforced when two callers for different atSigns miss together',
+        () async {
+      // Both callers must be inside connect() together, which is the whole
+      // window the reservation exists to cover.
+      when(() => mockSecondaryAddressFinder.findSecondary(bob))
+          .thenAnswer((_) async {
+        await Future.delayed(Duration(milliseconds: 50));
+        return at_lookup.SecondaryAddress(bobHost, bobPort);
+      });
+      when(() => mockSecondaryAddressFinder.findSecondary(alice))
+          .thenAnswer((_) async {
+        await Future.delayed(Duration(milliseconds: 50));
+        return at_lookup.SecondaryAddress(bobHost, bobPort);
+      });
+      when(() => mockOutboundConnectionFactory.createOutboundConnection(
+          bobHost, bobPort, alice)).thenAnswer((_) async {
+        return mockOutboundConnection;
+      });
+
+      final pool = NotifyConnectionsPool(
+          mockSecondaryAddressFinder, mockOutboundConnectionFactory,
+          poolSize: 1);
+
+      final outcomes = await Future.wait([
+        pool
+            .getOutboundClient(bob)
+            .then<Object>((c) => c)
+            .onError<Exception>((e, _) => e),
+        pool
+            .getOutboundClient(alice)
+            .then<Object>((c) => c)
+            .onError<Exception>((e, _) => e),
+      ]);
+
+      expect(outcomes.whereType<OutboundClient>().length, 1,
+          reason: 'the notify pool has the same capacity contract as the'
+              ' outbound client pool, and the same race without a reservation');
+      expect(outcomes.whereType<OutboundConnectionLimitException>().length, 1);
+      expect(pool.outboundClientPool.getCurrentSize(), 1);
     });
   });
 

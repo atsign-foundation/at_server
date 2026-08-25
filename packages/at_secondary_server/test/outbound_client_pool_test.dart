@@ -243,6 +243,83 @@ void main() async {
       poolInstance.clearAllClients();
     });
 
+    test('test a busy client is not cleared even when it looks invalid',
+        () async {
+      var poolInstance = outboundClientPool;
+      poolInstance.size = 5;
+
+      var silentPeer = SilentPeerSocket();
+      var inbound = InboundConnectionImpl(mockSocket, 'alice');
+      var busy = OutboundClient(
+        inbound,
+        'alice',
+        AtSecondaryServerImpl.getInstance().secondaryAddressFinder,
+        false,
+        outboundConnectionFactory,
+      )..outboundConnection = OutboundConnectionImpl(silentPeer, 'alice');
+      busy.messageListener = OutboundMessageListener(busy);
+      busy.lookupTimeoutMillis = 5000;
+      poolInstance.add(busy);
+
+      var inFlight = busy.lookUp('all:phone@alice', handshake: false);
+      await Future.delayed(Duration(milliseconds: 20));
+
+      // The INBOUND connection goes away, which makes the client look invalid
+      // even though the outbound socket is mid-exchange.
+      await inbound.close();
+      expect(busy.isInValid(), true, reason: 'precondition');
+      expect(busy.isBusy, true, reason: 'precondition');
+
+      poolInstance.clearInvalidClients();
+      expect(poolInstance.getCurrentSize(), 1,
+          reason: 'the outbound socket is still being read from; closing it'
+              ' because the inbound side went away destroys it under the'
+              ' caller waiting on it');
+      expect(busy.outboundConnection!.metaData.isClosed, false);
+
+      busy.outboundConnection!.metaData.isClosed = true;
+      await expectLater(
+          inFlight, throwsA(predicate((dynamic e) => e is AtConnectException)));
+      poolInstance.clearAllClients();
+    });
+
+    test('test every pooled client being busy means nothing is evicted',
+        () async {
+      var poolInstance = outboundClientPool;
+      poolInstance.size = 2;
+
+      var clients = <OutboundClient>[];
+      var pending = <Future<String?>>[];
+      for (var name in ['alice', 'bob']) {
+        var c = OutboundClient(
+          InboundConnectionImpl(mockSocket, name),
+          name,
+          AtSecondaryServerImpl.getInstance().secondaryAddressFinder,
+          false,
+          outboundConnectionFactory,
+        )..outboundConnection =
+            OutboundConnectionImpl(SilentPeerSocket(), name);
+        c.messageListener = OutboundMessageListener(c);
+        c.lookupTimeoutMillis = 5000;
+        poolInstance.add(c);
+        clients.add(c);
+        pending.add(c.lookUp('all:phone@$name', handshake: false));
+      }
+      await Future.delayed(Duration(milliseconds: 20));
+
+      expect(poolInstance.removeLeastRecentlyUsed(), isNull,
+          reason: 'a pool full of live work has nothing safe to evict, and'
+              ' must say so rather than destroying an exchange');
+      expect(poolInstance.getCurrentSize(), 2);
+
+      for (var i = 0; i < clients.length; i++) {
+        clients[i].outboundConnection!.metaData.isClosed = true;
+        await expectLater(pending[i],
+            throwsA(predicate((dynamic e) => e is AtConnectException)));
+      }
+      poolInstance.clearAllClients();
+    });
+
     test('test connection pool remove least recently used when pool size <= 1',
         () async {
       var poolInstance = outboundClientPool;

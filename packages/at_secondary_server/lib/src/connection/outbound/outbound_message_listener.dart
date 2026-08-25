@@ -271,11 +271,11 @@ class OutboundMessageListener {
           // A partial response left in the buffer belongs to an exchange that
           // is over. Discard it, or it prefixes the next response and the
           // caller after this one is answered with a corrupted record.
-          _buffer.clear();
+          _clearBuffer();
           _throwAtExceptionFromErrorResponse(result);
         } else {
           // any other response is unexpected and bad, so close the connection and throw an exception
-          _buffer.clear();
+          _clearBuffer();
           _closeOutboundClient();
           throw AtConnectException(
               "Unexpected response '$result' from remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort}");
@@ -289,7 +289,7 @@ class OutboundMessageListener {
       if (outboundClient.outboundConnection == null ||
           outboundClient.outboundConnection!.metaData.isClosed ||
           outboundClient.outboundConnection!.metaData.isStale) {
-        _buffer.clear();
+        _clearBuffer();
         _closeOutboundClient();
         throw AtConnectException(
             'Connection to remote secondary ${outboundClient.toAtSign}'
@@ -298,7 +298,7 @@ class OutboundMessageListener {
       }
       // The whole exchange has run out of time.
       if (sinceStart.elapsedMilliseconds > maxWaitMilliSeconds) {
-        _buffer.clear();
+        _clearBuffer();
         _closeOutboundClient();
         throw AtTimeoutException(
             "No response after $maxWaitMilliSeconds millis from remote secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort}");
@@ -307,7 +307,7 @@ class OutboundMessageListener {
       // keeps resetting this, so reaching it means the peer has gone quiet
       // rather than that the response is merely large.
       if (_sinceLastReceived.elapsedMilliseconds > transientWaitTimeMillis) {
-        _buffer.clear();
+        _clearBuffer();
         _closeOutboundClient();
         throw AtTimeoutException(
             "Nothing received for $transientWaitTimeMillis millis from remote"

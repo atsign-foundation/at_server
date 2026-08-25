@@ -142,15 +142,30 @@ class OutboundClientPool {
     return null;
   }
 
+  /// Closes and removes every pooled client whose connection has gone bad.
+  ///
+  /// A client with an exchange in flight is left alone even when it looks
+  /// invalid. [OutboundClient.isInValid] is true when the *inbound*
+  /// connection has gone away, which says nothing about the outbound socket
+  /// a caller is still reading from; closing it there would destroy that
+  /// socket underneath them. It is picked up on a later pass, once the
+  /// exchange has ended.
+  ///
+  /// Never throws: callers run this while deciding whether they have
+  /// capacity, and a failure to close one client must not fail their request.
   void clearInvalidClients() {
     if (closed) {
       throw StateError('add() called, but we are in closed state');
     }
     var invalidClients = [];
     for (var client in _clients) {
-      if (client.isInValid()) {
+      if (client.isInValid() && !client.isBusy) {
         invalidClients.add(client);
-        client.close();
+        try {
+          client.close();
+        } catch (e) {
+          logger.severe('clearInvalidClients: exception closing $client : $e');
+        }
       }
     }
     _clients.removeWhere((client) => invalidClients.contains(client));
