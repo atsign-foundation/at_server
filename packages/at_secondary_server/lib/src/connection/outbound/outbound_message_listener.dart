@@ -110,6 +110,14 @@ class OutboundMessageListener {
     _sinceLastReceived.reset();
   }
 
+  /// The messages framed so far and not yet read.
+  ///
+  /// Exists so a test can compare this framing against the one this package
+  /// shipped previously, message for message, without going through [read]
+  /// (which throws on an `error:` response and so cannot report a queue).
+  @visibleForTesting
+  List<String> get queuedForTest => _queue.cast<String>().toList();
+
   /// Whether the buffer holds nothing but a prompt (`@` or `@<atSign>@`),
   /// which is what a completed exchange legitimately leaves behind.
   bool _residueIsOnlyAPrompt() {
