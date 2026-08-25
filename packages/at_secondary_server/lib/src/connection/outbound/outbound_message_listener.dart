@@ -78,6 +78,11 @@ class OutboundMessageListener {
   static const int _atChar = 64;
   static const int _newLine = 10;
 
+  /// The largest a prompt can legitimately be, in bytes: an atSign is at most
+  /// 55 characters, a character is at most four bytes of UTF-8, and the
+  /// prompt adds a trailing `@`.
+  static const int _maxPromptBytes = 55 * 4 + 4;
+
   /// The last byte appended to [_buffer], or -1 when the buffer is empty.
   ///
   /// Tracked rather than read back from the buffer because
@@ -125,14 +130,17 @@ class OutboundMessageListener {
     if (length == 0) {
       return true;
     }
-    // An atSign is bounded well below this; anything longer is a response.
-    if (length > 64) {
+    // An atSign is bounded at 55 CHARACTERS, and this buffer is bytes: an
+    // emoji atSign costs four bytes a character, so a legitimate prompt runs
+    // to about 220. Judging it against a character-sized number would call
+    // every emoji atSign's prompt a fault.
+    if (length > _maxPromptBytes) {
       return false;
     }
     var bytes = _buffer.getData();
-    return bytes.first == _atChar &&
-        bytes.last == _atChar &&
-        !bytes.contains(_newLine);
+    // Not `bytes.last == _atChar`: a prompt split across two reads leaves a
+    // partial one here, which is still not something a caller left behind.
+    return bytes.first == _atChar && !bytes.contains(_newLine);
   }
 
   void _clearBuffer() {
@@ -156,20 +164,22 @@ class OutboundMessageListener {
     if (_buffer.length() == 0) {
       return;
     }
-    var bytes = _buffer.getData().toList();
-    if (bytes.isNotEmpty && bytes.last == _newLine) {
-      bytes.removeLast();
-    }
+    var bytes = _buffer.getData();
     _clearBuffer();
     String result;
     try {
+      // The terminating newline is left on and removed by the trim below,
+      // rather than copying the whole buffer to drop one byte.
       result = utf8.decode(bytes);
     } on FormatException catch (e) {
-      // Malformed bytes are not a reason to take the connection down from
-      // inside a socket callback, and they must not stay in the buffer to
-      // corrupt every response after them.
-      logger.warning('Discarding a malformed message from'
-          ' ${outboundClient.toAtSign}: $e');
+      // Not a reason to throw out of a socket callback, but not a reason to
+      // carry on either: a peer emitting bytes we cannot decode is broken,
+      // and leaving the connection up makes every caller queued on this
+      // client wait out the whole silence budget for an answer that is never
+      // coming. Close it, and the waiting caller fails on the next poll.
+      logger.warning('Closing the connection to ${outboundClient.toAtSign}:'
+          ' it sent a message that is not valid UTF-8 ($e)');
+      _closeOutboundClient();
       return;
     }
     result = _stripPrompt(result.trim());
@@ -213,6 +223,15 @@ class OutboundMessageListener {
   /// as one string but delivered in however many pieces the network chooses,
   /// so any rule keyed on a chunk boundary loses or corrupts bytes when the
   /// split lands somewhere awkward.
+  ///
+  /// The trade this makes, deliberately: a message is ended by a newline
+  /// followed by the `@` that begins the peer's prompt, so a raw response
+  /// body containing that byte pair is split at it. Every response an
+  /// outbound client can receive is `data:`- or `error:`-prefixed and framed
+  /// by its handler, except the two raw values the pol handshake reads, whose
+  /// producers emit base64. Chunk-boundary independence is worth far more
+  /// than tolerating `\n@` inside a raw body, because the former happens by
+  /// itself and the latter needs a producer that does not exist.
   ///
   /// Throws a [BufferOverFlowException] if the buffer cannot hold the data.
   @visibleForTesting

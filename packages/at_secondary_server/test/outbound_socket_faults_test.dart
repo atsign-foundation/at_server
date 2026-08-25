@@ -205,6 +205,26 @@ void main() {
               ' a particular type');
     });
 
+    test('undecodable bytes close the connection instead of stalling a caller',
+        () async {
+      var socket = InjectableSocket();
+      var client = clientOn(socket);
+
+      var stopwatch = Stopwatch()..start();
+      var read = client.messageListener
+          .read(maxWaitMilliSeconds: 20000, transientWaitTimeMillis: 10000);
+      await Future.delayed(Duration(milliseconds: 20));
+      socket.emitBytes([0xFF, 0xFE, 0x0A, 0x40]);
+
+      await expectLater(
+          read, throwsA(predicate((dynamic e) => e is AtConnectException)));
+      stopwatch.stop();
+      expect(stopwatch.elapsedMilliseconds, lessThan(5000),
+          reason: 'the caller must not wait out the silence budget holding the'
+              ' request/response mutex, with everything queued behind it');
+      expect(client.outboundConnection!.metaData.isClosed, true);
+    });
+
     test('a chunk bigger than the buffer closes the connection rather than'
         ' escaping the socket callback', () async {
       var socket = InjectableSocket();

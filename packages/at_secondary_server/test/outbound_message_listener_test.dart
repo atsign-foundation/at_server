@@ -333,6 +333,24 @@ void main() async {
     });
   });
 
+  group('the framing trade, pinned so it is a decision and not folklore', () {
+    test('a raw body containing a newline followed by an atSign is split',
+        () async {
+      var l = OutboundMessageListener(mockOutboundClient);
+
+      // No producer emits this: every response an outbound client can receive
+      // is prefixed and framed by a response handler, and the only raw values
+      // it reads are the pol handshake's, which are base64. Pinned so that if
+      // it ever becomes reachable, this test says what was traded away.
+      await l.messageHandler('data:line one\n@still the same value\n$alice@'
+          .codeUnits);
+
+      expect(await l.read(), 'data:line one',
+          reason: 'the newline-then-@ pair ends a message, which is what buys'
+              ' independence from where the network cuts the bytes');
+    });
+  });
+
   group('hostile and malformed input', () {
     test('a zero-length chunk is a no-op', () async {
       var l = OutboundMessageListener(mockOutboundClient);
@@ -343,14 +361,27 @@ void main() async {
               ' callback and take the connection down');
     });
 
-    test('bytes that are not valid UTF-8 do not throw out of the handler',
-        () async {
+    test('bytes that are not valid UTF-8 close the connection rather than'
+        ' throwing out of the handler', () async {
       var l = OutboundMessageListener(mockOutboundClient);
+
+      // Must not throw: this runs as a socket onData callback, and an escape
+      // becomes an unhandled rejection.
       await l.messageHandler([0xFF, 0xFE, 0x0A, 0x40]);
-      await l.messageHandler('data:AFTER\n$alice@'.codeUnits);
-      expect(await l.read(), 'data:AFTER',
-          reason: 'a malformed message must be dropped, not left in the buffer'
-              ' to corrupt every response after it');
+
+      verify(() => mockOutboundClient.close()).called(1);
+    }, );
+
+    test('a peer that sends undecodable bytes is not waited on', () async {
+      var l = OutboundMessageListener(mockOutboundClient);
+      when(() => mockAtConnectionMetaData.isClosed).thenReturn(true);
+
+      await expectLater(() => l.read(maxWaitMilliSeconds: 10000),
+          throwsA(predicate((dynamic e) => e is AtConnectException)),
+          reason: 'dropping the message and leaving the connection up would'
+              ' make every caller queued on this client wait out the whole'
+              ' silence budget for an answer that is never coming');
+      when(() => mockAtConnectionMetaData.isClosed).thenReturn(false);
     });
 
     test('a UTF-8 character split across chunks is reassembled', () async {
@@ -445,6 +476,36 @@ void main() async {
           reason: 'warning on the normal case makes the diagnostic useless:'
               ' it would fire on every exchange and could never distinguish a'
               ' genuine leftover from designed steady state');
+    });
+
+    test('an emoji atSign\'s prompt is not reported as a fault', () async {
+      // Before the listener is built: AtSignLogger takes its level at
+      // construction, so a listener made first stays at the suite's 'shout'
+      // and never emits the warning this asserts the absence of.
+      AtSignLogger.root_level = 'warning';
+      var l = OutboundMessageListener(mockOutboundClient);
+      var warnings = <String>[];
+      var sub = l.logger.logger.onRecord.listen((r) {
+        if (r.level >= logging.Level.WARNING) warnings.add(r.message);
+      });
+
+      // An atSign is bounded at 55 CHARACTERS. In UTF-8 that is up to four
+      // bytes each, so a legitimate prompt is far larger than a
+      // character-sized guess at its length.
+      var emojiAtSign = '@${'🛠' * 20}';
+      // utf8.encode, NOT codeUnits: an emoji is outside the BMP, so codeUnits
+      // yields UTF-16 surrogate pairs rather than the bytes a socket carries,
+      // and the buffer would never reach the size under test.
+      await l.messageHandler(utf8.encode('data:FIRST\n$emojiAtSign@'));
+      expect(await l.read(), 'data:FIRST');
+      l.beginExchange();
+      await sub.cancel();
+      AtSignLogger.root_level = 'shout';
+
+      expect(warnings.where((w) => w.contains('left over')), isEmpty,
+          reason: 'the prompt of an emoji atSign is an ordinary prompt; a'
+              ' byte-sized cap judged against a character bound would call'
+              ' every one of them a leftover');
     });
 
     test('a genuine leftover IS reported', () async {

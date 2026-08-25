@@ -136,6 +136,12 @@ class OutboundClientPool {
       if (client.toAtSign == toAtSign &&
           client.isHandShakeDone == isHandShake &&
           client.inboundConnection.equals(inboundConnection)) {
+        // Handing a client out is a use. Without this, lastUsed is stamped
+        // only when an exchange ENDS, so a client just given to a caller who
+        // has not started yet is the least recently used one in the pool --
+        // and therefore the first chosen for eviction, which now closes its
+        // socket underneath them.
+        client.lastUsed = DateTime.now();
         return client;
       }
     }

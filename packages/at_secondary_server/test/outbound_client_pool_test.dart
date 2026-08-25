@@ -180,6 +180,33 @@ void main() async {
           reason: 'a caller whose connect failed must not shrink the pool');
     });
 
+    test('test a client just handed out of the pool is not the eviction victim',
+        () async {
+      var poolInstance = outboundClientPool;
+      poolInstance.size = 5;
+
+      var handedOut = newOutboundClient('alice');
+      poolInstance.add(handedOut);
+      await Future.delayed(Duration(milliseconds: 2));
+      var other = newOutboundClient('bob');
+      poolInstance.add(other);
+
+      // A caller asks for 'alice' and is given the pooled client. It has not
+      // started its exchange yet, so it is not busy -- and lastUsed is only
+      // stamped when an exchange ENDS, so without treating the hand-out as a
+      // use it stays the least recently used client in the pool.
+      var got = poolInstance.get('alice', handedOut.inboundConnection,
+          isHandShake: false);
+      expect(identical(got, handedOut), true, reason: 'precondition');
+
+      expect(poolInstance.removeLeastRecentlyUsed(), other,
+          reason: 'evicting the client a caller was just handed closes its'
+              ' socket before that caller has written a byte');
+      expect(handedOut.outboundConnection!.metaData.isClosed, false);
+
+      poolInstance.clearAllClients();
+    });
+
     test('test evicting the least recently used client closes its connection',
         () async {
       var poolInstance = outboundClientPool;
