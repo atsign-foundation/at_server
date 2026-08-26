@@ -8,9 +8,16 @@
 # the atServer or the atDirectory needs an image built from the branch they are
 # on, and needs to be able to prove that is what they got.
 #
-# Usage: buildee.sh [-t <tag>] [-q]
+# Usage: buildee.sh [-t <tag>] [-p <platform>] [-q]
 #   -t   image tag to produce (default: at_ephemeral:local)
+#   -p   platform to build for (default: the host's)
 #   -q   quieter docker output
+#
+# -p exists because a base-image pin can stop resolving for your architecture
+# without anything in this repo changing. If a build dies at "no match for
+# platform in manifest", check the pinned digest actually carries your platform
+# (`docker buildx imagetools inspect <image>@<digest>`) before assuming
+# emulation is the answer.
 #
 # The image is labelled with the commit it was built from, and the build is
 # verified afterwards by reading that label back and confirming the three
@@ -20,13 +27,15 @@
 set -euo pipefail
 
 TAG="at_ephemeral:local"
+PLATFORM=""
 PROGRESS="auto"
 
-while getopts ":t:qh" opt; do
+while getopts ":t:p:qh" opt; do
   case "$opt" in
     t) TAG="$OPTARG" ;;
+    p) PLATFORM="$OPTARG" ;;
     q) PROGRESS="plain" ;;
-    h) sed -n '2,20p' "$0"; exit 0 ;;
+    h) sed -n '2,25p' "$0"; exit 0 ;;
     \?) echo "buildee.sh: unknown option -$OPTARG" >&2; exit 2 ;;
     :) echo "buildee.sh: -$OPTARG needs an argument" >&2; exit 2 ;;
   esac
@@ -53,6 +62,8 @@ echo "  repo   : $REPO"
 echo "  branch : $BRANCH"
 echo "  commit : $REV$DIRTY"
 echo "  tag    : $TAG"
+HOST_PLATFORM=$(docker version --format '{{.Server.Os}}/{{.Server.Arch}}')
+echo "  platform: ${PLATFORM:-$HOST_PLATFORM (host default)}"
 echo
 
 # The .dockerignore keeps the host's own build outputs out of the context, so
@@ -65,11 +76,18 @@ for stale in packages/at_root_server/root packages/at_secondary_server/secondary
   fi
 done
 
+PLATFORM_ARGS=()
+if [[ -n "$PLATFORM" ]]; then
+  PLATFORM_ARGS=(--platform "$PLATFORM")
+fi
+
 docker build \
+  "${PLATFORM_ARGS[@]}" \
   --progress="$PROGRESS" \
   --label "org.opencontainers.image.revision=$REV" \
   --label "org.opencontainers.image.source=at_server" \
   --label "com.atsign.ee.branch=$BRANCH" \
+  --label "com.atsign.ee.platform=${PLATFORM:-$HOST_PLATFORM}" \
   -t "$TAG" \
   -f "$DOCKERFILE" \
   . || { echo "buildee.sh: docker build failed" >&2; exit 1; }
@@ -87,7 +105,7 @@ echo "  revision label matches HEAD"
 
 # `file` is not installed in the slim image, so read the ELF magic directly:
 # four bytes, 0x7f 'E' 'L' 'F'. A placeholder or a truncated copy fails this.
-docker run --rm "$TAG" /bin/sh -c '
+docker run --rm "${PLATFORM_ARGS[@]}" "$TAG" /bin/sh -c '
   set -e
   fail=0
   for f in /atsign/root/root /atsign/secondary/secondary /usr/local/bin/at_activate; do
@@ -103,7 +121,7 @@ docker run --rm "$TAG" /bin/sh -c '
 ' || { echo "buildee.sh: the image does not contain the three built artefacts" >&2; exit 1; }
 
 echo
-echo "Built $TAG from $BRANCH @ ${REV:0:9}"
+echo "Built $TAG from $BRANCH @ ${REV:0:9} for ${PLATFORM:-$HOST_PLATFORM}"
 echo
 echo "Run it with:"
 echo "  tools/build_ephemeral_environment/runee.sh <name> <base-port> $TAG"
