@@ -1,0 +1,19 @@
+# Build outputs that `docker build` would otherwise copy into the image's
+# build stage at exactly the paths the compile step writes.
+#
+# `tests/at_functional_test/runLocal.sh` compiles the atDirectory and atServer
+# on the host (inside a Linux dart container, so they are Linux ELF binaries
+# indistinguishable from the ones the image builds) and leaves them here. Both
+# EE and VE Dockerfiles `COPY . .` into /app and then compile over them, so a
+# compile that fails leaves the host's build in place and the image ships it —
+# a stale atServer that looks entirely healthy.
+#
+# Anchored to the two exact paths: a `**/root` pattern would also exclude
+# tools/build_ephemeral_environment/ee_base/contents/atsign/root, which the
+# image genuinely needs.
+/packages/at_root_server/root
+/packages/at_secondary_server/secondary
+
+# Host tool state. Every path inside is absolute and belongs to the host, so it
+# is meaningless in the image; `dart pub get` regenerates what it needs.
+**/.dart_tool/
