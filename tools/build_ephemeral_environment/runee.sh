@@ -3,7 +3,10 @@
 # runee.sh — bring up an ephemeral environment (EE) container with port-
 # shifted services so multiple EEs can run side-by-side on one host.
 #
-# Usage: runee.sh <container-name> <base-port>
+# Usage: runee.sh <container-name> <base-port> [image-tag]
+#
+# image-tag defaults to the published atsigncompany/ephemeral:latest. Pass the
+# tag buildee.sh produced to run an EE built from this working tree instead.
 #
 # The container will bind:
 #   atDirectory  -> <base>
@@ -14,13 +17,14 @@
 
 set -euo pipefail
 
-if [[ $# -ne 2 ]]; then
-  echo "usage: runee.sh <container-name> <base-port>" >&2
+if [[ $# -lt 2 || $# -gt 3 ]]; then
+  echo "usage: runee.sh <container-name> <base-port> [image-tag]" >&2
   exit 2
 fi
 
 NAME=$1
 BASE=$2
+IMAGE=${3:-atsigncompany/ephemeral:latest}
 
 if [[ ! "$BASE" =~ ^[0-9]+$ ]]; then
   echo "base-port must be numeric (got: $BASE)" >&2
@@ -44,13 +48,19 @@ name: ${NAME}
 services:
   ephemeral:
     container_name: ${NAME}
-    image: atsigncompany/ephemeral:latest
+    image: ${IMAGE}
     ports:
       - '127.0.0.1:${BASE}-${TOP}:${BASE}-${TOP}'
     extra_hosts:
       - 'vip.ve.atsign.zone:127.0.0.1'
     environment:
       - EPHEMERAL_BASE_PORT=${BASE}
+      # Named explicitly rather than left to createConf.sh's default branch,
+      # which until recently substituted a placeholder that is not in
+      # config.yaml — leaving every atServer's root_server.url as the literal
+      # string DNS_FQDN, so no atSign could look up any other. Passing it here
+      # makes runee.sh correct against published images too.
+      - DNS_FQDN=vip.ve.atsign.zone
 EOF
 
 docker compose -f "$COMPOSE_FILE" up -d
