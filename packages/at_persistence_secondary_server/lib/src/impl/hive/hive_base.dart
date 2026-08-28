@@ -28,6 +28,24 @@ mixin HiveBase<E> {
     _isLazy = isLazy;
     this.storagePath = storagePath;
     hive = HiveInstances.forPath(storagePath);
+    // Retained deliberately, and it no longer decides anything in this
+    // package: box identity here comes from [hive] above.
+    //
+    // Consumers outside this package depend on this call having happened as a
+    // SIDE EFFECT of keystore initialisation, and open their own boxes on the
+    // global instance. at_client says so in two places - `LocalSecondary`
+    // ("must run AFTER ... HiveAtPersistenceFactory.initialize(...) has called
+    // Hive.init(...) ... we intentionally do not call Hive.init here") and
+    // `AtSyncQueue` ("Hive must already have been initialised ...; this class
+    // never calls Hive.init itself"). Dropping it left 42 of at_client's tests
+    // failing with "You need to initialize Hive or provide a path to store the
+    // box", which is the whole contract stated as an error message.
+    //
+    // ⚠️ So a box opened on the GLOBAL instance by such a consumer still has
+    // the collision this change fixes here: one registry, one name, one box.
+    // at_client's sync queue is one. Moving those is a separate change on
+    // their side; this line keeps them working exactly as they do today.
+    Hive.init(storagePath);
     await initialize();
   }
 
