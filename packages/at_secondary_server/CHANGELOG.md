@@ -1,3 +1,48 @@
+# 3.16.4
+- fix: assemble outbound responses correctly however the network splits them.
+  A peer writes a response and the prompt that follows it as one string, but
+  it arrives in however many pieces the network chooses, and the atServer
+  decided a response was complete by looking at the last byte of whichever
+  piece had just arrived. Depending on where a split landed that could delete
+  a payload byte that happened to be an atSign, drop everything after a
+  chunk's last newline, weld two responses into one and lose the second, or
+  queue an empty response that tore down the next request. Responses are now
+  framed from the accumulated bytes, so where the splits fall no longer
+  matters. A peer that answers and then hangs up without writing its usual
+  trailing prompt is still heard: its response is delivered rather than
+  reported as a closed connection, so the error code it sent survives.
+- fix: never answer a request with a message left over from a previous one.
+  A response that no caller claimed stayed queued and was handed to the next
+  request as its answer: a well-formed record for a key nobody asked for,
+  with no exception and no log. Anything outstanding is now discarded before
+  a request is sent, and a partial response left by a failed read no longer
+  prefixes the next one.
+- fix: malformed bytes from a peer no longer take the connection down or
+  corrupt every later response. Invalid UTF-8 threw out of the socket
+  callback and stayed in the buffer; a zero-length read threw as well. Both
+  are now dropped.
+- fix: bound an outbound read by the gap between chunks as well as by the
+  whole exchange. One budget could not tell a large response still arriving
+  from a peer that had stopped answering. A peer that goes quiet is given up
+  on after 10s; a response that keeps arriving now has up to 30s rather than
+  being cut off at 5s. An outbound read also gives up promptly when the
+  connection has gone stale, as it already did when it was closed.
+- fix: close the outbound client evicted from the pool. The pool held the
+  last reference and dropped it without closing, so every eviction leaked an
+  open socket to another atServer. A client with an exchange in flight is
+  skipped when choosing which to evict, since `lastUsed` is stamped when an
+  exchange ends and the client that had just begun a long request was
+  otherwise the one picked. When every pooled client is busy the pool refuses
+  rather than evicting a live one; on the notification path that becomes a
+  retry, so a notification can be delayed where it previously went out over a
+  socket that was then leaked.
+- fix: enforce the outbound pool size across pool keys. Creating a client
+  awaits its connect, and callers for different remote atSigns hold different
+  locks, so two that both found no client could each pass the capacity check
+  and add one, taking the pool past its configured maximum without the limit
+  exception ever being raised. A slot is now taken before connecting and
+  given back if the connect fails.
+
 # 3.16.3
 - fix: answer each cross-atSign request with its own response. A pooled
   `OutboundClient` is shared by every caller that needs the same remote

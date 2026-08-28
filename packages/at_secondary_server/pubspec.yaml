@@ -1,6 +1,6 @@
 name: at_secondary
 description: Implementation of secondary server.
-version: 3.16.3
+version: 3.16.4
 repository: https://github.com/atsign-foundation/at_server
 homepage: https://www.example.com
 publish_to: none
@@ -49,3 +49,18 @@ dev_dependencies:
 dependency_overrides:
   at_persistence_secondary_server:
     path: ../at_persistence_secondary_server
+  # Without this, `dart pub get` resolves at_server_spec from pub.dev instead
+  # of the sibling in this repo, so a build silently compiles against a
+  # different version of the spec than the tree it was built from. It resolves
+  # rather than failing because the constraint above is satisfiable by a
+  # published version, so nothing goes red.
+  #
+  # The melos-generated pubspec_overrides.yaml pins this too, but that file is
+  # gitignored, so it protects only a working tree that has been bootstrapped —
+  # not CI, and not the image builds under tools/build_secondary, which run a
+  # bare `dart pub get` in a clean checkout.
+  #
+  # Adding a path override here requires ../at_server_spec to exist wherever
+  # pub runs: every Dockerfile that compiles this package must COPY it in.
+  at_server_spec:
+    path: ../at_server_spec

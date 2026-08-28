@@ -32,7 +32,8 @@ class NotifyConnectionsPool {
   int getCapacity() {
     _outboundClientPool.clearInvalidClients();
     return _outboundClientPool.getCapacity()! -
-        _outboundClientPool.getCurrentSize();
+        _outboundClientPool.getCurrentSize() -
+        _outboundClientPool.reservedSize;
   }
 
   Future<OutboundClient> getOutboundClient(
@@ -51,33 +52,44 @@ class NotifyConnectionsPool {
       return client;
     }
 
-    if (!_outboundClientPool.hasCapacity()) {
+    // Take the slot before connecting: creating a client awaits connect(),
+    // and a caller arriving in that gap would otherwise see the same free
+    // slot and create a second one.
+    if (!_outboundClientPool.tryReserve()) {
       OutboundClient? evictedClient =
           _outboundClientPool.removeLeastRecentlyUsed();
       logger.info("Evicted LRU client from pool : $evictedClient");
-      if (!_outboundClientPool.hasCapacity()) {
+      if (!_outboundClientPool.tryReserve()) {
         throw OutboundConnectionLimitException(
             'max limit ${_outboundClientPool.size} reached on outbound pool');
       }
     }
 
-    // If client is null and pool has capacity, create a new OutboundClient and add it to the pool
-    // and return it back
-    var newClient = OutboundClient(
-      inboundConnection,
-      toAtSign,
-      secondaryAddressFinder,
-      true,
-      outboundConnectionFactory,
-    );
-    if (connect) {
-      await newClient.connect();
-    } else {
-      logger.warning('Created new client but not connecting it');
+    var reserved = true;
+    try {
+      // If client is null and pool has capacity, create a new OutboundClient and add it to the pool
+      // and return it back
+      var newClient = OutboundClient(
+        inboundConnection,
+        toAtSign,
+        secondaryAddressFinder,
+        true,
+        outboundConnectionFactory,
+      );
+      if (connect) {
+        await newClient.connect();
+      } else {
+        logger.warning('Created new client but not connecting it');
+      }
+      _outboundClientPool.addReserved(newClient);
+      reserved = false;
+      logger.info(
+          'Created new outbound client to $toAtSign (handshake: true) and added to pool');
+      return newClient;
+    } finally {
+      if (reserved) {
+        _outboundClientPool.releaseReservation();
+      }
     }
-    _outboundClientPool.add(newClient);
-    logger.info(
-        'Created new outbound client to $toAtSign (handshake: true) and added to pool');
-    return newClient;
   }
 }

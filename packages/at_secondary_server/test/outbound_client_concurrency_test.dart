@@ -1,7 +1,9 @@
+import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart' as at_lookup;
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
+import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
@@ -116,6 +118,83 @@ void main() {
     });
   });
 
+  group('NotifyConnectionsPool capacity', () {
+    test('is enforced when two callers for different atSigns miss together',
+        () async {
+      // Both callers must be inside connect() together, which is the whole
+      // window the reservation exists to cover.
+      when(() => mockSecondaryAddressFinder.findSecondary(bob))
+          .thenAnswer((_) async {
+        await Future.delayed(Duration(milliseconds: 50));
+        return at_lookup.SecondaryAddress(bobHost, bobPort);
+      });
+      when(() => mockSecondaryAddressFinder.findSecondary(alice))
+          .thenAnswer((_) async {
+        await Future.delayed(Duration(milliseconds: 50));
+        return at_lookup.SecondaryAddress(bobHost, bobPort);
+      });
+      when(() => mockOutboundConnectionFactory.createOutboundConnection(
+          bobHost, bobPort, alice)).thenAnswer((_) async {
+        return mockOutboundConnection;
+      });
+
+      final pool = NotifyConnectionsPool(
+          mockSecondaryAddressFinder, mockOutboundConnectionFactory,
+          poolSize: 1);
+
+      final outcomes = await Future.wait([
+        pool
+            .getOutboundClient(bob)
+            .then<Object>((c) => c)
+            .onError<Exception>((e, _) => e),
+        pool
+            .getOutboundClient(alice)
+            .then<Object>((c) => c)
+            .onError<Exception>((e, _) => e),
+      ]);
+
+      expect(outcomes.whereType<OutboundClient>().length, 1,
+          reason: 'the notify pool has the same capacity contract as the'
+              ' outbound client pool, and the same race without a reservation');
+      expect(outcomes.whereType<OutboundConnectionLimitException>().length, 1);
+      expect(pool.outboundClientPool.getCurrentSize(), 1);
+    });
+  });
+
+  group('queue depth on one pooled client', () {
+    test('counts the exchanges waiting, and returns to zero', () async {
+      when(() => mockOutboundConnection.write('lookup:all:slow$bob\n'))
+          .thenAnswer((_) async {
+        Future.delayed(Duration(milliseconds: 150),
+            () => socketOnDataFn('data:SLOW\n$alice@'.codeUnits));
+      });
+      when(() => mockOutboundConnection.write('lookup:all:fast$bob\n'))
+          .thenAnswer((_) async {
+        Future.delayed(Duration(milliseconds: 10),
+            () => socketOnDataFn('data:FAST\n$alice@'.codeUnits));
+      });
+
+      await outboundClientWithoutHandshake.connect();
+      outboundClientWithoutHandshake.lookupTimeoutMillis = 5000;
+      expect(outboundClientWithoutHandshake.queuedRequests, 0);
+
+      final slow = outboundClientWithoutHandshake.lookUp('all:slow$bob',
+          handshake: false);
+      final fast = outboundClientWithoutHandshake.lookUp('all:fast$bob',
+          handshake: false);
+
+      expect(outboundClientWithoutHandshake.queuedRequests, 2,
+          reason: 'both exchanges are on this client -- one holding the socket'
+              ' and one waiting for it');
+
+      await slow;
+      await fast;
+      expect(outboundClientWithoutHandshake.queuedRequests, 0,
+          reason: 'the count must come back down, or it reports a queue that'
+              ' has long since drained');
+    });
+  });
+
   group('concurrent OutboundClientManager.getClient for one pool key', () {
     /// Wide enough that a caller reaching address resolution while another
     /// is still inside it will do so within the window. Nothing asserts on
@@ -200,6 +279,74 @@ void main() {
       expect(resolutionEvents.take(2), containsAll(['enter $bob', 'enter $alice']),
           reason: 'connecting to one atSign must not hold up connecting to'
               ' another: both callers should be inside connect() together');
+    });
+
+    test('poolSize is enforced when two callers for different atSigns miss'
+        ' together', () async {
+      slowDownConnecting();
+      when(() => mockSecondaryAddressFinder.findSecondary(alice))
+          .thenAnswer((_) async {
+        resolutionEvents.add('enter $alice');
+        await Future.delayed(connectDelay);
+        resolutionEvents.add('exit $alice');
+        return at_lookup.SecondaryAddress(bobHost, bobPort);
+      });
+      when(() => mockOutboundConnectionFactory.createOutboundConnection(
+          bobHost, bobPort, alice)).thenAnswer((_) async {
+        return mockOutboundConnection;
+      });
+
+      // Room for exactly one. The two callers hold different per-key locks,
+      // so nothing but the reservation stops them both creating.
+      final manager = OutboundClientManager(
+          mockSecondaryAddressFinder, mockOutboundConnectionFactory,
+          poolSize: 1);
+
+      final outcomes = await Future.wait([
+        manager
+            .getClient(bob, DummyInboundConnection(), handshakeRequired: false)
+            .then<Object>((c) => c)
+            .onError<Exception>((e, _) => e),
+        manager
+            .getClient(alice, DummyInboundConnection(),
+                handshakeRequired: false)
+            .then<Object>((c) => c)
+            .onError<Exception>((e, _) => e),
+      ]);
+
+      expect(outcomes.whereType<OutboundClient>().length, 1,
+          reason: 'poolSize is 1, so exactly one caller may be given a client');
+      expect(outcomes.whereType<OutboundConnectionLimitException>().length, 1,
+          reason: 'the other must be refused rather than quietly taking the'
+              ' pool over its declared maximum');
+      expect(manager.getActiveConnectionSize(), 1);
+    });
+
+    test('a connect that fails gives its reserved slot back', () async {
+      when(() => mockSecondaryAddressFinder.findSecondary(bob))
+          .thenThrow(SecondaryNotFoundException('no secondary for $bob'));
+      when(() => mockSecondaryAddressFinder.findSecondary(alice))
+          .thenAnswer((_) async => at_lookup.SecondaryAddress(bobHost, bobPort));
+      when(() => mockOutboundConnectionFactory.createOutboundConnection(
+          bobHost, bobPort, alice)).thenAnswer((_) async {
+        return mockOutboundConnection;
+      });
+
+      final manager = OutboundClientManager(
+          mockSecondaryAddressFinder, mockOutboundConnectionFactory,
+          poolSize: 1);
+
+      await expectLater(
+          manager.getClient(bob, DummyInboundConnection(),
+              handshakeRequired: false),
+          throwsA(isA<Exception>()));
+
+      // The only slot must be free again.
+      final client = await manager.getClient(alice, DummyInboundConnection(),
+          handshakeRequired: false);
+      expect(client.toAtSign, alice,
+          reason: 'a reservation whose connect threw must be released, or the'
+              ' pool is permanently one slot smaller for the process lifetime');
     });
 
     test('the per-key lock table does not retain entries', () async {

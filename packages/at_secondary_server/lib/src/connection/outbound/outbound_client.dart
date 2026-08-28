@@ -28,6 +28,10 @@ class OutboundClient {
 
   final InboundConnection inboundConnection;
   final String toAtSign;
+  /// Assigned here and replaced by [_createConnectionAndListener] whenever a
+  /// connection is established, so it is never unset: an operation on a
+  /// client that was never connected must fail on the connection, not on a
+  /// missing listener.
   late OutboundMessageListener messageListener;
   final OutboundConnectionFactory outboundConnectionFactory;
 
@@ -38,8 +42,20 @@ class OutboundClient {
   bool isHandShakeDone = false;
   bool handshakeRequired;
   DateTime lastUsed = DateTime.now();
-  int lookupTimeoutMillis = 5 * 1000;
-  int notifyTimeoutMillis = 10 * 1000;
+  /// Total budget for one exchange. Generous because
+  /// [OutboundMessageListener.read]'s inter-chunk budget is what detects a
+  /// peer that has stopped answering; this bounds only how long a response
+  /// that is genuinely still arriving may take.
+  int lookupTimeoutMillis = 30 * 1000;
+  int notifyTimeoutMillis = 30 * 1000;
+
+  /// Budgets for the handshake exchanges. Deliberately tighter than the ones
+  /// above: `from:` and `pol:` trade tiny control messages, so there is no
+  /// large-response-still-arriving case for the inter-chunk budget to protect,
+  /// and a peer that has gone quiet during a handshake should be given up on
+  /// promptly -- these reads happen while the pool's per-key lock is held.
+  int handshakeTimeoutMillis = 10 * 1000;
+  int handshakeSilenceMillis = 3 * 1000;
 
   at_lookup.SecondaryAddressFinder secondaryAddressFinder;
 
@@ -63,6 +79,47 @@ class OutboundClient {
   /// operations that take it.
   final Mutex _requestResponseMutex = Mutex();
 
+  int _queuedRequests = 0;
+
+  /// Exchanges holding or waiting for [_requestResponseMutex] on this client.
+  ///
+  /// The wait is unbounded by design. A caller queues behind everything
+  /// already queued here, so the worst case is queue depth times the
+  /// per-exchange budget. A peer that stops answering self-limits at roughly
+  /// one budget, because [OutboundMessageListener.read] closes the connection
+  /// on timeout and everything queued behind it then fails immediately; the
+  /// linear case only arises while the peer *is* answering.
+  ///
+  /// Depth is driven by the pool key, not by this lock. [AtCacheManager]
+  /// looks up through a single shared [DummyInboundConnection], and any dummy
+  /// matches any other, so every cache-miss `lookup:`/`plookup:` in the
+  /// server bound for one remote atSign shares one client. Scan passes the
+  /// real inbound connection, so it gets a client each, and the notify path
+  /// is already one exchange at a time per atSign. If this is seen growing,
+  /// the fix is to widen that pool key rather than to time out here: the
+  /// mutex has no try-acquire, and a timed-out acquire still takes the lock
+  /// later and never releases it.
+  int get queuedRequests => _queuedRequests;
+
+  /// Depth at which the queue on one client is worth reporting.
+  @visibleForTesting
+  static int queueDepthWarningThreshold = 10;
+
+  /// Runs one exchange under [_requestResponseMutex], counting how many are
+  /// waiting for it.
+  Future<T> _serialise<T>(Future<T> Function() exchange) async {
+    _queuedRequests++;
+    if (_queuedRequests == queueDepthWarningThreshold) {
+      logger.warning('$_queuedRequests requests are queued on the single'
+          ' outbound connection to $toAtSign');
+    }
+    try {
+      return await _requestResponseMutex.protect(exchange);
+    } finally {
+      _queuedRequests--;
+    }
+  }
+
   /// When unit testing, we don't need to do all the things necessary
   /// to support server-to-server handshake - for example, actually signing
   /// a pol challenge, nor creating a key which stores that signature.
@@ -81,7 +138,9 @@ class OutboundClient {
     this.secondaryAddressFinder,
     this.handshakeRequired,
     this.outboundConnectionFactory,
-  );
+  ) {
+    messageListener = OutboundMessageListener(this);
+  }
 
   /// Connects to an secondary and performs required handshake to be ready to run rest of the commands
   /// Handshake involves running "from", "pol" verbs on the secondary
@@ -280,13 +339,14 @@ class OutboundClient {
   /// declares the target tenant to the peer before any `from:`.
   /// Mirrors [scan]'s raw write/read; only used when toVerbOutboundEnabled.
   Future<String> _sendToVerb() =>
-      _requestResponseMutex.protect(_sendToVerbOnWire);
+      _serialise(_sendToVerbOnWire);
 
   /// Writes the `to:` request and reads its response. Runs under
   /// [_requestResponseMutex].
   Future<String> _sendToVerbOnWire() async {
     var toRequest = AtRequestFormatter.createToRequest(toAtSign);
     try {
+      messageListener.beginExchange();
       await outboundConnection!.write(toRequest);
     } on AtIOException catch (e) {
       await outboundConnection!.close();
@@ -310,7 +370,7 @@ class OutboundClient {
   }
 
   Future<bool> _establishHandShake() =>
-      _requestResponseMutex.protect(_establishHandShakeOnWire);
+      _serialise(_establishHandShakeOnWire);
 
   /// Runs the `from:`/`pol:` exchanges as a single unit. Runs under
   /// [_requestResponseMutex].
@@ -321,11 +381,14 @@ class OutboundClient {
     }
     try {
       //1. create from request
+      messageListener.beginExchange();
       await outboundConnection!.write(AtRequestFormatter.createFromRequest(
           AtSecondaryServerImpl.getInstance().currentAtSign));
 
       //2. Receive proof
-      var fromResult = await messageListener.read();
+      var fromResult = await messageListener.read(
+          maxWaitMilliSeconds: handshakeTimeoutMillis,
+          transientWaitTimeMillis: handshakeSilenceMillis);
       if (fromResult == '') {
         throw HandShakeException(
             'No response received for From:$toAtSign command');
@@ -358,19 +421,34 @@ class OutboundClient {
       }
 
       //4. Create pol request
-      await outboundConnection!.write(AtRequestFormatter.createPolRequest());
+      // The pol response is a bare `@<atSign>@` — no `data:` prefix, no
+      // terminating newline — which is otherwise indistinguishable from the
+      // prompt trailing an earlier response. Tell the listener to expect one,
+      // before the write, since the response can arrive as soon as it
+      // completes. Cleared unconditionally afterwards so that a prompt
+      // arriving late, after this exchange has given up, is discarded rather
+      // than answering whatever runs next.
+      messageListener.expectingHandshakePrompt = true;
+      try {
+        messageListener.beginExchange();
+        await outboundConnection!.write(AtRequestFormatter.createPolRequest());
 
-      // 5. wait for handshake result - @<current_atsign>@
-      var handShakeResult = await messageListener.read();
-      var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-      if (handShakeResult.startsWith('$currentAtSign@')) {
-        logger.info("pol handshake complete");
-        outboundConnection!.authenticated = true;
-        return true;
-      } else {
-        logger.info(
-            "pol handshake failed - handShakeResult was $handShakeResult");
-        return false;
+        // 5. wait for handshake result - @<current_atsign>@
+        var handShakeResult = await messageListener.read(
+            maxWaitMilliSeconds: handshakeTimeoutMillis,
+            transientWaitTimeMillis: handshakeSilenceMillis);
+        var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+        if (handShakeResult.startsWith('$currentAtSign@')) {
+          logger.info("pol handshake complete");
+          outboundConnection!.authenticated = true;
+          return true;
+        } else {
+          logger.info(
+              "pol handshake failed - handShakeResult was $handShakeResult");
+          return false;
+        }
+      } finally {
+        messageListener.expectingHandshakePrompt = false;
       }
     } on ConnectionInvalidException catch (e) {
       logger.severe('$this | encountered $e');
@@ -391,8 +469,7 @@ class OutboundClient {
   /// Throws a [OutBoundConnectionInvalidException] if we are trying to write to an invalid connection
   Future<String?> lookUp(String key, {bool handshake = true}) {
     logger.finer('lookUp($key, handshake:$handshake) called for $toAtSign');
-    return _requestResponseMutex
-        .protect(() => _lookUpOnWire(key, handshake: handshake));
+    return _serialise(() => _lookUpOnWire(key, handshake: handshake));
   }
 
   /// Writes the lookup request and reads its response. Runs under
@@ -408,6 +485,7 @@ class OutboundClient {
     }
     var lookUpRequest = AtRequestFormatter.createLookUpRequest(key);
     try {
+      messageListener.beginExchange();
       await outboundConnection!.write(lookUpRequest);
     } on AtIOException catch (e) {
       await outboundConnection!.close();
@@ -427,8 +505,7 @@ class OutboundClient {
   }
 
   Future<String?> scan({bool handshake = true, String? regex}) =>
-      _requestResponseMutex
-          .protect(() => _scanOnWire(handshake: handshake, regex: regex));
+      _serialise(() => _scanOnWire(handshake: handshake, regex: regex));
 
   /// Writes the scan request and reads its response. Runs under
   /// [_requestResponseMutex].
@@ -443,6 +520,7 @@ class OutboundClient {
       scanRequest = 'scan $regex\n';
     }
     try {
+      messageListener.beginExchange();
       await outboundConnection!.write(scanRequest);
     } on AtIOException catch (e) {
       await outboundConnection!.close();
@@ -452,7 +530,8 @@ class OutboundClient {
       logger.severe('$this | encountered $e');
       throw OutBoundConnectionInvalidException('Outbound connection invalid');
     }
-    var scanResult = await messageListener.read();
+    var scanResult =
+        await messageListener.read(maxWaitMilliSeconds: lookupTimeoutMillis);
     scanResult = scanResult.replaceFirst(_trailingPrompt, '');
     lastUsed = DateTime.now();
     return scanResult;
@@ -479,6 +558,15 @@ class OutboundClient {
     }
   }
 
+  /// True while a request/response exchange is holding this client's socket.
+  ///
+  /// [OutboundClientPool.removeLeastRecentlyUsed] needs this because
+  /// [lastUsed] is stamped when an exchange *finishes*: a pooled client that
+  /// has only just started a long request still carries its previous
+  /// timestamp, so it looks like the least recently used one and would be the
+  /// first chosen for eviction.
+  bool get isBusy => _requestResponseMutex.isLocked;
+
   bool isInValid() {
     bool isInvalid = false;
     if (inboundConnection.isInValid()) {
@@ -495,8 +583,7 @@ class OutboundClient {
 
   Future<String?> notify(String notifyCommandBody,
           {bool handshake = true}) =>
-      _requestResponseMutex.protect(
-          () => _notifyOnWire(notifyCommandBody, handshake: handshake));
+      _serialise(() => _notifyOnWire(notifyCommandBody, handshake: handshake));
 
   /// Writes the notify request and reads its response. Runs under
   /// [_requestResponseMutex].
@@ -507,6 +594,7 @@ class OutboundClient {
     }
     try {
       var notificationRequest = 'notify:$notifyCommandBody\n';
+      messageListener.beginExchange();
       await outboundConnection!.write(notificationRequest);
     } on AtIOException catch (e) {
       await outboundConnection!.close();

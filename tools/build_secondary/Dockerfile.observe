@@ -7,6 +7,7 @@ WORKDIR /app
 # If building manually then (from the repo root):
 ## sudo docker build -t atsigncompany/secondary:dev_obs \
 ## -f tools/build_secondary/Dockerfile.observe .
+COPY ./packages/at_server_spec/ ./at_server_spec
 COPY ./packages/at_persistence_secondary_server/ ./at_persistence_secondary_server
 COPY ./packages/at_secondary_server/ ./at_secondary_server
 COPY ./tools/build_virtual_environment/ve_base/contents/atsign/secondary/base/ ./at_secondary_server
