@@ -49,6 +49,31 @@ class HiveInstances {
   static String canonicalPathFor(String storagePath) =>
       p.canonicalize(storagePath);
 
+  /// Closes every box this registry has opened, and forgets the instances.
+  ///
+  /// **Why a consumer needs this.** A teardown that calls the package-global
+  /// `Hive.close()` closes the boxes in the GLOBAL registry, and the boxes
+  /// opened here are not in it. They stay open over a directory the teardown
+  /// then deletes, and the next open returns the cached box with its stale
+  /// in-memory contents — a write appears to succeed and the read that follows
+  /// returns the previous test's value. Nothing throws.
+  ///
+  /// Call this instead of, or alongside, `Hive.close()` wherever storage is
+  /// torn down and reopened in one process.
+  static Future<void> closeAll() async {
+    final instances = List<HiveInterface>.from(_byPath.values);
+    _byPath.clear();
+    for (final hive in instances) {
+      await hive.close();
+    }
+  }
+
+  /// Closes and forgets the instance owning [storagePath], if there is one.
+  static Future<void> closeFor(String storagePath) async {
+    final hive = _byPath.remove(canonicalPathFor(storagePath));
+    await hive?.close();
+  }
+
   /// Instances built so far, for tests that assert the sharing rule.
   static int get instanceCount => _byPath.length;
 }
