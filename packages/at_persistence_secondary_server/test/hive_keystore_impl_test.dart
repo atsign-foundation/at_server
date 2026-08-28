@@ -4,9 +4,9 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/impl/hive/hive_instances.dart';
 import 'package:at_persistence_secondary_server/hive.dart';
 import 'package:crypto/crypto.dart';
-import 'package:hive/hive.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
@@ -796,8 +796,15 @@ void main() async {
 }
 
 Future<void> tearDownFunc(String atSign) async {
-  await Hive.deleteBoxFromDisk('commit_log_$atSign');
-  await Hive.deleteBoxFromDisk(_getShaForAtSign(atSign));
+  // Deleted through the instance that OWNS these boxes, not the package-global
+  // `Hive`. Box lifecycle now lives on a per-storage-path instance, so the
+  // global's `homePath` is never set and its `deleteBoxFromDisk` fails with
+  // `Invalid argument(s) (path): Must not be null` — which is how this
+  // surfaced: every test in this file went red in its tearDown while its body
+  // had passed.
+  final hive = HiveInstances.forPath('test/hive');
+  await hive.deleteBoxFromDisk('commit_log_$atSign');
+  await hive.deleteBoxFromDisk(_getShaForAtSign(atSign));
   await tearDownTestPersistence(storageDir: 'test/hive');
 }
 

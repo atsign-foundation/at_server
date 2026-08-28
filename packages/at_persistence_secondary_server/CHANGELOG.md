@@ -1,5 +1,19 @@
 ## 5.3.0
 
+- fix: a store now honours the `storagePath` it is given. Hive keeps its box
+  registry and home path on a `HiveImpl` *instance*, and this package ran
+  everything through the one global instance `package:hive` exposes — so a
+  box's identity was `(the single global registry, box name)`. Box names here
+  derive from the atSign, so two stores for one atSign in one process always
+  resolved to one box however different the paths they were handed: the second
+  silently attached to the first's, and its own `storagePath` reached nothing
+  but the encryption-secret file beside it. Box lifecycle and type-adapter
+  registration now run on a `HiveInstances.forPath(...)` instance, shared per
+  canonical path. Callers passing one path keep exactly one store, with no box
+  renamed and no data moved; a caller passing a different path now gets the
+  separate store it asked for. Found from the client side, where two
+  enrollments of one atSign shared a notification replay watermark and one
+  consumed the other's offline backlog with nothing logged.
 - fix: the dual-write mirror purges the secondary's commit entry when the
   primary holds none for a just-written key. A skipCommit put/create/putMeta
   purges the primary's entry while the key lives on, so "no entry to replay"

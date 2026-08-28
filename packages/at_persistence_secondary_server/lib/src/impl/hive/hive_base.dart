@@ -3,15 +3,31 @@ import 'dart:io';
 import 'package:at_utils/at_logger.dart';
 import 'package:hive/hive.dart';
 
+import 'hive_instances.dart';
+
 mixin HiveBase<E> {
   bool _isLazy = true;
   late String _boxName;
   late String storagePath;
   final _logger = AtSignLogger('HiveBase');
+
+  /// The Hive instance that owns this store's box.
+  ///
+  /// Per storage path rather than the package-global `Hive` — see
+  /// [HiveInstances] for why. Exposed rather than private because a keystore
+  /// has to register its type adapters on the SAME instance: `TypeRegistry`
+  /// is per-instance too, so an adapter registered on the global `Hive` is
+  /// invisible to a box opened here, and the box would fail to decode its own
+  /// contents.
+  ///
+  /// Not `late final`: [init] is idempotent for callers that re-initialise a
+  /// store, and a second assignment to a `late final` throws.
+  late HiveInterface hive;
+
   Future<void> init(String storagePath, {bool isLazy = true}) async {
     _isLazy = isLazy;
     this.storagePath = storagePath;
-    Hive.init(storagePath);
+    hive = HiveInstances.forPath(storagePath);
     await initialize();
   }
 
@@ -21,17 +37,17 @@ mixin HiveBase<E> {
     _boxName = boxName;
     if (_isLazy) {
       if (hiveSecret != null) {
-        await Hive.openLazyBox(_boxName,
+        await hive.openLazyBox(_boxName,
             encryptionCipher: HiveAesCipher(hiveSecret));
       } else {
-        await Hive.openLazyBox(boxName);
+        await hive.openLazyBox(boxName);
       }
     } else {
       if (hiveSecret != null) {
-        await Hive.openBox(_boxName,
+        await hive.openBox(_boxName,
             encryptionCipher: HiveAesCipher(hiveSecret));
       } else {
-        await Hive.openBox(boxName);
+        await hive.openBox(boxName);
       }
     }
     if (getBox().isOpen) {
@@ -43,9 +59,9 @@ mixin HiveBase<E> {
 
   BoxBase getBox() {
     if (_isLazy) {
-      return Hive.lazyBox(_boxName);
+      return hive.lazyBox(_boxName);
     }
-    return Hive.box(_boxName);
+    return hive.box(_boxName);
   }
 
   Future<E?> getValue(dynamic key) async {
