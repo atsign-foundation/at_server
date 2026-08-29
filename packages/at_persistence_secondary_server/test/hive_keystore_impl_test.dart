@@ -797,11 +797,22 @@ void main() async {
 
 Future<void> tearDownFunc(String atSign) async {
   // Deleted through the instance that OWNS these boxes, not the package-global
-  // `Hive`. Box lifecycle now lives on a per-storage-path instance, so the
-  // global's `homePath` is never set and its `deleteBoxFromDisk` fails with
-  // `Invalid argument(s) (path): Must not be null` — which is how this
-  // surfaced: every test in this file went red in its tearDown while its body
-  // had passed.
+  // `Hive`.
+  //
+  // The global still works, and that is the problem. `HiveBase.init` keeps
+  // calling `Hive.init(storagePath)` for consumers outside this package, so
+  // the global's `homePath` is this same directory — measured, it is set, and
+  // `Hive.deleteBoxFromDisk` there does not throw. What it does instead is
+  // take the "box not open in MY registry" branch and delete the files
+  // straight off disk, out from under the per-path instance that has those
+  // boxes open. The per-path instance then fails when it closes them:
+  //
+  //   PathNotFoundException: Cannot delete file, path = '.../<sha>.lock'
+  //     package:hive/src/backend/vm/storage_backend_vm.dart  _closeInternal
+  //
+  // which is how this surfaced — every test in this file went red in its
+  // tearDown while its body had passed. File-level operations do not respect
+  // the registry split; only the instance holding a box may delete it.
   final hive = HiveInstances.forPath('test/hive');
   await hive.deleteBoxFromDisk('commit_log_$atSign');
   await hive.deleteBoxFromDisk(_getShaForAtSign(atSign));

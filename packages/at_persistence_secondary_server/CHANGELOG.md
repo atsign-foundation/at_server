@@ -14,6 +14,13 @@
   separate store it asked for. Found from the client side, where two
   enrollments of one atSign shared a notification replay watermark and one
   consumed the other's offline backlog with nothing logged.
+  `HiveInstances` is exported from `package:at_persistence_secondary_server/hive.dart`,
+  alongside `closeAll()` / `closeFor(path)` for tearing storage down: a global
+  `Hive.close()` does not reach boxes opened on a per-path instance. Paths are
+  matched by their resolved location on the filesystem, so a symlink and its
+  target are one instance rather than two over one directory; `forPath` creates
+  the directory in order to resolve it, and refuses with a `StateError` while
+  that path's instance is being closed.
 - fix: the dual-write mirror purges the secondary's commit entry when the
   primary holds none for a just-written key. A skipCommit put/create/putMeta
   purges the primary's entry while the key lives on, so "no entry to replay"

@@ -2,7 +2,11 @@ import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/src/impl/hive/hive_at_keyvalue_store.dart';
-import 'package:at_persistence_secondary_server/src/impl/hive/hive_instances.dart';
+// Deliberately the public barrel, not `src/impl/hive/hive_instances.dart`.
+// A consumer outside this package can only reach `HiveInstances` through an
+// export, and at_client needs it: importing it here the way they do is what
+// keeps the export from being dropped by a tidy-up.
+import 'package:at_persistence_secondary_server/hive.dart';
 import 'package:test/test.dart';
 
 /// Two stores for one atSign, in one process, at different storage paths.
@@ -91,8 +95,8 @@ void main() {
     // two boxes over one directory is the dangerous state, because they drift
     // in memory with no error on either side.
     await first.put('shared_key@alice', data('written-after-both-open'));
-    expect((await second.get('shared_key@alice'))?.data,
-        'written-after-both-open',
+    expect(
+        (await second.get('shared_key@alice'))?.data, 'written-after-both-open',
         reason: 'one path must mean one box, not two boxes over one set of '
             'files. Two would each stay internally consistent while telling '
             'their callers different things, which is the failure this whole '
@@ -117,5 +121,88 @@ void main() {
             'prevent');
     expect(HiveInstances.instanceCount, before + 1,
         reason: 'three spellings, one instance');
+  });
+
+  test('a symlinked spelling of a path is the same instance as its target',
+      () async {
+    // `p.canonicalize` is pure string work — it does not follow symlinks, so
+    // on its own a link and its target are two instances over one directory:
+    // two boxes, drifting in memory, which is exactly the state this class
+    // exists to prevent. Not exotic either — `/data -> /mnt/data` is an
+    // ordinary deployment, and on macOS `Directory.systemTemp` is
+    // `/var/folders/...` whose real path is `/private/var/folders/...`.
+    final target = pathFor('link_target');
+    final link = '${root.path}/link_alias';
+    Link(link).createSync(target);
+
+    final before = HiveInstances.instanceCount;
+    final viaTarget = HiveInstances.forPath(target);
+    final viaLink = HiveInstances.forPath(link);
+
+    expect(identical(viaTarget, viaLink), isTrue,
+        reason: 'a link and its target are one directory, so they must be one '
+            'instance — a lexical canonicalisation calls them different and '
+            'reopens the hole');
+    expect(HiveInstances.instanceCount, before + 1,
+        reason: 'two spellings, one instance');
+  });
+
+  test('a path is resolved the same way before and after it exists', () async {
+    // The reason the directory is created rather than left to appear on its
+    // own: an unresolvable path can only be keyed lexically, so a caller
+    // arriving before the directory existed and one arriving after would key
+    // on two different strings for one directory.
+    final target = pathFor('late_target');
+    final link = '${root.path}/late_alias';
+    Link(link).createSync(target);
+    final notYet = '$link/child';
+
+    final before = HiveInstances.instanceCount;
+    final first = HiveInstances.forPath(notYet); // creates it
+    final second = HiveInstances.forPath('$target/child'); // already there
+
+    expect(Directory(notYet).existsSync(), isTrue,
+        reason: 'forPath must create the directory, or it cannot resolve it');
+    expect(identical(first, second), isTrue,
+        reason: 'the same directory reached before and after it existed, and '
+            'by two spellings, is one instance');
+    expect(HiveInstances.instanceCount, before + 1);
+  });
+
+  test('an instance mid-close is refused rather than handed out or replaced',
+      () async {
+    // Neither alternative is safe. Handing back the closing instance lets a
+    // caller open a box that is about to be closed underneath them; building
+    // a fresh one puts two live instances over one directory, which is the
+    // silent divergence. Refusing is the only loud option.
+    final path = pathFor('closing');
+    final store = await storeAt(path);
+    await store.put('shared_key@alice', data('v'));
+
+    final closing = HiveInstances.closeFor(path);
+    expect(() => HiveInstances.forPath(path), throwsA(isA<StateError>()),
+        reason: 'a caller arriving during the close has an ordering bug and '
+            'must hear about it, not silently get a second instance over the '
+            'same files');
+
+    await closing;
+    // The control: once the close has completed the path is usable again, so
+    // the refusal above is about the window and not about the path being
+    // permanently poisoned.
+    expect(HiveInstances.forPath(path), isNotNull);
+    await HiveInstances.closeFor(path);
+  });
+
+  test('closeAll drops the instances it closed', () async {
+    final a = await storeAt(pathFor('close_a'));
+    final b = await storeAt(pathFor('close_b'));
+    await a.put('shared_key@alice', data('a'));
+    await b.put('shared_key@alice', data('b'));
+
+    expect(HiveInstances.instanceCount, greaterThanOrEqualTo(2));
+    await HiveInstances.closeAll();
+    expect(HiveInstances.instanceCount, 0,
+        reason: 'an entry left behind points at a closed instance, and the '
+            'next caller for that path would get it back');
   });
 }

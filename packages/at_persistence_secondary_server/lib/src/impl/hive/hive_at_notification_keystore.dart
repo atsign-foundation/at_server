@@ -128,7 +128,6 @@ class HiveAtNotificationKeystore
 
   final _logger = AtSignLogger('HiveAtNotificationKeystore');
 
-
   @override
   Future<void> initialize() async {
     _boxName = 'notifications_${AtUtils.getShaForAtSign(currentAtSign)}';
