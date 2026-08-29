@@ -157,7 +157,11 @@ class HiveInstances {
     try {
       await close;
     } finally {
-      _closing.remove(key);
+      // Named rather than discarded: the removed value IS the future just
+      // awaited above, not a new async call being dropped on the floor, and
+      // the analyzer cannot tell those apart.
+      final settled = _closing.remove(key);
+      assert(identical(settled, close));
       _byPath.remove(key);
     }
   }

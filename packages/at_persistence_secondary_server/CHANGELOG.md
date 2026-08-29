@@ -21,6 +21,20 @@
   target are one instance rather than two over one directory; `forPath` creates
   the directory in order to resolve it, and refuses with a `StateError` while
   that path's instance is being closed.
+- fix: `AtPersistenceFactory.initialize` no longer ignores the storage
+  locations it is handed. A factory caches one bundle per atSign — `bundleFor`
+  and `closeFor` key on the atSign alone, so there is nowhere for a second to
+  live — and on a cache hit it returned that bundle without ever reading the
+  config, so a caller asking for a second location was answered with the first
+  one's store. On SQLite the second `storagePath` reached nothing at all: its
+  directory was never created. Asking for an atSign that already has an open
+  bundle rooted somewhere else now throws a `StateError` naming both locations;
+  the same locations still return the same bundle, and two spellings of one
+  directory (`foo/./bar`, a symlink and its target) are not a conflict. Applies
+  to the Hive, SQLite and dual-write factories; the dual one compares its two
+  arms separately, since `DualWritePersistenceConfig` delegates every path
+  getter to its primary and would otherwise agree while the secondary had
+  moved.
 - fix: the dual-write mirror purges the secondary's commit entry when the
   primary holds none for a just-written key. A skipCommit put/create/putMeta
   purges the primary's entry while the key lives on, so "no entry to replay"

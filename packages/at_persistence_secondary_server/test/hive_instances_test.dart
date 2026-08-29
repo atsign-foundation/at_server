@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_persistence_secondary_server/src/impl/hive/hive_at_keyvalue_store.dart';
 // Deliberately the public barrel, not `src/impl/hive/hive_instances.dart`.
 // A consumer outside this package can only reach `HiveInstances` through an
 // export, and at_client needs it: importing it here the way they do is what
