@@ -151,4 +151,74 @@ void main() {
       await factory.close();
     });
   });
+
+  group('the comparison itself', () {
+    test('two different locations that do not exist are NOT the same location',
+        () async {
+      // The guard used to fail OPEN here, and it read as correct: the
+      // filesystem arm was `_resolved(a) == _resolved(b)`, and an absent path
+      // resolves to null, so two entirely unrelated missing roots compared
+      // equal and the factory handed back the bundle it held. Measured:
+      // lexically different, both resolve null, null == null is true.
+      final factory = HiveAtPersistenceFactory();
+      final held = dir('held');
+      await factory.initialize('@alice', hiveAt(held));
+
+      // BOTH sides must be unresolvable to reach the bug, and the delete is
+      // what gets it there: while the held path still exists it resolves to a
+      // real location, so `real == null` is false and even the broken version
+      // refused. A first attempt at this test skipped the delete, stayed green
+      // under the mutation, and was asserting nothing.
+      Directory(held).deleteSync(recursive: true);
+      final requested = '${root.path}/never_created_one';
+      await expectLater(() => factory.initialize('@alice', hiveAt(requested)),
+          throwsA(isA<StateError>()),
+          reason: 'a path that is merely absent says nothing about where it '
+              'would be, so two absences are not one location; agreeing they '
+              'are hands back a bundle rooted somewhere else, which is the '
+              'silent mis-route this guard exists to prevent');
+      await factory.close();
+    });
+
+    test('the refusal names the location that actually differs', () async {
+      // Reporting storagePath alone produced "rooted at X, and was asked for
+      // one at X" whenever the difference was in one of the other four paths —
+      // always so for the dual config, whose getters all delegate to primary.
+      // A message that contradicts itself sends the reader after the check.
+      final factory = HiveAtPersistenceFactory();
+      final shared = dir('shared_root');
+      final firstCommitLog = dir('commit_a');
+      final secondCommitLog = dir('commit_b');
+
+      await factory.initialize(
+          '@alice',
+          HivePersistenceConfig(
+              storagePath: shared,
+              commitLogPath: firstCommitLog,
+              accessLogPath: shared,
+              notificationStoragePath: shared));
+
+      Object? thrown;
+      try {
+        await factory.initialize(
+            '@alice',
+            HivePersistenceConfig(
+                storagePath: shared,
+                commitLogPath: secondCommitLog,
+                accessLogPath: shared,
+                notificationStoragePath: shared));
+      } catch (e) {
+        thrown = e;
+      }
+      expect(thrown, isA<StateError>());
+      final message = thrown.toString();
+      expect(message, contains('commitLogPath'),
+          reason: 'the reader needs to know WHICH location moved; storagePath '
+              'is identical in both configs here');
+      expect(message, contains(secondCommitLog),
+          reason: 'and the requested value, or they cannot tell which side '
+              'they are looking at');
+      await factory.close();
+    });
+  });
 }

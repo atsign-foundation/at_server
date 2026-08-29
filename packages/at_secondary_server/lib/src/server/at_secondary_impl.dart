@@ -180,9 +180,25 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// day, and the `checkCertificateReload` modifiable config, which fires a
   /// forced check as soon as it is set. Both reach [stop]/[start] via
   /// `AtCertificateValidationJob.restartServer`, which does **not** await
-  /// [start] — so an exception thrown out of here on a restart has no caller
-  /// waiting to catch it, and the server is left stopped rather than crashing
-  /// visibly.
+  /// [start].
+  ///
+  /// That unawaited call does not mean an exception here goes unnoticed — it
+  /// means it arrives somewhere surprising. `SecondaryServerBootStrapper.run`
+  /// starts the first [start] inside a `runZonedGuarded`, and every timer,
+  /// cron and stream listener created during that start inherits the zone,
+  /// the certificate job's cron among them. So a throw from a restart-time
+  /// [start] has no `await` to propagate to and goes to the zone's error
+  /// handler instead, which passes anything that is not a `SocketException`
+  /// to `handleTerminateSignal`. That awaits [stop], finds `isRunning()`
+  /// false — a [start] that threw before reaching `_isRunning = true` never
+  /// set it — and calls `exit(0)`.
+  ///
+  /// **So a failed certificate-rotation restart terminates the process, with a
+  /// success status.** Under an orchestration policy of `restart: on-failure`
+  /// that reads as a deliberate shutdown and the atServer is not brought back.
+  /// Anything added here that can throw should be weighed against that, not
+  /// against the assumption that a restart failure leaves something running to
+  /// inspect.
   ///
   /// What that asks of anything added to this method: process-wide state that
   /// outlives [stop] must either be safe to pick up again as it is, or be torn

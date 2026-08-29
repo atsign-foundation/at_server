@@ -85,8 +85,9 @@ class HiveInstances {
   /// while its real path is `/private/var/folders/...`.
   ///
   /// So the directory is resolved on the filesystem, which needs it to exist:
-  /// it is created first (idempotent, and Hive would create it moments later
-  /// at box open anyway). Were it left to come into existence on its own, a
+  /// it is created first when [create] is true (idempotent, and Hive would
+  /// create it moments later at box open anyway). The close path passes false,
+  /// because a teardown verb must not write. Were it left to come into existence on its own, a
   /// caller arriving before it did would key on the unresolved spelling and a
   /// caller arriving after would key on the resolved one — two instances again.
   ///
@@ -94,10 +95,29 @@ class HiveInstances {
   /// permission error, a path that cannot be a directory). That fallback
   /// restores the symlink hole for that path, so it logs rather than passing
   /// silently.
-  static String canonicalPathFor(String storagePath) {
+  static String canonicalPathFor(String storagePath, {bool create = true}) {
+    // An empty path is not a location, and every step below would launder it
+    // into one: createSync('') throws PathNotFoundException, which is a
+    // FileSystemException, so the fallback catches it and p.canonicalize('')
+    // hands back the PROCESS WORKING DIRECTORY. The server would then start
+    // normally, rooted in its own image layer instead of the mounted volume,
+    // and - because the secret file cannot be written there either, and that
+    // failure is swallowed - with an UNENCRYPTED keystore. An unset
+    // `${STORAGE_PATH}` in a compose or k8s manifest arrives here as '',
+    // because Platform.environment reports an unset-but-interpolated variable
+    // as present with an empty value.
+    if (storagePath.trim().isEmpty) {
+      throw ArgumentError.value(
+          storagePath, 'storagePath', 'must not be empty or blank');
+    }
     try {
       final dir = Directory(storagePath);
       if (!dir.existsSync()) {
+        if (!create) {
+          // Closing must not write. Nothing is filed under a path that does
+          // not exist, so the lexical form is enough to miss cleanly.
+          return p.canonicalize(storagePath);
+        }
         dir.createSync(recursive: true);
       }
       return p.canonicalize(dir.resolveSymbolicLinksSync());
@@ -133,8 +153,12 @@ class HiveInstances {
   ///
   /// Note this keys on a storage PATH, unlike the same-named
   /// `AtPersistenceFactory.closeFor`, which keys on an atSign.
+  /// Close BEFORE deleting the directory, not after: a path whose directory
+  /// has already been removed can only be matched lexically, which will not
+  /// find an instance filed under its resolved location. [closeAll] is immune,
+  /// since it works from the keys already in the map.
   static Future<void> closeFor(String storagePath) =>
-      _closeKey(canonicalPathFor(storagePath));
+      _closeKey(canonicalPathFor(storagePath, create: false));
 
   /// Closes one already-canonical path's instance, marking it closing for the
   /// duration.

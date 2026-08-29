@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
+
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 // Deliberately the public barrel, not `src/impl/hive/hive_instances.dart`.
 // A consumer outside this package can only reach `HiveInstances` through an
@@ -203,5 +205,57 @@ void main() {
     expect(HiveInstances.instanceCount, 0,
         reason: 'an entry left behind points at a closed instance, and the '
             'next caller for that path would get it back');
+  });
+
+  test('an empty storage path is refused, not laundered into the CWD',
+      () async {
+    // The fallback makes this dangerous rather than merely wrong.
+    // `createSync('')` throws PathNotFoundException, which IS a
+    // FileSystemException, so the catch swallows it and `p.canonicalize('')`
+    // returns the PROCESS WORKING DIRECTORY — measured. A server would then
+    // start normally, rooted in its own image layer rather than the mounted
+    // volume, and with an unencrypted keystore, because the secret file cannot
+    // be written there either and that failure is swallowed too. An unset
+    // `${STORAGE_PATH}` in a manifest arrives here as '', since
+    // Platform.environment reports an interpolated-but-unset variable as
+    // present with an empty value.
+    expect(() => HiveInstances.forPath(''), throwsA(isA<ArgumentError>()),
+        reason: 'an empty path is not a location, and silently choosing one '
+            'for the caller puts the whole store somewhere nobody asked for');
+    expect(() => HiveInstances.forPath('   '), throwsA(isA<ArgumentError>()),
+        reason: 'blank is empty for this purpose');
+
+    // The control, and it is what stops the guard being "reject everything":
+    // an ordinary relative path must still resolve, and must still resolve
+    // RELATIVE TO THE CWD, which is the very behaviour that makes '' unsafe.
+    final relative = p.relative(pathFor('relative_ok'));
+    expect(HiveInstances.forPath(relative), isNotNull,
+        reason: 'a real relative path is a location and must keep working');
+  });
+
+  test('closing a path does not create it', () async {
+    // canonicalPathFor creates the directory so it can resolve it, and
+    // closeFor used to go through the same door — so a teardown that deleted
+    // the tree and then closed the instance found the directory back, empty,
+    // with nothing thrown and nothing logged.
+    final path = pathFor('close_no_create');
+    final store = await storeAt(path);
+    await store.put('shared_key@alice', data('v'));
+    await HiveInstances.closeFor(path);
+
+    Directory(path).deleteSync(recursive: true);
+    await HiveInstances.closeFor(path);
+    expect(Directory(path).existsSync(), isFalse,
+        reason: 'closing is a teardown verb and must not write; recreating '
+            'the directory makes a later "is the storage gone?" check lie');
+
+    // The control: closing a path that IS open still works, so the fix has
+    // not simply made closeFor a no-op.
+    final second = pathFor('close_still_closes');
+    await storeAt(second);
+    final before = HiveInstances.instanceCount;
+    await HiveInstances.closeFor(second);
+    expect(HiveInstances.instanceCount, before - 1,
+        reason: 'closeFor must still close the instance it names');
   });
 }

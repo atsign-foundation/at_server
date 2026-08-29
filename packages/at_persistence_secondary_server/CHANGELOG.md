@@ -35,6 +35,25 @@
   arms separately, since `DualWritePersistenceConfig` delegates every path
   getter to its primary and would otherwise agree while the secondary had
   moved.
+- fix: an empty storage path is refused instead of resolving to the process
+  working directory. Resolving a path on the filesystem meant creating it
+  first, and `Directory('').createSync()` throws a `FileSystemException`, so
+  the fallback caught it and `p.canonicalize('')` returned the CWD — a server
+  handed `secondaryStoragePath=` (an unset variable interpolated into a
+  manifest arrives as an empty string, not as absent) would have started
+  normally, rooted in its own image layer rather than the mounted volume, and
+  with an unencrypted keystore, since the secret file could not be written
+  there either and that failure is swallowed. `HiveInstances.closeFor` no
+  longer creates the directory it was asked to close.
+- fix: the storage-location comparison no longer treats two absent paths as the
+  same location. The filesystem arm was `_resolved(a) == _resolved(b)`, and an
+  unresolvable path resolved to null, so two unrelated missing roots compared
+  equal and the conflict guard was skipped. `backendMarkerPath` is no longer
+  among the compared locations — both config classes derive it from
+  `storagePath`, and as a file that does not exist until a backend is chosen it
+  could only produce false conflicts. A refusal now names the location that
+  actually differs rather than `storagePath`, which for the dual-write config
+  always read "rooted at X, and was asked for one at X".
 - fix: the dual-write mirror purges the secondary's commit entry when the
   primary holds none for a just-written key. A skipCommit put/create/putMeta
   purges the primary's entry while the key lives on, so "no entry to replay"

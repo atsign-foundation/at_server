@@ -17,12 +17,18 @@ import 'package:path/path.dart' as p;
 /// Hive spreads an atSign across four directories and SQLite keeps one file
 /// under a storage root, so the comparison is over every path the interface
 /// exposes rather than over `storagePath` alone.
+/// [AtPersistenceConfig.backendMarkerPath] is deliberately NOT among them.
+/// Both config classes derive it from [AtPersistenceConfig.storagePath] when it
+/// is not given, and nothing in the server ever gives it, so it carries no
+/// information `storagePath` has not already supplied. It is also a FILE, and
+/// one that does not exist until a backend has been chosen — so including it
+/// could only ever manufacture a refusal between two configs that name the same
+/// directories, which is what it did when it was first written in.
 List<String> storageLocationsOf(AtPersistenceConfig config) => [
       config.storagePath,
       config.commitLogPath,
       config.accessLogPath,
       config.notificationStoragePath,
-      config.backendMarkerPath,
     ];
 
 /// Whether two configurations name the same storage locations.
@@ -51,21 +57,35 @@ bool _sameLocation(String a, String b) {
   if (p.canonicalize(a) == p.canonicalize(b)) {
     return true;
   }
-  return _resolved(a) == _resolved(b);
+  final resolvedA = _resolved(a);
+  final resolvedB = _resolved(b);
+  // Both must resolve, and this must not be written as
+  // `_resolved(a) == _resolved(b)`: that reads correctly and FAILS OPEN,
+  // because two paths that are merely absent both resolve to null and null
+  // equals null. Two locations that have already disagreed lexically are the
+  // same place only if the filesystem says so, and it cannot say anything
+  // about a path that is not there.
+  if (resolvedA == null || resolvedB == null) {
+    return false;
+  }
+  return resolvedA == resolvedB;
 }
 
 /// The real location of [path], or null when it cannot be resolved.
 ///
-/// Returns null rather than falling back to the lexical form, so that two
-/// unresolvable paths are never reported equal by both being null — they have
-/// already failed the lexical comparison above.
+/// Null means "the filesystem cannot answer", and every caller must treat that
+/// as *not equal* rather than letting two nulls meet.
+///
+/// Typed by existence rather than as a [Directory], so that a location which
+/// is not a directory still resolves rather than silently reporting itself
+/// unresolvable — `Directory(aFile).existsSync()` is false for a file that is
+/// plainly there.
 String? _resolved(String path) {
   try {
-    final entity = Directory(path);
-    if (!entity.existsSync()) {
+    if (FileSystemEntity.typeSync(path) == FileSystemEntityType.notFound) {
       return null;
     }
-    return p.canonicalize(entity.resolveSymbolicLinksSync());
+    return p.canonicalize(File(path).resolveSymbolicLinksSync());
   } on FileSystemException {
     return null;
   }
@@ -79,10 +99,40 @@ StateError conflictingStorageError({
   required AtPersistenceConfig held,
   required AtPersistenceConfig requested,
 }) =>
-    StateError('$factory already holds an open bundle for $atSign rooted at'
-        ' "${held.storagePath}", and was asked for one at'
-        ' "${requested.storagePath}". A factory keeps one bundle per atSign —'
+    StateError('$factory already holds an open bundle for $atSign at'
+        ' ${_describeDifference(held, requested)}.'
+        ' A factory keeps one bundle per atSign —'
         ' bundleFor() and closeFor() have no way to name a second — so it'
         ' cannot serve both. Returning the bundle it holds would answer with'
         ' another store\'s records. Call closeFor("$atSign") first, or use a'
         ' separate factory instance for the second location.');
+
+/// Names the locations that actually differ, rather than `storagePath`.
+///
+/// Reporting `storagePath` alone produces a refusal that reads "rooted at X,
+/// and was asked for one at X" whenever the difference is in one of the other
+/// four paths — and always for the dual-write config, whose every path getter
+/// delegates to its primary. A message that appears to contradict itself sends
+/// the reader after the check rather than after the difference.
+String _describeDifference(
+    AtPersistenceConfig held, AtPersistenceConfig requested) {
+  const labels = [
+    'storagePath',
+    'commitLogPath',
+    'accessLogPath',
+    'notificationStoragePath',
+  ];
+  final left = storageLocationsOf(held);
+  final right = storageLocationsOf(requested);
+  final differences = <String>[];
+  for (var i = 0; i < left.length; i++) {
+    if (!_sameLocation(left[i], right[i])) {
+      differences.add('${labels[i]} "${left[i]}" vs "${right[i]}"');
+    }
+  }
+  if (differences.isEmpty) {
+    return '"${held.storagePath}", and was asked for one at'
+        ' "${requested.storagePath}"';
+  }
+  return 'a different ${differences.join('; ')}';
+}
