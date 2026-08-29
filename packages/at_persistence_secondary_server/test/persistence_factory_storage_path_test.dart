@@ -76,15 +76,38 @@ void main() {
           '@alice',
           DualWritePersistenceConfig(
               primary: primary, secondary: sqliteAt(dir('s1'))));
-      await expectLater(
-          () => factory.initialize(
-              '@alice',
-              DualWritePersistenceConfig(
-                  primary: primary, secondary: sqliteAt(dir('s2')))),
-          throwsA(isA<StateError>()),
+      final secondCommitLocation = dir('s2');
+      Object? thrown;
+      try {
+        await factory.initialize(
+            '@alice',
+            DualWritePersistenceConfig(
+                primary: primary, secondary: sqliteAt(secondCommitLocation)));
+      } catch (e) {
+        thrown = e;
+      }
+      expect(thrown, isA<StateError>(),
           reason: 'the primary is unchanged, so every path getter on the '
               'wrapper agrees; only comparing the arms separately catches a '
               'moved secondary');
+
+      // Asserting the THROW alone is what let a real defect through: the
+      // message was built from the wrapper, whose getters all delegate to the
+      // primary, so it found no difference and fell back to printing the
+      // primary's path as both sides — "at X, and was asked for one at X", for
+      // exactly the case the comparison exists to catch. The message for the
+      // Hive factory was asserted, and it was fine; the gap sat between the
+      // type whose message was checked and the type whose message was broken.
+      final message = thrown.toString();
+      expect(message, contains('secondary arm'),
+          reason: 'a refusal must say which arm moved — the operator reading '
+              'it is deciding which of two backends to look at');
+      expect(message, contains(secondCommitLocation),
+          reason: 'and must name the location actually requested, not the '
+              'primary\'s, which did not move');
+      expect(message, isNot(contains('primary arm')),
+          reason: 'the primary is identical here; naming it would send the '
+              'reader to the wrong backend');
       await factory.close();
     });
   });

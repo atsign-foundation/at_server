@@ -74,14 +74,28 @@ class DualWriteAtPersistenceFactory implements AtPersistenceFactory {
     final existing = _bundles[atSign];
     if (existing != null && !existing.isClosed) {
       final held = _configs[atSign];
-      if (held != null &&
-          !(sameStorageLocations(held.primary, config.primary) &&
-              sameStorageLocations(held.secondary, config.secondary))) {
-        throw conflictingStorageError(
-            factory: 'DualWriteAtPersistenceFactory',
-            atSign: atSign,
-            held: held,
-            requested: config);
+      if (held != null) {
+        // Raised against the ARM that differs, never against the wrapper.
+        // DualWritePersistenceConfig delegates every path getter to its
+        // primary, so describing the difference from the wrapper finds none
+        // when it is the secondary that moved, and falls back to printing the
+        // primary's path as both the held and the requested location — a
+        // refusal that reads "at X, and was asked for one at X" for exactly
+        // the case this comparison exists to catch.
+        if (!sameStorageLocations(held.primary, config.primary)) {
+          throw conflictingStorageError(
+              factory: 'DualWriteAtPersistenceFactory (primary arm)',
+              atSign: atSign,
+              held: held.primary,
+              requested: config.primary);
+        }
+        if (!sameStorageLocations(held.secondary, config.secondary)) {
+          throw conflictingStorageError(
+              factory: 'DualWriteAtPersistenceFactory (secondary arm)',
+              atSign: atSign,
+              held: held.secondary,
+              requested: config.secondary);
+        }
       }
       return existing;
     }

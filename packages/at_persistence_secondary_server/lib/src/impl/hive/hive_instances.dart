@@ -85,11 +85,14 @@ class HiveInstances {
   /// while its real path is `/private/var/folders/...`.
   ///
   /// So the directory is resolved on the filesystem, which needs it to exist:
-  /// it is created first when [create] is true (idempotent, and Hive would
-  /// create it moments later at box open anyway). The close path passes false,
-  /// because a teardown verb must not write. Were it left to come into existence on its own, a
-  /// caller arriving before it did would key on the unresolved spelling and a
-  /// caller arriving after would key on the resolved one — two instances again.
+  /// it is created first (idempotent, and Hive would create it moments later at
+  /// box open anyway). Were it left to come into existence on its own, a caller
+  /// arriving before it did would key on the unresolved spelling and a caller
+  /// arriving after would key on the resolved one — two instances again.
+  ///
+  /// [create] is false only on the close path, where a teardown verb must not
+  /// write. Nothing is filed under a path that does not exist, so there the
+  /// lexical form is enough to miss cleanly.
   ///
   /// Falls back to the lexical form only if the filesystem refuses (a
   /// permission error, a path that cannot be a directory). That fallback
