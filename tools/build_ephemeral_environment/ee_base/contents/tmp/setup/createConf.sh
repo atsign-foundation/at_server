@@ -13,7 +13,7 @@ if [ -n "${DNS_FQDN+1}" ]; then
 else
   echo "\$DNS_FQDN is not set, setting to default"
   DNS_FQDN="vip.ve.atsign.zone"
-  sed -i 's/DNS_FQN/'$DNS_FQDN'/g' /atsign/secondary/base/config/config.yaml
+  sed -i 's/DNS_FQDN/'$DNS_FQDN'/g' /atsign/secondary/base/config/config.yaml
   echo "\$DNS_FQDN is set to $DNS_FQDN"
 fi
 

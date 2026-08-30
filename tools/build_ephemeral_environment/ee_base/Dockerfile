@@ -8,23 +8,23 @@ WORKDIR /app
 ## -f tools/build_virtual_environment/ee_base/Dockerfile .
 COPY . .
 RUN \
-  cd /app/packages/at_root_server ; \
-  dart pub get ; \
-  dart pub update ; \
-  dart compile exe bin/main.dart -o root ; \
-  cd /app/packages/at_persistence_secondary_server ; \
-  dart pub get ; \
-  dart pub update ; \
-  cd /app/packages/at_secondary_server ; \
-  dart pub get ; \
-  dart pub update ; \
-  dart compile exe bin/main.dart -o secondary; \
-  cd /app/tools/build_ephemeral_environment/at_activate ; \
-  dart pub get ; \
-  dart pub update ; \
+  cd /app/packages/at_root_server && \
+  dart pub get && \
+  dart pub update && \
+  dart compile exe bin/main.dart -o root && \
+  cd /app/packages/at_persistence_secondary_server && \
+  dart pub get && \
+  dart pub update && \
+  cd /app/packages/at_secondary_server && \
+  dart pub get && \
+  dart pub update && \
+  dart compile exe bin/main.dart -o secondary && \
+  cd /app/tools/build_ephemeral_environment/at_activate && \
+  dart pub get && \
+  dart pub update && \
   dart compile exe bin/at_activate.dart -o at_activate
 
-FROM debian:stable-20260824-slim@sha256:eb37f58646a901dc7727cf448cae36daaefaba79de33b5058dab79aa4c04aefb
+FROM debian:stable-20260824-slim@sha256:04634311a8d5fc442b6eb06d792293c4f3e2268652ca7634e00ce8ef5cc0a28a
 # was debian:stable-20221114-slim
 USER root
 
