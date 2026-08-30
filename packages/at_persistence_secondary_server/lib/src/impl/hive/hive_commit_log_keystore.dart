@@ -49,11 +49,11 @@ class HiveCommitLogKeyStore with HiveBase<CommitEntry?> {
   @override
   Future<void> initialize() async {
     _boxName = 'commit_log_${AtUtils.getShaForAtSign(currentAtSign)}';
-    if (!Hive.isAdapterRegistered(CommitEntryAdapter().typeId)) {
-      Hive.registerAdapter(CommitEntryAdapter());
+    if (!hive.isAdapterRegistered(CommitEntryAdapter().typeId)) {
+      hive.registerAdapter(CommitEntryAdapter());
     }
-    if (!Hive.isAdapterRegistered(CommitOpAdapter().typeId)) {
-      Hive.registerAdapter(CommitOpAdapter());
+    if (!hive.isAdapterRegistered(CommitOpAdapter().typeId)) {
+      hive.registerAdapter(CommitOpAdapter());
     }
     await super.openBox(_boxName);
     _logger.finer('Commit log key store is initialized');

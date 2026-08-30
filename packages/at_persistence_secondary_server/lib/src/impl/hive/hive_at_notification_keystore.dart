@@ -128,11 +128,10 @@ class HiveAtNotificationKeystore
 
   final _logger = AtSignLogger('HiveAtNotificationKeystore');
 
-  static bool _typesRegistered = false;
-
   @override
   Future<void> initialize() async {
     _boxName = 'notifications_${AtUtils.getShaForAtSign(currentAtSign)}';
+    _registerAdapters();
     await super.openBox(_boxName);
     await _populateExpiryIndex();
   }
@@ -150,21 +149,49 @@ class HiveAtNotificationKeystore
 
   /// You **must** subsequently call [init]
   HiveAtNotificationKeystore(this.currentAtSign,
-      {this.compactionPercentage = 30}) {
-    if (!_typesRegistered) {
-      Hive.registerAdapter(AtNotificationAdapter());
-      Hive.registerAdapter(OperationTypeAdapter());
-      Hive.registerAdapter(NotificationTypeAdapter());
-      Hive.registerAdapter(NotificationStatusAdapter());
-      Hive.registerAdapter(NotificationPriorityAdapter());
-      Hive.registerAdapter(MessageTypeAdapter());
-      if (!Hive.isAdapterRegistered(AtMetaDataAdapter().typeId)) {
-        Hive.registerAdapter(AtMetaDataAdapter());
-      }
-      if (!Hive.isAdapterRegistered(PublicKeyHashAdapter().typeId)) {
-        Hive.registerAdapter(PublicKeyHashAdapter());
-      }
-      _typesRegistered = true;
+      {this.compactionPercentage = 30});
+
+  /// Registers this store's adapters on the instance that owns its box.
+  ///
+  /// ⚠️ These used to run in the CONSTRUCTOR, behind a `static` flag meaning
+  /// "already done in this process". Neither survives per-instance registries:
+  /// the constructor runs before [init] chooses the instance, and a static
+  /// flag would leave every instance after the first with no adapters, so its
+  /// box would fail to decode its own contents. `isAdapterRegistered` is
+  /// per-instance and answers the same question correctly, so the flag is
+  /// gone rather than replaced.
+  /// ⚠️ Written out one call at a time, and it must stay that way.
+  /// `registerAdapter<T>` infers `T` from the ARGUMENT at each call site, and
+  /// Hive dispatches on that resolved type. Loop these through a
+  /// `List<TypeAdapter>` — which is tidier and was tried — and the element
+  /// type erases the inference, so every adapter registers under the wrong
+  /// type and writes dispatch to the wrong one. It compiles, and it fails at
+  /// runtime with `type 'MessageType' is not a subtype of type
+  /// 'AtNotification'` from inside `AtNotificationAdapter.write`.
+  void _registerAdapters() {
+    if (!hive.isAdapterRegistered(AtNotificationAdapter().typeId)) {
+      hive.registerAdapter(AtNotificationAdapter());
+    }
+    if (!hive.isAdapterRegistered(OperationTypeAdapter().typeId)) {
+      hive.registerAdapter(OperationTypeAdapter());
+    }
+    if (!hive.isAdapterRegistered(NotificationTypeAdapter().typeId)) {
+      hive.registerAdapter(NotificationTypeAdapter());
+    }
+    if (!hive.isAdapterRegistered(NotificationStatusAdapter().typeId)) {
+      hive.registerAdapter(NotificationStatusAdapter());
+    }
+    if (!hive.isAdapterRegistered(NotificationPriorityAdapter().typeId)) {
+      hive.registerAdapter(NotificationPriorityAdapter());
+    }
+    if (!hive.isAdapterRegistered(MessageTypeAdapter().typeId)) {
+      hive.registerAdapter(MessageTypeAdapter());
+    }
+    if (!hive.isAdapterRegistered(AtMetaDataAdapter().typeId)) {
+      hive.registerAdapter(AtMetaDataAdapter());
+    }
+    if (!hive.isAdapterRegistered(PublicKeyHashAdapter().typeId)) {
+      hive.registerAdapter(PublicKeyHashAdapter());
     }
   }
 

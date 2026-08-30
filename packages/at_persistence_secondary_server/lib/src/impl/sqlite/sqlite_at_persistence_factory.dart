@@ -1,6 +1,7 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_utils/at_logger.dart';
 
+import '../persistence_config_identity.dart';
 import 'sqlite_at_access_log.dart';
 import 'sqlite_at_commit_log.dart';
 import 'sqlite_at_keyvalue_store.dart';
@@ -17,6 +18,11 @@ class SqliteAtPersistenceFactory implements AtPersistenceFactory {
 
   final Map<String, SqliteAtPersistenceBundle> _bundles = {};
 
+  /// The config each open bundle was built from — see the Hive factory
+  /// and [conflictingStorageError] for why a second location cannot be
+  /// served and must not be silently ignored.
+  final Map<String, SqlitePersistenceConfig> _configs = {};
+
   @override
   AtPersistenceBackendId get backendId => AtPersistenceBackendId.sqlite;
 
@@ -31,8 +37,19 @@ class SqliteAtPersistenceFactory implements AtPersistenceFactory {
 
     final existing = _bundles[atSign];
     if (existing != null) {
-      if (!existing.isClosed) return existing;
+      if (!existing.isClosed) {
+        final held = _configs[atSign];
+        if (held != null && !sameStorageLocations(held, config)) {
+          throw conflictingStorageError(
+              factory: 'SqliteAtPersistenceFactory',
+              atSign: atSign,
+              held: held,
+              requested: config);
+        }
+        return existing;
+      }
       _bundles.remove(atSign);
+      _configs.remove(atSign);
     }
 
     _logger.info('Initialising SQLite persistence for $atSign');
@@ -57,6 +74,7 @@ class SqliteAtPersistenceFactory implements AtPersistenceFactory {
       notificationKeystore: notificationKeystore,
     );
     _bundles[atSign] = bundle;
+    _configs[atSign] = config;
     return bundle;
   }
 
@@ -66,6 +84,7 @@ class SqliteAtPersistenceFactory implements AtPersistenceFactory {
     if (bundle == null) return null;
     if (bundle.isClosed) {
       _bundles.remove(atSign);
+      _configs.remove(atSign);
       return null;
     }
     return bundle;
@@ -73,6 +92,7 @@ class SqliteAtPersistenceFactory implements AtPersistenceFactory {
 
   @override
   Future<void> closeFor(String atSign) async {
+    _configs.remove(atSign);
     final bundle = _bundles.remove(atSign);
     if (bundle == null) return;
     try {
@@ -86,6 +106,7 @@ class SqliteAtPersistenceFactory implements AtPersistenceFactory {
   Future<void> close() async {
     final bundles = _bundles.values.toList();
     _bundles.clear();
+    _configs.clear();
     for (final b in bundles) {
       try {
         await b.close();
