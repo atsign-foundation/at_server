@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_persistence_secondary_server/src/impl/persistence_config_identity.dart';
 
 /// A persistence layer that serves all reads from a **primary** backend while
 /// mirroring every write into a **secondary** backend, so a real workload
@@ -51,6 +52,13 @@ class DualWriteAtPersistenceFactory implements AtPersistenceFactory {
 
   final Map<String, DualWriteBundle> _bundles = {};
 
+  /// The config each open bundle was built from. Compared arm by arm rather
+  /// than through [DualWritePersistenceConfig] itself, whose path getters all
+  /// delegate to [DualWritePersistenceConfig.primary] — so comparing the
+  /// wrapper would agree while the SECONDARY had been pointed somewhere else,
+  /// which is the arm the whole dual-write comparison depends on.
+  final Map<String, DualWritePersistenceConfig> _configs = {};
+
   DualWriteAtPersistenceFactory(this.primaryFactory, this.secondaryFactory);
 
   @override
@@ -64,13 +72,44 @@ class DualWriteAtPersistenceFactory implements AtPersistenceFactory {
           'DualWritePersistenceConfig, got ${config.runtimeType}');
     }
     final existing = _bundles[atSign];
-    if (existing != null && !existing.isClosed) return existing;
+    if (existing != null && !existing.isClosed) {
+      final held = _configs[atSign];
+      if (held != null) {
+        // Raised against the ARM that differs, never against the wrapper.
+        // DualWritePersistenceConfig delegates every path getter to its
+        // primary, so describing the difference from the wrapper finds none
+        // when it is the secondary that moved, and falls back to printing the
+        // primary's path as both the held and the requested location — a
+        // refusal that reads "at X, and was asked for one at X" for exactly
+        // the case this comparison exists to catch.
+        if (!sameStorageLocations(held.primary, config.primary)) {
+          throw conflictingStorageError(
+              factory: 'DualWriteAtPersistenceFactory (primary arm)',
+              atSign: atSign,
+              held: held.primary,
+              requested: config.primary);
+        }
+        if (!sameStorageLocations(held.secondary, config.secondary)) {
+          throw conflictingStorageError(
+              factory: 'DualWriteAtPersistenceFactory (secondary arm)',
+              atSign: atSign,
+              held: held.secondary,
+              requested: config.secondary);
+        }
+      }
+      return existing;
+    }
+    if (existing != null) {
+      _bundles.remove(atSign);
+      _configs.remove(atSign);
+    }
 
     final primary = await primaryFactory.initialize(atSign, config.primary);
     final secondary =
         await secondaryFactory.initialize(atSign, config.secondary);
     final bundle = DualWriteBundle._(atSign, primary, secondary);
     _bundles[atSign] = bundle;
+    _configs[atSign] = config;
     return bundle;
   }
 
@@ -82,6 +121,7 @@ class DualWriteAtPersistenceFactory implements AtPersistenceFactory {
 
   @override
   Future<void> closeFor(String atSign) async {
+    _configs.remove(atSign);
     await _bundles.remove(atSign)?.close();
   }
 
@@ -91,6 +131,7 @@ class DualWriteAtPersistenceFactory implements AtPersistenceFactory {
       await b.close();
     }
     _bundles.clear();
+    _configs.clear();
     await primaryFactory.close();
     await secondaryFactory.close();
   }

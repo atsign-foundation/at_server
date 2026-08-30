@@ -18,8 +18,8 @@ class HiveAccessLogKeyStore with HiveBase<AccessLogEntry?> {
   Future<void> initialize() async {
     _boxName = 'access_log_${AtUtils.getShaForAtSign(_currentAtSign)}';
 
-    if (!Hive.isAdapterRegistered(AccessLogEntryAdapter().typeId)) {
-      Hive.registerAdapter(AccessLogEntryAdapter());
+    if (!hive.isAdapterRegistered(AccessLogEntryAdapter().typeId)) {
+      hive.registerAdapter(AccessLogEntryAdapter());
     }
     await super.openBox(_boxName);
   }

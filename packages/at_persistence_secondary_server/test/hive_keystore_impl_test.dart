@@ -6,7 +6,6 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/hive.dart';
 import 'package:crypto/crypto.dart';
-import 'package:hive/hive.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
@@ -796,8 +795,26 @@ void main() async {
 }
 
 Future<void> tearDownFunc(String atSign) async {
-  await Hive.deleteBoxFromDisk('commit_log_$atSign');
-  await Hive.deleteBoxFromDisk(_getShaForAtSign(atSign));
+  // Deleted through the instance that OWNS these boxes, not the package-global
+  // `Hive`.
+  //
+  // The global still works, and that is the problem. `HiveBase.init` keeps
+  // calling `Hive.init(storagePath)` for consumers outside this package, so
+  // the global's `homePath` is this same directory — measured, it is set, and
+  // `Hive.deleteBoxFromDisk` there does not throw. What it does instead is
+  // take the "box not open in MY registry" branch and delete the files
+  // straight off disk, out from under the per-path instance that has those
+  // boxes open. The per-path instance then fails when it closes them:
+  //
+  //   PathNotFoundException: Cannot delete file, path = '.../<sha>.lock'
+  //     package:hive/src/backend/vm/storage_backend_vm.dart  _closeInternal
+  //
+  // which is how this surfaced — every test in this file went red in its
+  // tearDown while its body had passed. File-level operations do not respect
+  // the registry split; only the instance holding a box may delete it.
+  final hive = HiveInstances.forPath('test/hive');
+  await hive.deleteBoxFromDisk('commit_log_$atSign');
+  await hive.deleteBoxFromDisk(_getShaForAtSign(atSign));
   await tearDownTestPersistence(storageDir: 'test/hive');
 }
 

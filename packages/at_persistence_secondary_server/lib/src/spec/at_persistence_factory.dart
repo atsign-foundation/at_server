@@ -13,13 +13,27 @@ abstract class AtPersistenceFactory {
 
   /// Build a fully-initialised [AtPersistenceBundle] for [atSign].
   ///
-  /// Calling this twice for the same atSign returns the **same**
-  /// bundle — the factory owns the per-atSign lifecycle. Callers
-  /// should not try to manage it themselves.
+  /// Calling this twice for the same atSign **with the same storage
+  /// locations** returns the same bundle — the factory owns the
+  /// per-atSign lifecycle. Callers should not try to manage it
+  /// themselves.
+  ///
+  /// Calling it for an atSign that already has an open bundle rooted
+  /// somewhere else throws a [StateError]. One bundle per atSign is
+  /// this interface's contract and [bundleFor] and [closeFor] both key
+  /// on the atSign alone, so there is nowhere for a second bundle to
+  /// live; returning the one it holds would answer a caller with
+  /// another store's records, and the caller has no way to notice.
+  /// Close the first bundle, or use a separate factory instance.
+  ///
+  /// Two spellings of one location are one location: the comparison is
+  /// lexical first and resolves symlinks on disagreement, so `foo/bar`
+  /// and `foo/./bar`, and a link and its target, are not a conflict.
   ///
   /// If a previous bundle for [atSign] has been closed (whether
   /// directly via [AtPersistenceBundle.close] or via [closeFor]),
-  /// the stale entry is dropped and a fresh bundle is built.
+  /// the stale entry is dropped and a fresh bundle is built — at
+  /// whatever locations the new [config] names.
   ///
   /// Throws [ArgumentError] if [config] does not match
   /// [backendId].

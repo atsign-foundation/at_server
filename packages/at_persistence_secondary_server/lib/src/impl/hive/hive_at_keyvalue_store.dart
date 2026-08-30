@@ -186,14 +186,14 @@ class HiveAtKeyValueStore
   @override
   Future<void> initialize() async {
     try {
-      if (!Hive.isAdapterRegistered(AtDataAdapter().typeId)) {
-        Hive.registerAdapter(AtDataAdapter());
+      if (!hive.isAdapterRegistered(AtDataAdapter().typeId)) {
+        hive.registerAdapter(AtDataAdapter());
       }
-      if (!Hive.isAdapterRegistered(AtMetaDataAdapter().typeId)) {
-        Hive.registerAdapter(AtMetaDataAdapter());
+      if (!hive.isAdapterRegistered(AtMetaDataAdapter().typeId)) {
+        hive.registerAdapter(AtMetaDataAdapter());
       }
-      if (!Hive.isAdapterRegistered(PublicKeyHashAdapter().typeId)) {
-        Hive.registerAdapter(PublicKeyHashAdapter());
+      if (!hive.isAdapterRegistered(PublicKeyHashAdapter().typeId)) {
+        hive.registerAdapter(PublicKeyHashAdapter());
       }
       final secret = await _getHiveSecretFromFile(atSign, storagePath);
       await openBox(AtUtils.getShaForAtSign(atSign), hiveSecret: secret);

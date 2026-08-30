@@ -3,6 +3,7 @@ import 'package:at_persistence_secondary_server/hive.dart';
 import 'package:at_persistence_secondary_server/src/impl/hive/hive_commit_log_keystore.dart';
 import 'package:at_utils/at_logger.dart';
 
+import '../persistence_config_identity.dart';
 import 'hive_access_log_keystore.dart';
 
 /// Hive-backed [AtPersistenceFactory]. Produces
@@ -11,6 +12,11 @@ class HiveAtPersistenceFactory implements AtPersistenceFactory {
   final _logger = AtSignLogger('HiveAtPersistenceFactory');
 
   final Map<String, HiveAtPersistenceBundle> _bundles = {};
+
+  /// The config each open bundle was built from, so a second
+  /// [initialize] for one atSign can tell 'the same store again' from
+  /// 'a different store, which this factory cannot hold'.
+  final Map<String, HivePersistenceConfig> _configs = {};
 
   @override
   AtPersistenceBackendId get backendId => AtPersistenceBackendId.hive;
@@ -31,8 +37,19 @@ class HiveAtPersistenceFactory implements AtPersistenceFactory {
     // going through [closeFor] / [close].
     final existing = _bundles[atSign];
     if (existing != null) {
-      if (!existing.isClosed) return existing;
+      if (!existing.isClosed) {
+        final held = _configs[atSign];
+        if (held != null && !sameStorageLocations(held, config)) {
+          throw conflictingStorageError(
+              factory: 'HiveAtPersistenceFactory',
+              atSign: atSign,
+              held: held,
+              requested: config);
+        }
+        return existing;
+      }
       _bundles.remove(atSign);
+      _configs.remove(atSign);
     }
 
     _logger.info('Initialising Hive persistence for $atSign');
@@ -79,6 +96,7 @@ class HiveAtPersistenceFactory implements AtPersistenceFactory {
       notificationKeystore: notificationKeystore,
     );
     _bundles[atSign] = bundle;
+    _configs[atSign] = config;
     return bundle;
   }
 
@@ -91,6 +109,7 @@ class HiveAtPersistenceFactory implements AtPersistenceFactory {
       // stale entry so subsequent `initialize` / `bundleFor` calls
       // see a clean slate.
       _bundles.remove(atSign);
+      _configs.remove(atSign);
       return null;
     }
     return bundle;
@@ -98,6 +117,7 @@ class HiveAtPersistenceFactory implements AtPersistenceFactory {
 
   @override
   Future<void> closeFor(String atSign) async {
+    _configs.remove(atSign);
     final bundle = _bundles.remove(atSign);
     if (bundle == null) return;
     try {
@@ -111,6 +131,7 @@ class HiveAtPersistenceFactory implements AtPersistenceFactory {
   Future<void> close() async {
     final bundles = _bundles.values.toList();
     _bundles.clear();
+    _configs.clear();
     for (final b in bundles) {
       try {
         await b.close();

@@ -166,6 +166,47 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// Check various parameters required to start the secondary server. Invokes call to [_startSecuredServer] to start secondary server in secure mode and
   /// [_startUnSecuredServer] to start secondary server in un-secure mode.
   /// Throws [AtServerException] if exception occurs in starting the secondary server.
+  ///
+  /// ## This runs more than once per process
+  ///
+  /// [AtCertificateValidationJob] restarts the server **in process** when the
+  /// TLS certificates on disk have been replaced: it calls [stop] and then
+  /// [start] again on this same singleton. So a long-lived server may run this
+  /// method many times over its life, and everything it touches has to be
+  /// correct on the second and hundredth call, not only the first.
+  ///
+  /// Two things trigger that restart, and neither is under an operator's eye at
+  /// the time: a cron inside the job that looks for the restart file twice a
+  /// day, and the `checkCertificateReload` modifiable config, which fires a
+  /// forced check as soon as it is set. Both reach [stop]/[start] via
+  /// `AtCertificateValidationJob.restartServer`, which does **not** await
+  /// [start].
+  ///
+  /// That unawaited call does not mean an exception here goes unnoticed — it
+  /// means it arrives somewhere surprising. `SecondaryServerBootStrapper.run`
+  /// starts the first [start] inside a `runZonedGuarded`, and every timer,
+  /// cron and stream listener created during that start inherits the zone,
+  /// the certificate job's cron among them. So a throw from a restart-time
+  /// [start] has no `await` to propagate to and goes to the zone's error
+  /// handler instead, which passes anything that is not a `SocketException`
+  /// to `handleTerminateSignal`. That awaits [stop], finds `isRunning()`
+  /// false — a [start] that threw before reaching `_isRunning = true` never
+  /// set it — and calls `exit(0)`.
+  ///
+  /// **So a failed certificate-rotation restart terminates the process, with a
+  /// success status.** Under an orchestration policy of `restart: on-failure`
+  /// that reads as a deliberate shutdown and the atServer is not brought back.
+  /// Anything added here that can throw should be weighed against that, not
+  /// against the assumption that a restart failure leaves something running to
+  /// inspect.
+  ///
+  /// What that asks of anything added to this method: process-wide state that
+  /// outlives [stop] must either be safe to pick up again as it is, or be torn
+  /// down there. Persistence takes the second route — [stop] closes it through
+  /// `persistenceFactory.close()` and this method builds it again from
+  /// scratch — while [certificateReloadJob] deliberately takes the first, and
+  /// is created only when it is null so that the job driving the restart is not
+  /// replaced underneath itself.
   @override
   Future<void> start() async {
     pause();
@@ -788,6 +829,26 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   /// Removes all the active connections and stops the secondary server
   /// Throws [AtServerException] if exception occurs in stop the server.
+  ///
+  /// ## This is not only a shutdown — it is half of a restart
+  ///
+  /// [AtCertificateValidationJob] calls this and then [start] again on the same
+  /// singleton, in the same process, to pick up replaced TLS certificates. So
+  /// this method is usually followed by the server coming back, not by the
+  /// process ending, and it runs unattended: a cron checks for the restart file
+  /// twice a day, and setting the `checkCertificateReload` config forces a
+  /// check immediately.
+  ///
+  /// Anything acquired in [start] therefore has to be released here, or it
+  /// leaks once per certificate rotation and is still held when [start] runs
+  /// again. Timers, sockets, cron schedules, stream subscriptions and pooled
+  /// connections all count. Persistence is closed through
+  /// `persistenceFactory.close()` rather than left open, so the next [start]
+  /// builds a fresh bundle instead of inheriting a half-torn-down one.
+  ///
+  /// The exception is [certificateReloadJob] itself, which survives on purpose:
+  /// it is the thing calling this method, and [start] only creates one when it
+  /// is null.
   @override
   Future<void> stop() async {
     pause();

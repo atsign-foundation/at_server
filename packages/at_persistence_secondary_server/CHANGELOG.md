@@ -1,5 +1,59 @@
 ## 5.3.0
 
+- fix: a store now honours the `storagePath` it is given. Hive keeps its box
+  registry and home path on a `HiveImpl` *instance*, and this package ran
+  everything through the one global instance `package:hive` exposes — so a
+  box's identity was `(the single global registry, box name)`. Box names here
+  derive from the atSign, so two stores for one atSign in one process always
+  resolved to one box however different the paths they were handed: the second
+  silently attached to the first's, and its own `storagePath` reached nothing
+  but the encryption-secret file beside it. Box lifecycle and type-adapter
+  registration now run on a `HiveInstances.forPath(...)` instance, shared per
+  canonical path. Callers passing one path keep exactly one store, with no box
+  renamed and no data moved; a caller passing a different path now gets the
+  separate store it asked for. Found from the client side, where two
+  enrollments of one atSign shared a notification replay watermark and one
+  consumed the other's offline backlog with nothing logged.
+  `HiveInstances` is exported from `package:at_persistence_secondary_server/hive.dart`,
+  alongside `closeAll()` / `closeFor(path)` for tearing storage down: a global
+  `Hive.close()` does not reach boxes opened on a per-path instance. Paths are
+  matched by their resolved location on the filesystem, so a symlink and its
+  target are one instance rather than two over one directory; `forPath` creates
+  the directory in order to resolve it, and refuses with a `StateError` while
+  that path's instance is being closed.
+- fix: `AtPersistenceFactory.initialize` no longer ignores the storage
+  locations it is handed. A factory caches one bundle per atSign — `bundleFor`
+  and `closeFor` key on the atSign alone, so there is nowhere for a second to
+  live — and on a cache hit it returned that bundle without ever reading the
+  config, so a caller asking for a second location was answered with the first
+  one's store. On SQLite the second `storagePath` reached nothing at all: its
+  directory was never created. Asking for an atSign that already has an open
+  bundle rooted somewhere else now throws a `StateError` naming both locations;
+  the same locations still return the same bundle, and two spellings of one
+  directory (`foo/./bar`, a symlink and its target) are not a conflict. Applies
+  to the Hive, SQLite and dual-write factories; the dual one compares its two
+  arms separately, since `DualWritePersistenceConfig` delegates every path
+  getter to its primary and would otherwise agree while the secondary had
+  moved.
+- fix: an empty storage path is refused instead of resolving to the process
+  working directory. Resolving a path on the filesystem meant creating it
+  first, and `Directory('').createSync()` throws a `FileSystemException`, so
+  the fallback caught it and `p.canonicalize('')` returned the CWD — a server
+  handed `secondaryStoragePath=` (an unset variable interpolated into a
+  manifest arrives as an empty string, not as absent) would have started
+  normally, rooted in its own image layer rather than the mounted volume, and
+  with an unencrypted keystore, since the secret file could not be written
+  there either and that failure is swallowed. `HiveInstances.closeFor` no
+  longer creates the directory it was asked to close.
+- fix: the storage-location comparison no longer treats two absent paths as the
+  same location. The filesystem arm was `_resolved(a) == _resolved(b)`, and an
+  unresolvable path resolved to null, so two unrelated missing roots compared
+  equal and the conflict guard was skipped. `backendMarkerPath` is no longer
+  among the compared locations — both config classes derive it from
+  `storagePath`, and as a file that does not exist until a backend is chosen it
+  could only produce false conflicts. A refusal now names the location that
+  actually differs rather than `storagePath`, which for the dual-write config
+  always read "rooted at X, and was asked for one at X".
 - fix: the dual-write mirror purges the secondary's commit entry when the
   primary holds none for a just-written key. A skipCommit put/create/putMeta
   purges the primary's entry while the key lives on, so "no entry to replay"

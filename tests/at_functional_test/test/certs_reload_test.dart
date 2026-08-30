@@ -1,9 +1,26 @@
+import 'dart:convert';
+
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
 import 'package:test/test.dart';
+import 'package:uuid/uuid.dart';
 
 void log(String prefix, String command, String response) {
   print('$prefix SENT ${command.padRight(45)} RCVD $response');
+}
+
+/// The commit id out of a `stats:3` response.
+///
+/// `stats` returns a list of `{"id":..,"name":..,"value":..}`, and `value` is
+/// itself a JSON string, so it needs decoding twice. Whether the inner decode
+/// yields an int or a String is a property of the server's encoder, not
+/// something to guess at from the outside, so this accepts either. Parsing the
+/// inner value directly as a String compiles cleanly whatever it is, because
+/// `jsonDecode` returns `dynamic`, and throws at runtime on the int branch.
+int commitIdFromStats(String statsResponse) {
+  final stats = jsonDecode(statsResponse.replaceAll('data:', '').trim());
+  final value = jsonDecode(stats[0]['value'].toString());
+  return value is int ? value : int.parse(value.toString());
 }
 
 void main() async {
@@ -69,6 +86,44 @@ void main() async {
   test('test soft restart', () async {
     String command, response;
 
+    /// A soft restart must come back on the SAME storage. It is an in-process
+    /// stop()/start() rather than a new container, so the whole persistence
+    /// stack is torn down and rebuilt from config while the process lives —
+    /// and a defect that re-roots it (a storage path that resolves to the
+    /// working directory, a cached bundle answering for another location)
+    /// throws nothing. The server comes back up looking healthy and serving an
+    /// empty store. Only records written before the restart and read after it
+    /// can tell the difference, so write one into each of the three stores
+    /// that are rebuilt independently, under a run-unique id.
+    final String uniqueId = Uuid().v4().hashCode.toString();
+    final String keyName = 'restart-probe-$uniqueId';
+    final String keyValue = 'value-$uniqueId';
+
+    /// 1. Keystore, and with it the commit log.
+    command = 'update:public:$keyName$atSign $keyValue';
+    response = await firstAtSignConnection.sendRequestToServer(command);
+    log('', command, response);
+    expect(response, startsWith('data:'),
+        reason: 'the record this test is about must actually be created, or '
+            'the assertion after the restart proves nothing');
+
+    /// 2. The commit log's own sequence, which lives in a separate box under a
+    /// separate path and so can be re-rooted on its own. A sequence that
+    /// restarted from zero would make every client resync from scratch.
+    command = 'stats:3';
+    response = await firstAtSignConnection.sendRequestToServer(command);
+    log('', command, response);
+    final int commitIdBeforeRestart = commitIdFromStats(response);
+
+    /// 3. Notification keystore — a third box, a third path.
+    command =
+        'notify:update:messageType:key:ttr:-1:$atSign:$keyName$atSign:$keyValue';
+    response = await firstAtSignConnection.sendRequestToServer(command);
+    log('', command, response);
+    expect(response, startsWith('data:'),
+        reason: 'the notification must be accepted before the restart, or its '
+            'absence afterwards would say nothing');
+
     /// Create the 'restart' file to indicate that the server should restart
     command = 'config:set:shouldReloadCertificates=true';
     response = await firstAtSignConnection.sendRequestToServer(command);
@@ -127,6 +182,46 @@ void main() async {
         await Future.delayed(Duration(seconds: 2));
       }
     }
+
+    /// The server is back. Everything below is deliberately OUTSIDE the
+    /// reconnect loop above, whose `catch` would otherwise swallow a failed
+    /// expectation and retry it until the loop happened to pass.
+    ///
+    /// This is the part that proves the restart came back on the same storage
+    /// rather than merely coming back.
+    String authResponse = await firstAtSignConnection.authenticateConnection();
+    expect(authResponse, 'data:success',
+        reason: 'the assertions below need an authenticated connection, so a '
+            'failure here must not be read as the records being gone');
+
+    /// 1. The keystore record, by VALUE. A fresh store would answer
+    /// "key not found"; a store rooted elsewhere would too.
+    command = 'llookup:public:$keyName$atSign';
+    response = await firstAtSignConnection.sendRequestToServer(command);
+    log('', command, response);
+    expect(response, 'data:$keyValue',
+        reason: 'a record written before the restart must still be readable '
+            'after it, with the value it was written with — that is what '
+            'makes this the same storage and not a new one');
+
+    /// 2. The commit log carried on rather than starting again.
+    command = 'stats:3';
+    response = await firstAtSignConnection.sendRequestToServer(command);
+    log('', command, response);
+    final int commitIdAfterRestart = commitIdFromStats(response);
+    expect(commitIdAfterRestart, greaterThanOrEqualTo(commitIdBeforeRestart),
+        reason: 'the commit log is a separate box under a separate path; a '
+            'sequence that went backwards would mean it was rebuilt empty, '
+            'and every client would resync the whole atSign');
+
+    /// 3. The notification, still in its own store.
+    command = 'notify:list';
+    response = await firstAtSignConnection.sendRequestToServer(command);
+    log('', command, response);
+    expect(response, contains(keyName),
+        reason: 'the notification keystore is the third of three stores torn '
+            'down and rebuilt by the restart, and it can be re-rooted '
+            'independently of the other two');
   });
 
   tearDown(() async {
