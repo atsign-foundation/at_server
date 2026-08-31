@@ -518,7 +518,7 @@ class EnrollmentManager {
   ///
   /// Enrollments of every status are linked into the map, not just approved
   /// ones. A revoked enrollment part-way down a chain must not hide the
-  /// approved grandchild behind it, which is exactly the orphan a cascade
+  /// approved enrollment behind it, which is exactly the orphan a cascade
   /// exists to remove.
   Future<Set<String>> descendantsOf(String enrollmentId) async {
     final Map<String, List<String>> successorsOf = {};

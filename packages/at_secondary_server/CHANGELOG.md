@@ -5,7 +5,7 @@
   noticed. A successor that outlived the revocation of what it replaced would
   defeat revocation through the very feature that created it. The cascade is
   TRANSITIVE: a self-enrolled enrollment can itself self-enroll, and a
-  one-level cascade would leave a grandchild approved. It walks enrollments of
+  one-level cascade would leave the one beyond it approved. It walks enrollments of
   every status, so a revoked enrollment part-way down a chain cannot conceal
   the approved one behind it, and it revokes only those currently approved.
   Depth costs nothing: one keystore pass builds the whole map and the walk is

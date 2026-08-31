@@ -412,44 +412,44 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (atConnection.metaData.authType == AuthType.apkam) {
       final inboundConnectionMetadata =
           atConnection.metaData as InboundConnectionMetadata;
-      final parentEnrollmentId = inboundConnectionMetadata.enrollmentId;
-      if (parentEnrollmentId == null) {
+      final predecessorId = inboundConnectionMetadata.enrollmentId;
+      if (predecessorId == null) {
         throw UnAuthorizedException(
             'An APKAM-authenticated self-enrollment needs a resolvable '
             'enrollment id on the connection');
       }
-      final EnrollDataStoreValue parent;
+      final EnrollDataStoreValue predecessor;
       try {
-        parent = await enMgr.getEnrollmentById(parentEnrollmentId);
+        predecessor = await enMgr.getEnrollmentById(predecessorId);
       } on KeyNotFoundException {
         throw UnAuthorizedException(
-            'Parent enrollment $parentEnrollmentId does not exist or has '
+            'Predecessor enrollment $predecessorId does not exist or has '
             'expired');
       }
-      if (parent.approval?.state != EnrollmentStatus.approved.name) {
+      if (predecessor.approval?.state != EnrollmentStatus.approved.name) {
         throw UnAuthorizedException(
-            'Parent enrollment $parentEnrollmentId is not approved');
+            'Predecessor enrollment $predecessorId is not approved');
       }
       // Escalation first, so a request naming MORE than the predecessor holds
       // keeps its own diagnosis rather than being reported as a mismatch.
-      verifyNoEscalation(parent.namespaces, enrollNamespaces);
+      verifyNoEscalation(predecessor.namespaces, enrollNamespaces);
       // Then the replacement rule. A retrofit carries its predecessor's grants
       // verbatim and does not choose its own.
-      requireGrantsMatchPredecessor(parent.namespaces, enrollParams.namespaces);
-      enrollmentValue.namespaces = Map.of(parent.namespaces);
+      requireGrantsMatchPredecessor(predecessor.namespaces, enrollParams.namespaces);
+      enrollmentValue.namespaces = Map.of(predecessor.namespaces);
 
       enrollmentValue.approval = EnrollApproval(EnrollmentStatus.approved.name);
       // The successor records what it replaced so revocation can CASCADE: a
       // stolen keyfile must not spawn a successor that survives the
       // revocation of what it replaced. The revoke path walks this edge.
-      enrollmentValue.parentEnrollmentId = parentEnrollmentId;
+      enrollmentValue.parentEnrollmentId = predecessorId;
       // The successor inherits the predecessor's key-expiry posture unless
       // the request states its own. Time is a separate axis from grants: the
       // successor carries the predecessor's grants exactly, but it may hold a
       // shorter life than the credential it replaced.
       if (enrollParams.apkamKeysExpiryDuration == null) {
         enrollmentValue.apkamKeysExpiryDuration =
-            parent.apkamKeysExpiryDuration;
+            predecessor.apkamKeysExpiryDuration;
       }
       // A stated posture may narrow the predecessor's, never widen it.
       // `verifyNoEscalation` covers namespaces; TIME is the other axis a
@@ -458,18 +458,18 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // keystore's "never expires" and a negative value skips the ttl write
       // altogether, so both are ways of asking for a permanent credential —
       // against a time-bound predecessor, neither is honoured.
-      final parentExpiryMs = parent.apkamKeysExpiryDuration.inMilliseconds;
+      final predecessorExpiryMs = predecessor.apkamKeysExpiryDuration.inMilliseconds;
       final statedExpiryMs =
           enrollmentValue.apkamKeysExpiryDuration.inMilliseconds;
       if (statedExpiryMs < 0 ||
-          (parentExpiryMs > 0 &&
-              (statedExpiryMs <= 0 || statedExpiryMs > parentExpiryMs))) {
+          (predecessorExpiryMs > 0 &&
+              (statedExpiryMs <= 0 || statedExpiryMs > predecessorExpiryMs))) {
         logger.warning(
-            'Self-enrollment under $parentEnrollmentId asked for a key-expiry '
+            'Self-enrollment under $predecessorId asked for a key-expiry '
             'of ${statedExpiryMs}ms against a predecessor bound to '
-            '${parentExpiryMs}ms; using the parent\'s');
+            '${predecessorExpiryMs}ms; using the predecessor\'s');
         enrollmentValue.apkamKeysExpiryDuration =
-            parent.apkamKeysExpiryDuration;
+            predecessor.apkamKeysExpiryDuration;
       }
       // May be absent: a PQ self-enrollment conveys its legacy material
       // client-side, sealed to its own new key package.
@@ -536,15 +536,15 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// `__manage` anywhere else in the server, and it must not here.
   @visibleForTesting
   void verifyNoEscalation(
-      Map<String, String> parentGrants, Map<String, String> requested) {
+      Map<String, String> predecessorGrants, Map<String, String> requested) {
     for (final entry in requested.entries) {
-      String? parentAccess = parentGrants[entry.key];
+      String? predecessorAccess = predecessorGrants[entry.key];
       final isSpecial = entry.key == EnrollmentConstants.allNamespaces ||
           entry.key == EnrollmentConstants.enrollManageNamespace;
-      if (parentAccess == null && !isSpecial) {
-        parentAccess = parentGrants[EnrollmentConstants.allNamespaces];
+      if (predecessorAccess == null && !isSpecial) {
+        predecessorAccess = predecessorGrants[EnrollmentConstants.allNamespaces];
       }
-      final held = parentAccess;
+      final held = predecessorAccess;
       if (held == null ||
           !entry.value.split('').every(held.split('').contains)) {
         throw UnAuthorizedException(
