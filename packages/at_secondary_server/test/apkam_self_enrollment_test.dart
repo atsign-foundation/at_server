@@ -1042,14 +1042,14 @@ void main() {
       // Nothing else fully privileged exists, so a true here could only mean
       // the root vouched for itself — and the guard could then never fire.
       expect(
-          await enMgr.hasRootEnrollmentAliveAfter(etu.primaryEnId, deadline),
+          await enMgr.hasRootEnrollmentAliveAfter({etu.primaryEnId}, deadline),
           isFalse);
     });
 
     test('another fully-privileged enrollment counts', () async {
       await mint('probe-root', {'*': 'rw', '__manage': 'rw'});
       expect(
-          await enMgr.hasRootEnrollmentAliveAfter(etu.primaryEnId, deadline),
+          await enMgr.hasRootEnrollmentAliveAfter({etu.primaryEnId}, deadline),
           isTrue);
     });
 
@@ -1059,7 +1059,7 @@ void main() {
       // itself holds. It keeps an atSign running; it cannot give it a root.
       await mint('probe-manage', {'wavi': 'rw', '__manage': 'rw'});
       expect(
-          await enMgr.hasRootEnrollmentAliveAfter(etu.primaryEnId, deadline),
+          await enMgr.hasRootEnrollmentAliveAfter({etu.primaryEnId}, deadline),
           isFalse,
           reason: 'the question is who can restore full privilege, not who '
               'can approve');
@@ -1068,7 +1068,7 @@ void main() {
     test('a * holder without __manage does not count', () async {
       await mint('probe-star', {'*': 'rw'});
       expect(
-          await enMgr.hasRootEnrollmentAliveAfter(etu.primaryEnId, deadline),
+          await enMgr.hasRootEnrollmentAliveAfter({etu.primaryEnId}, deadline),
           isFalse,
           reason: '`*` does not imply `__manage` anywhere else in the server '
               'and must not here');
@@ -1078,7 +1078,7 @@ void main() {
       await mint('probe-shortlived', {'*': 'rw', '__manage': 'rw'},
           ttl: Duration(minutes: 1));
       expect(
-          await enMgr.hasRootEnrollmentAliveAfter(etu.primaryEnId, deadline),
+          await enMgr.hasRootEnrollmentAliveAfter({etu.primaryEnId}, deadline),
           isFalse,
           reason: 'an enrollment that will be gone when the cap fires cannot '
               'be what keeps the atSign recoverable');
@@ -1088,8 +1088,260 @@ void main() {
       await mint('probe-revoked', {'*': 'rw', '__manage': 'rw'},
           status: EnrollmentStatus.revoked);
       expect(
-          await enMgr.hasRootEnrollmentAliveAfter(etu.primaryEnId, deadline),
+          await enMgr.hasRootEnrollmentAliveAfter({etu.primaryEnId}, deadline),
           isFalse);
+    });
+  });
+
+  /// Revoking an enrollment revokes everything that replaced it, to any depth.
+  ///
+  /// A stolen keyfile can mint a successor before the theft is noticed, and a
+  /// successor that survived the revocation of what it replaced would defeat
+  /// revocation through the very feature that created it. Revocation is also
+  /// what binds a HOLDER: `enroll:listns` answers with approved enrollments
+  /// only, so a revoked descendant leaves every roster at once, on every
+  /// client, including ones that never heard about the revocation.
+  group('revocation cascades to descendants', () {
+    Future<String?> statusOf(String id) async =>
+        (await enMgr.getEnrollmentById(id)).approval?.state;
+
+    Future<Response> revoke(String revokerId, String targetId,
+        {bool force = false}) async {
+      inboundConnection.metaData
+        ..isAuthenticated = true
+        ..authType = AuthType.apkam;
+      inboundConnection.metadata.enrollmentId = revokerId;
+      final p = EnrollParams()..enrollmentId = targetId;
+      final r = Response();
+      await etu.evh.processVerb(
+        r,
+        getVerbParam(
+            VerbSyntax.enroll,
+            'enroll:revoke:${force ? 'force:' : ''}'
+            '${jsonEncode(p.toJson())}'),
+        inboundConnection,
+      );
+      return r;
+    }
+
+    /// [rootId] → s0 → s1 → …, each link a real retrofit of the one before.
+    Future<List<String>> chainFrom(String rootId, int depth) async {
+      final ids = <String>[];
+      var current = rootId;
+      for (var i = 0; i < depth; i++) {
+        final r = await selfEnroll(
+            parentEnrollmentId: current,
+            appName: 'chain-app-$i',
+            deviceName: 'chain-device-$i');
+        expect(r.isError, false, reason: '${r.errorMessage}');
+        current = jsonDecode(r.data!)['enrollmentId'] as String;
+        ids.add(current);
+      }
+      return ids;
+    }
+
+    /// A record written straight to the store, for shapes the verbs cannot
+    /// currently produce.
+    Future<void> mintUnder(String id, String? predecessorId,
+        {EnrollmentStatus status = EnrollmentStatus.approved,
+        Duration? ttl}) async {
+      final v = EnrollDataStoreValue('s', 'app-$id', 'device-$id', 'pk')
+        ..namespaces = {'*': 'rw', '__manage': 'rw'}
+        ..approval = EnrollApproval(status.name)
+        ..parentEnrollmentId = predecessorId;
+      await enMgr.put(
+          id,
+          AtData()
+            ..data = jsonEncode(v.toJson())
+            ..metaData = (AtMetaData()..ttl = ttl?.inMilliseconds ?? 0),
+          status);
+    }
+
+    test('a successor is revoked with the enrollment it replaced', () async {
+      final chain = await chainFrom(etu.primaryEnId, 2);
+      final r = await revoke(etu.primaryEnId, chain[0]);
+      expect(r.isError, false, reason: '${r.errorMessage}');
+
+      expect(await statusOf(chain[0]), EnrollmentStatus.revoked.name);
+      expect(await statusOf(chain[1]), EnrollmentStatus.revoked.name,
+          reason: 'a successor that outlives the revocation of what it '
+              'replaced defeats revocation through the feature that created '
+              'it');
+    });
+
+    test('the cascade is transitive, not one level deep', () async {
+      final chain = await chainFrom(etu.primaryEnId, 3);
+      await revoke(etu.primaryEnId, chain[0]);
+
+      expect(await statusOf(chain[1]), EnrollmentStatus.revoked.name);
+      expect(await statusOf(chain[2]), EnrollmentStatus.revoked.name,
+          reason: 'a self-enrolled enrollment can itself self-enroll, so a '
+              'one-level cascade leaves a grandchild approved — and answered '
+              'when it asks a holder for the new generation');
+    });
+
+    test('a revoked link does not hide the enrollment behind it', () async {
+      // The walk has to link enrollments of EVERY status. If it followed
+      // approved ones only, a revoked enrollment part-way down a chain would
+      // conceal the approved grandchild behind it, which is precisely the
+      // orphan being removed.
+      await mintUnder('link-a', null);
+      await mintUnder('link-b', 'link-a', status: EnrollmentStatus.revoked);
+      await mintUnder('link-c', 'link-b');
+
+      final r = await revoke(etu.primaryEnId, 'link-a');
+      expect(r.isError, false, reason: '${r.errorMessage}');
+      expect(await statusOf('link-c'), EnrollmentStatus.revoked.name);
+    });
+
+    test('a revoke whose cascade would remove the caller is refused', () async {
+      // A successor holds its predecessor's grants EXACTLY, so it passes the
+      // authorisation check against its predecessor — and it is a descendant
+      // of it. Nothing else on this path notices: no one self-revoked, so the
+      // self-revoke refusal never fires, and the atSign is stranded by its
+      // own cascade.
+      final chain = await chainFrom(etu.primaryEnId, 1);
+
+      await expectLater(() => revoke(chain[0], etu.primaryEnId),
+          throwsA(isA<AtEnrollmentRevokeException>()),
+          reason: 'a revoker has to survive its own act');
+      expect(await statusOf(etu.primaryEnId), EnrollmentStatus.approved.name,
+          reason: 'refused before anything is written');
+      expect(await statusOf(chain[0]), EnrollmentStatus.approved.name);
+    });
+
+    test('the last fully privileged enrollment may not revoke itself, even '
+        'with force', () async {
+      await expectLater(
+          () => revoke(etu.primaryEnId, etu.primaryEnId, force: true),
+          throwsA(isA<AtEnrollmentRevokeException>()));
+      expect(await statusOf(etu.primaryEnId), EnrollmentStatus.approved.name);
+    });
+
+    test('…but it may once another fully privileged enrollment exists',
+        () async {
+      // The control. Without it the refusal above would be satisfied by
+      // "self-revocation is refused", which is a different rule and already
+      // has its own.
+      await mintUnder('spare-root', null);
+      final r = await revoke(etu.primaryEnId, etu.primaryEnId, force: true);
+      expect(r.isError, false, reason: '${r.errorMessage}');
+      expect(await statusOf(etu.primaryEnId), EnrollmentStatus.revoked.name);
+    });
+
+    test('a successor about to be cascaded away is not counted as the '
+        'survivor', () async {
+      // The successor is fully privileged and alive, so a liveness question
+      // asked over STORED state answers "somebody survives". It descends from
+      // the enrollment being revoked, so the same act removes it.
+      final chain = await chainFrom(etu.primaryEnId, 1);
+      expect(await statusOf(chain[0]), EnrollmentStatus.approved.name,
+          reason: 'precondition: it is alive and fully privileged, so it is '
+              'exactly what a cascade-blind check would count');
+
+      await expectLater(
+          () => revoke(etu.primaryEnId, etu.primaryEnId, force: true),
+          throwsA(isA<AtEnrollmentRevokeException>()),
+          reason: 'the question must be asked over what SURVIVES the cascade, '
+              'or it reports the atSign safe at the moment it is stranded');
+    });
+
+    test('un-revoking a descendant is refused while its predecessor is not '
+        'approved', () async {
+      final chain = await chainFrom(etu.primaryEnId, 2);
+      await revoke(etu.primaryEnId, chain[0]);
+      expect(await statusOf(chain[1]), EnrollmentStatus.revoked.name);
+
+      await expectLater(
+          () => etu.unrevokeEnrollment(etu.primaryEnId, chain[1]),
+          throwsA(isA<IllegalStateException>()),
+          reason: 'without this the cascade is one-way: un-revoking a '
+              'descendant while its predecessor stays revoked restores '
+              'exactly the orphan the cascade removed');
+    });
+
+    test('…and is allowed once the predecessor is back', () async {
+      final chain = await chainFrom(etu.primaryEnId, 2);
+      await revoke(etu.primaryEnId, chain[0]);
+
+      await etu.unrevokeEnrollment(etu.primaryEnId, chain[0]);
+      await etu.unrevokeEnrollment(etu.primaryEnId, chain[1]);
+      expect(await statusOf(chain[1]), EnrollmentStatus.approved.name);
+    });
+
+    test('an enrollment that replaced nothing is untouched by the guard',
+        () async {
+      // `parentEnrollmentId` is set only by a retrofit, so most enrollments
+      // have none — and "its predecessor is not approved" is vacuously TRUE
+      // of an enrollment with no predecessor. A guard phrased without the
+      // null and existence tests bars un-revoking every enrollment ever made
+      // through an approver.
+      final ordinary = (await etu.createEnrollments(n: 1)).$1.first;
+      await revoke(etu.primaryEnId, ordinary);
+      await etu.unrevokeEnrollment(etu.primaryEnId, ordinary);
+      expect(await statusOf(ordinary), EnrollmentStatus.approved.name);
+    });
+
+    test('a predecessor that no longer exists does not bar un-revoking',
+        () async {
+      await mintUnder('orphan', 'a-predecessor-since-deleted',
+          status: EnrollmentStatus.revoked);
+      await etu.unrevokeEnrollment(etu.primaryEnId, 'orphan');
+      expect(await statusOf('orphan'), EnrollmentStatus.approved.name);
+    });
+
+    test('approving a successor of an unapproved predecessor is refused',
+        () async {
+      // Synthetic, and deliberately so: a retrofit is auto-approved, so no
+      // pending enrollment carries a predecessor today and this cannot be
+      // reached through the verbs. It pins the invariant at the OTHER
+      // transition into an active state, so the guard is already in place if
+      // that ever changes.
+      await mintUnder('dead-predecessor', null,
+          status: EnrollmentStatus.revoked);
+      await mintUnder('pending-successor', 'dead-predecessor',
+          status: EnrollmentStatus.pending);
+
+      await expectLater(
+          () => etu.approveEnrollment(etu.primaryEnId, 'pending-successor'),
+          throwsA(isA<IllegalStateException>()));
+    });
+
+    test('the response names what the cascade took', () async {
+      final chain = await chainFrom(etu.primaryEnId, 2);
+      final r = await revoke(etu.primaryEnId, chain[0]);
+      expect(jsonDecode(r.data!)['cascadedEnrollmentIds'], [chain[1]]);
+    });
+
+    test('and says nothing at all when nothing cascaded', () async {
+      final ordinary = (await etu.createEnrollments(n: 1)).$1.first;
+      final r = await revoke(etu.primaryEnId, ordinary);
+      expect(
+          (jsonDecode(r.data!) as Map).containsKey('cascadedEnrollmentIds'),
+          isFalse,
+          reason: 'an ordinary revoke response must not change shape');
+    });
+
+    test('a cascaded revoke does not move the expiry it found', () async {
+      await mintUnder('exp-parent', null);
+      await mintUnder('exp-child', 'exp-parent', ttl: Duration(days: 2));
+      final ek = enMgr.buildEnrollmentKey('exp-child');
+      final before = (await keyValueStore.get(ek))!.metaData!.expiresAt;
+
+      // Long enough that a re-derived `expiresAt = now + ttl` lands visibly
+      // later than the stored one. Without it the drift is the duration of
+      // the call, which can be under a millisecond and round to equal.
+      await Future.delayed(Duration(milliseconds: 50));
+      await revoke(etu.primaryEnId, 'exp-parent');
+
+      expect(await statusOf('exp-child'), EnrollmentStatus.revoked.name,
+          reason: 'precondition: the cascade actually wrote this record');
+      expect((await keyValueStore.get(ek))!.metaData!.expiresAt, before,
+          reason: 'a revoke says nothing about expiry, and the metadata '
+              'builder re-derives it from the retained ttl unless the stored '
+              'value is asserted back — so a cascade would hand every '
+              'enrollment it revoked a fresh full lifetime, and restart any '
+              'retrofit cap standing on it');
     });
   });
 
@@ -1358,7 +1610,7 @@ void main() {
 
       expect(
           await enMgr.hasRootEnrollmentAliveAfter(
-              parentId, DateTime.now().toUtc().add(Duration(days: 30))),
+              {parentId}, DateTime.now().toUtc().add(Duration(days: 30))),
           isFalse,
           reason: 'precondition: nothing could restore a root, so only the '
               'short-circuit can be what lets the cap through');

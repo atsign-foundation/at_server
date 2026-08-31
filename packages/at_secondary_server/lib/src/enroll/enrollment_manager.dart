@@ -465,19 +465,32 @@ class EnrollmentManager {
     return cappedTtl < 1 ? 1 : cappedTtl;
   }
 
-  /// Whether any enrollment OTHER than [enrollmentId] could still approve a
-  /// replacement once [deadline] has passed.
+  /// Whether any enrollment outside [excluding] would still hold FULL
+  /// PRIVILEGE — `rw` on both `*` and `__manage` — once [deadline] has passed.
   ///
-  /// The precise question behind sparing a predecessor: not "is this the
-  /// atSign's first enrollment", nor "does the successor outlive it", but
-  /// whether capping it would leave nobody holding `__manage:rw` at the moment
-  /// the cap fires. A successor that dies before [deadline] does not count —
-  /// which is exactly the case that would otherwise strand the atSign.
+  /// The precise question behind sparing a predecessor, and behind refusing a
+  /// self-revocation: not "is this the atSign's first enrollment", nor "does
+  /// the successor outlive it", but whether the act about to be performed
+  /// would leave nobody able to restore a root. A candidate that dies before
+  /// [deadline] does not count — which is exactly the case that would
+  /// otherwise strand the atSign.
+  ///
+  /// Full privilege rather than the ability to approve, because approving is
+  /// checked per namespace against what the approver itself holds: an
+  /// enrollment with `__manage` but not `*` can admit new enrollments and can
+  /// never admit one carrying `*`, so it keeps an atSign running without being
+  /// able to give it a root back.
+  ///
+  /// [excluding] is a SET rather than a single id because a revoke CASCADES.
+  /// The enrollments a cascade is about to revoke are still `approved` in the
+  /// keystore while this runs, so asking the question without them would count
+  /// the very enrollments the act is about to remove — and report the atSign
+  /// safe at the moment it is being stranded.
   Future<bool> hasRootEnrollmentAliveAfter(
-      String enrollmentId, DateTime deadline) async {
-    final selfKey = buildEnrollmentKey(enrollmentId);
+      Set<String> excluding, DateTime deadline) async {
+    final excludedKeys = excluding.map(buildEnrollmentKey).toSet();
     for (final ek in await getAllEnrollmentKeys()) {
-      if (ek == selfKey) continue;
+      if (excludedKeys.contains(ek)) continue;
       final EnrollDataStoreValue other;
       try {
         other = await getEnrollmentByFullKey(ek);
@@ -491,6 +504,91 @@ class EnrollmentManager {
       if (expiresAt == null || expiresAt.isAfter(deadline)) return true;
     }
     return false;
+  }
+
+  /// Every enrollment reachable from [enrollmentId] by following
+  /// predecessor→successor links, to any depth. Never contains [enrollmentId].
+  ///
+  /// Depth costs nothing to choose. `parentEnrollmentId` has no index, so the
+  /// only enumeration available is a pass over every enrollment key with a
+  /// decode per key — and that pass builds the WHOLE map, after which the
+  /// transitive walk is in memory over a map already held. One level and
+  /// arbitrary depth are the same scan; only re-scanning per level would be
+  /// slower, which this avoids by construction.
+  ///
+  /// Enrollments of every status are linked into the map, not just approved
+  /// ones. A revoked enrollment part-way down a chain must not hide the
+  /// approved grandchild behind it, which is exactly the orphan a cascade
+  /// exists to remove.
+  Future<Set<String>> descendantsOf(String enrollmentId) async {
+    final Map<String, List<String>> successorsOf = {};
+    for (final ek in await getAllEnrollmentKeys()) {
+      final EnrollDataStoreValue value;
+      try {
+        value = await getEnrollmentByFullKey(ek);
+      } on KeyNotFoundException {
+        continue;
+      }
+      final predecessorId = value.parentEnrollmentId;
+      if (predecessorId == null) continue;
+      (successorsOf[predecessorId] ??= <String>[]).add(getIdFromKey(ek));
+    }
+
+    final Set<String> found = {};
+    final List<String> pending = [enrollmentId];
+    while (pending.isNotEmpty) {
+      final id = pending.removeLast();
+      for (final successor in successorsOf[id] ?? const <String>[]) {
+        // `found` is what terminates the walk. The enroll verb cannot build a
+        // cycle — a successor is minted with a fresh id and takes the
+        // authenticating connection's as its predecessor — but a walk over
+        // stored data should not have to rely on that to terminate.
+        if (successor == enrollmentId || !found.add(successor)) continue;
+        pending.add(successor);
+      }
+    }
+    return found;
+  }
+
+  /// Revokes each of [enrollmentIds] that is currently approved, and returns
+  /// the ids it actually revoked.
+  ///
+  /// Anything not currently approved is skipped rather than rewritten: a
+  /// denied or already-revoked enrollment is not made "more revoked" by
+  /// writing it again, and a pending one is deliberately left alone. A pending
+  /// successor of a revoked predecessor is stopped at `enroll:approve`
+  /// instead, because it has no credential to strip until it is approved.
+  ///
+  /// Each write asserts the stored expiry back. A revoke says nothing about
+  /// expiry, and the metadata builder re-derives `expiresAt = now + ttl` from
+  /// the retained ttl on any write that does not assert it — so a cascade
+  /// would otherwise hand every enrollment it revoked a fresh full lifetime,
+  /// and restart any retrofit cap standing on those records.
+  Future<List<String>> revokeAll(Iterable<String> enrollmentIds) async {
+    final List<String> revoked = [];
+    for (final id in enrollmentIds) {
+      final ek = buildEnrollmentKey(id);
+      final AtData? atData = await keyStore.get(ek);
+      final String? raw = atData?.data;
+      if (atData == null || raw == null) continue;
+      final EnrollDataStoreValue value;
+      try {
+        value = EnrollDataStoreValue.fromJson(jsonDecode(raw));
+      } catch (e) {
+        logger.severe('Cascade could not decode enrollment $id: $e');
+        continue;
+      }
+      if (value.approval?.state != EnrollmentStatus.approved.name) continue;
+      value.approval!.state = EnrollmentStatus.revoked.name;
+      atData.data = jsonEncode(value.toJson());
+      final storedExpiry = atData.metaData?.expiresAt;
+      await put(id, atData, EnrollmentStatus.revoked,
+          assertedTimestamps: storedExpiry == null
+              ? null
+              : AtAssertedTimestamps(expiresAt: storedExpiry));
+      revoked.add(id);
+    }
+    return revoked;
   }
 
   /// Caps [enrollmentId] to expire [retrofitCapTtlMillis] from this moment,
@@ -646,7 +744,7 @@ class EnrollmentManager {
           // make the grace setting work backwards.
           if (!successorOutlivesCap &&
               predecessor.isRootEnrollment &&
-              !await hasRootEnrollmentAliveAfter(predecessorId, deadline)) {
+              !await hasRootEnrollmentAliveAfter({predecessorId}, deadline)) {
             logger.warning(
                 'Not capping $predecessorId at $deadline on the word of '
                 '$successorEnrollmentId, which expires at $successorExpiry: '

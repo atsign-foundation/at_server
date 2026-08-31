@@ -146,7 +146,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           throw AtEnrollmentRevokeException(
               'Current client cannot revoke its own enrollment');
         }
-        await _handleApproveDenyRevokeUnrevoke(
+        final List<String> alsoRevoked = await _handleApproveDenyRevokeUnrevoke(
           enMgr,
           (atConnection.metaData as InboundConnectionMetadata),
           enrollVerbParams,
@@ -158,8 +158,14 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         if (responseJson['status'] == EnrollmentStatus.revoked.name) {
           logger.info(
               'Dropping any open connections for enrollmentId: $enrollmentIdFromParams');
-          await _dropRevokedClientConnections(enrollmentIdFromParams!,
-              forceFlag != null, atConnection, responseJson);
+          // The cascaded enrollments too. A descendant left holding an open
+          // authenticated connection goes on working until it happens to
+          // reconnect, which is most of what the cascade exists to stop.
+          await _dropRevokedClientConnections(
+              {enrollmentIdFromParams!, ...alsoRevoked},
+              forceFlag != null,
+              atConnection,
+              responseJson);
         }
         break;
       case 'list':
@@ -435,8 +441,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enrollmentValue.approval = EnrollApproval(EnrollmentStatus.approved.name);
       // The successor records what it replaced so revocation can CASCADE: a
       // stolen keyfile must not spawn a successor that survives the
-      // revocation of what it replaced. (The cascade itself is the revoke
-      // path's to implement.)
+      // revocation of what it replaced. The revoke path walks this edge.
       enrollmentValue.parentEnrollmentId = parentEnrollmentId;
       // The successor inherits the predecessor's key-expiry posture unless
       // the request states its own. Time is a separate axis from grants: the
@@ -590,7 +595,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// Handles enrollment approve, deny, revoke and unrevoke requests.
   /// Retrieves enrollment details from keystore and updates the enrollment status based on [operation]
   /// If [operation] is approve, store encrypted encryption keys
-  Future<void> _handleApproveDenyRevokeUnrevoke(
+  /// Returns the ids the revoke CASCADED to, so the caller can drop their
+  /// connections as well. Empty for every operation but `revoke`, and for a
+  /// revoke whose target has no descendants.
+  Future<List<String>> _handleApproveDenyRevokeUnrevoke(
       EnrollmentManager enMgr,
       InboundConnectionMetadata inboundConnectionMetadata,
       EnrollParams enrollParams,
@@ -615,7 +623,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       response.isError = true;
       response.errorCode = 'AT0028';
       response.errorMessage = 'enrollment_id: $enId is expired or invalid';
-      return;
+      return const [];
     }
 
     // Verifies whether the enrollment state matches the intended state
@@ -638,6 +646,64 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         throw UnAuthorizedException('Failed to $operation enrollment id: $enId.'
             ' Client is not authorized for namespaces in the enrollment request');
       }
+    }
+
+    // Everything below is decided BEFORE anything is written.
+    List<String> cascadeIds = const [];
+    final String? callerId = inboundConnectionMetadata.enrollmentId;
+    if (operation == 'revoke') {
+      cascadeIds = (await enMgr.descendantsOf(enId)).toList();
+
+      // A revoker must survive its own act. The authorisation loop above only
+      // asks whether the caller covers the target's namespaces, and a
+      // successor holds its predecessor's grants EXACTLY — so a successor
+      // always passes it against its predecessor, and a successor is a
+      // descendant of what it replaced. The cascade would therefore take the
+      // caller with it. On a two-enrollment atSign that is stranding reached
+      // without anyone self-revoking, which is why neither the self-revoke
+      // refusal on the way in nor the liveness check below ever sees it.
+      if (callerId != null && cascadeIds.contains(callerId)) {
+        throw AtEnrollmentRevokeException(
+            'Cannot revoke enrollment $enId: $callerId, the enrollment making '
+            'this request, replaced it and would be revoked by the same '
+            'cascade. Revoke $enId from an enrollment outside the chain that '
+            'replaced it');
+      }
+
+      // Even with `force`, the last fully privileged enrollment may not revoke
+      // itself. Asked over what SURVIVES the cascade, not over what is stored:
+      // the descendants are still `approved` in the keystore while this runs,
+      // so counting them would report the atSign safe at the moment it is
+      // being stranded.
+      if (enId == callerId && enVal.isRootEnrollment) {
+        final bool someoneSurvives = await enMgr.hasRootEnrollmentAliveAfter(
+            {enId, ...cascadeIds}, DateTime.now().toUtc());
+        if (!someoneSurvives) {
+          throw AtEnrollmentRevokeException(
+              'Cannot revoke enrollment $enId: it is the last enrollment on '
+              '$currentAtSign holding full privilege, and revoking it would '
+              'leave the atSign unable to approve a replacement. Approve '
+              'another fully privileged enrollment first');
+        }
+      }
+    } else if (operation == 'approve' || operation == 'unrevoke') {
+      await _refuseIfPredecessorNotApproved(enMgr, enId, enVal, operation);
+    }
+
+    // The cascade goes FIRST, before the target's own write. The order is
+    // about what a retry does: revoking the target first and then failing
+    // part-way through the subtree leaves a state where the same command
+    // comes back "Cannot revoke a revoked enrollment", so the cascade can
+    // never be completed. This order fails the other way — the subtree is
+    // revoked and the target is not — and re-running the command finishes
+    // the job.
+    final List<String> cascaded = cascadeIds.isEmpty
+        ? const []
+        : await enMgr.revokeAll(cascadeIds);
+    if (cascaded.isNotEmpty) {
+      logger.info(
+          'Revoking $enId cascaded to ${cascaded.length} enrollment(s) that '
+          'descend from it: ${cascaded.join(', ')}');
     }
 
     EnrollmentStatus newEnrollmentStatus = _getEnrollStatusEnum(operation);
@@ -696,6 +762,51 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       await _publishApskSigningKey(enId, enVal, currentAtSign);
     }
     responseJson['enrollmentId'] = enId;
+    // Only when it happened, so no existing response shape changes.
+    if (cascaded.isNotEmpty) {
+      responseJson['cascadedEnrollmentIds'] = cascaded;
+    }
+    return cascaded;
+  }
+
+  /// Refuses an operation that would make [enId] active while the enrollment
+  /// it replaced is not.
+  ///
+  /// This is what stops the revoke cascade being one-way. `enroll:unrevoke` on
+  /// a descendant would otherwise resurrect exactly the orphan the cascade
+  /// removed.
+  ///
+  /// `approve` is checked for the same reason, and today it CANNOT reach the
+  /// refusal: `parentEnrollmentId` is set only in the APKAM self-enrollment
+  /// branch, which auto-approves, so no enrollment carrying a predecessor is
+  /// ever pending and `enroll:approve` on one is already refused as a state
+  /// error. The check is here so the invariant is total — an enrollment does
+  /// not become active while what it replaced is inactive — at every
+  /// transition into an active state rather than at the one that happens to be
+  /// reachable.
+  ///
+  /// Two things are always allowed. A null [EnrollDataStoreValue.parentEnrollmentId]
+  /// is the ordinary approver path, which is most enrollments. So is a
+  /// predecessor that no longer EXISTS: "not currently approved" is vacuously
+  /// true of a predecessor that is not there, so without that a rule meant for
+  /// retrofits would bar un-revoking every enrollment ever made through an
+  /// approver.
+  Future<void> _refuseIfPredecessorNotApproved(EnrollmentManager enMgr,
+      String enId, EnrollDataStoreValue enVal, String operation) async {
+    final String? predecessorId = enVal.parentEnrollmentId;
+    if (predecessorId == null) return;
+    final EnrollDataStoreValue predecessor;
+    try {
+      predecessor = await enMgr.getEnrollmentById(predecessorId);
+    } on KeyNotFoundException {
+      return;
+    }
+    final String? state = predecessor.approval?.state;
+    if (state == EnrollmentStatus.approved.name) return;
+    throw IllegalStateException(
+        'Cannot $operation enrollment $enId: the enrollment it replaced '
+        '($predecessorId) is $state, and reactivating $enId would restore the '
+        'access that was withdrawn from $predecessorId');
   }
 
   /// `enroll:update` — an approved enrollment amending its OWN record.
@@ -867,8 +978,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  Future<void> _dropRevokedClientConnections(String enrollmentId, bool forceFlag,
-      InboundConnection currentInboundConnection, responseJson) async {
+  Future<void> _dropRevokedClientConnections(
+      Set<String> enrollmentIds,
+      bool forceFlag,
+      InboundConnection currentInboundConnection,
+      responseJson) async {
     final inboundPool =
         AtSecondaryServerImpl.getInstance().inboundConnectionManager.pool;
     List<InboundConnection> connectionsToRemove = [];
@@ -876,7 +990,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       var inboundConnectionMetadata =
           connection.metaData as InboundConnectionMetadata;
       if (!connection.isInValid() &&
-          inboundConnectionMetadata.enrollmentId == enrollmentId) {
+          enrollmentIds.contains(inboundConnectionMetadata.enrollmentId)) {
         logger.finer(
             'Removing APKAM revoked client connection: ${connection.metaData.sessionID}');
         connectionsToRemove.add(connection);

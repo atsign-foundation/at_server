@@ -1,4 +1,46 @@
 # 3.16.4
+- feat: revoking an enrollment revokes everything that replaced it. Self
+  enrollment makes enrollments a graph — a retrofit's successor records what it
+  replaced — and a stolen keyfile can mint a successor before the theft is
+  noticed. A successor that outlived the revocation of what it replaced would
+  defeat revocation through the very feature that created it. The cascade is
+  TRANSITIVE: a self-enrolled enrollment can itself self-enroll, and a
+  one-level cascade would leave a grandchild approved. It walks enrollments of
+  every status, so a revoked enrollment part-way down a chain cannot conceal
+  the approved one behind it, and it revokes only those currently approved.
+  Depth costs nothing: one keystore pass builds the whole map and the walk is
+  then in memory. Connections held by cascaded enrollments are dropped with the
+  target's.
+
+  A revoke response now carries `cascadedEnrollmentIds` — the ids the cascade
+  took — and only when the cascade took something, so an ordinary revoke
+  response keeps the shape it has always had.
+- feat: three refusals that stop an atSign stranding itself, all decided before
+  anything is written.
+
+  A revoke whose cascade would remove the CALLER is refused. The revoke path
+  only asks whether the caller covers the target's namespaces, and a successor
+  holds its predecessor's grants exactly — so a successor always passes that
+  check against its predecessor, and a successor is a descendant of it. The
+  cascade would take the caller with it. On a two-enrollment atSign that is
+  stranding reached with nobody self-revoking, so neither of the other two
+  refusals sees it.
+
+  A self-revocation by the last fully privileged enrollment is refused even
+  with `force`, and the question is asked over what SURVIVES the cascade rather
+  than over what is stored — the descendants are still approved while the check
+  runs, so counting them would report the atSign safe at the moment it is being
+  stranded.
+
+  `enroll:unrevoke` is refused on an enrollment whose predecessor exists and is
+  not approved: without it the cascade is one-way, and un-revoking a descendant
+  while its predecessor stayed revoked would restore exactly the orphan the
+  cascade removed. An enrollment that replaced nothing is unaffected, which is
+  most of them — `parentEnrollmentId` is set only by a retrofit, and "its
+  predecessor is not approved" is vacuously true of an enrollment that has
+  none. `enroll:approve` carries the same test so the invariant holds at every
+  transition into an active state; it cannot currently fire there, because a
+  retrofit is auto-approved and so nothing pending carries a predecessor.
 - feat: a retrofit carries its predecessor's grants and may not choose them.
   An APKAM-authenticated `enroll:request` replaces the enrollment it
   authenticated as rather than descending from it, so the successor now holds

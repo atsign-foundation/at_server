@@ -201,8 +201,8 @@ void main() {
           'data:success');
     });
 
-    test('the child records its parent, so a revoke can cascade later',
-        () async {
+    test('the successor records what it replaced, which is what the cascade '
+        'walks', () async {
       OutboundConnectionFactory owner = await ownerConnection();
       String parentId =
           await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
@@ -626,6 +626,166 @@ void main() {
           reason: 'a successor authenticates on every reconnect. Arming on '
               'each one would rewrite a full grace period onto the '
               'predecessor forever and it would never retire at all');
+    });
+  });
+
+  /// Revoking an enrollment revokes everything that replaced it, to any
+  /// depth. The unit suite pins the decisions; only over the wire is the
+  /// CONSEQUENCE observable — a cascaded enrollment stops authenticating.
+  group('Revocation cascades to descendants', () {
+    Future<String> stateOf(OutboundConnectionFactory owner, String id) async =>
+        (await enrollmentRecord(owner, id)).value['approval']['state'];
+
+    /// Authenticates as [id] and reports what happened. A refused APKAM
+    /// authentication may close the socket rather than answer, so a throw is
+    /// a refusal too and must not be read as a broken fixture.
+    Future<String> tryAuthenticateAs(String id) async {
+      try {
+        return (await (await newConnection()).authenticateConnection(
+                authType: AuthType.apkam, enrollmentId: id))
+            .trim();
+      } catch (e) {
+        return 'threw: $e';
+      }
+    }
+
+    test('a successor stops authenticating when the enrollment it replaced is '
+        'revoked', () async {
+      OutboundConnectionFactory owner = await ownerConnection();
+      String parentId =
+          await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
+      String childId = await selfEnrollId(parentId);
+
+      // The control. Without it a failure after the revoke could equally be a
+      // successor that never worked.
+      expect(await tryAuthenticateAs(childId), 'data:success',
+          reason: 'precondition: the successor authenticates while its '
+              'predecessor stands');
+
+      String response = await owner
+          .sendRequestToServer('enroll:revoke:{"enrollmentId":"$parentId"}');
+      expect(response, startsWith('data:'), reason: response);
+      expect(
+          jsonDecode(response.replaceFirst('data:', ''))[
+              'cascadedEnrollmentIds'],
+          [childId],
+          reason: 'the revoke reports what it took with it');
+
+      expect(await stateOf(owner, childId), 'revoked');
+      expect(await tryAuthenticateAs(childId), isNot('data:success'),
+          reason: 'a successor that still authenticates after the revocation '
+              'of what it replaced defeats revocation through the very '
+              'feature that created it');
+    });
+
+    test('the cascade reaches a grandchild, not just a child', () async {
+      OutboundConnectionFactory owner = await ownerConnection();
+      String parentId =
+          await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
+      String childId = await selfEnrollId(parentId);
+      String grandchildId = await selfEnrollId(childId);
+
+      expect(await tryAuthenticateAs(grandchildId), 'data:success',
+          reason: 'precondition');
+
+      String response = await owner
+          .sendRequestToServer('enroll:revoke:{"enrollmentId":"$parentId"}');
+      expect(response, startsWith('data:'), reason: response);
+
+      expect(await stateOf(owner, grandchildId), 'revoked',
+          reason: 'a self-enrolled enrollment can itself self-enroll, so a '
+              'one-level cascade would leave this one on every roster');
+      expect(await tryAuthenticateAs(grandchildId), isNot('data:success'));
+    });
+
+    test('un-revoking a descendant is refused while what it replaced stays '
+        'revoked', () async {
+      OutboundConnectionFactory owner = await ownerConnection();
+      String parentId =
+          await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
+      String childId = await selfEnrollId(parentId);
+      await owner
+          .sendRequestToServer('enroll:revoke:{"enrollmentId":"$parentId"}');
+      expect(await stateOf(owner, childId), 'revoked', reason: 'precondition');
+
+      String refused = await owner
+          .sendRequestToServer('enroll:unrevoke:{"enrollmentId":"$childId"}');
+      expect(refused, startsWith('error:'),
+          reason: 'without this the cascade is one-way: un-revoking a '
+              'descendant while its predecessor stays revoked restores the '
+              'orphan the cascade removed. Got: $refused');
+
+      // The control: once the predecessor is back, the descendant may be too.
+      // Otherwise the refusal above would be satisfied by an un-revoke that
+      // never works at all.
+      expect(
+          await owner.sendRequestToServer(
+              'enroll:unrevoke:{"enrollmentId":"$parentId"}'),
+          startsWith('data:'));
+      expect(
+          await owner.sendRequestToServer(
+              'enroll:unrevoke:{"enrollmentId":"$childId"}'),
+          startsWith('data:'));
+      expect(await stateOf(owner, childId), 'approved');
+    });
+
+    test('a connection already open on a cascaded enrollment is dropped',
+        () async {
+      // The cascade changes a stored status; on its own that binds nothing
+      // until the holder next reconnects. A descendant sitting on an open
+      // authenticated connection would go on working in the meantime, which
+      // is most of what the cascade exists to stop.
+      OutboundConnectionFactory owner = await ownerConnection();
+      String parentId =
+          await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
+      String childId = await selfEnrollId(parentId);
+
+      OutboundConnectionFactory child = await newConnection();
+      expect(
+          (await child.authenticateConnection(
+                  authType: AuthType.apkam, enrollmentId: childId))
+              .trim(),
+          'data:success');
+
+      String key = 'drop-probe-${Uuid().v4().hashCode}.wavi$atSign';
+      // The control, on this very connection and this very command: without
+      // it a failure afterwards could be an unauthorised verb rather than a
+      // dropped connection.
+      expect(await child.sendRequestToServer('update:$key before'),
+          startsWith('data:'),
+          reason: 'precondition: the successor\'s connection is live and '
+              'authorised for this key');
+
+      await owner
+          .sendRequestToServer('enroll:revoke:{"enrollmentId":"$parentId"}');
+
+      String after;
+      try {
+        after = await child.sendRequestToServer('update:$key after',
+            maxWaitMilliSeconds: 3000);
+      } catch (e) {
+        // The server closes the socket, so the write or the read may throw
+        // rather than answer. That is the drop, not a broken fixture.
+        after = 'threw: $e';
+      }
+      expect(after, isNot(startsWith('data:')),
+          reason: 'the connection held by a cascaded enrollment must not '
+              'survive the revoke. Got: $after');
+    });
+
+    test('an ordinary revoke response carries no cascade field', () async {
+      OutboundConnectionFactory owner = await ownerConnection();
+      String id =
+          await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
+
+      String response =
+          await owner.sendRequestToServer('enroll:revoke:{"enrollmentId":"$id"}');
+      expect(
+          (jsonDecode(response.replaceFirst('data:', '')) as Map)
+              .containsKey('cascadedEnrollmentIds'),
+          isFalse,
+          reason: 'an enrollment that replaced nothing has no descendants, '
+              'and its revoke response must keep the shape it always had');
     });
   });
 

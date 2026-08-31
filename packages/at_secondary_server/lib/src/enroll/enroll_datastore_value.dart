@@ -79,9 +79,9 @@ class EnrollDataStoreValue {
   /// before the theft is noticed, and a successor that survives the revocation
   /// of what it replaced would defeat revocation via the very feature that
   /// created it
-  /// (at_client_sdk docs/projects/pq/decisions.md 40). The cascade itself is
-  /// the revoke path's to implement; this field is what makes it possible on
-  /// records that already exist by then.
+  /// (at_client_sdk docs/projects/pq/decisions.md 40). This is the edge
+  /// [EnrollmentManager.descendantsOf] walks, so revoking an enrollment
+  /// revokes everything that replaced it, to any depth.
   String? parentEnrollmentId;
 
   /// When this enrollment settled the retrofit cap on the enrollment it
