@@ -363,7 +363,12 @@ class EnrollmentManager {
       String namespace) async {
     final result = <Map<String, dynamic>>[];
     for (final ek in await getAllEnrollmentKeys()) {
-      final EnrollDataStoreValue enVal = await getEnrollmentByFullKey(ek);
+      final EnrollDataStoreValue enVal;
+      try {
+        enVal = await getEnrollmentByFullKey(ek);
+      } on KeyNotFoundException {
+        continue; // reaped between the enumeration and this read
+      }
       if (enVal.approval?.state != EnrollmentStatus.approved.name) continue;
       final String? access = accessForNamespace(enVal, namespace);
       if (access == null) continue;
@@ -394,7 +399,12 @@ class EnrollmentManager {
   Future<DateTime?> lastRevocationForNamespace(String namespace) async {
     DateTime? latest;
     for (final ek in await getAllEnrollmentKeys()) {
-      final EnrollDataStoreValue enVal = await getEnrollmentByFullKey(ek);
+      final EnrollDataStoreValue enVal;
+      try {
+        enVal = await getEnrollmentByFullKey(ek);
+      } on KeyNotFoundException {
+        continue; // reaped between the enumeration and this read
+      }
       if (enVal.approval?.state != EnrollmentStatus.revoked.name) continue;
       if (accessForNamespace(enVal, namespace) == null) continue;
       final at = enVal.revokedAt;
@@ -545,45 +555,74 @@ class EnrollmentManager {
     return false;
   }
 
-  /// Every enrollment reachable from [enrollmentId] by following
-  /// predecessor→successor links, to any depth. Never contains [enrollmentId].
+  /// The predecessor [id] records, read straight off the stored record.
   ///
-  /// Depth costs nothing to choose. `parentEnrollmentId` has no index, so the
-  /// only enumeration available is a pass over every enrollment key with a
-  /// decode per key — and that pass builds the WHOLE map, after which the
-  /// transitive walk is in memory over a map already held. One level and
-  /// arbitrary depth are the same scan; only re-scanning per level would be
-  /// slower, which this avoids by construction.
-  ///
-  /// Enrollments of every status are linked into the map, not just approved
-  /// ones. A revoked enrollment part-way down a chain must not hide the
-  /// approved enrollment behind it, which is exactly the orphan a cascade
-  /// exists to remove.
-  Future<Set<String>> descendantsOf(String enrollmentId) async {
-    final Map<String, List<String>> successorsOf = {};
-    for (final ek in await getAllEnrollmentKeys()) {
-      final EnrollDataStoreValue value;
-      try {
-        value = await getEnrollmentByFullKey(ek);
-      } on KeyNotFoundException {
-        continue;
+  /// Deliberately NOT via [getEnrollmentByFullKey]: that treats an elapsed ttl
+  /// as a reason to DELETE the record, and a link being walked during a
+  /// revocation is the worst possible moment to reap it. `keyStore.get`
+  /// returns a record whose ttl has elapsed — expiry is a judgement its
+  /// callers apply — which is what lets the walk cross an expired link.
+  Future<String?> _predecessorIdOf(String id, Map<String, String?> memo) async {
+    if (memo.containsKey(id)) return memo[id];
+    String? predecessorId;
+    try {
+      final AtData? record = await keyStore.get(buildEnrollmentKey(id));
+      final String? raw = record?.data;
+      if (raw != null) {
+        predecessorId =
+            EnrollDataStoreValue.fromJson(jsonDecode(raw)).parentEnrollmentId;
       }
-      final predecessorId = value.parentEnrollmentId;
-      if (predecessorId == null) continue;
-      (successorsOf[predecessorId] ??= <String>[]).add(getIdFromKey(ek));
+    } catch (_) {
+      // A missing or undecodable record ends this chain and no other.
+      predecessorId = null;
     }
+    memo[id] = predecessorId;
+    return predecessorId;
+  }
 
+  /// Every enrollment that reaches [enrollmentId] by following predecessor
+  /// links upward, to any depth. Never contains [enrollmentId].
+  ///
+  /// Walked UPWARD from each candidate rather than downward from the target,
+  /// and the difference is load-bearing. A downward walk has to ENUMERATE the
+  /// intermediate links to learn their edges, and key enumeration hides
+  /// records whose ttl has elapsed — so an expired enrollment part-way down a
+  /// chain took its edge with it and every enrollment behind it survived the
+  /// cascade. The lifetime of that link is choosable by whoever mints it: a
+  /// never-expiring root may mint a short-lived successor, which may mint
+  /// another, so the hole was reachable by the very feature the cascade
+  /// exists to contain.
+  ///
+  /// Upward, only the CANDIDATES need enumerating — and a candidate a cascade
+  /// could revoke is by definition a live one — while each link in the chain
+  /// is fetched by key, which returns expired records.
+  ///
+  /// ⚠️ A link that has been DELETED, rather than merely expired, still severs
+  /// the chain: nothing records an enrollment's ancestry beyond its immediate
+  /// predecessor. `enroll:delete` on a middle link is therefore still a way to
+  /// orphan what is behind it.
+  ///
+  /// Every status is followed. A revoked or expired enrollment part-way down a
+  /// chain must not hide the enrollment behind it, which is exactly the orphan
+  /// a cascade exists to remove.
+  Future<Set<String>> descendantsOf(String enrollmentId) async {
     final Set<String> found = {};
-    final List<String> pending = [enrollmentId];
-    while (pending.isNotEmpty) {
-      final id = pending.removeLast();
-      for (final successor in successorsOf[id] ?? const <String>[]) {
-        // `found` is what terminates the walk. The enroll verb cannot build a
-        // cycle — a successor is minted with a fresh id and takes the
-        // authenticating connection's as its predecessor — but a walk over
-        // stored data should not have to rely on that to terminate.
-        if (successor == enrollmentId || !found.add(successor)) continue;
-        pending.add(successor);
+    final Map<String, String?> memo = {};
+    for (final ek in await getAllEnrollmentKeys()) {
+      final String candidate = getIdFromKey(ek);
+      if (candidate == enrollmentId) continue;
+      // `seen` terminates the climb. The enroll verb cannot build a cycle — a
+      // successor is minted with a fresh id and takes the authenticating
+      // connection's as its predecessor — but a walk over stored data should
+      // not have to rely on that to terminate.
+      final Set<String> seen = {candidate};
+      String? current = await _predecessorIdOf(candidate, memo);
+      while (current != null && seen.add(current)) {
+        if (current == enrollmentId) {
+          found.add(candidate);
+          break;
+        }
+        current = await _predecessorIdOf(current, memo);
       }
     }
     return found;
@@ -607,7 +646,17 @@ class EnrollmentManager {
     final List<String> revoked = [];
     for (final id in enrollmentIds) {
       final ek = buildEnrollmentKey(id);
-      final AtData? atData = await keyStore.get(ek);
+      // `get` THROWS on an absent key rather than returning null, so this is
+      // not belt-and-braces: without it a descendant deleted or reaped between
+      // the walk and this loop aborts the whole verb, leaving the enrollments
+      // already revoked with their connections still open.
+      final AtData? atData;
+      try {
+        atData = await keyStore.get(ek);
+      } on KeyNotFoundException {
+        logger.info('Cascade: enrollment $id is already gone; skipping');
+        continue;
+      }
       final String? raw = atData?.data;
       if (atData == null || raw == null) continue;
       final EnrollDataStoreValue value;
@@ -664,17 +713,46 @@ class EnrollmentManager {
       return;
     }
     if (atData == null) return;
+
+    // The status comes off the record JUST READ, never off [enrollment].
+    // `put` moves an enrollment's per-enrollment data to match the status it
+    // is handed, so a status from an older snapshot is not a cosmetic
+    // mismatch: the caller reads the predecessor, then awaits a keystore walk
+    // and a write of the successor before arriving here, and a revoke landing
+    // in that window would be UNDONE — the data moved back to the approved
+    // location, republishing the `_apsk` a revocation had just parked.
+    final String? raw = atData.data;
+    if (raw == null) return;
+    final EnrollmentStatus? current;
+    try {
+      current = EnrollmentStatus.values
+          .asNameMap()[EnrollDataStoreValue.fromJson(jsonDecode(raw))
+              .approval
+              ?.state ??
+          ''];
+    } catch (e) {
+      logger.severe('Not capping $enrollmentId: its record does not decode: $e');
+      return;
+    }
+    if (current == null) {
+      logger.severe('Not capping $enrollmentId: unreadable approval state');
+      return;
+    }
+    // Re-tested on the fresh read for the same reason. A predecessor that was
+    // approved when the decision was made and is not approved now must not be
+    // written back at all: capping is only ever meant to SHORTEN the life of a
+    // working credential.
+    if (current != EnrollmentStatus.approved) {
+      logger.info(
+          'Not capping $enrollmentId: it is ${current.name} as of this write, '
+          'though it was approved when the cap was decided');
+      return;
+    }
     atData.metaData = (atData.metaData ?? AtMetaData())
       ..ttl = ttlMillis ??
           retrofitCapTtlMillis(
               atData.metaData, enrollment, DateTime.now().toUtc());
-    // The status this write carries is the one the record already has: `put`
-    // moves the enrollment's per-enrollment data to match, and capping must
-    // not relocate anything. A revoked predecessor is not capped at all (see
-    // [armRetrofitCapOnFirstAuth]), but passing its own status keeps that
-    // true of any future caller.
-    await put(enrollmentId, atData,
-        EnrollmentStatus.values.byName(enrollment.approval!.state));
+    await put(enrollmentId, atData, current);
   }
 
   /// Arms the retrofit cap on the enrollment [successorEnrollmentId] replaced,

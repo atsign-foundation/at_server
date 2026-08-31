@@ -1,4 +1,34 @@
 # 3.16.4
+- fix: a revocation could be partly undone by a retrofit cap running
+  concurrently. `capEnrollmentExpiry` re-read the record but took the STATUS
+  from the caller's snapshot, taken before a keystore walk and a write — so a
+  revoke landing in that window was written back as approved, moving the
+  revoked enrollment's per-enrollment data (its published `_apsk` signing key
+  among it) back to the live address. The status is now read off the record it
+  just read, and a record that is no longer approved is not written at all.
+- fix: a revoke missed every descendant behind an EXPIRED link. Key
+  enumeration hides records whose ttl has elapsed, so the expired enrollment's
+  predecessor edge vanished with it while everything behind it survived
+  approved — and the lifetime of that link is chosen by whoever mints it, since
+  a never-expiring enrollment may mint a short-lived successor. The walk now
+  climbs from each live candidate and fetches each link BY KEY, which returns
+  an expired record. A link that has been DELETED rather than merely expired
+  still severs the chain; nothing records ancestry beyond the immediate
+  predecessor.
+- fix: an enrollment id is folded to lower case where `pkam` reads it off the
+  wire. The keystore lowercases every key, so a non-canonical spelling
+  resolved to the same record while comparing unequal to the id held
+  everywhere downstream — a revoke would not drop that connection and the
+  credential kept authenticating. Ids are server-issued and already lower
+  case, so this rejects nothing.
+- fix: a cascade no longer aborts when a descendant has already gone.
+  `keyStore.get` throws rather than returning null, so a record reaped between
+  the walk and the write took the whole verb with it, leaving the enrollments
+  already revoked with their connections open. `enroll:listns` and
+  `enroll:infons` gained the same guard.
+- fix: connections are dropped for every enrollment the revoke intended,
+  rather than only those this call changed — a retry after a partial failure
+  found the descendants already revoked and so dropped nothing for them.
 - feat: `enroll:infons:<namespace>` — facts about a namespace, as opposed to
   `enroll:listns`, which answers who holds it. Same authorisation as `listns`
   (APKAM-authenticated, caller approved, caller holds at least read access to

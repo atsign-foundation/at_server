@@ -1198,6 +1198,58 @@ void main() {
       expect(await statusOf('link-c'), EnrollmentStatus.revoked.name);
     });
 
+    test('the cascade crosses an EXPIRED link', () async {
+      // The hole this closes: key enumeration hides records whose ttl has
+      // elapsed, so a downward walk lost the expired link's edge and every
+      // enrollment behind it survived. The lifetime of that link is chosen by
+      // whoever mints it — a never-expiring root may mint a short-lived
+      // successor — so it was reachable through the very feature the cascade
+      // exists to contain.
+      await mintUnder('exp-root', null);
+      await mintUnder('exp-mid', 'exp-root', ttl: Duration(milliseconds: 1));
+      await mintUnder('exp-leaf', 'exp-mid');
+      await Future.delayed(Duration(milliseconds: 30));
+
+      expect(
+          (await enMgr.getAllEnrollmentKeys())
+              .any((k) => k.contains('exp-mid')),
+          isFalse,
+          reason: 'precondition: the middle link is expired and therefore '
+              'invisible to enumeration — without this the test passes for '
+              'the wrong reason');
+
+      final r = await revoke(etu.primaryEnId, 'exp-root');
+      expect(r.isError, false, reason: '${r.errorMessage}');
+      expect(await statusOf('exp-leaf'), EnrollmentStatus.revoked.name,
+          reason: 'the walk climbs from each live candidate and fetches each '
+              'link BY KEY, which returns an expired record, so an expired '
+              'enrollment part-way up no longer severs the chain');
+    });
+
+    test('capping refuses on a record that is no longer approved', () async {
+      // capEnrollmentExpiry is handed a value object read much earlier — the
+      // caller awaits a keystore walk and a write in between. If it wrote on
+      // the strength of that stale snapshot it would move a revoked
+      // enrollment's per-enrollment data back to the approved location,
+      // republishing the signing key the revocation had just parked.
+      await mintUnder('cap-target', null);
+      final stale = await enMgr.getEnrollmentById('cap-target');
+      expect(stale.approval?.state, EnrollmentStatus.approved.name,
+          reason: 'precondition: the snapshot says approved');
+
+      await revoke(etu.primaryEnId, 'cap-target');
+      final key = enMgr.buildEnrollmentKey('cap-target');
+      final before = (await keyValueStore.get(key))?.metaData?.expiresAt;
+
+      await enMgr.capEnrollmentExpiry('cap-target', stale, ttlMillis: 60000);
+
+      expect((await keyValueStore.get(key))?.metaData?.expiresAt, before,
+          reason: 'the cap must read the status off the record it just read, '
+              'not off the caller\'s snapshot, and must not write at all once '
+              'the record is no longer approved');
+      expect(await statusOf('cap-target'), EnrollmentStatus.revoked.name);
+    });
+
     test('a revoke whose cascade would remove the caller is refused', () async {
       // A successor holds its predecessor's grants EXACTLY, so it passes the
       // authorisation check against its predecessor — and it is a descendant

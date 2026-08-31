@@ -7,8 +7,11 @@
 // Duration) and break the at-rest expiry of every stored enrollment.
 //
 // A field added to EnrollDataStoreValue and not added here does not persist,
-// and nothing goes red: enroll_data_store_value_test.dart pins the round trip
-// of each optional field for exactly that reason.
+// and nothing goes red. enroll_data_store_value_test.dart pins the round trip
+// of SOME optional fields by raw at-rest name — apsk, apskLegacy,
+// predecessorCapArmedAt and revokedAt. The rest, parentEnrollmentId included,
+// are covered only incidentally through the keystore, so adding a field here
+// and pinning it there is the habit that keeps this file honest.
 
 part of 'enroll_datastore_value.dart';
 

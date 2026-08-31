@@ -164,6 +164,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           // The cascaded enrollments too. A descendant left holding an open
           // authenticated connection goes on working until it happens to
           // reconnect, which is most of what the cascade exists to stop.
+          // The whole intended set, not just what THIS call flipped. A retry
+          // after a part-way failure finds the descendants already revoked,
+          // so `revokeAll` returns none of them — and dropping only what
+          // changed would leave their connections open forever, which is most
+          // of what the cascade exists to stop.
           await _dropRevokedClientConnections(
               {enrollmentIdFromParams!, ...alsoRevoked},
               forceFlag != null,
@@ -766,6 +771,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         expiryCarry = AtAssertedTimestamps(expiresAt: stored!.expiresAt);
       }
     }
+
     await enMgr.put(enId, atData, newEnrollmentStatus,
         assertedTimestamps: expiryCarry);
 
@@ -802,12 +808,20 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// transition into an active state rather than at the one that happens to be
   /// reachable.
   ///
-  /// Two things are always allowed. A null [EnrollDataStoreValue.parentEnrollmentId]
-  /// is the ordinary approver path, which is most enrollments. So is a
-  /// predecessor that no longer EXISTS: "not currently approved" is vacuously
-  /// true of a predecessor that is not there, so without that a rule meant for
-  /// retrofits would bar un-revoking every enrollment ever made through an
-  /// approver.
+  /// Two things are always allowed, for DIFFERENT reasons — they were once
+  /// documented here as one, which credited the second with the first's job.
+  ///
+  /// A null [EnrollDataStoreValue.parentEnrollmentId] is the ordinary approver
+  /// path, which is most enrollments; the field is set only by a retrofit.
+  /// That check alone is what stops the rule barring every enrollment ever
+  /// made through an approver.
+  ///
+  /// A predecessor that no longer EXISTS is separate, and narrower: it can
+  /// only be a retrofit successor whose predecessor was deleted. It is
+  /// permitted because there is nothing left to compare against — but it does
+  /// mean `enroll:delete` on a middle link is a way to un-revoke what is
+  /// behind it, which is the same gap [EnrollmentManager.descendantsOf]
+  /// documents for a deleted link.
   Future<void> _refuseIfPredecessorNotApproved(EnrollmentManager enMgr,
       String enId, EnrollDataStoreValue enVal, String operation) async {
     final String? predecessorId = enVal.parentEnrollmentId;

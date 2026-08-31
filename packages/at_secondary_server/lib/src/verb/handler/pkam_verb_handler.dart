@@ -32,7 +32,14 @@ class PkamVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams, AtConnection atConnection) async {
     var atConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
-    var enrollId = verbParams[AtConstants.enrollmentId];
+    // Folded to match the keystore, which lowercases every key it is given.
+    // Without this an enrollment id spelled in another case resolves to the
+    // same RECORD while comparing unequal to the id everything downstream
+    // holds — so a revoke would not drop the connection, and the revoked
+    // credential would go on authenticating. Ids are server-issued and
+    // already lowercase; this rejects nothing, it just stops a non-canonical
+    // spelling of one from travelling further than the lookup.
+    var enrollId = verbParams[AtConstants.enrollmentId]?.toLowerCase();
     var sessionID = atConnectionMetadata.sessionID;
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     AuthType pkamAuthType;
