@@ -1707,10 +1707,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // that asked nothing: `enroll:fetch`, which reads a secret rather than
     // destroying a record, has had this check all along. Two things now rest
     // on it that did not before. `EnrollmentManager.descendantsOf` climbs
-    // `parentEnrollmentId` and fetches each link BY KEY, which is what keeps
-    // an EXPIRED link traversable — a DELETED one is gone, so a delete of a
+    // `parentEnrollmentId` and fetches each link BY KEY, so a delete of a
     // middle link puts everything behind it permanently out of reach of a
-    // later cascade. And [_refuseIfPredecessorNotApproved] permits an
+    // later cascade. (Expiry severs a chain too, once the scheduled sweep
+    // removes the record — see [EnrollmentManager.descendantsOf]. A delete is
+    // the half a caller chooses.) And [_refuseIfPredecessorNotApproved] permits an
     // enrollment whose predecessor no longer exists, so deleting that
     // predecessor is what makes the orphan un-revokable.
     final inboundConnectionMetadata =
@@ -1727,11 +1728,17 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // caller could destroy, which inverts the rule exactly where the record
       // is most anomalous.
       //
-      // No path in THIS build writes one: a CRAM enrollment is given `__manage`
-      // and `*`, a retrofit copies its predecessor's map, and a request
-      // carrying an OTP is refused without at least one namespace. That is a
-      // claim about what this build writes, not about what is already stored,
-      // and an authorisation check is the wrong place to spend the difference.
+      // Reachable, and not only from storage written by an older build: an
+      // `enroll:request` on a LEGACY-PKAM connection lands one. `AuthType` has
+      // three values and that path is neither of the two that fill the map in
+      // — it takes the `else` branch, so it never gets the CRAM branch's
+      // `__manage`+`*` nor the APKAM branch's copy of the predecessor's grants
+      // — while the "at least one namespace" check sits inside the OTP branch
+      // of _validateParams, which an authenticated connection does not enter.
+      //
+      // ⚠️ Every OTHER per-namespace loop still passes such a record
+      // vacuously: approve, deny, revoke and unrevoke share one loop, and
+      // enroll:fetch has its own. This gate is the only one that refuses.
       if (enVal.namespaces.isEmpty) {
         throw UnAuthorizedException(
             'Not authorized to delete enrollment $targetEnrollmentId: it holds'

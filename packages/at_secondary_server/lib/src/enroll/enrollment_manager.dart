@@ -745,6 +745,12 @@ class EnrollmentManager {
   /// revocation is the worst possible moment to reap it. `keyStore.get`
   /// returns a record whose ttl has elapsed — expiry is a judgement its
   /// callers apply — which is what lets the walk cross an expired link.
+  ///
+  /// ⚠️ Only until the SWEEP runs. The server schedules a periodic
+  /// `deleteExpiredKeys()` pass, so an expired enrollment record is removed
+  /// within tens of seconds of expiring and this read then throws like any
+  /// other absent key. Crossing an expired link is therefore a window, not a
+  /// property. See [descendantsOf].
   Future<String?> _predecessorIdOf(String id, Map<String, String?> memo) async {
     if (memo.containsKey(id)) return memo[id];
     String? predecessorId;
@@ -791,10 +797,22 @@ class EnrollmentManager {
   /// could revoke is by definition a live one — while each link in the chain
   /// is fetched by key, which returns expired records.
   ///
-  /// ⚠️ A link that has been DELETED, rather than merely expired, still severs
-  /// the chain: nothing records an enrollment's ancestry beyond its immediate
-  /// predecessor. `enroll:delete` on a middle link is therefore still a way to
-  /// orphan what is behind it.
+  /// ⚠️ A SEVERED link orphans everything behind it, because nothing records
+  /// an enrollment's ancestry beyond its immediate predecessor. Two things
+  /// sever one, and the second is not an edge case:
+  ///
+  /// * `enroll:delete` on a middle link.
+  /// * the scheduled expiry sweep. Fetching by key crosses a link whose ttl
+  ///   has elapsed, but the server also runs a periodic `deleteExpiredKeys()`
+  ///   pass, so that window closes within tens of seconds and the record is
+  ///   then gone for good. Under a finite key-expiry posture this is the
+  ///   DEFAULT shape of a retrofit chain rather than a corner of it: each
+  ///   successor's ttl clock restarts at its own write, so earlier links
+  ///   always expire before later ones, and a revoke arriving after the sweep
+  ///   reaches the first live candidate and stops.
+  ///
+  /// Closing that needs ancestry that outlives the record, which this does not
+  /// have.
   ///
   /// Every status is followed. A revoked or expired enrollment part-way down a
   /// chain must not hide the enrollment behind it, which is exactly the orphan

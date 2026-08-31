@@ -12,9 +12,17 @@
   approved — and the lifetime of that link is chosen by whoever mints it, since
   a never-expiring enrollment may mint a short-lived successor. The walk now
   climbs from each live candidate and fetches each link BY KEY, which returns
-  an expired record. A link that has been DELETED rather than merely expired
-  still severs the chain; nothing records ancestry beyond the immediate
-  predecessor.
+  an expired record.
+
+  ⚠️ That closes the gap between a record EXPIRING and its removal, and no
+  more. The server runs a periodic `deleteExpiredKeys()` sweep, so the record
+  is gone within tens of seconds and the chain is severed for good — as it is
+  by `enroll:delete` on a middle link. Nothing records ancestry beyond the
+  immediate predecessor, so a revoke arriving after the sweep reaches the
+  first live candidate and stops. Under a finite key-expiry posture that is
+  the DEFAULT shape of a retrofit chain, not a corner of it: each successor's
+  ttl clock restarts at its own write, so earlier links always expire first.
+  Closing it needs ancestry that outlives the record.
 - fix: an enrollment id is folded to lower case where `pkam` reads it off the
   wire. The keystore lowercases every key, so a non-canonical spelling
   resolved to the same record while comparing unequal to the id held
@@ -48,14 +56,19 @@
   decides by iterating the target's grants, so an empty map would pass it
   vacuously — zero iterations, no refusal, and the `__manage` requirement
   lives inside that loop too — making the most anomalous record on the atSign
-  the one any enrolled caller could destroy. No path in this build writes one
-  (a CRAM enrollment is given `__manage` and `*`, a retrofit copies its
-  predecessor's, an OTP request is refused without at least one), but that is
-  a claim about what this build writes, not about what is already stored.
+  the one any enrolled caller could destroy. Such a record is reachable: an
+  `enroll:request` on a LEGACY-PKAM connection writes one, because that path
+  is neither of the two that fill the map in — it gets neither the CRAM
+  branch's `__manage`+`*` nor the APKAM branch's copy of its predecessor's
+  grants — while the "at least one namespace" check applies only to requests
+  carrying an OTP, which an authenticated connection does not send.
+
+  ⚠️ Every OTHER per-namespace loop still passes such a record vacuously:
+  `approve`, `deny`, `revoke` and `unrevoke` share one loop, and `enroll:fetch`
+  has its own. Only the delete gate refuses.
 
   Two things had come to rest on this. `EnrollmentManager.descendantsOf`
-  fetches each `parentEnrollmentId` link BY KEY, which is what keeps an
-  EXPIRED link traversable — a DELETED one is gone, so deleting a middle link
+  fetches each `parentEnrollmentId` link BY KEY, so deleting a middle link
   puts everything behind it permanently beyond the reach of a later cascade.
   And the predecessor-not-approved refusal permits an enrollment whose
   predecessor no longer exists, so deleting that predecessor is what makes the
