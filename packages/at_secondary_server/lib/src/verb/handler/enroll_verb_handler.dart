@@ -565,8 +565,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// next thing the app does, far from the request that caused it.
   ///
   /// Escalation is rejected before this by [verifyNoEscalation], which keeps
-  /// its own diagnosis, so the only way to reach the throw here is by naming
-  /// fewer namespaces or narrower letters.
+  /// its own diagnosis. What reaches the throw here is anything that is not
+  /// literally the predecessor's map — usually fewer namespaces or narrower
+  /// letters, but also a request that names MORE namespaces without escalating,
+  /// as `{'*':'rw','wavi':'rw'}` does against a predecessor holding `{'*':'rw'}`:
+  /// `wavi` falls under the wildcard so no grant is gained, and the request is
+  /// still refused because a replacement states its predecessor's grants or
+  /// states nothing.
   @visibleForTesting
   void requireGrantsMatchPredecessor(
       Map<String, String> predecessorGrants, Map<String, String>? requested) {
@@ -653,7 +658,22 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       emd.ttl = enVal.apkamKeysExpiryDuration.inMilliseconds;
       atData.metaData = emd;
     }
-    await enMgr.put(enId, atData, newEnrollmentStatus);
+    // A write that says nothing about expiry must not MOVE expiry. The
+    // metadata builder re-derives `expiresAt = now + ttl` from the RETAINED
+    // ttl on any write that does not assert the stored absolute back, so a
+    // revoke, deny or unrevoke would silently restart the enrollment's APKAM
+    // key-expiry clock — and with it any retrofit cap standing on the record.
+    // `approve` is the deliberate exception: it starts that clock, just above.
+    AtAssertedTimestamps? expiryCarry;
+    if (operation != 'approve') {
+      final AtMetaData? stored =
+          await keyStore.getMeta(enMgr.buildEnrollmentKey(enId));
+      if (stored?.expiresAt != null) {
+        expiryCarry = AtAssertedTimestamps(expiresAt: stored!.expiresAt);
+      }
+    }
+    await enMgr.put(enId, atData, newEnrollmentStatus,
+        assertedTimestamps: expiryCarry);
 
     // when enrollment is approved store the encrypted encryption keys
     if (operation == 'approve') {
@@ -763,11 +783,19 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // request nowhere near the cap can still push the record past it.
     _validateRecordSize(enVal);
 
-    // The state and TTL are untouched: this is the same put the approve path
-    // uses, with an already-approved status, so nothing about the enrollment's
-    // lifecycle moves.
+    // The state and ttl are untouched — but an untouched ttl is not an
+    // untouched EXPIRY. The metadata builder re-derives `expiresAt = now + ttl`
+    // on any write that does not assert the stored absolute back, so without
+    // this carry an enrollment could postpone its own retirement indefinitely
+    // by amending itself, one `enroll:update` per grace period, and the
+    // retrofit cap would be advisory rather than a deadline.
+    final AtMetaData? storedMeta =
+        await keyStore.getMeta(enMgr.buildEnrollmentKey(enId));
     await enMgr.put(
-        enId, AtData()..data = jsonEncode(enVal), EnrollmentStatus.approved);
+        enId, AtData()..data = jsonEncode(enVal), EnrollmentStatus.approved,
+        assertedTimestamps: storedMeta?.expiresAt == null
+            ? null
+            : AtAssertedTimestamps(expiresAt: storedMeta!.expiresAt));
 
     // Republish only when the request carried a new value. An update that says
     // nothing about either shape leaves the published record exactly as it was.

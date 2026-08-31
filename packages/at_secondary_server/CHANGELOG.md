@@ -21,6 +21,26 @@
   proves the private half survived and is usable. It still re-arms once per
   successor, so a predecessor retires one grace period after the last sibling
   upgrades, and a successor's own repeated connections never extend it.
+
+  Two conditions stop the cap, and both still record that the successor has
+  been seen so the check is not repeated on every later connection. A
+  predecessor that is not approved is left alone: capping writes the record
+  back, and a write carries the enrollment's per-enrollment data with it, so
+  capping a revoked predecessor would republish the signing key a revocation
+  had just parked. And a successor that would expire BEFORE the cap deadline
+  does not arm it: retiring a working credential in favour of one with less
+  life left is how an atSign ends up with neither. Grants alone do not make a
+  successor a replacement — it has to outlive what it replaces.
+- fix: amending or revoking an enrollment no longer restarts its expiry.
+  `enroll:update`, `enroll:revoke`, `enroll:deny` and `enroll:unrevoke` each
+  wrote the record with no statement about expiry, and the metadata builder
+  re-derives `expiresAt` from the retained ttl on any such write — so every one
+  of them silently moved the deadline to a grace period from the moment of the
+  write. An enrollment could therefore postpone its own retirement indefinitely
+  by amending itself once per period, which would have made the retrofit cap
+  advisory rather than a deadline. These writes now carry the stored expiry
+  forward as an assertion. `enroll:approve` still sets the expiry deliberately,
+  which is where an enrollment's key-expiry clock is meant to start.
 - BREAKING for operators: `preserveFirstEnrollmentOnRetrofit` is removed, from
   `config.yaml` and from the environment. It exempted the atSign's first
   enrollment from the retrofit cap, because capping it could leave an atSign
@@ -30,6 +50,16 @@
   enrollment, the CRAM-minted root included. A deployment that still sets the
   key needs no change: config is read by explicit key lookup with no schema
   validation, so an unknown key is never read.
+
+  This applies to enrollments that already exist. An atSign that retrofitted
+  under the exemption has a root carrying no expiry and a successor carrying no
+  record of having armed anything; on that successor's first connection after
+  the upgrade the root is capped for the first time, and retires one grace
+  period later. Where a predecessor had already been capped by the previous
+  server, that first connection re-arms it once, giving it a fresh grace period
+  rather than folding into the deadline it already had. Operators who scheduled
+  around the old deadlines should expect one such shift per already-retrofitted
+  pair.
 - fix: assemble outbound responses correctly however the network splits them.
   A peer writes a response and the prompt that follows it as one string, but
   it arrives in however many pieces the network chooses, and the atServer

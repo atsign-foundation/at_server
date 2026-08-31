@@ -413,20 +413,49 @@ class EnrollmentManager {
   /// Get the enrollmentId from any key where enrollmentId is the first part
   String getIdFromKey(String ek) => ek.substring(0, ek.indexOf('.'));
 
-  /// Caps [enrollmentId] to expire `min(now + grace, its own expiry)` from
-  /// this moment, leaving the record in place.
+  /// The ttl a retrofit cap would write onto [enrollmentId] right now:
+  /// `min(grace, the enrollment's own remaining lifetime)`.
+  ///
+  /// Split out because the arming decision needs the DEADLINE before it
+  /// commits to writing it — a predecessor must not be retired in favour of a
+  /// successor that dies sooner — and because a fold this consequential should
+  /// be assertable on its own rather than only through a write.
+  ///
+  /// "Its own expiry" is re-derived from
+  /// [EnrollDataStoreValue.apkamKeysExpiryDuration] anchored at the record's
+  /// creation, so a key-expiry posture shorter than the grace still wins. A
+  /// ttl of zero is the keystore's "never expires", and a spent posture must
+  /// not become immortality, so the result is floored at one millisecond.
+  @visibleForTesting
+  int retrofitCapTtlMillis(AtMetaData? recordMetaData,
+      EnrollDataStoreValue enrollment, DateTime now) {
+    int cappedTtl =
+        Duration(hours: AtSecondaryConfig.apkamSelfEnrollmentGraceHours)
+            .inMilliseconds;
+    final ownMs = enrollment.apkamKeysExpiryDuration.inMilliseconds;
+    if (ownMs > 0) {
+      final createdAt = (recordMetaData?.createdAt ?? now).toUtc();
+      final ownRemainingMs = createdAt
+          .add(Duration(milliseconds: ownMs))
+          .difference(now)
+          .inMilliseconds;
+      if (ownRemainingMs < cappedTtl) cappedTtl = ownRemainingMs;
+    }
+    return cappedTtl < 1 ? 1 : cappedTtl;
+  }
+
+  /// Caps [enrollmentId] to expire [retrofitCapTtlMillis] from this moment,
+  /// leaving the record in place.
   ///
   /// Re-applied on EVERY retrofit of the same predecessor, computed fresh from
   /// the record's own posture rather than folded into a previously written
   /// cap: sibling clones of one keyfile retrofit whenever each device next
   /// runs, so the cap must RE-ARM with each successor — a deadline fixed by
   /// the first sibling's upgrade would strand every laggard whose next run
-  /// falls outside that first window. "Its own expiry" is re-derived from
-  /// [EnrollDataStoreValue.apkamKeysExpiryDuration], anchored at the record's
-  /// creation, so a key-expiry posture shorter than the grace still wins.
+  /// falls outside that first window.
   ///
   /// A written ttl anchors at the write (`expiresAt = now + ttl` in the
-  /// metadata builder), so the grace is written as-is — offsetting it by the
+  /// metadata builder), so the ttl is written as-is — offsetting it by the
   /// record's age would extend the cap by the enrollment's whole lifetime.
   Future<void> capEnrollmentExpiry(
       String enrollmentId, EnrollDataStoreValue enrollment) async {
@@ -438,24 +467,16 @@ class EnrollmentManager {
       return;
     }
     if (atData == null) return;
-    final now = DateTime.now().toUtc();
-    int cappedTtl =
-        Duration(hours: AtSecondaryConfig.apkamSelfEnrollmentGraceHours)
-            .inMilliseconds;
-    final ownMs = enrollment.apkamKeysExpiryDuration.inMilliseconds;
-    if (ownMs > 0) {
-      final createdAt = (atData.metaData?.createdAt ?? now).toUtc();
-      final ownRemainingMs = createdAt
-          .add(Duration(milliseconds: ownMs))
-          .difference(now)
-          .inMilliseconds;
-      if (ownRemainingMs < cappedTtl) cappedTtl = ownRemainingMs;
-    }
-    // A ttl of zero means "never expires", and a spent posture must not
-    // become immortality — floor at one millisecond.
-    if (cappedTtl < 1) cappedTtl = 1;
-    atData.metaData = (atData.metaData ?? AtMetaData())..ttl = cappedTtl;
-    await put(enrollmentId, atData, EnrollmentStatus.approved);
+    atData.metaData = (atData.metaData ?? AtMetaData())
+      ..ttl = retrofitCapTtlMillis(
+          atData.metaData, enrollment, DateTime.now().toUtc());
+    // The status this write carries is the one the record already has: `put`
+    // moves the enrollment's per-enrollment data to match, and capping must
+    // not relocate anything. A revoked predecessor is not capped at all (see
+    // [armRetrofitCapOnFirstAuth]), but passing its own status keeps that
+    // true of any future caller.
+    await put(enrollmentId, atData,
+        EnrollmentStatus.values.byName(enrollment.approval!.state));
   }
 
   /// Arms the retrofit cap on the enrollment [successorEnrollmentId] replaced,
@@ -477,29 +498,32 @@ class EnrollmentManager {
   /// every reconnect would rewrite a full grace period onto the predecessor
   /// and it would never retire at all.
   ///
+  /// TWO CONDITIONS STOP THE CAP, and both still stamp the successor so the
+  /// lookup is not re-walked on every later connection:
+  ///
+  /// * **A predecessor that is not approved.** Capping writes the record back,
+  ///   and a write carries the enrollment's per-enrollment data with it. A
+  ///   revoked predecessor must stay revoked and its data must stay parked.
+  /// * **A successor that would die before the cap deadline.** Retiring a
+  ///   working credential in favour of one with less life left is how an
+  ///   atSign ends up with neither. Grants alone do not make a successor a
+  ///   replacement; it has to outlive what it replaces.
+  ///
   /// Never throws. This runs after an authentication has already succeeded, and
   /// a predecessor that outlives its window is a slower migration, while an
   /// authentication refused because bookkeeping failed is an outage.
   Future<void> armRetrofitCapOnFirstAuth(String successorEnrollmentId) async {
     try {
-      // The early exits go through the cached read, because this runs on EVERY
-      // APKAM authentication and all but a retrofit's successor leave here.
-      // The PKAM path has just read this same enrollment to verify it is
-      // active, so the entry is warm.
+      // The early exit goes through the cached read, because this runs on
+      // EVERY APKAM authentication and all but a retrofit's successor leave
+      // here. The PKAM path has just read this same enrollment, so it is warm.
       final EnrollDataStoreValue cached =
           await getEnrollmentById(successorEnrollmentId);
       final predecessorId = cached.parentEnrollmentId;
       if (predecessorId == null) return;
       if (cached.predecessorCapArmedAt != null) return;
 
-      // Past the exits, and about to write: re-read the stored AtData, which
-      // carries the metadata the write has to preserve.
       final key = buildEnrollmentKey(successorEnrollmentId);
-      final AtData? atData = await keyStore.get(key);
-      final String? raw = atData?.data;
-      if (atData == null || raw == null) return;
-      final successor = EnrollDataStoreValue.fromJson(jsonDecode(raw));
-      if (successor.predecessorCapArmedAt != null) return;
 
       EnrollDataStoreValue? predecessor;
       try {
@@ -508,12 +532,52 @@ class EnrollmentManager {
         logger.info('Enrollment $successorEnrollmentId replaced '
             '$predecessorId, which is already gone — nothing to cap');
       }
+
       if (predecessor != null) {
-        await capEnrollmentExpiry(predecessorId, predecessor);
+        if (predecessor.approval?.state != EnrollmentStatus.approved.name) {
+          logger.info(
+              'Enrollment $successorEnrollmentId replaced $predecessorId, '
+              'which is ${predecessor.approval?.state} — not capping it. '
+              'Writing it back would move its per-enrollment data as though '
+              'it were approved again');
+        } else {
+          final now = DateTime.now().toUtc();
+          final AtData? predecessorRecord = await keyStore.get(
+              buildEnrollmentKey(predecessorId));
+          final deadline = now.add(Duration(
+              milliseconds: retrofitCapTtlMillis(
+                  predecessorRecord?.metaData, predecessor, now)));
+          // What the successor's own record says, read fresh: the cached copy
+          // above carries no metadata.
+          final successorExpiry =
+              (await keyStore.get(key))?.metaData?.expiresAt;
+          if (successorExpiry != null && successorExpiry.isBefore(deadline)) {
+            logger.warning(
+                'Enrollment $successorEnrollmentId expires at '
+                '$successorExpiry, before the cap deadline $deadline it would '
+                'put on $predecessorId. Not capping: retiring a credential in '
+                'favour of a shorter-lived one leaves the atSign with '
+                'neither');
+          } else {
+            await capEnrollmentExpiry(predecessorId, predecessor);
+          }
+        }
       }
 
-      // Stamped even when the predecessor was already gone, so a retired
-      // predecessor does not make every later connection re-walk this.
+      // Re-read immediately before the write. Everything above awaits — the
+      // predecessor lookup, and a cap that walks the whole keystore — and a
+      // snapshot taken before all that would silently revert a concurrent
+      // `enroll:update` key rotation or an `enroll:revoke` of this successor.
+      final AtData? atData = await keyStore.get(key);
+      final String? raw = atData?.data;
+      if (atData == null || raw == null) return;
+      final successor = EnrollDataStoreValue.fromJson(jsonDecode(raw));
+      // Load-bearing, not belt-and-braces: `put` invalidates the cache only
+      // after its own await, so a concurrent reader can repopulate it with a
+      // pre-write value. This uncached re-test is what actually makes "first"
+      // hold; the cached check above is only the fast path.
+      if (successor.predecessorCapArmedAt != null) return;
+
       successor.predecessorCapArmedAt = DateTime.now().toUtc();
       atData.data = jsonEncode(successor.toJson());
       // The successor's OWN expiry must not move. A plain write re-derives
@@ -523,7 +587,8 @@ class EnrollmentManager {
       // suppresses that derivation. A null `expiresAt` is a record that never
       // expires, and asserting nothing leaves it that way.
       final storedExpiry = atData.metaData?.expiresAt;
-      await put(successorEnrollmentId, atData, EnrollmentStatus.approved,
+      await put(successorEnrollmentId, atData,
+          EnrollmentStatus.values.byName(successor.approval!.state),
           assertedTimestamps: storedExpiry == null
               ? null
               : AtAssertedTimestamps(expiresAt: storedExpiry));

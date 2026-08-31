@@ -435,12 +435,23 @@ void main() {
 
   group('The predecessor survives a retrofit, capped rather than removed',
       () {
-    test('the predecessor still authenticates after a successor enrols',
-        () async {
+    test('a CAPPED predecessor still authenticates', () async {
+      // The whole reason the predecessor is capped rather than removed: sibling
+      // clones of one keyfile retrofit on their own schedules and must keep
+      // authenticating until the cap elapses. The successor has to authenticate
+      // first, or the predecessor is not capped and this asserts nothing — the
+      // fixture already authenticates as the predecessor to send the request.
       OutboundConnectionFactory owner = await ownerConnection();
       String parentId =
           await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
-      await selfEnrollId(parentId);
+      String childId = await selfEnrollId(parentId);
+      await authenticateAsEnrollment(childId);
+
+      expect((await enrollmentRecord(owner, parentId)).metaData['expiresAt'],
+          isNotNull,
+          reason: 'control: the predecessor really is capped, so the '
+              'authentication below is a capped credential authenticating and '
+              'not an uncapped one');
 
       OutboundConnectionFactory parent = await newConnection();
       expect(
@@ -448,7 +459,71 @@ void main() {
                   authType: AuthType.apkam, enrollmentId: parentId))
               .trim(),
           'data:success',
-          reason: 'sibling clones must still be able to retrofit');
+          reason: 'a capped credential keeps working until its deadline — a '
+              'cap written as "already expired" would lock every laggard '
+              'sibling out of the upgrade it still has to perform');
+    });
+
+    test('the successor records WHEN it armed, under a stable at-rest name',
+        () async {
+      // Raw-literal pin. Every other assertion reads this through the typed
+      // getter, so writer and reader are the same hand-maintained pair in
+      // enroll_datastore_value.g.dart: rename the JSON key symmetrically and
+      // they all still pass, while every already-stored record silently loses
+      // its stamp and re-arms once more.
+      OutboundConnectionFactory owner = await ownerConnection();
+      String parentId =
+          await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
+      String childId = await selfEnrollId(parentId);
+
+      expect((await enrollmentRecord(owner, childId)).value,
+          isNot(contains('predecessorCapArmedAt')),
+          reason: 'absent until it arms, so an unarmed successor is '
+              'distinguishable from an armed one at rest');
+
+      await authenticateAsEnrollment(childId);
+
+      final armed = (await enrollmentRecord(owner, childId)).value;
+      expect(armed['predecessorCapArmedAt'], isA<String>(),
+          reason: 'the at-rest key name and its ISO-8601 encoding are what a '
+              'record written by an earlier server is read back through');
+      expect(DateTime.parse(armed['predecessorCapArmedAt']).isUtc, isTrue);
+    });
+
+    test('an enrollment cannot postpone its own retirement with enroll:update',
+        () async {
+      // A write that says nothing about expiry must not move expiry. The
+      // metadata builder re-derives expiresAt from the retained ttl, so
+      // without an asserted carry one enroll:update per grace period would
+      // renew a capped credential indefinitely and the cap would be advisory.
+      OutboundConnectionFactory owner = await ownerConnection();
+      String parentId =
+          await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
+      String childId = await selfEnrollId(parentId);
+      await authenticateAsEnrollment(childId);
+
+      final capped = (await enrollmentRecord(owner, parentId));
+      final DateTime deadline = DateTime.parse(capped.metaData['expiresAt']);
+
+      await Future.delayed(Duration(seconds: 2));
+
+      OutboundConnectionFactory predecessor = await newConnection();
+      expect(
+          (await predecessor.authenticateConnection(
+                  authType: AuthType.apkam, enrollmentId: parentId))
+              .trim(),
+          'data:success');
+      String response = await predecessor.sendRequestToServer(
+          'enroll:update:{"enrollmentId":"$parentId","metadata":{"note":"x"}}');
+      expect(response, startsWith('data:'), reason: response);
+
+      expect(
+          DateTime.parse(
+              (await enrollmentRecord(owner, parentId)).metaData['expiresAt']),
+          deadline,
+          reason: 'amending an enrollment must leave its deadline exactly '
+              'where it was; a two-second delay makes any re-derivation from '
+              '"now" visible');
     });
 
     test('storing a successor does not cap the predecessor', () async {
