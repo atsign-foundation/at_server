@@ -85,5 +85,34 @@ void main() {
       expect(withBare.toJson().containsKey('apsk'), false);
       expect(EnrollDataStoreValue.fromJson(withBare.toJson()).apskLegacy, bare);
     });
+
+    test('predecessorCapArmedAt round-trips under its at-rest name', () {
+      // The stamp that makes "the cap arms once" decidable across a restart.
+      // Its writer and reader are the same hand-maintained pair in the .g.dart,
+      // so a symmetric rename passes every test that reads it through the
+      // typed getter while every already-stored record silently loses its
+      // stamp — and re-arms once more, extending its predecessor by a whole
+      // grace period.
+      final armedAt = DateTime.utc(2026, 8, 31, 12, 34, 56, 789);
+      final v = EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey')
+        ..predecessorCapArmedAt = armedAt;
+
+      expect(v.toJson()['predecessorCapArmedAt'], '2026-08-31T12:34:56.789Z',
+          reason: 'raw literal: the key name and the ISO-8601 encoding are '
+              'what a record written by an earlier server is read back '
+              'through');
+      expect(EnrollDataStoreValue.fromJson(v.toJson()).predecessorCapArmedAt,
+          armedAt);
+
+      final unarmed =
+          EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey');
+      expect(unarmed.toJson().containsKey('predecessorCapArmedAt'), false,
+          reason: 'omitted rather than written null, so a record from before '
+              'this field existed reads back as "never armed"');
+      expect(
+          EnrollDataStoreValue.fromJson(unarmed.toJson())
+              .predecessorCapArmedAt,
+          isNull);
+    });
   });
 }

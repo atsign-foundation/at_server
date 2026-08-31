@@ -8,10 +8,10 @@ import 'package:at_functional_test/utils/encryption_util.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
-/// Functional coverage of the APKAM self-enrollment branch (RF-SRV): an
-/// `enroll:request` arriving on an APKAM-authenticated connection resolves
-/// that connection's enrollment as the PARENT and auto-approves a child that
-/// can hold at most what the parent holds.
+/// Functional coverage of the APKAM self-enrollment branch: an
+/// `enroll:request` arriving on an APKAM-authenticated connection auto-
+/// approves a successor that REPLACES that connection's enrollment, carrying
+/// exactly the grants its predecessor held — no more, and no less.
 ///
 /// The unit suite in `at_secondary_server` pins the handler's decisions
 /// directly. These tests drive the same decisions over the wire, which is the
@@ -183,7 +183,7 @@ void main() {
   });
 
   group('A self-enrollment is auto-approved and usable', () {
-    test('an approved parent self-enrolls a subset child that can authenticate',
+    test('an approved predecessor is replaced by a successor that can authenticate',
         () async {
       OutboundConnectionFactory owner = await ownerConnection();
       String parentId =
@@ -279,7 +279,7 @@ void main() {
       expect(error['errorCode'], 'AT0009');
       expect(
           error['errorDescription'],
-          contains('Requested namespace "buzz:rw" exceeds the parent '
+          contains('Requested namespace "buzz:rw" exceeds the predecessor '
               'enrollment\'s grants'));
     });
 
@@ -488,6 +488,35 @@ void main() {
           reason: 'the at-rest key name and its ISO-8601 encoding are what a '
               'record written by an earlier server is read back through');
       expect(DateTime.parse(armed['predecessorCapArmedAt']).isUtc, isTrue);
+    });
+
+    test('revoking an enrollment does not restart its expiry either',
+        () async {
+      // The carry covers revoke, deny and unrevoke as well as update, and the
+      // CHANGELOG says so. Without a test here, deleting the whole
+      // `operation != 'approve'` block would leave the suite green.
+      OutboundConnectionFactory owner = await ownerConnection();
+      String id = await createApprovedEnrollment(owner,
+          namespaces: {'wavi': 'rw'}, apkamKeysExpiryInMillis: 3600000);
+
+      final DateTime before =
+          DateTime.parse((await enrollmentRecord(owner, id)).metaData['expiresAt']);
+      expect(before.isAfter(DateTime.now().toUtc()), isTrue,
+          reason: 'precondition: it has a live deadline to move');
+
+      await Future.delayed(Duration(seconds: 2));
+
+      String response = await owner
+          .sendRequestToServer('enroll:revoke:{"enrollmentId":"$id"}');
+      expect(response, startsWith('data:'), reason: response);
+
+      expect(
+          DateTime.parse(
+              (await enrollmentRecord(owner, id)).metaData['expiresAt']),
+          before,
+          reason: 'revoking says nothing about expiry and must move nothing; '
+              'the two-second delay makes any re-derivation from "now" '
+              'visible');
     });
 
     test('an enrollment cannot postpone its own retirement with enroll:update',

@@ -413,19 +413,31 @@ class EnrollmentManager {
   /// Get the enrollmentId from any key where enrollmentId is the first part
   String getIdFromKey(String ek) => ek.substring(0, ek.indexOf('.'));
 
-  /// The ttl a retrofit cap would write onto [enrollmentId] right now:
-  /// `min(grace, the enrollment's own remaining lifetime)`.
+  /// The ttl a retrofit cap would write onto a record right now:
+  /// `min(grace, what the enrollment's own key-expiry posture leaves it)`.
   ///
-  /// Split out because the arming decision needs the DEADLINE before it
-  /// commits to writing it — a predecessor must not be retired in favour of a
-  /// successor that dies sooner — and because a fold this consequential should
-  /// be assertable on its own rather than only through a write.
+  /// The posture's deadline is the LATER of `createdAt + posture` and the
+  /// record's stored `expiresAt`, and neither alone is right.
   ///
-  /// "Its own expiry" is re-derived from
-  /// [EnrollDataStoreValue.apkamKeysExpiryDuration] anchored at the record's
-  /// creation, so a key-expiry posture shorter than the grace still wins. A
-  /// ttl of zero is the keystore's "never expires", and a spent posture must
-  /// not become immortality, so the result is floored at one millisecond.
+  /// `createdAt + posture` is short by the whole approval latency:
+  /// `enroll:approve` starts the posture's clock at APPROVAL, writing
+  /// `expiresAt = approvedAt + posture`, while `createdAt` stays at the moment
+  /// the request was made. For a record retrofitted between the two it goes
+  /// negative, and the floor below turns that into a 1ms cap — a predecessor
+  /// with hours of legitimate life killed instantly, and every sibling clone
+  /// still to upgrade locked out of the migration.
+  ///
+  /// `expiresAt` alone is worse in the other direction: after a first sibling
+  /// caps the predecessor, `expiresAt` IS that cap, so folding against it
+  /// would make every later re-arm shrink rather than extend, and the laggard
+  /// the re-arm exists for could never be reached.
+  ///
+  /// Taking the later of the two is safe because a cap only ever shortens:
+  /// both candidates are therefore at or below `approvedAt + posture`, so the
+  /// result never grants more life than the posture allows.
+  ///
+  /// A ttl of zero is the keystore's "never expires", and a spent record must
+  /// not become immortal, so the result is floored at one millisecond.
   @visibleForTesting
   int retrofitCapTtlMillis(AtMetaData? recordMetaData,
       EnrollDataStoreValue enrollment, DateTime now) {
@@ -433,32 +445,76 @@ class EnrollmentManager {
         Duration(hours: AtSecondaryConfig.apkamSelfEnrollmentGraceHours)
             .inMilliseconds;
     final ownMs = enrollment.apkamKeysExpiryDuration.inMilliseconds;
-    if (ownMs > 0) {
-      final createdAt = (recordMetaData?.createdAt ?? now).toUtc();
-      final ownRemainingMs = createdAt
-          .add(Duration(milliseconds: ownMs))
-          .difference(now)
-          .inMilliseconds;
-      if (ownRemainingMs < cappedTtl) cappedTtl = ownRemainingMs;
+    final stored = recordMetaData?.expiresAt?.toUtc();
+    // A record with no stored expiry never expires, whatever posture its VALUE
+    // carries. The CRAM path writes exactly that — the root record is written
+    // with no metadata at all while its value may state a posture — so folding
+    // against a posture the record never had would compute a deadline in the
+    // past for any root older than its stated posture, and the floor below
+    // would turn that into a 1ms cap: the root dead instantly and every
+    // sibling clone locked out of the migration.
+    if (ownMs > 0 && stored != null) {
+      final fromCreation = (recordMetaData?.createdAt ?? now)
+          .toUtc()
+          .add(Duration(milliseconds: ownMs));
+      final postureDeadline =
+          stored.isAfter(fromCreation) ? stored : fromCreation;
+      final remainingMs = postureDeadline.difference(now).inMilliseconds;
+      if (remainingMs < cappedTtl) cappedTtl = remainingMs;
     }
     return cappedTtl < 1 ? 1 : cappedTtl;
+  }
+
+  /// Whether any enrollment OTHER than [enrollmentId] could still approve a
+  /// replacement once [deadline] has passed.
+  ///
+  /// The precise question behind sparing a predecessor: not "is this the
+  /// atSign's first enrollment", nor "does the successor outlive it", but
+  /// whether capping it would leave nobody holding `__manage:rw` at the moment
+  /// the cap fires. A successor that dies before [deadline] does not count —
+  /// which is exactly the case that would otherwise strand the atSign.
+  Future<bool> hasRootEnrollmentAliveAfter(
+      String enrollmentId, DateTime deadline) async {
+    final selfKey = buildEnrollmentKey(enrollmentId);
+    for (final ek in await getAllEnrollmentKeys()) {
+      if (ek == selfKey) continue;
+      final EnrollDataStoreValue other;
+      try {
+        other = await getEnrollmentByFullKey(ek);
+      } on KeyNotFoundException {
+        continue;
+      }
+      if (other.approval?.state != EnrollmentStatus.approved.name) continue;
+      if (!other.isRootEnrollment) continue;
+      final AtData? record = await keyStore.get(ek);
+      final expiresAt = record?.metaData?.expiresAt;
+      if (expiresAt == null || expiresAt.isAfter(deadline)) return true;
+    }
+    return false;
   }
 
   /// Caps [enrollmentId] to expire [retrofitCapTtlMillis] from this moment,
   /// leaving the record in place.
   ///
-  /// Re-applied on EVERY retrofit of the same predecessor, computed fresh from
-  /// the record's own posture rather than folded into a previously written
-  /// cap: sibling clones of one keyfile retrofit whenever each device next
-  /// runs, so the cap must RE-ARM with each successor — a deadline fixed by
-  /// the first sibling's upgrade would strand every laggard whose next run
-  /// falls outside that first window.
+  /// Re-applied every time a successor ARMS — which is its first
+  /// authentication, not its enrolment; a successor that never authenticates
+  /// caps nothing. Computed fresh from the predecessor's own posture rather
+  /// than folded into a previously written cap: sibling clones of one keyfile
+  /// upgrade whenever each device next runs, so the cap must RE-ARM with each
+  /// successor, and a deadline fixed by the first sibling's upgrade would
+  /// strand every laggard whose next run falls outside that first window.
   ///
   /// A written ttl anchors at the write (`expiresAt = now + ttl` in the
   /// metadata builder), so the ttl is written as-is — offsetting it by the
   /// record's age would extend the cap by the enrollment's whole lifetime.
+  ///
+  /// [ttlMillis] is the value a caller has already computed and made a
+  /// decision on. Recomputing it here would write a deadline LATER than the
+  /// one that was checked, by however long the checking took — the unsafe
+  /// direction, since the check is what established that somebody survives it.
   Future<void> capEnrollmentExpiry(
-      String enrollmentId, EnrollDataStoreValue enrollment) async {
+      String enrollmentId, EnrollDataStoreValue enrollment,
+      {int? ttlMillis}) async {
     final key = buildEnrollmentKey(enrollmentId);
     final AtData? atData;
     try {
@@ -468,8 +524,9 @@ class EnrollmentManager {
     }
     if (atData == null) return;
     atData.metaData = (atData.metaData ?? AtMetaData())
-      ..ttl = retrofitCapTtlMillis(
-          atData.metaData, enrollment, DateTime.now().toUtc());
+      ..ttl = ttlMillis ??
+          retrofitCapTtlMillis(
+              atData.metaData, enrollment, DateTime.now().toUtc());
     // The status this write carries is the one the record already has: `put`
     // moves the enrollment's per-enrollment data to match, and capping must
     // not relocate anything. A revoked predecessor is not capped at all (see
@@ -480,7 +537,11 @@ class EnrollmentManager {
   }
 
   /// Arms the retrofit cap on the enrollment [successorEnrollmentId] replaced,
-  /// on that successor's FIRST authentication and never again.
+  /// once, at the first authentication where the conditions below permit it.
+  ///
+  /// Usually that is the successor's very first authentication. When a
+  /// condition declines, nothing is recorded and the question is asked again
+  /// next time, so the arming authentication may be a later one.
   ///
   /// A no-op for an enrollment that replaced nothing, which is every
   /// enrollment except a retrofit's successor.
@@ -498,16 +559,22 @@ class EnrollmentManager {
   /// every reconnect would rewrite a full grace period onto the predecessor
   /// and it would never retire at all.
   ///
-  /// TWO CONDITIONS STOP THE CAP, and both still stamp the successor so the
-  /// lookup is not re-walked on every later connection:
+  /// TWO CONDITIONS STOP THE CAP, and neither stamps the successor: both are
+  /// judgements about state that can change, so they are re-made on the next
+  /// authentication rather than frozen into the record.
   ///
-  /// * **A predecessor that is not approved.** Capping writes the record back,
-  ///   and a write carries the enrollment's per-enrollment data with it. A
-  ///   revoked predecessor must stay revoked and its data must stay parked.
-  /// * **A successor that would die before the cap deadline.** Retiring a
-  ///   working credential in favour of one with less life left is how an
-  ///   atSign ends up with neither. Grants alone do not make a successor a
-  ///   replacement; it has to outlive what it replaces.
+  /// * **A predecessor that is not approved.** It is already retired, and
+  ///   writing it back would hand it a fresh ttl it has no business carrying.
+  ///   An unrevoke restores an ordinary predecessor, so this must not become
+  ///   permanent.
+  /// * **A successor that would die before the deadline, when the predecessor
+  ///   is the atSign's LAST holder of `__manage`.** Capping the only
+  ///   enrollment that can approve another, in favour of one that will be gone
+  ///   first, leaves nobody able to admit a replacement. Every other
+  ///   predecessor is capped regardless of the successor's lifetime: declining
+  ///   more widely than this would silently switch retirement off for any
+  ///   fleet whose APKAM keys are shorter-lived than the grace, and would make
+  ///   the grace knob work backwards — a longer grace declining more often.
   ///
   /// Never throws. This runs after an authentication has already succeeded, and
   /// a predecessor that outlives its window is a slower migration, while an
@@ -533,41 +600,79 @@ class EnrollmentManager {
             '$predecessorId, which is already gone — nothing to cap');
       }
 
+      bool armPredecessor = false;
+      int? capTtlMillis;
+      final bool predecessorGone = predecessor == null;
+
       if (predecessor != null) {
         if (predecessor.approval?.state != EnrollmentStatus.approved.name) {
+          // Not capped: a predecessor that is denied, revoked or expired is
+          // already retired, and writing it back would give it a fresh ttl it
+          // has no business carrying. Left unstamped deliberately — an
+          // unrevoke restores an ordinary approved predecessor, and a
+          // transient state must not become a permanent exemption.
           logger.info(
               'Enrollment $successorEnrollmentId replaced $predecessorId, '
-              'which is ${predecessor.approval?.state} — not capping it. '
-              'Writing it back would move its per-enrollment data as though '
-              'it were approved again');
+              'which is ${predecessor.approval?.state} — not capping it');
         } else {
           final now = DateTime.now().toUtc();
-          final AtData? predecessorRecord = await keyStore.get(
-              buildEnrollmentKey(predecessorId));
-          final deadline = now.add(Duration(
-              milliseconds: retrofitCapTtlMillis(
-                  predecessorRecord?.metaData, predecessor, now)));
-          // What the successor's own record says, read fresh: the cached copy
-          // above carries no metadata.
+          final AtData? predecessorRecord =
+              await keyStore.get(buildEnrollmentKey(predecessorId));
+          capTtlMillis = retrofitCapTtlMillis(
+              predecessorRecord?.metaData, predecessor, now);
+          final deadline = now.add(Duration(milliseconds: capTtlMillis));
+
+          // Would the successor still be here when the cap fires? If so it IS
+          // a live root — it carries the predecessor's grants verbatim — so
+          // nothing can be stranded and the walk below is unnecessary. This is
+          // the ordinary case and it costs no keystore scan.
           final successorExpiry =
               (await keyStore.get(key))?.metaData?.expiresAt;
-          if (successorExpiry != null && successorExpiry.isBefore(deadline)) {
+          final successorOutlivesCap = successorExpiry == null ||
+              !successorExpiry.isBefore(deadline);
+
+          // Spared only when capping would leave the atSign unable to restore
+          // itself: the predecessor holds FULL privilege, the successor will
+          // be gone by the deadline, and no other fully-privileged enrollment
+          // survives it. Full privilege rather than the ability to approve,
+          // because approving is checked per namespace against what the
+          // approver holds — a `__manage`-only enrollment can admit new
+          // enrollments and can never admit one carrying `*`, so it keeps an
+          // atSign running without being able to give it a root back.
+          //
+          // Every other predecessor is capped regardless of its successor's
+          // lifetime: declining more widely would switch retirement off for
+          // any fleet whose keys are shorter-lived than the grace, and would
+          // make the grace setting work backwards.
+          if (!successorOutlivesCap &&
+              predecessor.isRootEnrollment &&
+              !await hasRootEnrollmentAliveAfter(predecessorId, deadline)) {
             logger.warning(
-                'Enrollment $successorEnrollmentId expires at '
-                '$successorExpiry, before the cap deadline $deadline it would '
-                'put on $predecessorId. Not capping: retiring a credential in '
-                'favour of a shorter-lived one leaves the atSign with '
-                'neither');
+                'Not capping $predecessorId at $deadline on the word of '
+                '$successorEnrollmentId, which expires at $successorExpiry: '
+                '$predecessorId holds full privilege and no other '
+                'fully-privileged enrollment would still be alive then. The '
+                'atSign would be left unable to restore a root');
           } else {
-            await capEnrollmentExpiry(predecessorId, predecessor);
+            armPredecessor = true;
           }
         }
       }
 
-      // Re-read immediately before the write. Everything above awaits — the
-      // predecessor lookup, and a cap that walks the whole keystore — and a
-      // snapshot taken before all that would silently revert a concurrent
-      // `enroll:update` key rotation or an `enroll:revoke` of this successor.
+      // Recorded only when the cap is going to fire, or when the predecessor
+      // is permanently gone. A decline is a judgement about state that can
+      // change — an unrevoke, a longer-lived sibling — so it must be re-made
+      // on the next authentication rather than frozen here.
+      if (!armPredecessor && !predecessorGone) return;
+
+      // Re-read immediately before the write, NARROWING a lost update rather
+      // than closing it. Everything above awaits — the predecessor lookup, and
+      // a cap that walks the whole keystore — so a snapshot taken before all
+      // that would very likely revert a concurrent `enroll:update` key
+      // rotation or an `enroll:revoke` of this successor. A window remains:
+      // `put` itself walks the keystore before writing, and the keystore has
+      // no compare-and-set, so this is read-modify-write on shared durable
+      // state and the guarantee is probabilistic.
       final AtData? atData = await keyStore.get(key);
       final String? raw = atData?.data;
       if (atData == null || raw == null) return;
@@ -587,11 +692,37 @@ class EnrollmentManager {
       // suppresses that derivation. A null `expiresAt` is a record that never
       // expires, and asserting nothing leaves it that way.
       final storedExpiry = atData.metaData?.expiresAt;
-      await put(successorEnrollmentId, atData,
-          EnrollmentStatus.values.byName(successor.approval!.state),
+      // The record's OWN status, never a default. `put` moves an enrollment's
+      // per-enrollment data to match the status it is handed, so defaulting to
+      // `approved` here would relocate the data of a record whose state we
+      // could not read — the same relocation `capEnrollmentExpiry` passes the
+      // record's own status to avoid. An unparseable status cannot reach a
+      // successful PKAM (the handler resolves the same enum on the way in), so
+      // this is unreachable; if it ever fires, refusing to write is the only
+      // safe move.
+      final EnrollmentStatus? successorStatus =
+          EnrollmentStatus.values.asNameMap()[successor.approval?.state ?? ''];
+      if (successorStatus == null) {
+        logger.severe(
+            'Enrollment $successorEnrollmentId has an unreadable approval '
+            'state ${successor.approval?.state}; not stamping it');
+        return;
+      }
+      await put(successorEnrollmentId, atData, successorStatus,
           assertedTimestamps: storedExpiry == null
               ? null
               : AtAssertedTimestamps(expiresAt: storedExpiry));
+
+      // The cap goes LAST, after the stamp. If a write fails between the two,
+      // the successor is recorded as processed and the predecessor simply
+      // keeps the expiry it already had — the migration is slower and nothing
+      // else moves. The other order fails far worse: a capped predecessor with
+      // no stamp is re-capped on every later authentication, each time with a
+      // fresh full grace, so it never retires at all.
+      if (armPredecessor && predecessor != null) {
+        await capEnrollmentExpiry(predecessorId, predecessor,
+            ttlMillis: capTtlMillis);
+      }
     } catch (e) {
       logger.warning('Could not arm the retrofit cap for '
           '$successorEnrollmentId: $e');

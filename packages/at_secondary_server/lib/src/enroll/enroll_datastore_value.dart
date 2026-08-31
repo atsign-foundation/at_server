@@ -1,3 +1,4 @@
+import 'package:at_commons/at_commons.dart';
 import 'package:json_annotation/json_annotation.dart';
 
 part 'enroll_datastore_value.g.dart';
@@ -67,20 +68,31 @@ class EnrollDataStoreValue {
   /// other.
   String? apskLegacy;
 
-  /// The enrollment whose authenticated connection self-spawned this one
-  /// (RF-SRV), or null for every other origin.
+  /// The enrollment this one REPLACED — its predecessor — or null for every
+  /// other origin.
   ///
-  /// Recorded so revocation can CASCADE: self-enrollment makes enrollments a
-  /// parent/child graph, and a stolen keyfile can spawn a child before the
-  /// theft is noticed — a child that survives its parent's revocation would
-  /// defeat revocation via the very feature that created it
+  /// The name is historical and stays: it is on the wire and at rest. A
+  /// retrofit's successor replaces rather than descends from its predecessor,
+  /// carrying exactly the grants the predecessor held.
+  ///
+  /// Recorded so revocation can CASCADE: a stolen keyfile can mint a successor
+  /// before the theft is noticed, and a successor that survives the revocation
+  /// of what it replaced would defeat revocation via the very feature that
+  /// created it
   /// (at_client_sdk docs/projects/pq/decisions.md 40). The cascade itself is
   /// the revoke path's to implement; this field is what makes it possible on
   /// records that already exist by then.
   String? parentEnrollmentId;
 
-  /// When this enrollment armed the retrofit cap on the enrollment it
-  /// replaced, or null if it never has.
+  /// When this enrollment settled the retrofit cap on the enrollment it
+  /// replaced — either by arming it, or by finding there was nothing left to
+  /// arm it on. Null while the question is still open.
+  ///
+  /// Not a record of "a cap was written": a predecessor that has already been
+  /// deleted stamps this too, because otherwise every later connection
+  /// re-walks a lookup for something that is never coming back. A cap that is
+  /// DECLINED does not stamp — a decline is a judgement about state that can
+  /// change, so it is re-made rather than frozen.
   ///
   /// The cap is armed by the successor's FIRST PKAM authentication rather than
   /// at the moment the server stores it. Storing the record proves only that
@@ -101,6 +113,22 @@ class EnrollDataStoreValue {
 
   EnrollDataStoreValue(
       this.sessionId, this.appName, this.deviceName, this.apkamPublicKey);
+
+  /// A "root" enrollment: read-write on every namespace AND on `__manage`.
+  ///
+  /// This is what the first (CRAM-path) enrollment is auto-granted, and what a
+  /// later enrollment must be given explicitly to hold full privileges.
+  /// Holding `*` alone does not qualify, and neither does `__manage` alone.
+  ///
+  /// Full privilege rather than the ability to approve, because those differ
+  /// and the difference decides whether an atSign can recover. Approving is
+  /// checked per namespace against what the approver itself holds, so an
+  /// enrollment with `__manage` but not `*` can admit new enrollments and can
+  /// never admit one carrying `*` — it keeps an atSign running but cannot
+  /// restore a root to it.
+  bool get isRootEnrollment =>
+      namespaces[EnrollmentConstants.allNamespaces] == 'rw' &&
+      namespaces[EnrollmentConstants.enrollManageNamespace] == 'rw';
 
   factory EnrollDataStoreValue.fromJson(Map<String, dynamic> json) =>
       _$EnrollDataStoreValueFromJson(json);

@@ -744,17 +744,29 @@ class AtSecondaryConfig {
         48;
   }
 
-  /// How long a parent enrollment keeps authenticating after one of its
-  /// APKAM-authenticated connections self-enrolls a fresh enrollment
-  /// (RF-SRV). The parent is capped to `min(now + this, its existing expiry)`
-  /// WITHOUT being removed, so sibling clones of the same keyfile can still
-  /// retrofit until the cap elapses.
+  /// How long a superseded enrollment keeps authenticating after the
+  /// enrollment that replaced it FIRST AUTHENTICATES.
   ///
-  /// The default (30 days) is deliberately generous, and the cap RE-ARMS on
-  /// every sibling retrofit: cloned keyfiles upgrade on schedules measured in
-  /// whenever-each-device-next-runs, so the parent retires one grace period
-  /// after the LAST clone upgrades, not the first. A laggard stranded past
-  /// the window recovers via an ordinary OTP enrollment.
+  /// A retrofit replaces the credential its connection authenticated as. The
+  /// predecessor is capped rather than removed, so sibling clones of the same
+  /// keyfile can still upgrade until the cap elapses — and the clock starts
+  /// when the successor proves it can authenticate, not when the server
+  /// stores it, because storing it proves only that the server wrote a
+  /// record while the private half lives client-side.
+  ///
+  /// The cap written is `min(this, what the predecessor's own key-expiry
+  /// posture leaves it)`, and NOT folded against a previously written cap:
+  /// re-arming has to be able to push a deadline OUT, or the first sibling's
+  /// upgrade fixes a date every laggard is then stranded behind. It re-arms
+  /// once per successor, so the predecessor retires one grace period after
+  /// the LAST clone upgrades. A laggard stranded past the window recovers via
+  /// an ordinary OTP enrollment.
+  ///
+  /// The default (30 days) is deliberately generous. Two cases decline to cap
+  /// at all — a predecessor that is not approved, and a fully-privileged one
+  /// whose successor would be gone before the deadline with no other
+  /// fully-privileged enrollment surviving it. See
+  /// [EnrollmentManager.armRetrofitCapOnFirstAuth].
   static int get apkamSelfEnrollmentGraceHours {
     return _getIntEnvVar('apkamSelfEnrollmentGraceHours') ??
         getNullableIntFromYaml(

@@ -3,8 +3,9 @@
   An APKAM-authenticated `enroll:request` replaces the enrollment it
   authenticated as rather than descending from it, so the successor now holds
   exactly that enrollment's namespaces. `namespaces` is optional on this path:
-  omit it and the predecessor's grants are inherited; state it and it must name
-  exactly them, or the request is refused. Previously a retrofit held whatever
+  omit it — or send an empty map, which states nothing — and the predecessor's
+  grants are inherited; name grants and they must be exactly the predecessor's,
+  or the request is refused. Previously a retrofit held whatever
   it asked for, bounded only from above, so it could mint a successor unable to
   do what the credential it replaced could — a loss that surfaces at the next
   thing the app does rather than at the request that caused it. Asking for MORE
@@ -22,15 +23,51 @@
   successor, so a predecessor retires one grace period after the last sibling
   upgrades, and a successor's own repeated connections never extend it.
 
-  Two conditions stop the cap, and both still record that the successor has
-  been seen so the check is not repeated on every later connection. A
-  predecessor that is not approved is left alone: capping writes the record
-  back, and a write carries the enrollment's per-enrollment data with it, so
-  capping a revoked predecessor would republish the signing key a revocation
-  had just parked. And a successor that would expire BEFORE the cap deadline
-  does not arm it: retiring a working credential in favour of one with less
-  life left is how an atSign ends up with neither. Grants alone do not make a
-  successor a replacement — it has to outlive what it replaces.
+  Two conditions stop the cap, and neither is remembered: both are judgements
+  about state that can change, so they are re-made on the successor's next
+  authentication rather than frozen into the record. A predecessor that is not
+  approved is left alone — it is already retired, and capping it would hand it
+  a fresh expiry it has no business carrying; an unrevoke restores an ordinary
+  predecessor and must not find it permanently exempt. And a predecessor
+  holding `__manage:rw` is left alone when no OTHER enrollment would still be
+  alive to approve a replacement once the cap fired — the case that would leave
+  an atSign unable to admit one. Every other predecessor is capped regardless
+  of how long its successor lives: declining more widely than that would switch
+  retirement off for any fleet whose APKAM keys are shorter-lived than the
+  grace, and would make the grace setting work backwards, a longer grace
+  declining more often.
+
+  The cap never extends an enrollment past the expiry its record already
+  carries, and that expiry is measured from APPROVAL rather than from the
+  request. A record that carries no expiry does not expire, whatever posture
+  its stored value states, so nothing but the grace bounds the cap there. The two differ by the approval latency, and a
+  request-anchored measurement went negative for an enrollment retrofitted
+  between them — capping it to one millisecond, killing a credential with hours
+  of legitimate life left and locking out every sibling clone that had still to
+  upgrade.
+- fix: arming the cap no longer reverts a concurrent change to the successor.
+  The successor's record is read immediately before it is written rather than
+  before the predecessor lookup and the cap, so an `enroll:update` rotating its
+  APKAM public key, or an `enroll:revoke` of it, is no longer overwritten from
+  a stale snapshot. The keystore has no compare-and-set, so this narrows the
+  window rather than closing it.
+- `enroll:list` responses carry a new `predecessorCapArmedAt` field on an
+  enrollment that has retired the one it replaced: the UTC instant it did so.
+  Absent on every other enrollment, and on any record written before this
+  release.
+- `apkamSelfEnrollmentGraceHours` is now documented in `config.yaml` with its
+  720-hour default. It was already read from there and from the environment;
+  it governs every enrollment now that the first-enrollment exemption is gone,
+  so it should not have been invisible.
+- fix: approving an enrollment whose key-expiry posture is zero or negative no
+  longer leaves it carrying the approval window as its deadline. The metadata
+  builder derives an expiry only for a ttl of zero or more, so a negative one
+  skipped the derivation and the PENDING record's expiry — the window the
+  request had to be approved in, 48 hours by default — survived onto the
+  approved enrollment. The credential then expired on a deadline nobody asked
+  for, and a retrofit cap measured against that stale value appeared to EXTEND
+  the enrollment rather than shorten it. A non-positive posture is now written
+  as the keystore's "never expires", which is what it asks for.
 - fix: amending or revoking an enrollment no longer restarts its expiry.
   `enroll:update`, `enroll:revoke`, `enroll:deny` and `enroll:unrevoke` each
   wrote the record with no statement about expiry, and the metadata builder
@@ -44,18 +81,24 @@
 - BREAKING for operators: `preserveFirstEnrollmentOnRetrofit` is removed, from
   `config.yaml` and from the environment. It exempted the atSign's first
   enrollment from the retrofit cap, because capping it could leave an atSign
-  with no enrollment able to approve a replacement. Arming on the successor's
-  authentication answers that directly — an authenticated successor holds its
-  predecessor's grants, `__manage` included — so one rule now covers every
-  enrollment, the CRAM-minted root included. A deployment that still sets the
-  key needs no change: config is read by explicit key lookup with no schema
-  validation, so an unknown key is never read.
+  with no enrollment able to approve a replacement. That case is now answered
+  where it actually arises rather than by exempting one enrollment: the cap
+  declines when a fully-privileged predecessor would be retired and no other
+  fully-privileged enrollment survives the deadline. "Fully privileged" —
+  read-write on both `*` and `__manage` — rather than merely able to approve,
+  because approving is checked per namespace against what the approver itself
+  holds, so a `__manage`-only enrollment can admit new enrollments and can
+  never admit one carrying `*`. The exemption asked whether an enrollment was
+  the FIRST; the question that always mattered is whether it is the LAST. A
+  deployment that still sets the key needs no change: config is read by
+  explicit key lookup with no schema validation, so an unknown key is never
+  read.
 
   This applies to enrollments that already exist. An atSign that retrofitted
   under the exemption has a root carrying no expiry and a successor carrying no
   record of having armed anything; on that successor's first connection after
-  the upgrade the root is capped for the first time, and retires one grace
-  period later. Where a predecessor had already been capped by the previous
+  the upgrade the root is capped for the first time — unless one of the two
+  conditions above applies — and retires one grace period later. Where a predecessor had already been capped by the previous
   server, that first connection re-arms it once, giving it a fresh grace period
   rather than folding into the deadline it already had. Operators who scheduled
   around the old deadlines should expect one such shift per already-retrofitted

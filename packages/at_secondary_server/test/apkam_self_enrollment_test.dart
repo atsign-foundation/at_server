@@ -154,7 +154,7 @@ void main() {
   }
 
   test(
-      'an approved enrollment self-enrolls a subset child, auto-approved, '
+      'an approved enrollment is replaced by a successor holding its grants, '
       'no OTP', () async {
     // The parent: an ordinary approved enrollment with scoped grants.
     final parentId = (await etu.createEnrollments(n: 1)).$1.first;
@@ -209,7 +209,7 @@ void main() {
         () => selfEnroll(
             parentEnrollmentId: parentId, namespaces: {'other_ns': 'rw'}),
         throwsA(isA<UnAuthorizedException>().having(
-            (e) => e.message, 'message', contains('exceeds the parent'))),
+            (e) => e.message, 'message', contains('exceeds the predecessor'))),
         reason: 'a scoped keyfile must not self-spawn grants it never held');
   });
 
@@ -359,6 +359,12 @@ void main() {
     final value = EnrollDataStoreValue.fromJson(jsonDecode(atData!.data!));
     value.apkamKeysExpiryDuration = Duration(hours: 1);
     atData.data = jsonEncode(value.toJson());
+    // Both halves, because that is what enroll:approve writes: the posture
+    // into the value AND a ttl onto the record, from which the metadata
+    // builder derives the expiry the record actually carries. Setting only
+    // the value produces the CRAM shape — a posture the record never had —
+    // which the fold deliberately ignores.
+    atData.metaData!.ttl = Duration(hours: 1).inMilliseconds;
     await enMgr.put(parentId, atData, EnrollmentStatus.approved);
 
     // The successor must AUTHENTICATE, or no cap is armed at all and the
@@ -774,7 +780,7 @@ void main() {
               parentEnrollmentId: parentId,
               namespaces: {'app_1': 'rw', 'test': 'r', 'other_ns': 'rw'}),
           throwsA(isA<UnAuthorizedException>().having(
-              (e) => e.message, 'message', contains('exceeds the parent'))),
+              (e) => e.message, 'message', contains('exceeds the predecessor'))),
           reason: 'asking for MORE is a different mistake from asking for '
               'less, and a caller handed one message for both cannot tell '
               'which it made');
@@ -783,11 +789,9 @@ void main() {
 
   /// The fold the cap writes, asserted directly.
   ///
-  /// Through the arming path this is not cleanly measurable: a predecessor
-  /// with a short posture produces a short deadline, and anything that
-  /// lengthens the deadline trips the shorter-lived-successor guard instead,
-  /// so a broken fold shows up as "no cap written" rather than as a wrong
-  /// number. Asserting the fold on its own separates the two.
+  /// Through the arming path this is not cleanly measurable: shortening a
+  /// deadline can trip the shorter-lived-successor guard instead, so a broken
+  /// fold shows up as "no cap written" rather than as a wrong number.
   group('the retrofit cap fold', () {
     final now = DateTime.utc(2026, 1, 1, 12);
     final graceMs =
@@ -798,44 +802,294 @@ void main() {
         EnrollDataStoreValue('s', 'app', 'device', 'pk')
           ..apkamKeysExpiryDuration = d;
 
-    test('no posture gives the whole grace', () {
+    test('a record that never expires is bounded only by the grace', () {
       expect(
           enMgr.retrofitCapTtlMillis(
               AtMetaData()..createdAt = now, withPosture(Duration.zero), now),
+          graceMs);
+      expect(enMgr.retrofitCapTtlMillis(null, withPosture(Duration.zero), now),
           graceMs,
-          reason: 'a predecessor with no key-expiry posture is bounded only '
-              'by the migration grace');
+          reason: 'and a record with no metadata at all is the same case');
     });
 
-    test('a posture shorter than the grace wins', () {
-      final created = now.subtract(Duration(minutes: 10));
+    test('a POSTURE with no stored expiry does not bound anything', () {
+      // The CRAM shape, and the one that made this dangerous. The root record
+      // is written with no metadata at all, so it never expires — while its
+      // VALUE carries whatever posture the request stated. Folding against a
+      // posture the record never had puts the deadline in the past for any
+      // root older than that posture, and the 1ms floor then kills it
+      // instantly, locking every sibling clone out of the migration.
       expect(
-          enMgr.retrofitCapTtlMillis(AtMetaData()..createdAt = created,
-              withPosture(Duration(hours: 1)), now),
+          enMgr.retrofitCapTtlMillis(
+              AtMetaData()..createdAt = now.subtract(Duration(days: 60)),
+              withPosture(Duration(days: 7)),
+              now),
+          graceMs,
+          reason: 'the record stores no expiry, so it does not expire, and '
+              'only the migration grace bounds the cap');
+    });
+
+    test('a stored expiry sooner than the grace wins', () {
+      expect(
+          enMgr.retrofitCapTtlMillis(
+              AtMetaData()
+                ..createdAt = now.subtract(Duration(minutes: 10))
+                ..expiresAt = now.add(Duration(minutes: 50)),
+              withPosture(Duration(hours: 1)),
+              now),
           Duration(minutes: 50).inMilliseconds,
-          reason: 'the cap may never outlive the expiry the enrollment\'s own '
-              'posture already imposes, and what remains is measured from '
-              'when the record was created, not from the whole posture');
+          reason: 'the cap may never outlive the expiry the enrollment '
+              'already carries');
     });
 
-    test('a posture longer than the grace does not extend it', () {
+    test('a stored expiry later than the grace does not extend it', () {
       expect(
-          enMgr.retrofitCapTtlMillis(AtMetaData()..createdAt = now,
-              withPosture(Duration(days: 3650)), now),
+          enMgr.retrofitCapTtlMillis(
+              AtMetaData()
+                ..createdAt = now
+                ..expiresAt = now.add(Duration(days: 3650)),
+              withPosture(Duration(days: 3650)),
+              now),
           graceMs,
-          reason: 'the fold is a min, not a max — a long-lived predecessor '
-              'still retires one grace period after its last successor');
+          reason: 'the fold is a min, not a max');
     });
 
-    test('a spent posture is floored at 1ms, never at zero', () {
-      final created = now.subtract(Duration(hours: 5));
+    test('an elapsed expiry is floored at 1ms, never at zero', () {
       expect(
-          enMgr.retrofitCapTtlMillis(AtMetaData()..createdAt = created,
-              withPosture(Duration(hours: 1)), now),
+          enMgr.retrofitCapTtlMillis(
+              AtMetaData()
+                ..createdAt = now.subtract(Duration(hours: 5))
+                ..expiresAt = now.subtract(Duration(hours: 4)),
+              withPosture(Duration(hours: 1)),
+              now),
           1,
-          reason: 'a ttl of zero is the keystore\'s "never expires", so a '
-              'posture that has already elapsed must not be written as 0 — '
-              'that would turn a spent credential into a permanent one');
+          reason: 'a ttl of zero is the keystore\'s "never expires", so an '
+              'elapsed record must not be written as 0 — that would turn a '
+              'spent credential into a permanent one');
+    });
+
+    test('the deadline is taken from approval, not from creation', () {
+      // enroll:approve starts the posture's clock at APPROVAL, writing
+      // expiresAt = approvedAt + posture, while createdAt stays at the moment
+      // the request was made. Anchoring on creation is short by the approval
+      // latency, and NEGATIVE for a record retrofitted between the two — which
+      // the floor turns into a 1ms cap on a record with hours of life left.
+      expect(
+          enMgr.retrofitCapTtlMillis(
+              AtMetaData()
+                ..createdAt = now.subtract(Duration(hours: 8))
+                ..expiresAt = now.add(Duration(hours: 7)),
+              withPosture(Duration(hours: 1)),
+              now),
+          Duration(hours: 7).inMilliseconds,
+          reason: 'createdAt + posture is 7 hours in the PAST here; the '
+              'stored expiry is what the record actually carries');
+    });
+
+    test('an expiry already shortened by a previous cap does not bound the '
+        're-arm', () {
+      // The other direction of the same max, and the laggard case. A first
+      // sibling capped this predecessor to a minute from now; a second sibling
+      // upgrading later must be able to push that out, or the first sibling's
+      // deadline is final and every laggard is stranded.
+      expect(
+          enMgr.retrofitCapTtlMillis(
+              AtMetaData()
+                ..createdAt = now.subtract(Duration(minutes: 10))
+                ..expiresAt = now.add(Duration(minutes: 1)),
+              withPosture(Duration(hours: 1)),
+              now),
+          Duration(minutes: 50).inMilliseconds,
+          reason: 'a previously written cap is not the posture: the posture '
+              'still has 50 minutes to run, and the re-arm may use them');
+    });
+  });
+
+  /// What `enroll:approve` writes onto the record, for postures that are not
+  /// a positive number of milliseconds.
+  group('a non-positive key-expiry posture', () {
+    Future<AtMetaData?> approveWithPosture(Duration? posture) async {
+      final id = await etu.createPendingEnrollment(
+          appName: 'posture-app',
+          deviceName: 'posture-device-${posture?.inMilliseconds}',
+          namespaces: {'wavi': 'rw'},
+          apkamKeysExpiryDuration: posture);
+      final pending =
+          await keyValueStore.get(enMgr.buildEnrollmentKey(id));
+      expect(pending?.metaData?.expiresAt, isNotNull,
+          reason: 'precondition: a PENDING enrollment carries the window it '
+              'has to be approved in, and that is the value that must not '
+              'survive approval');
+      await etu.approveEnrollment(etu.primaryEnId, id);
+      return (await keyValueStore.get(enMgr.buildEnrollmentKey(id)))?.metaData;
+    }
+
+    test('a NEGATIVE posture leaves no expiry, not the pending window\'s',
+        () async {
+      // The metadata builder derives `expiresAt` only for `ttl >= 0`, so a
+      // negative ttl skipped the derivation and left the pending record's
+      // approval window standing on the approved enrollment. The credential
+      // then carried a deadline nobody asked for — and a later retrofit cap,
+      // measured against that stale value, looked like an EXTENSION rather
+      // than a shortening.
+      final md = await approveWithPosture(Duration(milliseconds: -1));
+
+      expect(md?.expiresAt, isNull,
+          reason: 'a negative posture asks for a credential that does not '
+              'expire, and must not silently inherit the approval window');
+      expect(md?.ttl, 0,
+          reason: 'and it is written as the keystore\'s "never expires", not '
+              'passed through as a negative the builder ignores');
+    });
+
+    test('a ZERO posture leaves no expiry either', () async {
+      final md = await approveWithPosture(Duration.zero);
+      expect(md?.expiresAt, isNull);
+      expect(md?.ttl, 0);
+    });
+
+    test('a POSITIVE posture is honoured, and starts at approval', () async {
+      // The control: the clamp does not swallow real postures.
+      final md = await approveWithPosture(Duration(hours: 1));
+      expect(md?.ttl, Duration(hours: 1).inMilliseconds);
+      expect(md?.expiresAt, isNotNull);
+      expect(
+          md!.expiresAt!
+              .difference(DateTime.now().toUtc())
+              .inMinutes,
+          greaterThan(55),
+          reason: 'measured from approval, so nearly the whole hour remains');
+    });
+  });
+
+  /// A write that says nothing about expiry must not MOVE expiry.
+  ///
+  /// The metadata builder re-derives `expiresAt = now + ttl` from the RETAINED
+  /// ttl unless the stored absolute is asserted back, so without a carry every
+  /// revoke, unrevoke and self-amendment would silently push an enrollment's
+  /// deadline out — and with it any retrofit cap standing on the record. These
+  /// live here rather than only in the functional pack because the carry is
+  /// what makes the cap a deadline rather than advice, and the functional pack
+  /// needs Docker.
+  group('writes that say nothing about expiry do not move it', () {
+    Future<DateTime> expiryOf(String enrollmentId) async {
+      final rec = await keyValueStore.get(enMgr.buildEnrollmentKey(enrollmentId));
+      final at = rec?.metaData?.expiresAt;
+      expect(at, isNotNull,
+          reason: 'precondition: $enrollmentId has a deadline to move');
+      return at!;
+    }
+
+    Future<String> boundedEnrollment() async {
+      final id = (await etu.createEnrollments(n: 1)).$1.first;
+      final key = enMgr.buildEnrollmentKey(id);
+      final atData = await keyValueStore.get(key);
+      atData!.metaData!.ttl = Duration(hours: 1).inMilliseconds;
+      await enMgr.put(id, atData, EnrollmentStatus.approved);
+      return id;
+    }
+
+    test('revoke does not restart the clock', () async {
+      final id = await boundedEnrollment();
+      final before = await expiryOf(id);
+
+      await Future.delayed(Duration(milliseconds: 20));
+      await etu.revokeEnrollment(etu.primaryEnId, id);
+
+      expect(await expiryOf(id), before,
+          reason: 'revoking says nothing about expiry, so it must move '
+              'nothing — a re-derivation from "now" would show as drift');
+    });
+
+    test('unrevoke does not restart the clock', () async {
+      final id = await boundedEnrollment();
+      final before = await expiryOf(id);
+      await etu.revokeEnrollment(etu.primaryEnId, id);
+
+      await Future.delayed(Duration(milliseconds: 20));
+      await etu.unrevokeEnrollment(etu.primaryEnId, id);
+
+      expect(await expiryOf(id), before,
+          reason: 'and neither does putting it back: an enrollment must not '
+              'be able to renew itself by cycling its own state');
+    });
+  });
+
+  /// Who could still restore this atSign, asserted directly.
+  ///
+  /// Through the arming path only one branch is reachable — the successor
+  /// itself — so the question this asks of OTHER enrollments has to be put to
+  /// it here. Every case asks about `etu.primaryEnId`, the CRAM root, which
+  /// excludes it from its own answer and leaves the minted probe deciding.
+  group('hasRootEnrollmentAliveAfter', () {
+    final deadline = DateTime.now().toUtc().add(Duration(days: 30));
+
+    Future<void> mint(String id, Map<String, String> namespaces,
+        {Duration? ttl,
+        EnrollmentStatus status = EnrollmentStatus.approved}) async {
+      final v = EnrollDataStoreValue('s', 'app-$id', 'device-$id', 'pk')
+        ..namespaces = namespaces
+        ..approval = EnrollApproval(status.name);
+      await enMgr.put(
+          id,
+          AtData()
+            ..data = jsonEncode(v.toJson())
+            ..metaData = (AtMetaData()..ttl = ttl?.inMilliseconds ?? 0),
+          status);
+    }
+
+    test('an enrollment does not count itself', () async {
+      // Nothing else fully privileged exists, so a true here could only mean
+      // the root vouched for itself — and the guard could then never fire.
+      expect(
+          await enMgr.hasRootEnrollmentAliveAfter(etu.primaryEnId, deadline),
+          isFalse);
+    });
+
+    test('another fully-privileged enrollment counts', () async {
+      await mint('probe-root', {'*': 'rw', '__manage': 'rw'});
+      expect(
+          await enMgr.hasRootEnrollmentAliveAfter(etu.primaryEnId, deadline),
+          isTrue);
+    });
+
+    test('a __manage holder WITHOUT * does not count', () async {
+      // It can admit new enrollments and can never admit one carrying `*`,
+      // because approving is checked per namespace against what the approver
+      // itself holds. It keeps an atSign running; it cannot give it a root.
+      await mint('probe-manage', {'wavi': 'rw', '__manage': 'rw'});
+      expect(
+          await enMgr.hasRootEnrollmentAliveAfter(etu.primaryEnId, deadline),
+          isFalse,
+          reason: 'the question is who can restore full privilege, not who '
+              'can approve');
+    });
+
+    test('a * holder without __manage does not count', () async {
+      await mint('probe-star', {'*': 'rw'});
+      expect(
+          await enMgr.hasRootEnrollmentAliveAfter(etu.primaryEnId, deadline),
+          isFalse,
+          reason: '`*` does not imply `__manage` anywhere else in the server '
+              'and must not here');
+    });
+
+    test('a root that expires before the deadline does not count', () async {
+      await mint('probe-shortlived', {'*': 'rw', '__manage': 'rw'},
+          ttl: Duration(minutes: 1));
+      expect(
+          await enMgr.hasRootEnrollmentAliveAfter(etu.primaryEnId, deadline),
+          isFalse,
+          reason: 'an enrollment that will be gone when the cap fires cannot '
+              'be what keeps the atSign recoverable');
+    });
+
+    test('an unapproved root does not count', () async {
+      await mint('probe-revoked', {'*': 'rw', '__manage': 'rw'},
+          status: EnrollmentStatus.revoked);
+      expect(
+          await enMgr.hasRootEnrollmentAliveAfter(etu.primaryEnId, deadline),
+          isFalse);
     });
   });
 
@@ -954,10 +1208,10 @@ void main() {
 
     test('a REVOKED predecessor is not capped, and is not written back',
         () async {
-      // Capping writes the record, and `put` moves an enrollment's
-      // per-enrollment data to match the status it is given. Writing a revoked
-      // predecessor back as approved republishes `_apsk.<id>.a.__e@` — the
-      // signing key every verifier resolves — undoing half a revocation.
+      // A revoked predecessor is already retired. Capping it would write the
+      // record back and hand it a fresh ttl it has no business carrying, and
+      // an enrollment that is on no retirement clock must not acquire one by
+      // being superseded.
       //
       // Before the cap moved to authentication time this could not arise: the
       // cap ran microseconds after the handler had checked the predecessor was
@@ -985,9 +1239,10 @@ void main() {
           EnrollmentStatus.revoked.name,
           reason: 'and it stays revoked');
       expect((await enMgr.getEnrollmentById(childId)).predecessorCapArmedAt,
-          isNotNull,
-          reason: 'the successor is still stamped, or every later connection '
-              're-walks a predecessor that will never be capped');
+          isNull,
+          reason: 'and nothing is recorded as armed, because nothing was: an '
+              'unrevoke restores an ordinary predecessor and the decision has '
+              'to be re-made rather than frozen');
     });
 
     test('a successor that dies before the cap deadline does not arm it',
@@ -1043,6 +1298,117 @@ void main() {
           reason: 'and the atSign keeps an approver: the successor holds '
               '__manage verbatim, which is what makes capping the root safe');
       expect(successor.namespaces['*'], 'rw');
+    });
+
+    test(
+        'an ORDINARY predecessor is capped even by a short-lived successor',
+        () async {
+      // The guard spares only the last enrollment able to approve another.
+      // Declining more widely than that would switch retirement off for any
+      // fleet whose APKAM keys are shorter-lived than the grace — silently,
+      // and with the grace knob working backwards, since a longer grace would
+      // decline more often.
+      final parentId = (await etu.createEnrollments(n: 1)).$1.first;
+      final parentBefore = await enMgr.getEnrollmentById(parentId);
+      expect(parentBefore.namespaces.containsKey('__manage'), isFalse,
+          reason: 'precondition: an ordinary predecessor, not an approver, so '
+              'capping it strands nothing');
+
+      final (childId, childKey) = await retrofitWithRealKey(parentId,
+          apkamKeysExpiryDuration: Duration(minutes: 1));
+      await authenticateAs(childId, childKey, sessionId: 'ordinary-short');
+
+      expect(
+          (await keyValueStore.get(enMgr.buildEnrollmentKey(parentId)))
+              ?.metaData
+              ?.expiresAt,
+          isNotNull,
+          reason: 'a short-lived successor still retires an ordinary '
+              'predecessor: there are other approvers behind it, so nothing '
+              'is stranded and the migration must still make progress');
+    });
+
+    test(
+        'an ordinary predecessor is capped even when NOTHING could restore a '
+        'root', () async {
+      // Pins the short-circuit. Without it the guard would ask "does any root
+      // survive?" of every predecessor, and answer no here — declining to
+      // retire an ordinary credential whose loss strands nothing. Capping an
+      // enrollment that never held full privilege cannot remove full
+      // privilege, so the question does not arise for it.
+      //
+      // The ordinary predecessor is minted FIRST: creating an enrollment goes
+      // through otp:get, which needs __manage, and the root is the only holder.
+      final parentId = (await etu.createEnrollments(n: 1)).$1.first;
+      expect((await enMgr.getEnrollmentById(parentId)).isRootEnrollment,
+          isFalse,
+          reason: 'precondition: an ordinary predecessor');
+
+      // Now revoke the atSign's only root, so a guard that skipped the
+      // short-circuit would have no surviving root to find. Written directly:
+      // the server refuses an enrollment revoking itself, and there is no
+      // other approver here to do it.
+      final rootKey = enMgr.buildEnrollmentKey(etu.primaryEnId);
+      final rootData = await keyValueStore.get(rootKey);
+      final rootValue =
+          EnrollDataStoreValue.fromJson(jsonDecode(rootData!.data!));
+      rootValue.approval = EnrollApproval(EnrollmentStatus.revoked.name);
+      rootData.data = jsonEncode(rootValue.toJson());
+      await enMgr.put(etu.primaryEnId, rootData, EnrollmentStatus.revoked);
+
+      expect(
+          await enMgr.hasRootEnrollmentAliveAfter(
+              parentId, DateTime.now().toUtc().add(Duration(days: 30))),
+          isFalse,
+          reason: 'precondition: nothing could restore a root, so only the '
+              'short-circuit can be what lets the cap through');
+
+      final (childId, childKey) = await retrofitWithRealKey(parentId,
+          apkamKeysExpiryDuration: Duration(minutes: 1));
+      await authenticateAs(childId, childKey, sessionId: 'ordinary-noroot');
+
+      expect(
+          (await keyValueStore.get(enMgr.buildEnrollmentKey(parentId)))
+              ?.metaData
+              ?.expiresAt,
+          isNotNull,
+          reason: 'the migration must still make progress for ordinary '
+              'credentials, whatever state the atSign\'s roots are in');
+    });
+
+    test('a declined cap is re-decided on the next authentication', () async {
+      // A decline is a judgement about state that can change. Freezing it into
+      // the record would make an unrevoke — or simply revoking the wrong
+      // enrollment and putting it back — a permanent exemption.
+      final parentId = (await etu.createEnrollments(n: 1)).$1.first;
+      final (childId, childKey) = await retrofitWithRealKey(parentId);
+
+      final key = enMgr.buildEnrollmentKey(parentId);
+      final atData = await keyValueStore.get(key);
+      final value = EnrollDataStoreValue.fromJson(jsonDecode(atData!.data!));
+      value.approval = EnrollApproval(EnrollmentStatus.revoked.name);
+      atData.data = jsonEncode(value.toJson());
+      await enMgr.put(parentId, atData, EnrollmentStatus.revoked);
+
+      await authenticateAs(childId, childKey, sessionId: 'declined-1');
+      expect((await enMgr.getEnrollmentById(childId)).predecessorCapArmedAt,
+          isNull,
+          reason: 'nothing was armed, so nothing is recorded as armed — the '
+              'successor must ask again rather than carry a stale verdict');
+
+      // Put the predecessor back the way an unrevoke would.
+      final back = await keyValueStore.get(key);
+      final restored = EnrollDataStoreValue.fromJson(jsonDecode(back!.data!));
+      restored.approval = EnrollApproval(EnrollmentStatus.approved.name);
+      back.data = jsonEncode(restored.toJson());
+      await enMgr.put(parentId, back, EnrollmentStatus.approved);
+
+      await authenticateAs(childId, childKey, sessionId: 'declined-2');
+      expect((await keyValueStore.get(key))?.metaData?.expiresAt, isNotNull,
+          reason: 'and once the condition clears it arms, rather than staying '
+              'exempt for the life of the atSign');
+      expect((await enMgr.getEnrollmentById(childId)).predecessorCapArmedAt,
+          isNotNull);
     });
 
     test('a predecessor that is already gone is not an error', () async {

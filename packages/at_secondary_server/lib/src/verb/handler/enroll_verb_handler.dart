@@ -461,7 +461,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
               (statedExpiryMs <= 0 || statedExpiryMs > parentExpiryMs))) {
         logger.warning(
             'Self-enrollment under $parentEnrollmentId asked for a key-expiry '
-            'of ${statedExpiryMs}ms against a parent bound to '
+            'of ${statedExpiryMs}ms against a predecessor bound to '
             '${parentExpiryMs}ms; using the parent\'s');
         enrollmentValue.apkamKeysExpiryDuration =
             parent.apkamKeysExpiryDuration;
@@ -522,10 +522,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     await enMgr.put(newEnrollmentId, enrollData, EnrollmentStatus.pending);
   }
 
-  /// Rejects any requested grant the parent enrollment does not itself hold.
+  /// Rejects any requested grant the predecessor enrollment does not hold.
   ///
   /// Subset per namespace and per access letter: `r` fits under `rw`, never
-  /// the reverse. A parent's `*` grant covers any ordinary namespace at the
+  /// the reverse. A predecessor's `*` grant covers any ordinary namespace at
   /// letters it carries — mirroring the server's own authorisation — but
   /// `__manage` and `*` themselves must be held literally: `*` does not imply
   /// `__manage` anywhere else in the server, and it must not here.
@@ -544,8 +544,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           !entry.value.split('').every(held.split('').contains)) {
         throw UnAuthorizedException(
             'Requested namespace "${entry.key}:${entry.value}" exceeds the '
-            'parent enrollment\'s grants — a self-enrollment can hold at '
-            'most what its parent holds');
+            'predecessor enrollment\'s grants — a retrofit carries exactly '
+            'what the enrollment it replaces holds');
       }
     }
   }
@@ -654,8 +654,19 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       String ek = enMgr.buildEnrollmentKey(enId);
       AtMetaData emd = await keyStore.getMeta(ek) ?? AtMetaData();
       // Update key with new data
-      // Update ttl value to support auto expiry of APKAM keys
-      emd.ttl = enVal.apkamKeysExpiryDuration.inMilliseconds;
+      // Update ttl value to support auto expiry of APKAM keys.
+      //
+      // A non-positive posture is a request for a credential that does not
+      // expire, and is written as ttl 0 — the keystore's "never expires" —
+      // rather than passed through. A NEGATIVE ttl is not "no expiry": the
+      // metadata builder derives `expiresAt` only for `ttl >= 0`, so a
+      // negative one skips the derivation and leaves the PENDING record's
+      // expiry standing on the approved enrollment. The credential then
+      // carries a deadline nobody asked for, inherited from the window it had
+      // to be approved in — and a later retrofit cap, measuring against that
+      // stale value, appears to EXTEND the enrollment rather than shorten it.
+      final int postureMs = enVal.apkamKeysExpiryDuration.inMilliseconds;
+      emd.ttl = postureMs > 0 ? postureMs : 0;
       atData.metaData = emd;
     }
     // A write that says nothing about expiry must not MOVE expiry. The
