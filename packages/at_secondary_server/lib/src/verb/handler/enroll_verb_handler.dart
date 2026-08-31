@@ -232,6 +232,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           currentAtSign,
           responseJson,
           response,
+          atConnection,
         );
         break;
       case 'update':
@@ -1686,11 +1687,51 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       EnrollParams? enrollParams,
       String atSign,
       Map responseJson,
-      response) async {
+      response,
+      InboundConnection atConnection) async {
     // Note: The enrollmentId is verified for the null check in the _validateParams methods.
     // Therefore, when control comes here, enrollmentId will not be null.
+    final String targetEnrollmentId = enrollParams!.enrollmentId!;
     EnrollDataStoreValue enVal =
-        await enMgr.getEnrollmentById(enrollParams!.enrollmentId!);
+        await enMgr.getEnrollmentById(targetEnrollmentId);
+
+    // A caller may always delete its OWN enrollment (and a no-enrollmentId
+    // CRAM/owner connection may delete any). Deleting ANOTHER enrollment
+    // requires __manage AND access to EVERY namespace the target holds — the
+    // same bar as approve/deny/revoke/fetch, and the same exemptions.
+    //
+    // Asked BEFORE the status checks below, so a caller that may not delete
+    // this enrollment does not learn its state from the refusal it gets.
+    //
+    // Delete is irreversible and it was the only operation naming a target
+    // that asked nothing: `enroll:fetch`, which reads a secret rather than
+    // destroying a record, has had this check all along. Two things now rest
+    // on it that did not before. `EnrollmentManager.descendantsOf` climbs
+    // `parentEnrollmentId` and fetches each link BY KEY, which is what keeps
+    // an EXPIRED link traversable — a DELETED one is gone, so a delete of a
+    // middle link puts everything behind it permanently out of reach of a
+    // later cascade. And [_refuseIfPredecessorNotApproved] permits an
+    // enrollment whose predecessor no longer exists, so deleting that
+    // predecessor is what makes the orphan un-revokable.
+    final inboundConnectionMetadata =
+        atConnection.metaData as InboundConnectionMetadata;
+    final callerEnrollmentId = inboundConnectionMetadata.enrollmentId;
+    if (callerEnrollmentId != null &&
+        callerEnrollmentId.isNotEmpty &&
+        callerEnrollmentId != targetEnrollmentId) {
+      for (final MapEntry<String, String> entry in enVal.namespaces.entries) {
+        final bool isAuthorised = await isAuthorized(inboundConnectionMetadata,
+            namespace: entry.key,
+            enrolledNamespaceAccess: entry.value,
+            operation: 'delete');
+        if (!isAuthorised) {
+          throw UnAuthorizedException(
+              'Not authorized to delete enrollment $targetEnrollmentId:'
+              ' requires __manage and access to all of its namespaces');
+        }
+      }
+    }
+
     EnrollmentStatus status =
         EnrollmentStatus.values.byName(enVal.approval!.state);
     if (EnrollmentStatus.expired == status) {

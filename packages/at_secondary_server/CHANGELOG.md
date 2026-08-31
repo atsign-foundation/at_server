@@ -29,6 +29,35 @@
 - fix: connections are dropped for every enrollment the revoke intended,
   rather than only those this call changed — a retry after a partial failure
   found the descendants already revoked and so dropped nothing for them.
+- fix: `enroll:delete` asks who is calling. It was the only enrollment
+  operation naming a target that checked nothing beyond "is this connection
+  authenticated" — so any APKAM connection, holding any single namespace and
+  no `__manage`, could destroy any denied or revoked enrollment on the atSign.
+  `enroll:fetch`, which only READS the target, has always required `__manage`
+  and access to every namespace the target holds; delete, which is
+  irreversible, asked for neither. The omission was an oversight rather than a
+  decision, and delete now applies exactly the gate fetch does, with the same
+  two exemptions: a caller may always delete its OWN enrollment, and a
+  connection carrying no enrollment id (CRAM or legacy-PKAM — the atSign
+  itself) may delete any.
+
+  Asked BEFORE the status checks, so a caller that may not touch an enrollment
+  does not learn from the refusal whether it is approved, denied or revoked.
+
+  Two things had come to rest on this. `EnrollmentManager.descendantsOf`
+  fetches each `parentEnrollmentId` link BY KEY, which is what keeps an
+  EXPIRED link traversable — a DELETED one is gone, so deleting a middle link
+  puts everything behind it permanently beyond the reach of a later cascade.
+  And the predecessor-not-approved refusal permits an enrollment whose
+  predecessor no longer exists, so deleting that predecessor is what makes the
+  orphan un-revokable.
+
+  ⚠️ This NARROWS a shipped capability. An enrollment holding `__manage` but
+  not the target's namespaces could delete it before and cannot now — the same
+  asymmetry already closed on `revoke`. `at_onboarding_cli`'s `delete` command
+  takes an arbitrary `--enrollment-id`, so it is affected whenever it runs as
+  an enrollment rather than from an owner keyfile; an enrollment that could
+  not have revoked the target can no longer destroy its record either.
 - perf: a revoke moves per-enrollment data ONCE for the whole cascade.
   `getKeys` walks every key the atSign holds, and the move was made per
   enrollment, so revoking a chain of K descendants cost K+2 whole-store scans
