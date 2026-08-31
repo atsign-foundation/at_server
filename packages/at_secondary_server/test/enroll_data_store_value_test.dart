@@ -114,5 +114,30 @@ void main() {
               .predecessorCapArmedAt,
           isNull);
     });
+
+    test('revokedAt round-trips under its at-rest name', () {
+      // This one leaves the server: `enroll:list` serialises the record whole,
+      // so the key name is what a client reads a revocation time out of. The
+      // writer and reader are the same hand-maintained pair in the .g.dart, so
+      // a symmetric rename passes every test that goes through the typed
+      // getter while every already-stored record silently loses its stamp and
+      // every client stops seeing one.
+      final revokedAt = DateTime.utc(2026, 8, 31, 12, 34, 56, 789);
+      final v = EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey')
+        ..revokedAt = revokedAt;
+
+      expect(v.toJson()['revokedAt'], '2026-08-31T12:34:56.789Z',
+          reason: 'raw literal: the key name and the ISO-8601 encoding are '
+              'the wire contract a client compares against other '
+              'server-stamped times');
+      expect(EnrollDataStoreValue.fromJson(v.toJson()).revokedAt, revokedAt);
+
+      final live = EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey');
+      expect(live.toJson().containsKey('revokedAt'), false,
+          reason: 'omitted rather than written null, so a record from before '
+              'this field existed, and every enrollment that is not revoked, '
+              'read back the same way');
+      expect(EnrollDataStoreValue.fromJson(live.toJson()).revokedAt, isNull);
+    });
   });
 }

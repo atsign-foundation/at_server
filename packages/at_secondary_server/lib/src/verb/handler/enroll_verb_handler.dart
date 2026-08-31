@@ -708,6 +708,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
     EnrollmentStatus newEnrollmentStatus = _getEnrollStatusEnum(operation);
     enVal.approval!.state = newEnrollmentStatus.name;
+    // `revokedAt` is present exactly when the record reads `revoked`, so it is
+    // set and cleared by the same line rather than only stamped. An un-revoke
+    // maps to `approved` here, and leaving the stamp behind would put a
+    // revocation time on a record that is active again.
+    enVal.revokedAt = newEnrollmentStatus == EnrollmentStatus.revoked
+        ? DateTime.now().toUtc()
+        : null;
     responseJson['status'] = newEnrollmentStatus.name;
 
     // Update the enrollment status against the enrollment key in keystore.

@@ -1,4 +1,21 @@
 # 3.16.4
+- feat: a revoked enrollment records WHEN, as `revokedAt` on the enrollment
+  value. Present exactly when the record reads `revoked`: every transition into
+  that state stamps it — the enrollment an operator named and every one a
+  cascade swept up alike, so a reader never has to know which happened — and a
+  transition back out clears it. `enroll:list` serialises the record whole, so
+  it reaches clients with no new verb and no new record type, and it is the
+  atServer's own clock, which is what lets a consumer order a revocation
+  against other timestamps the atServer stamped rather than against a client's.
+
+  Un-revoking therefore withdraws the revocation rather than recording that one
+  happened. That is deliberate and it has a cost: if a revocation was a genuine
+  compromise and the un-revoke is a mistake, nothing remembers it.
+
+  It is on the value rather than in record metadata because metadata timestamps
+  are re-derived by the metadata builder on any write that does not assert them
+  back, so a revocation time living there would be moved by writes that say
+  nothing about it.
 - feat: revoking an enrollment revokes everything that replaced it. Self
   enrollment makes enrollments a graph — a retrofit's successor records what it
   replaced — and a stolen keyfile can mint a successor before the theft is

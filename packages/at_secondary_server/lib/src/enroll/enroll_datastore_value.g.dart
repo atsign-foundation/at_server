@@ -41,7 +41,10 @@ EnrollDataStoreValue _$EnrollDataStoreValueFromJson(
       ..parentEnrollmentId = json['parentEnrollmentId'] as String?
       ..predecessorCapArmedAt = json['predecessorCapArmedAt'] == null
           ? null
-          : DateTime.parse(json['predecessorCapArmedAt'] as String);
+          : DateTime.parse(json['predecessorCapArmedAt'] as String)
+      ..revokedAt = json['revokedAt'] == null
+          ? null
+          : DateTime.parse(json['revokedAt'] as String);
 
 Map<String, dynamic> _$EnrollDataStoreValueToJson(
         EnrollDataStoreValue instance) =>
@@ -64,6 +67,8 @@ Map<String, dynamic> _$EnrollDataStoreValueToJson(
         'parentEnrollmentId': instance.parentEnrollmentId,
       if (instance.predecessorCapArmedAt != null)
         'predecessorCapArmedAt': instance.predecessorCapArmedAt!.toIso8601String(),
+      if (instance.revokedAt != null)
+        'revokedAt': instance.revokedAt!.toIso8601String(),
     };
 
 const _$EnrollRequestTypeEnumMap = {

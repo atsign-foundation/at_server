@@ -111,6 +111,28 @@ class EnrollDataStoreValue {
   /// whole grace period and it would never retire at all.
   DateTime? predecessorCapArmedAt;
 
+  /// When this enrollment was revoked, or null while it is not.
+  ///
+  /// Present exactly when [approval] reads `revoked`. Every transition into
+  /// that state stamps it — whether an operator named this enrollment or a
+  /// cascade swept it up with the one it replaced — and a transition back out
+  /// CLEARS it. The two halves are one rule: a stamp that outlived the status
+  /// would sit on a record that is active again, and a reader keying on the
+  /// field rather than on the status could not tell the difference.
+  ///
+  /// Un-revoking therefore withdraws the revocation entirely rather than
+  /// recording that one happened. That is a deliberate choice with a cost: if
+  /// a revocation was a genuine compromise and the un-revoke is a mistake,
+  /// nothing here remembers it.
+  ///
+  /// The atServer's own clock, and it is on the enrollment VALUE rather than
+  /// in record metadata for that reason. Metadata timestamps are re-derived by
+  /// the metadata builder on any write that does not assert them back, so a
+  /// revocation time living there would be moved by writes that say nothing
+  /// about it — and a consumer ordering this against another server-stamped
+  /// time would silently be comparing two clocks.
+  DateTime? revokedAt;
+
   EnrollDataStoreValue(
       this.sessionId, this.appName, this.deviceName, this.apkamPublicKey);
 

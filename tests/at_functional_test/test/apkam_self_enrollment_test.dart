@@ -774,6 +774,56 @@ void main() {
               'survive the revoke. Got: $after');
     });
 
+    test('a revocation time is served on enroll:list, on both the named '
+        'target and the cascaded successor', () async {
+      // The point of putting `revokedAt` on the enrollment VALUE: the record
+      // is serialised whole, so the stamp leaves the server rather than
+      // staying an internal detail. Only over the wire is that observable.
+      //
+      // Read here on the OWNER's connection, which is what sees every record.
+      // `enroll:list` narrows to the caller's own record unless the caller is
+      // legacy-PKAM or holds `__manage`, so this asserts that the stamp is
+      // served — not that any given client can see another enrollment's.
+      OutboundConnectionFactory owner = await ownerConnection();
+      String predecessorId =
+          await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
+      String successorId = await selfEnrollId(predecessorId);
+
+      Future<Map> listed() async => jsonDecode(
+          (await owner.sendRequestToServer('enroll:list'))
+              .replaceFirst('data:', '')
+              .trim()) as Map;
+
+      // The control. Without it "the field is present after" is satisfied by
+      // a field that was always there.
+      final Map before = await listed();
+      for (final e in before.entries.where((e) =>
+          e.key.contains(predecessorId) || e.key.contains(successorId))) {
+        expect((e.value as Map)['revokedAt'], isNull,
+            reason: 'nothing is revoked yet, so no record may carry a '
+                'revocation time: ${e.key}');
+      }
+
+      await owner
+          .sendRequestToServer('enroll:revoke:{"enrollmentId":"$predecessorId"}');
+
+      final Map after = await listed();
+      final matched = after.entries
+          .where((e) =>
+              e.key.contains(predecessorId) || e.key.contains(successorId))
+          .toList();
+      expect(matched.length, 2,
+          reason: 'both the named target and the successor the cascade took '
+              'must still be listed, or the loop below asserts nothing');
+      for (final e in matched) {
+        final stamp = (e.value as Map)['revokedAt'];
+        expect(stamp, isNotNull, reason: '${e.key} is revoked and must say when');
+        expect(() => DateTime.parse(stamp as String), returnsNormally,
+            reason: 'the wire contract is ISO-8601, which is what a client '
+                'compares against other server-stamped times');
+      }
+    });
+
     test('an ordinary revoke response carries no cascade field', () async {
       OutboundConnectionFactory owner = await ownerConnection();
       String id =

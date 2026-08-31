@@ -1345,6 +1345,67 @@ void main() {
               'enrollment it revoked a fresh full lifetime, and restart any '
               'retrofit cap standing on it');
     });
+
+    /// `revokedAt` is present exactly when the record reads `revoked` — set on
+    /// every transition in, cleared on every transition out. It leaves the
+    /// server whole in `enroll:list`, so a consumer can order a revocation
+    /// against other timestamps the atServer stamped.
+    group('revokedAt', () {
+      Future<DateTime?> revokedAtOf(String id) async =>
+          (await enMgr.getEnrollmentById(id)).revokedAt;
+
+      test('an approved enrollment carries none', () async {
+        // The control. Without it every assertion below is satisfied by a
+        // field that is simply never written.
+        expect(await revokedAtOf(etu.primaryEnId), isNull);
+      });
+
+      test('revoking stamps the enrollment an operator named', () async {
+        final ordinary = (await etu.createEnrollments(n: 1)).$1.first;
+        final before = DateTime.now().toUtc();
+        await revoke(etu.primaryEnId, ordinary);
+
+        final at = await revokedAtOf(ordinary);
+        expect(at, isNotNull);
+        expect(at!.isBefore(before), isFalse,
+            reason: 'the stamp is the moment of the revoke, not something '
+                'carried over from the record it was read out of');
+      });
+
+      test('and stamps every enrollment the cascade swept up', () async {
+        final chain = await chainFrom(etu.primaryEnId, 2);
+        await revoke(etu.primaryEnId, chain[0]);
+
+        expect(await revokedAtOf(chain[0]), isNotNull);
+        expect(await revokedAtOf(chain[1]), isNotNull,
+            reason: 'an enrollment swept up by a cascade is as revoked as one '
+                'an operator named, and a reader must not have to know which '
+                'happened to learn when it stopped being usable');
+      });
+
+      test('un-revoking clears it', () async {
+        final ordinary = (await etu.createEnrollments(n: 1)).$1.first;
+        await revoke(etu.primaryEnId, ordinary);
+        expect(await revokedAtOf(ordinary), isNotNull, reason: 'precondition');
+
+        await etu.unrevokeEnrollment(etu.primaryEnId, ordinary);
+        expect(await revokedAtOf(ordinary), isNull,
+            reason: 'a stamp that outlived the status would sit on a record '
+                'that is active again, and a reader keying on the field '
+                'rather than the status could not tell');
+      });
+
+      test('and clears it on a cascaded enrollment too', () async {
+        final chain = await chainFrom(etu.primaryEnId, 2);
+        await revoke(etu.primaryEnId, chain[0]);
+        await etu.unrevokeEnrollment(etu.primaryEnId, chain[0]);
+        await etu.unrevokeEnrollment(etu.primaryEnId, chain[1]);
+
+        expect(await revokedAtOf(chain[1]), isNull,
+            reason: 'the clear is a property of the transition, not of how '
+                'the record came to be revoked');
+      });
+    });
   });
 
   /// The cap is armed by the successor's FIRST authentication and by nothing

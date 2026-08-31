@@ -580,6 +580,10 @@ class EnrollmentManager {
       }
       if (value.approval?.state != EnrollmentStatus.approved.name) continue;
       value.approval!.state = EnrollmentStatus.revoked.name;
+      // Stamped here as well as on the named target: an enrollment swept up by
+      // a cascade is as revoked as one an operator named, and a reader must
+      // not have to know which happened to learn when it stopped being usable.
+      value.revokedAt = DateTime.now().toUtc();
       atData.data = jsonEncode(value.toJson());
       final storedExpiry = atData.metaData?.expiresAt;
       await put(id, atData, EnrollmentStatus.revoked,
