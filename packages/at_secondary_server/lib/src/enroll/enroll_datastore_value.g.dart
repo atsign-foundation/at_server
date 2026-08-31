@@ -28,7 +28,10 @@ EnrollDataStoreValue _$EnrollDataStoreValueFromJson(
       ..signingAlgo = json['signingAlgo'] as String?
       ..apsk = (json['apsk'] as Map<String, dynamic>?)
       ..apskLegacy = json['apskLegacy'] as String?
-      ..parentEnrollmentId = json['parentEnrollmentId'] as String?;
+      ..parentEnrollmentId = json['parentEnrollmentId'] as String?
+      ..predecessorCapArmedAt = json['predecessorCapArmedAt'] == null
+          ? null
+          : DateTime.parse(json['predecessorCapArmedAt'] as String);
 
 Map<String, dynamic> _$EnrollDataStoreValueToJson(
         EnrollDataStoreValue instance) =>
@@ -49,6 +52,8 @@ Map<String, dynamic> _$EnrollDataStoreValueToJson(
       if (instance.apskLegacy != null) 'apskLegacy': instance.apskLegacy,
       if (instance.parentEnrollmentId != null)
         'parentEnrollmentId': instance.parentEnrollmentId,
+      if (instance.predecessorCapArmedAt != null)
+        'predecessorCapArmedAt': instance.predecessorCapArmedAt!.toIso8601String(),
     };
 
 const _$EnrollRequestTypeEnumMap = {

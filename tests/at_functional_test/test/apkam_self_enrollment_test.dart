@@ -85,8 +85,11 @@ void main() {
 
   /// Sends one `enroll:request` on a connection APKAM-authenticated as
   /// [parentId], and returns the raw server response.
+  /// [namespaces] is optional, mirroring the wire: a retrofit that omits
+  /// it inherits its predecessor's grants, and one that states them must
+  /// state exactly them.
   Future<String> selfEnroll(String parentId,
-      {required Map<String, String> namespaces,
+      {Map<String, String>? namespaces,
       String? appName,
       String? deviceName,
       int? apkamKeysExpiryInMillis,
@@ -100,6 +103,8 @@ void main() {
             .trim(),
         'data:success',
         reason: 'the parent must be able to authenticate before it self-enrols');
+    String nsField =
+        namespaces == null ? '' : ',"namespaces":${jsonEncode(namespaces)}';
     String expiry = apkamKeysExpiryInMillis == null
         ? ''
         : ',"apkamKeysExpiryInMillis":$apkamKeysExpiryInMillis';
@@ -111,13 +116,29 @@ void main() {
     String apskLegacyField =
         apskLegacy == null ? '' : ',"apskLegacy":${jsonEncode(apskLegacy)}';
     return (await parent.sendRequestToServer(
-            'enroll:request:{"appName":"${appName ?? 'child-${Uuid().v4().hashCode}'}","deviceName":"${deviceName ?? 'device-${Uuid().v4().hashCode}'}","namespaces":${jsonEncode(namespaces)},"apkamPublicKey":"$apkamPublicKey"$expiry$algo$apskField$apskLegacyField}'))
+            'enroll:request:{"appName":"${appName ?? 'child-${Uuid().v4().hashCode}'}","deviceName":"${deviceName ?? 'device-${Uuid().v4().hashCode}'}","apkamPublicKey":"$apkamPublicKey"$nsField$expiry$algo$apskField$apskLegacyField}'))
         .trim();
   }
 
+  /// Opens a fresh connection and authenticates it as [enrollmentId], which
+  /// is what arms a retrofit's cap on the enrollment it replaced.
+  Future<void> authenticateAsEnrollment(String enrollmentId) async {
+    OutboundConnectionFactory conn = await newConnection();
+    expect(
+        (await conn.authenticateConnection(
+                authType: AuthType.apkam, enrollmentId: enrollmentId))
+            .trim(),
+        'data:success',
+        reason: 'the successor must be able to authenticate, or the arming '
+            'this drives never happens');
+  }
+
   /// [selfEnroll] for the cases that are expected to succeed.
+  /// [namespaces] is optional, mirroring the wire: a retrofit that omits
+  /// it inherits its predecessor's grants, and one that states them must
+  /// state exactly them.
   Future<String> selfEnrollId(String parentId,
-      {required Map<String, String> namespaces,
+      {Map<String, String>? namespaces,
       String? appName,
       String? deviceName,
       int? apkamKeysExpiryInMillis,
@@ -169,7 +190,7 @@ void main() {
           await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
 
       String childId =
-          await selfEnrollId(parentId, namespaces: {'wavi': 'r'});
+          await selfEnrollId(parentId);
 
       // The child is not merely recorded: it authenticates.
       OutboundConnectionFactory child = await newConnection();
@@ -185,11 +206,14 @@ void main() {
       OutboundConnectionFactory owner = await ownerConnection();
       String parentId =
           await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
-      String childId = await selfEnrollId(parentId, namespaces: {'wavi': 'r'});
+      String childId = await selfEnrollId(parentId);
 
       final child = await enrollmentRecord(owner, childId);
       expect(child.value['parentEnrollmentId'], parentId);
-      expect(child.value['namespaces'], {'wavi': 'r'});
+      expect(child.value['namespaces'], {'wavi': 'rw'},
+          reason: 'the successor carries its predecessor\'s grants, so it '
+              'holds rw here and not the r an earlier contract let a '
+              'caller ask for');
       expect(child.value['approval']['state'], 'approved');
     });
 
@@ -201,7 +225,7 @@ void main() {
       OutboundConnectionFactory owner = await ownerConnection();
       String parentId =
           await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
-      String childId = await selfEnrollId(parentId, namespaces: {'wavi': 'r'});
+      String childId = await selfEnrollId(parentId);
 
       final child = await enrollmentRecord(owner, childId);
       expect(child.value['encryptedAPKAMSymmetricKey'], isNull);
@@ -223,11 +247,9 @@ void main() {
 
       // Same names, twice, on the self-enrollment branch: both approved.
       await selfEnrollId(parentId,
-          namespaces: {'wavi': 'r'},
           appName: appName,
           deviceName: deviceName);
       await selfEnrollId(parentId,
-          namespaces: {'wavi': 'r'},
           appName: appName,
           deviceName: deviceName);
 
@@ -290,33 +312,49 @@ void main() {
           contains('Requested namespace "__manage:rw" exceeds'));
     });
 
-    test('a wildcard parent does cover an ordinary namespace it never named',
-        () async {
-      // The positive half of the rule above: without this, the refusal test
-      // would pass just as well against a branch that refused everything.
+    test('a request naming a subset of a wildcard parent is refused', () async {
+      // A * parent used to cover any ordinary namespace at its letters, so
+      // this succeeded and minted a successor that could not do what the
+      // enrollment it replaced could.
       OutboundConnectionFactory owner = await ownerConnection();
       String parentId =
           await createApprovedEnrollment(owner, namespaces: {'*': 'rw'});
 
-      String childId = await selfEnrollId(parentId,
+      String response = await selfEnroll(parentId,
           namespaces: {'a-namespace-never-named': 'rw'});
-      final child = await enrollmentRecord(owner, childId);
-      expect(child.value['namespaces'], {'a-namespace-never-named': 'rw'});
+      Map error = jsonDecode(response.replaceFirst('error:', ''));
+      expect(error['errorCode'], 'AT0009');
+      expect(error['errorDescription'], contains('carries its grants'));
     });
 
-    test('an empty namespace set is refused', () async {
-      // An approved credential that can do nothing is always a caller bug.
+    test('a wildcard parent is inherited verbatim when nothing is named',
+        () async {
+      // The positive half: the rule is equality, not a refusal of everything.
+      OutboundConnectionFactory owner = await ownerConnection();
+      String parentId =
+          await createApprovedEnrollment(owner, namespaces: {'*': 'rw'});
+
+      String childId = await selfEnrollId(parentId);
+      final child = await enrollmentRecord(owner, childId);
+      expect(child.value['namespaces'], {'*': 'rw'});
+    });
+
+    test('an empty namespace set inherits, rather than being refused',
+        () async {
+      // Stating nothing is how a request asks to inherit: a retrofit does not
+      // choose its grants, so it need not name them.
       OutboundConnectionFactory owner = await ownerConnection();
       String parentId =
           await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
 
       String response = await selfEnroll(parentId, namespaces: {});
-      Map error = jsonDecode(response.replaceFirst('error:', ''));
-      expect(error['errorCode'], 'AT0022');
-      expect(
-          error['errorDescription'],
-          contains('At least one namespace must be specified for an '
-              'APKAM-authenticated enroll:request'));
+      expect(response, startsWith('data:'),
+          reason: 'an empty map states nothing, and the successor takes its '
+              'predecessor\'s grants: $response');
+      final childId =
+          jsonDecode(response.replaceFirst('data:', ''))['enrollmentId'];
+      final child = await enrollmentRecord(owner, childId);
+      expect(child.value['namespaces'], {'wavi': 'rw'});
     });
   });
 
@@ -330,7 +368,7 @@ void main() {
       String parentId = await createApprovedEnrollment(owner,
           namespaces: {'wavi': 'rw'}, apkamKeysExpiryInMillis: oneHourMs);
 
-      String childId = await selfEnrollId(parentId, namespaces: {'wavi': 'r'});
+      String childId = await selfEnrollId(parentId);
       final child = await enrollmentRecord(owner, childId);
       expect(child.value['apkamKeysExpiryInMillis'], oneHourMs);
       // The posture is not merely recorded, it is written as the record's ttl
@@ -345,7 +383,7 @@ void main() {
           namespaces: {'wavi': 'rw'}, apkamKeysExpiryInMillis: oneHourMs);
 
       String childId = await selfEnrollId(parentId,
-          namespaces: {'wavi': 'r'}, apkamKeysExpiryInMillis: 60000);
+          apkamKeysExpiryInMillis: 60000);
       final child = await enrollmentRecord(owner, childId);
       expect(child.value['apkamKeysExpiryInMillis'], 60000);
       expect(child.metaData['ttl'], 60000);
@@ -357,7 +395,7 @@ void main() {
           namespaces: {'wavi': 'rw'}, apkamKeysExpiryInMillis: oneHourMs);
 
       String childId = await selfEnrollId(parentId,
-          namespaces: {'wavi': 'r'}, apkamKeysExpiryInMillis: 999999999);
+          apkamKeysExpiryInMillis: 999999999);
       final child = await enrollmentRecord(owner, childId);
       // Clamped to the parent's, not refused: a client asking for longer
       // without knowing is corrected rather than broken.
@@ -374,7 +412,7 @@ void main() {
           namespaces: {'wavi': 'rw'}, apkamKeysExpiryInMillis: oneHourMs);
 
       String childId = await selfEnrollId(parentId,
-          namespaces: {'wavi': 'r'}, apkamKeysExpiryInMillis: 0);
+          apkamKeysExpiryInMillis: 0);
       final child = await enrollmentRecord(owner, childId);
       expect(child.value['apkamKeysExpiryInMillis'], oneHourMs);
       expect(child.metaData['ttl'], oneHourMs);
@@ -388,20 +426,21 @@ void main() {
           namespaces: {'wavi': 'rw'}, apkamKeysExpiryInMillis: oneHourMs);
 
       String childId = await selfEnrollId(parentId,
-          namespaces: {'wavi': 'r'}, apkamKeysExpiryInMillis: -1);
+          apkamKeysExpiryInMillis: -1);
       final child = await enrollmentRecord(owner, childId);
       expect(child.value['apkamKeysExpiryInMillis'], oneHourMs);
       expect(child.metaData['ttl'], oneHourMs);
     });
   });
 
-  group('The parent survives a retrofit, capped rather than removed', () {
-    test('the parent still authenticates after a child self-enrolls',
+  group('The predecessor survives a retrofit, capped rather than removed',
+      () {
+    test('the predecessor still authenticates after a successor enrols',
         () async {
       OutboundConnectionFactory owner = await ownerConnection();
       String parentId =
           await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
-      await selfEnrollId(parentId, namespaces: {'wavi': 'r'});
+      await selfEnrollId(parentId);
 
       OutboundConnectionFactory parent = await newConnection();
       expect(
@@ -412,26 +451,77 @@ void main() {
           reason: 'sibling clones must still be able to retrofit');
     });
 
-    test('the cap re-arms on each sibling retrofit', () async {
+    test('storing a successor does not cap the predecessor', () async {
+      OutboundConnectionFactory owner = await ownerConnection();
+      String parentId =
+          await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
+
+      await selfEnrollId(parentId);
+
+      expect((await enrollmentRecord(owner, parentId)).metaData['expiresAt'],
+          isNull,
+          reason: 'storing a successor proves only that the atServer wrote a '
+              'record. The successor\'s APKAM private half lives '
+              'client-side, so a keyfile write that failed would leave it '
+              'existing here and nowhere else — and the predecessor is by '
+              'then the only credential that still works');
+    });
+
+    test(
+        'the cap is armed by the successor\'s first authentication, and '
+        're-arms for each sibling', () async {
       // A deadline fixed by the first sibling's upgrade would strand every
       // laggard whose next run fell outside that window.
       OutboundConnectionFactory owner = await ownerConnection();
       String parentId =
           await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
 
-      await selfEnrollId(parentId, namespaces: {'wavi': 'r'});
-      final afterFirst = await enrollmentRecord(owner, parentId);
-      DateTime firstCap = DateTime.parse(afterFirst.metaData['expiresAt']);
+      String firstId = await selfEnrollId(parentId);
+      await authenticateAsEnrollment(firstId);
+      DateTime firstCap = DateTime.parse(
+          (await enrollmentRecord(owner, parentId)).metaData['expiresAt']);
 
       await Future.delayed(Duration(seconds: 2));
 
-      await selfEnrollId(parentId, namespaces: {'wavi': 'r'});
-      final afterSecond = await enrollmentRecord(owner, parentId);
-      DateTime secondCap = DateTime.parse(afterSecond.metaData['expiresAt']);
+      String secondId = await selfEnrollId(parentId);
+      expect(
+          DateTime.parse(
+              (await enrollmentRecord(owner, parentId)).metaData['expiresAt']),
+          firstCap,
+          reason: 'control: the second retrofit alone moves nothing — it is '
+              'the authentication that arms, not the enrolment');
+
+      await authenticateAsEnrollment(secondId);
+      DateTime secondCap = DateTime.parse(
+          (await enrollmentRecord(owner, parentId)).metaData['expiresAt']);
 
       expect(secondCap.isAfter(firstCap), isTrue,
-          reason: 'the second retrofit must push the parent\'s expiry out, '
-              'not leave the first retrofit\'s deadline in place');
+          reason: 'the second sibling proving itself must push the '
+              'predecessor\'s expiry out, not leave the first sibling\'s '
+              'deadline in place');
+    });
+
+    test('a successor re-authenticating does not push the deadline out again',
+        () async {
+      OutboundConnectionFactory owner = await ownerConnection();
+      String parentId =
+          await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
+
+      String childId = await selfEnrollId(parentId);
+      await authenticateAsEnrollment(childId);
+      DateTime firstCap = DateTime.parse(
+          (await enrollmentRecord(owner, parentId)).metaData['expiresAt']);
+
+      await Future.delayed(Duration(seconds: 2));
+      await authenticateAsEnrollment(childId);
+
+      expect(
+          DateTime.parse(
+              (await enrollmentRecord(owner, parentId)).metaData['expiresAt']),
+          firstCap,
+          reason: 'a successor authenticates on every reconnect. Arming on '
+              'each one would rewrite a full grace period onto the '
+              'predecessor forever and it would never retire at all');
     });
   });
 
@@ -495,7 +585,7 @@ void main() {
       String parentId =
           await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
       String childId = await selfEnrollId(parentId,
-          namespaces: {'wavi': 'r'}, signingAlgo: 'mldsa65', apsk: composed);
+          signingAlgo: 'mldsa65', apsk: composed);
 
       expect(jsonDecode(await apskValue(owner, childId)), composed);
     });
@@ -508,7 +598,7 @@ void main() {
       String parentId =
           await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
       String childId = await selfEnrollId(parentId,
-          namespaces: {'wavi': 'r'}, signingAlgo: 'mldsa65');
+          signingAlgo: 'mldsa65');
 
       expect(
           await apskValue(owner, childId),
@@ -529,7 +619,7 @@ void main() {
       String parentId =
           await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
       String childId = await selfEnrollId(parentId,
-          namespaces: {'wavi': 'r'}, apskLegacy: bare);
+          apskLegacy: bare);
 
       final resolved = await apskValue(owner, childId);
       expect(resolved, bare);
@@ -547,7 +637,6 @@ void main() {
           await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
 
       final response = await selfEnroll(parentId,
-          namespaces: {'wavi': 'r'},
           apsk: {
             'v': 1,
             'keys': [

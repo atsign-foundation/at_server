@@ -79,6 +79,26 @@ class EnrollDataStoreValue {
   /// records that already exist by then.
   String? parentEnrollmentId;
 
+  /// When this enrollment armed the retrofit cap on the enrollment it
+  /// replaced, or null if it never has.
+  ///
+  /// The cap is armed by the successor's FIRST PKAM authentication rather than
+  /// at the moment the server stores it. Storing the record proves only that
+  /// the server wrote it: the successor's APKAM private half lives client-side,
+  /// so a keyfile write that fails, a read-only file, or a process that dies
+  /// before the flush all leave the successor existing on the server and
+  /// nowhere else -- with a clock already running on the only credential that
+  /// still works. An authentication on a connection the successor opened is
+  /// what proves the private half survived and is usable.
+  ///
+  /// Stamped rather than a bare flag because the cap RE-ARMS: each sibling
+  /// replacing the same predecessor pushes the deadline out afresh, so a
+  /// predecessor retires one grace period after the LAST of its replacements
+  /// authenticates. Only the FIRST authentication of any one successor arms.
+  /// Without that, every reconnect would extend the predecessor's life by a
+  /// whole grace period and it would never retire at all.
+  DateTime? predecessorCapArmedAt;
+
   EnrollDataStoreValue(
       this.sessionId, this.appName, this.deviceName, this.apkamPublicKey);
 

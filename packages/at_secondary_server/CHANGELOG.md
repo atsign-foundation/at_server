@@ -1,4 +1,35 @@
 # 3.16.4
+- feat: a retrofit carries its predecessor's grants and may not choose them.
+  An APKAM-authenticated `enroll:request` replaces the enrollment it
+  authenticated as rather than descending from it, so the successor now holds
+  exactly that enrollment's namespaces. `namespaces` is optional on this path:
+  omit it and the predecessor's grants are inherited; state it and it must name
+  exactly them, or the request is refused. Previously a retrofit held whatever
+  it asked for, bounded only from above, so it could mint a successor unable to
+  do what the credential it replaced could — a loss that surfaces at the next
+  thing the app does rather than at the request that caused it. Asking for MORE
+  than the predecessor holds is still refused, with its own message, so the two
+  mistakes stay distinguishable.
+- feat: the retrofit expiry cap is armed by the successor's first
+  authentication rather than by storing it. Storing a successor proves only
+  that the atServer wrote a record: the successor's APKAM private half is
+  persisted client-side, so a keyfile write that fails, a read-only file, or a
+  process that dies before the flush each leave the successor existing on the
+  server and nowhere else — with a clock already started on the predecessor,
+  which is by then the only credential that still works. The cap now fires when
+  the successor first authenticates over a connection it opened, which is what
+  proves the private half survived and is usable. It still re-arms once per
+  successor, so a predecessor retires one grace period after the last sibling
+  upgrades, and a successor's own repeated connections never extend it.
+- BREAKING for operators: `preserveFirstEnrollmentOnRetrofit` is removed, from
+  `config.yaml` and from the environment. It exempted the atSign's first
+  enrollment from the retrofit cap, because capping it could leave an atSign
+  with no enrollment able to approve a replacement. Arming on the successor's
+  authentication answers that directly — an authenticated successor holds its
+  predecessor's grants, `__manage` included — so one rule now covers every
+  enrollment, the CRAM-minted root included. A deployment that still sets the
+  key needs no change: config is read by explicit key lookup with no schema
+  validation, so an unknown key is never read.
 - fix: assemble outbound responses correctly however the network splits them.
   A peer writes a response and the prompt that follows it as one string, but
   it arrives in however many pieces the network chooses, and the atServer

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:meta/meta.dart';
@@ -87,8 +88,13 @@ class EnrollmentManager {
   /// Parameters:
   ///   - [enId]: The ID associated with the enrollment.
   ///   - [atData]: The [AtData] object to be stored.
-  Future<void> put(
-      String enId, AtData atData, EnrollmentStatus newStatus) async {
+  ///   - [assertedTimestamps]: timestamps the store must keep faithfully
+  ///     rather than rederive. A read-modify-write of an enrollment record
+  ///     asserts the stored `expiresAt` back, or the builder recomputes it
+  ///     from the retained ttl and restarts the record's expiry clock at the
+  ///     moment of the write.
+  Future<void> put(String enId, AtData atData, EnrollmentStatus newStatus,
+      {AtAssertedTimestamps? assertedTimestamps}) async {
     String ek = buildEnrollmentKey(enId);
 
     switch (newStatus) {
@@ -104,7 +110,8 @@ class EnrollmentManager {
         break;
     }
 
-    await keyStore.put(ek, atData, skipCommit: true);
+    await keyStore.put(ek, atData,
+        skipCommit: true, assertedTimestamps: assertedTimestamps);
 
     // invalidate the cache
     cacheInvalidations++;
@@ -405,4 +412,124 @@ class EnrollmentManager {
 
   /// Get the enrollmentId from any key where enrollmentId is the first part
   String getIdFromKey(String ek) => ek.substring(0, ek.indexOf('.'));
+
+  /// Caps [enrollmentId] to expire `min(now + grace, its own expiry)` from
+  /// this moment, leaving the record in place.
+  ///
+  /// Re-applied on EVERY retrofit of the same predecessor, computed fresh from
+  /// the record's own posture rather than folded into a previously written
+  /// cap: sibling clones of one keyfile retrofit whenever each device next
+  /// runs, so the cap must RE-ARM with each successor — a deadline fixed by
+  /// the first sibling's upgrade would strand every laggard whose next run
+  /// falls outside that first window. "Its own expiry" is re-derived from
+  /// [EnrollDataStoreValue.apkamKeysExpiryDuration], anchored at the record's
+  /// creation, so a key-expiry posture shorter than the grace still wins.
+  ///
+  /// A written ttl anchors at the write (`expiresAt = now + ttl` in the
+  /// metadata builder), so the grace is written as-is — offsetting it by the
+  /// record's age would extend the cap by the enrollment's whole lifetime.
+  Future<void> capEnrollmentExpiry(
+      String enrollmentId, EnrollDataStoreValue enrollment) async {
+    final key = buildEnrollmentKey(enrollmentId);
+    final AtData? atData;
+    try {
+      atData = await keyStore.get(key);
+    } on KeyNotFoundException {
+      return;
+    }
+    if (atData == null) return;
+    final now = DateTime.now().toUtc();
+    int cappedTtl =
+        Duration(hours: AtSecondaryConfig.apkamSelfEnrollmentGraceHours)
+            .inMilliseconds;
+    final ownMs = enrollment.apkamKeysExpiryDuration.inMilliseconds;
+    if (ownMs > 0) {
+      final createdAt = (atData.metaData?.createdAt ?? now).toUtc();
+      final ownRemainingMs = createdAt
+          .add(Duration(milliseconds: ownMs))
+          .difference(now)
+          .inMilliseconds;
+      if (ownRemainingMs < cappedTtl) cappedTtl = ownRemainingMs;
+    }
+    // A ttl of zero means "never expires", and a spent posture must not
+    // become immortality — floor at one millisecond.
+    if (cappedTtl < 1) cappedTtl = 1;
+    atData.metaData = (atData.metaData ?? AtMetaData())..ttl = cappedTtl;
+    await put(enrollmentId, atData, EnrollmentStatus.approved);
+  }
+
+  /// Arms the retrofit cap on the enrollment [successorEnrollmentId] replaced,
+  /// on that successor's FIRST authentication and never again.
+  ///
+  /// A no-op for an enrollment that replaced nothing, which is every
+  /// enrollment except a retrofit's successor.
+  ///
+  /// Armed here rather than where the successor is stored because storing it
+  /// proves only that the SERVER wrote a record. The successor's APKAM private
+  /// half is persisted client-side, so a keyfile write that fails, a read-only
+  /// file, or a process that dies before the flush each leave the successor
+  /// existing on the server and nowhere else — with a clock already started on
+  /// the predecessor, which is by then the only credential that still works.
+  /// An authentication on a connection the successor opened is what proves the
+  /// private half survived and is usable.
+  ///
+  /// Only the FIRST authentication of any one successor arms. Without that,
+  /// every reconnect would rewrite a full grace period onto the predecessor
+  /// and it would never retire at all.
+  ///
+  /// Never throws. This runs after an authentication has already succeeded, and
+  /// a predecessor that outlives its window is a slower migration, while an
+  /// authentication refused because bookkeeping failed is an outage.
+  Future<void> armRetrofitCapOnFirstAuth(String successorEnrollmentId) async {
+    try {
+      // The early exits go through the cached read, because this runs on EVERY
+      // APKAM authentication and all but a retrofit's successor leave here.
+      // The PKAM path has just read this same enrollment to verify it is
+      // active, so the entry is warm.
+      final EnrollDataStoreValue cached =
+          await getEnrollmentById(successorEnrollmentId);
+      final predecessorId = cached.parentEnrollmentId;
+      if (predecessorId == null) return;
+      if (cached.predecessorCapArmedAt != null) return;
+
+      // Past the exits, and about to write: re-read the stored AtData, which
+      // carries the metadata the write has to preserve.
+      final key = buildEnrollmentKey(successorEnrollmentId);
+      final AtData? atData = await keyStore.get(key);
+      final String? raw = atData?.data;
+      if (atData == null || raw == null) return;
+      final successor = EnrollDataStoreValue.fromJson(jsonDecode(raw));
+      if (successor.predecessorCapArmedAt != null) return;
+
+      EnrollDataStoreValue? predecessor;
+      try {
+        predecessor = await getEnrollmentById(predecessorId);
+      } on KeyNotFoundException {
+        logger.info('Enrollment $successorEnrollmentId replaced '
+            '$predecessorId, which is already gone — nothing to cap');
+      }
+      if (predecessor != null) {
+        await capEnrollmentExpiry(predecessorId, predecessor);
+      }
+
+      // Stamped even when the predecessor was already gone, so a retired
+      // predecessor does not make every later connection re-walk this.
+      successor.predecessorCapArmedAt = DateTime.now().toUtc();
+      atData.data = jsonEncode(successor.toJson());
+      // The successor's OWN expiry must not move. A plain write re-derives
+      // `expiresAt` from the retained ttl and would restart its clock at this
+      // moment, silently extending the credential by however long it waited to
+      // authenticate; carrying the stored absolute forward as an assertion
+      // suppresses that derivation. A null `expiresAt` is a record that never
+      // expires, and asserting nothing leaves it that way.
+      final storedExpiry = atData.metaData?.expiresAt;
+      await put(successorEnrollmentId, atData, EnrollmentStatus.approved,
+          assertedTimestamps: storedExpiry == null
+              ? null
+              : AtAssertedTimestamps(expiresAt: storedExpiry));
+    } catch (e) {
+      logger.warning('Could not arm the retrofit cap for '
+          '$successorEnrollmentId: $e');
+    }
+  }
 }

@@ -102,6 +102,23 @@ class PkamVerbHandler extends AbstractVerbHandler {
       atConnectionMetadata.authType = pkamAuthType;
       atConnectionMetadata.enrollmentId = enrollId;
       response.data = 'success';
+
+      // A retrofit's successor arms the expiry cap on the enrollment it
+      // replaced HERE, on its first authentication and never again — this is
+      // the moment that proves the successor's APKAM private half survived the
+      // client-side keyfile write and can actually be used. Arming it where
+      // the successor is stored would start a clock on the predecessor, the
+      // only credential that still works, on the strength of a record only the
+      // server had written.
+      //
+      // A no-op for every enrollment that replaced nothing, and it never
+      // throws: authentication has already succeeded by this point and must
+      // not be undone by bookkeeping.
+      if (enrollId != null && enrollId.isNotEmpty) {
+        await AtSecondaryServerImpl.getInstance()
+            .enrollmentManager
+            .armRetrofitCapOnFirstAuth(enrollId);
+      }
     } else {
       // Nope
       atConnectionMetadata.isAuthenticated = false;

@@ -215,11 +215,3 @@ enrollment:
   # If the duration between the last received invalid OTP and the current date-time
   # exceeds the delayIntervalThreshold, trigger a reset to the default value.
   delayIntervalThreshold: 55
-  # Whether this atSign's FIRST enrollment is exempt from the expiry clock a
-  # retrofit (APKAM self-enrollment) starts on the enrollment it supersedes.
-  # The first enrollment is minted on the CRAM path at onboarding, is the
-  # atSign's root, and approves every later enrollment - so when true it keeps
-  # its absence of expiry and retiring it stays the owner's explicit act via
-  # 'enroll:revoke'. Set false to have it age out like any other parent.
-  # Default: true
-  preserveFirstEnrollmentOnRetrofit: true
