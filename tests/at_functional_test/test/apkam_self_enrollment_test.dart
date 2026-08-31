@@ -824,6 +824,84 @@ void main() {
       }
     });
 
+    test('enroll:infons reports the namespace\'s last revocation over the wire',
+        () async {
+      OutboundConnectionFactory owner = await ownerConnection();
+      String holderA =
+          await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
+      String holderB =
+          await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
+
+      // infons needs an APKAM connection holding the namespace, so it is asked
+      // as holderA — not on the owner's CRAM connection, which is refused.
+      OutboundConnectionFactory asA = await newConnection();
+      expect(
+          (await asA.authenticateConnection(
+                  authType: AuthType.apkam, enrollmentId: holderA))
+              .trim(),
+          'data:success');
+
+      Future<Map> infons() async => jsonDecode(
+          (await asA.sendRequestToServer('enroll:infons:wavi'))
+              .replaceFirst('data:', '')
+              .trim()) as Map;
+
+      // The key is always present. Its VALUE is not asserted to be null here:
+      // this atSign is shared across the whole pack and earlier tests in this
+      // very file revoke wavi holders, so 'wavi' usually arrives with a
+      // revocation already on record. The null case is pinned in the unit
+      // suite, where the store is this test's own.
+      final before = await infons();
+      expect(before.containsKey('lastRevokedAt'), isTrue,
+          reason: 'an absent key and a key a client failed to parse are the '
+              'same thing to a careless reader; the key is always there');
+
+      await owner.sendRequestToServer('enroll:revoke:{"enrollmentId":"$holderB"}');
+
+      // Asserted by VALUE against the same authority: holderB's own stamp,
+      // read off its record. Comparing against DateTime.now() here would be
+      // measuring clock agreement between this process and the server.
+      final listed = jsonDecode((await owner.sendRequestToServer('enroll:list'))
+          .replaceFirst('data:', '')
+          .trim()) as Map;
+      final holderBRecord = listed.entries
+          .firstWhere((e) => e.key.contains(holderB))
+          .value as Map;
+      expect(holderBRecord['revokedAt'], isNotNull,
+          reason: 'precondition: the revoke stamped the record');
+
+      final after = await infons();
+      expect(after['lastRevokedAt'], holderBRecord['revokedAt'],
+          reason: 'the namespace reports the most recent revocation of an '
+              'enrollment holding it, and holderB was just revoked');
+      expect(after['lastRevokedAt'], isNot(before['lastRevokedAt']),
+          reason: 'and it MOVED — otherwise this passes on whatever the '
+              'namespace already carried when the test started');
+
+      // And the roster is untouched by any of it — `enroll:listns` returns
+      // what it always did, which is what lets this land without a client
+      // change.
+      final roster = jsonDecode(
+          (await asA.sendRequestToServer('enroll:listns:wavi'))
+              .replaceFirst('data:', '')
+              .trim()) as List;
+      expect(roster, isNotEmpty);
+      for (final row in roster) {
+        expect((row as Map).keys.toSet(),
+            {'enrollmentId', 'access', 'apkamPubKey', 'metadata'});
+      }
+    });
+
+    test('enroll:infons is refused on a connection that is not APKAM',
+        () async {
+      OutboundConnectionFactory owner = await ownerConnection();
+      final response = await owner.sendRequestToServer('enroll:infons:wavi');
+      expect(response, startsWith('error:'),
+          reason: 'the namespace-scoped verbs are gated on an APKAM '
+              'enrollment holding the namespace, and the owner\'s CRAM '
+              'connection holds no enrollment at all. Got: $response');
+    });
+
     test('an ordinary revoke response carries no cascade field', () async {
       OutboundConnectionFactory owner = await ownerConnection();
       String id =

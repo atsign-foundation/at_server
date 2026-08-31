@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'dart:convert';
 
 import 'dart:typed_data';
@@ -1404,6 +1406,200 @@ void main() {
         expect(await revokedAtOf(chain[1]), isNull,
             reason: 'the clear is a property of the transition, not of how '
                 'the record came to be revoked');
+      });
+    });
+
+    /// `enroll:infons:<ns>` answers facts about a NAMESPACE, as opposed to
+    /// `enroll:listns`, which answers who holds it. The distinction is what
+    /// gives the last revocation a shape it fits: a roster is a list of
+    /// members, and "when was something holding this namespace last revoked"
+    /// is not a fact about any member.
+    ///
+    /// It is also the only answer that reaches the clients a revocation
+    /// backstop exists for. `enroll:list` narrows to the caller's OWN record
+    /// unless the caller is legacy-PKAM or holds `__manage`, so an ordinary
+    /// app enrollment asking "has anything holding my namespace been revoked?"
+    /// through that verb is told, vacuously and forever, no.
+    group('enroll:infons carries the last revocation affecting a namespace',
+        () {
+      Future<Map<String, dynamic>> infons(
+          String callerId, String namespace) async {
+        inboundConnection.metaData.isAuthenticated = true;
+        inboundConnection.metadata.enrollmentId = callerId;
+        final r = Response();
+        await etu.evh.processVerb(
+            r,
+            HashMap<String, String?>.from(
+                {'operation': 'infons', 'listNamespace': namespace}),
+            inboundConnection);
+        expect(r.isError, false, reason: '${r.errorMessage}');
+        return jsonDecode(r.data!) as Map<String, dynamic>;
+      }
+
+      Future<List<dynamic>> listns(String callerId, String namespace) async {
+        inboundConnection.metaData.isAuthenticated = true;
+        inboundConnection.metadata.enrollmentId = callerId;
+        final r = Response();
+        await etu.evh.processVerb(
+            r,
+            HashMap<String, String?>.from(
+                {'operation': 'listns', 'listNamespace': namespace}),
+            inboundConnection);
+        expect(r.isError, false, reason: '${r.errorMessage}');
+        return jsonDecode(r.data!) as List;
+      }
+
+      test('nothing revoked answers an explicit null, not an absent key',
+          () async {
+        // The control, and the shape. An absent key and a key the client
+        // failed to parse are the same thing to a careless reader; an explicit
+        // null is an answer to the question that was asked.
+        final holders = (await etu.createEnrollments(n: 2)).$1;
+        final info = await infons(holders[0], 'test');
+        expect(info.containsKey('lastRevokedAt'), isTrue,
+            reason: 'the key is always present');
+        expect(info['lastRevokedAt'], isNull);
+      });
+
+      test('a revoked holder is reported', () async {
+        final holders = (await etu.createEnrollments(n: 2)).$1;
+        await revoke(etu.primaryEnId, holders[1]);
+        final at = (await enMgr.getEnrollmentById(holders[1])).revokedAt;
+        expect(at, isNotNull, reason: 'precondition');
+
+        expect((await infons(holders[0], 'test'))['lastRevokedAt'],
+            at!.toIso8601String());
+      });
+
+      test('the roster keeps exactly the shape it always had', () async {
+        // `enroll:listns` must not change at all. A deployed client decodes it
+        // as `if (decoded is! List) return const []`, so an unrecognised shape
+        // there is silently an empty namespace rather than an error — which is
+        // the whole reason this fact lives on its own verb.
+        final holders = (await etu.createEnrollments(n: 2)).$1;
+        await revoke(etu.primaryEnId, holders[1]);
+
+        final roster = await listns(holders[0], 'test');
+        expect(roster, isNotEmpty);
+        for (final row in roster) {
+          expect((row as Map).keys.toSet(),
+              {'enrollmentId', 'access', 'apkamPubKey', 'metadata'},
+              reason: 'no key added, none removed');
+        }
+        expect(roster.any((r) => (r as Map)['enrollmentId'] == holders[1]),
+            isFalse,
+            reason: 'a revoked enrollment leaves the roster, which is what '
+                'makes revocation bind a holder');
+      });
+
+      test('a revoked enrollment holding a DIFFERENT namespace is not '
+          'reported', () async {
+        // Without this the derivation could ignore the namespace entirely and
+        // report the atSign's most recent revocation for every namespace —
+        // which would order a rotation on every namespace every time anything
+        // anywhere was revoked, and no other test here would notice.
+        final holders = (await etu.createEnrollments(n: 2)).$1;
+        // holders[1] holds app_2 and test. Revoke it and ask about app_1,
+        // which it does NOT hold.
+        await revoke(etu.primaryEnId, holders[1]);
+        expect((await enMgr.getEnrollmentById(holders[1])).revokedAt, isNotNull,
+            reason: 'precondition: there IS a revocation to be wrongly '
+                'reported');
+
+        // holders[0] holds app_1, so it may ask about it.
+        expect((await infons(holders[0], 'app_1'))['lastRevokedAt'], isNull,
+            reason: 'the revoked enrollment does not hold app_1, so it says '
+                'nothing about app_1');
+        // The control: the same revocation IS reported for a namespace it did
+        // hold, so this is about the filter and not about the stamp missing.
+        expect((await infons(holders[0], 'test'))['lastRevokedAt'], isNotNull);
+      });
+
+      test('the latest of several revocations is the one reported', () async {
+        final holders = (await etu.createEnrollments(n: 3)).$1;
+        await revoke(etu.primaryEnId, holders[1]);
+        // Long enough that the two stamps are distinguishable; without it
+        // "latest" can pass on two equal values.
+        await Future.delayed(Duration(milliseconds: 20));
+        await revoke(etu.primaryEnId, holders[2]);
+
+        final first = (await enMgr.getEnrollmentById(holders[1])).revokedAt!;
+        final second = (await enMgr.getEnrollmentById(holders[2])).revokedAt!;
+        expect(second.isAfter(first), isTrue, reason: 'precondition');
+
+        expect((await infons(holders[0], 'test'))['lastRevokedAt'],
+            second.toIso8601String());
+      });
+
+      test('an enrollment the CASCADE revoked is reported on its own',
+          () async {
+        final holders = (await etu.createEnrollments(n: 2)).$1;
+        // A retrofit of holders[1]; it carries its predecessor's grants
+        // exactly, so it holds 'test' too.
+        final r = await selfEnroll(predecessorId: holders[1]);
+        final successorId = jsonDecode(r.data!)['enrollmentId'] as String;
+
+        await revoke(etu.primaryEnId, holders[1]);
+
+        // Un-revoke the NAMED target so the only revocation still standing is
+        // the one the cascade made. Without this the target is written last,
+        // its stamp wins the maximum, and the cascade's contribution is
+        // invisible whether it is counted or not.
+        await etu.unrevokeEnrollment(etu.primaryEnId, holders[1]);
+        expect((await enMgr.getEnrollmentById(holders[1])).revokedAt, isNull,
+            reason: 'precondition: the named target no longer contributes');
+        final cascadedAt =
+            (await enMgr.getEnrollmentById(successorId)).revokedAt;
+        expect(cascadedAt, isNotNull,
+            reason: 'precondition: the successor is still revoked');
+
+        expect((await infons(holders[0], 'test'))['lastRevokedAt'],
+            cascadedAt!.toIso8601String(),
+            reason: 'a cascade revokes a successor holding its predecessor\'s '
+                'namespaces exactly, so a revocation reaches this answer '
+                'through the descendant as readily as through the enrollment '
+                'an operator named — which is what makes stamping the '
+                'cascaded ones load-bearing rather than tidy');
+      });
+
+      test('un-revoking the last revoked holder takes it back to null',
+          () async {
+        final holders = (await etu.createEnrollments(n: 2)).$1;
+        await revoke(etu.primaryEnId, holders[1]);
+        expect((await infons(holders[0], 'test'))['lastRevokedAt'], isNotNull,
+            reason: 'precondition');
+
+        await etu.unrevokeEnrollment(etu.primaryEnId, holders[1]);
+        expect((await infons(holders[0], 'test'))['lastRevokedAt'], isNull,
+            reason: 'the derivation reads revokedAt, which the un-revoke '
+                'cleared, so the namespace stops reporting a revocation with '
+                'no separate bookkeeping');
+      });
+
+      test('it is gated exactly as the roster is', () async {
+        // Same authorisation question, so the two verbs share one gate rather
+        // than restating it: what a caller may learn ABOUT a namespace and
+        // who it may learn holds that namespace cannot drift apart.
+        final holders = (await etu.createEnrollments(n: 2)).$1;
+
+        // app_2 holds app_2 and test, but not app_1.
+        await expectLater(() => infons(holders[1], 'app_1'),
+            throwsA(isA<UnAuthorizedException>()));
+
+        // The control: the same caller may ask about a namespace it holds.
+        expect(await infons(holders[1], 'app_2'), isA<Map>());
+      });
+
+      test('it requires APKAM authentication', () async {
+        inboundConnection.metaData.isAuthenticated = true;
+        inboundConnection.metadata.enrollmentId = null;
+        await expectLater(
+            etu.evh.processVerb(
+                Response(),
+                HashMap<String, String?>.from(
+                    {'operation': 'infons', 'listNamespace': 'test'}),
+                inboundConnection),
+            throwsA(isA<UnAuthenticatedException>()));
       });
     });
   });

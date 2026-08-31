@@ -12,11 +12,43 @@ import 'package:at_commons/at_commons.dart';
 /// otp - timebased OTP which has to fetched from an already enrolled app
 /// apkamPublicKey - new pkam public key from the requesting app/client
 class Enroll extends Verb {
+  /// ⚠️ TEMPORARY LOCAL OVERRIDE. Delete this and return [VerbSyntax.enroll]
+  /// once a published at_commons lists `infons` itself.
+  ///
+  /// at_commons owns the enroll operation alternation, and it does not yet
+  /// know `infons` — so `enroll:infons:<namespace>` is rejected as invalid
+  /// syntax before it reaches a handler. Every other verb in this package
+  /// takes its syntax from at_commons unchanged, and this one should again.
+  ///
+  /// Built by INSERTING into at_commons's pattern rather than by copying it,
+  /// so that any other upstream change to the enroll syntax still reaches this
+  /// server. Only the one addition is local.
+  static final String _syntaxWithInfons = _buildSyntax();
+
+  /// Throws rather than returning an unmodified pattern. A failed insertion
+  /// would leave `enroll:infons` rejected as a syntax error, which reads
+  /// exactly like the verb not existing — so the server refuses to start with
+  /// a silently-degraded verb table instead.
+  static String _buildSyntax() {
+    const insertionPoint = '(request|';
+    final String upstream = VerbSyntax.enroll;
+    if (!upstream.contains(insertionPoint)) {
+      throw StateError(
+          'at_server adds `infons` to the enroll syntax locally by inserting '
+          'it into at_commons\'s operation alternation, which no longer '
+          'contains "$insertionPoint". Check whether at_commons now defines '
+          '`infons` itself: if it does, delete this override and return '
+          'VerbSyntax.enroll. If it does not, find the new insertion point. '
+          'Upstream pattern was: $upstream');
+    }
+    return upstream.replaceFirst(insertionPoint, '${insertionPoint}infons|');
+  }
+
   @override
   String name() => 'enroll';
 
   @override
-  String syntax() => VerbSyntax.enroll;
+  String syntax() => _syntaxWithInfons;
 
   @override
   Verb? dependsOn() {

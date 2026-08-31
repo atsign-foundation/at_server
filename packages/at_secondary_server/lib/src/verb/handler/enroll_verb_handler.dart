@@ -97,9 +97,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     EnrollParams? enrollVerbParams;
 
     // Ensure that enrollParams are present for all enroll operation.
-    // 'list' and 'listns' carry no enrollParams JSON body.
+    // 'list', 'listns' and 'infons' carry no enrollParams JSON body — the
+    // namespace-scoped pair take their argument in the command itself.
     if (verbParams[AtConstants.enrollParams] == null) {
-      if (operation != 'list' && operation != 'listns') {
+      if (operation != 'list' &&
+          operation != 'listns' &&
+          operation != 'infons') {
         logger.severe(
             'Enroll params is empty | EnrollParams: ${verbParams[AtConstants.enrollParams]}');
         throw IllegalArgumentException('Enroll parameters not provided');
@@ -178,6 +181,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         return;
       case 'listns':
         response.data = await _fetchEnrollmentsForNamespace(
+          enMgr,
+          atConnection,
+          verbParams['listNamespace'] ?? '',
+        );
+        return;
+      case 'infons':
+        response.data = await _fetchNamespaceInfo(
           enMgr,
           atConnection,
           verbParams['listNamespace'] ?? '',
@@ -1246,45 +1256,74 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       throw IllegalArgumentException('namespace is required for enroll:listns');
     }
 
+    await _requireNamespaceAccess(enMgr, atConnection, namespace, 'listns');
+    final members = await enMgr.getEnrollmentsForNamespace(namespace);
+    return jsonEncode(members);
+  }
+
+  /// Facts about [namespace] itself, as opposed to the roster of enrollments
+  /// holding it.
+  ///
+  /// A MAP, and deliberately so. The roster is a list of members and the last
+  /// revocation affecting a namespace is not a fact about any member — putting
+  /// it there meant the same value on every row under a name that had to
+  /// explain why it was in the wrong place. A map also has room for the next
+  /// per-namespace fact without touching the roster's shape, which matters
+  /// because a deployed client reads that roster as
+  /// `if (decoded is! List) return const []` and would take an unrecognised
+  /// shape for an empty namespace, silently.
+  ///
+  /// `lastRevokedAt` is present ALWAYS, null when nothing holding the
+  /// namespace has been revoked. An absent key and a key a client failed to
+  /// parse are the same thing to a careless reader; an explicit null is an
+  /// answer.
+  Future<String> _fetchNamespaceInfo(
+    EnrollmentManager enMgr,
+    InboundConnection atConnection,
+    String namespace,
+  ) async {
+    if (namespace.isEmpty) {
+      throw IllegalArgumentException('namespace is required for enroll:infons');
+    }
+    await _requireNamespaceAccess(enMgr, atConnection, namespace, 'infons');
+    final DateTime? lastRevokedAt =
+        await enMgr.lastRevocationForNamespace(namespace);
+    return jsonEncode({'lastRevokedAt': lastRevokedAt?.toIso8601String()});
+  }
+
+  /// The gate both namespace-scoped verbs sit behind: an APKAM-authenticated
+  /// caller whose own enrollment is approved and which holds at least read
+  /// access to [namespace].
+  ///
+  /// Shared rather than restated so the two verbs cannot drift apart — what a
+  /// caller may learn ABOUT a namespace and who it may learn holds that
+  /// namespace are the same authorisation question.
+  Future<void> _requireNamespaceAccess(
+    EnrollmentManager enMgr,
+    InboundConnection atConnection,
+    String namespace,
+    String operation,
+  ) async {
     final callerEnrollmentId =
         (atConnection.metaData as InboundConnectionMetadata).enrollmentId;
     if (callerEnrollmentId == null || callerEnrollmentId.isEmpty) {
       throw UnAuthenticatedException(
-          'enroll:listns requires APKAM authentication');
+          'enroll:$operation requires APKAM authentication');
     }
-
-    // Verify the caller's own enrollment is approved AND holds at least read
-    // access to the requested namespace — learning a namespace's roster is
-    // gated on ≥r for that namespace, not merely on being approved.
     final callerEnVal = await enMgr.getEnrollmentById(callerEnrollmentId);
     if (callerEnVal.approval?.state != EnrollmentStatus.approved.name) {
       throw UnAuthorizedException('Caller enrollment is not in approved state');
     }
-    if (_accessForNamespace(callerEnVal, namespace) == null) {
+    if (enMgr.accessForNamespace(callerEnVal, namespace) == null) {
       throw UnAuthorizedException(
           'Caller enrollment is not authorised for namespace "$namespace"');
     }
-
-    final members = await enMgr.getEnrollmentsForNamespace(namespace);
-    return jsonEncode(members);
   }
 
   /// The caller's access (`r`|`rw`) to [namespace] under the atServer's own
   /// suffix / `*`-wildcard rule, or null if the enrollment has no access.
   /// Mirrors [EnrollmentManager.getEnrollmentsForNamespace]'s match; both `r`
   /// and `rw` satisfy the ≥`r` bar the discovery verb requires.
-  String? _accessForNamespace(EnrollDataStoreValue enVal, String namespace) {
-    for (final entry in enVal.namespaces.entries) {
-      final ns = entry.key;
-      if (ns == EnrollmentConstants.allNamespaces ||
-          ns == namespace ||
-          namespace.endsWith('.$ns')) {
-        return entry.value;
-      }
-    }
-    return null;
-  }
-
   bool _doesEnrollmentHaveManageNamespace(
       EnrollDataStoreValue enrollDataStoreValue) {
     return enrollDataStoreValue.namespaces

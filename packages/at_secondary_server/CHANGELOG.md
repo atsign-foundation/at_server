@@ -1,4 +1,31 @@
 # 3.16.4
+- feat: `enroll:infons:<namespace>` — facts about a namespace, as opposed to
+  `enroll:listns`, which answers who holds it. Same authorisation as `listns`
+  (APKAM-authenticated, caller approved, caller holds at least read access to
+  the namespace), and the two now share one gate rather than restating it.
+
+  It returns a JSON map, initially with one member: `lastRevokedAt`, the most
+  recent moment any enrollment holding that namespace was revoked. The key is
+  ALWAYS present, and null when nothing has been revoked — an absent key and a
+  key a client failed to parse are the same thing to a careless reader.
+  Revocations reach it through a cascaded descendant as readily as through the
+  enrollment an operator named, because a successor holds its predecessor's
+  namespaces exactly.
+
+  A map rather than a field on the `listns` roster: a roster is a list of
+  members and the last revocation affecting a namespace is not a fact about any
+  member. `enroll:listns` is unchanged, which matters — a deployed client reads
+  that response as "if this is not a list, the namespace has no members", so an
+  unrecognised shape there would silently empty every roster rather than fail.
+
+  ⚠️ The enroll operation alternation lives in at_commons, which does not yet
+  list `infons`, so `at_server_spec`'s `Enroll` verb adds it locally by
+  INSERTING into at_commons' pattern — not by copying it, so every other
+  upstream change still reaches this server, and it throws rather than
+  returning an unmodified pattern if the insertion point ever moves. This is a
+  temporary divergence between what the server accepts and what at_commons
+  describes; `enroll_verb_syntax_test.dart` fails deliberately once a published
+  at_commons defines `infons`, which is the signal to delete the override.
 - feat: a revoked enrollment records WHEN, as `revokedAt` on the enrollment
   value. Present exactly when the record reads `revoked`: every transition into
   that state stamps it — the enrollment an operator named and every one a

@@ -337,21 +337,35 @@ class EnrollmentManager {
   ///   - `*` authorises every namespace
   ///   - an exact match (e.g. `wavi` authorises `wavi`)
   ///   - a namespace suffix match (e.g. `wavi` authorises `data.wavi`)
+  /// The access [enVal] holds over [namespace], or null if it holds none.
+  ///
+  /// A `*` grant covers every namespace, and a grant on a parent segment
+  /// covers its children — the same rule the verb handler gates the caller on,
+  /// so a caller admitted to a roster is always ON that roster.
+  String? accessForNamespace(EnrollDataStoreValue enVal, String namespace) {
+    for (final entry in enVal.namespaces.entries) {
+      final ns = entry.key;
+      if (ns == EnrollmentConstants.allNamespaces ||
+          ns == namespace ||
+          namespace.endsWith('.$ns')) {
+        return entry.value;
+      }
+    }
+    return null;
+  }
+
+  /// The approved enrollments holding [namespace].
+  ///
+  /// Approved only, which is what makes revocation bind a HOLDER: a revoked
+  /// enrollment leaves every roster at once, on every client, including ones
+  /// that never heard about the revocation.
   Future<List<Map<String, dynamic>>> getEnrollmentsForNamespace(
       String namespace) async {
     final result = <Map<String, dynamic>>[];
     for (final ek in await getAllEnrollmentKeys()) {
       final EnrollDataStoreValue enVal = await getEnrollmentByFullKey(ek);
       if (enVal.approval?.state != EnrollmentStatus.approved.name) continue;
-
-      String? access;
-      for (final entry in enVal.namespaces.entries) {
-        final ns = entry.key;
-        if (ns == '*' || ns == namespace || namespace.endsWith('.$ns')) {
-          access = entry.value;
-          break;
-        }
-      }
+      final String? access = accessForNamespace(enVal, namespace);
       if (access == null) continue;
 
       result.add({
@@ -362,6 +376,31 @@ class EnrollmentManager {
       });
     }
     return result;
+  }
+
+  /// The most recent moment any enrollment holding [namespace] was REVOKED, or
+  /// null if none has been.
+  ///
+  /// Deliberately not folded into [getEnrollmentsForNamespace]: this is a fact
+  /// about the namespace, not about any member of its roster, and a roster is
+  /// a list of members with nowhere to put one. It answers `enroll:infons`,
+  /// which exists so that the answer has a shape it fits.
+  ///
+  /// Revoked enrollments count whatever put them there. A cascade revokes a
+  /// successor holding its predecessor's namespaces exactly, so a revocation
+  /// reaches this answer through a descendant as readily as through the
+  /// enrollment an operator named — which is what makes stamping the
+  /// cascaded ones load-bearing rather than tidy.
+  Future<DateTime?> lastRevocationForNamespace(String namespace) async {
+    DateTime? latest;
+    for (final ek in await getAllEnrollmentKeys()) {
+      final EnrollDataStoreValue enVal = await getEnrollmentByFullKey(ek);
+      if (enVal.approval?.state != EnrollmentStatus.revoked.name) continue;
+      if (accessForNamespace(enVal, namespace) == null) continue;
+      final at = enVal.revokedAt;
+      if (at != null && (latest == null || at.isAfter(latest))) latest = at;
+    }
+    return latest;
   }
 
   /// iterate all enrollments, remove key which leaks appName and deviceName
