@@ -774,16 +774,17 @@ void main() {
               'survive the revoke. Got: $after');
     });
 
-    test('a revocation time is served on enroll:list, on both the named '
-        'target and the cascaded successor', () async {
-      // The point of putting `revokedAt` on the enrollment VALUE: the record
-      // is serialised whole, so the stamp leaves the server rather than
-      // staying an internal detail. Only over the wire is that observable.
+    test('the enrollment record carries no revocation time; the history does',
+        () async {
+      // A revocation time used to live on the enrollment VALUE, which
+      // `enroll:list` serialises whole — so it left the server on every
+      // listing. It is now a record of its own, and this pins BOTH halves
+      // over the wire: the field is gone from what a client is served, and
+      // the revocation is still reported where it now lives.
       //
-      // Read here on the OWNER's connection, which is what sees every record.
-      // `enroll:list` narrows to the caller's own record unless the caller is
-      // legacy-PKAM or holds `__manage`, so this asserts that the stamp is
-      // served — not that any given client can see another enrollment's.
+      // Read on the OWNER's connection, which is what sees every record:
+      // `enroll:list` narrows to the caller's own unless the caller is
+      // legacy-PKAM or holds `__manage`.
       OutboundConnectionFactory owner = await ownerConnection();
       String predecessorId =
           await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
@@ -793,16 +794,6 @@ void main() {
           (await owner.sendRequestToServer('enroll:list'))
               .replaceFirst('data:', '')
               .trim()) as Map;
-
-      // The control. Without it "the field is present after" is satisfied by
-      // a field that was always there.
-      final Map before = await listed();
-      for (final e in before.entries.where((e) =>
-          e.key.contains(predecessorId) || e.key.contains(successorId))) {
-        expect((e.value as Map)['revokedAt'], isNull,
-            reason: 'nothing is revoked yet, so no record may carry a '
-                'revocation time: ${e.key}');
-      }
 
       await owner
           .sendRequestToServer('enroll:revoke:{"enrollmentId":"$predecessorId"}');
@@ -816,12 +807,35 @@ void main() {
           reason: 'both the named target and the successor the cascade took '
               'must still be listed, or the loop below asserts nothing');
       for (final e in matched) {
-        final stamp = (e.value as Map)['revokedAt'];
-        expect(stamp, isNotNull, reason: '${e.key} is revoked and must say when');
-        expect(() => DateTime.parse(stamp as String), returnsNormally,
-            reason: 'the wire contract is ISO-8601, which is what a client '
-                'compares against other server-stamped times');
+        expect((e.value as Map)['status'], 'revoked',
+            reason: 'the positive control: these records really are revoked, '
+                'so the absence below is about the field and not about a '
+                'revoke that never landed');
+        expect((e.value as Map).containsKey('revokedAt'), isFalse,
+            reason: '${e.key} must not serve a revocation time. A copy on the '
+                'enrollment would disagree with the history the moment an '
+                'un-revoke landed, and it would leave with the record when '
+                'the APKAM key-expiry posture reaped it');
       }
+
+      // And the revocation IS reported, from the history, for a namespace
+      // both of them held.
+      OutboundConnectionFactory asOther = await newConnection();
+      String other =
+          await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
+      expect(
+          (await asOther.authenticateConnection(
+                  authType: AuthType.apkam, enrollmentId: other))
+              .trim(),
+          'data:success');
+      final Map info = jsonDecode(
+          (await asOther.sendRequestToServer('enroll:infons:wavi'))
+              .replaceFirst('data:', '')
+              .trim()) as Map;
+      expect(info['lastRevokedAt'], isNotNull);
+      expect(() => DateTime.parse(info['lastRevokedAt'] as String),
+          returnsNormally,
+          reason: 'the wire contract is ISO-8601');
     });
 
     test('enroll:infons reports the namespace\'s last revocation over the wire',
@@ -858,25 +872,33 @@ void main() {
 
       await owner.sendRequestToServer('enroll:revoke:{"enrollmentId":"$holderB"}');
 
-      // Asserted by VALUE against the same authority: holderB's own stamp,
-      // read off its record. Comparing against DateTime.now() here would be
-      // measuring clock agreement between this process and the server.
-      final listed = jsonDecode((await owner.sendRequestToServer('enroll:list'))
-          .replaceFirst('data:', '')
-          .trim()) as Map;
-      final holderBRecord = listed.entries
-          .firstWhere((e) => e.key.contains(holderB))
-          .value as Map;
-      expect(holderBRecord['revokedAt'], isNotNull,
-          reason: 'precondition: the revoke stamped the record');
-
+      // Every value compared here comes from the SAME authority — this verb,
+      // on this server. Comparing against DateTime.now() in this process
+      // would be measuring clock agreement between two machines.
       final after = await infons();
-      expect(after['lastRevokedAt'], holderBRecord['revokedAt'],
-          reason: 'the namespace reports the most recent revocation of an '
-              'enrollment holding it, and holderB was just revoked');
+      expect(after['lastRevokedAt'], isNotNull);
+      expect(() => DateTime.parse(after['lastRevokedAt'] as String),
+          returnsNormally,
+          reason: 'the wire contract is ISO-8601');
       expect(after['lastRevokedAt'], isNot(before['lastRevokedAt']),
-          reason: 'and it MOVED — otherwise this passes on whatever the '
-              'namespace already carried when the test started');
+          reason: 'it MOVED — otherwise this passes on whatever the namespace '
+              'already carried when the test started');
+
+      // The counter-event, over the wire. An un-revoke withdraws the
+      // revocation from this answer, so the namespace goes back to reporting
+      // exactly what it reported before — which is also why a client must ask
+      // whether this CHANGED rather than whether it grew.
+      await owner
+          .sendRequestToServer('enroll:unrevoke:{"enrollmentId":"$holderB"}');
+      final withdrawn = await infons();
+      expect(withdrawn['lastRevokedAt'], before['lastRevokedAt'],
+          reason: 'the whole of holderB\'s revocation is withdrawn, and no '
+              'other wavi holder was revoked in between, so the namespace '
+              'reports what it did before it happened');
+
+      // Put it back, so the rest of the pack sees the state this test found.
+      await owner
+          .sendRequestToServer('enroll:revoke:{"enrollmentId":"$holderB"}');
 
       // And the roster is untouched by any of it — `enroll:listns` returns
       // what it always did, which is what lets this land without a client

@@ -48,6 +48,10 @@
   enrollment an operator named, because a successor holds its predecessor's
   namespaces exactly.
 
+  It is derived from the revocation history below, and it NETS OUT
+  un-revocations — so it can move BACKWARDS. A client deciding whether to
+  re-fetch must ask whether the value CHANGED, not whether it grew.
+
   A map rather than a field on the `listns` roster: a roster is a list of
   members and the last revocation affecting a namespace is not a fact about any
   member. `enroll:listns` is unchanged, which matters — a deployed client reads
@@ -62,23 +66,46 @@
   temporary divergence between what the server accepts and what at_commons
   describes; `enroll_verb_syntax_test.dart` fails deliberately once a published
   at_commons defines `infons`, which is the signal to delete the override.
-- feat: a revoked enrollment records WHEN, as `revokedAt` on the enrollment
-  value. Present exactly when the record reads `revoked`: every transition into
-  that state stamps it — the enrollment an operator named and every one a
-  cascade swept up alike, so a reader never has to know which happened — and a
-  transition back out clears it. `enroll:list` serialises the record whole, so
-  it reaches clients with no new verb and no new record type, and it is the
-  atServer's own clock, which is what lets a consumer order a revocation
-  against other timestamps the atServer stamped rather than against a client's.
+- feat: a revocation history. Every moment an enrollment's revocation state
+  changes is written as a record of its OWN, carrying the enrollment id, the
+  moment, the namespace grants it held, the enrollment that issued the command
+  and — for one a cascade swept up — the enrollment whose revocation took it.
+  An un-revoke writes its own counter-event rather than erasing anything, so
+  the history keeps both facts and an audit can see a revocation that was
+  withdrawn.
 
-  Un-revoking therefore withdraws the revocation rather than recording that one
-  happened. That is deliberate and it has a cost: if a revocation was a genuine
-  compromise and the un-revoke is a mistake, nothing remembers it.
+  A field on the enrollment could not do this. An enrollment record carries the
+  APKAM key-expiry posture as its ttl, so a revoked enrollment is reaped on the
+  schedule its own credential was issued under — and a stamp living there goes
+  with it, taking `enroll:infons`' answer backwards, or to null, on a timetable
+  chosen by whoever set that posture. To a client polling for a reason to
+  re-fetch, that reads exactly like "nothing has changed". The grants go the
+  same way, and they are the only evidence of which namespaces a revocation
+  touched.
 
-  It is on the value rather than in record metadata because metadata timestamps
-  are re-derived by the metadata builder on any write that does not assert them
-  back, so a revocation time living there would be moved by writes that say
-  nothing about it.
+  The enrollment an operator named and every enrollment its cascade takes share
+  ONE timestamp: they are revoked by a single act, and stamping each with the
+  instant its own write happened would invite a reader to order them against
+  one another as separate decisions — in an order that is an artefact of the
+  retry-safe write sequence.
+
+  A revoke records BEFORE its write and an un-revoke AFTER it, so a crash in
+  between always errs towards reporting the namespace as revoked. Over-stating
+  a revocation costs a client a re-fetch; under-stating one tells it nothing
+  has changed when a credential has just stopped working.
+
+  The records live in `__manage`, which is what already hides enrollment
+  records from `scan`, and deliberately NOT under the `new.enrollments` key
+  pattern: the enrollment enumeration regex is an unanchored substring, so a
+  key carrying that pattern anywhere would be walked as an enrollment by every
+  roster, liveness check and cascade in the server.
+
+  ⚠️ They have no ttl — that is the point of the log, and it is also unbounded
+  growth. One record per revocation for the life of the atSign, and a cascade
+  writes one per enrollment it takes. No retention policy has been decided.
+
+  The `revokedAt` field this replaces has been removed from the enrollment
+  value. A record stored with one still decodes; re-encoding drops it.
 - feat: revoking an enrollment revokes everything that replaced it. Self
   enrollment makes enrollments a graph — a retrofit's successor records what it
   replaced — and a stolen keyfile can mint a successor before the theft is

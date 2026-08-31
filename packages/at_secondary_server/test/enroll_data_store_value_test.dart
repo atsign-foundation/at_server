@@ -115,29 +115,29 @@ void main() {
           isNull);
     });
 
-    test('revokedAt round-trips under its at-rest name', () {
-      // This one leaves the server: `enroll:list` serialises the record whole,
-      // so the key name is what a client reads a revocation time out of. The
-      // writer and reader are the same hand-maintained pair in the .g.dart, so
-      // a symmetric rename passes every test that goes through the typed
-      // getter while every already-stored record silently loses its stamp and
-      // every client stops seeing one.
-      final revokedAt = DateTime.utc(2026, 8, 31, 12, 34, 56, 789);
-      final v = EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey')
-        ..revokedAt = revokedAt;
+    test('a stored record carrying revokedAt still decodes', () {
+      // Records written before the revocation history existed carry a
+      // `revokedAt` the class no longer has. `fromJson` reads named keys, so
+      // an unknown one is ignored — but that is a property of the
+      // hand-maintained decoder rather than of a generator, and the whole
+      // reason this file exists is that nothing regenerates it.
+      final stored = <String, dynamic>{
+        'sessionId': '123',
+        'appName': 'testclient',
+        'deviceName': 'iphone',
+        'apkamPublicKey': 'mykey',
+        'namespaces': {'wavi': 'rw'},
+        'apkamKeysExpiryInMillis': 0,
+        'revokedAt': '2026-08-31T12:34:56.789Z',
+      };
 
-      expect(v.toJson()['revokedAt'], '2026-08-31T12:34:56.789Z',
-          reason: 'raw literal: the key name and the ISO-8601 encoding are '
-              'the wire contract a client compares against other '
-              'server-stamped times');
-      expect(EnrollDataStoreValue.fromJson(v.toJson()).revokedAt, revokedAt);
-
-      final live = EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey');
-      expect(live.toJson().containsKey('revokedAt'), false,
-          reason: 'omitted rather than written null, so a record from before '
-              'this field existed, and every enrollment that is not revoked, '
-              'read back the same way');
-      expect(EnrollDataStoreValue.fromJson(live.toJson()).revokedAt, isNull);
+      final v = EnrollDataStoreValue.fromJson(stored);
+      expect(v.namespaces, {'wavi': 'rw'});
+      expect(v.toJson().containsKey('revokedAt'), false,
+          reason: 're-encoding drops it, which is the intended one-way door: '
+              'the revocation history is the record of when, and a stale copy '
+              'on the enrollment would disagree with it the moment an '
+              'un-revoke landed');
     });
   });
 }

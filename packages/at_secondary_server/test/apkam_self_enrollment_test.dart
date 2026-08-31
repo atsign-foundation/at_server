@@ -11,6 +11,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/verb/handler/pkam_verb_handler.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
+import 'package:at_secondary/src/enroll/enrollment_revocation_event.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -1498,64 +1499,172 @@ void main() {
               'retrofit cap standing on it');
     });
 
-    /// `revokedAt` is present exactly when the record reads `revoked` — set on
-    /// every transition in, cleared on every transition out. It leaves the
-    /// server whole in `enroll:list`, so a consumer can order a revocation
-    /// against other timestamps the atServer stamped.
-    group('revokedAt', () {
-      Future<DateTime?> revokedAtOf(String id) async =>
-          (await enMgr.getEnrollmentById(id)).revokedAt;
+    /// The revocation history: one record per moment an enrollment's
+    /// revocation state changed, written as a record of its OWN so the fact
+    /// outlives the enrollment it describes.
+    ///
+    /// A field on the enrollment could not do that. An enrollment record
+    /// carries the APKAM key-expiry posture as its ttl, so a revoked
+    /// enrollment is reaped on the schedule its own credential was issued
+    /// under — and a stamp living there disappears with it, taking the answer
+    /// to "when was anything holding this namespace last revoked" backwards on
+    /// a timetable chosen by whoever set that posture.
+    group('the revocation event log', () {
+      Future<List<EnrollmentRevocationEvent>> eventsFor(String id) async =>
+          (await enMgr.revocationEvents())
+              .where((e) => e.enrollmentId == id)
+              .toList();
 
-      test('an approved enrollment carries none', () async {
-        // The control. Without it every assertion below is satisfied by a
-        // field that is simply never written.
-        expect(await revokedAtOf(etu.primaryEnId), isNull);
+      test('nothing is written until something is revoked', () async {
+        // The control. Without it every assertion below is satisfied by a log
+        // that records every enrollment operation there is.
+        await etu.createEnrollments(n: 1);
+        expect(await enMgr.revocationEvents(), isEmpty);
       });
 
-      test('revoking stamps the enrollment an operator named', () async {
+      test('a revoke writes one event, naming who did it and what it held',
+          () async {
         final ordinary = (await etu.createEnrollments(n: 1)).$1.first;
+        final grants =
+            Map<String, String>.from((await enMgr.getEnrollmentById(ordinary))
+                .namespaces);
+        expect(grants, isNotEmpty, reason: 'precondition: there ARE grants to '
+            'record, so the assertion below is not vacuous');
         final before = DateTime.now().toUtc();
         await revoke(etu.primaryEnId, ordinary);
 
-        final at = await revokedAtOf(ordinary);
-        expect(at, isNotNull);
-        expect(at!.isBefore(before), isFalse,
-            reason: 'the stamp is the moment of the revoke, not something '
-                'carried over from the record it was read out of');
+        final es = await eventsFor(ordinary);
+        expect(es, hasLength(1));
+        expect(es.single.type, EnrollmentRevocationEventType.revoked);
+        expect(es.single.at.isBefore(before), isFalse,
+            reason: 'the moment of the revoke, not something carried over '
+                'from the record it was read out of');
+        expect(es.single.byEnrollmentId, etu.primaryEnId,
+            reason: 'the enrollment on the connection that issued it');
+        expect(es.single.cascadedFrom, isNull,
+            reason: 'an operator named this one, so there is no other '
+                'enrollment to explain why it went');
+        expect(es.single.namespaces, grants,
+            reason: 'copied at the revocation, because the enrollment record '
+                'is the thing that may be gone by the time anyone reads this '
+                '— and its grants are the only evidence of which namespaces '
+                'the revocation touched');
       });
 
-      test('and stamps every enrollment the cascade swept up', () async {
+      test('a cascade writes one event each, naming the enrollment whose '
+          'revocation swept them up', () async {
         final chain = await chainFrom(etu.primaryEnId, 2);
         await revoke(etu.primaryEnId, chain[0]);
 
-        expect(await revokedAtOf(chain[0]), isNotNull);
-        expect(await revokedAtOf(chain[1]), isNotNull,
-            reason: 'an enrollment swept up by a cascade is as revoked as one '
-                'an operator named, and a reader must not have to know which '
-                'happened to learn when it stopped being usable');
+        final named = await eventsFor(chain[0]);
+        final swept = await eventsFor(chain[1]);
+        expect(named, hasLength(1));
+        expect(swept, hasLength(1));
+        expect(named.single.cascadedFrom, isNull);
+        expect(swept.single.cascadedFrom, chain[0],
+            reason: 'why THIS enrollment was revoked is not visible from its '
+                'own record — nobody named it');
+        expect(swept.single.byEnrollmentId, etu.primaryEnId,
+            reason: 'who did it, which is a different question from why this '
+                'one went, and a cascade is exactly where the two differ');
+        expect(swept.single.at, named.single.at,
+            reason: 'one act, one moment: stamping each with the instant its '
+                'own write happened would invite a reader to order them '
+                'against one another as separate decisions');
       });
 
-      test('un-revoking clears it', () async {
+      test('un-revoking writes a counter-event rather than erasing the '
+          'revocation', () async {
         final ordinary = (await etu.createEnrollments(n: 1)).$1.first;
         await revoke(etu.primaryEnId, ordinary);
-        expect(await revokedAtOf(ordinary), isNotNull, reason: 'precondition');
-
         await etu.unrevokeEnrollment(etu.primaryEnId, ordinary);
-        expect(await revokedAtOf(ordinary), isNull,
-            reason: 'a stamp that outlived the status would sit on a record '
-                'that is active again, and a reader keying on the field '
-                'rather than the status could not tell');
+
+        final es = await eventsFor(ordinary);
+        expect(es, hasLength(2));
+        expect(
+            es
+                .where((e) => e.type == EnrollmentRevocationEventType.revoked)
+                .length,
+            1,
+            reason: 'the revocation still stands in the history. Withdrawing '
+                'it is a second fact, not the removal of the first — which is '
+                'the case an audit most wants to see');
+        final withdrawal = es
+            .singleWhere((e) => e.type == EnrollmentRevocationEventType.unrevoked);
+        expect(withdrawal.byEnrollmentId, etu.primaryEnId);
+        expect(withdrawal.namespaces, isNotEmpty,
+            reason: 'a withdrawal has to say which namespaces it affects '
+                'without the enrollment, for the same reason a revocation '
+                'does');
       });
 
-      test('and clears it on a cascaded enrollment too', () async {
+      test('and on an enrollment the cascade swept up', () async {
         final chain = await chainFrom(etu.primaryEnId, 2);
         await revoke(etu.primaryEnId, chain[0]);
         await etu.unrevokeEnrollment(etu.primaryEnId, chain[0]);
         await etu.unrevokeEnrollment(etu.primaryEnId, chain[1]);
 
-        expect(await revokedAtOf(chain[1]), isNull,
-            reason: 'the clear is a property of the transition, not of how '
-                'the record came to be revoked');
+        expect(
+            (await eventsFor(chain[1]))
+                .where((e) => e.type == EnrollmentRevocationEventType.unrevoked)
+                .length,
+            1,
+            reason: 'the counter-event is a property of the transition, not '
+                'of how the record came to be revoked');
+      });
+
+      test('an event record is not enumerated as an enrollment', () async {
+        // `EnrollmentConstants.enrollmentsRegex` is an UNANCHORED substring,
+        // so a key carrying `.new.enrollments.__manage@` anywhere in it is
+        // swept up by `getAllEnrollmentKeys` and handed to a decoder
+        // expecting an EnrollDataStoreValue. Nearly every enrollment walk in
+        // the server goes through that enumeration — the roster, the liveness
+        // check, the legacy-key sweeps.
+        final ordinary = (await etu.createEnrollments(n: 1)).$1.first;
+        await revoke(etu.primaryEnId, ordinary);
+
+        final enrollmentKeys = await enMgr.getAllEnrollmentKeys();
+        expect(enrollmentKeys, contains(enMgr.buildEnrollmentKey(ordinary)),
+            reason: 'the positive control: this enumeration really does find '
+                'enrollment records, so the absence below is about the event '
+                'key rather than about a walk that found nothing');
+
+        final List<String> eventKeys = await (await keyValueStore.getKeys(
+                regex: EnrollmentManager.revocationEventsRegex))
+            .toList();
+        expect(eventKeys, hasLength(1),
+            reason: 'precondition: there IS an event record on disk to be '
+                'wrongly enumerated');
+        expect(enrollmentKeys, isNot(contains(eventKeys.single)));
+        expect(eventKeys.single, contains('.__manage@'),
+            reason: 'and it stays inside __manage, so the scan rule that '
+                'already hides enrollment records hides this too');
+      });
+
+      test('the history outlives the enrollment it describes', () async {
+        // The whole reason the log exists. A stamp on the enrollment record
+        // goes when the record goes, and the record goes on a schedule the
+        // enrollment's own key-expiry posture chose.
+        final holders = (await etu.createEnrollments(n: 2)).$1;
+        await revoke(etu.primaryEnId, holders[1]);
+        final DateTime at = (await eventsFor(holders[1])).single.at;
+        expect(await enMgr.lastRevocationForNamespace('test'), at,
+            reason: 'precondition');
+
+        // Deleting the record is the end state a reap arrives at.
+        await enMgr.remove(enId: holders[1]);
+        await expectLater(() => enMgr.getEnrollmentById(holders[1]),
+            throwsA(isA<KeyNotFoundException>()),
+            reason: 'precondition: the enrollment really is gone');
+
+        expect((await eventsFor(holders[1])).single.at, at,
+            reason: 'the event is a record of its own and nothing reaped it');
+        expect(await enMgr.lastRevocationForNamespace('test'), at,
+            reason: 'and the namespace still reports the revocation. Read off '
+                'the enrollments, this answer would now be null — the '
+                'namespace would report that nothing had ever been revoked, '
+                'which is what a client polling for a reason to re-fetch '
+                'reads as "nothing has changed"');
       });
     });
 
@@ -1586,6 +1695,20 @@ void main() {
         return jsonDecode(r.data!) as Map<String, dynamic>;
       }
 
+      /// The moment the LOG says [id] was revoked, read straight off the
+      /// stored event rather than through the derivation under test — so a
+      /// derivation that agreed with itself would not satisfy it.
+      Future<DateTime> soleRevocationOf(String id) async {
+        final es = (await enMgr.revocationEvents())
+            .where((e) =>
+                e.enrollmentId == id &&
+                e.type == EnrollmentRevocationEventType.revoked)
+            .toList();
+        expect(es, hasLength(1),
+            reason: 'meaningful only for an enrollment revoked exactly once');
+        return es.single.at;
+      }
+
       Future<List<dynamic>> listns(String callerId, String namespace) async {
         inboundConnection.metaData.isAuthenticated = true;
         inboundConnection.metadata.enrollmentId = callerId;
@@ -1614,11 +1737,10 @@ void main() {
       test('a revoked holder is reported', () async {
         final holders = (await etu.createEnrollments(n: 2)).$1;
         await revoke(etu.primaryEnId, holders[1]);
-        final at = (await enMgr.getEnrollmentById(holders[1])).revokedAt;
-        expect(at, isNotNull, reason: 'precondition');
+        final at = await soleRevocationOf(holders[1]);
 
         expect((await infons(holders[0], 'test'))['lastRevokedAt'],
-            at!.toIso8601String());
+            at.toIso8601String());
       });
 
       test('the roster keeps exactly the shape it always had', () async {
@@ -1652,9 +1774,8 @@ void main() {
         // holders[1] holds app_2 and test. Revoke it and ask about app_1,
         // which it does NOT hold.
         await revoke(etu.primaryEnId, holders[1]);
-        expect((await enMgr.getEnrollmentById(holders[1])).revokedAt, isNotNull,
-            reason: 'precondition: there IS a revocation to be wrongly '
-                'reported');
+        await soleRevocationOf(holders[1]); // precondition: there IS a
+        // revocation to be wrongly reported.
 
         // holders[0] holds app_1, so it may ask about it.
         expect((await infons(holders[0], 'app_1'))['lastRevokedAt'], isNull,
@@ -1673,8 +1794,8 @@ void main() {
         await Future.delayed(Duration(milliseconds: 20));
         await revoke(etu.primaryEnId, holders[2]);
 
-        final first = (await enMgr.getEnrollmentById(holders[1])).revokedAt!;
-        final second = (await enMgr.getEnrollmentById(holders[2])).revokedAt!;
+        final first = await soleRevocationOf(holders[1]);
+        final second = await soleRevocationOf(holders[2]);
         expect(second.isAfter(first), isTrue, reason: 'precondition');
 
         expect((await infons(holders[0], 'test'))['lastRevokedAt'],
@@ -1696,19 +1817,23 @@ void main() {
         // its stamp wins the maximum, and the cascade's contribution is
         // invisible whether it is counted or not.
         await etu.unrevokeEnrollment(etu.primaryEnId, holders[1]);
-        expect((await enMgr.getEnrollmentById(holders[1])).revokedAt, isNull,
-            reason: 'precondition: the named target no longer contributes');
-        final cascadedAt =
-            (await enMgr.getEnrollmentById(successorId)).revokedAt;
-        expect(cascadedAt, isNotNull,
-            reason: 'precondition: the successor is still revoked');
+        expect(
+            (await enMgr.revocationEvents())
+                .where((e) =>
+                    e.enrollmentId == holders[1] &&
+                    e.type == EnrollmentRevocationEventType.unrevoked)
+                .length,
+            1,
+            reason: 'precondition: the named target is withdrawn, so it no '
+                'longer contributes');
+        final cascadedAt = await soleRevocationOf(successorId);
 
         expect((await infons(holders[0], 'test'))['lastRevokedAt'],
-            cascadedAt!.toIso8601String(),
+            cascadedAt.toIso8601String(),
             reason: 'a cascade revokes a successor holding its predecessor\'s '
                 'namespaces exactly, so a revocation reaches this answer '
                 'through the descendant as readily as through the enrollment '
-                'an operator named — which is what makes stamping the '
+                'an operator named — which is what makes recording the '
                 'cascaded ones load-bearing rather than tidy');
       });
 
@@ -1721,9 +1846,9 @@ void main() {
 
         await etu.unrevokeEnrollment(etu.primaryEnId, holders[1]);
         expect((await infons(holders[0], 'test'))['lastRevokedAt'], isNull,
-            reason: 'the derivation reads revokedAt, which the un-revoke '
-                'cleared, so the namespace stops reporting a revocation with '
-                'no separate bookkeeping');
+            reason: 'the counter-event withdraws the revocation, so the '
+                'derivation nets to nothing — the history keeps both facts, '
+                'and only this derived answer moves back');
       });
 
       test('it is gated exactly as the roster is', () async {

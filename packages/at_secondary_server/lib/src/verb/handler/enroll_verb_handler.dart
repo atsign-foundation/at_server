@@ -7,6 +7,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
+import 'package:at_secondary/src/enroll/enrollment_revocation_event.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -761,9 +762,14 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // never be completed. This order fails the other way — the subtree is
     // revoked and the target is not — and re-running the command finishes
     // the job.
+    //
+    // One moment for the whole command — the enrollment named and every
+    // enrollment the cascade takes. See EnrollmentManager.revokeAll.
+    final DateTime commandAt = DateTime.now().toUtc();
     final List<String> cascaded = cascadeIds.isEmpty
         ? const []
-        : await enMgr.revokeAll(cascadeIds);
+        : await enMgr.revokeAll(cascadeIds,
+            byEnrollmentId: callerId, cascadedFrom: enId, at: commandAt);
     if (cascaded.isNotEmpty) {
       logger.info(
           'Revoking $enId cascaded to ${cascaded.length} enrollment(s) that '
@@ -772,14 +778,36 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
     EnrollmentStatus newEnrollmentStatus = _getEnrollStatusEnum(operation);
     enVal.approval!.state = newEnrollmentStatus.name;
-    // `revokedAt` is present exactly when the record reads `revoked`, so it is
-    // set and cleared by the same line rather than only stamped. An un-revoke
-    // maps to `approved` here, and leaving the stamp behind would put a
-    // revocation time on a record that is active again.
-    enVal.revokedAt = newEnrollmentStatus == EnrollmentStatus.revoked
-        ? DateTime.now().toUtc()
-        : null;
     responseJson['status'] = newEnrollmentStatus.name;
+
+    // The revocation history, for the enrollment this command NAMED. The
+    // cascade wrote its own above, with the same provenance and `cascadedFrom`
+    // pointing here.
+    //
+    // Grants are read off the record BEFORE the write, and recorded on the
+    // un-revoke too: an event has to say which namespaces it affects without
+    // the enrollment, which by then may be reaped.
+    EnrollmentRevocationEvent? revocationEvent;
+    if (operation == 'revoke' || operation == 'unrevoke') {
+      revocationEvent = EnrollmentRevocationEvent(
+        type: operation == 'revoke'
+            ? EnrollmentRevocationEventType.revoked
+            : EnrollmentRevocationEventType.unrevoked,
+        enrollmentId: enId,
+        at: commandAt,
+        namespaces: Map<String, String>.from(enVal.namespaces),
+        byEnrollmentId: callerId,
+        cascadedFrom: null,
+      );
+    }
+    // A revoke records BEFORE its write and an un-revoke AFTER it, so that a
+    // crash in the window always errs towards reporting the namespace as
+    // revoked. Over-stating a revocation costs a client a refetch;
+    // under-stating one tells it nothing has changed when a credential has
+    // just stopped working.
+    if (operation == 'revoke') {
+      await enMgr.recordRevocationEvents([revocationEvent!]);
+    }
 
     // Update the enrollment status against the enrollment key in keystore.
     AtData atData = AtData()..data = jsonEncode(enVal.toJson());
@@ -823,6 +851,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
     await enMgr.put(enId, atData, newEnrollmentStatus,
         assertedTimestamps: expiryCarry);
+
+    if (operation == 'unrevoke') {
+      await enMgr.recordRevocationEvents([revocationEvent!]);
+    }
 
     // when enrollment is approved store the encrypted encryption keys
     if (operation == 'approve') {
@@ -1340,6 +1372,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// namespace has been revoked. An absent key and a key a client failed to
   /// parse are the same thing to a careless reader; an explicit null is an
   /// answer.
+  ///
+  /// It is derived from the revocation history, which outlives the enrollments
+  /// it describes, and it NETS OUT un-revocations — so it can move backwards.
+  /// A client deciding whether to refetch must compare it for inequality
+  /// rather than order it.
   Future<String> _fetchNamespaceInfo(
     EnrollmentManager enMgr,
     InboundConnection atConnection,

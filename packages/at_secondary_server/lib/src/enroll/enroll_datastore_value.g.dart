@@ -8,8 +8,8 @@
 //
 // A field added to EnrollDataStoreValue and not added here does not persist,
 // and nothing goes red. enroll_data_store_value_test.dart pins the round trip
-// of SOME optional fields by raw at-rest name — apsk, apskLegacy,
-// predecessorCapArmedAt and revokedAt. The rest, parentEnrollmentId included,
+// of SOME optional fields by raw at-rest name — apsk, apskLegacy and
+// predecessorCapArmedAt. The rest, parentEnrollmentId included,
 // are covered only incidentally through the keystore, so adding a field here
 // and pinning it there is the habit that keeps this file honest.
 
@@ -44,10 +44,7 @@ EnrollDataStoreValue _$EnrollDataStoreValueFromJson(
       ..parentEnrollmentId = json['parentEnrollmentId'] as String?
       ..predecessorCapArmedAt = json['predecessorCapArmedAt'] == null
           ? null
-          : DateTime.parse(json['predecessorCapArmedAt'] as String)
-      ..revokedAt = json['revokedAt'] == null
-          ? null
-          : DateTime.parse(json['revokedAt'] as String);
+          : DateTime.parse(json['predecessorCapArmedAt'] as String);
 
 Map<String, dynamic> _$EnrollDataStoreValueToJson(
         EnrollDataStoreValue instance) =>
@@ -70,8 +67,6 @@ Map<String, dynamic> _$EnrollDataStoreValueToJson(
         'parentEnrollmentId': instance.parentEnrollmentId,
       if (instance.predecessorCapArmedAt != null)
         'predecessorCapArmedAt': instance.predecessorCapArmedAt!.toIso8601String(),
-      if (instance.revokedAt != null)
-        'revokedAt': instance.revokedAt!.toIso8601String(),
     };
 
 const _$EnrollRequestTypeEnumMap = {

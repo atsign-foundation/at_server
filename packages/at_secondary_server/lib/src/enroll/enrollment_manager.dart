@@ -3,10 +3,12 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
+import 'package:at_secondary/src/enroll/enrollment_revocation_event.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:meta/meta.dart';
+import 'package:uuid/uuid.dart';
 
 /// Manages enrollment data in the secondary server.
 ///
@@ -413,8 +415,16 @@ class EnrollmentManager {
   /// A `*` grant covers every namespace, and a grant on a parent segment
   /// covers its children — the same rule the verb handler gates the caller on,
   /// so a caller admitted to a roster is always ON that roster.
-  String? accessForNamespace(EnrollDataStoreValue enVal, String namespace) {
-    for (final entry in enVal.namespaces.entries) {
+  String? accessForNamespace(EnrollDataStoreValue enVal, String namespace) =>
+      accessInNamespaces(enVal.namespaces, namespace);
+
+  /// [accessForNamespace] over a bare grants map.
+  ///
+  /// Separate because a revocation event carries the grants the enrollment
+  /// held rather than the enrollment, the record having very possibly been
+  /// reaped since — so the same rule has to be askable without one.
+  String? accessInNamespaces(Map<String, String> namespaces, String namespace) {
+    for (final entry in namespaces.entries) {
       final ns = entry.key;
       if (ns == EnrollmentConstants.allNamespaces ||
           ns == namespace ||
@@ -465,23 +475,125 @@ class EnrollmentManager {
   /// Revoked enrollments count whatever put them there. A cascade revokes a
   /// successor holding its predecessor's namespaces exactly, so a revocation
   /// reaches this answer through a descendant as readily as through the
-  /// enrollment an operator named — which is what makes stamping the
-  /// cascaded ones load-bearing rather than tidy.
+  /// enrollment an operator named.
+  ///
+  /// Derived from the revocation EVENTS rather than from the enrollments,
+  /// which is what makes the answer survive. An enrollment record carries the
+  /// APKAM key-expiry posture as its ttl, so a revoked enrollment is reaped on
+  /// the schedule its credential was issued under; reading the roster would
+  /// therefore let this answer go backwards, or vanish, on a timetable chosen
+  /// by whoever set that posture.
+  ///
+  /// An un-revoke WITHDRAWS a revocation here, exactly as clearing the old
+  /// per-enrollment stamp did: the counter-event is what the log records, and
+  /// this reads the net. So the value can move backwards when an un-revoke
+  /// lands — a client comparing it must ask whether it CHANGED, not whether it
+  /// grew. The events themselves are never rewritten, so the history an audit
+  /// wants is still there; it is only this derived answer that nets out.
   Future<DateTime?> lastRevocationForNamespace(String namespace) async {
+    // Per enrollment, not globally: an un-revoke withdraws its own
+    // enrollment's revocation and says nothing about anyone else's.
+    final Map<String, EnrollmentRevocationEvent> lastRevoke = {};
+    final Map<String, DateTime> lastUnrevoke = {};
+    for (final event in await revocationEvents()) {
+      if (event.type == EnrollmentRevocationEventType.revoked) {
+        final prev = lastRevoke[event.enrollmentId];
+        if (prev == null || event.at.isAfter(prev.at)) {
+          lastRevoke[event.enrollmentId] = event;
+        }
+      } else {
+        final prev = lastUnrevoke[event.enrollmentId];
+        if (prev == null || event.at.isAfter(prev)) {
+          lastUnrevoke[event.enrollmentId] = event.at;
+        }
+      }
+    }
+
     DateTime? latest;
-    for (final ek in await getAllEnrollmentKeys()) {
-      final EnrollDataStoreValue enVal;
+    for (final entry in lastRevoke.entries) {
+      final DateTime? withdrawn = lastUnrevoke[entry.key];
+      // A TIE counts as withdrawn. An un-revoke can only follow a revoke, so
+      // two events on one enrollment sharing a millisecond can only be a
+      // revocation and the withdrawal of it.
+      if (withdrawn != null && !withdrawn.isBefore(entry.value.at)) continue;
+      // Matched against the grants the enrollment held AT THE REVOCATION,
+      // which is the only surviving record of which namespaces it took with
+      // it.
+      if (accessInNamespaces(entry.value.namespaces, namespace) == null) {
+        continue;
+      }
+      final DateTime at = entry.value.at;
+      if (latest == null || at.isAfter(latest)) latest = at;
+    }
+    return latest;
+  }
+
+  /// The at-rest key pattern for a revocation-history record.
+  ///
+  /// Deliberately NOT built on [EnrollmentConstants.enrollmentKeyPattern]:
+  /// [EnrollmentConstants.enrollmentsRegex] is an UNANCHORED substring, so any
+  /// key carrying `.new.enrollments.__manage@` anywhere in it is enumerated by
+  /// [getAllEnrollmentKeys] and handed to a decoder expecting an
+  /// [EnrollDataStoreValue]. It stays inside `__manage` so that scan hides it
+  /// under the rule that already hides enrollment records.
+  static const String revocationEventKeyPattern = 'revocation.events';
+
+  static const String revocationEventsRegex =
+      '\\.revocation\\.events\\.${EnrollmentConstants.enrollManageNamespace}@';
+
+  String buildRevocationEventKey(String eventId) => '$eventId'
+      '.$revocationEventKeyPattern'
+      '.${EnrollmentConstants.enrollManageNamespace}'
+      '$atSign';
+
+  /// Appends [events] to the revocation history.
+  ///
+  /// One record each, keyed by a fresh id: the history is append-only, and
+  /// nothing here reads or rewrites what is already stored. `skipCommit` for
+  /// the same reason enrollment records use it — this is the atServer's own
+  /// bookkeeping and has no business in a client's sync stream.
+  ///
+  /// No ttl. That is the point of the log, and it is also unbounded growth:
+  /// one record per revocation, kept for the life of the atSign, and a cascade
+  /// writes one per enrollment it takes. Small records — a few hundred bytes —
+  /// but nothing prunes them, and no retention policy has been decided.
+  Future<void> recordRevocationEvents(
+      List<EnrollmentRevocationEvent> events) async {
+    for (final EnrollmentRevocationEvent event in events) {
+      await keyStore.put(buildRevocationEventKey(Uuid().v4()),
+          AtData()..data = jsonEncode(event.toJson()),
+          skipCommit: true);
+    }
+  }
+
+  /// Every revocation event the atSign holds, in no particular order.
+  ///
+  /// A record that cannot be read is LOGGED AND SKIPPED rather than thrown
+  /// past the caller: the alternative is one malformed record making
+  /// `enroll:infons` permanently unanswerable, and a skip is visible in the
+  /// logs while a thrown decode error stops the verb for every namespace.
+  Future<List<EnrollmentRevocationEvent>> revocationEvents() async {
+    final List<EnrollmentRevocationEvent> events = [];
+    await for (final String key
+        in await keyStore.getKeys(regex: revocationEventsRegex)) {
+      final AtData? record;
       try {
-        enVal = await getEnrollmentByFullKey(ek);
+        record = await keyStore.get(key);
       } on KeyNotFoundException {
         continue; // reaped between the enumeration and this read
       }
-      if (enVal.approval?.state != EnrollmentStatus.revoked.name) continue;
-      if (accessForNamespace(enVal, namespace) == null) continue;
-      final at = enVal.revokedAt;
-      if (at != null && (latest == null || at.isAfter(latest))) latest = at;
+      final String? raw = record?.data;
+      if (raw == null) continue;
+      try {
+        events.add(EnrollmentRevocationEvent.fromJson(jsonDecode(raw)));
+      } on FormatException catch (e) {
+        logger.severe('Revocation event $key does not decode; skipping it: $e');
+      } on TypeError catch (e) {
+        logger.severe('Revocation event $key has the wrong shape; '
+            'skipping it: $e');
+      }
     }
-    return latest;
+    return events;
   }
 
   /// iterate all enrollments, remove key which leaks appName and deviceName
@@ -721,8 +833,27 @@ class EnrollmentManager {
   ///
   /// Each write asserts the stored expiry back, and the per-enrollment data
   /// move is made ONCE for the whole set rather than per record.
-  Future<List<String>> revokeAll(Iterable<String> enrollmentIds) async {
+  ///
+  /// [byEnrollmentId] is the enrollment on the connection that issued the
+  /// command, null for a CRAM or legacy-PKAM owner; [cascadedFrom] is the
+  /// enrollment it NAMED. Both are recorded on every event this writes,
+  /// because an enrollment revoked by a cascade was revoked for a reason that
+  /// is not visible from its own record.
+  ///
+  /// [at] is the moment of the COMMAND, passed in rather than taken here so
+  /// that the enrollment an operator named and every enrollment the cascade
+  /// took carry one timestamp. They are revoked by a single act; stamping each
+  /// with the instant its own write happened would invite a reader to order
+  /// them against one another as though they were separate decisions, and the
+  /// order they would then read is an artefact of the retry-safe write order.
+  Future<List<String>> revokeAll(Iterable<String> enrollmentIds,
+      {required String? byEnrollmentId,
+      required String cascadedFrom,
+      required DateTime at}) async {
     final List<String> revoked = [];
+    // The grants each one held, captured before the write, because the event
+    // outlives the record they are stored on.
+    final Map<String, Map<String, String>> grantsHeld = {};
     // Prepared first, written second, so the per-enrollment data move can be
     // made ONCE for the whole cascade. Going through `put` per descendant cost
     // a whole-keystore walk each — K+2 scans for a cascade of K, on a path
@@ -753,14 +884,29 @@ class EnrollmentManager {
       if (value.approval?.state != EnrollmentStatus.approved.name) continue;
       value.approval!.state = EnrollmentStatus.revoked.name;
       pending[id] = atData;
-      // Stamped here as well as on the named target: an enrollment swept up by
-      // a cascade is as revoked as one an operator named, and a reader must
-      // not have to know which happened to learn when it stopped being usable.
-      value.revokedAt = DateTime.now().toUtc();
+      grantsHeld[id] = Map<String, String>.from(value.namespaces);
       atData.data = jsonEncode(value.toJson());
       revoked.add(id);
     }
     if (revoked.isEmpty) return revoked;
+
+    // The history goes in BEFORE the records change, and the asymmetry is
+    // deliberate: a crash between the two leaves an event describing a
+    // revocation that did not land, which moves `lastRevokedAt` early and
+    // costs a client a refetch. The other order loses the fact entirely, and
+    // an under-stated revocation tells a client nothing changed when
+    // something did.
+    await recordRevocationEvents([
+      for (final String id in revoked)
+        EnrollmentRevocationEvent(
+          type: EnrollmentRevocationEventType.revoked,
+          enrollmentId: id,
+          at: at,
+          namespaces: grantsHeld[id]!,
+          byEnrollmentId: byEnrollmentId,
+          cascadedFrom: cascadedFrom,
+        )
+    ]);
 
     // One pass for every enrollment the cascade takes, then the records. `put`
     // would repeat the pass per record; the move is the expensive half and it
