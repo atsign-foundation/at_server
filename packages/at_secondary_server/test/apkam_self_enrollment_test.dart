@@ -1425,6 +1425,57 @@ void main() {
           reason: 'an ordinary revoke response must not change shape');
     });
 
+    test('a cascaded enrollment\'s per-enrollment data moves with it',
+        () async {
+      // The mechanism the cascade's whole security argument rests on, and it
+      // had no test: revoking a descendant must PARK its published `_apsk`,
+      // the signing key a verifier resolves. If the data stayed at the
+      // approved address the enrollment would be revoked on paper and still
+      // vouched for on the wire.
+      //
+      // It is also the invariant the batched move could regress — one pass
+      // now serves the whole cascade, so it must reach every listed
+      // enrollment and no other.
+      // Both ordinary enrollments first: selfEnroll leaves the connection
+      // authenticated as the predecessor, which cannot then issue an OTP.
+      final created = (await etu.createEnrollments(n: 2)).$1;
+      final predecessorId = created[0];
+      final bystanderId = created[1];
+
+      final r = await selfEnroll(
+          predecessorId: predecessorId,
+          apsk: {'signingPublicKey': 'k', 'signingAlgo': 'mldsa65'});
+      final successorId = jsonDecode(r.data!)['enrollmentId'] as String;
+      final rb = await selfEnroll(
+          predecessorId: bystanderId,
+          appName: 'bystander',
+          deviceName: 'bystander',
+          apsk: {'signingPublicKey': 'k2', 'signingAlgo': 'mldsa65'});
+      final bystanderSuccessorId =
+          jsonDecode(rb.data!)['enrollmentId'] as String;
+
+      final approvedKey = 'public:_apsk.$successorId'
+          '.${EnrollmentConstants.perEnrollmentApproved}$alice';
+      final revokedKey = 'public:_apsk.$successorId'
+          '.${EnrollmentConstants.perEnrollmentRevoked}$alice';
+      final bystanderKey = 'public:_apsk.$bystanderSuccessorId'
+          '.${EnrollmentConstants.perEnrollmentApproved}$alice';
+      expect(await keyValueStore.exists(approvedKey), isTrue,
+          reason: 'precondition: the successor published a signing key');
+      expect(await keyValueStore.exists(bystanderKey), isTrue,
+          reason: 'precondition: so did the bystander');
+
+      await revoke(etu.primaryEnId, predecessorId);
+
+      expect(await keyValueStore.exists(revokedKey), isTrue,
+          reason: 'the cascaded successor\'s signing key must be parked');
+      expect(await keyValueStore.exists(approvedKey), isFalse,
+          reason: 'and must no longer be resolvable at the live address');
+      expect(await keyValueStore.exists(bystanderKey), isTrue,
+          reason: 'one pass now serves the whole cascade, so it must touch '
+              'every enrollment in it and NO enrollment outside it');
+    });
+
     test('a cascaded revoke does not move the expiry it found', () async {
       await mintUnder('exp-predecessor', null);
       await mintUnder('exp-successor', 'exp-predecessor', ttl: Duration(days: 2));

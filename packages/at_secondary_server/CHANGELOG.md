@@ -29,6 +29,12 @@
 - fix: connections are dropped for every enrollment the revoke intended,
   rather than only those this call changed — a retry after a partial failure
   found the descendants already revoked and so dropped nothing for them.
+- perf: a revoke moves per-enrollment data ONCE for the whole cascade.
+  `getKeys` walks every key the atSign holds, and the move was made per
+  enrollment, so revoking a chain of K descendants cost K+2 whole-store scans
+  on an event loop nothing else can run on. K is chosen by whoever mints the
+  chain, and minting a successor needs no approval. The regex already exposes
+  the owning enrollment id, so one walk now serves the whole set.
 - feat: `enroll:infons:<namespace>` — facts about a namespace, as opposed to
   `enroll:listns`, which answers who holds it. Same authorisation as `listns`
   (APKAM-authenticated, caller approved, caller holds at least read access to

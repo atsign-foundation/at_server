@@ -135,8 +135,6 @@ class EnrollmentManager {
   ///     moment of the write.
   Future<void> put(String enId, AtData atData, EnrollmentStatus newStatus,
       {AtAssertedTimestamps? assertedTimestamps}) async {
-    String ek = buildEnrollmentKey(enId);
-
     switch (newStatus) {
       case EnrollmentStatus.approved:
         await movePerEnrollmentData(enId,
@@ -150,10 +148,20 @@ class EnrollmentManager {
         break;
     }
 
+    await _writeEnrollmentRecord(enId, atData,
+        assertedTimestamps: assertedTimestamps);
+  }
+
+  /// The record write and cache invalidation, without the per-enrollment data
+  /// move. Split out so a caller moving data for MANY enrollments can make one
+  /// pass and then write each record, rather than paying a whole-keystore walk
+  /// per record. Every write still bumps [cacheInvalidations], which the
+  /// retrofit-cap decline memo keys on.
+  Future<void> _writeEnrollmentRecord(String enId, AtData atData,
+      {AtAssertedTimestamps? assertedTimestamps}) async {
+    final String ek = buildEnrollmentKey(enId);
     await keyStore.put(ek, atData,
         skipCommit: true, assertedTimestamps: assertedTimestamps);
-
-    // invalidate the cache
     cacheInvalidations++;
     atDataCache.remove(ek);
   }
@@ -173,7 +181,23 @@ class EnrollmentManager {
   Future<List<String>> movePerEnrollmentData(
     String enId, {
     required String to,
+  }) =>
+      movePerEnrollmentDataFor({enId}, to: to);
+
+  /// [movePerEnrollmentData] for several enrollments in ONE pass.
+  ///
+  /// The pass is the cost: `getKeys` walks every key in the atSign's keystore,
+  /// so doing it once per enrollment made a cascade quadratic in the thing an
+  /// attacker can inflate — a revoke of K descendants cost K+2 whole-store
+  /// scans, and self-enrollment mints descendants without approval. Batching
+  /// is sound because the regex already exposes the owning enrollment id, so
+  /// one walk can serve any number of them.
+  @visibleForTesting
+  Future<List<String>> movePerEnrollmentDataFor(
+    Set<String> enIds, {
+    required String to,
   }) async {
+    if (enIds.isEmpty) return [];
     switch (to) {
       case EnrollmentConstants.perEnrollmentRevoked:
       case EnrollmentConstants.perEnrollmentDeleted:
@@ -185,7 +209,7 @@ class EnrollmentManager {
             regex: EnrollmentConstants.regexForPerEnrollmentNamespaces)) {
           // Scope the move to this enrollment: skip keys owned by any other enrollment.
           final RegExpMatch? match = perEnrollmentRegex.firstMatch(fromKey);
-          if (match == null || match.namedGroup('EnId') != enId) {
+          if (match == null || !enIds.contains(match.namedGroup('EnId'))) {
             continue;
           }
           final String toKey = fromKey
@@ -695,13 +719,15 @@ class EnrollmentManager {
   /// successor of a revoked predecessor is stopped at `enroll:approve`
   /// instead, because it has no credential to strip until it is approved.
   ///
-  /// Each write asserts the stored expiry back. A revoke says nothing about
-  /// expiry, and the metadata builder re-derives `expiresAt = now + ttl` from
-  /// the retained ttl on any write that does not assert it — so a cascade
-  /// would otherwise hand every enrollment it revoked a fresh full lifetime,
-  /// and restart any retrofit cap standing on those records.
+  /// Each write asserts the stored expiry back, and the per-enrollment data
+  /// move is made ONCE for the whole set rather than per record.
   Future<List<String>> revokeAll(Iterable<String> enrollmentIds) async {
     final List<String> revoked = [];
+    // Prepared first, written second, so the per-enrollment data move can be
+    // made ONCE for the whole cascade. Going through `put` per descendant cost
+    // a whole-keystore walk each — K+2 scans for a cascade of K, on a path
+    // whose K is inflatable by minting successors, which needs no approval.
+    final Map<String, AtData> pending = {};
     for (final id in enrollmentIds) {
       final ek = buildEnrollmentKey(id);
       // `get` THROWS on an absent key rather than returning null, so this is
@@ -726,17 +752,33 @@ class EnrollmentManager {
       }
       if (value.approval?.state != EnrollmentStatus.approved.name) continue;
       value.approval!.state = EnrollmentStatus.revoked.name;
+      pending[id] = atData;
       // Stamped here as well as on the named target: an enrollment swept up by
       // a cascade is as revoked as one an operator named, and a reader must
       // not have to know which happened to learn when it stopped being usable.
       value.revokedAt = DateTime.now().toUtc();
       atData.data = jsonEncode(value.toJson());
+      revoked.add(id);
+    }
+    if (revoked.isEmpty) return revoked;
+
+    // One pass for every enrollment the cascade takes, then the records. `put`
+    // would repeat the pass per record; the move is the expensive half and it
+    // is identical work for all of them.
+    await movePerEnrollmentDataFor(revoked.toSet(),
+        to: EnrollmentConstants.perEnrollmentRevoked);
+    for (final id in revoked) {
+      final AtData atData = pending[id]!;
+      // The stored expiry is asserted back on each write. A revoke says
+      // nothing about expiry, and the metadata builder re-derives
+      // `expiresAt = now + ttl` from the retained ttl on any write that does
+      // not assert it — so a cascade would otherwise hand every enrollment it
+      // revoked a fresh full lifetime, and restart any retrofit cap on them.
       final storedExpiry = atData.metaData?.expiresAt;
-      await put(id, atData, EnrollmentStatus.revoked,
+      await _writeEnrollmentRecord(id, atData,
           assertedTimestamps: storedExpiry == null
               ? null
               : AtAssertedTimestamps(expiresAt: storedExpiry));
-      revoked.add(id);
     }
     return revoked;
   }
