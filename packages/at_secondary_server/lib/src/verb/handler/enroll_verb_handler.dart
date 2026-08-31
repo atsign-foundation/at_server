@@ -1719,6 +1719,26 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (callerEnrollmentId != null &&
         callerEnrollmentId.isNotEmpty &&
         callerEnrollmentId != targetEnrollmentId) {
+      // A target holding NO namespaces fails closed. The loop below decides by
+      // iterating the target's grants, so an empty map passes it vacuously —
+      // zero iterations, no refusal — and the `__manage` requirement lives
+      // inside that loop too, so it would not be asked either. An enrollment
+      // with an empty grant map would therefore be the one record any enrolled
+      // caller could destroy, which inverts the rule exactly where the record
+      // is most anomalous.
+      //
+      // No path in THIS build writes one: a CRAM enrollment is given `__manage`
+      // and `*`, a retrofit copies its predecessor's map, and a request
+      // carrying an OTP is refused without at least one namespace. That is a
+      // claim about what this build writes, not about what is already stored,
+      // and an authorisation check is the wrong place to spend the difference.
+      if (enVal.namespaces.isEmpty) {
+        throw UnAuthorizedException(
+            'Not authorized to delete enrollment $targetEnrollmentId: it holds'
+            ' no namespaces, so no caller can demonstrate authority over it.'
+            ' Delete it from the enrollment itself, or from an owner (CRAM or'
+            ' legacy-PKAM) connection');
+      }
       for (final MapEntry<String, String> entry in enVal.namespaces.entries) {
         final bool isAuthorised = await isAuthorized(inboundConnectionMetadata,
             namespace: entry.key,

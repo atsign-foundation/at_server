@@ -44,6 +44,15 @@
   Asked BEFORE the status checks, so a caller that may not touch an enrollment
   does not learn from the refusal whether it is approved, denied or revoked.
 
+  A target holding NO namespaces is refused rather than passed. The check
+  decides by iterating the target's grants, so an empty map would pass it
+  vacuously — zero iterations, no refusal, and the `__manage` requirement
+  lives inside that loop too — making the most anomalous record on the atSign
+  the one any enrolled caller could destroy. No path in this build writes one
+  (a CRAM enrollment is given `__manage` and `*`, a retrofit copies its
+  predecessor's, an OTP request is refused without at least one), but that is
+  a claim about what this build writes, not about what is already stored.
+
   Two things had come to rest on this. `EnrollmentManager.descendantsOf`
   fetches each `parentEnrollmentId` link BY KEY, which is what keeps an
   EXPIRED link traversable — a DELETED one is gone, so deleting a middle link

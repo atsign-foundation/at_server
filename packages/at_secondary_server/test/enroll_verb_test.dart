@@ -2918,6 +2918,38 @@ void main() {
             '{"enrollmentId":"$targetId","status":"deleted"}');
       });
 
+      test('a target holding NO namespaces is refused, not passed vacuously',
+          () async {
+        // The loop decides by iterating the TARGET's grants, so an empty map
+        // would pass it with zero iterations and no refusal — and the
+        // __manage requirement lives inside that loop, so it would not be
+        // asked either. The most anomalous record on the atSign would become
+        // the one any enrolled caller could destroy.
+        final targetId = await aTarget({});
+
+        // The hazard, first: a caller with one unrelated namespace and NO
+        // __manage. Every refusal this gate makes is decided inside the loop,
+        // so with nothing to iterate this caller would sail through.
+        final appOnly = await createAndPersistAnEnrollment(
+            'app-only', 'device', {'other_namespace': 'rw'});
+        await expectLater(() => deleteAs(appOnly, targetId),
+            throwsA(isA<UnAuthorizedException>()));
+
+        // And a ROOT caller, so the rule is about the target rather than the
+        // caller being weak: `*:rw` plus __manage would satisfy the loop for
+        // any namespace there was to check.
+        final root = await createAndPersistAnEnrollment(
+            'root', 'device', {'*': 'rw', '__manage': 'rw'});
+        await expectLater(() => deleteAs(root, targetId),
+            throwsA(isA<UnAuthorizedException>()));
+
+        // The control: the exemptions still apply, so the record is not
+        // stranded. An owner connection can still remove it.
+        await deleteAs(null, targetId);
+        expect(response.data,
+            '{"enrollmentId":"$targetId","status":"deleted"}');
+      });
+
       test('an unauthorised caller is refused before it learns the state',
           () async {
         // The target is APPROVED, which is refused on its own terms with a
