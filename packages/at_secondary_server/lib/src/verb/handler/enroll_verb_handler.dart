@@ -111,6 +111,25 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enrollVerbParams = EnrollParams.fromJson(
           jsonDecode(verbParams[AtConstants.enrollParams]!)
               as Map<String, dynamic>);
+      // Folded here, once, for the same reason `pkam` folds the id it reads:
+      // the keystore lowercases every key, so a non-canonical spelling
+      // resolves to the SAME record while comparing unequal to the id held on
+      // the connection. Every id comparison on the revoke path — the
+      // self-revoke refusal, the descendant walk, the caller-in-cascade and
+      // last-root refusals, and the connection drop — is a string comparison
+      // against that folded value, so an unfolded params id makes each of them
+      // silently vacuous while the record is still written revoked.
+      //
+      // Ids are server-issued uuids and already lower case, so this rejects
+      // nothing that works today. It does mean a mixed-case spelling now
+      // behaves exactly like the canonical one wherever it previously fell
+      // through a guard — `enroll:fetch` of one's own enrollment and a
+      // self-`enroll:update` included. That is the intended reading of "the
+      // same enrollment", and is called out here because a fold that makes
+      // previously-refused requests succeed should be a decision rather than
+      // a side effect.
+      enrollVerbParams.enrollmentId =
+          enrollVerbParams.enrollmentId?.toLowerCase();
     }
 
     _validateParams(enrollVerbParams, operation!, atConnection);
@@ -161,14 +180,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         if (responseJson['status'] == EnrollmentStatus.revoked.name) {
           logger.info(
               'Dropping any open connections for enrollmentId: $enrollmentIdFromParams');
-          // The cascaded enrollments too. A descendant left holding an open
-          // authenticated connection goes on working until it happens to
-          // reconnect, which is most of what the cascade exists to stop.
-          // The whole intended set, not just what THIS call flipped. A retry
-          // after a part-way failure finds the descendants already revoked,
-          // so `revokeAll` returns none of them — and dropping only what
-          // changed would leave their connections open forever, which is most
-          // of what the cascade exists to stop.
+          // The cascaded enrollments too, and the whole INTENDED set rather
+          // than the subset this call flipped. A descendant left holding an
+          // open authenticated connection goes on working until it happens to
+          // reconnect, which is most of what the cascade exists to stop — and
+          // on a retry after a part-way failure the flipped set is empty for
+          // precisely those enrollments.
           await _dropRevokedClientConnections(
               {enrollmentIdFromParams!, ...alsoRevoked},
               forceFlag != null,
@@ -610,9 +627,16 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// Handles enrollment approve, deny, revoke and unrevoke requests.
   /// Retrieves enrollment details from keystore and updates the enrollment status based on [operation]
   /// If [operation] is approve, store encrypted encryption keys
-  /// Returns the ids the revoke CASCADED to, so the caller can drop their
-  /// connections as well. Empty for every operation but `revoke`, and for a
-  /// revoke whose target has no descendants.
+  /// Returns every id the revoke INTENDED to revoke by cascade, so the caller
+  /// can drop their connections. Deliberately not the subset this call
+  /// actually flipped: a retry after a part-way failure finds the descendants
+  /// already revoked, so the flipped set is empty for exactly the enrollments
+  /// whose connections still need dropping. The response field reports the
+  /// flipped set, which is the honest answer to "what did this command
+  /// change"; the two are different questions.
+  ///
+  /// Empty for every operation but `revoke`, and for a revoke whose target has
+  /// no descendants.
   Future<List<String>> _handleApproveDenyRevokeUnrevoke(
       EnrollmentManager enMgr,
       InboundConnectionMetadata inboundConnectionMetadata,
@@ -685,20 +709,45 @@ class EnrollVerbHandler extends AbstractVerbHandler {
             'replaced it');
       }
 
-      // Even with `force`, the last fully privileged enrollment may not revoke
-      // itself. Asked over what SURVIVES the cascade, not over what is stored:
-      // the descendants are still `approved` in the keystore while this runs,
-      // so counting them would report the atSign safe at the moment it is
-      // being stranded.
-      if (enId == callerId && enVal.isRootEnrollment) {
+      // Revoking a fully privileged enrollment may not leave the atSign
+      // without one. Asked for EVERY such revoke, not only a self-revoke:
+      // gating it on `enId == callerId` missed the case where a root with a
+      // finite lifetime revokes the atSign's other root and then expires,
+      // which strands it just as completely and trips none of the other
+      // refusals — the caller is not the target, and a target with no
+      // descendants cannot contain the caller in its cascade.
+      //
+      // The DEADLINE is what the caller's own record buys. A caller that
+      // never expires and is itself fully privileged answers the question by
+      // existing (it is not in the excluded set, so it is counted). A caller
+      // that expires must leave someone alive past that moment. A caller that
+      // is NOT fully privileged is never counted whatever its lifetime —
+      // which is right, and closes a second gap: revoking a root requires
+      // authority over the target's namespaces, and `__manage:r` satisfies
+      // that, so a caller who could not restore a root could previously
+      // remove the last one.
+      //
+      // Asked over what SURVIVES the cascade, not over what is stored: the
+      // descendants are still `approved` while this runs, so counting them
+      // would report the atSign safe at the moment it is being stranded.
+      //
+      // Skipped entirely for a connection carrying no enrollment id — a
+      // legacy-PKAM or CRAM owner can always mint a fresh enrollment, so it
+      // cannot strand itself this way.
+      if (enVal.isRootEnrollment && callerId != null) {
+        final AtMetaData? callerRecord =
+            await keyStore.getMeta(enMgr.buildEnrollmentKey(callerId));
+        final DateTime deadline =
+            callerRecord?.expiresAt?.toUtc() ?? DateTime.now().toUtc();
         final bool someoneSurvives = await enMgr.hasRootEnrollmentAliveAfter(
-            {enId, ...cascadeIds}, DateTime.now().toUtc());
+            {enId, ...cascadeIds}, deadline);
         if (!someoneSurvives) {
           throw AtEnrollmentRevokeException(
-              'Cannot revoke enrollment $enId: it is the last enrollment on '
-              '$currentAtSign holding full privilege, and revoking it would '
-              'leave the atSign unable to approve a replacement. Approve '
-              'another fully privileged enrollment first');
+              'Cannot revoke enrollment $enId: it holds full privilege and no '
+              'other fully privileged enrollment on $currentAtSign would '
+              'survive $deadline, so the atSign would be left unable to '
+              'approve a replacement. Approve another fully privileged '
+              'enrollment first');
         }
       }
     } else if (operation == 'approve' || operation == 'unrevoke') {
@@ -789,7 +838,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (cascaded.isNotEmpty) {
       responseJson['cascadedEnrollmentIds'] = cascaded;
     }
-    return cascaded;
+    return cascadeIds;
   }
 
   /// Refuses an operation that would make [enId] active while the enrollment

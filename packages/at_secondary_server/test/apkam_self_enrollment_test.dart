@@ -10,6 +10,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/verb/handler/pkam_verb_handler.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -1266,6 +1267,52 @@ void main() {
       expect(await statusOf(chain[0]), EnrollmentStatus.approved.name);
     });
 
+    test('an id in another case behaves exactly like the canonical one',
+        () async {
+      // The keystore lowercases every key, so a non-canonical spelling
+      // resolves to the SAME record while comparing unequal to the id held on
+      // the connection. Unfolded, the record is still written `revoked` while
+      // the descendant walk returns nothing and every refusal goes vacuous —
+      // the revoke reports success and cascades to no one.
+      final predecessorId = (await etu.createEnrollments(n: 1)).$1.first;
+      final r0 = await selfEnroll(predecessorId: predecessorId);
+      final successorId = jsonDecode(r0.data!)['enrollmentId'] as String;
+
+      final r = await revoke(etu.primaryEnId, predecessorId.toUpperCase());
+      expect(r.isError, false, reason: '${r.errorMessage}');
+      expect(jsonDecode(r.data!)['cascadedEnrollmentIds'], [successorId],
+          reason: 'the cascade must run for a mixed-case spelling exactly as '
+              'it does for the canonical one');
+      expect(await statusOf(successorId), EnrollmentStatus.revoked.name);
+    });
+
+    test('a short-lived root may not revoke the last root that outlives it',
+        () async {
+      // Not a self-revoke, and the target has no descendants, so neither of
+      // the other two refusals can see this. The caller revokes the only root
+      // that outlives it and then expires, and nothing can approve a
+      // replacement.
+      await mintUnder('short-root', null, ttl: Duration(minutes: 5));
+
+      await expectLater(() => revoke('short-root', etu.primaryEnId),
+          throwsA(isA<AtEnrollmentRevokeException>()),
+          reason: 'the liveness question has to be asked for every revoke of '
+              'a fully privileged enrollment, not only a self-revoke');
+      expect(await statusOf(etu.primaryEnId), EnrollmentStatus.approved.name,
+          reason: 'refused before anything is written');
+    });
+
+    test('…but a root that outlives the one it revokes may proceed', () async {
+      // The control, and it is what stops the refusal above being satisfied
+      // by "roots may never revoke roots". Same shape, same target, and the
+      // only difference is that this caller carries no expiry.
+      await mintUnder('long-root', null);
+
+      final r = await revoke('long-root', etu.primaryEnId);
+      expect(r.isError, false, reason: '${r.errorMessage}');
+      expect(await statusOf(etu.primaryEnId), EnrollmentStatus.revoked.name);
+    });
+
     test('the last fully privileged enrollment may not revoke itself, even '
         'with force', () async {
       await expectLater(
@@ -1937,6 +1984,74 @@ void main() {
           isNotNull,
           reason: 'the migration must still make progress for ordinary '
               'credentials, whatever state the atSign\'s roots are in');
+    });
+
+    test('a cap that declines LATE takes its stamp back', () async {
+      // The stamp goes on before the cap, deliberately — a capped predecessor
+      // with no stamp is re-capped with a fresh grace forever. The cost is
+      // that a cap which declines at the write leaves a stamp claiming the
+      // question is settled. The reason for that decline is transient (an
+      // unrevoke restores the predecessor) while the stamp is durable, so it
+      // has to be taken back or the predecessor is exempt for good.
+      //
+      // Deterministic, no concurrency: the manager's cache is seeded with the
+      // approved snapshot the arming path reads, while the record underneath
+      // says revoked. That is exactly the state a revoke landing mid-arm
+      // produces.
+      final predecessorId = (await etu.createEnrollments(n: 1)).$1.first;
+      final (successorId, successorKey) =
+          await retrofitWithRealKey(predecessorId);
+
+      final key = enMgr.buildEnrollmentKey(predecessorId);
+      final approved = (await keyValueStore.get(key))!;
+      final approvedJson = jsonDecode(approved.data!) as Map<String, dynamic>;
+
+      // Written underneath the manager, so no cascade runs and the successor
+      // stays usable — the verb path would revoke it too.
+      final revokedValue = EnrollDataStoreValue.fromJson(approvedJson)
+        ..approval = EnrollApproval(EnrollmentStatus.revoked.name);
+      await keyValueStore.put(
+          key, AtData()..data = jsonEncode(revokedValue.toJson()));
+      enMgr.atDataCache[key] = (approved, approvedJson);
+
+      await authenticateAs(successorId, successorKey,
+          sessionId: 'late-decline');
+
+      expect((await enMgr.getEnrollmentById(successorId)).predecessorCapArmedAt,
+          isNull,
+          reason: 'the cap did not happen, so the stamp saying it did must not '
+              'stand — otherwise the early exit short-circuits every later '
+              'authentication and the predecessor is never capped again');
+    });
+
+    test('a declined cap does not re-walk the keystore on every '
+        'authentication', () async {
+      // The last-root decline deliberately records nothing durable, so without
+      // an in-process memo its expensive half — a whole-keystore walk looking
+      // for another fully privileged enrollment — re-ran on every
+      // authentication, forever. The answer that repeats is the expensive one:
+      // the walk returns early on the first surviving root, so only the
+      // "nobody survives" case pays for all of it.
+      await etu.createEnrollments(n: 8); // give the walk something to walk
+      final (successorId, successorKey) = await retrofitWithRealKey(
+          etu.primaryEnId,
+          apkamKeysExpiryDuration: Duration(minutes: 1));
+
+      int reads() =>
+          EnrollmentManager.cacheHits + EnrollmentManager.cacheMisses;
+
+      final before = reads();
+      await authenticateAs(successorId, successorKey, sessionId: 'memo-1');
+      final afterFirst = reads();
+      await authenticateAs(successorId, successorKey, sessionId: 'memo-2');
+      final afterSecond = reads();
+
+      expect(afterFirst - before, greaterThan(5),
+          reason: 'precondition: the first authentication really did walk the '
+              'keystore, or the comparison below is vacuous');
+      expect(afterSecond - afterFirst, lessThan(afterFirst - before),
+          reason: 'the second authentication must not repeat the walk — '
+              'nothing has been written, so the answer cannot have changed');
     });
 
     test('a declined cap is re-decided on the next authentication', () async {

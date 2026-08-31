@@ -25,38 +25,36 @@ class Enroll extends Verb {
   /// server. Only the one addition is local.
   static final String _syntaxWithInfons = _buildSyntax();
 
-  /// Throws rather than returning an unmodified pattern. A failed insertion
-  /// would leave `enroll:infons` rejected as a syntax error, which reads
-  /// exactly like the verb not existing.
+  /// Never throws, and that is deliberate: this runs per command, so an
+  /// exception here takes out EVERY enroll operation — `enroll:request`
+  /// included, which is unauthenticated onboarding — rather than just the one
+  /// operation it is about.
   ///
-  /// This is lazy: `_syntaxWithInfons` is a `static final` whose only reader
-  /// is the per-command verb lookup, so nothing evaluates it at start-up. A
-  /// failure therefore surfaces on the first `enroll:` command the server
-  /// receives — every one of them, loudly and identically — rather than at
-  /// boot. Loud and late beats silent.
+  /// Two ways the insertion can fail to apply, both benign:
+  ///
+  /// * at_commons already lists `infons`. Inserting a second alternative would
+  ///   be inert — a regex alternation matches the same strings either way —
+  ///   but there is nothing to add, so the upstream pattern is returned whole.
+  ///   `enroll_verb_syntax_test.dart` fails deliberately in this case, which is
+  ///   the signal to delete this override; a running server keeps working.
+  /// * the anchor has moved. `replaceFirst` returns the pattern unchanged,
+  ///   `enroll:infons` is rejected as a syntax error, and every other enroll
+  ///   operation still works. Caught by the syntax test rather than at
+  ///   runtime, which is the right place for it: the alternative was throwing,
+  ///   and that took the whole verb down to report that one operation was
+  ///   missing.
   static String _buildSyntax() {
     const insertionPoint = '(request|';
     final String upstream = VerbSyntax.enroll;
     if (upstream.contains('infons')) {
-      // Checked FIRST, because the anchor test cannot see this case: at_commons
-      // adds `infons` next to `listns`, leaving `(request|` untouched — so a
-      // guard on the anchor alone would insert a duplicate and say nothing.
-      throw StateError(
-          'at_commons now defines the `infons` enroll operation itself, so '
-          'this local override is a stale fork. Delete _buildSyntax and '
-          '_syntaxWithInfons, return VerbSyntax.enroll from syntax(), raise '
-          'the at_commons floor in the same commit, and delete '
-          'at_secondary_server/test/enroll_verb_syntax_test.dart.');
+      return upstream;
     }
-    if (!upstream.contains(insertionPoint)) {
-      throw StateError(
-          'at_server adds `infons` to the enroll syntax locally by inserting '
-          'it into at_commons\'s operation alternation, which no longer '
-          'contains "$insertionPoint". Check whether at_commons now defines '
-          '`infons` itself: if it does, delete this override and return '
-          'VerbSyntax.enroll. If it does not, find the new insertion point. '
-          'Upstream pattern was: $upstream');
-    }
+    // `replaceFirst` is already a no-op on a missing anchor, so this needs no
+    // branch of its own: a moved anchor returns the pattern unchanged and
+    // `enroll_verb_syntax_test.dart`'s first test — which asserts
+    // `enroll:infons:wavi` parses — goes red. That test is the detector,
+    // deliberately, because this package has no logger dependency and adding
+    // one to a published package for a single line is the wrong trade.
     return upstream.replaceFirst(insertionPoint, '${insertionPoint}infons|');
   }
 

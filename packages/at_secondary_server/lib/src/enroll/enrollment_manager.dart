@@ -13,6 +13,29 @@ import 'package:meta/meta.dart';
 /// This class provides methods to retrieve and store enrollment data
 /// associated with a given enrollment ID. It interacts with the
 /// AtKeyValueStore to persist and retrieve enrollment information.
+/// What [EnrollmentManager.capEnrollmentExpiry] did, which its caller needs in
+/// order to decide whether the successor's "I have settled this" stamp is
+/// honest. A stamp left standing over a cap that did not happen is permanent:
+/// it short-circuits every later authentication, so the predecessor would keep
+/// an uncapped credential forever.
+enum RetrofitCapOutcome {
+  /// The expiry was written.
+  capped,
+
+  /// The predecessor's record is gone. Nothing to cap and nothing can bring
+  /// it back, so the successor's stamp stands.
+  predecessorGone,
+
+  /// The predecessor was approved when the decision was made and is not now.
+  /// Transient by nature — an un-revoke restores it — so the stamp must NOT
+  /// stand.
+  notApproved,
+
+  /// The record could not be read or decoded. Treated like [notApproved]: it
+  /// says nothing durable about the predecessor.
+  unreadable,
+}
+
 class EnrollmentManager {
   final AtKeyValueStore<String, AtData, AtMetaData?> keyStore;
   final String atSign;
@@ -20,6 +43,23 @@ class EnrollmentManager {
   static int cacheHits = 0;
   static int cacheMisses = 0;
   static int cacheInvalidations = 0;
+
+  /// Successors whose cap was DECLINED, against the cache generation at which
+  /// the decision was taken.
+  ///
+  /// A decline deliberately leaves no durable stamp, because it is a judgement
+  /// about state that can change. Without this the expensive half of that
+  /// judgement — a whole-keystore walk looking for another fully privileged
+  /// enrollment — re-ran on every authentication of that successor, forever,
+  /// and the answer that repeats is the expensive one: the walk returns early
+  /// on the first surviving root, so only the "nobody survives" case pays for
+  /// all of it. The triggering posture is ordinary rather than exotic: a
+  /// single-root atSign whose root retrofits asking for a shorter key life.
+  ///
+  /// [cacheInvalidations] is bumped by every enrollment write, so any change
+  /// to any enrollment re-opens the question. In-process only: a restart
+  /// re-decides, which is correct and costs one walk.
+  static final Map<String, int> declinedAtGeneration = {};
 
   final AtSignLogger logger = AtSignLogger('EnrollmentManager');
 
@@ -309,7 +349,14 @@ class EnrollmentManager {
 
     Map<String, Map<String, dynamic>> ejList = {};
     for (var ek in ekList) {
-      EnrollDataStoreValue enVal = await getEnrollmentByFullKey(ek);
+      EnrollDataStoreValue enVal;
+      try {
+        enVal = await getEnrollmentByFullKey(ek);
+      } on KeyNotFoundException {
+        // Deleted between the enumeration and this read. One enrollment
+        // vanishing must not fail the whole roster.
+        continue;
+      }
       if (statuses == null ||
           statuses.contains(
               EnrollmentStatus.values.byName(enVal.approval!.state))) {
@@ -572,10 +619,21 @@ class EnrollmentManager {
         predecessorId =
             EnrollDataStoreValue.fromJson(jsonDecode(raw)).parentEnrollmentId;
       }
-    } catch (_) {
-      // A missing or undecodable record ends this chain and no other.
+    } on KeyNotFoundException {
+      // Genuinely absent: this chain ends here and no other.
+      predecessorId = null;
+    } on FormatException catch (e) {
+      // Present but undecodable. Same outcome, but it is not routine.
+      logger.severe('Enrollment $id does not decode; treating it as the end '
+          'of the chain it is in: $e');
       predecessorId = null;
     }
+    // A STORE fault is deliberately NOT caught. Swallowing it would end the
+    // chain silently, drop every enrollment behind this link out of the
+    // cascade, and let the verb report success on a partial revocation — and
+    // the memo would then serve that answer to every other candidate whose
+    // chain runs through this id. Before this walk existed the same fault
+    // aborted the revoke and wrote nothing; failing closed keeps that.
     memo[id] = predecessorId;
     return predecessorId;
   }
@@ -683,6 +741,40 @@ class EnrollmentManager {
     return revoked;
   }
 
+  /// Takes back a `predecessorCapArmedAt` stamp whose cap did not happen.
+  ///
+  /// Re-read immediately before the write for the same reason the stamp itself
+  /// is: everything in between awaits, and a snapshot from before all of it
+  /// would revert a concurrent change to this successor. Best-effort — if it
+  /// fails the successor stays stamped, which is the pre-existing behaviour
+  /// and no worse than not trying.
+  Future<void> _clearCapStamp(String successorEnrollmentId, String key) async {
+    try {
+      final AtData? atData = await keyStore.get(key);
+      final String? raw = atData?.data;
+      if (atData == null || raw == null) return;
+      final value = EnrollDataStoreValue.fromJson(jsonDecode(raw));
+      if (value.predecessorCapArmedAt == null) return;
+      final status =
+          EnrollmentStatus.values.asNameMap()[value.approval?.state ?? ''];
+      if (status == null) return;
+      value.predecessorCapArmedAt = null;
+      atData.data = jsonEncode(value.toJson());
+      final storedExpiry = atData.metaData?.expiresAt;
+      await put(successorEnrollmentId, atData, status,
+          assertedTimestamps: storedExpiry == null
+              ? null
+              : AtAssertedTimestamps(expiresAt: storedExpiry));
+      logger.info(
+          'Took back the retrofit-cap stamp on $successorEnrollmentId: the '
+          'cap it recorded did not happen, and the reason was transient');
+    } catch (e) {
+      logger.warning(
+          'Could not take back the retrofit-cap stamp on '
+          '$successorEnrollmentId: $e');
+    }
+  }
+
   /// Caps [enrollmentId] to expire [retrofitCapTtlMillis] from this moment,
   /// leaving the record in place.
   ///
@@ -702,7 +794,7 @@ class EnrollmentManager {
   /// decision on. Recomputing it here would write a deadline LATER than the
   /// one that was checked, by however long the checking took — the unsafe
   /// direction, since the check is what established that somebody survives it.
-  Future<void> capEnrollmentExpiry(
+  Future<RetrofitCapOutcome> capEnrollmentExpiry(
       String enrollmentId, EnrollDataStoreValue enrollment,
       {int? ttlMillis}) async {
     final key = buildEnrollmentKey(enrollmentId);
@@ -710,9 +802,9 @@ class EnrollmentManager {
     try {
       atData = await keyStore.get(key);
     } on KeyNotFoundException {
-      return;
+      return RetrofitCapOutcome.predecessorGone;
     }
-    if (atData == null) return;
+    if (atData == null) return RetrofitCapOutcome.predecessorGone;
 
     // The status comes off the record JUST READ, never off [enrollment].
     // `put` moves an enrollment's per-enrollment data to match the status it
@@ -722,7 +814,7 @@ class EnrollmentManager {
     // in that window would be UNDONE — the data moved back to the approved
     // location, republishing the `_apsk` a revocation had just parked.
     final String? raw = atData.data;
-    if (raw == null) return;
+    if (raw == null) return RetrofitCapOutcome.unreadable;
     final EnrollmentStatus? current;
     try {
       current = EnrollmentStatus.values
@@ -732,11 +824,11 @@ class EnrollmentManager {
           ''];
     } catch (e) {
       logger.severe('Not capping $enrollmentId: its record does not decode: $e');
-      return;
+      return RetrofitCapOutcome.unreadable;
     }
     if (current == null) {
       logger.severe('Not capping $enrollmentId: unreadable approval state');
-      return;
+      return RetrofitCapOutcome.unreadable;
     }
     // Re-tested on the fresh read for the same reason. A predecessor that was
     // approved when the decision was made and is not approved now must not be
@@ -746,13 +838,14 @@ class EnrollmentManager {
       logger.info(
           'Not capping $enrollmentId: it is ${current.name} as of this write, '
           'though it was approved when the cap was decided');
-      return;
+      return RetrofitCapOutcome.notApproved;
     }
     atData.metaData = (atData.metaData ?? AtMetaData())
       ..ttl = ttlMillis ??
           retrofitCapTtlMillis(
               atData.metaData, enrollment, DateTime.now().toUtc());
     await put(enrollmentId, atData, current);
+    return RetrofitCapOutcome.capped;
   }
 
   /// Arms the retrofit cap on the enrollment [successorEnrollmentId] replaced,
@@ -808,6 +901,11 @@ class EnrollmentManager {
       final predecessorId = cached.parentEnrollmentId;
       if (predecessorId == null) return;
       if (cached.predecessorCapArmedAt != null) return;
+      // Declined already, and nothing has been written since, so the answer
+      // cannot have changed.
+      if (declinedAtGeneration[successorEnrollmentId] == cacheInvalidations) {
+        return;
+      }
 
       final key = buildEnrollmentKey(successorEnrollmentId);
 
@@ -833,6 +931,7 @@ class EnrollmentManager {
           logger.info(
               'Enrollment $successorEnrollmentId replaced $predecessorId, '
               'which is ${predecessor.approval?.state} — not capping it');
+          declinedAtGeneration[successorEnrollmentId] = cacheInvalidations;
         } else {
           final now = DateTime.now().toUtc();
           final AtData? predecessorRecord =
@@ -872,6 +971,7 @@ class EnrollmentManager {
                 '$predecessorId holds full privilege and no other '
                 'fully-privileged enrollment would still be alive then. The '
                 'atSign would be left unable to restore a root');
+            declinedAtGeneration[successorEnrollmentId] = cacheInvalidations;
           } else {
             armPredecessor = true;
           }
@@ -939,8 +1039,26 @@ class EnrollmentManager {
       // no stamp is re-capped on every later authentication, each time with a
       // fresh full grace, so it never retires at all.
       if (armPredecessor && predecessor != null) {
-        await capEnrollmentExpiry(predecessorId, predecessor,
+        final RetrofitCapOutcome outcome = await capEnrollmentExpiry(
+            predecessorId, predecessor,
             ttlMillis: capTtlMillis);
+        // The stamp goes on BEFORE the cap deliberately — a capped predecessor
+        // with no stamp is re-capped with a fresh full grace on every later
+        // authentication and never retires. But that ordering means a cap
+        // which declines leaves a stamp claiming the question is settled when
+        // it is not, and the stamp is durable while the reason was transient:
+        // the predecessor was approved when the decision was taken and had
+        // been revoked by the time of the write. An un-revoke would then
+        // restore it with no expiry and no successor able to re-arm, forever.
+        //
+        // So the stamp is taken back, and ONLY for that outcome. A predecessor
+        // that is genuinely gone stays stamped: nothing can bring it back, and
+        // re-walking the lookup on every future connection buys nothing.
+        if (outcome == RetrofitCapOutcome.notApproved ||
+            outcome == RetrofitCapOutcome.unreadable) {
+          await _clearCapStamp(successorEnrollmentId, key);
+          declinedAtGeneration[successorEnrollmentId] = cacheInvalidations;
+        }
       }
     } catch (e) {
       logger.warning('Could not arm the retrofit cap for '
