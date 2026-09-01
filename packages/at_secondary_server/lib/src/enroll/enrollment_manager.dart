@@ -794,11 +794,15 @@ class EnrollmentManager {
   /// and the difference is load-bearing. A downward walk has to ENUMERATE the
   /// intermediate links to learn their edges, and key enumeration hides
   /// records whose ttl has elapsed — so an expired enrollment part-way down a
-  /// chain took its edge with it and every enrollment behind it survived the
-  /// cascade. The lifetime of that link is choosable by whoever mints it: a
-  /// never-expiring root may mint a short-lived successor, which may mint
-  /// another, so the hole was reachable by the very feature the cascade
-  /// exists to contain.
+  /// retrofit chain took its edge with it and every enrollment behind it
+  /// survived the cascade.
+  ///
+  /// A retrofit is now a ONCE-OFF — `enroll:request` refuses to replace an
+  /// enrollment that is itself a replacement — so a chain minted by this
+  /// server is one link deep and has no middle for that to happen to. The
+  /// upward walk is kept for what it still faces: records written by a server
+  /// that predates that guard, which can be arbitrarily deep and whose middle
+  /// links expire on whatever posture minted them.
   ///
   /// Upward, only the CANDIDATES need enumerating — and a candidate a cascade
   /// could revoke is by definition a live one — while each link in the chain
@@ -812,18 +816,23 @@ class EnrollmentManager {
   /// * the scheduled expiry sweep. Fetching by key crosses a link whose ttl
   ///   has elapsed, but the server also runs a periodic `deleteExpiredKeys()`
   ///   pass, so that window closes within tens of seconds and the record is
-  ///   then gone for good. Under a finite key-expiry posture this is the
-  ///   DEFAULT shape of a retrofit chain rather than a corner of it: each
-  ///   successor's ttl clock restarts at its own write, so earlier links
-  ///   always expire before later ones, and a revoke arriving after the sweep
-  ///   reaches the first live candidate and stops.
+  ///   then gone for good. This reaches a chain of two or more links only —
+  ///   which this server no longer mints, but may still be holding from
+  ///   before the once-off guard. Each successor's ttl clock restarts at its
+  ///   own write, so earlier links expire before later ones and a revoke
+  ///   arriving after the sweep reaches the first live candidate and stops.
   ///
   /// Closing that needs ancestry that outlives the record, which this does not
   /// have.
   ///
   /// Every status is followed. A revoked or expired enrollment part-way down a
-  /// chain must not hide the enrollment behind it, which is exactly the orphan
-  /// a cascade exists to remove.
+  /// retrofit chain must not hide the enrollment behind it, which is exactly
+  /// the orphan a cascade exists to remove.
+  ///
+  /// ⚠️ This follows the REPLACEMENT edge only. An enrollment that merely
+  /// APPROVED another is not its predecessor and is not walked: no approver
+  /// edge is stored on the record at all, so approval depth is unbounded and
+  /// invisible here. Revoking an approver does not revoke what it admitted.
   Future<Set<String>> descendantsOf(String enrollmentId) async {
     final Set<String> found = {};
     final Map<String, String?> memo = {};

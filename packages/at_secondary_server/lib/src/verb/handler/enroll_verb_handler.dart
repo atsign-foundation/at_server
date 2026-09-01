@@ -471,6 +471,17 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         throw UnAuthorizedException(
             'Predecessor enrollment $predecessorId is not approved');
       }
+      // A retrofit is a ONCE-OFF. A device gets one no-approver migration, not
+      // a series: re-enrolling a successor would be a second migration with no
+      // human in the loop, each link restarting the key-expiry clock — so an
+      // enrollment with a one-hour term could renew itself indefinitely — and
+      // each adding a record whose loss severs the revocation cascade behind
+      // it. A second algorithm change needs an approver again.
+      if (predecessor.parentEnrollmentId != null) {
+        throw UnAuthorizedException(
+            'Enrollment $predecessorId is itself a replacement, and a '
+            'replacement may not be replaced without an approver');
+      }
       // Escalation first, so a request naming MORE than the predecessor holds
       // keeps its own diagnosis rather than being reported as a mismatch.
       verifyNoEscalation(predecessor.namespaces, enrollNamespaces);

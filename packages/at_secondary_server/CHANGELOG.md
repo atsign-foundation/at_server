@@ -19,10 +19,10 @@
   is gone within tens of seconds and the chain is severed for good — as it is
   by `enroll:delete` on a middle link. Nothing records ancestry beyond the
   immediate predecessor, so a revoke arriving after the sweep reaches the
-  first live candidate and stops. Under a finite key-expiry posture that is
-  the DEFAULT shape of a retrofit chain, not a corner of it: each successor's
-  ttl clock restarts at its own write, so earlier links always expire first.
-  Closing it needs ancestry that outlives the record.
+  first live candidate and stops. This needs a MIDDLE link, so it reaches a
+  retrofit chain of two or more — which this release stops the server minting
+  (see the once-off refusal below), though an atSign may still hold one from
+  before. Closing it for those needs ancestry that outlives the record.
 - fix: an enrollment id is folded to lower case where `pkam` reads it off the
   wire. The keystore lowercases every key, so a non-canonical spelling
   resolved to the same record while comparing unequal to the id held
@@ -162,10 +162,16 @@
   replaced — and a stolen keyfile can mint a successor before the theft is
   noticed. A successor that outlived the revocation of what it replaced would
   defeat revocation through the very feature that created it. The cascade is
-  TRANSITIVE: a self-enrolled enrollment can itself self-enroll, and a
-  one-level cascade would leave the one beyond it approved. It walks enrollments of
-  every status, so a revoked enrollment part-way down a chain cannot conceal
-  the approved one behind it, and it revokes only those currently approved.
+  TRANSITIVE, which this release stops being reachable over the wire but not
+  in stored data: a server predating the once-off refusal below could mint a
+  successor that itself self-enrolled, and a one-level cascade would leave the
+  one beyond it approved. It walks enrollments of every status, so a revoked
+  enrollment part-way down a retrofit chain cannot conceal the approved one
+  behind it, and it revokes only those currently approved.
+
+  ⚠️ It follows the REPLACEMENT edge only. An enrollment that merely APPROVED
+  another is not its predecessor and is not swept up — no approver edge is
+  stored on the record, so approval depth is unbounded and invisible to this.
   Depth costs nothing: one keystore pass builds the whole map and the walk is
   then in memory. Connections held by cascaded enrollments are dropped with the
   target's.
@@ -244,6 +250,34 @@
   measurement went negative for an enrollment retrofitted between them —
   capping it to one millisecond, killing a credential with hours of legitimate
   life left and locking out every sibling clone that had still to upgrade.
+- BREAKING: a retrofit is a ONCE-OFF. `enroll:request` on an authenticated
+  connection now refuses when the enrollment it would replace is itself a
+  replacement, so a device gets one no-approver migration rather than a series;
+  a second algorithm change needs an approver again. Nothing else enforced it
+  before: the request branch checked that the connection was APKAM-
+  authenticated, that the named enrollment existed and was approved, and that
+  grants did not escalate, but never asked whether that enrollment had itself
+  replaced something.
+
+  Two things made repetition costly. Each link restarts the key-expiry clock,
+  so an enrollment with a one-hour term could retrofit itself every
+  fifty-five minutes indefinitely and the posture was not enforceable across a
+  chain at all. And each link adds a record whose loss severs the revocation
+  cascade behind it — a chain of one link has no middle to lose.
+
+  ⚠️ This bounds the REPLACEMENT edge only, and only its depth. Several
+  sibling clones of one keyfile may still each retrofit the same enrollment —
+  that is the behaviour the retrofit cap re-arms for — so the graph is one link
+  deep and arbitrarily wide. Approval is untouched and unbounded: no approver
+  edge is stored on the record, so an approver admitting an enrollment that
+  admits another is neither limited nor visible here.
+
+  ⚠️ The transitive cascade is kept, for stored data this server can no longer
+  produce: an atSign may hold a deeper chain written before this release. Its
+  only over-the-wire test could not survive — a functional pack builds records
+  by sending verbs, and the verb now refuses — so that test is replaced by the
+  refusal, and transitivity is pinned solely by unit tests over hand-written
+  store records.
 - fix: an enrollment holding no namespaces is refused by `enroll:fetch` and by
   the shared approve/deny/revoke/unrevoke path, not passed vacuously. Each
   decides authority by iterating the TARGET's grants, so a target holding none

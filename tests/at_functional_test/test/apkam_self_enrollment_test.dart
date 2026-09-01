@@ -678,25 +678,32 @@ void main() {
               'feature that created it');
     });
 
-    test('the cascade reaches a successor\'s successor, not just the first',
-        () async {
+    test('a successor may not itself retrofit', () async {
+      // This was 'the cascade reaches a successor's successor, not just the
+      // first', which built a two-link retrofit chain over the wire. A
+      // retrofit is now a ONCE-OFF, so that chain can no longer be constructed
+      // against a real server at all, and the test is replaced by the refusal
+      // that makes it impossible.
+      //
+      // ⚠️ What goes with it is the only over-the-wire proof that the cascade
+      // is TRANSITIVE. That property still matters — an atSign may hold a
+      // deeper chain written before this refusal — but it is now pinned solely
+      // by unit tests standing on records written straight to the store, which
+      // is a shape the product can no longer produce.
       OutboundConnectionFactory owner = await ownerConnection();
       String predecessorId =
           await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
       String successorId = await selfEnrollId(predecessorId);
-      String laterSuccessorId = await selfEnrollId(successorId);
 
-      expect(await tryAuthenticateAs(laterSuccessorId), 'data:success',
-          reason: 'precondition');
+      expect(await tryAuthenticateAs(successorId), 'data:success',
+          reason: 'precondition: the first retrofit is allowed and its '
+              'successor authenticates');
 
-      String response = await owner
-          .sendRequestToServer('enroll:revoke:{"enrollmentId":"$predecessorId"}');
-      expect(response, startsWith('data:'), reason: response);
-
-      expect(await stateOf(owner, laterSuccessorId), 'revoked',
-          reason: 'a self-enrolled enrollment can itself self-enroll, so a '
-              'one-level cascade would leave this one on every roster');
-      expect(await tryAuthenticateAs(laterSuccessorId), isNot('data:success'));
+      String second = await selfEnroll(successorId);
+      expect(second, startsWith('error:'),
+          reason: 'a replacement may not be replaced without an approver; '
+              'got: $second');
+      expect(second, contains('is itself a replacement'), reason: second);
     });
 
     test('un-revoking a descendant is refused while what it replaced stays '

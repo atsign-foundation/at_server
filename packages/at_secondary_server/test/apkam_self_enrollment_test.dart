@@ -798,6 +798,53 @@ void main() {
   /// Through the arming path this is not cleanly measurable: shortening a
   /// deadline can trip the shorter-lived-successor guard instead, so a broken
   /// fold shows up as "no cap written" rather than as a wrong number.
+  /// A retrofit is a ONCE-OFF: a device gets one no-approver migration, not a
+  /// series. Two things follow from letting it repeat. Each link restarts the
+  /// key-expiry clock, so an enrollment with a one-hour term could retrofit
+  /// itself every fifty-five minutes indefinitely and the posture would not be
+  /// enforceable across a chain at all. And each link adds a record whose loss
+  /// severs the revocation cascade behind it.
+  ///
+  /// The guard is about DEPTH along the predecessor edge, never breadth — see
+  /// the control below.
+  group('a retrofit is a once-off', () {
+    test('a successor may not itself retrofit', () async {
+      final rootId = (await etu.createEnrollments(n: 1)).$1.first;
+      final first = await selfEnroll(
+          predecessorId: rootId, appName: 'once-app', deviceName: 'once-dev');
+      expect(first.isError, false, reason: '${first.errorMessage}');
+      final successorId = jsonDecode(first.data!)['enrollmentId'] as String;
+
+      await expectLater(
+          () => selfEnroll(
+              predecessorId: successorId,
+              appName: 'once-app-2',
+              deviceName: 'once-dev-2'),
+          throwsA(isA<UnAuthorizedException>().having((e) => e.message,
+              'message', contains('is itself a replacement'))),
+          reason: 'a replacement may not be replaced without an approver');
+    });
+
+    test('control: several siblings may still retrofit ONE predecessor',
+        () async {
+      // Breadth, not depth. Sibling clones of a single keyfile each retrofit
+      // the SAME enrollment — none of them has a predecessor that is itself a
+      // replacement — and that is the behaviour the retrofit cap re-arms for.
+      // Without this control the guard above is satisfied by one that refuses
+      // every second retrofit on the atSign.
+      final rootId = (await etu.createEnrollments(n: 1)).$1.first;
+      for (final i in [1, 2, 3]) {
+        final r = await selfEnroll(
+            predecessorId: rootId,
+            appName: 'sibling-app-$i',
+            deviceName: 'sibling-dev-$i');
+        expect(r.isError, false,
+            reason: 'sibling $i must still be able to retrofit the root: '
+                '${r.errorMessage}');
+      }
+    });
+  });
+
   group('the retrofit cap fold', () {
     final now = DateTime.utc(2026, 1, 1, 12);
     final graceMs =
@@ -1130,22 +1177,6 @@ void main() {
       return r;
     }
 
-    /// [rootId] → s0 → s1 → …, each link a real retrofit of the one before.
-    Future<List<String>> chainFrom(String rootId, int depth) async {
-      final ids = <String>[];
-      var current = rootId;
-      for (var i = 0; i < depth; i++) {
-        final r = await selfEnroll(
-            predecessorId: current,
-            appName: 'chain-app-$i',
-            deviceName: 'chain-device-$i');
-        expect(r.isError, false, reason: '${r.errorMessage}');
-        current = jsonDecode(r.data!)['enrollmentId'] as String;
-        ids.add(current);
-      }
-      return ids;
-    }
-
     /// A record written straight to the store, for shapes the verbs cannot
     /// currently produce.
     Future<void> mintUnder(String id, String? predecessorId,
@@ -1161,6 +1192,37 @@ void main() {
             ..data = jsonEncode(v.toJson())
             ..metaData = (AtMetaData()..ttl = ttl?.inMilliseconds ?? 0),
           status);
+    }
+
+    /// [rootId] → s0 → s1 → …, links along the `parentEnrollmentId` edge.
+    ///
+    /// The FIRST link is minted by the verb, because that is the shape the
+    /// product still produces. Deeper links are written straight to the store,
+    /// because a retrofit is now a once-off: `enroll:request` refuses to
+    /// replace an enrollment that is itself a replacement, so a chain deeper
+    /// than one link can no longer be built over the wire at all. What these
+    /// tests exercise is the cascade's behaviour over STORED data — which
+    /// includes records written by a server that predates that guard, and is
+    /// the reason the transitive walk is still there.
+    Future<List<String>> chainFrom(String rootId, int depth) async {
+      final ids = <String>[];
+      var current = rootId;
+      for (var i = 0; i < depth; i++) {
+        if (i == 0) {
+          final r = await selfEnroll(
+              predecessorId: current,
+              appName: 'chain-app-$i',
+              deviceName: 'chain-device-$i');
+          expect(r.isError, false, reason: '${r.errorMessage}');
+          current = jsonDecode(r.data!)['enrollmentId'] as String;
+        } else {
+          final id = 'chain-link-$i';
+          await mintUnder(id, current);
+          current = id;
+        }
+        ids.add(current);
+      }
+      return ids;
     }
 
     test('a successor is revoked with the enrollment it replaced', () async {
@@ -1181,9 +1243,10 @@ void main() {
 
       expect(await statusOf(chain[1]), EnrollmentStatus.revoked.name);
       expect(await statusOf(chain[2]), EnrollmentStatus.revoked.name,
-          reason: 'a self-enrolled enrollment can itself self-enroll, so a '
-              'one-level cascade leaves the one beyond it approved — and answered '
-              'when it asks a holder for the new generation');
+          reason: 'a stored retrofit chain can be deeper than one link — this '
+              'server no longer mints one, but may hold one written before the '
+              'once-off refusal — so a one-level cascade leaves the enrollment '
+              'beyond it approved');
     });
 
     test('a revoked link does not hide the enrollment behind it', () async {
