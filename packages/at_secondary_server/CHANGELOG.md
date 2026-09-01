@@ -251,6 +251,21 @@
   roster that was empty is no longer, so a client asserting on its size needs
   to expect the housekeeping enrollment.
 
+- BREAKING: a legacy connection's `scan` is now FILTERED like any other
+  enrollment's, so enrollment records drop out of its results. `scan` decides
+  by whether the connection carries an enrollment id, not by auth type — a
+  legacy connection used to fall through to the unfiltered owner view simply
+  by having none, and now carries the housekeeping enrollment's id.
+
+  It is consistent rather than incidental: `enroll:list` is the management
+  path for enrollment records, an enrollment-scoped scan has always excluded
+  them whatever its grants, and a legacy connection is an enrollment now.
+  Ordinary keys are unaffected — the housekeeping enrollment holds `*:rw`.
+
+  ⚠️ A legacy client that scanned for `<id>.new.enrollments.__manage@<atSign>`
+  records will stop finding them and must use `enroll:list`. A CRAM connection
+  still carries no enrollment id and still gets the unfiltered view.
+
 - BREAKING: legacy PKAM authentication is refused unless that enrollment is
   APPROVED, and APKAM authentication NAMING it is refused outright. Revoking
   the record is what makes revoking the legacy keyfile possible at all —
