@@ -3888,6 +3888,48 @@ void main() {
       );
     });
 
+    test('...and an ID-LESS connection is refused, not waved through',
+        () async {
+      // The carve-out, and it is the half that needs saying. `isAuthorized`'s
+      // default is that NO enrollment id means full permissions — an owner
+      // connection is normally waved through everything. This refusal is an
+      // explicit exception to that default, so the id-less case is the
+      // SURPRISING one and the one worth pinning; the enrollment-vs-
+      // enrollment case above is what anyone would guess.
+      //
+      // ⚠️ Only a CRAM connection reaches this state now. Legacy PKAM used to
+      // and no longer does — it carries the housekeeping enrollment's id — so
+      // this branch's population shrank to one, and nothing over the wire
+      // reaches it any more without spending an atSign's one-shot CRAM
+      // secret. Pinned here instead, deliberately: the rule is server-side
+      // and needs no wire to prove.
+      final enId = (await etu.createEnrollments(n: 1)).$1.first;
+
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.enrollmentId = null;
+      final r = Response();
+      await expectLater(
+        etu.evh.processVerb(
+          r,
+          getVerbParam(
+              VerbSyntax.enroll,
+              'enroll:update:${jsonEncode((EnrollParams()
+                    ..enrollmentId = enId
+                    ..metadata = {'anything': 'at all'})
+                  .toJson())}'),
+          inboundConnection,
+        ),
+        throwsA(isA<AtEnrollmentException>()),
+        reason: 'an owner connection names no enrollment, so it cannot be the '
+            'enrollment this record belongs to — and it cannot sign anything '
+            'with that enrollment\'s APKAM private half either, so a write it '
+            'made would fail every reader\'s verification and buy only a '
+            'denial of service',
+      );
+      expect((await etu.evh.enMgr.getEnrollmentById(enId)).metadata, isNull,
+          reason: 'refused before anything was written');
+    });
+
     test('enroll:update cannot change namespaces', () async {
       // The privilege-escalation guard: self-only plus reachable namespaces
       // would let an enrollment widen its own grant.
