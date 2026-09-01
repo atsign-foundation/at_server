@@ -363,13 +363,21 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // request. See #2208
       logger.warning('CRAM-authenticated connection - i.e. initial enrollment;'
           ' will replace the existing initial enrollment, if any');
-    } else if (atConnection.metaData.authType == AuthType.apkam) {
-      // An APKAM self-enrollment keeps its app's own (appName, deviceName):
-      // a retrofit is the same app re-enrolling itself, and sibling clones of
+    } else if (atConnection.metaData.authType == AuthType.apkam ||
+        atConnection.metaData.authType == AuthType.pkamLegacy) {
+      // A self-enrollment keeps its app's own (appName, deviceName): a
+      // retrofit is the same app re-enrolling itself, and sibling clones of
       // one keyfile share those names, each needing to coexist with the
       // approved enrollments the others already spawned. Uniqueness of
       // (appName, deviceName) among live enrollments therefore ends on this
       // branch by design.
+      //
+      // Legacy belongs here for the same reason and would otherwise never
+      // reach the retrofit branch at all: a retrofit of the housekeeping
+      // enrollment keeps ITS names, and preventDuplicateEnrollRequest throws
+      // on a same-name approved enrollment — so the request would be refused
+      // here, hundreds of lines before the gate that was widened for it, and
+      // the widening would appear to do nothing.
     } else {
       // Every other connection must not duplicate an existing enrollment's
       // (appName, deviceName).
@@ -442,22 +450,38 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       return;
     }
 
-    // An APKAM-authenticated connection retrofits itself: it enrols a FRESH
-    // enrollment that REPLACES the one the connection authenticated as.
+    // A connection that already holds an enrollment retrofits itself: it
+    // enrols a FRESH enrollment that REPLACES the one it authenticated as.
     // Auto-approved with no human step and no OTP, that existing approved
     // enrollment being the authority — and because the successor replaces
     // rather than descends, it holds exactly the predecessor's grants. The
     // predecessor is capped rather than removed, and only once the successor
     // has authenticated, so sibling clones of the same keyfile can still
     // retrofit until the cap elapses.
-    if (atConnection.metaData.authType == AuthType.apkam) {
+    //
+    // A LEGACY-PKAM connection reaches this by the same rule rather than by a
+    // special case: it authenticates as the housekeeping enrollment, so the
+    // enrollment it authenticated as is the one it replaces. That is the
+    // whole of what gives the atSign's oldest keyfile the no-approver upgrade
+    // path every other credential already had.
+    //
+    // ⚠️ The two are named EXPLICITLY rather than written as "authenticated
+    // and not CRAM". A CRAM connection must never receive retrofit treatment
+    // — at_auth throws unless a first enrollment comes back `approved`, so
+    // onboarding would break for every new user — and today it never does
+    // ONLY because the auto-approve block above returns before this point. An
+    // allow-list of two says that in the condition; a negation would leave it
+    // resting on statement order, where a reordering breaks onboarding
+    // silently.
+    if (atConnection.metaData.authType == AuthType.apkam ||
+        atConnection.metaData.authType == AuthType.pkamLegacy) {
       final inboundConnectionMetadata =
           atConnection.metaData as InboundConnectionMetadata;
       final predecessorId = inboundConnectionMetadata.enrollmentId;
       if (predecessorId == null) {
         throw UnAuthorizedException(
-            'An APKAM-authenticated self-enrollment needs a resolvable '
-            'enrollment id on the connection');
+            'A self-enrollment needs a resolvable enrollment id on the '
+            'connection');
       }
       final EnrollDataStoreValue predecessor;
       try {
@@ -1746,6 +1770,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         final AuthType? authType = inboundConnection.metaData.authType;
         if (authType != AuthType.cram &&
             authType != AuthType.apkam &&
+            authType != AuthType.pkamLegacy &&
             (enrollParams.namespaces == null ||
                 enrollParams.namespaces!.isEmpty)) {
           throw IllegalArgumentException(

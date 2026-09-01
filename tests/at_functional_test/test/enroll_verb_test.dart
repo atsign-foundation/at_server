@@ -279,23 +279,40 @@ void main() {
           'UnAuthorized client in request : Connection with enrollment ID $enrollmentId is not authorized to llookup key: $enrollmentKey');
     });
 
-    test(
-        'enroll request on APKAM authenticated connection and verify enroll:list',
+    test('a new app admitted from a legacy connection appears in enroll:list',
         () async {
+      // REWRITTEN. This used to send `enroll:request` on the legacy
+      // connection itself and expect `pending`, which is the mechanism that
+      // has been withdrawn: a legacy connection's own enroll:request is now a
+      // RETROFIT of the housekeeping enrollment — auto-approved, inheriting
+      // that enrollment's grants — so it can no longer be used to admit a
+      // different app.
+      //
+      // The intent survives unchanged: admit a second app from the owner's
+      // connection and see it in the roster. The legacy connection MINTS the
+      // OTP and the new app sends its own request over its own
+      // unauthenticated connection, which is the path that exists for this
+      // and the one the withdrawal points callers at.
       int randomNumber = Uuid().v4().hashCode;
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.pkam);
-      // send an enroll request with the keys from the setEncryptionKeys method
+
+      String otp = (await firstAtSignConnection.sendRequestToServer('otp:get'))
+          .replaceAll('data:', '')
+          .trim();
+      OutboundConnectionFactory newApp =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
       String enrollRequest =
-          'enroll:request:{"appName":"atmosphere-$randomNumber","deviceName":"pixel-$randomNumber","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"dummy_apkam_$randomNumber"}';
+          'enroll:request:{"appName":"atmosphere-$randomNumber","deviceName":"pixel-$randomNumber","namespaces":{"wavi":"rw"},"otp":"$otp","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"dummy_apkam_$randomNumber"}';
       String enrollResponse =
-          (await firstAtSignConnection.sendRequestToServer(enrollRequest))
+          (await newApp.sendRequestToServer(enrollRequest))
               .replaceFirst('data:', '');
       var enrollJsonMap = jsonDecode(enrollResponse);
       var enrollmentId = enrollJsonMap['enrollmentId'];
       expect(enrollmentId, isNotEmpty);
       expect(enrollJsonMap['status'], 'pending');
-      // enroll:list
+      // enroll:list, read back on the owner's connection
       String enrollListResponse =
           await firstAtSignConnection.sendRequestToServer('enroll:list');
       enrollListResponse = enrollListResponse.replaceAll('data:', '');

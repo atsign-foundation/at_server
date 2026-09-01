@@ -224,6 +224,40 @@
   has run, so a first approval reads none and passes vacuously; the check bites
   on `unrevoke`, and on any later transition of a record that already names
   one.
+- BREAKING: a legacy-PKAM connection's own `enroll:request` is a RETROFIT of
+  the housekeeping enrollment, not a way to enrol a different app. It
+  authenticates AS that enrollment, so the enrollment it authenticated as is
+  the one it replaces: auto-approved, with no human step and no OTP, carrying
+  exactly that enrollment's grants. This is what gives the atSign's oldest
+  keyfile the no-approver upgrade path every other credential already had.
+
+  ⚠️ It NARROWS what that request could do. A legacy connection asking for a
+  different app's namespaces is now refused, because a retrofit may not choose
+  its grants. Admitting a new app from a legacy connection goes through the
+  OTP path — the legacy connection MINTS the otp and the new app sends its own
+  request over its own unauthenticated connection — which is the path that
+  exists for it.
+
+  The once-off rule applies here too: several sibling clones of one legacy
+  keyfile may each retrofit the housekeeping enrollment, which is the
+  behaviour the cap re-arms for, but a successor of it may not retrofit again.
+
+  ⚠️ Three sites, not one, and the two beyond the obvious gate are where this
+  would have failed silently. The duplicate-request check runs hundreds of
+  lines EARLIER and throws on a same-(appName, deviceName) approved
+  enrollment — which a retrofit keeps — so widening only the gate would have
+  looked like doing nothing at all. And the mandatory-namespace check exempts
+  the paths that fill grants in on the request's behalf; a retrofit is one, so
+  a legacy request omitting namespaces was refused for not stating any.
+
+  The CRAM ordering is now PINNED rather than resting on statement order. A
+  CRAM connection must never receive retrofit treatment — at_auth throws
+  unless a first enrollment comes back `approved`, so onboarding would break
+  for every new user — and it avoids the branch only because the auto-approve
+  block returns first. The gate names its two auth types explicitly instead of
+  negating CRAM, and a test asserts a CRAM enrollment is minted rather than
+  replaced.
+
 - fix: `update:meta` is authorised like `update` rather than refused to every
   enrollment (#2691). `UpdateMeta` extends `Verb` and not `Update`, and
   appeared in neither the read nor the write allow-list, so the per-namespace

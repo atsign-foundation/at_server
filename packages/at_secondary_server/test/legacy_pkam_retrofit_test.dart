@@ -303,6 +303,111 @@ void main() {
     });
   });
 
+  group('a legacy enroll:request is a retrofit of it', () {
+    /// `enroll:request` over a connection whose authType is [authType] and
+    /// whose enrollment id is [enrollmentId]. No OTP: an authenticated
+    /// connection sends none.
+    Future<Response> enrollRequest({
+      required AuthType authType,
+      String? enrollmentId,
+      Map<String, String>? namespaces,
+      String appName = 'legacy',
+      String deviceName = 'legacy',
+    }) async {
+      final ep = EnrollParams()
+        ..appName = appName
+        ..deviceName = deviceName
+        ..apkamPublicKey = 'a fresh apkam public key'
+        ..namespaces = namespaces;
+      inboundConnection.metaData
+        ..isAuthenticated = true
+        ..authType = authType
+        ..sessionID = DateTime.now().millisecondsSinceEpoch.toString();
+      inboundConnection.metadata.enrollmentId = enrollmentId;
+
+      final r = Response();
+      await etu.evh.processVerb(
+        r,
+        getVerbParam(
+            VerbSyntax.enroll, 'enroll:request:${jsonEncode(ep.toJson())}'),
+        inboundConnection,
+      );
+      return r;
+    }
+
+    test('it replaces the housekeeping enrollment and inherits its grants',
+        () async {
+      expect((await authenticateLegacy()).data, 'success');
+
+      final r = await enrollRequest(
+          authType: AuthType.pkamLegacy,
+          enrollmentId: EnrollmentManager.housekeepingEnrollmentId);
+
+      expect(r.isError, isFalse, reason: '${r.errorMessage}');
+      final m = jsonDecode(r.data!);
+      expect(m['status'], EnrollmentStatus.approved.name,
+          reason: 'no human step and no OTP — the authenticated legacy '
+              'credential is the authority, exactly as an APKAM one is');
+
+      final successor = await enMgr.getEnrollmentById(m['enrollmentId']);
+      expect(successor.parentEnrollmentId,
+          EnrollmentManager.housekeepingEnrollmentId,
+          reason: 'it REPLACES the legacy credential rather than descending '
+              'from it');
+      expect(successor.namespaces, {
+        EnrollmentConstants.allNamespaces: 'rw',
+        EnrollmentConstants.enrollManageNamespace: 'rw',
+      }, reason: 'a retrofit carries its predecessor\'s grants exactly, and '
+          'the legacy credential\'s are unrestricted');
+      expect(successor.approvedByEnrollmentId, isNull,
+          reason: 'it inherits the housekeeping enrollment\'s approver, which '
+              'is nobody — so the legacy lineage stays outside every cascade');
+    });
+
+    test('a successor of it may not retrofit again', () async {
+      expect((await authenticateLegacy()).data, 'success');
+      final first = jsonDecode((await enrollRequest(
+              authType: AuthType.pkamLegacy,
+              enrollmentId: EnrollmentManager.housekeepingEnrollmentId))
+          .data!)['enrollmentId'] as String;
+
+      await expectLater(
+          () => enrollRequest(
+              authType: AuthType.apkam, enrollmentId: first),
+          throwsA(isA<UnAuthorizedException>()),
+          reason: 'the once-off rule applies here too: the legacy keyfile '
+              'gets ONE no-approver migration, not a series that restarts the '
+              'key-expiry clock every time');
+    });
+
+    test('a CRAM connection is auto-approved and NOT retrofitted', () async {
+      // The pin for an ordering the code must not be allowed to rest on. A
+      // CRAM connection reaches the auto-approve block first and returns
+      // there; if it ever fell through to the retrofit branch it would be
+      // refused for want of an enrollment id, and at_auth throws unless a
+      // FIRST enrollment comes back approved — so onboarding would break for
+      // every new user of the atSign, silently, from a reordering.
+      final r = await enrollRequest(
+          authType: AuthType.cram,
+          enrollmentId: null,
+          appName: 'cram-app',
+          deviceName: 'cram-device');
+
+      expect(r.isError, isFalse, reason: '${r.errorMessage}');
+      final m = jsonDecode(r.data!);
+      expect(m['status'], EnrollmentStatus.approved.name);
+      final created = await enMgr.getEnrollmentById(m['enrollmentId']);
+      expect(created.parentEnrollmentId, isNull,
+          reason: 'auto-approve MINTS an enrollment; it does not replace one. '
+              'A parent here would mean CRAM had received retrofit treatment');
+      expect(created.namespaces, {
+        EnrollmentConstants.enrollManageNamespace: 'rw',
+        EnrollmentConstants.allNamespaces: 'rw',
+      }, reason: 'and it carries the CRAM branch\'s own grants, not a '
+          'predecessor\'s');
+    });
+  });
+
   group('APKAM authentication', () {
     test('may not name the housekeeping enrollment', () async {
       final result = await PkamVerbHandler(keyValueStore)
