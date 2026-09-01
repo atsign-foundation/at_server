@@ -237,14 +237,13 @@
   grace, and would make the grace setting work backwards, a longer grace
   declining more often.
 
-  The cap never extends an enrollment past the expiry its record already
-  carries, and that expiry is measured from APPROVAL rather than from the
-  request. A record that carries no expiry does not expire, whatever posture
-  its stored value states, so nothing but the grace bounds the cap there. The two differ by the approval latency, and a
-  request-anchored measurement went negative for an enrollment retrofitted
-  between them — capping it to one millisecond, killing a credential with hours
-  of legitimate life left and locking out every sibling clone that had still to
-  upgrade.
+  The expiry the cap measures against is taken from APPROVAL rather than from
+  the request. A record that carries no expiry does not expire, whatever
+  posture its stored value states, so nothing but the grace bounds the cap
+  there. The two differ by the approval latency, and a request-anchored
+  measurement went negative for an enrollment retrofitted between them —
+  capping it to one millisecond, killing a credential with hours of legitimate
+  life left and locking out every sibling clone that had still to upgrade.
 - fix: arming the cap no longer reverts a concurrent change to the successor.
   The successor's record is read immediately before it is written rather than
   before the predecessor lookup and the cap, so an `enroll:update` rotating its
