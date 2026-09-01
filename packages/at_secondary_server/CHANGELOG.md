@@ -641,7 +641,10 @@
   with no enrollment able to approve a replacement. That case is now answered
   where it actually arises rather than by exempting one enrollment: the cap
   declines when a fully-privileged predecessor would be retired and no other
-  fully-privileged enrollment survives the deadline. "Fully privileged" —
+  fully-privileged enrollment WITHOUT AN EXPIRY would be left. The successor's
+  own lifetime is not consulted — it stands in that same test like any other
+  enrollment, so the unexpiring successor an ordinary retrofit produces is what
+  lets the cap arm. "Fully privileged" —
   read-write on both `*` and `__manage` — rather than merely able to approve,
   because approving is checked per namespace against what the approver itself
   holds, so a `__manage`-only enrollment can admit new enrollments and can
