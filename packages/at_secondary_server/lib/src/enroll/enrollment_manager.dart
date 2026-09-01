@@ -121,6 +121,86 @@ class EnrollmentManager {
         '$atSign';
   }
 
+  /// The enrollment id of the HOUSEKEEPING enrollment — the record that gives
+  /// the atSign's legacy PKAM credential an identity.
+  ///
+  /// The legacy keyfile authenticates with no enrollment id at all, so it has
+  /// never had an enrollment record: nothing states its grants, nothing can
+  /// revoke it, and nothing ever retires it. This record is what a legacy
+  /// connection authenticates AS, so that credential gets the lifecycle every
+  /// other credential already has.
+  ///
+  /// The id is the literal `primary` rather than a generated one, and that is
+  /// load-bearing twice over. It is deterministic, so finding the record is a
+  /// single key read and create-if-absent costs nothing — no scan of the
+  /// keystore, and no new at-rest field to tag it with. And `primary` is
+  /// ALREADY the atSign-wide sentinel for "no enrollment id":
+  /// `abstract_update_verb_handler` substitutes it into its authorisation
+  /// message, and a client with no enrollment publishes its signing key at
+  /// `public:_apsk.primary.a.__e@<atSign>`. That published key therefore
+  /// becomes this enrollment's per-enrollment data as soon as the record
+  /// exists, so revoking or expiring the legacy credential parks its signing
+  /// key exactly as it does for any other enrollment. Nothing retires it
+  /// today.
+  static const String housekeepingEnrollmentId = 'primary';
+
+  /// The housekeeping enrollment, creating it if this atSign has none.
+  ///
+  /// Called on every legacy PKAM authentication, so the already-created case
+  /// is one key read and no write.
+  ///
+  /// [legacyPkamPublicKey] is the key the connection just authenticated
+  /// against, recorded so the enrollment describes the credential it stands
+  /// for rather than being a bare marker. It is deliberately NOT usable for
+  /// APKAM authentication; that is refused separately, because a credential
+  /// reachable both with and without an enrollment id would have two
+  /// lifecycles.
+  ///
+  /// An existing record is returned exactly as stored, whatever its status.
+  /// Re-approving a revoked housekeeping enrollment here would make legacy
+  /// authentication a way to undo its own revocation.
+  ///
+  /// Created `approved`, fully privileged, and with no expiry — it stands for
+  /// the credential the atSign was onboarded with. It carries NO approver: no
+  /// enrollment admitted it, the server created it for itself, so no
+  /// revocation cascade can reach it. That is deliberate rather than an
+  /// oversight — a cascade able to sweep it away would strand the very
+  /// credential it exists to govern.
+  ///
+  /// Two legacy connections authenticating at once may both find it absent and
+  /// both write it. They write identical content, so the race is benign.
+  Future<EnrollDataStoreValue> ensureHousekeepingEnrollment(
+      String legacyPkamPublicKey) async {
+    try {
+      return await getEnrollmentById(housekeepingEnrollmentId);
+    } on KeyNotFoundException {
+      // Absent: this atSign has never authenticated with its legacy
+      // credential since the record existed, which for every atSign onboarded
+      // before it means the first time.
+    }
+
+    final EnrollDataStoreValue value = EnrollDataStoreValue(
+      Uuid().v4(),
+      'legacy',
+      'legacy',
+      legacyPkamPublicKey,
+    )
+      ..namespaces = {
+        EnrollmentConstants.allNamespaces: 'rw',
+        EnrollmentConstants.enrollManageNamespace: 'rw',
+      }
+      ..approval = EnrollApproval(EnrollmentStatus.approved.name);
+
+    logger.info('Creating the housekeeping enrollment '
+        '$housekeepingEnrollmentId for this atSign\'s legacy PKAM credential');
+    await put(
+      housekeepingEnrollmentId,
+      AtData()..data = jsonEncode(value.toJson()),
+      EnrollmentStatus.approved,
+    );
+    return value;
+  }
+
   /// Stores the enrollment data associated with the given [enId].
   ///
   /// This method constructs an enrollment key and saves the provided [AtData]

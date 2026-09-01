@@ -105,9 +105,31 @@ class PkamVerbHandler extends AbstractVerbHandler {
         logger.warning('Failed to immediately remove $storedSecretId');
       }
 
+      // A legacy connection authenticates AS the housekeeping enrollment.
+      // Created here, on the first legacy authentication, rather than at
+      // onboarding: almost every atSign predates the record, and this is the
+      // one moment the server can prove the legacy credential is live.
+      //
+      // BEFORE the connection is marked authenticated, so a store fault fails
+      // the authentication rather than admitting a connection whose enrollment
+      // id names nothing. That is the opposite posture from the cap arming
+      // below, deliberately — the cap is bookkeeping about a different record,
+      // this is the identity this connection is about to carry.
+      //
+      // ⚠️ A READ therefore mutates the atSign: the first `enroll:list` over a
+      // legacy connection creates this record. Accepted, because the
+      // alternative is a credential no roster shows and no verb can retire.
+      String? connectionEnrollmentId = enrollId;
+      if (pkamAuthType == AuthType.pkamLegacy) {
+        await AtSecondaryServerImpl.getInstance()
+            .enrollmentManager
+            .ensureHousekeepingEnrollment(publicKey);
+        connectionEnrollmentId = EnrollmentManager.housekeepingEnrollmentId;
+      }
+
       atConnectionMetadata.isAuthenticated = true;
       atConnectionMetadata.authType = pkamAuthType;
-      atConnectionMetadata.enrollmentId = enrollId;
+      atConnectionMetadata.enrollmentId = connectionEnrollmentId;
       response.data = 'success';
 
       // A retrofit's successor arms the expiry cap on the enrollment it
