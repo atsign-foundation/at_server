@@ -182,6 +182,19 @@ class PkamVerbHandler extends AbstractVerbHandler {
       // A no-op for every enrollment that replaced nothing, and it never
       // throws: authentication has already succeeded by this point and must
       // not be undone by bookkeeping.
+      // ⛔ `enrollId` — the id PRESENTED ON THE WIRE — and deliberately not
+      // `connectionEnrollmentId`. They differ for exactly one case and it is
+      // the dangerous one: a legacy authentication presents no id but is
+      // given `primary`, whose recorded apkamPublicKey IS
+      // `at_pkam_publickey` by construction. Keying this block on the
+      // connection's id would therefore hand dropVestigialLegacyKey a perfect
+      // value match on every legacy authentication, and it would delete the
+      // credential that had just authenticated — killing legacy access on
+      // every atSign, at first use, irreversibly, since that record cannot be
+      // rewritten over the wire.
+      //
+      // The two names look interchangeable here and are not. Pinned by
+      // `legacy authentication does not delete its own credential`.
       if (enrollId != null && enrollId.isNotEmpty) {
         final enMgr = AtSecondaryServerImpl.getInstance().enrollmentManager;
         await enMgr.armRetrofitCapOnFirstAuth(enrollId);
