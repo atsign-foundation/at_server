@@ -774,8 +774,8 @@ void main() {
       expect(second, contains('is itself a replacement'), reason: second);
     });
 
-    test('un-revoking a descendant is refused while what it replaced stays '
-        'revoked', () async {
+    test('un-revoking a descendant is refused while the one that APPROVED it '
+        'stays revoked', () async {
       OutboundConnectionFactory owner = await ownerConnection();
       String approverId = await createApprovedEnrollment(owner,
           namespaces: {'__manage': 'rw', 'wavi': 'rw'});
@@ -859,10 +859,17 @@ void main() {
       // Read on the OWNER's connection, which is what sees every record:
       // `enroll:list` narrows to the caller's own unless the caller is
       // legacy-PKAM or holds `__manage`.
+      // Two revoked records are wanted, one of them reached by the cascade —
+      // so the pair is an approver and an enrollment it ADMITTED. A retrofit
+      // pair would not do: a successor is a peer of what it replaced and the
+      // cascade does not travel that edge, so the second record would still
+      // be approved and the loop below would assert nothing.
       OutboundConnectionFactory owner = await ownerConnection();
-      String predecessorId =
-          await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
-      String successorId = await selfEnrollId(predecessorId);
+      String approverId = await createApprovedEnrollment(owner,
+          namespaces: {'__manage': 'rw', 'wavi': 'rw'});
+      String admittedId = await createApprovedEnrollment(
+          await connectionAs(approverId),
+          namespaces: {'wavi': 'rw'});
 
       Future<Map> listed() async => jsonDecode(
           (await owner.sendRequestToServer('enroll:list'))
@@ -870,15 +877,15 @@ void main() {
               .trim()) as Map;
 
       await owner
-          .sendRequestToServer('enroll:revoke:{"enrollmentId":"$predecessorId"}');
+          .sendRequestToServer('enroll:revoke:{"enrollmentId":"$approverId"}');
 
       final Map after = await listed();
       final matched = after.entries
           .where((e) =>
-              e.key.contains(predecessorId) || e.key.contains(successorId))
+              e.key.contains(approverId) || e.key.contains(admittedId))
           .toList();
       expect(matched.length, 2,
-          reason: 'both the named target and the successor the cascade took '
+          reason: 'both the named target and the enrollment the cascade took '
               'must still be listed, or the loop below asserts nothing');
       for (final e in matched) {
         expect((e.value as Map)['status'], 'revoked',
@@ -1009,7 +1016,7 @@ void main() {
           (jsonDecode(response.replaceFirst('data:', '')) as Map)
               .containsKey('cascadedEnrollmentIds'),
           isFalse,
-          reason: 'an enrollment that replaced nothing has no descendants, '
+          reason: 'an enrollment that approved nothing has no descendants, '
               'and its revoke response must keep the shape it always had');
     });
   });
