@@ -169,14 +169,45 @@ class EnrollmentManager {
   ///
   /// Two legacy connections authenticating at once may both find it absent and
   /// both write it. They write identical content, so the race is benign.
-  Future<EnrollDataStoreValue> ensureHousekeepingEnrollment(
-      String legacyPkamPublicKey) async {
+  ///
+  /// Returns NULL when the record is absent and must not be created, which
+  /// means the legacy credential has been RETIRED. The caller must refuse the
+  /// authentication rather than treat it as a bootstrap.
+  Future<EnrollDataStoreValue?> ensureHousekeepingEnrollment() async {
     try {
       return await getEnrollmentById(housekeepingEnrollmentId);
     } on KeyNotFoundException {
-      // Absent: this atSign has never authenticated with its legacy
-      // credential since the record existed, which for every atSign onboarded
-      // before it means the first time.
+      // Absent — but absent says nothing on its own, and this is the
+      // distinction the whole retirement path rests on.
+    }
+
+    // Whether absence means "never existed" or "already retired" is decided
+    // legacy key, because removing this record ALWAYS takes
+    // `at_pkam_publickey` with it. Key still present => the record never
+    // existed and this is a bootstrap. Key gone => it was retired, and
+    // re-creating it would resurrect a credential the atSign has finished
+    // with, indefinitely.
+    //
+    // The read is deliberately made HERE rather than taken from the caller.
+    // Retirement happens through this method: reading an expired enrollment
+    // removes it, and the pre-remove hook deletes the legacy key in the same
+    // breath — so a key the caller read moments ago, to verify the signature,
+    // may already be gone by the time we get here. Re-reading is what closes
+    // that window rather than widening it.
+    final AtData? legacyKey;
+    try {
+      legacyKey = await keyStore.get(AtConstants.atPkamPublicKey);
+    } on KeyNotFoundException {
+      logger.info('Not creating the housekeeping enrollment: the legacy PKAM '
+          'public key is gone, so the credential it would stand for has been '
+          'retired');
+      return null;
+    }
+    final String? legacyPkamPublicKey = legacyKey?.data;
+    if (legacyPkamPublicKey == null || legacyPkamPublicKey.isEmpty) {
+      logger.info('Not creating the housekeeping enrollment: the legacy PKAM '
+          'public key is empty');
+      return null;
     }
 
     final EnrollDataStoreValue value = EnrollDataStoreValue(

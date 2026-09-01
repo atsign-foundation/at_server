@@ -26,9 +26,20 @@ void main() {
 
   final etu = ETU();
 
+  /// The atSign's legacy PKAM public key. Its presence is what distinguishes
+  /// "the housekeeping record never existed" from "it was retired", so every
+  /// test that expects creation needs it there.
+  Future<void> seedLegacyKey(
+      [String value = 'the-legacy-pkam-key']) async {
+    await keyValueStore.put(
+        AtConstants.atPkamPublicKey, AtData()..data = value,
+        skipCommit: true);
+  }
+
   setUp(() async {
     await verbTestsSetUp();
     await etu.init();
+    await seedLegacyKey();
   });
 
   tearDown(() async {
@@ -70,7 +81,7 @@ void main() {
     test('is created on demand, approved and fully privileged', () async {
       expect(await storedH(), isNull, reason: 'precondition: no record yet');
 
-      await enMgr.ensureHousekeepingEnrollment('the-legacy-pkam-key');
+      await enMgr.ensureHousekeepingEnrollment();
 
       final h = await storedH();
       expect(h, isNotNull);
@@ -89,7 +100,7 @@ void main() {
     });
 
     test('carries NO approver, so no cascade can reach it', () async {
-      await enMgr.ensureHousekeepingEnrollment('k');
+      await enMgr.ensureHousekeepingEnrollment();
       final admitted = await etu.createPendingEnrollment(
           appName: 'admitted',
           deviceName: 'device',
@@ -113,17 +124,17 @@ void main() {
     });
 
     test('does not expire of its own accord', () async {
-      await enMgr.ensureHousekeepingEnrollment('k');
+      await enMgr.ensureHousekeepingEnrollment();
       expect((await keyValueStore.get(hKey()))?.metaData?.expiresAt, isNull,
           reason: 'only the retrofit cap may ever put a clock on it');
     });
 
     test('a second authentication reads it rather than rewriting it', () async {
-      await enMgr.ensureHousekeepingEnrollment('k');
+      await enMgr.ensureHousekeepingEnrollment();
       final int writesBefore = EnrollmentManager.cacheInvalidations;
       final String sessionBefore = (await storedH())!.sessionId;
 
-      await enMgr.ensureHousekeepingEnrollment('k');
+      await enMgr.ensureHousekeepingEnrollment();
 
       expect(EnrollmentManager.cacheInvalidations, writesBefore,
           reason: 'every enrollment write bumps this counter, and this runs '
@@ -134,12 +145,12 @@ void main() {
     });
 
     test('a REVOKED one is not restored by authenticating again', () async {
-      await enMgr.ensureHousekeepingEnrollment('k');
+      await enMgr.ensureHousekeepingEnrollment();
       await setHStatus(EnrollmentStatus.revoked);
 
-      final returned = await enMgr.ensureHousekeepingEnrollment('k');
+      final returned = await enMgr.ensureHousekeepingEnrollment();
 
-      expect(returned.approval?.state, EnrollmentStatus.revoked.name);
+      expect(returned!.approval?.state, EnrollmentStatus.revoked.name);
       expect((await storedH())!.approval?.state,
           EnrollmentStatus.revoked.name,
           reason: 'otherwise legacy authentication is a way to undo its own '
@@ -148,7 +159,7 @@ void main() {
 
     test('a REVOKED one stops counting as the atSign\'s surviving root',
         () async {
-      await enMgr.ensureHousekeepingEnrollment('k');
+      await enMgr.ensureHousekeepingEnrollment();
 
       expect(await enMgr.hasUnexpiringRootEnrollment({etu.primaryEnId}),
           isTrue,
@@ -163,6 +174,30 @@ void main() {
               'counting the moment it is revoked — counting it would report '
               'the atSign safe at exactly the moment its last usable root '
               'was taken away');
+    });
+
+    test('it is NOT re-created once the legacy key has gone', () async {
+      // Absence says nothing on its own, and this is the distinction the
+      // whole retirement path rests on. Removing the record always takes
+      // `at_pkam_publickey` with it, so the key being gone means the
+      // credential was RETIRED — and re-creating the record here would hand
+      // the retired keyfile a fresh, unexpiring enrollment, every time it
+      // expired, so the retirement would never complete.
+      await keyValueStore.remove(AtConstants.atPkamPublicKey, skipCommit: true);
+
+      expect(await enMgr.ensureHousekeepingEnrollment(), isNull);
+      expect(await storedH(), isNull,
+          reason: 'and nothing was written — a null return that still created '
+              'the record would retire nothing');
+    });
+
+    test('...while the same absence WITH the key present is a bootstrap',
+        () async {
+      // The control, and it is what stops the guard above being satisfied by
+      // "creation never happens". Identical state but for the legacy key.
+      expect(await storedH(), isNull, reason: 'precondition: no record');
+      expect(await enMgr.ensureHousekeepingEnrollment(), isNotNull);
+      expect(await storedH(), isNotNull);
     });
 
     test('the signing key a legacy client already published becomes its '
@@ -181,7 +216,7 @@ void main() {
           approvedKey, AtData()..data = 'the legacy signing key',
           skipCommit: true);
 
-      await enMgr.ensureHousekeepingEnrollment('k');
+      await enMgr.ensureHousekeepingEnrollment();
       expect(await keyValueStore.exists(approvedKey), isTrue,
           reason: 'precondition: creation approves it, so the key stays at '
               'the live address');

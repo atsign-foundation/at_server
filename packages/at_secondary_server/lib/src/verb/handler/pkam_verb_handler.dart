@@ -121,9 +121,21 @@ class PkamVerbHandler extends AbstractVerbHandler {
       // alternative is a credential no roster shows and no verb can retire.
       String? connectionEnrollmentId = enrollId;
       if (pkamAuthType == AuthType.pkamLegacy) {
-        await AtSecondaryServerImpl.getInstance()
+        final housekeeping = await AtSecondaryServerImpl.getInstance()
             .enrollmentManager
-            .ensureHousekeepingEnrollment(publicKey);
+            .ensureHousekeepingEnrollment();
+        if (housekeeping == null) {
+          // The record is absent AND the legacy key has gone, which together
+          // mean the credential was RETIRED — not that this is a first
+          // authentication. Re-creating it here would hand the retired
+          // keyfile a fresh, unexpiring enrollment and undo the retirement,
+          // every time it expired.
+          atConnectionMetadata.isAuthenticated = false;
+          logger.warning('Refusing legacy PKAM authentication: this atSign\'s '
+              'legacy credential has been retired');
+          throw UnAuthenticatedException(
+              'the legacy credential for this atSign has been retired');
+        }
         connectionEnrollmentId = EnrollmentManager.housekeepingEnrollmentId;
       }
 
