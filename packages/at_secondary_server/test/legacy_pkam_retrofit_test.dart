@@ -465,6 +465,67 @@ void main() {
     });
   });
 
+  group('the vestigial legacy key on a CRAM-onboarded atSign', () {
+    /// The case-1 shape: the CRAM auto-approve branch copies the first
+    /// enrollment's APKAM key into `at_pkam_publickey` "for old clients", so
+    /// one keypair ends up with two identities.
+    Future<String> anEnrollmentWhoseKeyWasCopied() async {
+      final id = await etu.createPendingEnrollment(
+          appName: 'copied',
+          deviceName: 'device',
+          namespaces: {'wavi': 'rw'},
+          apkamKeysExpiryDuration: null);
+      await etu.approveEnrollment(etu.primaryEnId, id);
+      final v = await enMgr.getEnrollmentById(id);
+      await seedLegacyKey(v.apkamPublicKey);
+      return id;
+    }
+
+    test('is dropped when that enrollment authenticates over APKAM', () async {
+      final id = await anEnrollmentWhoseKeyWasCopied();
+      expect(await keyValueStore.exists(AtConstants.atPkamPublicKey), isTrue,
+          reason: 'precondition: the copy is there');
+
+      final v = await enMgr.getEnrollmentById(id);
+      await enMgr.dropVestigialLegacyKey(id, v.apkamPublicKey);
+
+      expect(await keyValueStore.exists(AtConstants.atPkamPublicKey), isFalse,
+          reason: 'one keypair must not carry two identities with separate '
+              'lifecycles — revoking the enrollment would otherwise leave the '
+              'same key authenticating over the legacy path, and now at full '
+              'privilege however narrow the enrollment is');
+    });
+
+    test('a genuine legacy credential is NOT dropped', () async {
+      // The control, and the one that matters: `at_pkam_publickey` has a
+      // second writer — the update verb, which is how a real legacy
+      // credential is provisioned — so a blind delete here would destroy a
+      // working credential and lock the owner out irreversibly.
+      final id = await anEnrollmentWhoseKeyWasCopied();
+      await seedLegacyKey('a genuinely different legacy public key');
+
+      final v = await enMgr.getEnrollmentById(id);
+      await enMgr.dropVestigialLegacyKey(id, v.apkamPublicKey);
+
+      expect(await keyValueStore.exists(AtConstants.atPkamPublicKey), isTrue);
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'a genuinely different legacy public key',
+          reason: 'untouched, byte for byte');
+    });
+
+    test('and it is a no-op when there is no legacy key at all', () async {
+      final id = await anEnrollmentWhoseKeyWasCopied();
+      await keyValueStore.remove(AtConstants.atPkamPublicKey, skipCommit: true);
+
+      final v = await enMgr.getEnrollmentById(id);
+      await enMgr.dropVestigialLegacyKey(id, v.apkamPublicKey);
+
+      expect(await keyValueStore.exists(AtConstants.atPkamPublicKey), isFalse,
+          reason: 'it runs on EVERY apkam authentication, so the nothing-to-do '
+              'case must be silent rather than an error');
+    });
+  });
+
   group('APKAM authentication', () {
     test('may not name the housekeeping enrollment', () async {
       final result = await PkamVerbHandler(keyValueStore)

@@ -183,9 +183,16 @@ class PkamVerbHandler extends AbstractVerbHandler {
       // throws: authentication has already succeeded by this point and must
       // not be undone by bookkeeping.
       if (enrollId != null && enrollId.isNotEmpty) {
-        await AtSecondaryServerImpl.getInstance()
-            .enrollmentManager
-            .armRetrofitCapOnFirstAuth(enrollId);
+        final enMgr = AtSecondaryServerImpl.getInstance().enrollmentManager;
+        await enMgr.armRetrofitCapOnFirstAuth(enrollId);
+
+        // A SIBLING call rather than a step inside the cap arming, which
+        // returns early for exactly this population: an enrollment that
+        // replaced nothing. That is the whole of the case this addresses — an
+        // atSign onboarded by CRAM plus enroll:request, whose first
+        // enrollment's APKAM key was copied to `at_pkam_publickey` for old
+        // clients and has been a second way in ever since.
+        await enMgr.dropVestigialLegacyKey(enrollId, publicKey);
       }
     } else {
       // Nope

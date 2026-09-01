@@ -224,6 +224,26 @@
   has run, so a first approval reads none and passes vacuously; the check bites
   on `unrevoke`, and on any later transition of a record that already names
   one.
+- feat: a vestigial `at_pkam_publickey` is dropped on its enrollment's first
+  APKAM authentication. An atSign onboarded by CRAM plus `enroll:request` has
+  that first enrollment's APKAM public key copied into `at_pkam_publickey` by
+  the auto-approve branch, "for old clients" — so one keypair carries two
+  identities with separate lifecycles, and revoking the enrollment leaves the
+  same key authenticating over the legacy path. Now that the legacy path mints
+  a fully privileged housekeeping enrollment, it would do so at `*:rw` and
+  `__manage:rw` however narrow the enrollment itself was.
+
+  ⚠️ ONLY when the stored value IS that enrollment's key. `at_pkam_publickey`
+  has a second writer — the `update` verb, which is how a genuine legacy
+  credential is provisioned — so a blind delete would destroy a working
+  credential and lock an owner out irreversibly. The control for that is the
+  test that matters here.
+
+  Idempotent by effect rather than once-only by record: nothing durable marks
+  a first authentication for an enrollment that replaced nothing, so it runs
+  on every APKAM authentication and costs one key read when there is nothing
+  to do.
+
 - feat: retiring the housekeeping enrollment removes the legacy PKAM public
   key with it, which is what makes the atSign's oldest credential retirable at
   all. That key is what legacy authentication verifies against, and it cannot
