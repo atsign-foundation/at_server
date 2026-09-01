@@ -920,6 +920,105 @@ void main() {
     });
   });
 
+  /// A successor's term restarts its clock at its OWN write, so an equal term
+  /// always expires later in absolute time than the credential it replaced.
+  /// The mint-time term check cannot see this: it reads the posture off the
+  /// predecessor's VALUE, and a cap never touches that — it writes the
+  /// record's metadata. So a capped predecessor bounded nothing at all.
+  ///
+  /// ⚠️ These tests set `metaData.ttl` as well as the value. Every other
+  /// predecessor in this pack carries a posture in the value only, which is
+  /// the CRAM shape, so it has no stored `expiresAt` and the bound is a no-op
+  /// for it — the pack would stay green whether the bound worked or not.
+  group('a successor may not outlive its predecessor\'s deadline', () {
+    Future<DateTime?> expiryOf(String id) async =>
+        (await keyValueStore.get(enMgr.buildEnrollmentKey(id)))
+            ?.metaData
+            ?.expiresAt;
+
+    /// A predecessor whose RECORD carries a deadline — the shape a capped
+    /// enrollment has, and the one the value-only fixtures elsewhere in this
+    /// pack cannot produce.
+    Future<void> mintUnder(String id, String? predecessorId,
+        {Duration? ttl}) async {
+      final v = EnrollDataStoreValue('s', 'app-$id', 'device-$id', 'pk')
+        ..namespaces = {'*': 'rw', '__manage': 'rw'}
+        ..approval = EnrollApproval(EnrollmentStatus.approved.name)
+        ..parentEnrollmentId = predecessorId;
+      await enMgr.put(
+          id,
+          AtData()
+            ..data = jsonEncode(v.toJson())
+            ..metaData = (AtMetaData()..ttl = ttl?.inMilliseconds ?? 0),
+          EnrollmentStatus.approved);
+    }
+
+    test('a stated "never expires" is bounded by the predecessor\'s record',
+        () async {
+      await mintUnder('bound-root', null, ttl: Duration(hours: 1));
+      final rootExpiry = await expiryOf('bound-root');
+      expect(rootExpiry, isNotNull,
+          reason: 'precondition: the predecessor really does carry a stored '
+              'deadline — without this the bound has nothing to read and the '
+              'test passes whatever the production code does');
+
+      final r = await selfEnroll(
+          predecessorId: 'bound-root',
+          appName: 'bound-app',
+          deviceName: 'bound-device',
+          apkamKeysExpiryDuration: Duration.zero);
+      expect(r.isError, false, reason: '${r.errorMessage}');
+      final successorId = jsonDecode(r.data!)['enrollmentId'] as String;
+
+      final successorExpiry = await expiryOf(successorId);
+      expect(successorExpiry, isNotNull,
+          reason: 'a stated 0 is the keystore\'s "never expires"; against a '
+              'bounded predecessor it must not be honoured');
+      expect(successorExpiry!.isAfter(rootExpiry!), isFalse,
+          reason: 'the successor must not outlive the credential it replaced. '
+              'Bounded to $rootExpiry, got $successorExpiry');
+    });
+
+    test('the bound is exact, not the deadline plus the work in between',
+        () async {
+      // A ttl is re-anchored at the instant of the write, so carrying the
+      // bound as a DURATION lands it past the predecessor's deadline by
+      // however long the intervening work took — small, and in the one
+      // direction that matters. It is carried as an absolute instead.
+      await mintUnder('exact-root', null, ttl: Duration(hours: 2));
+      final rootExpiry = await expiryOf('exact-root');
+
+      final r = await selfEnroll(
+          predecessorId: 'exact-root',
+          appName: 'exact-app',
+          deviceName: 'exact-device',
+          apkamKeysExpiryDuration: Duration(days: 30));
+      final successorId = jsonDecode(r.data!)['enrollmentId'] as String;
+
+      expect(await expiryOf(successorId), rootExpiry,
+          reason: 'exactly the predecessor\'s deadline, to the millisecond');
+    });
+
+    test('control: a SHORTER stated term is left alone', () async {
+      // The bound is a ceiling, not an assignment. Without this the two above
+      // are satisfied by an implementation that overwrites every successor's
+      // posture with its predecessor's.
+      await mintUnder('short-ask-root', null, ttl: Duration(hours: 5));
+      final r = await selfEnroll(
+          predecessorId: 'short-ask-root',
+          appName: 'short-ask-app',
+          deviceName: 'short-ask-device',
+          apkamKeysExpiryDuration: Duration(minutes: 10));
+      final successorId = jsonDecode(r.data!)['enrollmentId'] as String;
+
+      final successorExpiry = await expiryOf(successorId);
+      final rootExpiry = await expiryOf('short-ask-root');
+      expect(successorExpiry!.isBefore(rootExpiry!), isTrue,
+          reason: 'a successor asking for less than the predecessor has left '
+              'keeps its own shorter life');
+    });
+  });
+
   group('a retrofit is a once-off', () {
     test('a successor may not itself retrofit', () async {
       final rootId = (await etu.createEnrollments(n: 1)).$1.first;

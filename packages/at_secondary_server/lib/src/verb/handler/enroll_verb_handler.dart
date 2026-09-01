@@ -532,6 +532,50 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         enrollmentValue.apkamKeysExpiryDuration =
             predecessor.apkamKeysExpiryDuration;
       }
+
+      // The clamp above compares TERMS, and a term restarts its clock at THIS
+      // write while the predecessor's is already running — so an equal term
+      // always expires later in absolute time, by exactly the predecessor's
+      // age. Worse, it is vacuous in the case that matters most: it reads
+      // `apkamKeysExpiryDuration` off the predecessor's VALUE, while a capped
+      // predecessor's real deadline lives only in its RECORD metadata. A CRAM
+      // root carries posture 0, is capped to now+grace, and a successor asking
+      // for 0 passes every disjunct above and is written immortal — minted by
+      // a credential that dies within the grace.
+      //
+      // So bound the successor by the predecessor's stored DEADLINE. The
+      // POSTURE is narrowed rather than the ttl written below, because
+      // `retrofitCapTtlMillis` takes the LATER of the stored expiry and
+      // `createdAt + term`: leaving a full-length term on the record would let
+      // the successor's own first cap recompute straight past this bound.
+      DateTime? boundedDeadline;
+      final DateTime? predecessorExpiresAt =
+          (await keyStore.getMeta(enMgr.buildEnrollmentKey(predecessorId)))
+              ?.expiresAt
+              ?.toUtc();
+      if (predecessorExpiresAt != null) {
+        final int remainingMs = predecessorExpiresAt
+            .difference(DateTime.now().toUtc())
+            .inMilliseconds;
+        // Zero is the keystore's "never expires", so a spent or nearly-spent
+        // predecessor must not round its successor up to immortal.
+        final int boundedMs = remainingMs < 1 ? 1 : remainingMs;
+        final int statedMs =
+            enrollmentValue.apkamKeysExpiryDuration.inMilliseconds;
+        if (statedMs <= 0 || statedMs > boundedMs) {
+          logger.warning(
+              'Self-enrollment under $predecessorId asked for ${statedMs}ms '
+              'against a predecessor whose record expires at '
+              '$predecessorExpiresAt; bounding it to ${boundedMs}ms');
+          enrollmentValue.apkamKeysExpiryDuration =
+              Duration(milliseconds: boundedMs);
+          // Carried to the write as an ABSOLUTE. A ttl is re-anchored at the
+          // instant of the write, so writing the bound as a duration lands it
+          // at the predecessor's deadline PLUS the intervening work — which is
+          // past the bound, in the one direction that matters.
+          boundedDeadline = predecessorExpiresAt;
+        }
+      }
       // May be absent: a PQ self-enrollment conveys its legacy material
       // client-side, sealed to its own new key package.
       enrollmentValue.encryptedAPKAMSymmetricKey =
@@ -555,7 +599,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
             ..data = jsonEncode(enrollmentValue.toJson())
             ..metaData = (AtMetaData()
               ..ttl = enrollmentValue.apkamKeysExpiryDuration.inMilliseconds),
-          EnrollmentStatus.approved);
+          EnrollmentStatus.approved,
+          assertedTimestamps: boundedDeadline == null
+              ? null
+              : AtAssertedTimestamps(expiresAt: boundedDeadline));
 
       // The predecessor is NOT capped here. Storing the successor proves only
       // that this server wrote a record: the successor's APKAM private half is

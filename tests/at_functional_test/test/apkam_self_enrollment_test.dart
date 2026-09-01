@@ -391,10 +391,18 @@ void main() {
 
       String successorId = await selfEnrollId(predecessorId);
       final successor = await enrollmentRecord(owner, successorId);
-      expect(successor.value['apkamKeysExpiryInMillis'], oneHourMs);
+      // Bounded by what is LEFT of the predecessor, not by its full term: the
+      // successor's clock restarts at its own write, so inheriting the whole
+      // hour would put its deadline past the predecessor's by the
+      // predecessor's age. Behaviour CHANGED; this asserted `oneHourMs`
+      // exactly before the deadline bound landed.
+      expect(successor.value['apkamKeysExpiryInMillis'],
+          lessThanOrEqualTo(oneHourMs));
+      expect(successor.value['apkamKeysExpiryInMillis'], greaterThan(0),
+          reason: 'control: bounded, not zeroed — zero is "never expires"');
       // The posture is not merely recorded, it is written as the record's ttl
       // — the hole that made an inherited expiry into immortality.
-      expect(successor.metaData['ttl'], oneHourMs);
+      expect(successor.metaData['ttl'], lessThanOrEqualTo(oneHourMs));
       expect(successor.metaData['expiresAt'], isNotNull);
     });
 
@@ -418,10 +426,12 @@ void main() {
       String successorId = await selfEnrollId(predecessorId,
           apkamKeysExpiryInMillis: 999999999);
       final successor = await enrollmentRecord(owner, successorId);
-      // Clamped to the predecessor's, not refused: a client asking for longer
-      // without knowing is corrected rather than broken.
-      expect(successor.value['apkamKeysExpiryInMillis'], oneHourMs);
-      expect(successor.metaData['ttl'], oneHourMs);
+      // Clamped to what is LEFT of the predecessor, not refused: a client
+      // asking for longer without knowing is corrected rather than broken.
+      expect(successor.value['apkamKeysExpiryInMillis'],
+          lessThanOrEqualTo(oneHourMs));
+      expect(successor.metaData['ttl'], lessThanOrEqualTo(oneHourMs));
+      expect(successor.metaData['ttl'], greaterThan(0));
     });
 
     test('a successor may not state "never expires" against a bounded predecessor',
@@ -435,8 +445,37 @@ void main() {
       String successorId = await selfEnrollId(predecessorId,
           apkamKeysExpiryInMillis: 0);
       final successor = await enrollmentRecord(owner, successorId);
-      expect(successor.value['apkamKeysExpiryInMillis'], oneHourMs);
-      expect(successor.metaData['ttl'], oneHourMs);
+      expect(successor.value['apkamKeysExpiryInMillis'],
+          lessThanOrEqualTo(oneHourMs));
+      expect(successor.metaData['ttl'], greaterThan(0),
+          reason: 'the ask for "never expires" is not honoured at all');
+      expect(successor.metaData['ttl'], lessThanOrEqualTo(oneHourMs));
+      expect(successor.metaData['expiresAt'], isNotNull);
+    });
+
+    test('the successor\'s DEADLINE never passes its predecessor\'s',
+        () async {
+      // The property the term comparison could not express. A term restarts
+      // its clock at the successor's own write, so an inherited term always
+      // lands later in absolute time than the predecessor's deadline — by
+      // exactly the predecessor's age. This is the assertion that a
+      // term-only check cannot satisfy.
+      OutboundConnectionFactory owner = await ownerConnection();
+      String predecessorId = await createApprovedEnrollment(owner,
+          namespaces: {'wavi': 'rw'}, apkamKeysExpiryInMillis: oneHourMs);
+      final predecessor = await enrollmentRecord(owner, predecessorId);
+
+      String successorId = await selfEnrollId(predecessorId,
+          apkamKeysExpiryInMillis: 999999999);
+      final successor = await enrollmentRecord(owner, successorId);
+
+      final DateTime predecessorExpiry =
+          DateTime.parse(predecessor.metaData['expiresAt']).toUtc();
+      final DateTime successorExpiry =
+          DateTime.parse(successor.metaData['expiresAt']).toUtc();
+      expect(successorExpiry.isAfter(predecessorExpiry), isFalse,
+          reason: 'the successor must not outlive the credential it replaced. '
+              'Predecessor $predecessorExpiry, successor $successorExpiry');
     });
 
     test('a negative stated expiry is not honoured', () async {
@@ -449,8 +488,10 @@ void main() {
       String successorId = await selfEnrollId(predecessorId,
           apkamKeysExpiryInMillis: -1);
       final successor = await enrollmentRecord(owner, successorId);
-      expect(successor.value['apkamKeysExpiryInMillis'], oneHourMs);
-      expect(successor.metaData['ttl'], oneHourMs);
+      expect(successor.value['apkamKeysExpiryInMillis'],
+          lessThanOrEqualTo(oneHourMs));
+      expect(successor.metaData['ttl'], greaterThan(0));
+      expect(successor.metaData['ttl'], lessThanOrEqualTo(oneHourMs));
     });
   });
 

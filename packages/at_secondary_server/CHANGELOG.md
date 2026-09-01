@@ -260,6 +260,23 @@
   measurement went negative for an enrollment retrofitted between them —
   capping it to one millisecond, killing a credential with hours of legitimate
   life left and locking out every sibling clone that had still to upgrade.
+- fix: a retrofit successor may not outlive the credential it replaced. The
+  mint-time check compared TERMS, and a term restarts its clock at the
+  successor's own write — so an inherited term always expired later in
+  absolute time than its predecessor's deadline, by exactly the predecessor's
+  age. It was also vacuous in the case that mattered most: it read the posture
+  off the predecessor's stored VALUE, while a capped predecessor's real
+  deadline lives only in its record metadata. A CRAM root carrying posture 0,
+  capped to now+grace, could therefore mint a successor asking for 0 — written
+  as "never expires", by a credential due to die inside the grace.
+
+  The successor's posture is now bounded by what is LEFT of the predecessor's
+  stored deadline, carried to the write as an ABSOLUTE so it lands exactly
+  rather than being re-anchored past the bound.
+
+  ⚠️ A successor inheriting a one-hour posture now carries slightly LESS than
+  an hour rather than exactly an hour.
+
 - BREAKING: a retrofit is a ONCE-OFF. `enroll:request` on an authenticated
   connection now refuses when the enrollment it would replace is itself a
   replacement, so a device gets one no-approver migration rather than a series;
