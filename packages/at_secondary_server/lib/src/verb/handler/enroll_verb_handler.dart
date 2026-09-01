@@ -451,11 +451,15 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // the sharper one: `enroll:request` is deliberately repeatable on a
       // CRAM connection, so every repeat clobbered the key again.
       //
-      // ⚠️ An atSign onboarded by an older server still holds such a copy.
-      // It is removed by [EnrollmentManager.dropVestigialLegacyKey] on that
-      // enrollment's own APKAM authentication, which is now unambiguous:
-      // nothing writes the copy any more, so a value that matches an
-      // enrollment's own key can only be one.
+      // ⚠️ An atSign onboarded by an older server still holds such a copy,
+      // and nothing removes it automatically. It is no longer anonymous,
+      // though: a legacy authentication with it mints the housekeeping
+      // enrollment, so it now has an identity that `enroll:revoke` can retire
+      // and that a retrofit's cap can put a clock on. Retiring it is a
+      // deliberate act rather than a side effect of some other
+      // authentication, which is the only safe way to delete a credential
+      // this server cannot distinguish from one an owner provisioned on
+      // purpose.
       // Publish the client-composed `_apsk` signing key, if it sent one.
       await _publishApskSigningKey(
           newEnrollmentId, enrollmentValue, currentAtSign);

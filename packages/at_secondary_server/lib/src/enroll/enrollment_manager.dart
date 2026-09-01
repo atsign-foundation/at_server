@@ -232,46 +232,6 @@ class EnrollmentManager {
     return value;
   }
 
-  /// Removes `at_pkam_publickey` when it is a VESTIGE of [enrollmentId]
-  /// rather than a legacy credential of its own.
-  ///
-  /// An atSign onboarded by CRAM plus `enroll:request` has that first
-  /// enrollment's APKAM public key copied into `at_pkam_publickey` by the
-  /// auto-approve branch, "for old clients". The copy gives ONE keypair two
-  /// identities with separate lifecycles: revoking the enrollment leaves the
-  /// same key authenticating over the legacy path — and now that the legacy
-  /// path mints a fully privileged housekeeping enrollment, doing so at
-  /// `*:rw` and `__manage:rw` however narrow that enrollment itself was.
-  ///
-  /// Dropped on that enrollment's own APKAM authentication, which is the
-  /// moment that proves the APKAM half works and the copy is redundant.
-  ///
-  /// ⚠️ ONLY when the stored value IS this enrollment's key. There is a
-  /// second writer — the `update` verb, which is how a genuine legacy
-  /// credential is provisioned — so deleting blind would destroy a working
-  /// one rather than a vestige.
-  ///
-  /// Idempotent by EFFECT rather than once-only by record. Nothing durable
-  /// marks a first authentication for an enrollment that replaced nothing:
-  /// `predecessorCapArmedAt` is written solely on the retrofit path. So this
-  /// runs on every authentication and does nothing when there is nothing to
-  /// do, which costs one key read.
-  Future<void> dropVestigialLegacyKey(
-      String enrollmentId, String apkamPublicKey) async {
-    final String? stored;
-    try {
-      stored = (await keyStore.get(AtConstants.atPkamPublicKey))?.data;
-    } on KeyNotFoundException {
-      return;
-    }
-    if (stored == null || stored != apkamPublicKey) return;
-
-    logger.warning('Removing ${AtConstants.atPkamPublicKey}: it holds '
-        'enrollment $enrollmentId\'s own APKAM key rather than a legacy '
-        'credential, and that enrollment has just authenticated over APKAM');
-    await keyStore.remove(AtConstants.atPkamPublicKey, skipCommit: true);
-  }
-
   /// Stores the enrollment data associated with the given [enId].
   ///
   /// This method constructs an enrollment key and saves the provided [AtData]

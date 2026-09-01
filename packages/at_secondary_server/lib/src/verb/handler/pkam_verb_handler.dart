@@ -193,30 +193,15 @@ class PkamVerbHandler extends AbstractVerbHandler {
       // A no-op for every enrollment that replaced nothing, and it never
       // throws: authentication has already succeeded by this point and must
       // not be undone by bookkeeping.
-      // ⛔ `enrollId` — the id PRESENTED ON THE WIRE — and deliberately not
-      // `connectionEnrollmentId`. They differ for exactly one case and it is
-      // the dangerous one: a legacy authentication presents no id but is
-      // given `primary`, whose recorded apkamPublicKey IS
-      // `at_pkam_publickey` by construction. Keying this block on the
-      // connection's id would therefore hand dropVestigialLegacyKey a perfect
-      // value match on every legacy authentication, and it would delete the
-      // credential that had just authenticated — killing legacy access on
-      // every atSign, at first use, irreversibly, since that record cannot be
-      // rewritten over the wire.
-      //
-      // The two names look interchangeable here and are not. Pinned by
-      // `legacy authentication does not delete its own credential`.
+      // `enrollId` — the id PRESENTED ON THE WIRE — and deliberately not
+      // `connectionEnrollmentId`. They differ for exactly one case: a legacy
+      // authentication presents no id but is GIVEN `primary`. Only a wire id
+      // names a successor, and `primary` replaced nothing, so keying this on
+      // the connection's id would ask the cap to arm a record that can have
+      // no predecessor.
       if (enrollId != null && enrollId.isNotEmpty) {
         final enMgr = AtSecondaryServerImpl.getInstance().enrollmentManager;
         await enMgr.armRetrofitCapOnFirstAuth(enrollId);
-
-        // A SIBLING call rather than a step inside the cap arming, which
-        // returns early for exactly this population: an enrollment that
-        // replaced nothing. That is the whole of the case this addresses — an
-        // atSign onboarded by CRAM plus enroll:request, whose first
-        // enrollment's APKAM key was copied to `at_pkam_publickey` for old
-        // clients and has been a second way in ever since.
-        await enMgr.dropVestigialLegacyKey(enrollId, publicKey);
       }
     } else {
       // Nope
