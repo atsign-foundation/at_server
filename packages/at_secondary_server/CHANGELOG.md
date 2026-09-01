@@ -224,6 +224,51 @@
   has run, so a first approval reads none and passes vacuously; the check bites
   on `unrevoke`, and on any later transition of a record that already names
   one.
+- feat: the atSign's legacy PKAM credential has an enrollment of its own. It
+  authenticates with no enrollment id, so it has never had a record: nothing
+  stated its grants, no roster showed it, no verb could revoke it and nothing
+  ever retired it. A legacy connection now authenticates AS a housekeeping
+  enrollment, created idempotently on the first legacy authentication, holding
+  `*:rw` and `__manage:rw` — the access it has always had, now stated.
+
+  Its enrollment id is the literal **`primary`**. Deterministic, so finding it
+  is one key read; and `primary` is already the atSign-wide sentinel for "no
+  enrollment id", so a legacy client's signing key at
+  `public:_apsk.primary.a.__e@<atSign>` becomes this enrollment's
+  per-enrollment data the moment the record exists — revoking or expiring the
+  legacy credential now parks that key like any other enrollment's. Nothing
+  retired it before.
+
+  It carries no approver: the server creates it for itself, so no revocation
+  cascade can reach it. A cascade able to sweep it away would strand the very
+  credential it exists to govern.
+
+  ⚠️ Deployment-visible in three ways. A legacy connection now carries an
+  enrollment id where it carried none, so authorisation checks that treated a
+  null id as unrestricted access now see `*:rw` + `__manage:rw` instead — the
+  same access, reached by a different route. A READ can mutate the atSign: the
+  first `enroll:list` over a legacy connection creates the record. And a
+  roster that was empty is no longer, so a client asserting on its size needs
+  to expect the housekeeping enrollment.
+
+- BREAKING: legacy PKAM authentication is refused unless that enrollment is
+  APPROVED, and APKAM authentication NAMING it is refused outright. Revoking
+  the record is what makes revoking the legacy keyfile possible at all —
+  before it, no verb could — and an expired one is the retrofit cap having
+  retired it. In both cases the signature is valid and the credential is not,
+  which is the distinction the record exists to carry.
+
+  The APKAM refusal returns AT0009 rather than an enrollment-status code,
+  because it is not a statement about status: a credential reachable both with
+  and without an enrollment id would have two lifecycles, and its retirement
+  could be sidestepped by the very keyfile it retires.
+
+  ⚠️ An atSign whose legacy credential has been retired refuses legacy
+  authentication as an authentication failure naming the remedy, rather than
+  surfacing a keystore exception. A retired credential cannot re-create
+  itself: the record's absence means "never existed" only while the legacy key
+  is still present, because removing the record always takes that key too.
+
 - feat: the housekeeping enrollment appears in `enroll:list` like any other.
   The roster genuinely contains it, and hiding it would make the verb lie
   about what can authenticate against the atSign.
