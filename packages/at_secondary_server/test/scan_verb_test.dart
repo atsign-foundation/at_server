@@ -484,6 +484,13 @@ void main() {
       // management path for enrollment records, and a legacy connection is an
       // enrollment now. But a legacy client that scanned for them will stop
       // finding them, which is why this is pinned rather than left implicit.
+      //
+      // ⚠️ What this does NOT prove. The enrollment id is set BY HAND below,
+      // so reverting the production change that puts it there — the
+      // assignment in the PKAM handler's legacy branch — leaves this green.
+      // That assignment is pinned by `legacy authentication creates it and
+      // CONNECTS as it` in legacy_pkam_retrofit_test.dart; this is the other
+      // half, that carrying the id filters the scan.
       final otherEnrollmentId = Uuid().v4();
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.sessionID = 'dummy_session';

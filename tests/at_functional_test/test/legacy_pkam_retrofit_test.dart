@@ -155,8 +155,14 @@ void main() {
     final refused = await successor.sendRequestToServer(
         'enroll:request:{"appName":"legacy","deviceName":"legacy",'
         '"apkamPublicKey":"${apkamPublicKeyMap[atSign]!}"}');
+    // The MESSAGE, not merely `error:`. Any refusal at all satisfies the
+    // prefix — a rate limit, a syntax error, an unrelated authorisation
+    // failure — so the prefix alone cannot tell the once-off rule firing from
+    // the request failing for some other reason entirely.
     expect(refused, startsWith('error:'),
         reason: 'a replacement may not itself be replaced without an '
             'approver. Got: $refused');
+    expect(refused, contains('may not be replaced without an approver'),
+        reason: 'and refused for THAT reason. Got: $refused');
   });
 }

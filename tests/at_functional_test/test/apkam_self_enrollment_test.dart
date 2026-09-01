@@ -219,18 +219,42 @@ void main() {
     test('the successor records what it replaced, and inherits its approver',
         () async {
       OutboundConnectionFactory owner = await ownerConnection();
+
+      // ⚠️ The predecessor is admitted by an ENROLLMENT rather than by the
+      // owner. An owner connection records no approver, so a predecessor made
+      // the ordinary way inherits null — and an assertion against null holds
+      // whether the successor inherits its predecessor's approver or nothing
+      // at all. Dropping inheritance entirely used to pass here.
+      final String approverId = await createApprovedEnrollment(owner,
+          namespaces: {'*': 'rw', '__manage': 'rw'});
+      OutboundConnectionFactory approver = await newConnection();
+      expect(
+          (await approver.authenticateConnection(
+                  authType: AuthType.apkam, enrollmentId: approverId))
+              .trim(),
+          'data:success');
+
       String predecessorId =
-          await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
+          await createApprovedEnrollment(approver, namespaces: {'wavi': 'rw'});
+      expect(
+          (await enrollmentRecord(owner, predecessorId))
+              .value['approvedByEnrollmentId'],
+          approverId,
+          reason: 'precondition: the predecessor has a REAL approver, which '
+              'is what makes inheriting it distinguishable from inheriting '
+              'nothing');
+
       String successorId = await selfEnrollId(predecessorId);
 
       final successor = await enrollmentRecord(owner, successorId);
       expect(successor.value['parentEnrollmentId'], predecessorId,
           reason: 'the replacement edge, which the retrofit cap needs — it '
               'does NOT cascade');
-      expect(successor.value['approvedByEnrollmentId'],
-          isNot(predecessorId),
+      expect(successor.value['approvedByEnrollmentId'], approverId,
           reason: 'a retrofit produces a PEER, so the successor stands where '
-              'its predecessor stood rather than being admitted by it');
+              'its predecessor stood: whoever admitted the predecessor '
+              'admitted this. Null here would make a retrofit an escape hatch '
+              'from the approval cascade');
       expect(successor.value['namespaces'], {'wavi': 'rw'},
           reason: 'the successor carries its predecessor\'s grants, so it '
               'holds rw here and not the r an earlier contract let a '
@@ -383,6 +407,12 @@ void main() {
     // One hour, so a successor asking for longer, for "never", or for a negative
     // value has something to be clamped against.
     const int oneHourMs = 3600000;
+    // ⚠️ A LOWER bound tight enough to mean something. Every successor here is
+    // bounded by what is LEFT of the predecessor's hour, and the predecessor
+    // is seconds old, so the answer must be nearly the whole hour. A bare
+    // `greaterThan(0)` is satisfied by a bug that clamps every successor to
+    // one millisecond — it cannot tell "bounded correctly" from "destroyed".
+    const int almostAnHourMs = oneHourMs - 60000;
 
     test('a successor inherits the predecessor\'s key-expiry posture', () async {
       OutboundConnectionFactory owner = await ownerConnection();
@@ -398,11 +428,15 @@ void main() {
       // exactly before the deadline bound landed.
       expect(successor.value['apkamKeysExpiryInMillis'],
           lessThanOrEqualTo(oneHourMs));
-      expect(successor.value['apkamKeysExpiryInMillis'], greaterThan(0),
-          reason: 'control: bounded, not zeroed — zero is "never expires"');
+      expect(successor.value['apkamKeysExpiryInMillis'],
+          greaterThan(almostAnHourMs),
+          reason: 'bounded, not zeroed and not clamped to some tiny value: it '
+              'is what is left of the hour, and the predecessor is seconds '
+              'old');
       // The posture is not merely recorded, it is written as the record's ttl
       // — the hole that made an inherited expiry into immortality.
       expect(successor.metaData['ttl'], lessThanOrEqualTo(oneHourMs));
+      expect(successor.metaData['ttl'], greaterThan(almostAnHourMs));
       expect(successor.metaData['expiresAt'], isNotNull);
     });
 
@@ -430,8 +464,12 @@ void main() {
       // asking for longer without knowing is corrected rather than broken.
       expect(successor.value['apkamKeysExpiryInMillis'],
           lessThanOrEqualTo(oneHourMs));
+      expect(successor.value['apkamKeysExpiryInMillis'],
+          greaterThan(almostAnHourMs));
       expect(successor.metaData['ttl'], lessThanOrEqualTo(oneHourMs));
-      expect(successor.metaData['ttl'], greaterThan(0));
+      expect(successor.metaData['ttl'], greaterThan(almostAnHourMs),
+          reason: 'clamped to what is left of the hour, not to some tiny '
+              'value: an over-ask is corrected, not punished');
     });
 
     test('a successor may not state "never expires" against a bounded predecessor',
@@ -447,8 +485,10 @@ void main() {
       final successor = await enrollmentRecord(owner, successorId);
       expect(successor.value['apkamKeysExpiryInMillis'],
           lessThanOrEqualTo(oneHourMs));
-      expect(successor.metaData['ttl'], greaterThan(0),
-          reason: 'the ask for "never expires" is not honoured at all');
+      expect(successor.metaData['ttl'], greaterThan(almostAnHourMs),
+          reason: 'the ask for "never expires" is not honoured at all, and '
+              'what replaces it is the predecessor\'s remaining hour rather '
+              'than an arbitrarily small number');
       expect(successor.metaData['ttl'], lessThanOrEqualTo(oneHourMs));
       expect(successor.metaData['expiresAt'], isNotNull);
     });
@@ -490,7 +530,9 @@ void main() {
       final successor = await enrollmentRecord(owner, successorId);
       expect(successor.value['apkamKeysExpiryInMillis'],
           lessThanOrEqualTo(oneHourMs));
-      expect(successor.metaData['ttl'], greaterThan(0));
+      expect(successor.metaData['ttl'], greaterThan(almostAnHourMs),
+          reason: 'a negative ask falls back to the predecessor\'s remaining '
+              'hour, not to some tiny value');
       expect(successor.metaData['ttl'], lessThanOrEqualTo(oneHourMs));
     });
   });

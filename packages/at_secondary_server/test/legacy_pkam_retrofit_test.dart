@@ -264,11 +264,20 @@ void main() {
 
       await expectLater(
           () => authenticateLegacy(sessionId: 'second-session'),
-          throwsA(isA<UnAuthenticatedException>()),
+          throwsA(isA<UnAuthenticatedException>().having((e) => e.message,
+              'message', contains('the legacy credential for this atSign is '
+                  'revoked'))),
           reason: 'revoking this record is what makes revoking the legacy '
               'keyfile possible at all — before it there was no verb that '
               'could. A valid signature is not enough if the credential it '
-              'proves has been withdrawn');
+              'proves has been withdrawn, and the refusal NAMES that rather '
+              'than reporting a bad signature');
+
+      expect(inboundConnection.metaData.isAuthenticated, isFalse,
+          reason: 'the ORDERING, which is the whole reason the housekeeping '
+              'enrollment is resolved before isAuthenticated is set: a '
+              'refusal here must leave the connection unauthenticated, not '
+              'authenticate it and then throw');
     });
 
     test('the signing key a legacy client already published becomes its '
@@ -349,14 +358,22 @@ void main() {
         ..isAuthenticated = false
         ..enrollmentId = null
         ..sessionID = 'after-retirement';
+      // ⚠️ The MESSAGE, not just the type. The signature below is deliberate
+      // garbage, so an `UnAuthenticatedException` alone is also what an
+      // ordinary signature failure produces — a different mechanism, and one
+      // that would keep this green if retirement stopped removing the key.
+      // Refusal has to happen because the credential is GONE, which is a
+      // decision taken before any signature is looked at.
       await expectLater(
           PkamVerbHandler(keyValueStore).processVerb(
             Response(),
             getVerbParam(VerbSyntax.pkam, 'pkam:signingAlgo:mldsa65:c2ln'),
             inboundConnection,
           ),
-          throwsA(isA<UnAuthenticatedException>()),
-          reason: 'with the key gone there is nothing to verify against');
+          throwsA(isA<UnAuthenticatedException>().having((e) => e.message,
+              'message', contains('no legacy PKAM credential'))),
+          reason: 'with the key gone there is nothing to verify against, and '
+              'the refusal says so rather than reporting a bad signature');
     });
   });
 
@@ -462,6 +479,22 @@ void main() {
         EnrollmentConstants.allNamespaces: 'rw',
       }, reason: 'and it carries the CRAM branch\'s own grants, not a '
           'predecessor\'s');
+
+      // The pin for the non-write. `at_pkam_publickey` is what LEGACY
+      // authentication verifies against; an `enroll:request` mints an APKAM
+      // credential, which always authenticates WITH an id, so a key minted for
+      // the second has no business becoming the first. The branch used to copy
+      // it there "for old clients", which gave one keypair two identities AND,
+      // being unconditional, destroyed whatever legacy credential the atSign
+      // already had — and `enroll:request` is deliberately repeatable on a
+      // CRAM connection, so every repeat clobbered it again.
+      //
+      // ⚠️ The raw literal is the seed `setUp` writes, and it is written
+      // AFTER `etu.init()` — so this is the value a CRAM auto-approve found
+      // and had to leave alone, not a value that merely happens to be there.
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'the-legacy-pkam-key',
+          reason: 'the legacy credential is untouched, byte for byte');
     });
   });
 
