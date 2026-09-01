@@ -37,10 +37,10 @@ packages:
     dependency: "direct main"
     description:
       name: at_commons
-      sha256: "1613e02e69206f2e864a73a15be529e73469135c21ef33b132b4761112fde3e4"
+      sha256: bd67ecae7e963ae2662b6d8fc50f13dd783b3ec4044dcd16e84a6af1a3327f2a
       url: "https://pub.dev"
     source: hosted
-    version: "5.15.0"
+    version: "5.16.0"
   at_persistence_root_server:
     dependency: "direct main"
     description:
