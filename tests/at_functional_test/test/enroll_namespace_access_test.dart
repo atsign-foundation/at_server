@@ -47,7 +47,7 @@ void main() {
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.cram);
       var enrollRequest =
-          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}\n';
       String enrollResponse =
           (await firstAtSignConnection.sendRequestToServer(enrollRequest))
               .replaceFirst('data:', '');
@@ -61,7 +61,7 @@ void main() {
       await firstAtSignConnection.initiateConnectionWithListener(
           firstAtSign, firstAtSignHost, firstAtSignPort);
       await firstAtSignConnection.authenticateConnection(
-          authType: AuthType.pkam, enrollmentId: enrollmentId);
+          authType: AuthType.apkam, enrollmentId: enrollmentId);
       String updateResponse = await firstAtSignConnection.sendRequestToServer(
           'update:twitter.atmosphere$firstAtSign twitterid');
       expect(
@@ -84,7 +84,7 @@ void main() {
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.cram);
       var enrollRequest =
-          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}\n';
       String enrollResponse =
           await firstAtSignConnection.sendRequestToServer(enrollRequest);
       enrollResponse = enrollResponse.replaceFirst('data:', '');
@@ -98,7 +98,7 @@ void main() {
           firstAtSign, firstAtSignHost, firstAtSignPort);
       // now do the apkam using the enrollment id
       await firstAtSignConnection.authenticateConnection(
-          authType: AuthType.pkam, enrollmentId: enrollmentId);
+          authType: AuthType.apkam, enrollmentId: enrollmentId);
 
       String updateResponse = await firstAtSignConnection.sendRequestToServer(
           'update:public:lastname.wavi$firstAtSign twitterid');
@@ -117,7 +117,7 @@ void main() {
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.cram);
       var enrollRequest =
-          'enroll:request:{"appName":"buzz-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"buzz":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+          'enroll:request:{"appName":"buzz-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"buzz":"rw"},"apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}\n';
       String enrollResponse =
           await firstAtSignConnection.sendRequestToServer(enrollRequest);
       enrollResponse = enrollResponse.replaceFirst('data:', '');
@@ -131,7 +131,7 @@ void main() {
           firstAtSign, firstAtSignHost, firstAtSignPort);
       // now do the apkam using the enrollment id
       await firstAtSignConnection.authenticateConnection(
-          authType: AuthType.pkam, enrollmentId: enrollmentId);
+          authType: AuthType.apkam, enrollmentId: enrollmentId);
       String atContactBuzzKey =
           'atconnections.bob.alice.at_contact.buzz$firstAtSign';
       String updateResponse = await firstAtSignConnection
@@ -154,7 +154,7 @@ void main() {
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.cram);
       var enrollRequest =
-          'enroll:request:{"appName":"buzz-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"at_contact.buzz":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+          'enroll:request:{"appName":"buzz-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"at_contact.buzz":"rw"},"apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}\n';
       String enrollResponse =
           await firstAtSignConnection.sendRequestToServer(enrollRequest);
       enrollResponse = enrollResponse.replaceFirst('data:', '');
@@ -168,7 +168,7 @@ void main() {
           firstAtSign, firstAtSignHost, firstAtSignPort);
       // now do the apkam using the enrollment id
       await firstAtSignConnection.authenticateConnection(
-          authType: AuthType.pkam, enrollmentId: enrollmentId);
+          authType: AuthType.apkam, enrollmentId: enrollmentId);
       // key with at_contact.buzz namespace
       String atContactBuzzKey =
           'atconnections.bob.alice.at_contact.buzz$firstAtSign';
@@ -192,7 +192,7 @@ void main() {
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.cram);
       var enrollRequest =
-          'enroll:request:{"appName":"buzz-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"buzz":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+          'enroll:request:{"appName":"buzz-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"buzz":"rw"},"apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}\n';
       String enrollResponse =
           await firstAtSignConnection.sendRequestToServer(enrollRequest);
       enrollResponse = enrollResponse.replaceFirst('data:', '');
@@ -206,7 +206,7 @@ void main() {
           firstAtSign, firstAtSignHost, firstAtSignPort);
       // now do the apkam using the enrollment id
       await firstAtSignConnection.authenticateConnection(
-          authType: AuthType.pkam, enrollmentId: enrollmentId);
+          authType: AuthType.apkam, enrollmentId: enrollmentId);
       String atContactBuzzKey =
           'atconnections.bob.alice.at_contact.buzz$firstAtSign';
       String deleteResponse = await firstAtSignConnection
@@ -227,7 +227,7 @@ void main() {
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.cram);
       var enrollRequest =
-          'enroll:request:{"appName":"buzz-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"buzz":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+          'enroll:request:{"appName":"buzz-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"buzz":"rw"},"apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}\n';
       String enrollResponse =
           await firstAtSignConnection.sendRequestToServer(enrollRequest);
       enrollResponse = enrollResponse.replaceFirst('data:', '');
@@ -241,7 +241,7 @@ void main() {
           firstAtSign, firstAtSignHost, firstAtSignPort);
       // now do the apkam using the enrollment id
       await firstAtSignConnection.authenticateConnection(
-          authType: AuthType.pkam, enrollmentId: enrollmentId);
+          authType: AuthType.apkam, enrollmentId: enrollmentId);
       String atContactBuzzKey = '$firstAtSign:123buzzkey.buzz$firstAtSign';
       String updateResponse = await firstAtSignConnection
           .sendRequestToServer('update:$atContactBuzzKey buzzkey');
@@ -272,7 +272,7 @@ void main() {
             (!updateResponse.contains('null')));
 
         var enrollRequest =
-            'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+            'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}\n';
         String enrollResponse =
             (await firstAtSignConnection.sendRequestToServer(enrollRequest))
                 .replaceAll('data:', '');
@@ -286,7 +286,7 @@ void main() {
         await firstAtSignConnection.initiateConnectionWithListener(
             firstAtSign, firstAtSignHost, firstAtSignPort);
         await firstAtSignConnection.authenticateConnection(
-            authType: AuthType.pkam, enrollmentId: enrollmentId);
+            authType: AuthType.apkam, enrollmentId: enrollmentId);
         String llookupResponse = await firstAtSignConnection
             .sendRequestToServer('llookup:$atmosphereKey');
         expect(llookupResponse, 'data:atmospherevalue');
@@ -314,7 +314,7 @@ void main() {
           (!updateResponse.contains('null')));
 
       var enrollRequest =
-          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}\n';
       String enrollResponse =
           (await firstAtSignConnection.sendRequestToServer(enrollRequest))
               .replaceAll('data:', '');
@@ -328,7 +328,7 @@ void main() {
           firstAtSign, firstAtSignHost, firstAtSignPort);
       // now do the apkam using the enrollment id
       await firstAtSignConnection.authenticateConnection(
-          authType: AuthType.pkam, enrollmentId: enrollmentId);
+          authType: AuthType.apkam, enrollmentId: enrollmentId);
 
       String llookupResponse = await firstAtSignConnection
           .sendRequestToServer('llookup:$atmosphereKey');
@@ -355,7 +355,7 @@ void main() {
           (!updateResponse.contains('null')));
 
       var enrollRequest =
-          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}\n';
       String enrollResponse =
           (await firstAtSignConnection.sendRequestToServer(enrollRequest))
               .replaceAll('data:', '');
@@ -369,7 +369,7 @@ void main() {
       await firstAtSignConnection.initiateConnectionWithListener(
           firstAtSign, firstAtSignHost, firstAtSignPort);
       await firstAtSignConnection.authenticateConnection(
-          authType: AuthType.pkam, enrollmentId: enrollmentId);
+          authType: AuthType.apkam, enrollmentId: enrollmentId);
 
       String llookupResponse =
           await firstAtSignConnection.sendRequestToServer('llookup:$waviKey');
@@ -396,7 +396,7 @@ void main() {
 
       // enroll request with wavi namespace
       var enrollRequest =
-          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}\n';
       String enrollResponse =
           (await firstAtSignConnection.sendRequestToServer(enrollRequest))
               .replaceAll('data:', '');
@@ -411,7 +411,7 @@ void main() {
       await firstAtSignConnection.initiateConnectionWithListener(
           firstAtSign, firstAtSignHost, firstAtSignPort);
       await firstAtSignConnection.authenticateConnection(
-          authType: AuthType.pkam, enrollmentId: enrollmentId);
+          authType: AuthType.apkam, enrollmentId: enrollmentId);
 
       String scanResponse =
           await firstAtSignConnection.sendRequestToServer('scan');
@@ -435,7 +435,7 @@ void main() {
           .sendRequestToServer('update:$waviKey waviValue');
 
       var enrollRequest =
-          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}\n';
       String enrollResponse =
           (await firstAtSignConnection.sendRequestToServer(enrollRequest))
               .replaceAll('data:', '');
@@ -533,7 +533,7 @@ void main() {
 
       // enroll request with wavi namespace
       String enrollRequest =
-          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}\n';
       String enrollResponse =
           await firstAtSignConnection.sendRequestToServer(enrollRequest);
       enrollResponse = enrollResponse.replaceFirst('data:', '');
@@ -543,7 +543,7 @@ void main() {
 
       String enrollmentId = enrollJsonMap['enrollmentId'];
       await firstAtSignConnection.authenticateConnection(
-          authType: AuthType.pkam, enrollmentId: enrollmentId);
+          authType: AuthType.apkam, enrollmentId: enrollmentId);
       String scanResponse =
           await firstAtSignConnection.sendRequestToServer('scan');
       expect((scanResponse.contains(waviKey)), true);
@@ -568,7 +568,7 @@ void main() {
           (!updateResponse.contains('null')));
       // enroll request with wavi namespace
       String enrollRequest =
-          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}';
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}';
       String enrollResponse =
           (await firstAtSignConnection.sendRequestToServer(enrollRequest))
               .replaceAll('data:', '');

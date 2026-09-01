@@ -48,7 +48,7 @@ void main() {
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.cram);
       var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}';
+          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"encryptedDefaultEncryptedPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}';
 
       String enrollResponse =
           await firstAtSignConnection.sendRequestToServer(enrollRequest);
@@ -172,7 +172,7 @@ void main() {
           authType: AuthType.cram);
 
       var enrollRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}';
+          'enroll:request:{"appName":"wavi","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}';
       String enrollResponse =
           await firstAtSignConnection.sendRequestToServer(enrollRequest);
       enrollResponse = enrollResponse.replaceFirst('data:', '');
@@ -188,7 +188,7 @@ void main() {
 
       //send second enroll request with otp
       var secondEnrollRequest =
-          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otpResponse","apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey": "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otpResponse","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey": "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
       String secondEnrollResponse =
           await secondAtSignConnection.sendRequestToServer(secondEnrollRequest);
       secondEnrollResponse = secondEnrollResponse.replaceFirst('data:', '');
@@ -207,7 +207,7 @@ void main() {
 
       // connect to the second client to do an apkam
       await secondAtSignConnection.authenticateConnection(
-          authType: AuthType.pkam, enrollmentId: secondEnrollId);
+          authType: AuthType.apkam, enrollmentId: secondEnrollId);
       var encryptionPublicKey = encryptionPublicKeyMap[firstAtSign];
 
       //1. put encryption public key

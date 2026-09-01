@@ -57,7 +57,7 @@ void main() {
 
       // A namespace unique to this run so the assertions are unambiguous.
       final namespace = 'listns${Uuid().v4().hashCode}';
-      final apkamPublicKey = at_demos.pkamPublicKeyMap[firstAtSign]!;
+      final apkamPublicKey = at_demos.apkamPublicKeyMap[firstAtSign]!;
       final keyPackage = {
         'v': 1,
         'keys': [
@@ -116,7 +116,7 @@ void main() {
       // much later as a JSON parse error on an unrelated line.
       expect(
           (await firstAtSignConnection.authenticateConnection(
-                  authType: AuthType.pkam,
+                  authType: AuthType.apkam,
                   enrollmentId: callerJson['enrollmentId']))
               .trim(),
           'data:success');
@@ -157,7 +157,7 @@ void main() {
             'deviceName': 'device-${Uuid().v4().hashCode}',
             'namespaces': {grantedNamespace: 'rw'},
             'otp': otp,
-            'apkamPublicKey': at_demos.pkamPublicKeyMap[firstAtSign],
+            'apkamPublicKey': at_demos.apkamPublicKeyMap[firstAtSign],
             'encryptedAPKAMSymmetricKey':
                 apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey'],
           })}\n';

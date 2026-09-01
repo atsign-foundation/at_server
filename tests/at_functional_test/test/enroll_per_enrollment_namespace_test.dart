@@ -48,7 +48,7 @@ void main() {
   Future<String> cramEnrollAndApkam() async {
     await firstAtSignConnection.authenticateConnection(authType: AuthType.cram);
     String enrollRequest =
-        'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+        'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}\n';
     var enrollJsonMap = jsonDecode(
         (await firstAtSignConnection.sendRequestToServer(enrollRequest))
             .replaceAll('data:', ''));
@@ -58,7 +58,7 @@ void main() {
     await firstAtSignConnection.initiateConnectionWithListener(
         firstAtSign, firstAtSignHost, firstAtSignPort);
     await firstAtSignConnection.authenticateConnection(
-        authType: AuthType.pkam, enrollmentId: enrollmentId);
+        authType: AuthType.apkam, enrollmentId: enrollmentId);
     return enrollmentId;
   }
 
@@ -107,7 +107,7 @@ void main() {
       // Primary CRAM enrollment (has __manage + *:rw) — it will approve.
       await firstAtSignConnection.authenticateConnection(authType: AuthType.cram);
       String primaryEnroll =
-          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}\n';
       var primaryJson = jsonDecode(
           (await firstAtSignConnection.sendRequestToServer(primaryEnroll))
               .replaceAll('data:', ''));
