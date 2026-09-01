@@ -2675,7 +2675,12 @@ void main() {
       await keyValueStore.put(enrollmentKey, enrollAtData);
 
       inboundConnection.metadata.isAuthenticated = true;
-      castMetadata(inboundConnection).enrollmentId = '123';
+      // A caller that really holds what the target holds, plus __manage.
+      // This used to name an enrollment id that was never stored: nothing
+      // looked it up, so any string did.
+      castMetadata(inboundConnection).enrollmentId =
+          await createAndPersistAnEnrollment('deleter', 'device',
+              {'test_namespace': 'rw', '__manage': 'rw'});
       String enrollDeleteCommand =
           'enroll:delete:{"enrollmentId":"$dummyEnrollId"}';
 
@@ -2702,7 +2707,9 @@ void main() {
       await keyValueStore.put(enrollmentKey, enrollAtData);
 
       inboundConnection.metadata.isAuthenticated = true;
-      castMetadata(inboundConnection).enrollmentId = '123';
+      castMetadata(inboundConnection).enrollmentId =
+          await createAndPersistAnEnrollment('deleter', 'device',
+              {'test_namespace': 'rw', '__manage': 'rw'});
       String enrollDeleteCommand =
           'enroll:delete:{"enrollmentId":"$dummyEnrollId"}';
 
@@ -2791,7 +2798,12 @@ void main() {
       await keyValueStore.put(enrollmentKey, enrollAtData);
 
       inboundConnection.metadata.isAuthenticated = true;
-      castMetadata(inboundConnection).enrollmentId = '123653';
+      // Authorised, so the refusal under test is the STATE one. An
+      // unauthorised caller is refused earlier and never learns the state —
+      // pinned separately below.
+      castMetadata(inboundConnection).enrollmentId =
+          await createAndPersistAnEnrollment('deleter', 'device',
+              {'test_namespace-2': 'rw', '__manage': 'rw'});
       String enrollDeleteCommand =
           'enroll:delete:{"enrollmentId":"$dummyEnrollId"}';
 
@@ -2805,6 +2817,158 @@ void main() {
               e.toString() ==
               'Exception: Failed to delete enrollment id: 345345345141 | Cause: Cannot delete approved enrollments. Only denied and revoked enrollments can be deleted')));
     });
+
+    /// `enroll:delete` destroys a record irreversibly, and was the only
+    /// enrollment operation naming a target that asked nothing of the caller.
+    /// `enroll:fetch`, which merely READS the target, has always asked — and
+    /// asks for exactly this. The omission was an oversight, not a decision.
+    ///
+    /// Two things now rest on it. `descendantsOf` fetches each
+    /// `parentEnrollmentId` link BY KEY, which is what keeps an EXPIRED link
+    /// traversable — a DELETED one is gone, so deleting a middle link puts
+    /// everything behind it permanently beyond a later cascade. And
+    /// `_refuseIfPredecessorNotApproved` permits an enrollment whose
+    /// predecessor no longer exists, so deleting that predecessor is what
+    /// makes the orphan un-revokable.
+    group('enroll:delete authorisation', () {
+      Future<String> aTarget(Map<String, String> namespaces,
+          {EnrollmentStatus status = EnrollmentStatus.revoked}) async {
+        final id = Uuid().v4();
+        await keyValueStore.put(
+            enMgr.buildEnrollmentKey(id),
+            AtData()
+              ..data = jsonEncode(EnrollDataStoreValue(
+                  'sid', 'target-app', 'target-device', 'target-key')
+                ..namespaces = namespaces
+                ..approval = EnrollApproval(status.name)),
+            skipCommit: true);
+        return id;
+      }
+
+      Future<void> deleteAs(String? callerId, String targetId) async {
+        inboundConnection.metadata.isAuthenticated = true;
+        castMetadata(inboundConnection).enrollmentId = callerId;
+        final h = EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
+        await h.processVerb(
+            response,
+            h.parse('enroll:delete:{"enrollmentId":"$targetId"}'),
+            inboundConnection);
+      }
+
+      test('a caller without access to the target\'s namespace is refused',
+          () async {
+        final targetId = await aTarget({'test_namespace': 'rw'});
+        final outsider = await createAndPersistAnEnrollment(
+            'outsider', 'device', {'other_namespace': 'rw', '__manage': 'rw'});
+
+        await expectLater(() => deleteAs(outsider, targetId),
+            throwsA(isA<UnAuthorizedException>()));
+
+        // The control, on the SAME target: a caller that does hold it
+        // succeeds, so the refusal is about the namespace and not about a
+        // target that could never be deleted.
+        final insider = await createAndPersistAnEnrollment(
+            'insider', 'device', {'test_namespace': 'rw', '__manage': 'rw'});
+        await deleteAs(insider, targetId);
+        expect(response.data,
+            '{"enrollmentId":"$targetId","status":"deleted"}');
+      });
+
+      test('a caller holding the namespace but not __manage is refused',
+          () async {
+        // __manage is what separates "may use this namespace" from "may
+        // administer enrollments in it". Without this, any app enrolled for a
+        // namespace could destroy every revoked enrollment that held it.
+        final targetId = await aTarget({'test_namespace': 'rw'});
+        final appOnly = await createAndPersistAnEnrollment(
+            'app-only', 'device', {'test_namespace': 'rw'});
+
+        await expectLater(() => deleteAs(appOnly, targetId),
+            throwsA(isA<UnAuthorizedException>()));
+      });
+
+      test('a caller may always delete its OWN enrollment', () async {
+        // The self-exemption, and it is not decorative: an enrollment tidying
+        // itself up holds no __manage in the ordinary case, so the rule above
+        // would otherwise strand every revoked enrollment on the atSign.
+        final selfId = await createAndPersistAnEnrollment(
+            'self', 'device', {'test_namespace': 'rw'});
+        // Revoked, because only denied and revoked enrollments may be deleted.
+        await keyValueStore.put(
+            enMgr.buildEnrollmentKey(selfId),
+            AtData()
+              ..data = jsonEncode(EnrollDataStoreValue(
+                  'sid', 'self', 'device', 'target-key')
+                ..namespaces = {'test_namespace': 'rw'}
+                ..approval = EnrollApproval(EnrollmentStatus.revoked.name)),
+            skipCommit: true);
+
+        await deleteAs(selfId, selfId);
+        expect(response.data, '{"enrollmentId":"$selfId","status":"deleted"}');
+      });
+
+      test('a connection carrying no enrollment id may delete any', () async {
+        // A CRAM or legacy-PKAM owner. Same exemption `enroll:fetch` makes,
+        // and the same one isAuthorized makes for every other verb: a
+        // connection with no enrollment id is the atSign itself.
+        final targetId = await aTarget({'test_namespace': 'rw'});
+
+        await deleteAs(null, targetId);
+        expect(response.data,
+            '{"enrollmentId":"$targetId","status":"deleted"}');
+      });
+
+      test('a target holding NO namespaces is refused, not passed vacuously',
+          () async {
+        // The loop decides by iterating the TARGET's grants, so an empty map
+        // would pass it with zero iterations and no refusal — and the
+        // __manage requirement lives inside that loop, so it would not be
+        // asked either. The most anomalous record on the atSign would become
+        // the one any enrolled caller could destroy.
+        final targetId = await aTarget({});
+
+        // The hazard, first: a caller with one unrelated namespace and NO
+        // __manage. Every refusal this gate makes is decided inside the loop,
+        // so with nothing to iterate this caller would sail through.
+        final appOnly = await createAndPersistAnEnrollment(
+            'app-only', 'device', {'other_namespace': 'rw'});
+        await expectLater(() => deleteAs(appOnly, targetId),
+            throwsA(isA<UnAuthorizedException>()));
+
+        // And a ROOT caller, so the rule is about the target rather than the
+        // caller being weak: `*:rw` plus __manage would satisfy the loop for
+        // any namespace there was to check.
+        final root = await createAndPersistAnEnrollment(
+            'root', 'device', {'*': 'rw', '__manage': 'rw'});
+        await expectLater(() => deleteAs(root, targetId),
+            throwsA(isA<UnAuthorizedException>()));
+
+        // The control: the exemptions still apply, so the record is not
+        // stranded. An owner connection can still remove it.
+        await deleteAs(null, targetId);
+        expect(response.data,
+            '{"enrollmentId":"$targetId","status":"deleted"}');
+      });
+
+      test('an unauthorised caller is refused before it learns the state',
+          () async {
+        // The target is APPROVED, which is refused on its own terms with a
+        // message naming the status. An unauthorised caller must not get that
+        // message: whether an enrollment it may not touch is approved, denied
+        // or revoked is not its business.
+        final targetId = await aTarget({'test_namespace': 'rw'},
+            status: EnrollmentStatus.approved);
+        final outsider = await createAndPersistAnEnrollment(
+            'outsider', 'device', {'other_namespace': 'rw', '__manage': 'rw'});
+
+        await expectLater(
+            () => deleteAs(outsider, targetId),
+            throwsA(predicate((e) =>
+                e is UnAuthorizedException &&
+                !e.toString().contains('approved'))));
+      });
+    });
+
     tearDown(() async => await verbTestsTearDown());
   });
 

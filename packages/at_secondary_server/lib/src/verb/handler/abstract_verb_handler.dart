@@ -530,7 +530,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
 
   /// Namespace-less keys holding the atSign's own key material. Readable by
   /// any approved enrollment; writable only by a root enrollment
-  /// ([isRootEnrollment]).
+  /// ([EnrollDataStoreValue.isRootEnrollment]).
   ///
   /// Reads stay open because sync force-includes these keys
   /// (`alwaysIncludeInSync` in utils/regex_util.dart admits any namespace-less
@@ -561,18 +561,6 @@ abstract class AbstractVerbHandler implements VerbHandler {
       '|configkey)\$',
       caseSensitive: false);
 
-  /// A "root" enrollment: read-write on every namespace AND on `__manage`.
-  /// This is what the first (CRAM-path) enrollment is auto-granted, and what a
-  /// later enrollment must be given explicitly to hold full privileges.
-  /// Holding '*' alone does not qualify.
-  static bool isRootEnrollment(EnrollDataStoreValue enrollDataStoreValue) {
-    return enrollDataStoreValue.namespaces[EnrollmentConstants.allNamespaces] ==
-            'rw' &&
-        enrollDataStoreValue
-                .namespaces[EnrollmentConstants.enrollManageNamespace] ==
-            'rw';
-  }
-
   /// Whether this connection may perform atSign-level privileged operations
   /// (as opposed to key-level ones, which [isAuthorized] decides).
   ///
@@ -590,7 +578,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
         enroll.approval?.state != EnrollmentStatus.approved.name) {
       return false;
     }
-    return isRootEnrollment(enroll);
+    return enroll.isRootEnrollment;
   }
 
   /// Whether the verb being handled mutates a key.
@@ -632,7 +620,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
     final bool isOwnKeyMaterial = _ownKeyMaterialRegex.hasMatch(key);
     if (isOwnKeyMaterial || _rootOnlyWritableKeyRegex.hasMatch(key)) {
       if (isMutatingVerb()) {
-        return isRootEnrollment(enrollDataStoreValue);
+        return enrollDataStoreValue.isRootEnrollment;
       }
       // Own key material stays readable; the rest is decided below.
       return isOwnKeyMaterial ? true : null;

@@ -7,11 +7,11 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
+import 'package:at_secondary/src/enroll/enrollment_revocation_event.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/apkam_signature_verifier.dart';
-import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:meta/meta.dart';
@@ -98,9 +98,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     EnrollParams? enrollVerbParams;
 
     // Ensure that enrollParams are present for all enroll operation.
-    // 'list' and 'listns' carry no enrollParams JSON body.
+    // 'list', 'listns' and 'infons' carry no enrollParams JSON body — the
+    // namespace-scoped pair take their argument in the command itself.
     if (verbParams[AtConstants.enrollParams] == null) {
-      if (operation != 'list' && operation != 'listns') {
+      if (operation != 'list' &&
+          operation != 'listns' &&
+          operation != 'infons') {
         logger.severe(
             'Enroll params is empty | EnrollParams: ${verbParams[AtConstants.enrollParams]}');
         throw IllegalArgumentException('Enroll parameters not provided');
@@ -109,6 +112,25 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enrollVerbParams = EnrollParams.fromJson(
           jsonDecode(verbParams[AtConstants.enrollParams]!)
               as Map<String, dynamic>);
+      // Folded here, once, for the same reason `pkam` folds the id it reads:
+      // the keystore lowercases every key, so a non-canonical spelling
+      // resolves to the SAME record while comparing unequal to the id held on
+      // the connection. Every id comparison on the revoke path — the
+      // self-revoke refusal, the descendant walk, the caller-in-cascade and
+      // last-root refusals, and the connection drop — is a string comparison
+      // against that folded value, so an unfolded params id makes each of them
+      // silently vacuous while the record is still written revoked.
+      //
+      // Ids are server-issued uuids and already lower case, so this rejects
+      // nothing that works today. It does mean a mixed-case spelling now
+      // behaves exactly like the canonical one wherever it previously fell
+      // through a guard — `enroll:fetch` of one's own enrollment and a
+      // self-`enroll:update` included. That is the intended reading of "the
+      // same enrollment", and is called out here because a fold that makes
+      // previously-refused requests succeed should be a decision rather than
+      // a side effect.
+      enrollVerbParams.enrollmentId =
+          enrollVerbParams.enrollmentId?.toLowerCase();
     }
 
     _validateParams(enrollVerbParams, operation!, atConnection);
@@ -147,7 +169,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           throw AtEnrollmentRevokeException(
               'Current client cannot revoke its own enrollment');
         }
-        await _handleApproveDenyRevokeUnrevoke(
+        final List<String> alsoRevoked = await _handleApproveDenyRevokeUnrevoke(
           enMgr,
           (atConnection.metaData as InboundConnectionMetadata),
           enrollVerbParams,
@@ -159,8 +181,17 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         if (responseJson['status'] == EnrollmentStatus.revoked.name) {
           logger.info(
               'Dropping any open connections for enrollmentId: $enrollmentIdFromParams');
-          await _dropRevokedClientConnections(enrollmentIdFromParams!,
-              forceFlag != null, atConnection, responseJson);
+          // The cascaded enrollments too, and the whole INTENDED set rather
+          // than the subset this call flipped. A descendant left holding an
+          // open authenticated connection goes on working until it happens to
+          // reconnect, which is most of what the cascade exists to stop — and
+          // on a retry after a part-way failure the flipped set is empty for
+          // precisely those enrollments.
+          await _dropRevokedClientConnections(
+              {enrollmentIdFromParams!, ...alsoRevoked},
+              forceFlag != null,
+              atConnection,
+              responseJson);
         }
         break;
       case 'list':
@@ -173,6 +204,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         return;
       case 'listns':
         response.data = await _fetchEnrollmentsForNamespace(
+          enMgr,
+          atConnection,
+          verbParams['listNamespace'] ?? '',
+        );
+        return;
+      case 'infons':
+        response.data = await _fetchNamespaceInfo(
           enMgr,
           atConnection,
           verbParams['listNamespace'] ?? '',
@@ -194,6 +232,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           currentAtSign,
           responseJson,
           response,
+          atConnection,
         );
         break;
       case 'update':
@@ -396,69 +435,75 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       return;
     }
 
-    // An APKAM-authenticated connection self-enrolls a FRESH enrollment —
-    // RF-SRV, the "upgrade the enrollment" step every migration scenario in
-    // at_client_sdk docs/projects/pq/decisions.md 36-40 conjugates. Auto-
-    // approved with no human step and no OTP: the connection's existing
-    // approved enrollment is the authority, and the child can hold at most
-    // what the parent holds. The parent is capped, not removed, so sibling
-    // clones of the same keyfile can still retrofit until the cap elapses.
+    // An APKAM-authenticated connection retrofits itself: it enrols a FRESH
+    // enrollment that REPLACES the one the connection authenticated as.
+    // Auto-approved with no human step and no OTP, that existing approved
+    // enrollment being the authority — and because the successor replaces
+    // rather than descends, it holds exactly the predecessor's grants. The
+    // predecessor is capped rather than removed, and only once the successor
+    // has authenticated, so sibling clones of the same keyfile can still
+    // retrofit until the cap elapses.
     if (atConnection.metaData.authType == AuthType.apkam) {
       final inboundConnectionMetadata =
           atConnection.metaData as InboundConnectionMetadata;
-      final parentEnrollmentId = inboundConnectionMetadata.enrollmentId;
-      if (parentEnrollmentId == null) {
+      final predecessorId = inboundConnectionMetadata.enrollmentId;
+      if (predecessorId == null) {
         throw UnAuthorizedException(
             'An APKAM-authenticated self-enrollment needs a resolvable '
             'enrollment id on the connection');
       }
-      final EnrollDataStoreValue parent;
+      final EnrollDataStoreValue predecessor;
       try {
-        parent = await enMgr.getEnrollmentById(parentEnrollmentId);
+        predecessor = await enMgr.getEnrollmentById(predecessorId);
       } on KeyNotFoundException {
         throw UnAuthorizedException(
-            'Parent enrollment $parentEnrollmentId does not exist or has '
+            'Predecessor enrollment $predecessorId does not exist or has '
             'expired');
       }
-      if (parent.approval?.state != EnrollmentStatus.approved.name) {
+      if (predecessor.approval?.state != EnrollmentStatus.approved.name) {
         throw UnAuthorizedException(
-            'Parent enrollment $parentEnrollmentId is not approved');
+            'Predecessor enrollment $predecessorId is not approved');
       }
-      // Reject escalation: every requested grant must be one the parent
-      // itself holds. Without this, any scoped keyfile could self-spawn a
-      // fully privileged enrollment.
-      verifyNoEscalation(parent.namespaces, enrollNamespaces);
+      // Escalation first, so a request naming MORE than the predecessor holds
+      // keeps its own diagnosis rather than being reported as a mismatch.
+      verifyNoEscalation(predecessor.namespaces, enrollNamespaces);
+      // Then the replacement rule. A retrofit carries its predecessor's grants
+      // verbatim and does not choose its own.
+      requireGrantsMatchPredecessor(predecessor.namespaces, enrollParams.namespaces);
+      enrollmentValue.namespaces = Map.of(predecessor.namespaces);
 
       enrollmentValue.approval = EnrollApproval(EnrollmentStatus.approved.name);
-      // The child records its parent so revocation can CASCADE: a stolen
-      // keyfile must not spawn a child that survives the parent's
-      // revocation. (The cascade itself is the revoke path's to implement.)
-      enrollmentValue.parentEnrollmentId = parentEnrollmentId;
-      // The child inherits the parent's key-expiry posture unless the
-      // request states its own.
+      // The successor records what it replaced so revocation can CASCADE: a
+      // stolen keyfile must not spawn a successor that survives the
+      // revocation of what it replaced. The revoke path walks this edge.
+      enrollmentValue.parentEnrollmentId = predecessorId;
+      // The successor inherits the predecessor's key-expiry posture unless
+      // the request states its own. Time is a separate axis from grants: the
+      // successor carries the predecessor's grants exactly, but it may hold a
+      // shorter life than the credential it replaced.
       if (enrollParams.apkamKeysExpiryDuration == null) {
         enrollmentValue.apkamKeysExpiryDuration =
-            parent.apkamKeysExpiryDuration;
+            predecessor.apkamKeysExpiryDuration;
       }
-      // A stated posture may narrow the parent's, never widen it.
+      // A stated posture may narrow the predecessor's, never widen it.
       // `verifyNoEscalation` covers namespaces; TIME is the other axis a
       // stolen keyfile would want to widen, and this branch is the one
       // enrollment path with no human in the loop to notice. Zero is the
       // keystore's "never expires" and a negative value skips the ttl write
       // altogether, so both are ways of asking for a permanent credential —
-      // against a time-bound parent, neither is honoured.
-      final parentExpiryMs = parent.apkamKeysExpiryDuration.inMilliseconds;
+      // against a time-bound predecessor, neither is honoured.
+      final predecessorExpiryMs = predecessor.apkamKeysExpiryDuration.inMilliseconds;
       final statedExpiryMs =
           enrollmentValue.apkamKeysExpiryDuration.inMilliseconds;
       if (statedExpiryMs < 0 ||
-          (parentExpiryMs > 0 &&
-              (statedExpiryMs <= 0 || statedExpiryMs > parentExpiryMs))) {
+          (predecessorExpiryMs > 0 &&
+              (statedExpiryMs <= 0 || statedExpiryMs > predecessorExpiryMs))) {
         logger.warning(
-            'Self-enrollment under $parentEnrollmentId asked for a key-expiry '
-            'of ${statedExpiryMs}ms against a parent bound to '
-            '${parentExpiryMs}ms; using the parent\'s');
+            'Self-enrollment under $predecessorId asked for a key-expiry '
+            'of ${statedExpiryMs}ms against a predecessor bound to '
+            '${predecessorExpiryMs}ms; using the predecessor\'s');
         enrollmentValue.apkamKeysExpiryDuration =
-            parent.apkamKeysExpiryDuration;
+            predecessor.apkamKeysExpiryDuration;
       }
       // May be absent: a PQ self-enrollment conveys its legacy material
       // client-side, sealed to its own new key package.
@@ -472,11 +517,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // Publish the client-composed `_apsk` signing key, if it sent one.
       await _publishApskSigningKey(
           newEnrollmentId, enrollmentValue, currentAtSign);
-      // The child's record expires per its (inherited or stated) key-expiry
-      // posture, exactly as the ordinary approve path writes it — the
-      // retrofit copies the parent's expiry, it does not grant immortality.
-      // A ttl of zero is the keystore's "never expires", matching a parent
-      // with no posture.
+      // The successor's record expires per its (inherited or stated)
+      // key-expiry posture, exactly as the ordinary approve path writes it —
+      // the retrofit copies the predecessor's expiry, it does not grant
+      // immortality. A ttl of zero is the keystore's "never expires",
+      // matching a predecessor with no posture.
       await enMgr.put(
           newEnrollmentId,
           AtData()
@@ -485,24 +530,14 @@ class EnrollVerbHandler extends AbstractVerbHandler {
               ..ttl = enrollmentValue.apkamKeysExpiryDuration.inMilliseconds),
           EnrollmentStatus.approved);
 
-      // Cap the parent WITHOUT removing it, re-arming the cap on every
-      // sibling retrofit: the legacy credential retires one grace period
-      // after the LAST clone upgrades, never past the expiry its own
-      // posture already imposes.
-      //
-      // The atSign's FIRST enrollment is exempt (see
-      // AtSecondaryConfig.preserveFirstEnrollmentOnRetrofit): it is the one
-      // credential this server cannot re-issue, so retiring it stays the
-      // owner's explicit act via revoke.
-      if (AtSecondaryConfig.preserveFirstEnrollmentOnRetrofit &&
-          await _isFirstEnrollment(parentEnrollmentId, parent)) {
-        logger.info(
-            'Enrollment $parentEnrollmentId is this atSign\'s first '
-            'enrollment - retrofitted by $newEnrollmentId but NOT capped. It '
-            'keeps authenticating until the owner revokes it');
-      } else {
-        await _capEnrollmentExpiry(parentEnrollmentId, parent);
-      }
+      // The predecessor is NOT capped here. Storing the successor proves only
+      // that this server wrote a record: the successor's APKAM private half is
+      // persisted client-side, so a keyfile write that fails would leave it
+      // existing here and nowhere else — with a clock already running on the
+      // predecessor, which is by then the only credential that still works.
+      // The cap is armed by the successor's FIRST PKAM authentication instead,
+      // which is what proves the private half survived and is usable. See
+      // [EnrollmentManager.armRetrofitCapOnFirstAuth].
       return;
     }
 
@@ -526,172 +561,85 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     await enMgr.put(newEnrollmentId, enrollData, EnrollmentStatus.pending);
   }
 
-  /// Rejects any requested grant the parent enrollment does not itself hold.
+  /// Rejects any requested grant the predecessor enrollment does not hold.
   ///
   /// Subset per namespace and per access letter: `r` fits under `rw`, never
-  /// the reverse. A parent's `*` grant covers any ordinary namespace at the
+  /// the reverse. A predecessor's `*` grant covers any ordinary namespace at
   /// letters it carries — mirroring the server's own authorisation — but
   /// `__manage` and `*` themselves must be held literally: `*` does not imply
   /// `__manage` anywhere else in the server, and it must not here.
   @visibleForTesting
   void verifyNoEscalation(
-      Map<String, String> parentGrants, Map<String, String> requested) {
+      Map<String, String> predecessorGrants, Map<String, String> requested) {
     for (final entry in requested.entries) {
-      String? parentAccess = parentGrants[entry.key];
+      String? predecessorAccess = predecessorGrants[entry.key];
       final isSpecial = entry.key == EnrollmentConstants.allNamespaces ||
           entry.key == EnrollmentConstants.enrollManageNamespace;
-      if (parentAccess == null && !isSpecial) {
-        parentAccess = parentGrants[EnrollmentConstants.allNamespaces];
+      if (predecessorAccess == null && !isSpecial) {
+        predecessorAccess = predecessorGrants[EnrollmentConstants.allNamespaces];
       }
-      final held = parentAccess;
+      final held = predecessorAccess;
       if (held == null ||
           !entry.value.split('').every(held.split('').contains)) {
         throw UnAuthorizedException(
             'Requested namespace "${entry.key}:${entry.value}" exceeds the '
-            'parent enrollment\'s grants — a self-enrollment can hold at '
-            'most what its parent holds');
+            'predecessor enrollment\'s grants — a retrofit carries exactly '
+            'what the enrollment it replaces holds');
       }
     }
   }
 
-  /// Whether [enrollmentId] is this atSign's FIRST enrollment — the root
-  /// credential minted on the CRAM path at onboarding, which a retrofit must
-  /// leave unexpiring when
-  /// [AtSecondaryConfig.preserveFirstEnrollmentOnRetrofit] is set.
+  /// Refuses a self-enrollment whose stated grants are not exactly those of
+  /// the enrollment it replaces.
   ///
-  /// All three of the properties that identify it are required, and each is
-  /// read from the authority that owns it rather than inferred:
+  /// A retrofit REPLACES its predecessor rather than descending from it, so it
+  /// carries the predecessor's grants and does not choose its own. Stating
+  /// [requested] is optional: omit it and the predecessor's grants are
+  /// inherited, state it and it must name exactly them.
   ///
-  /// 1. **Fully privileged** — [AbstractVerbHandler.isRootEnrollment], the
-  ///    same test the rest of the server uses for a root enrollment: `rw` on
-  ///    both `*` and `__manage`. Holding `*` alone does not qualify.
-  /// 2. **No expiration** — asked of the RECORD (`expiresAt`), not of the
-  ///    posture that wrote it. A parent already capped by an earlier retrofit
-  ///    carries an expiry, so it fails here and stays capped: this exemption
-  ///    can only ever preserve an absence of expiry, never restore one that
-  ///    has already been spent.
-  /// 3. **No other enrollment that currently exists was created before it** —
-  ///    see [disqualifiesAsFirst], which is where the millisecond tie is
-  ///    decided and why.
+  /// Refused rather than reconciled, in both directions. Silently widening a
+  /// narrower request would hand a caller authority it never asked for.
+  /// Silently honouring one would retire a working credential in favour of a
+  /// successor that cannot do what it replaced — a loss that surfaces at the
+  /// next thing the app does, far from the request that caused it.
   ///
-  /// An absent record or an absent `createdAt` answers false: those leave the
-  /// claim unestablished, and capping is the safe direction when nothing can
-  /// be established.
-  Future<bool> _isFirstEnrollment(
-      String enrollmentId, EnrollDataStoreValue enrollment) async {
-    if (!AbstractVerbHandler.isRootEnrollment(enrollment)) return false;
-
-    final key = enMgr.buildEnrollmentKey(enrollmentId);
-    final AtData? atData = await _getOrNull(key);
-    if (atData == null) return false;
-    // An expiry already written - by this enrollment's own posture or by a
-    // previous retrofit's cap - is not an absence to preserve.
-    if (atData.metaData?.expiresAt != null) return false;
-    final createdAt = atData.metaData?.createdAt;
-    if (createdAt == null) return false;
-
-    for (final otherKey in await enMgr.getAllEnrollmentKeys()) {
-      if (otherKey == key) continue;
-      final other = await _getOrNull(otherKey);
-      if (other == null) continue;
-      // An expired record is gone: a reader is already told so, and the
-      // delete-expired sweep has simply not reached it yet. It must not
-      // decide whether this enrollment was the first.
-      if (!SecondaryUtil.isActiveKey(other)) continue;
-      if (disqualifiesAsFirst(createdAt, other.metaData?.createdAt)) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  /// Whether an enrollment created at [otherCreatedAt] rules out the
-  /// enrollment created at [candidateCreatedAt] being this atSign's first.
-  ///
-  /// Only a STRICTLY earlier sibling does. The same millisecond does not:
-  /// `createdAt` is millisecond-precision, and the retrofit writes its child
-  /// record before the exemption is decided, so the first enrollment ties
-  /// with its own child whenever the two land in one millisecond. Under a
-  /// strict "earlier than everything" reading the atSign's root would lose
-  /// its protection for no reason but clock granularity — the exact harm the
-  /// exemption exists to prevent, where allowing the tie costs at most one
-  /// same-millisecond sibling also keeping its absence of expiry.
-  ///
-  /// A null [otherCreatedAt] disqualifies: a sibling whose creation time
-  /// cannot be read cannot be ruled out as older, and capping is the safe
-  /// direction when nothing can be established.
-  ///
-  /// Exposed because the keystore gives a caller no way to construct the tie:
-  /// AtMetadataBuilder stamps `createdAt` itself and retains the existing
-  /// record's value on update, so no sequence of puts can produce two records
-  /// sharing a millisecond on demand.
+  /// Escalation is rejected before this by [verifyNoEscalation], which keeps
+  /// its own diagnosis. What reaches the throw here is anything that is not
+  /// literally the predecessor's map — usually fewer namespaces or narrower
+  /// letters, but also a request that names MORE namespaces without escalating,
+  /// as `{'*':'rw','wavi':'rw'}` does against a predecessor holding `{'*':'rw'}`:
+  /// `wavi` falls under the wildcard so no grant is gained, and the request is
+  /// still refused because a replacement states its predecessor's grants or
+  /// states nothing.
   @visibleForTesting
-  static bool disqualifiesAsFirst(
-      DateTime candidateCreatedAt, DateTime? otherCreatedAt) {
-    if (otherCreatedAt == null) return true;
-    return otherCreatedAt.toUtc().isBefore(candidateCreatedAt.toUtc());
-  }
-
-  /// [keyStore.get] for a key that may legitimately be absent, which it
-  /// signals by throwing rather than by returning null.
-  Future<AtData?> _getOrNull(String key) async {
-    try {
-      return await keyStore.get(key);
-    } on KeyNotFoundException {
-      return null;
-    }
-  }
-
-  /// Caps [enrollmentId] to expire `min(now + grace, its own expiry)` from
-  /// this moment, leaving the record in place.
-  ///
-  /// Re-applied on EVERY self-enrollment, computed fresh from the record's
-  /// own posture rather than folded into a previously written cap: sibling
-  /// clones of one keyfile retrofit whenever each device next runs, so the
-  /// cap must RE-ARM with each retrofit — a deadline fixed by the first
-  /// sibling's upgrade would strand every laggard whose next run falls
-  /// outside that first window. "Its own expiry" is re-derived from
-  /// [EnrollDataStoreValue.apkamKeysExpiryDuration], anchored at the
-  /// record's creation, so a key-expiry posture shorter than the grace
-  /// still wins.
-  ///
-  /// A written ttl anchors at the write (`expiresAt = now + ttl` in the
-  /// metadata builder), so the grace is written as-is — offsetting it by the
-  /// record's age would extend the cap by the enrollment's whole lifetime.
-  Future<void> _capEnrollmentExpiry(
-      String enrollmentId, EnrollDataStoreValue enrollment) async {
-    final key = enMgr.buildEnrollmentKey(enrollmentId);
-    final AtData? atData;
-    try {
-      atData = await keyStore.get(key);
-    } on KeyNotFoundException {
+  void requireGrantsMatchPredecessor(
+      Map<String, String> predecessorGrants, Map<String, String>? requested) {
+    if (requested == null || requested.isEmpty) return;
+    if (requested.length == predecessorGrants.length &&
+        requested.entries.every((e) => predecessorGrants[e.key] == e.value)) {
       return;
     }
-    if (atData == null) return;
-    final now = DateTime.now().toUtc();
-    int cappedTtl =
-        Duration(hours: AtSecondaryConfig.apkamSelfEnrollmentGraceHours)
-            .inMilliseconds;
-    final ownMs = enrollment.apkamKeysExpiryDuration.inMilliseconds;
-    if (ownMs > 0) {
-      final createdAt = (atData.metaData?.createdAt ?? now).toUtc();
-      final ownRemainingMs = createdAt
-          .add(Duration(milliseconds: ownMs))
-          .difference(now)
-          .inMilliseconds;
-      if (ownRemainingMs < cappedTtl) cappedTtl = ownRemainingMs;
-    }
-    // A ttl of zero means "never expires", and a spent posture must not
-    // become immortality — floor at one millisecond.
-    if (cappedTtl < 1) cappedTtl = 1;
-    atData.metaData = (atData.metaData ?? AtMetaData())..ttl = cappedTtl;
-    await enMgr.put(enrollmentId, atData, EnrollmentStatus.approved);
+    throw UnAuthorizedException(
+        'a self-enrollment replaces its predecessor and carries its grants: '
+        'requested $requested, but the enrollment being replaced holds '
+        '$predecessorGrants. Omit "namespaces" to inherit them, or state '
+        'exactly them.');
   }
 
   /// Handles enrollment approve, deny, revoke and unrevoke requests.
   /// Retrieves enrollment details from keystore and updates the enrollment status based on [operation]
   /// If [operation] is approve, store encrypted encryption keys
-  Future<void> _handleApproveDenyRevokeUnrevoke(
+  /// Returns every id the revoke INTENDED to revoke by cascade, so the caller
+  /// can drop their connections. Deliberately not the subset this call
+  /// actually flipped: a retry after a part-way failure finds the descendants
+  /// already revoked, so the flipped set is empty for exactly the enrollments
+  /// whose connections still need dropping. The response field reports the
+  /// flipped set, which is the honest answer to "what did this command
+  /// change"; the two are different questions.
+  ///
+  /// Empty for every operation but `revoke`, and for a revoke whose target has
+  /// no descendants.
+  Future<List<String>> _handleApproveDenyRevokeUnrevoke(
       EnrollmentManager enMgr,
       InboundConnectionMetadata inboundConnectionMetadata,
       EnrollParams enrollParams,
@@ -716,7 +664,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       response.isError = true;
       response.errorCode = 'AT0028';
       response.errorMessage = 'enrollment_id: $enId is expired or invalid';
-      return;
+      return const [];
     }
 
     // Verifies whether the enrollment state matches the intended state
@@ -741,9 +689,126 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       }
     }
 
+    // Everything below is decided BEFORE anything is written.
+    List<String> cascadeIds = const [];
+    final String? callerId = inboundConnectionMetadata.enrollmentId;
+    if (operation == 'revoke') {
+      cascadeIds = (await enMgr.descendantsOf(enId)).toList();
+
+      // A revoker must survive its own act. The authorisation loop above only
+      // asks whether the caller covers the target's namespaces, and a
+      // successor holds its predecessor's grants EXACTLY — so a successor
+      // always passes it against its predecessor, and a successor is a
+      // descendant of what it replaced. The cascade would therefore take the
+      // caller with it. On a two-enrollment atSign that is stranding reached
+      // without anyone self-revoking, which is why neither the self-revoke
+      // refusal on the way in nor the liveness check below ever sees it.
+      if (callerId != null && cascadeIds.contains(callerId)) {
+        throw AtEnrollmentRevokeException(
+            'Cannot revoke enrollment $enId: $callerId, the enrollment making '
+            'this request, replaced it and would be revoked by the same '
+            'cascade. Revoke $enId from an enrollment outside the chain that '
+            'replaced it');
+      }
+
+      // Revoking a fully privileged enrollment may not leave the atSign
+      // without one. Asked for EVERY such revoke, not only a self-revoke:
+      // gating it on `enId == callerId` missed the case where a root with a
+      // finite lifetime revokes the atSign's other root and then expires,
+      // which strands it just as completely and trips none of the other
+      // refusals — the caller is not the target, and a target with no
+      // descendants cannot contain the caller in its cascade.
+      //
+      // The DEADLINE is what the caller's own record buys. A caller that
+      // never expires and is itself fully privileged answers the question by
+      // existing (it is not in the excluded set, so it is counted). A caller
+      // that expires must leave someone alive past that moment. A caller that
+      // is NOT fully privileged is never counted whatever its lifetime —
+      // which is right, and closes a second gap: revoking a root requires
+      // authority over the target's namespaces, and `__manage:r` satisfies
+      // that, so a caller who could not restore a root could previously
+      // remove the last one.
+      //
+      // Asked over what SURVIVES the cascade, not over what is stored: the
+      // descendants are still `approved` while this runs, so counting them
+      // would report the atSign safe at the moment it is being stranded.
+      //
+      // Skipped entirely for a connection carrying no enrollment id — a
+      // legacy-PKAM or CRAM owner can always mint a fresh enrollment, so it
+      // cannot strand itself this way.
+      if (enVal.isRootEnrollment && callerId != null) {
+        final AtMetaData? callerRecord =
+            await keyStore.getMeta(enMgr.buildEnrollmentKey(callerId));
+        final DateTime deadline =
+            callerRecord?.expiresAt?.toUtc() ?? DateTime.now().toUtc();
+        final bool someoneSurvives = await enMgr.hasRootEnrollmentAliveAfter(
+            {enId, ...cascadeIds}, deadline);
+        if (!someoneSurvives) {
+          throw AtEnrollmentRevokeException(
+              'Cannot revoke enrollment $enId: it holds full privilege and no '
+              'other fully privileged enrollment on $currentAtSign would '
+              'survive $deadline, so the atSign would be left unable to '
+              'approve a replacement. Approve another fully privileged '
+              'enrollment first');
+        }
+      }
+    } else if (operation == 'approve' || operation == 'unrevoke') {
+      await _refuseIfPredecessorNotApproved(enMgr, enId, enVal, operation);
+    }
+
+    // The cascade goes FIRST, before the target's own write. The order is
+    // about what a retry does: revoking the target first and then failing
+    // part-way through the subtree leaves a state where the same command
+    // comes back "Cannot revoke a revoked enrollment", so the cascade can
+    // never be completed. This order fails the other way — the subtree is
+    // revoked and the target is not — and re-running the command finishes
+    // the job.
+    //
+    // One moment for the whole command — the enrollment named and every
+    // enrollment the cascade takes. See EnrollmentManager.revokeAll.
+    final DateTime commandAt = DateTime.now().toUtc();
+    final List<String> cascaded = cascadeIds.isEmpty
+        ? const []
+        : await enMgr.revokeAll(cascadeIds,
+            byEnrollmentId: callerId, cascadedFrom: enId, at: commandAt);
+    if (cascaded.isNotEmpty) {
+      logger.info(
+          'Revoking $enId cascaded to ${cascaded.length} enrollment(s) that '
+          'descend from it: ${cascaded.join(', ')}');
+    }
+
     EnrollmentStatus newEnrollmentStatus = _getEnrollStatusEnum(operation);
     enVal.approval!.state = newEnrollmentStatus.name;
     responseJson['status'] = newEnrollmentStatus.name;
+
+    // The revocation history, for the enrollment this command NAMED. The
+    // cascade wrote its own above, with the same provenance and `cascadedFrom`
+    // pointing here.
+    //
+    // Grants are read off the record BEFORE the write, and recorded on the
+    // un-revoke too: an event has to say which namespaces it affects without
+    // the enrollment, which by then may be reaped.
+    EnrollmentRevocationEvent? revocationEvent;
+    if (operation == 'revoke' || operation == 'unrevoke') {
+      revocationEvent = EnrollmentRevocationEvent(
+        type: operation == 'revoke'
+            ? EnrollmentRevocationEventType.revoked
+            : EnrollmentRevocationEventType.unrevoked,
+        enrollmentId: enId,
+        at: commandAt,
+        namespaces: Map<String, String>.from(enVal.namespaces),
+        byEnrollmentId: callerId,
+        cascadedFrom: null,
+      );
+    }
+    // A revoke records BEFORE its write and an un-revoke AFTER it, so that a
+    // crash in the window always errs towards reporting the namespace as
+    // revoked. Over-stating a revocation costs a client a refetch;
+    // under-stating one tells it nothing has changed when a credential has
+    // just stopped working.
+    if (operation == 'revoke') {
+      await enMgr.recordRevocationEvents([revocationEvent!]);
+    }
 
     // Update the enrollment status against the enrollment key in keystore.
     AtData atData = AtData()..data = jsonEncode(enVal.toJson());
@@ -755,11 +820,42 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       String ek = enMgr.buildEnrollmentKey(enId);
       AtMetaData emd = await keyStore.getMeta(ek) ?? AtMetaData();
       // Update key with new data
-      // Update ttl value to support auto expiry of APKAM keys
-      emd.ttl = enVal.apkamKeysExpiryDuration.inMilliseconds;
+      // Update ttl value to support auto expiry of APKAM keys.
+      //
+      // A non-positive posture is a request for a credential that does not
+      // expire, and is written as ttl 0 — the keystore's "never expires" —
+      // rather than passed through. A NEGATIVE ttl is not "no expiry": the
+      // metadata builder derives `expiresAt` only for `ttl >= 0`, so a
+      // negative one skips the derivation and leaves the PENDING record's
+      // expiry standing on the approved enrollment. The credential then
+      // carries a deadline nobody asked for, inherited from the window it had
+      // to be approved in — and a later retrofit cap, measuring against that
+      // stale value, appears to EXTEND the enrollment rather than shorten it.
+      final int postureMs = enVal.apkamKeysExpiryDuration.inMilliseconds;
+      emd.ttl = postureMs > 0 ? postureMs : 0;
       atData.metaData = emd;
     }
-    await enMgr.put(enId, atData, newEnrollmentStatus);
+    // A write that says nothing about expiry must not MOVE expiry. The
+    // metadata builder re-derives `expiresAt = now + ttl` from the RETAINED
+    // ttl on any write that does not assert the stored absolute back, so a
+    // revoke, deny or unrevoke would silently restart the enrollment's APKAM
+    // key-expiry clock — and with it any retrofit cap standing on the record.
+    // `approve` is the deliberate exception: it starts that clock, just above.
+    AtAssertedTimestamps? expiryCarry;
+    if (operation != 'approve') {
+      final AtMetaData? stored =
+          await keyStore.getMeta(enMgr.buildEnrollmentKey(enId));
+      if (stored?.expiresAt != null) {
+        expiryCarry = AtAssertedTimestamps(expiresAt: stored!.expiresAt);
+      }
+    }
+
+    await enMgr.put(enId, atData, newEnrollmentStatus,
+        assertedTimestamps: expiryCarry);
+
+    if (operation == 'unrevoke') {
+      await enMgr.recordRevocationEvents([revocationEvent!]);
+    }
 
     // when enrollment is approved store the encrypted encryption keys
     if (operation == 'approve') {
@@ -771,6 +867,59 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       await _publishApskSigningKey(enId, enVal, currentAtSign);
     }
     responseJson['enrollmentId'] = enId;
+    // Only when it happened, so no existing response shape changes.
+    if (cascaded.isNotEmpty) {
+      responseJson['cascadedEnrollmentIds'] = cascaded;
+    }
+    return cascadeIds;
+  }
+
+  /// Refuses an operation that would make [enId] active while the enrollment
+  /// it replaced is not.
+  ///
+  /// This is what stops the revoke cascade being one-way. `enroll:unrevoke` on
+  /// a descendant would otherwise resurrect exactly the orphan the cascade
+  /// removed.
+  ///
+  /// `approve` is checked for the same reason, and today it CANNOT reach the
+  /// refusal: `parentEnrollmentId` is set only in the APKAM self-enrollment
+  /// branch, which auto-approves, so no enrollment carrying a predecessor is
+  /// ever pending and `enroll:approve` on one is already refused as a state
+  /// error. The check is here so the invariant is total — an enrollment does
+  /// not become active while what it replaced is inactive — at every
+  /// transition into an active state rather than at the one that happens to be
+  /// reachable.
+  ///
+  /// Two things are always allowed, for DIFFERENT reasons — they were once
+  /// documented here as one, which credited the second with the first's job.
+  ///
+  /// A null [EnrollDataStoreValue.parentEnrollmentId] is the ordinary approver
+  /// path, which is most enrollments; the field is set only by a retrofit.
+  /// That check alone is what stops the rule barring every enrollment ever
+  /// made through an approver.
+  ///
+  /// A predecessor that no longer EXISTS is separate, and narrower: it can
+  /// only be a retrofit successor whose predecessor was deleted. It is
+  /// permitted because there is nothing left to compare against — but it does
+  /// mean `enroll:delete` on a middle link is a way to un-revoke what is
+  /// behind it, which is the same gap [EnrollmentManager.descendantsOf]
+  /// documents for a deleted link.
+  Future<void> _refuseIfPredecessorNotApproved(EnrollmentManager enMgr,
+      String enId, EnrollDataStoreValue enVal, String operation) async {
+    final String? predecessorId = enVal.parentEnrollmentId;
+    if (predecessorId == null) return;
+    final EnrollDataStoreValue predecessor;
+    try {
+      predecessor = await enMgr.getEnrollmentById(predecessorId);
+    } on KeyNotFoundException {
+      return;
+    }
+    final String? state = predecessor.approval?.state;
+    if (state == EnrollmentStatus.approved.name) return;
+    throw IllegalStateException(
+        'Cannot $operation enrollment $enId: the enrollment it replaced '
+        '($predecessorId) is $state, and reactivating $enId would restore the '
+        'access that was withdrawn from $predecessorId');
   }
 
   /// `enroll:update` — an approved enrollment amending its OWN record.
@@ -869,11 +1018,19 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // request nowhere near the cap can still push the record past it.
     _validateRecordSize(enVal);
 
-    // The state and TTL are untouched: this is the same put the approve path
-    // uses, with an already-approved status, so nothing about the enrollment's
-    // lifecycle moves.
+    // The state and ttl are untouched — but an untouched ttl is not an
+    // untouched EXPIRY. The metadata builder re-derives `expiresAt = now + ttl`
+    // on any write that does not assert the stored absolute back, so without
+    // this carry an enrollment could postpone its own retirement indefinitely
+    // by amending itself, one `enroll:update` per grace period, and the
+    // retrofit cap would be advisory rather than a deadline.
+    final AtMetaData? storedMeta =
+        await keyStore.getMeta(enMgr.buildEnrollmentKey(enId));
     await enMgr.put(
-        enId, AtData()..data = jsonEncode(enVal), EnrollmentStatus.approved);
+        enId, AtData()..data = jsonEncode(enVal), EnrollmentStatus.approved,
+        assertedTimestamps: storedMeta?.expiresAt == null
+            ? null
+            : AtAssertedTimestamps(expiresAt: storedMeta!.expiresAt));
 
     // Republish only when the request carried a new value. An update that says
     // nothing about either shape leaves the published record exactly as it was.
@@ -934,8 +1091,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  Future<void> _dropRevokedClientConnections(String enrollmentId, bool forceFlag,
-      InboundConnection currentInboundConnection, responseJson) async {
+  Future<void> _dropRevokedClientConnections(
+      Set<String> enrollmentIds,
+      bool forceFlag,
+      InboundConnection currentInboundConnection,
+      responseJson) async {
     final inboundPool =
         AtSecondaryServerImpl.getInstance().inboundConnectionManager.pool;
     List<InboundConnection> connectionsToRemove = [];
@@ -943,7 +1103,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       var inboundConnectionMetadata =
           connection.metaData as InboundConnectionMetadata;
       if (!connection.isInValid() &&
-          inboundConnectionMetadata.enrollmentId == enrollmentId) {
+          enrollmentIds.contains(inboundConnectionMetadata.enrollmentId)) {
         logger.finer(
             'Removing APKAM revoked client connection: ${connection.metaData.sessionID}');
         connectionsToRemove.add(connection);
@@ -1192,45 +1352,79 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       throw IllegalArgumentException('namespace is required for enroll:listns');
     }
 
+    await _requireNamespaceAccess(enMgr, atConnection, namespace, 'listns');
+    final members = await enMgr.getEnrollmentsForNamespace(namespace);
+    return jsonEncode(members);
+  }
+
+  /// Facts about [namespace] itself, as opposed to the roster of enrollments
+  /// holding it.
+  ///
+  /// A MAP, and deliberately so. The roster is a list of members and the last
+  /// revocation affecting a namespace is not a fact about any member — putting
+  /// it there meant the same value on every row under a name that had to
+  /// explain why it was in the wrong place. A map also has room for the next
+  /// per-namespace fact without touching the roster's shape, which matters
+  /// because a deployed client reads that roster as
+  /// `if (decoded is! List) return const []` and would take an unrecognised
+  /// shape for an empty namespace, silently.
+  ///
+  /// `lastRevokedAt` is present ALWAYS, null when nothing holding the
+  /// namespace has been revoked. An absent key and a key a client failed to
+  /// parse are the same thing to a careless reader; an explicit null is an
+  /// answer.
+  ///
+  /// It is derived from the revocation history, which outlives the enrollments
+  /// it describes, and it NETS OUT un-revocations — so it can move backwards.
+  /// A client deciding whether to refetch must compare it for inequality
+  /// rather than order it.
+  Future<String> _fetchNamespaceInfo(
+    EnrollmentManager enMgr,
+    InboundConnection atConnection,
+    String namespace,
+  ) async {
+    if (namespace.isEmpty) {
+      throw IllegalArgumentException('namespace is required for enroll:infons');
+    }
+    await _requireNamespaceAccess(enMgr, atConnection, namespace, 'infons');
+    final DateTime? lastRevokedAt =
+        await enMgr.lastRevocationForNamespace(namespace);
+    return jsonEncode({'lastRevokedAt': lastRevokedAt?.toIso8601String()});
+  }
+
+  /// The gate both namespace-scoped verbs sit behind: an APKAM-authenticated
+  /// caller whose own enrollment is approved and which holds at least read
+  /// access to [namespace].
+  ///
+  /// Shared rather than restated so the two verbs cannot drift apart — what a
+  /// caller may learn ABOUT a namespace and who it may learn holds that
+  /// namespace are the same authorisation question.
+  Future<void> _requireNamespaceAccess(
+    EnrollmentManager enMgr,
+    InboundConnection atConnection,
+    String namespace,
+    String operation,
+  ) async {
     final callerEnrollmentId =
         (atConnection.metaData as InboundConnectionMetadata).enrollmentId;
     if (callerEnrollmentId == null || callerEnrollmentId.isEmpty) {
       throw UnAuthenticatedException(
-          'enroll:listns requires APKAM authentication');
+          'enroll:$operation requires APKAM authentication');
     }
-
-    // Verify the caller's own enrollment is approved AND holds at least read
-    // access to the requested namespace — learning a namespace's roster is
-    // gated on ≥r for that namespace, not merely on being approved.
     final callerEnVal = await enMgr.getEnrollmentById(callerEnrollmentId);
     if (callerEnVal.approval?.state != EnrollmentStatus.approved.name) {
       throw UnAuthorizedException('Caller enrollment is not in approved state');
     }
-    if (_accessForNamespace(callerEnVal, namespace) == null) {
+    if (enMgr.accessForNamespace(callerEnVal, namespace) == null) {
       throw UnAuthorizedException(
           'Caller enrollment is not authorised for namespace "$namespace"');
     }
-
-    final members = await enMgr.getEnrollmentsForNamespace(namespace);
-    return jsonEncode(members);
   }
 
   /// The caller's access (`r`|`rw`) to [namespace] under the atServer's own
   /// suffix / `*`-wildcard rule, or null if the enrollment has no access.
   /// Mirrors [EnrollmentManager.getEnrollmentsForNamespace]'s match; both `r`
   /// and `rw` satisfy the ≥`r` bar the discovery verb requires.
-  String? _accessForNamespace(EnrollDataStoreValue enVal, String namespace) {
-    for (final entry in enVal.namespaces.entries) {
-      final ns = entry.key;
-      if (ns == EnrollmentConstants.allNamespaces ||
-          ns == namespace ||
-          namespace.endsWith('.$ns')) {
-        return entry.value;
-      }
-    }
-    return null;
-  }
-
   bool _doesEnrollmentHaveManageNamespace(
       EnrollDataStoreValue enrollDataStoreValue) {
     return enrollDataStoreValue.namespaces
@@ -1359,18 +1553,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         if (enrollParams.apkamPublicKey.isNullOrEmpty) {
           throw IllegalArgumentException(
               'apkam public key is mandatory for enroll:request');
-        }
-
-        if (inboundConnection.metaData.authType == AuthType.apkam &&
-            (enrollParams.namespaces == null ||
-                enrollParams.namespaces!.isEmpty)) {
-          // A self-enrollment names its grants explicitly: the child holds
-          // exactly what it requests, at most what the parent holds. An
-          // empty set would mint an approved credential that can do nothing,
-          // which is always a caller bug — refuse it loudly.
-          throw IllegalArgumentException(
-              'At least one namespace must be specified for an '
-              'APKAM-authenticated enroll:request');
         }
 
         if (enrollParams.otp != null) {
@@ -1505,11 +1687,78 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       EnrollParams? enrollParams,
       String atSign,
       Map responseJson,
-      response) async {
+      response,
+      InboundConnection atConnection) async {
     // Note: The enrollmentId is verified for the null check in the _validateParams methods.
     // Therefore, when control comes here, enrollmentId will not be null.
+    final String targetEnrollmentId = enrollParams!.enrollmentId!;
     EnrollDataStoreValue enVal =
-        await enMgr.getEnrollmentById(enrollParams!.enrollmentId!);
+        await enMgr.getEnrollmentById(targetEnrollmentId);
+
+    // A caller may always delete its OWN enrollment (and a no-enrollmentId
+    // CRAM/owner connection may delete any). Deleting ANOTHER enrollment
+    // requires __manage AND access to EVERY namespace the target holds — the
+    // same bar as approve/deny/revoke/fetch, and the same exemptions.
+    //
+    // Asked BEFORE the status checks below, so a caller that may not delete
+    // this enrollment does not learn its state from the refusal it gets.
+    //
+    // Delete is irreversible and it was the only operation naming a target
+    // that asked nothing: `enroll:fetch`, which reads a secret rather than
+    // destroying a record, has had this check all along. Two things now rest
+    // on it that did not before. `EnrollmentManager.descendantsOf` climbs
+    // `parentEnrollmentId` and fetches each link BY KEY, so a delete of a
+    // middle link puts everything behind it permanently out of reach of a
+    // later cascade. (Expiry severs a chain too, once the scheduled sweep
+    // removes the record — see [EnrollmentManager.descendantsOf]. A delete is
+    // the half a caller chooses.) And [_refuseIfPredecessorNotApproved] permits an
+    // enrollment whose predecessor no longer exists, so deleting that
+    // predecessor is what makes the orphan un-revokable.
+    final inboundConnectionMetadata =
+        atConnection.metaData as InboundConnectionMetadata;
+    final callerEnrollmentId = inboundConnectionMetadata.enrollmentId;
+    if (callerEnrollmentId != null &&
+        callerEnrollmentId.isNotEmpty &&
+        callerEnrollmentId != targetEnrollmentId) {
+      // A target holding NO namespaces fails closed. The loop below decides by
+      // iterating the target's grants, so an empty map passes it vacuously —
+      // zero iterations, no refusal — and the `__manage` requirement lives
+      // inside that loop too, so it would not be asked either. An enrollment
+      // with an empty grant map would therefore be the one record any enrolled
+      // caller could destroy, which inverts the rule exactly where the record
+      // is most anomalous.
+      //
+      // Reachable, and not only from storage written by an older build: an
+      // `enroll:request` on a LEGACY-PKAM connection lands one. `AuthType` has
+      // three values and that path is neither of the two that fill the map in
+      // — it takes the `else` branch, so it never gets the CRAM branch's
+      // `__manage`+`*` nor the APKAM branch's copy of the predecessor's grants
+      // — while the "at least one namespace" check sits inside the OTP branch
+      // of _validateParams, which an authenticated connection does not enter.
+      //
+      // ⚠️ Every OTHER per-namespace loop still passes such a record
+      // vacuously: approve, deny, revoke and unrevoke share one loop, and
+      // enroll:fetch has its own. This gate is the only one that refuses.
+      if (enVal.namespaces.isEmpty) {
+        throw UnAuthorizedException(
+            'Not authorized to delete enrollment $targetEnrollmentId: it holds'
+            ' no namespaces, so no caller can demonstrate authority over it.'
+            ' Delete it from the enrollment itself, or from an owner (CRAM or'
+            ' legacy-PKAM) connection');
+      }
+      for (final MapEntry<String, String> entry in enVal.namespaces.entries) {
+        final bool isAuthorised = await isAuthorized(inboundConnectionMetadata,
+            namespace: entry.key,
+            enrolledNamespaceAccess: entry.value,
+            operation: 'delete');
+        if (!isAuthorised) {
+          throw UnAuthorizedException(
+              'Not authorized to delete enrollment $targetEnrollmentId:'
+              ' requires __manage and access to all of its namespaces');
+        }
+      }
+    }
+
     EnrollmentStatus status =
         EnrollmentStatus.values.byName(enVal.approval!.state);
     if (EnrollmentStatus.expired == status) {

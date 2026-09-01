@@ -1,4 +1,308 @@
 # 3.16.4
+- fix: a revocation could be partly undone by a retrofit cap running
+  concurrently. `capEnrollmentExpiry` re-read the record but took the STATUS
+  from the caller's snapshot, taken before a keystore walk and a write — so a
+  revoke landing in that window was written back as approved, moving the
+  revoked enrollment's per-enrollment data (its published `_apsk` signing key
+  among it) back to the live address. The status is now read off the record it
+  just read, and a record that is no longer approved is not written at all.
+- fix: a revoke missed every descendant behind an EXPIRED link. Key
+  enumeration hides records whose ttl has elapsed, so the expired enrollment's
+  predecessor edge vanished with it while everything behind it survived
+  approved — and the lifetime of that link is chosen by whoever mints it, since
+  a never-expiring enrollment may mint a short-lived successor. The walk now
+  climbs from each live candidate and fetches each link BY KEY, which returns
+  an expired record.
+
+  ⚠️ That closes the gap between a record EXPIRING and its removal, and no
+  more. The server runs a periodic `deleteExpiredKeys()` sweep, so the record
+  is gone within tens of seconds and the chain is severed for good — as it is
+  by `enroll:delete` on a middle link. Nothing records ancestry beyond the
+  immediate predecessor, so a revoke arriving after the sweep reaches the
+  first live candidate and stops. Under a finite key-expiry posture that is
+  the DEFAULT shape of a retrofit chain, not a corner of it: each successor's
+  ttl clock restarts at its own write, so earlier links always expire first.
+  Closing it needs ancestry that outlives the record.
+- fix: an enrollment id is folded to lower case where `pkam` reads it off the
+  wire. The keystore lowercases every key, so a non-canonical spelling
+  resolved to the same record while comparing unequal to the id held
+  everywhere downstream — a revoke would not drop that connection and the
+  credential kept authenticating. Ids are server-issued and already lower
+  case, so this rejects nothing.
+- fix: a cascade no longer aborts when a descendant has already gone.
+  `keyStore.get` throws rather than returning null, so a record reaped between
+  the walk and the write took the whole verb with it, leaving the enrollments
+  already revoked with their connections open. `enroll:listns` and
+  `enroll:infons` gained the same guard.
+- fix: connections are dropped for every enrollment the revoke intended,
+  rather than only those this call changed — a retry after a partial failure
+  found the descendants already revoked and so dropped nothing for them.
+- fix: `enroll:delete` asks who is calling. It was the only enrollment
+  operation naming a target that checked nothing beyond "is this connection
+  authenticated" — so any APKAM connection, holding any single namespace and
+  no `__manage`, could destroy any denied or revoked enrollment on the atSign.
+  `enroll:fetch`, which only READS the target, has always required `__manage`
+  and access to every namespace the target holds; delete, which is
+  irreversible, asked for neither. The omission was an oversight rather than a
+  decision, and delete now applies exactly the gate fetch does, with the same
+  two exemptions: a caller may always delete its OWN enrollment, and a
+  connection carrying no enrollment id (CRAM or legacy-PKAM — the atSign
+  itself) may delete any.
+
+  Asked BEFORE the status checks, so a caller that may not touch an enrollment
+  does not learn from the refusal whether it is approved, denied or revoked.
+
+  A target holding NO namespaces is refused rather than passed. The check
+  decides by iterating the target's grants, so an empty map would pass it
+  vacuously — zero iterations, no refusal, and the `__manage` requirement
+  lives inside that loop too — making the most anomalous record on the atSign
+  the one any enrolled caller could destroy. Such a record is reachable: an
+  `enroll:request` on a LEGACY-PKAM connection writes one, because that path
+  is neither of the two that fill the map in — it gets neither the CRAM
+  branch's `__manage`+`*` nor the APKAM branch's copy of its predecessor's
+  grants — while the "at least one namespace" check applies only to requests
+  carrying an OTP, which an authenticated connection does not send.
+
+  ⚠️ Every OTHER per-namespace loop still passes such a record vacuously:
+  `approve`, `deny`, `revoke` and `unrevoke` share one loop, and `enroll:fetch`
+  has its own. Only the delete gate refuses.
+
+  Two things had come to rest on this. `EnrollmentManager.descendantsOf`
+  fetches each `parentEnrollmentId` link BY KEY, so deleting a middle link
+  puts everything behind it permanently beyond the reach of a later cascade.
+  And the predecessor-not-approved refusal permits an enrollment whose
+  predecessor no longer exists, so deleting that predecessor is what makes the
+  orphan un-revokable.
+
+  ⚠️ This NARROWS a shipped capability. An enrollment holding `__manage` but
+  not the target's namespaces could delete it before and cannot now — the same
+  asymmetry already closed on `revoke`. `at_onboarding_cli`'s `delete` command
+  takes an arbitrary `--enrollment-id`, so it is affected whenever it runs as
+  an enrollment rather than from an owner keyfile; an enrollment that could
+  not have revoked the target can no longer destroy its record either.
+- perf: a revoke moves per-enrollment data ONCE for the whole cascade.
+  `getKeys` walks every key the atSign holds, and the move was made per
+  enrollment, so revoking a chain of K descendants cost K+2 whole-store scans
+  on an event loop nothing else can run on. K is chosen by whoever mints the
+  chain, and minting a successor needs no approval. The regex already exposes
+  the owning enrollment id, so one walk now serves the whole set.
+- feat: `enroll:infons:<namespace>` — facts about a namespace, as opposed to
+  `enroll:listns`, which answers who holds it. Same authorisation as `listns`
+  (APKAM-authenticated, caller approved, caller holds at least read access to
+  the namespace), and the two now share one gate rather than restating it.
+
+  It returns a JSON map, initially with one member: `lastRevokedAt`, the most
+  recent moment any enrollment holding that namespace was revoked. The key is
+  ALWAYS present, and null when nothing has been revoked — an absent key and a
+  key a client failed to parse are the same thing to a careless reader.
+  Revocations reach it through a cascaded descendant as readily as through the
+  enrollment an operator named, because a successor holds its predecessor's
+  namespaces exactly.
+
+  It is derived from the revocation history below, and it NETS OUT
+  un-revocations — so it can move BACKWARDS. A client deciding whether to
+  re-fetch must ask whether the value CHANGED, not whether it grew.
+
+  A map rather than a field on the `listns` roster: a roster is a list of
+  members and the last revocation affecting a namespace is not a fact about any
+  member. `enroll:listns` is unchanged, which matters — a deployed client reads
+  that response as "if this is not a list, the namespace has no members", so an
+  unrecognised shape there would silently empty every roster rather than fail.
+
+  ⚠️ The enroll operation alternation lives in at_commons, which does not yet
+  list `infons`, so `at_server_spec`'s `Enroll` verb adds it locally by
+  INSERTING into at_commons' pattern — not by copying it, so every other
+  upstream change still reaches this server, and it throws rather than
+  returning an unmodified pattern if the insertion point ever moves. This is a
+  temporary divergence between what the server accepts and what at_commons
+  describes; `enroll_verb_syntax_test.dart` fails deliberately once a published
+  at_commons defines `infons`, which is the signal to delete the override.
+- feat: a revocation history. Every moment an enrollment's revocation state
+  changes is written as a record of its OWN, carrying the enrollment id, the
+  moment, the namespace grants it held, the enrollment that issued the command
+  and — for one a cascade swept up — the enrollment whose revocation took it.
+  An un-revoke writes its own counter-event rather than erasing anything, so
+  the history keeps both facts and an audit can see a revocation that was
+  withdrawn.
+
+  A field on the enrollment could not do this. An enrollment record carries the
+  APKAM key-expiry posture as its ttl, so a revoked enrollment is reaped on the
+  schedule its own credential was issued under — and a stamp living there goes
+  with it, taking `enroll:infons`' answer backwards, or to null, on a timetable
+  chosen by whoever set that posture. To a client polling for a reason to
+  re-fetch, that reads exactly like "nothing has changed". The grants go the
+  same way, and they are the only evidence of which namespaces a revocation
+  touched.
+
+  The enrollment an operator named and every enrollment its cascade takes share
+  ONE timestamp: they are revoked by a single act, and stamping each with the
+  instant its own write happened would invite a reader to order them against
+  one another as separate decisions — in an order that is an artefact of the
+  retry-safe write sequence.
+
+  A revoke records BEFORE its write and an un-revoke AFTER it, so a crash in
+  between always errs towards reporting the namespace as revoked. Over-stating
+  a revocation costs a client a re-fetch; under-stating one tells it nothing
+  has changed when a credential has just stopped working.
+
+  The records live in `__manage`, which is what already hides enrollment
+  records from `scan`, and deliberately NOT under the `new.enrollments` key
+  pattern: the enrollment enumeration regex is an unanchored substring, so a
+  key carrying that pattern anywhere would be walked as an enrollment by every
+  roster, liveness check and cascade in the server.
+
+  ⚠️ They have no ttl — that is the point of the log, and it is also unbounded
+  growth. One record per revocation for the life of the atSign, and a cascade
+  writes one per enrollment it takes. No retention policy has been decided.
+
+  The `revokedAt` field this replaces has been removed from the enrollment
+  value. A record stored with one still decodes; re-encoding drops it.
+- feat: revoking an enrollment revokes everything that replaced it. Self
+  enrollment makes enrollments a graph — a retrofit's successor records what it
+  replaced — and a stolen keyfile can mint a successor before the theft is
+  noticed. A successor that outlived the revocation of what it replaced would
+  defeat revocation through the very feature that created it. The cascade is
+  TRANSITIVE: a self-enrolled enrollment can itself self-enroll, and a
+  one-level cascade would leave the one beyond it approved. It walks enrollments of
+  every status, so a revoked enrollment part-way down a chain cannot conceal
+  the approved one behind it, and it revokes only those currently approved.
+  Depth costs nothing: one keystore pass builds the whole map and the walk is
+  then in memory. Connections held by cascaded enrollments are dropped with the
+  target's.
+
+  A revoke response now carries `cascadedEnrollmentIds` — the ids the cascade
+  took — and only when the cascade took something, so an ordinary revoke
+  response keeps the shape it has always had.
+- feat: three refusals that stop an atSign stranding itself, all decided before
+  anything is written.
+
+  A revoke whose cascade would remove the CALLER is refused. The revoke path
+  only asks whether the caller covers the target's namespaces, and a successor
+  holds its predecessor's grants exactly — so a successor always passes that
+  check against its predecessor, and a successor is a descendant of it. The
+  cascade would take the caller with it. On a two-enrollment atSign that is
+  stranding reached with nobody self-revoking, so neither of the other two
+  refusals sees it.
+
+  A self-revocation by the last fully privileged enrollment is refused even
+  with `force`, and the question is asked over what SURVIVES the cascade rather
+  than over what is stored — the descendants are still approved while the check
+  runs, so counting them would report the atSign safe at the moment it is being
+  stranded.
+
+  `enroll:unrevoke` is refused on an enrollment whose predecessor exists and is
+  not approved: without it the cascade is one-way, and un-revoking a descendant
+  while its predecessor stayed revoked would restore exactly the orphan the
+  cascade removed. An enrollment that replaced nothing is unaffected, which is
+  most of them — `parentEnrollmentId` is set only by a retrofit, and "its
+  predecessor is not approved" is vacuously true of an enrollment that has
+  none. `enroll:approve` carries the same test so the invariant holds at every
+  transition into an active state; it cannot currently fire there, because a
+  retrofit is auto-approved and so nothing pending carries a predecessor.
+- feat: a retrofit carries its predecessor's grants and may not choose them.
+  An APKAM-authenticated `enroll:request` replaces the enrollment it
+  authenticated as rather than descending from it, so the successor now holds
+  exactly that enrollment's namespaces. `namespaces` is optional on this path:
+  omit it — or send an empty map, which states nothing — and the predecessor's
+  grants are inherited; name grants and they must be exactly the predecessor's,
+  or the request is refused. Previously a retrofit held whatever
+  it asked for, bounded only from above, so it could mint a successor unable to
+  do what the credential it replaced could — a loss that surfaces at the next
+  thing the app does rather than at the request that caused it. Asking for MORE
+  than the predecessor holds is still refused, with its own message, so the two
+  mistakes stay distinguishable.
+- feat: the retrofit expiry cap is armed by the successor's first
+  authentication rather than by storing it. Storing a successor proves only
+  that the atServer wrote a record: the successor's APKAM private half is
+  persisted client-side, so a keyfile write that fails, a read-only file, or a
+  process that dies before the flush each leave the successor existing on the
+  server and nowhere else — with a clock already started on the predecessor,
+  which is by then the only credential that still works. The cap now fires when
+  the successor first authenticates over a connection it opened, which is what
+  proves the private half survived and is usable. It still re-arms once per
+  successor, so a predecessor retires one grace period after the last sibling
+  upgrades, and a successor's own repeated connections never extend it.
+
+  Two conditions stop the cap, and neither is remembered: both are judgements
+  about state that can change, so they are re-made on the successor's next
+  authentication rather than frozen into the record. A predecessor that is not
+  approved is left alone — it is already retired, and capping it would hand it
+  a fresh expiry it has no business carrying; an unrevoke restores an ordinary
+  predecessor and must not find it permanently exempt. And a predecessor
+  holding `__manage:rw` is left alone when no OTHER enrollment would still be
+  alive to approve a replacement once the cap fired — the case that would leave
+  an atSign unable to admit one. Every other predecessor is capped regardless
+  of how long its successor lives: declining more widely than that would switch
+  retirement off for any fleet whose APKAM keys are shorter-lived than the
+  grace, and would make the grace setting work backwards, a longer grace
+  declining more often.
+
+  The cap never extends an enrollment past the expiry its record already
+  carries, and that expiry is measured from APPROVAL rather than from the
+  request. A record that carries no expiry does not expire, whatever posture
+  its stored value states, so nothing but the grace bounds the cap there. The two differ by the approval latency, and a
+  request-anchored measurement went negative for an enrollment retrofitted
+  between them — capping it to one millisecond, killing a credential with hours
+  of legitimate life left and locking out every sibling clone that had still to
+  upgrade.
+- fix: arming the cap no longer reverts a concurrent change to the successor.
+  The successor's record is read immediately before it is written rather than
+  before the predecessor lookup and the cap, so an `enroll:update` rotating its
+  APKAM public key, or an `enroll:revoke` of it, is no longer overwritten from
+  a stale snapshot. The keystore has no compare-and-set, so this narrows the
+  window rather than closing it.
+- `enroll:list` responses carry a new `predecessorCapArmedAt` field on an
+  enrollment that has retired the one it replaced: the UTC instant it did so.
+  Absent on every other enrollment, and on any record written before this
+  release.
+- `apkamSelfEnrollmentGraceHours` is now documented in `config.yaml` with its
+  720-hour default. It was already read from there and from the environment;
+  it governs every enrollment now that the first-enrollment exemption is gone,
+  so it should not have been invisible.
+- fix: approving an enrollment whose key-expiry posture is zero or negative no
+  longer leaves it carrying the approval window as its deadline. The metadata
+  builder derives an expiry only for a ttl of zero or more, so a negative one
+  skipped the derivation and the PENDING record's expiry — the window the
+  request had to be approved in, 48 hours by default — survived onto the
+  approved enrollment. The credential then expired on a deadline nobody asked
+  for, and a retrofit cap measured against that stale value appeared to EXTEND
+  the enrollment rather than shorten it. A non-positive posture is now written
+  as the keystore's "never expires", which is what it asks for.
+- fix: amending or revoking an enrollment no longer restarts its expiry.
+  `enroll:update`, `enroll:revoke`, `enroll:deny` and `enroll:unrevoke` each
+  wrote the record with no statement about expiry, and the metadata builder
+  re-derives `expiresAt` from the retained ttl on any such write — so every one
+  of them silently moved the deadline to a grace period from the moment of the
+  write. An enrollment could therefore postpone its own retirement indefinitely
+  by amending itself once per period, which would have made the retrofit cap
+  advisory rather than a deadline. These writes now carry the stored expiry
+  forward as an assertion. `enroll:approve` still sets the expiry deliberately,
+  which is where an enrollment's key-expiry clock is meant to start.
+- BREAKING for operators: `preserveFirstEnrollmentOnRetrofit` is removed, from
+  `config.yaml` and from the environment. It exempted the atSign's first
+  enrollment from the retrofit cap, because capping it could leave an atSign
+  with no enrollment able to approve a replacement. That case is now answered
+  where it actually arises rather than by exempting one enrollment: the cap
+  declines when a fully-privileged predecessor would be retired and no other
+  fully-privileged enrollment survives the deadline. "Fully privileged" —
+  read-write on both `*` and `__manage` — rather than merely able to approve,
+  because approving is checked per namespace against what the approver itself
+  holds, so a `__manage`-only enrollment can admit new enrollments and can
+  never admit one carrying `*`. The exemption asked whether an enrollment was
+  the FIRST; the question that always mattered is whether it is the LAST. A
+  deployment that still sets the key needs no change: config is read by
+  explicit key lookup with no schema validation, so an unknown key is never
+  read.
+
+  This applies to enrollments that already exist. An atSign that retrofitted
+  under the exemption has a root carrying no expiry and a successor carrying no
+  record of having armed anything; on that successor's first connection after
+  the upgrade the root is capped for the first time — unless one of the two
+  conditions above applies — and retires one grace period later. Where a predecessor had already been capped by the previous
+  server, that first connection re-arms it once, giving it a fresh grace period
+  rather than folding into the deadline it already had. Operators who scheduled
+  around the old deadlines should expect one such shift per already-retrofitted
+  pair.
 - fix: assemble outbound responses correctly however the network splits them.
   A peer writes a response and the prompt that follows it as one string, but
   it arrives in however many pieces the network chooses, and the atServer

@@ -744,54 +744,34 @@ class AtSecondaryConfig {
         48;
   }
 
-  /// How long a parent enrollment keeps authenticating after one of its
-  /// APKAM-authenticated connections self-enrolls a fresh enrollment
-  /// (RF-SRV). The parent is capped to `min(now + this, its existing expiry)`
-  /// WITHOUT being removed, so sibling clones of the same keyfile can still
-  /// retrofit until the cap elapses.
+  /// How long a superseded enrollment keeps authenticating after the
+  /// enrollment that replaced it FIRST AUTHENTICATES.
   ///
-  /// The default (30 days) is deliberately generous, and the cap RE-ARMS on
-  /// every sibling retrofit: cloned keyfiles upgrade on schedules measured in
-  /// whenever-each-device-next-runs, so the parent retires one grace period
-  /// after the LAST clone upgrades, not the first. A laggard stranded past
-  /// the window recovers via an ordinary OTP enrollment.
+  /// A retrofit replaces the credential its connection authenticated as. The
+  /// predecessor is capped rather than removed, so sibling clones of the same
+  /// keyfile can still upgrade until the cap elapses — and the clock starts
+  /// when the successor proves it can authenticate, not when the server
+  /// stores it, because storing it proves only that the server wrote a
+  /// record while the private half lives client-side.
+  ///
+  /// The cap written is `min(this, what the predecessor's own key-expiry
+  /// posture leaves it)`, and NOT folded against a previously written cap:
+  /// re-arming has to be able to push a deadline OUT, or the first sibling's
+  /// upgrade fixes a date every laggard is then stranded behind. It re-arms
+  /// once per successor, so the predecessor retires one grace period after
+  /// the LAST clone upgrades. A laggard stranded past the window recovers via
+  /// an ordinary OTP enrollment.
+  ///
+  /// The default (30 days) is deliberately generous. Two cases decline to cap
+  /// at all — a predecessor that is not approved, and a fully-privileged one
+  /// whose successor would be gone before the deadline with no other
+  /// fully-privileged enrollment surviving it. See
+  /// [EnrollmentManager.armRetrofitCapOnFirstAuth].
   static int get apkamSelfEnrollmentGraceHours {
     return _getIntEnvVar('apkamSelfEnrollmentGraceHours') ??
         getNullableIntFromYaml(
             ['enrollment', 'apkamSelfEnrollmentGraceHours']) ??
         720;
-  }
-
-  static final bool _preserveFirstEnrollmentOnRetrofit = true;
-
-  /// Whether the atSign's FIRST enrollment is exempt from the retrofit cap
-  /// that [apkamSelfEnrollmentGraceHours] applies to every other parent.
-  ///
-  /// A retrofit normally starts an expiry clock on the enrollment it
-  /// supersedes. The first enrollment is the one credential that cannot be
-  /// re-issued by this server: it is minted on the CRAM path at onboarding,
-  /// is the atSign's root (`*` and `__manage`, both `rw`), and every later
-  /// enrollment is approved BY it. Letting a retrofit start its clock means
-  /// an atSign whose owner never noticed can be left with no root credential
-  /// at all once the grace elapses, and no enrollment able to approve a new
-  /// one.
-  ///
-  /// So when this is true the superseded first enrollment keeps its absence
-  /// of expiry, and retiring it stays an explicit act: the owner revokes it.
-  /// Exempting it is a deliberate choice to prefer a recoverable atSign over
-  /// an automatically retired credential — set this false to have the first
-  /// enrollment age out like any other.
-  static bool get preserveFirstEnrollmentOnRetrofit {
-    var result = _getBoolEnvVar('preserveFirstEnrollmentOnRetrofit');
-    if (result != null) {
-      return result;
-    }
-    try {
-      return getConfigFromYaml(
-          ['enrollment', 'preserveFirstEnrollmentOnRetrofit']);
-    } on ElementNotFoundException {
-      return _preserveFirstEnrollmentOnRetrofit;
-    }
   }
 
   static final int _enrollmentResponseDelayIntervalInSeconds = 55;

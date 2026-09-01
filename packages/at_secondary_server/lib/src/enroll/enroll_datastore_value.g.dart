@@ -1,4 +1,17 @@
-// GENERATED CODE - DO NOT MODIFY BY HAND
+// Originally generated, now MAINTAINED BY HAND. Edit it when you add a field.
+//
+// json_serializable is not a dependency of this package — only json_annotation,
+// so `@JsonSerializable()` compiles — and there is no build.yaml, so nothing
+// can regenerate this. Running a generator over it would rewrite
+// `apkamKeysExpiryInMillis` (a name no generator produces from an unannotated
+// Duration) and break the at-rest expiry of every stored enrollment.
+//
+// A field added to EnrollDataStoreValue and not added here does not persist,
+// and nothing goes red. enroll_data_store_value_test.dart pins the round trip
+// of SOME optional fields by raw at-rest name — apsk, apskLegacy and
+// predecessorCapArmedAt. The rest, parentEnrollmentId included,
+// are covered only incidentally through the keystore, so adding a field here
+// and pinning it there is the habit that keeps this file honest.
 
 part of 'enroll_datastore_value.dart';
 
@@ -28,7 +41,10 @@ EnrollDataStoreValue _$EnrollDataStoreValueFromJson(
       ..signingAlgo = json['signingAlgo'] as String?
       ..apsk = (json['apsk'] as Map<String, dynamic>?)
       ..apskLegacy = json['apskLegacy'] as String?
-      ..parentEnrollmentId = json['parentEnrollmentId'] as String?;
+      ..parentEnrollmentId = json['parentEnrollmentId'] as String?
+      ..predecessorCapArmedAt = json['predecessorCapArmedAt'] == null
+          ? null
+          : DateTime.parse(json['predecessorCapArmedAt'] as String);
 
 Map<String, dynamic> _$EnrollDataStoreValueToJson(
         EnrollDataStoreValue instance) =>
@@ -49,6 +65,8 @@ Map<String, dynamic> _$EnrollDataStoreValueToJson(
       if (instance.apskLegacy != null) 'apskLegacy': instance.apskLegacy,
       if (instance.parentEnrollmentId != null)
         'parentEnrollmentId': instance.parentEnrollmentId,
+      if (instance.predecessorCapArmedAt != null)
+        'predecessorCapArmedAt': instance.predecessorCapArmedAt!.toIso8601String(),
     };
 
 const _$EnrollRequestTypeEnumMap = {
