@@ -244,6 +244,13 @@
   measurement went negative for an enrollment retrofitted between them —
   capping it to one millisecond, killing a credential with hours of legitimate
   life left and locking out every sibling clone that had still to upgrade.
+- fix: the retrofit cap computes its ttl against the record it just read,
+  rather than taking one the caller computed earlier. A ttl is a distance from
+  the instant it was computed at and the store re-anchors it at the instant of
+  the write, so the value the caller had already decided on was stamped as the
+  deadline it checked PLUS however long the intervening keystore walk took.
+  The parameter is gone rather than corrected, which also removes the last way
+  a caller's stale snapshot could reach the write.
 - fix: the decline memo records the generation the cap decision was READ at,
   not the one it finished at. The memo exists so a declined cap is not
   re-decided on every authentication, and its contract is that any enrollment

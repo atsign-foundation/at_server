@@ -996,13 +996,13 @@ class EnrollmentManager {
   /// metadata builder), so the ttl is written as-is — offsetting it by the
   /// record's age would extend the cap by the enrollment's whole lifetime.
   ///
-  /// [ttlMillis] is the value a caller has already computed and made a
-  /// decision on. Recomputing it here would write a deadline LATER than the
-  /// one that was checked, by however long the checking took — the unsafe
-  /// direction, since the check is what established that somebody survives it.
-  Future<RetrofitCapOutcome> capEnrollmentExpiry(
-      String enrollmentId, EnrollDataStoreValue enrollment,
-      {int? ttlMillis}) async {
+  /// The ttl is computed HERE, against the record this method just read,
+  /// rather than taken from the caller. A ttl is a distance from the instant
+  /// it was computed at and the store re-anchors it at the instant of the
+  /// write, so a value computed before the caller's keystore walk is stamped
+  /// as the deadline it checked PLUS however long that walk took. Recomputing
+  /// lands on the checked deadline instead of drifting past it.
+  Future<RetrofitCapOutcome> capEnrollmentExpiry(String enrollmentId) async {
     final key = buildEnrollmentKey(enrollmentId);
     final AtData? atData;
     try {
@@ -1021,13 +1021,12 @@ class EnrollmentManager {
     // location, republishing the `_apsk` a revocation had just parked.
     final String? raw = atData.data;
     if (raw == null) return RetrofitCapOutcome.unreadable;
+    final EnrollDataStoreValue fresh;
     final EnrollmentStatus? current;
     try {
-      current = EnrollmentStatus.values
-          .asNameMap()[EnrollDataStoreValue.fromJson(jsonDecode(raw))
-              .approval
-              ?.state ??
-          ''];
+      fresh = EnrollDataStoreValue.fromJson(jsonDecode(raw));
+      current =
+          EnrollmentStatus.values.asNameMap()[fresh.approval?.state ?? ''];
     } catch (e) {
       logger.severe('Not capping $enrollmentId: its record does not decode: $e');
       return RetrofitCapOutcome.unreadable;
@@ -1047,9 +1046,8 @@ class EnrollmentManager {
       return RetrofitCapOutcome.notApproved;
     }
     atData.metaData = (atData.metaData ?? AtMetaData())
-      ..ttl = ttlMillis ??
-          retrofitCapTtlMillis(
-              atData.metaData, enrollment, DateTime.now().toUtc());
+      ..ttl = retrofitCapTtlMillis(
+          atData.metaData, fresh, DateTime.now().toUtc());
     await put(enrollmentId, atData, current);
     return RetrofitCapOutcome.capped;
   }
@@ -1251,9 +1249,8 @@ class EnrollmentManager {
       // no stamp is re-capped on every later authentication, each time with a
       // fresh full grace, so it never retires at all.
       if (armPredecessor && predecessor != null) {
-        final RetrofitCapOutcome outcome = await capEnrollmentExpiry(
-            predecessorId, predecessor,
-            ttlMillis: capTtlMillis);
+        final RetrofitCapOutcome outcome =
+            await capEnrollmentExpiry(predecessorId);
         // The stamp goes on BEFORE the cap deliberately — a capped predecessor
         // with no stamp is re-capped with a fresh full grace on every later
         // authentication and never retires. But that ordering means a cap

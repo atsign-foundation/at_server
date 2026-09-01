@@ -1243,7 +1243,7 @@ void main() {
       final key = enMgr.buildEnrollmentKey('cap-target');
       final before = (await keyValueStore.get(key))?.metaData?.expiresAt;
 
-      await enMgr.capEnrollmentExpiry('cap-target', stale, ttlMillis: 60000);
+      await enMgr.capEnrollmentExpiry('cap-target');
 
       expect((await keyValueStore.get(key))?.metaData?.expiresAt, before,
           reason: 'the cap must read the status off the record it just read, '
