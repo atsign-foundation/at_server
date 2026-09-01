@@ -15,6 +15,16 @@ A VE container includes:
 The demo atSigns and their .atKeys files are available at:
 https://github.com/atsign-foundation/at_demos/tree/trunk/packages/at_demo_data/lib/assets/atkeys
 
+## Prerequisites
+
+When setting up locally, add `vip.ve.atsign.zone` to your `/etc/hosts` file so it resolves to localhost:
+
+```
+127.0.0.1 vip.ve.atsign.zone
+```
+
+The public DNS record for this hostname points to a private IP (`10.64.64.64`) that is not reachable from most networks.
+
 ## Quick start (recommended)
 
 Use docker compose. Copy this into a `docker-compose.yaml`:
@@ -46,12 +56,6 @@ services:
 | 443 | Root server HTTPS | Optional |
 | 6379 | Redis | Optional, localhost only |
 | 9001 | supervisord web UI | Optional, localhost only |
-
-`extra_hosts` maps `vip.ve.atsign.zone` to localhost inside the container. Your host machine also needs to resolve it to `127.0.0.1`. The public DNS record for `vip.ve.atsign.zone` points to a private IP (`10.64.64.64`), not localhost, so add it to `/etc/hosts`:
-
-```
-127.0.0.1 vip.ve.atsign.zone
-```
 
 To start:
 

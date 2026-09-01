@@ -14,6 +14,16 @@ An EE container includes:
 - supervisord managing all processes (web UI on port 9001)
 - A bundled `at_activate` binary for onboarding atKeys
 
+## Prerequisites
+
+When setting up locally, add `vip.ve.atsign.zone` to your `/etc/hosts` file so it resolves to localhost:
+
+```
+127.0.0.1 vip.ve.atsign.zone
+```
+
+The public DNS record for this hostname points to a private IP (`10.64.64.64`) that is not reachable from most networks.
+
 ## Quick start (recommended)
 
 Use docker compose. Copy this into a `docker-compose.yaml`:
