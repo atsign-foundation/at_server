@@ -2824,12 +2824,12 @@ void main() {
     /// asks for exactly this. The omission was an oversight, not a decision.
     ///
     /// Two things now rest on it. `descendantsOf` fetches each
-    /// `parentEnrollmentId` link BY KEY, which is what keeps an EXPIRED link
-    /// traversable — a DELETED one is gone, so deleting a middle link puts
-    /// everything behind it permanently beyond a later cascade. And
-    /// `_refuseIfPredecessorNotApproved` permits an enrollment whose
-    /// predecessor no longer exists, so deleting that predecessor is what
-    /// makes the orphan un-revokable.
+    /// `approvedByEnrollmentId` link BY KEY, which is what keeps an EXPIRED
+    /// link traversable — a DELETED one is gone, so deleting a middle link
+    /// puts everything behind it permanently beyond a later cascade. And the
+    /// approver-not-approved refusal permits an enrollment whose approver no
+    /// longer exists, so deleting that approver is what makes the orphan
+    /// un-revokable.
     /// A target holding NO namespaces passes every per-namespace
     /// authorisation loop vacuously — zero iterations, no refusal — and the
     /// `__manage` requirement lives inside those loops, so it is not asked

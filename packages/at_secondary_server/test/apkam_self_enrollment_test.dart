@@ -799,11 +799,13 @@ void main() {
   /// deadline can trip the shorter-lived-successor guard instead, so a broken
   /// fold shows up as "no cap written" rather than as a wrong number.
   /// A retrofit is a ONCE-OFF: a device gets one no-approver migration, not a
-  /// series. Two things follow from letting it repeat. Each link restarts the
-  /// key-expiry clock, so an enrollment with a one-hour term could retrofit
+  /// series. What follows from letting it repeat is the key-expiry clock: each
+  /// link restarts it, so an enrollment with a one-hour term could retrofit
   /// itself every fifty-five minutes indefinitely and the posture would not be
-  /// enforceable across a chain at all. And each link adds a record whose loss
-  /// severs the revocation cascade behind it.
+  /// enforceable across a chain at all. (A lost link severing the revocation
+  /// cascade was a second reason once; revocation travels the approval edge
+  /// now, and a successor inherits its predecessor's approver, so losing a
+  /// replacement link orphans nothing.)
   ///
   /// The guard is about DEPTH along the predecessor edge, never breadth — see
   /// the control below.
@@ -1483,9 +1485,9 @@ void main() {
 
       expect(await statusOf(chain[0]), EnrollmentStatus.revoked.name);
       expect(await statusOf(chain[1]), EnrollmentStatus.revoked.name,
-          reason: 'a successor that outlives the revocation of what it '
-              'replaced defeats revocation through the feature that created '
-              'it');
+          reason: 'an enrollment that outlives the revocation of the one '
+              'that admitted it keeps authenticating on an authority already '
+              'withdrawn');
     });
 
     test('the cascade is transitive, not one level deep', () async {
@@ -1494,10 +1496,9 @@ void main() {
 
       expect(await statusOf(chain[1]), EnrollmentStatus.revoked.name);
       expect(await statusOf(chain[2]), EnrollmentStatus.revoked.name,
-          reason: 'a stored retrofit chain can be deeper than one link — this '
-              'server no longer mints one, but may hold one written before the '
-              'once-off refusal — so a one-level cascade leaves the enrollment '
-              'beyond it approved');
+          reason: 'an enrollment holding __manage may admit another that '
+              'holds it too, so approval chains are arbitrarily deep and a '
+              'one-level cascade leaves the enrollment beyond it approved');
     });
 
     test('a revoked link does not hide the enrollment behind it', () async {
@@ -1519,9 +1520,9 @@ void main() {
       // The hole this closes: key enumeration hides records whose ttl has
       // elapsed, so a downward walk lost the expired link's edge and every
       // enrollment behind it survived. The lifetime of that link is chosen by
-      // whoever mints it — a never-expiring root may mint a short-lived
-      // successor — so it was reachable through the very feature the cascade
-      // exists to contain.
+      // whoever mints it — a never-expiring root may admit a short-lived
+      // enrollment that admits others in turn — so it was reachable through
+      // the very act the cascade exists to contain.
       await mintApprovedBy('exp-root', null);
       await mintApprovedBy('exp-mid', 'exp-root',
           ttl: Duration(milliseconds: 1));
@@ -1569,11 +1570,11 @@ void main() {
     });
 
     test('a revoke whose cascade would remove the caller is refused', () async {
-      // A successor holds its predecessor's grants EXACTLY, so it passes the
-      // authorisation check against its predecessor — and it is a descendant
-      // of it. Nothing else on this path notices: no one self-revoked, so the
-      // self-revoke refusal never fires, and the atSign is stranded by its
-      // own cascade.
+      // A fully privileged enrollment admits administrators holding EXACTLY
+      // the grants it holds, so the one it admitted passes the authorisation
+      // check against it — and descends from it. Nothing else on this path
+      // notices: no one self-revoked, so the self-revoke refusal never fires,
+      // and the atSign is stranded by its own cascade.
       final chain = await chainFrom(etu.primaryEnId, 1);
 
       await expectLater(() => revoke(chain[0], etu.primaryEnId),
@@ -1648,11 +1649,11 @@ void main() {
       expect(await statusOf(etu.primaryEnId), EnrollmentStatus.revoked.name);
     });
 
-    test('a successor about to be cascaded away is not counted as the '
+    test('an enrollment about to be cascaded away is not counted as the '
         'survivor', () async {
-      // The successor is fully privileged and alive, so a liveness question
-      // asked over STORED state answers "somebody survives". It descends from
-      // the enrollment being revoked, so the same act removes it.
+      // It is fully privileged and alive, so a liveness question asked over
+      // STORED state answers "somebody survives". It descends by approval
+      // from the enrollment being revoked, so the same act removes it.
       final chain = await chainFrom(etu.primaryEnId, 1);
       expect(await statusOf(chain[0]), EnrollmentStatus.approved.name,
           reason: 'precondition: it is alive and fully privileged, so it is '
@@ -1675,8 +1676,8 @@ void main() {
           () => etu.unrevokeEnrollment(etu.primaryEnId, chain[1]),
           throwsA(isA<IllegalStateException>()),
           reason: 'without this the cascade is one-way: un-revoking a '
-              'descendant while its predecessor stays revoked restores '
-              'exactly the orphan the cascade removed');
+              'descendant while its approver stays revoked restores exactly '
+              'the orphan the cascade removed');
     });
 
     test('…and is allowed once the approver is back', () async {
@@ -1690,11 +1691,22 @@ void main() {
 
     test('an enrollment nothing approved is untouched by the guard',
         () async {
-      // `parentEnrollmentId` is set only by a retrofit, so most enrollments
-      // have none — and "its predecessor is not approved" is vacuously TRUE
-      // of an enrollment with no predecessor. A guard phrased without the
-      // null and existence tests bars un-revoking every enrollment ever made
-      // through an approver.
+      // The exemption the guard cannot do without. An enrollment admitted
+      // over an OWNER connection carries no approver — there is no enrollment
+      // there to revoke — and "its approver is not approved" is vacuously
+      // TRUE of a record with none. A guard phrased without the null test
+      // bars un-revoking every one of them.
+      await mintApprovedBy('owner-admitted', null,
+          status: EnrollmentStatus.revoked);
+      await etu.unrevokeEnrollment(etu.primaryEnId, 'owner-admitted');
+      expect(await statusOf('owner-admitted'), EnrollmentStatus.approved.name);
+    });
+
+    test('…and neither is one whose approver is still approved', () async {
+      // The control, and the reason the test above had to stop using this
+      // fixture: `createEnrollments` approves over the primary's connection,
+      // so this record DOES carry an approver. It passes on the approver
+      // being approved, not on the null test — which is a different branch.
       final ordinary = (await etu.createEnrollments(n: 1)).$1.first;
       await revoke(etu.primaryEnId, ordinary);
       await etu.unrevokeEnrollment(etu.primaryEnId, ordinary);
@@ -1711,11 +1723,11 @@ void main() {
 
     test('approving an enrollment whose approver is unapproved is refused',
         () async {
-      // Synthetic, and deliberately so: a retrofit is auto-approved, so no
-      // pending enrollment carries a predecessor today and this cannot be
-      // reached through the verbs. It pins the invariant at the OTHER
-      // transition into an active state, so the guard is already in place if
-      // that ever changes.
+      // Synthetic, and deliberately so: the approver is written from the
+      // connection DURING the approve, after this check has run, so a first
+      // approval reads none and this cannot be reached through the verbs. It
+      // pins the invariant at the OTHER transition into an active state, so
+      // the guard is already in place if that ever changes.
       await mintApprovedBy('dead-approver', null,
           status: EnrollmentStatus.revoked);
       await mintApprovedBy('pending-admitted', 'dead-approver',
@@ -1752,33 +1764,34 @@ void main() {
       // It is also the invariant the batched move could regress — one pass
       // now serves the whole cascade, so it must reach every listed
       // enrollment and no other.
-      // Both ordinary enrollments first: selfEnroll leaves the connection
-      // authenticated as the predecessor, which cannot then issue an OTP.
-      final predecessorId = await anApprover(suffix: '-park');
+      // Two approvers, each admitting one enrollment: the cascade must reach
+      // what the revoked approver admitted and nothing the other did.
+      final approverId = await anApprover(suffix: '-park');
       final bystanderId = await anApprover(suffix: '-bystander');
 
-      final successorId = await admittedBy(predecessorId,
+      final admittedId = await admittedBy(approverId,
           suffix: '-park',
           apsk: {'signingPublicKey': 'k', 'signingAlgo': 'mldsa65'});
-      final bystanderSuccessorId = await admittedBy(bystanderId,
+      final bystanderAdmittedId = await admittedBy(bystanderId,
           suffix: '-bystander',
           apsk: {'signingPublicKey': 'k2', 'signingAlgo': 'mldsa65'});
 
-      final approvedKey = 'public:_apsk.$successorId'
+      final approvedKey = 'public:_apsk.$admittedId'
           '.${EnrollmentConstants.perEnrollmentApproved}$alice';
-      final revokedKey = 'public:_apsk.$successorId'
+      final revokedKey = 'public:_apsk.$admittedId'
           '.${EnrollmentConstants.perEnrollmentRevoked}$alice';
-      final bystanderKey = 'public:_apsk.$bystanderSuccessorId'
+      final bystanderKey = 'public:_apsk.$bystanderAdmittedId'
           '.${EnrollmentConstants.perEnrollmentApproved}$alice';
       expect(await keyValueStore.exists(approvedKey), isTrue,
-          reason: 'precondition: the successor published a signing key');
+          reason: 'precondition: the admitted enrollment published a signing '
+              'key');
       expect(await keyValueStore.exists(bystanderKey), isTrue,
           reason: 'precondition: so did the bystander');
 
-      await revoke(etu.primaryEnId, predecessorId);
+      await revoke(etu.primaryEnId, approverId);
 
       expect(await keyValueStore.exists(revokedKey), isTrue,
-          reason: 'the cascaded successor\'s signing key must be parked');
+          reason: 'the cascaded enrollment\'s signing key must be parked');
       expect(await keyValueStore.exists(approvedKey), isFalse,
           reason: 'and must no longer be resolvable at the live address');
       expect(await keyValueStore.exists(bystanderKey), isTrue,
