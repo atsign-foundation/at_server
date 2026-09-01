@@ -87,11 +87,22 @@ class PkamVerbHandler extends AbstractVerbHandler {
       try {
         publicKey = (await keyStore.get(AtConstants.atPkamPublicKey))?.data;
       } on KeyNotFoundException {
+        // The message NAMES THE REMEDY, because the population that hits this
+        // is not a broken atSign but a client sending the wrong shape of
+        // authentication. An atSign onboarded through `enroll:request` has no
+        // flat credential at all — it never did, once that path stopped
+        // writing one — so a caller arriving here is almost always one that
+        // holds an enrollment id and did not send it. "No credential" alone
+        // reads as an atSign fault and sends the reader looking in the wrong
+        // place entirely.
         logger.warning('Legacy PKAM authentication refused: '
             '${AtConstants.atPkamPublicKey} is absent — this atSign has no '
             'legacy credential, or it has been retired');
         throw UnAuthenticatedException(
-            'this atSign has no legacy PKAM credential');
+            'this atSign has no legacy PKAM credential. An atSign onboarded '
+            'through enroll:request has none by design: authenticate with the '
+            'enrollment id its keyfile carries, as '
+            'pkam:enrollmentId:<id>:<signature>');
       }
     }
 
