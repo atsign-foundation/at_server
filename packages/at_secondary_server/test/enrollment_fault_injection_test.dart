@@ -52,11 +52,13 @@ void main() {
   String recordFor(String id,
       {Map<String, String> namespaces = const {'wavi': 'rw'},
       EnrollmentStatus status = EnrollmentStatus.approved,
-      String? predecessor}) {
+      String? predecessor,
+      String? approvedBy}) {
     final v = EnrollDataStoreValue('sid', 'app-$id', 'device-$id', 'pk-$id')
       ..namespaces = Map<String, String>.from(namespaces)
       ..approval = EnrollApproval(status.name)
-      ..parentEnrollmentId = predecessor;
+      ..parentEnrollmentId = predecessor
+      ..approvedByEnrollmentId = approvedBy;
     return jsonEncode(v.toJson());
   }
 
@@ -111,7 +113,7 @@ void main() {
   });
 
   group('a keystore fault mid-walk', () {
-    /// `_predecessorIdOf` catches [KeyNotFoundException] (the record is gone)
+    /// `_approverIdOf` catches [KeyNotFoundException] (the record is gone)
     /// and [FormatException] (it does not decode) and treats both as "no
     /// predecessor". It deliberately catches nothing else: a store that
     /// FAILS is not a store that answered "no", and swallowing the
@@ -136,7 +138,7 @@ void main() {
 
       await expectLater(() => enMgr.descendantsOf(rootId),
           throwsA(isA<DataStoreException>()),
-          reason: 'a store that FAILED did not answer "no predecessor", and '
+          reason: 'a store that FAILED did not answer "no approver", and '
               'treating the two alike makes a revoke report success while '
               'leaving a successor approved');
     });
@@ -157,7 +159,7 @@ void main() {
       when(() => store.get(rootKey))
           .thenAnswer((_) async => AtData()..data = recordFor(rootId));
       when(() => store.get(childKey)).thenAnswer(
-          (_) async => AtData()..data = recordFor(childId, predecessor: rootId));
+          (_) async => AtData()..data = recordFor(childId, approvedBy: rootId));
 
       expect(await enMgr.descendantsOf(rootId), {childId});
     });
@@ -233,7 +235,7 @@ void main() {
           enMgr.buildEnrollmentKey(successorId),
           AtData()
             ..data = recordFor(successorId,
-                status: EnrollmentStatus.revoked, predecessor: predecessorId),
+                status: EnrollmentStatus.revoked, approvedBy: predecessorId),
           skipCommit: true);
 
       final revoked = _MockInboundConnection();

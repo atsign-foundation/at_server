@@ -745,7 +745,12 @@ class EnrollmentManager {
     return false;
   }
 
-  /// The predecessor [id] records, read straight off the stored record.
+  /// The enrollment that APPROVED [id], read straight off the stored record.
+  ///
+  /// Not the enrollment [id] replaced. A retrofit produces a PEER — the same
+  /// principal re-keyed — so its successor inherits this value from its
+  /// predecessor rather than naming it, and revocation therefore does not
+  /// travel the replacement edge at all.
   ///
   /// Deliberately NOT via [getEnrollmentByFullKey]: that treats an elapsed ttl
   /// as a reason to DELETE the record, and a link being walked during a
@@ -758,24 +763,24 @@ class EnrollmentManager {
   /// within tens of seconds of expiring and this read then throws like any
   /// other absent key. Crossing an expired link is therefore a window, not a
   /// property. See [descendantsOf].
-  Future<String?> _predecessorIdOf(String id, Map<String, String?> memo) async {
+  Future<String?> _approverIdOf(String id, Map<String, String?> memo) async {
     if (memo.containsKey(id)) return memo[id];
-    String? predecessorId;
+    String? approverId;
     try {
       final AtData? record = await keyStore.get(buildEnrollmentKey(id));
       final String? raw = record?.data;
       if (raw != null) {
-        predecessorId =
-            EnrollDataStoreValue.fromJson(jsonDecode(raw)).parentEnrollmentId;
+        approverId = EnrollDataStoreValue.fromJson(jsonDecode(raw))
+            .approvedByEnrollmentId;
       }
     } on KeyNotFoundException {
       // Genuinely absent: this chain ends here and no other.
-      predecessorId = null;
+      approverId = null;
     } on FormatException catch (e) {
       // Present but undecodable. Same outcome, but it is not routine.
       logger.severe('Enrollment $id does not decode; treating it as the end '
           'of the chain it is in: $e');
-      predecessorId = null;
+      approverId = null;
     }
     // A STORE fault is deliberately NOT caught. Swallowing it would end the
     // chain silently, drop every enrollment behind this link out of the
@@ -783,8 +788,8 @@ class EnrollmentManager {
     // the memo would then serve that answer to every other candidate whose
     // chain runs through this id. Before this walk existed the same fault
     // aborted the revoke and wrote nothing; failing closed keeps that.
-    memo[id] = predecessorId;
-    return predecessorId;
+    memo[id] = approverId;
+    return approverId;
   }
 
   /// Every enrollment that reaches [enrollmentId] by following predecessor
@@ -839,18 +844,18 @@ class EnrollmentManager {
     for (final ek in await getAllEnrollmentKeys()) {
       final String candidate = getIdFromKey(ek);
       if (candidate == enrollmentId) continue;
-      // `seen` terminates the climb. The enroll verb cannot build a cycle — a
-      // successor is minted with a fresh id and takes the authenticating
-      // connection's as its predecessor — but a walk over stored data should
-      // not have to rely on that to terminate.
+      // `seen` terminates the climb. The enroll verb cannot build a cycle — an
+      // approver is an already-approved enrollment and the one it admits is
+      // minted with a fresh id — but a walk over stored data should not have
+      // to rely on that to terminate.
       final Set<String> seen = {candidate};
-      String? current = await _predecessorIdOf(candidate, memo);
+      String? current = await _approverIdOf(candidate, memo);
       while (current != null && seen.add(current)) {
         if (current == enrollmentId) {
           found.add(candidate);
           break;
         }
-        current = await _predecessorIdOf(current, memo);
+        current = await _approverIdOf(current, memo);
       }
     }
     return found;

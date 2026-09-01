@@ -807,6 +807,119 @@ void main() {
   ///
   /// The guard is about DEPTH along the predecessor edge, never breadth — see
   /// the control below.
+  /// Revocation cascades along the APPROVAL edge and NOT along the
+  /// replacement edge. A retrofit produces a peer — the same principal
+  /// re-keyed — so revoking a superseded credential must not take the one that
+  /// superseded it, or an operator retiring an old key kills the device's
+  /// current one.
+  group('the cascade follows approval, not replacement', () {
+    Future<Response> revokeAsPrimary(String targetId) async {
+      inboundConnection.metaData
+        ..isAuthenticated = true
+        ..authType = AuthType.apkam;
+      inboundConnection.metadata.enrollmentId = etu.primaryEnId;
+      final r = Response();
+      await etu.evh.processVerb(
+          r,
+          getVerbParam(VerbSyntax.enroll,
+              'enroll:revoke:{"enrollmentId":"$targetId"}'),
+          inboundConnection);
+      return r;
+    }
+
+    test('enroll:approve records the enrollment that approved', () async {
+      // The edge the cascade walks, written by the production path rather
+      // than by a fixture. Without this the cascade tests stand entirely on
+      // records the tests wrote themselves.
+      final approverId = (await etu.createEnrollments(n: 1)).$1.first;
+      final pendingId = await etu.createPendingEnrollment(
+          appName: 'admitted-app',
+          deviceName: 'admitted-device',
+          namespaces: {'test': 'r'},
+          apkamKeysExpiryDuration: null);
+      await etu.approveEnrollment(etu.primaryEnId, pendingId);
+
+      expect((await enMgr.getEnrollmentById(pendingId)).approvedByEnrollmentId,
+          etu.primaryEnId,
+          reason: 'read off the CONNECTION, so an approver cannot name '
+              'somebody else as the admitting party');
+      expect(
+          (await enMgr.getEnrollmentById(approverId)).approvedByEnrollmentId,
+          etu.primaryEnId,
+          reason: 'control: the fixture\'s own enrollments carry it too, so '
+              'the assertion above is not satisfied by a field nothing sets');
+    });
+
+    test('a retrofit INHERITS its predecessor\'s approver', () async {
+      // The successor is a peer, so it stands where its predecessor stood.
+      // Naming the predecessor instead — or leaving it null — would make a
+      // retrofit an escape hatch: revoking the approver would reach the
+      // predecessor and stop, while the successor went on authenticating.
+      final predecessorId = (await etu.createEnrollments(n: 1)).$1.first;
+      final r = await selfEnroll(
+          predecessorId: predecessorId,
+          appName: 'inherit-app',
+          deviceName: 'inherit-device');
+      expect(r.isError, false, reason: '${r.errorMessage}');
+      final successorId = jsonDecode(r.data!)['enrollmentId'] as String;
+
+      final successor = await enMgr.getEnrollmentById(successorId);
+      expect(successor.approvedByEnrollmentId, etu.primaryEnId,
+          reason: 'whoever admitted the predecessor admitted this');
+      expect(successor.parentEnrollmentId, predecessorId,
+          reason: 'control: the replacement edge is still recorded, because '
+              'the retrofit cap needs to know what it replaced');
+    });
+
+    test('revoking a predecessor does NOT revoke what replaced it', () async {
+      final predecessorId = (await etu.createEnrollments(n: 1)).$1.first;
+      final r = await selfEnroll(
+          predecessorId: predecessorId,
+          appName: 'peer-app',
+          deviceName: 'peer-device');
+      expect(r.isError, false, reason: '${r.errorMessage}');
+      final successorId = jsonDecode(r.data!)['enrollmentId'] as String;
+
+      final rev = await revokeAsPrimary(predecessorId);
+      expect(rev.isError, false, reason: '${rev.errorMessage}');
+
+      expect((await enMgr.getEnrollmentById(predecessorId)).approval?.state,
+          EnrollmentStatus.revoked.name,
+          reason: 'precondition: the predecessor really was revoked');
+      expect((await enMgr.getEnrollmentById(successorId)).approval?.state,
+          EnrollmentStatus.approved.name,
+          reason: 'the successor is a PEER, not a child: retiring the old key '
+              'must not kill the credential that replaced it');
+      expect(jsonDecode(rev.data!).containsKey('cascadedEnrollmentIds'), false,
+          reason: 'and nothing was reported as cascaded');
+    });
+
+    test('the successor is still in its APPROVER\'s cascade', () async {
+      // The other half, and the reason inheritance matters. The successor
+      // stands where its predecessor stood, so revoking whoever admitted the
+      // predecessor still reaches it — a retrofit is not an escape hatch from
+      // revocation, it just is not reached by revoking the credential it
+      // replaced.
+      final predecessorId = (await etu.createEnrollments(n: 1)).$1.first;
+      final r = await selfEnroll(
+          predecessorId: predecessorId,
+          appName: 'reach-app',
+          deviceName: 'reach-device');
+      expect(r.isError, false, reason: '${r.errorMessage}');
+      final successorId = jsonDecode(r.data!)['enrollmentId'] as String;
+
+      final reachable = await enMgr.descendantsOf(etu.primaryEnId);
+      expect(reachable, contains(successorId),
+          reason: 'the successor inherited the primary as its approver');
+      expect(reachable, contains(predecessorId),
+          reason: 'control: so does the predecessor, which the primary '
+              'admitted directly');
+      expect(await enMgr.descendantsOf(predecessorId), isNot(contains(successorId)),
+          reason: 'and the predecessor itself reaches nothing — that is the '
+              'replacement edge, which no longer cascades');
+    });
+  });
+
   group('a retrofit is a once-off', () {
     test('a successor may not itself retrofit', () async {
       final rootId = (await etu.createEnrollments(n: 1)).$1.first;
@@ -1194,38 +1307,77 @@ void main() {
           status);
     }
 
-    /// [rootId] → s0 → s1 → …, links along the `parentEnrollmentId` edge.
+    /// A record written straight to the store, approved BY [approverId].
+    Future<void> mintApprovedBy(String id, String? approverId,
+        {EnrollmentStatus status = EnrollmentStatus.approved,
+        Duration? ttl}) async {
+      final v = EnrollDataStoreValue('s', 'app-$id', 'device-$id', 'pk')
+        ..namespaces = {'*': 'rw', '__manage': 'rw'}
+        ..approval = EnrollApproval(status.name)
+        ..approvedByEnrollmentId = approverId;
+      await enMgr.put(
+          id,
+          AtData()
+            ..data = jsonEncode(v.toJson())
+            ..metaData = (AtMetaData()..ttl = ttl?.inMilliseconds ?? 0),
+          status);
+    }
+
+    /// An enrollment admitted by [approverId] through the real
+    /// `enroll:request` + `enroll:approve` path, so the approval edge is
+    /// recorded by production code rather than written by the fixture.
+    Future<String> admittedBy(String approverId,
+        {Map<String, String> namespaces = const {'test': 'r'},
+        String suffix = '',
+        Map<String, dynamic>? apsk}) async {
+      final id = await etu.createPendingEnrollment(
+          appName: 'admitted$suffix',
+          deviceName: 'device$suffix',
+          namespaces: namespaces,
+          apkamKeysExpiryDuration: null,
+          apsk: apsk);
+      await etu.approveEnrollment(approverId, id);
+      return id;
+    }
+
+    /// An approved enrollment that can itself approve — it holds `__manage`.
+    /// `etu.createEnrollments` grants only an app namespace and `test`, so an
+    /// enrollment from there cannot act as an approver at all.
+    Future<String> anApprover({String suffix = ''}) async {
+      final id = await etu.createPendingEnrollment(
+          appName: 'approver$suffix',
+          deviceName: 'device$suffix',
+          namespaces: {'__manage': 'rw', 'test': 'r'},
+          apkamKeysExpiryDuration: null);
+      await etu.approveEnrollment(etu.primaryEnId, id);
+      return id;
+    }
+
+    /// [rootId] → a0 → a1 → …, links along the APPROVAL edge: each enrollment
+    /// admitted by the one before it.
     ///
-    /// The FIRST link is minted by the verb, because that is the shape the
-    /// product still produces. Deeper links are written straight to the store,
-    /// because a retrofit is now a once-off: `enroll:request` refuses to
-    /// replace an enrollment that is itself a replacement, so a chain deeper
-    /// than one link can no longer be built over the wire at all. What these
-    /// tests exercise is the cascade's behaviour over STORED data — which
-    /// includes records written by a server that predates that guard, and is
-    /// the reason the transitive walk is still there.
+    /// This is the edge revocation cascades along. The replacement edge does
+    /// NOT cascade — a retrofit produces a peer, the same principal re-keyed,
+    /// so revoking a superseded credential must not take the one that
+    /// superseded it.
+    ///
+    /// Written straight to the store rather than driven through
+    /// `enroll:approve`, because what these tests exercise is the cascade's
+    /// behaviour over stored data. That the approve path RECORDS the edge is
+    /// pinned separately, over the verb.
     Future<List<String>> chainFrom(String rootId, int depth) async {
       final ids = <String>[];
       var current = rootId;
       for (var i = 0; i < depth; i++) {
-        if (i == 0) {
-          final r = await selfEnroll(
-              predecessorId: current,
-              appName: 'chain-app-$i',
-              deviceName: 'chain-device-$i');
-          expect(r.isError, false, reason: '${r.errorMessage}');
-          current = jsonDecode(r.data!)['enrollmentId'] as String;
-        } else {
-          final id = 'chain-link-$i';
-          await mintUnder(id, current);
-          current = id;
-        }
+        final id = 'chain-link-$i';
+        await mintApprovedBy(id, current);
+        current = id;
         ids.add(current);
       }
       return ids;
     }
 
-    test('a successor is revoked with the enrollment it replaced', () async {
+    test('an enrollment is revoked with the one that APPROVED it', () async {
       final chain = await chainFrom(etu.primaryEnId, 2);
       final r = await revoke(etu.primaryEnId, chain[0]);
       expect(r.isError, false, reason: '${r.errorMessage}');
@@ -1254,9 +1406,10 @@ void main() {
       // approved ones only, a revoked enrollment part-way down a chain would
       // conceal the approved enrollment behind it, which is precisely the
       // orphan being removed.
-      await mintUnder('link-a', null);
-      await mintUnder('link-b', 'link-a', status: EnrollmentStatus.revoked);
-      await mintUnder('link-c', 'link-b');
+      await mintApprovedBy('link-a', null);
+      await mintApprovedBy('link-b', 'link-a',
+          status: EnrollmentStatus.revoked);
+      await mintApprovedBy('link-c', 'link-b');
 
       final r = await revoke(etu.primaryEnId, 'link-a');
       expect(r.isError, false, reason: '${r.errorMessage}');
@@ -1270,9 +1423,10 @@ void main() {
       // whoever mints it — a never-expiring root may mint a short-lived
       // successor — so it was reachable through the very feature the cascade
       // exists to contain.
-      await mintUnder('exp-root', null);
-      await mintUnder('exp-mid', 'exp-root', ttl: Duration(milliseconds: 1));
-      await mintUnder('exp-leaf', 'exp-mid');
+      await mintApprovedBy('exp-root', null);
+      await mintApprovedBy('exp-mid', 'exp-root',
+          ttl: Duration(milliseconds: 1));
+      await mintApprovedBy('exp-leaf', 'exp-mid');
       await Future.delayed(Duration(milliseconds: 30));
 
       expect(
@@ -1338,16 +1492,15 @@ void main() {
       // the connection. Unfolded, the record is still written `revoked` while
       // the descendant walk returns nothing and every refusal goes vacuous —
       // the revoke reports success and cascades to no one.
-      final predecessorId = (await etu.createEnrollments(n: 1)).$1.first;
-      final r0 = await selfEnroll(predecessorId: predecessorId);
-      final successorId = jsonDecode(r0.data!)['enrollmentId'] as String;
+      final approverId = await anApprover(suffix: '-case');
+      final admittedId = await admittedBy(approverId, suffix: '-case');
 
-      final r = await revoke(etu.primaryEnId, predecessorId.toUpperCase());
+      final r = await revoke(etu.primaryEnId, approverId.toUpperCase());
       expect(r.isError, false, reason: '${r.errorMessage}');
-      expect(jsonDecode(r.data!)['cascadedEnrollmentIds'], [successorId],
+      expect(jsonDecode(r.data!)['cascadedEnrollmentIds'], [admittedId],
           reason: 'the cascade must run for a mixed-case spelling exactly as '
               'it does for the canonical one');
-      expect(await statusOf(successorId), EnrollmentStatus.revoked.name);
+      expect(await statusOf(admittedId), EnrollmentStatus.revoked.name);
     });
 
     test('a short-lived root may not revoke the last root that outlives it',
@@ -1413,7 +1566,7 @@ void main() {
               'or it reports the atSign safe at the moment it is stranded');
     });
 
-    test('un-revoking a descendant is refused while its predecessor is not '
+    test('un-revoking a descendant is refused while its approver is not '
         'approved', () async {
       final chain = await chainFrom(etu.primaryEnId, 2);
       await revoke(etu.primaryEnId, chain[0]);
@@ -1427,7 +1580,7 @@ void main() {
               'exactly the orphan the cascade removed');
     });
 
-    test('…and is allowed once the predecessor is back', () async {
+    test('…and is allowed once the approver is back', () async {
       final chain = await chainFrom(etu.primaryEnId, 2);
       await revoke(etu.primaryEnId, chain[0]);
 
@@ -1436,7 +1589,7 @@ void main() {
       expect(await statusOf(chain[1]), EnrollmentStatus.approved.name);
     });
 
-    test('an enrollment that replaced nothing is untouched by the guard',
+    test('an enrollment nothing approved is untouched by the guard',
         () async {
       // `parentEnrollmentId` is set only by a retrofit, so most enrollments
       // have none — and "its predecessor is not approved" is vacuously TRUE
@@ -1449,28 +1602,28 @@ void main() {
       expect(await statusOf(ordinary), EnrollmentStatus.approved.name);
     });
 
-    test('a predecessor that no longer exists does not bar un-revoking',
+    test('an approver that no longer exists does not bar un-revoking',
         () async {
-      await mintUnder('orphan', 'a-predecessor-since-deleted',
+      await mintApprovedBy('orphan', 'an-approver-since-deleted',
           status: EnrollmentStatus.revoked);
       await etu.unrevokeEnrollment(etu.primaryEnId, 'orphan');
       expect(await statusOf('orphan'), EnrollmentStatus.approved.name);
     });
 
-    test('approving a successor of an unapproved predecessor is refused',
+    test('approving an enrollment whose approver is unapproved is refused',
         () async {
       // Synthetic, and deliberately so: a retrofit is auto-approved, so no
       // pending enrollment carries a predecessor today and this cannot be
       // reached through the verbs. It pins the invariant at the OTHER
       // transition into an active state, so the guard is already in place if
       // that ever changes.
-      await mintUnder('dead-predecessor', null,
+      await mintApprovedBy('dead-approver', null,
           status: EnrollmentStatus.revoked);
-      await mintUnder('pending-successor', 'dead-predecessor',
+      await mintApprovedBy('pending-admitted', 'dead-approver',
           status: EnrollmentStatus.pending);
 
       await expectLater(
-          () => etu.approveEnrollment(etu.primaryEnId, 'pending-successor'),
+          () => etu.approveEnrollment(etu.primaryEnId, 'pending-admitted'),
           throwsA(isA<IllegalStateException>()));
     });
 
@@ -1502,21 +1655,15 @@ void main() {
       // enrollment and no other.
       // Both ordinary enrollments first: selfEnroll leaves the connection
       // authenticated as the predecessor, which cannot then issue an OTP.
-      final created = (await etu.createEnrollments(n: 2)).$1;
-      final predecessorId = created[0];
-      final bystanderId = created[1];
+      final predecessorId = await anApprover(suffix: '-park');
+      final bystanderId = await anApprover(suffix: '-bystander');
 
-      final r = await selfEnroll(
-          predecessorId: predecessorId,
+      final successorId = await admittedBy(predecessorId,
+          suffix: '-park',
           apsk: {'signingPublicKey': 'k', 'signingAlgo': 'mldsa65'});
-      final successorId = jsonDecode(r.data!)['enrollmentId'] as String;
-      final rb = await selfEnroll(
-          predecessorId: bystanderId,
-          appName: 'bystander',
-          deviceName: 'bystander',
+      final bystanderSuccessorId = await admittedBy(bystanderId,
+          suffix: '-bystander',
           apsk: {'signingPublicKey': 'k2', 'signingAlgo': 'mldsa65'});
-      final bystanderSuccessorId =
-          jsonDecode(rb.data!)['enrollmentId'] as String;
 
       final approvedKey = 'public:_apsk.$successorId'
           '.${EnrollmentConstants.perEnrollmentApproved}$alice';
@@ -1541,18 +1688,19 @@ void main() {
     });
 
     test('a cascaded revoke does not move the expiry it found', () async {
-      await mintUnder('exp-predecessor', null);
-      await mintUnder('exp-successor', 'exp-predecessor', ttl: Duration(days: 2));
-      final ek = enMgr.buildEnrollmentKey('exp-successor');
+      await mintApprovedBy('exp-approver', null);
+      await mintApprovedBy('exp-admitted', 'exp-approver',
+          ttl: Duration(days: 2));
+      final ek = enMgr.buildEnrollmentKey('exp-admitted');
       final before = (await keyValueStore.get(ek))!.metaData!.expiresAt;
 
       // Long enough that a re-derived `expiresAt = now + ttl` lands visibly
       // later than the stored one. Without it the drift is the duration of
       // the call, which can be under a millisecond and round to equal.
       await Future.delayed(Duration(milliseconds: 50));
-      await revoke(etu.primaryEnId, 'exp-predecessor');
+      await revoke(etu.primaryEnId, 'exp-approver');
 
-      expect(await statusOf('exp-successor'), EnrollmentStatus.revoked.name,
+      expect(await statusOf('exp-admitted'), EnrollmentStatus.revoked.name,
           reason: 'precondition: the cascade actually wrote this record');
       expect((await keyValueStore.get(ek))!.metaData!.expiresAt, before,
           reason: 'a revoke says nothing about expiry, and the metadata '
@@ -1867,11 +2015,13 @@ void main() {
 
       test('an enrollment the CASCADE revoked is reported on its own',
           () async {
-        final holders = (await etu.createEnrollments(n: 2)).$1;
-        // A retrofit of holders[1]; it carries its predecessor's grants
-        // exactly, so it holds 'test' too.
-        final r = await selfEnroll(predecessorId: holders[1]);
-        final successorId = jsonDecode(r.data!)['enrollmentId'] as String;
+        final holders = [
+          (await etu.createEnrollments(n: 1)).$1.first,
+          await anApprover(suffix: '-infons'),
+        ];
+        // An enrollment ADMITTED by holders[1], holding 'test' as it does, so
+        // revoking holders[1] cascades to it.
+        final successorId = await admittedBy(holders[1], suffix: '-infons');
 
         await revoke(etu.primaryEnId, holders[1]);
 

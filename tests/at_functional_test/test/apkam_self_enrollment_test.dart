@@ -133,6 +133,21 @@ void main() {
             'this drives never happens');
   }
 
+  /// A connection APKAM-authenticated as [enrollmentId], so that enrollment
+  /// can itself act as the approver in [createApprovedEnrollment] — which
+  /// approves over whatever connection it is handed. That is how an APPROVAL
+  /// edge is built over the wire: an owner connection carries no enrollment
+  /// id, so anything it approves records no approver.
+  Future<OutboundConnectionFactory> connectionAs(String enrollmentId) async {
+    OutboundConnectionFactory c = await newConnection();
+    expect(
+        (await c.authenticateConnection(
+                authType: AuthType.apkam, enrollmentId: enrollmentId))
+            .trim(),
+        'data:success');
+    return c;
+  }
+
   /// [selfEnroll] for the cases that are expected to succeed.
   /// [namespaces] is optional, mirroring the wire: a retrofit that omits
   /// it inherits its predecessor's grants, and one that states them must
@@ -201,15 +216,21 @@ void main() {
           'data:success');
     });
 
-    test('the successor records what it replaced, which is what the cascade '
-        'walks', () async {
+    test('the successor records what it replaced, and inherits its approver',
+        () async {
       OutboundConnectionFactory owner = await ownerConnection();
       String predecessorId =
           await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
       String successorId = await selfEnrollId(predecessorId);
 
       final successor = await enrollmentRecord(owner, successorId);
-      expect(successor.value['parentEnrollmentId'], predecessorId);
+      expect(successor.value['parentEnrollmentId'], predecessorId,
+          reason: 'the replacement edge, which the retrofit cap needs — it '
+              'does NOT cascade');
+      expect(successor.value['approvedByEnrollmentId'],
+          isNot(predecessorId),
+          reason: 'a retrofit produces a PEER, so the successor stands where '
+              'its predecessor stood rather than being admitted by it');
       expect(successor.value['namespaces'], {'wavi': 'rw'},
           reason: 'the successor carries its predecessor\'s grants, so it '
               'holds rw here and not the r an earlier contract let a '
@@ -649,15 +670,18 @@ void main() {
       }
     }
 
-    test('a successor stops authenticating when the enrollment it replaced is '
+    test('a successor KEEPS authenticating when the enrollment it replaced is '
         'revoked', () async {
+      // Behaviour CHANGED; this test previously asserted the opposite. A
+      // retrofit produces a PEER — the same principal re-keyed — not a child,
+      // so revoking the superseded credential must not take the one that
+      // superseded it. An operator retiring an old key would otherwise kill
+      // the device's current one.
       OutboundConnectionFactory owner = await ownerConnection();
       String predecessorId =
           await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
       String successorId = await selfEnrollId(predecessorId);
 
-      // The control. Without it a failure after the revoke could equally be a
-      // successor that never worked.
       expect(await tryAuthenticateAs(successorId), 'data:success',
           reason: 'precondition: the successor authenticates while its '
               'predecessor stands');
@@ -666,16 +690,19 @@ void main() {
           .sendRequestToServer('enroll:revoke:{"enrollmentId":"$predecessorId"}');
       expect(response, startsWith('data:'), reason: response);
       expect(
-          jsonDecode(response.replaceFirst('data:', ''))[
-              'cascadedEnrollmentIds'],
-          [successorId],
-          reason: 'the revoke reports what it took with it');
+          jsonDecode(response.replaceFirst('data:', ''))
+              .containsKey('cascadedEnrollmentIds'),
+          false,
+          reason: 'the replacement edge does not cascade, so the revoke took '
+              'nothing with it');
 
-      expect(await stateOf(owner, successorId), 'revoked');
-      expect(await tryAuthenticateAs(successorId), isNot('data:success'),
-          reason: 'a successor that still authenticates after the revocation '
-              'of what it replaced defeats revocation through the very '
-              'feature that created it');
+      expect(await stateOf(owner, predecessorId), 'revoked',
+          reason: 'control: the named target really was revoked, so a passing '
+              'assertion below is not a revoke that did nothing');
+      expect(await stateOf(owner, successorId), 'approved');
+      expect(await tryAuthenticateAs(successorId), 'data:success',
+          reason: 'the successor is a peer of what it replaced, not a '
+              'descendant of it');
     });
 
     test('a successor may not itself retrofit', () async {
@@ -709,32 +736,34 @@ void main() {
     test('un-revoking a descendant is refused while what it replaced stays '
         'revoked', () async {
       OutboundConnectionFactory owner = await ownerConnection();
-      String predecessorId =
-          await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
-      String successorId = await selfEnrollId(predecessorId);
+      String approverId = await createApprovedEnrollment(owner,
+          namespaces: {'__manage': 'rw', 'wavi': 'rw'});
+      String admittedId = await createApprovedEnrollment(
+          await connectionAs(approverId),
+          namespaces: {'wavi': 'rw'});
       await owner
-          .sendRequestToServer('enroll:revoke:{"enrollmentId":"$predecessorId"}');
-      expect(await stateOf(owner, successorId), 'revoked', reason: 'precondition');
+          .sendRequestToServer('enroll:revoke:{"enrollmentId":"$approverId"}');
+      expect(await stateOf(owner, admittedId), 'revoked', reason: 'precondition');
 
       String refused = await owner
-          .sendRequestToServer('enroll:unrevoke:{"enrollmentId":"$successorId"}');
+          .sendRequestToServer('enroll:unrevoke:{"enrollmentId":"$admittedId"}');
       expect(refused, startsWith('error:'),
-          reason: 'without this the cascade is one-way: un-revoking a '
-              'descendant while its predecessor stays revoked restores the '
-              'orphan the cascade removed. Got: $refused');
+          reason: 'without this the cascade is one-way: un-revoking an '
+              'enrollment while the one that APPROVED it stays revoked '
+              'restores the orphan the cascade removed. Got: $refused');
 
-      // The control: once the predecessor is back, the descendant may be too.
+      // The control: once the approver is back, what it admitted may be too.
       // Otherwise the refusal above would be satisfied by an un-revoke that
       // never works at all.
       expect(
           await owner.sendRequestToServer(
-              'enroll:unrevoke:{"enrollmentId":"$predecessorId"}'),
+              'enroll:unrevoke:{"enrollmentId":"$approverId"}'),
           startsWith('data:'));
       expect(
           await owner.sendRequestToServer(
-              'enroll:unrevoke:{"enrollmentId":"$successorId"}'),
+              'enroll:unrevoke:{"enrollmentId":"$admittedId"}'),
           startsWith('data:'));
-      expect(await stateOf(owner, successorId), 'approved');
+      expect(await stateOf(owner, admittedId), 'approved');
     });
 
     test('a connection already open on a cascaded enrollment is dropped',
@@ -744,16 +773,13 @@ void main() {
       // authenticated connection would go on working in the meantime, which
       // is most of what the cascade exists to stop.
       OutboundConnectionFactory owner = await ownerConnection();
-      String predecessorId =
-          await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
-      String successorId = await selfEnrollId(predecessorId);
+      String approverId = await createApprovedEnrollment(owner,
+          namespaces: {'__manage': 'rw', 'wavi': 'rw'});
+      String successorId = await createApprovedEnrollment(
+          await connectionAs(approverId),
+          namespaces: {'wavi': 'rw'});
 
-      OutboundConnectionFactory successor = await newConnection();
-      expect(
-          (await successor.authenticateConnection(
-                  authType: AuthType.apkam, enrollmentId: successorId))
-              .trim(),
-          'data:success');
+      OutboundConnectionFactory successor = await connectionAs(successorId);
 
       String key = 'drop-probe-${Uuid().v4().hashCode}.wavi$atSign';
       // The control, on this very connection and this very command: without
@@ -765,7 +791,7 @@ void main() {
               'authorised for this key');
 
       await owner
-          .sendRequestToServer('enroll:revoke:{"enrollmentId":"$predecessorId"}');
+          .sendRequestToServer('enroll:revoke:{"enrollmentId":"$approverId"}');
 
       String after;
       try {

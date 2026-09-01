@@ -115,6 +115,34 @@ void main() {
           isNull);
     });
 
+    test('approvedByEnrollmentId round-trips under its at-rest name', () {
+      // The edge revocation cascades along. Its writer and reader are the same
+      // hand-maintained pair in the .g.dart, so a symmetric rename passes
+      // every test reading it through the typed getter while every stored
+      // record silently loses its approver — and drops out of the cascade,
+      // which is exactly the failure the field exists to prevent.
+      final v = EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey')
+        ..approvedByEnrollmentId = 'approver-abc';
+
+      expect(v.toJson()['approvedByEnrollmentId'], 'approver-abc',
+          reason: 'raw literal: the key name is what a record written by an '
+              'earlier server is read back through');
+      expect(
+          EnrollDataStoreValue.fromJson(v.toJson()).approvedByEnrollmentId,
+          'approver-abc');
+
+      final unapproved =
+          EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey');
+      expect(unapproved.toJson().containsKey('approvedByEnrollmentId'), false,
+          reason: 'omitted rather than written null, so a record from before '
+              'this field existed reads back as "nothing here admitted it" '
+              'and is simply never cascaded to');
+      expect(
+          EnrollDataStoreValue.fromJson(unapproved.toJson())
+              .approvedByEnrollmentId,
+          isNull);
+    });
+
     test('a stored record carrying revokedAt still decodes', () {
       // Records written before the revocation history existed carry a
       // `revokedAt` the class no longer has. `fromJson` reads named keys, so

@@ -495,6 +495,15 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // stolen keyfile must not spawn a successor that survives the
       // revocation of what it replaced. The revoke path walks this edge.
       enrollmentValue.parentEnrollmentId = predecessorId;
+      // A retrofit produces a PEER of its predecessor, not a child: the same
+      // principal re-keyed. So it takes the predecessor's place in the
+      // approval graph as well as its grants — whoever admitted the
+      // predecessor admitted this. Leaving it null would make a retrofit an
+      // escape hatch from the approval cascade: revoking the approver would
+      // reach the predecessor and stop, while the successor it had just been
+      // replaced by went on authenticating.
+      enrollmentValue.approvedByEnrollmentId =
+          predecessor.approvedByEnrollmentId;
       // The successor inherits the predecessor's key-expiry posture unless
       // the request states its own. Time is a separate axis from grants: the
       // successor carries the predecessor's grants exactly, but it may hold a
@@ -789,7 +798,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         }
       }
     } else if (operation == 'approve' || operation == 'unrevoke') {
-      await _refuseIfPredecessorNotApproved(enMgr, enId, enVal, operation);
+      await _refuseIfApproverNotApproved(enMgr, enId, enVal, operation);
     }
 
     // The cascade goes FIRST, before the target's own write. The order is
@@ -844,6 +853,17 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // just stopped working.
     if (operation == 'revoke') {
       await enMgr.recordRevocationEvents([revocationEvent!]);
+    }
+
+    // Record WHO approved, so a later revocation of the approver can take the
+    // enrollments it admitted with it. Read off the connection rather than the
+    // request: an approver cannot name someone else as the admitting party.
+    // Null over an owner connection (CRAM or legacy-PKAM), which carries no
+    // enrollment id — there is nothing there to revoke later.
+    if (operation == 'approve') {
+      final String? approverId = inboundConnectionMetadata.enrollmentId;
+      enVal.approvedByEnrollmentId =
+          (approverId != null && approverId.isNotEmpty) ? approverId : null;
     }
 
     // Update the enrollment status against the enrollment key in keystore.
@@ -911,51 +931,51 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   }
 
   /// Refuses an operation that would make [enId] active while the enrollment
-  /// it replaced is not.
+  /// that APPROVED it is not.
   ///
   /// This is what stops the revoke cascade being one-way. `enroll:unrevoke` on
-  /// a descendant would otherwise resurrect exactly the orphan the cascade
-  /// removed.
+  /// an enrollment the cascade swept up would otherwise resurrect exactly the
+  /// orphan it removed.
   ///
-  /// `approve` is checked for the same reason, and today it CANNOT reach the
-  /// refusal: `parentEnrollmentId` is set only in the APKAM self-enrollment
-  /// branch, which auto-approves, so no enrollment carrying a predecessor is
-  /// ever pending and `enroll:approve` on one is already refused as a state
-  /// error. The check is here so the invariant is total — an enrollment does
-  /// not become active while what it replaced is inactive — at every
-  /// transition into an active state rather than at the one that happens to be
-  /// reachable.
+  /// It follows the approval edge, not the replacement one. Revoking an
+  /// enrollment does not revoke what replaced it — a retrofit produces a peer,
+  /// the same principal re-keyed — so there is no orphan to resurrect there
+  /// and nothing to refuse.
+  ///
+  /// `approve` is checked for the same reason, so the invariant is total: an
+  /// enrollment does not become active while the enrollment that admitted it
+  /// is inactive, at every transition into an active state rather than only
+  /// the one that happens to be reachable.
   ///
   /// Two things are always allowed, for DIFFERENT reasons — they were once
   /// documented here as one, which credited the second with the first's job.
   ///
-  /// A null [EnrollDataStoreValue.parentEnrollmentId] is the ordinary approver
-  /// path, which is most enrollments; the field is set only by a retrofit.
-  /// That check alone is what stops the rule barring every enrollment ever
-  /// made through an approver.
+  /// A null [EnrollDataStoreValue.approvedByEnrollmentId] means nothing here
+  /// admitted it: an enrollment approved over an OWNER connection, or one
+  /// written before the field existed. That check alone is what stops the rule
+  /// barring every enrollment an owner ever admitted.
   ///
-  /// A predecessor that no longer EXISTS is separate, and narrower: it can
-  /// only be a retrofit successor whose predecessor was deleted. It is
+  /// An approver that no longer EXISTS is separate, and narrower. It is
   /// permitted because there is nothing left to compare against — but it does
-  /// mean `enroll:delete` on a middle link is a way to un-revoke what is
-  /// behind it, which is the same gap [EnrollmentManager.descendantsOf]
+  /// mean `enroll:delete` on an approver is a way to un-revoke what it
+  /// admitted, which is the same gap [EnrollmentManager.descendantsOf]
   /// documents for a deleted link.
-  Future<void> _refuseIfPredecessorNotApproved(EnrollmentManager enMgr,
+  Future<void> _refuseIfApproverNotApproved(EnrollmentManager enMgr,
       String enId, EnrollDataStoreValue enVal, String operation) async {
-    final String? predecessorId = enVal.parentEnrollmentId;
-    if (predecessorId == null) return;
-    final EnrollDataStoreValue predecessor;
+    final String? approverId = enVal.approvedByEnrollmentId;
+    if (approverId == null) return;
+    final EnrollDataStoreValue approver;
     try {
-      predecessor = await enMgr.getEnrollmentById(predecessorId);
+      approver = await enMgr.getEnrollmentById(approverId);
     } on KeyNotFoundException {
       return;
     }
-    final String? state = predecessor.approval?.state;
+    final String? state = approver.approval?.state;
     if (state == EnrollmentStatus.approved.name) return;
     throw IllegalStateException(
-        'Cannot $operation enrollment $enId: the enrollment it replaced '
-        '($predecessorId) is $state, and reactivating $enId would restore the '
-        'access that was withdrawn from $predecessorId');
+        'Cannot $operation enrollment $enId: the enrollment that approved it '
+        '($approverId) is $state, and reactivating $enId would restore the '
+        'access that was withdrawn from $approverId');
   }
 
   /// `enroll:update` — an approved enrollment amending its OWN record.
@@ -1820,7 +1840,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // middle link puts everything behind it permanently out of reach of a
     // later cascade. (Expiry severs a chain too, once the scheduled sweep
     // removes the record — see [EnrollmentManager.descendantsOf]. A delete is
-    // the half a caller chooses.) And [_refuseIfPredecessorNotApproved] permits an
+    // the half a caller chooses.) And [_refuseIfApproverNotApproved] permits an
     // enrollment whose predecessor no longer exists, so deleting that
     // predecessor is what makes the orphan un-revokable.
     final inboundConnectionMetadata =

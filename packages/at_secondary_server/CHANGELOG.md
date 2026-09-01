@@ -157,24 +157,34 @@
 
   The `revokedAt` field this replaces has been removed from the enrollment
   value. A record stored with one still decodes; re-encoding drops it.
-- feat: revoking an enrollment revokes everything that replaced it. Self
-  enrollment makes enrollments a graph — a retrofit's successor records what it
-  replaced — and a stolen keyfile can mint a successor before the theft is
-  noticed. A successor that outlived the revocation of what it replaced would
-  defeat revocation through the very feature that created it. The cascade is
-  TRANSITIVE, which this release stops being reachable over the wire but not
-  in stored data: a server predating the once-off refusal below could mint a
-  successor that itself self-enrolled, and a one-level cascade would leave the
-  one beyond it approved. It walks enrollments of every status, so a revoked
-  enrollment part-way down a retrofit chain cannot conceal the approved one
-  behind it, and it revokes only those currently approved.
+- feat: revoking an enrollment revokes everything it APPROVED, to any depth.
+  An enrollment holding `__manage` admits others, and one that is revoked as
+  compromised must not leave everything it admitted authenticating. The
+  cascade is TRANSITIVE — an enrollment it admitted may have admitted more —
+  and walks enrollments of every status, so a revoked enrollment part-way down
+  cannot conceal the approved one behind it; only those currently approved are
+  revoked. Depth costs nothing: one keystore pass builds the whole map and the
+  walk is then in memory. Connections held by cascaded enrollments are dropped
+  with the target's.
 
-  ⚠️ It follows the REPLACEMENT edge only. An enrollment that merely APPROVED
-  another is not its predecessor and is not swept up — no approver edge is
-  stored on the record, so approval depth is unbounded and invisible to this.
-  Depth costs nothing: one keystore pass builds the whole map and the walk is
-  then in memory. Connections held by cascaded enrollments are dropped with the
-  target's.
+  ⚠️ It follows the APPROVAL edge and NOT the replacement edge. Revoking an
+  enrollment does not revoke what RETROFITTED from it: a retrofit produces a
+  peer, the same principal re-keyed, so retiring a superseded credential must
+  not kill the one that superseded it — an operator tidying up an old key
+  would otherwise take the device's current credential with it. A stolen
+  keyfile that has retrofitted is revoked by naming the successor, which is
+  the live credential.
+
+  ⚠️ A retrofit's successor INHERITS its predecessor's approver rather than
+  naming the predecessor, so it stands where its predecessor stood and remains
+  reachable from whoever admitted it. Without that a retrofit would be an
+  escape hatch: revoking the approver would reach the predecessor and stop.
+
+  ⚠️ Forward-only. The approver is recorded from this release, so every
+  enrollment already on disk carries none and can never be cascaded to —
+  nothing recorded who approved it. Enrollments approved over an OWNER
+  connection (CRAM or legacy-PKAM) carry none either, deliberately: there is
+  no enrollment there to revoke.
 
   A revoke response now carries `cascadedEnrollmentIds` — the ids the cascade
   took — and only when the cascade took something, so an ordinary revoke
