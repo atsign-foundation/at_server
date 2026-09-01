@@ -8,6 +8,7 @@ import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:meta/meta.dart';
+import 'package:mutex/mutex.dart';
 import 'package:uuid/uuid.dart';
 
 /// Manages enrollment data in the secondary server.
@@ -41,6 +42,21 @@ enum RetrofitCapOutcome {
 class EnrollmentManager {
   final AtKeyValueStore<String, AtData, AtMetaData?> keyStore;
   final String atSign;
+
+  /// Serialises [armRetrofitCapOnFirstAuth] against itself.
+  ///
+  /// The decision it takes is read-modify-write over the WHOLE keystore: it
+  /// asks whether any unexpiring root would survive capping this predecessor,
+  /// and then caps. Two successors authenticating at once each ran that walk
+  /// before either wrote, so each saw the other's root still uncapped, each
+  /// concluded it was safe, and both roots were capped — leaving the atSign
+  /// with no root it could restore itself from. Two devices reconnecting
+  /// together is enough; the re-read before the write narrows the lost update
+  /// on the successor's own record and never re-takes the decision.
+  ///
+  /// One instance per atSign, built once by `AtSecondaryServerImpl`, so an
+  /// instance field is the whole of the contention.
+  final Mutex _capArmingLock = Mutex();
 
   static int cacheHits = 0;
   static int cacheMisses = 0;
@@ -1265,10 +1281,20 @@ class EnrollmentManager {
   ///   it, so the cap arms. The successor's own lifetime is never consulted,
   ///   which is what keeps the grace setting from working backwards.
   ///
+  /// Runs under [_capArmingLock], which is what makes "no other unexpiring
+  /// root survives" a safe thing to act on: the walk and the cap that follows
+  /// it are one critical section, so a concurrent arming cannot cap the very
+  /// root this one counted.
+  ///
   /// Never throws. This runs after an authentication has already succeeded, and
   /// a predecessor that outlives its window is a slower migration, while an
   /// authentication refused because bookkeeping failed is an outage.
   Future<void> armRetrofitCapOnFirstAuth(String successorEnrollmentId) async {
+    await _capArmingLock
+        .protect(() => _armRetrofitCapOnFirstAuth(successorEnrollmentId));
+  }
+
+  Future<void> _armRetrofitCapOnFirstAuth(String successorEnrollmentId) async {
     try {
       // The generation the decision is READ at, not the one it finishes at.
       // Everything below this line awaits, and an enrollment write landing in

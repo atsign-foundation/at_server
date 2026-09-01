@@ -306,6 +306,15 @@
   client that expected to authenticate without an enrollment id after
   onboarding will not be able to.
 
+- fix: two enrollments authenticating for the first time at once no longer cap
+  BOTH of an atSign's roots. Arming a retrofit's cap asks whether any
+  unexpiring root would survive capping this predecessor and then caps, which
+  is read-modify-write across the whole keystore. Run twice concurrently, both
+  walks finished before either write, so each saw the other's root still
+  uncapped and both were capped — leaving the atSign with no root it could
+  restore itself from. Two devices reconnecting together was enough. The walk
+  and the cap that follows it are now one critical section.
+
 - feat: retiring the housekeeping enrollment removes the legacy PKAM public
   key with it, which is what makes the atSign's oldest credential retirable at
   all. That key is what legacy authentication verifies against, and it cannot

@@ -2753,5 +2753,63 @@ void main() {
               'connection re-walks the lookup for a predecessor that is '
               'never coming back');
     });
+
+    test('two first-authentications at once do not cap BOTH of the roots',
+        () async {
+      // The decision is read-modify-write across the whole keystore: "would
+      // any unexpiring root survive capping this predecessor?", and then the
+      // cap. Run two at once and both walks finished before either write, so
+      // each saw the other's root still uncapped, each concluded it was safe,
+      // and both were capped — leaving the atSign with no root it could
+      // restore itself from. Two devices reconnecting together is enough, and
+      // the re-read before the write narrows the lost update on the
+      // successor's own record without ever re-taking the decision.
+      //
+      // SHORT-LIVED successors are load-bearing. An unexpiring successor is
+      // itself a root, so capping both predecessors would strand nothing and
+      // the interleaving would not matter.
+      final rootData =
+          await keyValueStore.get(enMgr.buildEnrollmentKey(etu.primaryEnId));
+      final secondRoot =
+          EnrollDataStoreValue.fromJson(jsonDecode(rootData!.data!));
+      const secondRootId = 'a-second-root';
+      await enMgr.put(
+          secondRootId,
+          AtData()..data = jsonEncode(secondRoot.toJson()),
+          EnrollmentStatus.approved);
+
+      Future<DateTime?> expiryOf(String id) async =>
+          (await keyValueStore.get(enMgr.buildEnrollmentKey(id)))
+              ?.metaData
+              ?.expiresAt;
+
+      expect(await expiryOf(etu.primaryEnId), isNull);
+      expect(await expiryOf(secondRootId), isNull);
+      expect(await enMgr.hasUnexpiringRootEnrollment({}), isTrue,
+          reason: 'precondition: the atSign has two unexpiring roots');
+
+      final (firstSuccessor, _) = await retrofitWithRealKey(etu.primaryEnId,
+          appName: 'rf-one', apkamKeysExpiryDuration: Duration(minutes: 1));
+      final (secondSuccessor, _) = await retrofitWithRealKey(secondRootId,
+          appName: 'rf-two', apkamKeysExpiryDuration: Duration(minutes: 1));
+
+      await Future.wait([
+        enMgr.armRetrofitCapOnFirstAuth(firstSuccessor),
+        enMgr.armRetrofitCapOnFirstAuth(secondSuccessor),
+      ]);
+
+      final capped = [
+        await expiryOf(etu.primaryEnId),
+        await expiryOf(secondRootId),
+      ].where((e) => e != null).length;
+
+      expect(capped, 1,
+          reason: 'one root retires and the other is spared: whichever walk '
+              'runs second has to see the first one\'s cap. Both capped is the '
+              'race; neither capped would mean retirement had stopped');
+      expect(await enMgr.hasUnexpiringRootEnrollment({}), isTrue,
+          reason: 'the atSign is never left without a root it can restore '
+              'itself from, whatever the interleaving');
+    });
   });
 }
