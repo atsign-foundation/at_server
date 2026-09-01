@@ -47,7 +47,7 @@ services:
 | 6379 | Redis | Optional, localhost only |
 | 9001 | supervisord web UI | Optional, localhost only |
 
-`extra_hosts` maps `vip.ve.atsign.zone` to localhost inside the container. Your host machine also needs to resolve it. `vip.ve.atsign.zone` already points to `127.0.0.1` via public DNS, so this works automatically if you are online. If you are offline, add it to `/etc/hosts`:
+`extra_hosts` maps `vip.ve.atsign.zone` to localhost inside the container. Your host machine also needs to resolve it to `127.0.0.1`. The public DNS record for `vip.ve.atsign.zone` points to a private IP (`10.64.64.64`), not localhost, so add it to `/etc/hosts`:
 
 ```
 127.0.0.1 vip.ve.atsign.zone
@@ -118,9 +118,12 @@ With `VIRTUALENV_BASE_PORT=30000`, services bind to:
 | Service | Port |
 |---------|------|
 | atDirectory | 30000 (`BASE`) |
-| atServers | 30001-30080 (`BASE+1` .. `BASE+80`) |
+| atServers | 30001-30040 (`BASE+1` .. `BASE+40`) |
+| (reserved) | 30041-30097 (`BASE+41` .. `BASE+97`) |
 | Root server HTTPS | 30098 (`BASE+98`) |
 | Redis | 30099 (`BASE+99`) |
+
+The entrypoint supports up to 80 atServers (`BASE+1` .. `BASE+80`) but only 40 are pre-provisioned.
 
 For a second VE, copy the file, change the container name and base port, and run with `-f`:
 

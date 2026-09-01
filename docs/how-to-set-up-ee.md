@@ -41,7 +41,7 @@ services:
     # https://github.com/atsign-foundation/at_services/tree/trunk/packages/at_secondary_proxy
 ```
 
-`vip.ve.atsign.zone` already points to `127.0.0.1` via public DNS. If you are offline, add it to `/etc/hosts`:
+The public DNS record for `vip.ve.atsign.zone` points to a private IP (`10.64.64.64`), not localhost. Add it to `/etc/hosts` so your host resolves it to `127.0.0.1`:
 
 ```
 127.0.0.1 vip.ve.atsign.zone
@@ -211,7 +211,6 @@ services:
       - 'vip.ve.atsign.zone:127.0.0.1'
     environment:
       - EPHEMERAL_BASE_PORT=2500
-      - DNS_FQDN=vip.ve.atsign.zone
 ```
 
 For a second EE, copy the file, change the name, container name, and base port (e.g. 2600), and `docker compose -f <file> up -d`.
