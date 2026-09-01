@@ -408,6 +408,35 @@ class EnrollmentManager {
       logger.info('_preRemove: $sekKey has already been removed');
     }
 
+    // The housekeeping enrollment going takes the legacy PKAM public key with
+    // it, and that is the whole of what makes the legacy credential
+    // retirable: the key is what legacy authentication verifies against, so
+    // removing it is removing the credential. This hook is the only path that
+    // removes this record — not because it is a protected key, which it is
+    // not in any way that bites, but because the delete verb refuses
+    // `privatekey:` keys on GRAMMAR.
+    //
+    // Deliberately WITHOUT a discriminator. Both ways the record can go
+    // should take the key with it — expiry, once a retrofit's successor has
+    // proved itself, and `enroll:delete` on a revoked one — so the fact that
+    // this hook cannot tell those apart stops mattering.
+    //
+    // It is also what lets absence be read: with the key always going at the
+    // same moment, a missing record plus a present key can only mean the
+    // record never existed, which is how a bootstrap is told from a
+    // retirement.
+    if (enId == housekeepingEnrollmentId) {
+      if (await keyStore.exists(AtConstants.atPkamPublicKey)) {
+        logger.warning('_preRemove: retiring the legacy PKAM credential — '
+            'removing ${AtConstants.atPkamPublicKey} with the housekeeping '
+            'enrollment');
+        await keyStore.remove(AtConstants.atPkamPublicKey, skipCommit: true);
+      } else {
+        logger.info('_preRemove: ${AtConstants.atPkamPublicKey} has already '
+            'been removed');
+      }
+    }
+
     await movePerEnrollmentData(enId,
         to: EnrollmentConstants.perEnrollmentDeleted);
   }

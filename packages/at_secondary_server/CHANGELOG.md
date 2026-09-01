@@ -224,6 +224,27 @@
   has run, so a first approval reads none and passes vacuously; the check bites
   on `unrevoke`, and on any later transition of a record that already names
   one.
+- feat: retiring the housekeeping enrollment removes the legacy PKAM public
+  key with it, which is what makes the atSign's oldest credential retirable at
+  all. That key is what legacy authentication verifies against, and it cannot
+  be deleted over the wire — the delete verb refuses `privatekey:` keys on
+  grammar — so the pre-remove hook is the only path that removes it.
+
+  Deliberately without a discriminator: both ways the record can go should
+  take the key — expiry, once a retrofit's successor has proved itself, and
+  `enroll:delete` on a revoked one — so the hook not being able to tell them
+  apart stops mattering. It is also what lets absence be READ: with the key
+  always going at the same moment, a missing record alongside a present key
+  can only mean the record never existed, which is how a bootstrap is told
+  from a retirement.
+
+  ⚠️ Legacy authentication against an absent key now refuses as an
+  authentication failure rather than surfacing a keystore exception.
+  `keyStore.get` throws for a missing key rather than returning null, so the
+  handler's own "pkam publickey not found" guard never saw that case. It did
+  not matter while an absent key meant a broken atSign; it matters now that it
+  means a retired credential.
+
 - BREAKING: a legacy-PKAM connection's own `enroll:request` is a RETROFIT of
   the housekeeping enrollment, not a way to enrol a different app. It
   authenticates AS that enrollment, so the enrollment it authenticated as is

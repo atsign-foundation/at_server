@@ -303,6 +303,63 @@ void main() {
     });
   });
 
+  group('removing it retires the legacy credential', () {
+    test('the legacy PKAM public key goes with the record', () async {
+      await enMgr.ensureHousekeepingEnrollment();
+      expect(await keyValueStore.exists(AtConstants.atPkamPublicKey), isTrue,
+          reason: 'precondition');
+
+      await enMgr.remove(enId: EnrollmentManager.housekeepingEnrollmentId);
+
+      expect(await keyValueStore.exists(AtConstants.atPkamPublicKey), isFalse,
+          reason: 'the key is what legacy authentication verifies against, so '
+              'removing it IS removing the credential — and it cannot be '
+              'deleted over the wire, because the delete verb refuses '
+              '`privatekey:` keys on grammar. This hook is the only path');
+    });
+
+    test('...and removing any OTHER enrollment leaves it alone', () async {
+      // The control. Without it the test above would be satisfied by a hook
+      // that deletes the legacy key whenever anything is removed, which would
+      // let any enrollment\'s deletion lock the atSign\'s owner out.
+      await enMgr.ensureHousekeepingEnrollment();
+      final other = await etu.createPendingEnrollment(
+          appName: 'other',
+          deviceName: 'device',
+          namespaces: {'wavi': 'rw'},
+          apkamKeysExpiryDuration: null);
+
+      await enMgr.remove(enId: other);
+
+      expect(await keyValueStore.exists(AtConstants.atPkamPublicKey), isTrue);
+    });
+
+    test('legacy authentication is refused afterwards', () async {
+      // The consequence, end to end: retirement is not a bookkeeping state,
+      // it is the credential ceasing to work.
+      expect((await authenticateLegacy()).data, 'success',
+          reason: 'precondition: it authenticates before retirement');
+
+      await enMgr.remove(enId: EnrollmentManager.housekeepingEnrollmentId);
+
+      // authenticateLegacy re-seeds the key, which is what a fresh client
+      // could never do, so drive the handler against the retired state
+      // directly.
+      inboundConnection.metaData
+        ..isAuthenticated = false
+        ..enrollmentId = null
+        ..sessionID = 'after-retirement';
+      await expectLater(
+          PkamVerbHandler(keyValueStore).processVerb(
+            Response(),
+            getVerbParam(VerbSyntax.pkam, 'pkam:signingAlgo:mldsa65:c2ln'),
+            inboundConnection,
+          ),
+          throwsA(isA<UnAuthenticatedException>()),
+          reason: 'with the key gone there is nothing to verify against');
+    });
+  });
+
   group('a legacy enroll:request is a retrofit of it', () {
     /// `enroll:request` over a connection whose authType is [authType] and
     /// whose enrollment id is [enrollmentId]. No OTP: an authenticated

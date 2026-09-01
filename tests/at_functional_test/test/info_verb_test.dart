@@ -30,17 +30,27 @@ void main() {
 
   test('info verb with enroll verb changes', () async {
     await firstAtSignConnection.authenticateConnection();
-    // create a key with the _manage namespace
     int random = Uuid().v4().hashCode;
+
+    // The new app is admitted through the OTP path. A legacy connection's own
+    // `enroll:request` is a RETROFIT of its own enrollment now — it carries
+    // that enrollment's grants and may not choose `{"wavi":"rw"}` — so the
+    // legacy connection MINTS the otp and the app sends its own request over
+    // its own unauthenticated connection, which is what that path is for.
+    String otp = (await firstAtSignConnection.sendRequestToServer('otp:get'))
+        .replaceAll('data:', '')
+        .trim();
+    OutboundConnectionFactory newApp =
+        await OutboundConnectionFactory().initiateConnectionWithListener(
+            firstAtSign, firstAtSignHost, firstAtSignPort);
     String enrollRequest =
-        'enroll:request:{"appName":"wavi-$random","deviceName":"pixel-$random","namespaces":{"wavi":"rw"},"apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}';
-    var enrollResponse =
-        await firstAtSignConnection.sendRequestToServer(enrollRequest);
+        'enroll:request:{"appName":"wavi-$random","deviceName":"pixel-$random","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"dummy_apkam_$random"}';
+    var enrollResponse = await newApp.sendRequestToServer(enrollRequest);
     enrollResponse = enrollResponse.replaceFirst('data:', '');
-    print(enrollResponse);
     var enrollJsonMap = jsonDecode(enrollResponse);
     expect(enrollJsonMap['enrollmentId'], isNotEmpty);
     String enrollmentId = enrollJsonMap['enrollmentId'].toString().trim();
+    await newApp.close();
     // Approve enrollment
     enrollResponse = await firstAtSignConnection.sendRequestToServer(
         'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey": "dummy_encrypted_default_encryption_private_key","encryptedDefaultSelfEncryptionKey":"dummy_encrypted_default_self_encryption_key"}');

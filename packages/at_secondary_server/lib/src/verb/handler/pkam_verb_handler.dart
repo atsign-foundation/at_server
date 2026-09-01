@@ -78,8 +78,21 @@ class PkamVerbHandler extends AbstractVerbHandler {
           apkamResult.signingAlgo ?? ApkamSignatureVerifier.rsa2048Algo;
     } else {
       pkamAuthType = AuthType.pkamLegacy;
-      var publicKeyData = await keyStore.get(AtConstants.atPkamPublicKey);
-      publicKey = publicKeyData?.data;
+      // ABSENT is a normal state now, not a broken atSign: retiring the
+      // legacy credential removes this key, and that is what retirement IS.
+      // `keyStore.get` THROWS for a missing key rather than returning null,
+      // so the emptiness guard below never saw that case and a retired
+      // credential surfaced a keystore exception where an authentication
+      // refusal belongs.
+      try {
+        publicKey = (await keyStore.get(AtConstants.atPkamPublicKey))?.data;
+      } on KeyNotFoundException {
+        logger.warning('Legacy PKAM authentication refused: '
+            '${AtConstants.atPkamPublicKey} is absent — this atSign has no '
+            'legacy credential, or it has been retired');
+        throw UnAuthenticatedException(
+            'this atSign has no legacy PKAM credential');
+      }
     }
 
     if (publicKey == null || publicKey.isEmpty) {
