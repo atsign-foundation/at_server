@@ -1099,9 +1099,16 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // is what makes replace semantics safe, because the only party who can
     // reinstate a stale value is the holder of the key it was signed with.
     if (connectionMetadata.enrollmentId != enId) {
+      // The remedy is named and is value-INDEPENDENT: no branch on which
+      // identity the connection happens to carry. Glossing the identifier
+      // instead — "primary (the atSign's legacy credential)" — would be
+      // correct for exactly one value and would put a conditional in a
+      // refusal path, which a test pinning the message would then pin too.
+      // (Wording owed to the at_client_sdk session, 2026-09-01.)
       throw AtEnrollmentException(
           'enroll:update is self-only: this connection is authenticated as '
-          '${connectionMetadata.enrollmentId ?? "the owner"}, not $enId');
+          '${connectionMetadata.enrollmentId ?? "the owner"}, not $enId. '
+          'Authenticate as $enId to update it');
     }
 
     final enVal = await enMgr.getEnrollmentById(enId);
