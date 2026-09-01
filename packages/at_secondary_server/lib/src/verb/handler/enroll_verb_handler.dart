@@ -274,6 +274,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (callerEnrollmentId != null &&
         callerEnrollmentId.isNotEmpty &&
         callerEnrollmentId != targetEnrollmentId) {
+      if (enrollDataStoreValue.namespaces.isEmpty) {
+        throw UnAuthorizedException(
+            'Not authorized to fetch enrollment $targetEnrollmentId: it holds'
+            ' no namespaces, so no caller can demonstrate authority over it.'
+            ' Fetch it from the enrollment itself, or from an owner (CRAM or'
+            ' legacy-PKAM) connection');
+      }
       for (final MapEntry<String, String> entry
           in enrollDataStoreValue.namespaces.entries) {
         final bool isAuthorised = await isAuthorized(inboundConnectionMetadata,
@@ -675,6 +682,24 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     } on IllegalStateException catch (e) {
       throw IllegalStateException(
           'Failed to $operation enrollment id: $enId. ${e.message}');
+    }
+
+    // A target holding NO namespaces passes the loop below vacuously — zero
+    // iterations, no refusal — and the `__manage` requirement lives inside
+    // that loop too, so it is not asked either. Gated on caller-vs-target the
+    // way delete is: an owner connection (CRAM or legacy-PKAM) carries no
+    // enrollment id and must still be able to act on such a record, or the
+    // most anomalous enrollment on the atSign becomes the one nothing can
+    // clear up. The self clause keeps a forced self-revoke working.
+    final String? callerIdForAuthz = inboundConnectionMetadata.enrollmentId;
+    if (callerIdForAuthz != null &&
+        callerIdForAuthz.isNotEmpty &&
+        callerIdForAuthz != enId &&
+        enVal!.namespaces.isEmpty) {
+      throw UnAuthorizedException('Failed to $operation enrollment id: $enId.'
+          ' It holds no namespaces, so no caller can demonstrate authority'
+          ' over it. Act on it from an owner (CRAM or legacy-PKAM)'
+          ' connection');
     }
 
     for (MapEntry<String, String> entry in enVal!.namespaces.entries) {
@@ -1626,11 +1651,27 @@ class EnrollVerbHandler extends AbstractVerbHandler {
             throw IllegalArgumentException(
                 'encrypted apkam symmetric key is mandatory for new client enroll:request');
           }
-          if (enrollParams.namespaces == null ||
-              enrollParams.namespaces!.isEmpty) {
-            throw IllegalArgumentException(
-                'At least one namespace must be specified for new client enroll:request');
-          }
+        }
+
+        // Outside the OTP branch deliberately. A request naming no namespaces
+        // is only meaningful on the two paths that fill them in on its behalf:
+        // CRAM, which grants `__manage` and `*`, and a retrofit, which
+        // inherits its predecessor's exactly. Every other path writes the
+        // grants the request chose, so an empty map lands an enrollment no
+        // caller can ever demonstrate authority over — the per-namespace
+        // authorisation loops decide by iterating the TARGET's grants and a
+        // target holding none passes them with zero iterations.
+        //
+        // The exemption is by auth type because that is what decides which
+        // branch of the request path runs. Widening the retrofit branch to
+        // another auth type means widening this exemption in the same commit.
+        final AuthType? authType = inboundConnection.metaData.authType;
+        if (authType != AuthType.cram &&
+            authType != AuthType.apkam &&
+            (enrollParams.namespaces == null ||
+                enrollParams.namespaces!.isEmpty)) {
+          throw IllegalArgumentException(
+              'At least one namespace must be specified for enroll:request');
         }
 
         break;

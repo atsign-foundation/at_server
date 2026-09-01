@@ -2384,7 +2384,7 @@ void main() {
           throwsA(predicate((e) =>
               e is IllegalArgumentException &&
               e.message ==
-                  'At least one namespace must be specified for new client enroll:request')));
+                  'At least one namespace must be specified for enroll:request')));
     });
     test('A test to validate enrollmentId is mandatory for enroll:approve',
         () async {
@@ -2830,6 +2830,92 @@ void main() {
     /// `_refuseIfPredecessorNotApproved` permits an enrollment whose
     /// predecessor no longer exists, so deleting that predecessor is what
     /// makes the orphan un-revokable.
+    /// A target holding NO namespaces passes every per-namespace
+    /// authorisation loop vacuously — zero iterations, no refusal — and the
+    /// `__manage` requirement lives inside those loops, so it is not asked
+    /// either. Three loops decide authority that way: `enroll:fetch`, the
+    /// shared approve/deny/revoke/unrevoke loop, and `enroll:delete`. Only
+    /// delete refused it before now, and nothing pinned even that.
+    group('an enrollment holding no namespaces', () {
+      Future<String> anEmptyTarget(
+          {EnrollmentStatus status = EnrollmentStatus.revoked}) async {
+        final id = Uuid().v4();
+        await keyValueStore.put(
+            enMgr.buildEnrollmentKey(id),
+            AtData()
+              ..data = jsonEncode(EnrollDataStoreValue(
+                  'sid', 'empty-app', 'empty-device', 'empty-key')
+                ..namespaces = <String, String>{}
+                ..approval = EnrollApproval(status.name)),
+            skipCommit: true);
+        return id;
+      }
+
+      Future<void> runAs(String? callerId, String command) async {
+        inboundConnection.metadata.isAuthenticated = true;
+        castMetadata(inboundConnection).enrollmentId = callerId;
+        final h = EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
+        await h.processVerb(response, h.parse(command), inboundConnection);
+      }
+
+      test('is not fetchable by a scoped caller', () async {
+        final targetId = await anEmptyTarget();
+        final appOnly = await createAndPersistAnEnrollment(
+            'fetch-app', 'device', {'test_namespace': 'rw'});
+        await expectLater(
+            () => runAs(appOnly, 'enroll:fetch:{"enrollmentId":"$targetId"}'),
+            throwsA(isA<UnAuthorizedException>()),
+            reason: 'the loop deciding authority iterates the TARGET\'s '
+                'grants, so an empty map passes with zero iterations and the '
+                '__manage requirement inside it is never asked');
+      });
+
+      test('is not revocable by a scoped caller', () async {
+        final targetId = await anEmptyTarget(status: EnrollmentStatus.approved);
+        final appOnly = await createAndPersistAnEnrollment(
+            'shared-app', 'device', {'test_namespace': 'rw'});
+        await expectLater(
+            () => runAs(appOnly, 'enroll:revoke:{"enrollmentId":"$targetId"}'),
+            throwsA(isA<UnAuthorizedException>()),
+            reason: 'approve, deny, revoke and unrevoke share one loop, and it '
+                'passed an empty grant map vacuously');
+      });
+
+      test('cannot be produced by an authenticated request naming none',
+          () async {
+        // The producer. The "at least one namespace" check used to sit inside
+        // the branch for requests carrying an OTP, and an authenticated
+        // connection sends none — so such a request wrote an enrollment with
+        // an empty grant map and nothing refused it. The check no longer
+        // depends on the OTP.
+        inboundConnection.metadata.isAuthenticated = true;
+        castMetadata(inboundConnection).enrollmentId = null;
+        final h = EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
+        await expectLater(
+            () => h.processVerb(
+                response,
+                h.parse('enroll:request:{"appName":"empty-app",'
+                    '"deviceName":"empty-device","namespaces":{},'
+                    '"apkamPublicKey":"dummy_apkam_public_key",'
+                    '"encryptedAPKAMSymmetricKey":"dummy_symm_key"}'),
+                inboundConnection),
+            throwsA(isA<IllegalArgumentException>()),
+            reason: 'an authenticated request carries no OTP, so a check '
+                'living inside the OTP branch never saw it');
+      });
+
+      test('control: an owner connection may still act on it', () async {
+        // Why the guards are gated on caller-vs-target rather than applied
+        // unconditionally. A CRAM or legacy-PKAM connection carries no
+        // enrollment id; if it could not reach such a record, the most
+        // anomalous enrollment on the atSign would be the one nothing could
+        // clear up.
+        final targetId = await anEmptyTarget(status: EnrollmentStatus.approved);
+        await runAs(null, 'enroll:revoke:{"enrollmentId":"$targetId"}');
+        expect(response.isError, false, reason: '${response.errorMessage}');
+      });
+    });
+
     group('enroll:delete authorisation', () {
       Future<String> aTarget(Map<String, String> namespaces,
           {EnrollmentStatus status = EnrollmentStatus.revoked}) async {

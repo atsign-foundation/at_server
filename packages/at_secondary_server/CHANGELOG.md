@@ -244,6 +244,26 @@
   measurement went negative for an enrollment retrofitted between them —
   capping it to one millisecond, killing a credential with hours of legitimate
   life left and locking out every sibling clone that had still to upgrade.
+- fix: an enrollment holding no namespaces is refused by `enroll:fetch` and by
+  the shared approve/deny/revoke/unrevoke path, not passed vacuously. Each
+  decides authority by iterating the TARGET's grants, so a target holding none
+  passed with zero iterations — and the `__manage` requirement lives inside
+  those loops, so it was not asked either. `enroll:delete` already refused it;
+  the other five operations did not. Gated on caller-vs-target exactly as
+  delete is, so an owner connection (CRAM or legacy-PKAM, carrying no
+  enrollment id) can still act on such a record, and an enrollment can still
+  force-revoke itself.
+- fix: the "at least one namespace" check no longer sits inside the branch for
+  requests carrying an OTP. An authenticated connection sends none, so a
+  request naming no namespaces wrote an enrollment with an empty grant map and
+  nothing refused it — the producer for the vacuous pass above. The check now
+  applies wherever the request's own grants are what gets written, exempting
+  only the two paths that fill them in on its behalf: CRAM, which grants
+  `__manage` and `*`, and a retrofit, which inherits its predecessor's exactly.
+
+  ⚠️ The refusal message changes from 'At least one namespace must be specified
+  for new client enroll:request' to 'At least one namespace must be specified
+  for enroll:request', since it is no longer specific to a new client.
 - fix: an `enroll:update` landing concurrently with a revoke no longer undoes
   it. The handler read the enrollment, checked it was approved, then awaited an
   APKAM signature verification and a metadata read before writing the record
