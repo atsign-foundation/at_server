@@ -38,7 +38,9 @@ import 'test_utils.dart';
 ///   the private half lives client-side and may never have reached disk. It
 ///   re-arms per successor, so a predecessor retires one grace period after
 ///   the last sibling clone upgrades, never past its own key-expiry posture.
-/// - **The successor records what it replaced**, so revocation can cascade.
+/// - **The successor records what it replaced**, which is what the retrofit
+///   cap reads. Revocation does NOT follow that edge — it follows the approver
+///   the successor inherits.
 void main() {
   verbTestsSetUpLogging();
 
@@ -180,9 +182,10 @@ void main() {
     final successor = await enMgr.getEnrollmentById(successorId);
     expect(successor.approval?.state, EnrollmentStatus.approved.name);
     expect(successor.parentEnrollmentId, predecessorId,
-        reason: 'the successor records its predecessor so revocation can CASCADE — a '
-            'stolen keyfile must not spawn a successor that survives the '
-            'predecessor\'s revocation');
+        reason: 'the successor records what it replaced, which is what the '
+            'retrofit cap reads to know whose expiry to put a clock on. NOT '
+            'for revocation: that follows the approver the successor '
+            'inherits, never this edge');
     expect(successor.namespaces.containsKey('__manage'), isFalse,
         reason: 'auto-approve must NOT carry the CRAM branch\'s __manage/* '
             'grant — that grant is what makes CRAM the atSign\'s root, and a '

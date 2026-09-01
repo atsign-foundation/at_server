@@ -534,9 +534,15 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enrollmentValue.namespaces = Map.of(predecessor.namespaces);
 
       enrollmentValue.approval = EnrollApproval(EnrollmentStatus.approved.name);
-      // The successor records what it replaced so revocation can CASCADE: a
-      // stolen keyfile must not spawn a successor that survives the
-      // revocation of what it replaced. The revoke path walks this edge.
+      // The successor records what it REPLACED, which is what the retrofit cap
+      // reads to know whose expiry to put a clock on.
+      //
+      // ⛔ Not for revocation. The revoke path does NOT walk this edge: a
+      // retrofit produces a peer, the same principal re-keyed, so revoking a
+      // superseded credential must not take the one that superseded it — an
+      // operator retiring an old key would otherwise kill the device's current
+      // one. A successor is reached through the approver it INHERITS, on the
+      // line below.
       enrollmentValue.parentEnrollmentId = predecessorId;
       // A retrofit produces a PEER of its predecessor, not a child: the same
       // principal re-keyed. So it takes the predecessor's place in the
@@ -948,8 +954,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // Record WHO approved, so a later revocation of the approver can take the
     // enrollments it admitted with it. Read off the connection rather than the
     // request: an approver cannot name someone else as the admitting party.
-    // Null over an owner connection (CRAM or legacy-PKAM), which carries no
-    // enrollment id — there is nothing there to revoke later.
+    // Null over a CRAM connection, which carries no enrollment id — there is
+    // nothing there to revoke later. A LEGACY-PKAM connection is no longer in
+    // that company: it authenticates as the housekeeping enrollment and
+    // carries its id, so what it approves records `primary` as its approver
+    // and `enroll:revoke primary` reaches it.
     if (operation == 'approve') {
       final String? approverId = inboundConnectionMetadata.enrollmentId;
       enVal.approvedByEnrollmentId =
@@ -1032,10 +1041,14 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// the same principal re-keyed — so there is no orphan to resurrect there
   /// and nothing to refuse.
   ///
-  /// `approve` is checked for the same reason, so the invariant is total: an
-  /// enrollment does not become active while the enrollment that admitted it
-  /// is inactive, at every transition into an active state rather than only
-  /// the one that happens to be reachable.
+  /// `unrevoke` is the transition this actually governs. `approve` is checked
+  /// too, so the rule reads the same at every transition into an active state
+  /// — but that arm cannot fire as things stand, and saying otherwise credits
+  /// it with work it does not do: a PENDING record carries no approver, and
+  /// the approver is recorded further down this same operation, after the
+  /// gate has run. It is kept as the statement of the invariant, so a future
+  /// path that approves a record already naming an approver is covered
+  /// without anyone having to notice.
   ///
   /// Two things are always allowed, for DIFFERENT reasons — they were once
   /// documented here as one, which credited the second with the first's job.
@@ -1955,13 +1968,15 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // caller could destroy, which inverts the rule exactly where the record
       // is most anomalous.
       //
-      // Reachable, and not only from storage written by an older build: an
-      // `enroll:request` on a LEGACY-PKAM connection lands one. `AuthType` has
-      // three values and that path is neither of the two that fill the map in
-      // — it takes the `else` branch, so it never gets the CRAM branch's
-      // `__manage`+`*` nor the APKAM branch's copy of the predecessor's grants
-      // — while the "at least one namespace" check sits inside the OTP branch
-      // of _validateParams, which an authenticated connection does not enter.
+      // Reachable from storage written by an older build, and that is now the
+      // whole of it. A LEGACY-PKAM `enroll:request` used to land one — it took
+      // the `else` branch, getting neither the CRAM branch's `__manage`+`*`
+      // nor the APKAM branch's copy of the predecessor's grants, while the "at
+      // least one namespace" check sits inside the OTP branch of
+      // _validateParams, which an authenticated connection does not enter.
+      // That path is a RETROFIT now and copies the housekeeping enrollment's
+      // grants verbatim, so this server no longer mints such a record. The
+      // gate stays for the ones already on disk.
       //
       // ⚠️ Every OTHER per-namespace loop still passes such a record
       // vacuously: approve, deny, revoke and unrevoke share one loop, and
