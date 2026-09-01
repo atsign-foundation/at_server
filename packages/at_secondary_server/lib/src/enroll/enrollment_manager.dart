@@ -988,10 +988,15 @@ class EnrollmentManager {
   ///   pass, so that window closes within tens of seconds and the record is
   ///   then gone for good. This needs a MIDDLE link, so it reaches a chain of
   ///   two or more — which, approval being unbounded, is an ordinary shape
-  ///   rather than a remnant. Each link's ttl is chosen by whoever minted it,
-  ///   so a middle one may expire before the enrollments behind it, and a
-  ///   revoke arriving after the sweep reaches the first live candidate and
-  ///   stops.
+  ///   rather than a remnant. A middle link expires before the enrollments
+  ///   behind it whenever its ttl is the shorter, and a revoke arriving after
+  ///   the sweep reaches the first live candidate and stops.
+  ///
+  ///   ⚠️ Retirement does not mint this, though it is the one thing that
+  ///   would: a retrofit's cap puts a deadline on an approver without asking
+  ///   whether anything sits behind it. Arming that cap moves the approver's
+  ///   children onto the successor — see [_adoptApprovalChildren] — so the
+  ///   link that expires has nothing behind it to orphan.
   ///
   /// Closing that needs ancestry that outlives the record, which this does not
   /// have.
@@ -1027,6 +1032,69 @@ class EnrollmentManager {
       }
     }
     return found;
+  }
+
+  /// Moves every enrollment [predecessorId] approved onto [successorId].
+  ///
+  /// Nothing records ancestry beyond an enrollment's immediate approver, so a
+  /// severed link orphans everything behind it: a later revoke of the chain
+  /// above reaches the first live candidate and stops, and the reactivation
+  /// refusal then permits un-revoking exactly what a cascade had swept.
+  /// [descendantsOf] documents that, for `enroll:delete` and for the expiry
+  /// sweep. A retrofit's cap would ADD a third way in and make it routine —
+  /// it puts a thirty-day deadline on an approver without asking whether
+  /// anything sits behind it, so an ordinary retrofit of an administrator
+  /// would sever the chain a month later.
+  ///
+  /// The successor is where those enrollments belong. It is the same principal
+  /// re-keyed and stands where its predecessor stood: it already INHERITS the
+  /// predecessor's approver, and this is that same substitution seen from the
+  /// other side. It also stops retiring a superseded credential taking down
+  /// everything that credential ever admitted, which is the hazard that put
+  /// the cascade on the approval edge to begin with.
+  ///
+  /// Never moves the successor onto itself. The successor inherits its
+  /// predecessor's approver rather than naming the predecessor, so it is not
+  /// among these children — but a self-approving record would be a cycle in
+  /// stored data, and that is not worth leaving to an invariant elsewhere.
+  Future<void> _adoptApprovalChildren(
+      String predecessorId, String successorId) async {
+    for (final ek in await getAllEnrollmentKeys()) {
+      final String childId = getIdFromKey(ek);
+      if (childId == successorId) continue;
+      final AtData? record = await keyStore.get(ek);
+      final String? raw = record?.data;
+      if (record == null || raw == null) continue;
+      final EnrollDataStoreValue child;
+      try {
+        child = EnrollDataStoreValue.fromJson(jsonDecode(raw));
+      } catch (e) {
+        logger.warning('Not re-parenting $childId onto $successorId: its '
+            'record could not be decoded: $e');
+        continue;
+      }
+      if (child.approvedByEnrollmentId != predecessorId) continue;
+
+      final EnrollmentStatus? status =
+          EnrollmentStatus.values.asNameMap()[child.approval?.state ?? ''];
+      if (status == null) {
+        logger.warning('Not re-parenting $childId onto $successorId: its '
+            'approval state ${child.approval?.state} is unreadable');
+        continue;
+      }
+
+      child.approvedByEnrollmentId = successorId;
+      record.data = jsonEncode(child.toJson());
+      // The child's own expiry must not move: a plain write re-derives it from
+      // the retained ttl and would restart its clock at this moment.
+      final DateTime? storedExpiry = record.metaData?.expiresAt;
+      await put(childId, record, status,
+          assertedTimestamps: storedExpiry == null
+              ? null
+              : AtAssertedTimestamps(expiresAt: storedExpiry));
+      logger.info('Enrollment $childId was approved by $predecessorId, which '
+          'has just been capped; it now hangs off its successor $successorId');
+    }
   }
 
   /// Revokes each of [enrollmentIds] that is currently approved, and returns
@@ -1469,6 +1537,13 @@ class EnrollmentManager {
             outcome == RetrofitCapOutcome.unreadable) {
           await _clearCapStamp(successorEnrollmentId, key);
           declinedAtGeneration[successorEnrollmentId] = decisionGeneration;
+        } else {
+          // Only once the predecessor really is on its way out. The two
+          // outcomes above leave it live and the stamp is taken back, so its
+          // children stay where they are. `predecessorGone` adopts too: those
+          // children are orphans already, and the successor is what they
+          // should have been hanging off.
+          await _adoptApprovalChildren(predecessorId, successorEnrollmentId);
         }
       }
     } catch (e) {

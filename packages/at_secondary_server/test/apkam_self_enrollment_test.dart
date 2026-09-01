@@ -2811,5 +2811,59 @@ void main() {
           reason: 'the atSign is never left without a root it can restore '
               'itself from, whatever the interleaving');
     });
+
+    test('capping an approver moves what it admitted onto its successor',
+        () async {
+      // Nothing records ancestry beyond an enrollment's immediate approver, so
+      // a severed link orphans everything behind it. `enroll:delete` and the
+      // expiry sweep could already sever one; the cap would make it ROUTINE,
+      // putting a thirty-day deadline on an administrator without asking what
+      // sits behind it. A month later the chain breaks: a revoke of the root
+      // reaches the first live candidate and stops, and the reactivation
+      // refusal then permits un-revoking exactly what the cascade had swept.
+      final middleId = await etu.createPendingEnrollment(
+          appName: 'middle',
+          deviceName: 'device',
+          namespaces: {'*': 'rw', '__manage': 'rw'},
+          apkamKeysExpiryDuration: null);
+      await etu.approveEnrollment(etu.primaryEnId, middleId);
+
+      final behindId = await etu.createPendingEnrollment(
+          appName: 'behind',
+          deviceName: 'device',
+          namespaces: {'wavi': 'rw'},
+          apkamKeysExpiryDuration: null);
+      await etu.approveEnrollment(middleId, behindId);
+
+      expect(await enMgr.descendantsOf(middleId), contains(behindId),
+          reason: 'precondition: behind really does hang off the middle link');
+
+      final r = await selfEnroll(
+          predecessorId: middleId, appName: 'middle', deviceName: 'device');
+      expect(r.isError, false, reason: '${r.errorMessage}');
+      final successorId = jsonDecode(r.data!)['enrollmentId'] as String;
+
+      await enMgr.armRetrofitCapOnFirstAuth(successorId);
+
+      expect(
+          (await keyValueStore.get(enMgr.buildEnrollmentKey(middleId)))
+              ?.metaData
+              ?.expiresAt,
+          isNotNull,
+          reason: 'precondition: the cap really did arm — otherwise nothing '
+              'was adopted because nothing was being retired');
+      expect(await enMgr.descendantsOf(successorId), contains(behindId),
+          reason: 'the successor stands where its predecessor stood, so what '
+              'the predecessor admitted hangs off it now');
+      expect(await enMgr.descendantsOf(middleId), isNot(contains(behindId)),
+          reason: 'and no longer off the record that is on its way out');
+
+      // The harm itself. Once the sweep takes the capped record, the chain
+      // above still has to reach what that link admitted.
+      await enMgr.remove(enId: middleId);
+      expect(await enMgr.descendantsOf(etu.primaryEnId), contains(behindId),
+          reason: 'revoking the root still reaches it, because the link the '
+              'walk climbs through is the successor and the successor is live');
+    });
   });
 }

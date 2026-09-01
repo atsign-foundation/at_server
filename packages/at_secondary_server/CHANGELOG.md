@@ -306,6 +306,19 @@
   client that expected to authenticate without an enrollment id after
   onboarding will not be able to.
 
+- fix: capping a retrofitted approver moves the enrollments it admitted onto
+  its successor. Nothing records ancestry beyond an enrollment's immediate
+  approver, so a severed link orphans everything behind it — a later revoke of
+  the chain above reaches the first live candidate and stops, and the
+  reactivation refusal then permits un-revoking exactly what a cascade had
+  swept. `enroll:delete` and the expiry sweep could already sever a link; the
+  retrofit cap would have made it routine, putting a thirty-day deadline on an
+  administrator without asking what sat behind it. The successor is where those
+  enrollments belong: it is the same principal re-keyed, it already inherits
+  its predecessor's approver, and this is that substitution seen from the other
+  side. It also stops retiring a superseded credential taking down everything
+  that credential ever admitted.
+
 - fix: two enrollments authenticating for the first time at once no longer cap
   BOTH of an atSign's roots. Arming a retrofit's cap asks whether any
   unexpiring root would survive capping this predecessor and then caps, which
