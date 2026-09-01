@@ -146,6 +146,25 @@ void main() {
               'revocation, and the record could never be retired at all');
     });
 
+    test('a REVOKED one stops counting as the atSign\'s surviving root',
+        () async {
+      await enMgr.ensureHousekeepingEnrollment('k');
+
+      expect(await enMgr.hasUnexpiringRootEnrollment({etu.primaryEnId}),
+          isTrue,
+          reason: 'precondition: it is an approved, permanent root, so it '
+              'answers the stranding question while it stands');
+
+      await setHStatus(EnrollmentStatus.revoked);
+
+      expect(await enMgr.hasUnexpiringRootEnrollment({etu.primaryEnId}),
+          isFalse,
+          reason: 'it is permanent but it is REVOKABLE, so it must stop '
+              'counting the moment it is revoked — counting it would report '
+              'the atSign safe at exactly the moment its last usable root '
+              'was taken away');
+    });
+
     test('the signing key a legacy client already published becomes its '
         'per-enrollment data', () async {
       // The whole reason the id is `primary` rather than something coined.

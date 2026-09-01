@@ -224,6 +224,31 @@
   has run, so a first approval reads none and passes vacuously; the check bites
   on `unrevoke`, and on any later transition of a record that already names
   one.
+- BREAKING: the enrollment that keeps an atSign recoverable must be
+  PERMANENT. The refusals that stop an atSign stranding itself asked whether
+  any other fully privileged enrollment would outlive a deadline computed from
+  the caller's own record. A root with a finite life satisfied that and only
+  deferred the stranding: the atSign kept the ability to restore a root until
+  that date and lost it afterwards, with nothing at the time of the revoke to
+  say so. Comparing one record's expiry against another's also made the answer
+  depend on WHO was asking, so the same atSign read as safe or stranded
+  according to which credential ran the verb. The question is now simply
+  whether an approved, fully privileged enrollment exists with no expiry at
+  all.
+
+  ⚠️ A revoke that was permitted may now be refused: an atSign whose only
+  other root carries an APKAM key-expiry posture no longer has a surviving
+  root by this test. The refusal names what to do — approve a fully privileged
+  enrollment that does not expire.
+
+  The same question gates the retrofit cap's decline, so a predecessor is now
+  spared in one case more than before.
+
+  ⚠️ APPROVED is load-bearing rather than incidental, and the housekeeping
+  enrollment below is why it is worth saying: it is a permanent root that
+  would otherwise satisfy this on every atSign forever, and it can be revoked
+  like any other. A revoked one stops counting the moment it is revoked.
+
 - feat: a retrofit carries its predecessor's grants and may not choose them.
   An APKAM-authenticated `enroll:request` replaces the enrollment it
   authenticated as rather than descending from it, so the successor now holds

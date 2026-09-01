@@ -1288,9 +1288,7 @@ void main() {
   /// itself — so the question this asks of OTHER enrollments has to be put to
   /// it here. Every case asks about `etu.primaryEnId`, the CRAM root, which
   /// excludes it from its own answer and leaves the minted probe deciding.
-  group('hasRootEnrollmentAliveAfter', () {
-    final deadline = DateTime.now().toUtc().add(Duration(days: 30));
-
+  group('hasUnexpiringRootEnrollment', () {
     Future<void> mint(String id, Map<String, String> namespaces,
         {Duration? ttl,
         EnrollmentStatus status = EnrollmentStatus.approved}) async {
@@ -1309,14 +1307,14 @@ void main() {
       // Nothing else fully privileged exists, so a true here could only mean
       // the root vouched for itself — and the guard could then never fire.
       expect(
-          await enMgr.hasRootEnrollmentAliveAfter({etu.primaryEnId}, deadline),
+          await enMgr.hasUnexpiringRootEnrollment({etu.primaryEnId}),
           isFalse);
     });
 
     test('another fully-privileged enrollment counts', () async {
       await mint('probe-root', {'*': 'rw', '__manage': 'rw'});
       expect(
-          await enMgr.hasRootEnrollmentAliveAfter({etu.primaryEnId}, deadline),
+          await enMgr.hasUnexpiringRootEnrollment({etu.primaryEnId}),
           isTrue);
     });
 
@@ -1326,7 +1324,7 @@ void main() {
       // itself holds. It keeps an atSign running; it cannot give it a root.
       await mint('probe-manage', {'wavi': 'rw', '__manage': 'rw'});
       expect(
-          await enMgr.hasRootEnrollmentAliveAfter({etu.primaryEnId}, deadline),
+          await enMgr.hasUnexpiringRootEnrollment({etu.primaryEnId}),
           isFalse,
           reason: 'the question is who can restore full privilege, not who '
               'can approve');
@@ -1335,27 +1333,48 @@ void main() {
     test('a * holder without __manage does not count', () async {
       await mint('probe-star', {'*': 'rw'});
       expect(
-          await enMgr.hasRootEnrollmentAliveAfter({etu.primaryEnId}, deadline),
+          await enMgr.hasUnexpiringRootEnrollment({etu.primaryEnId}),
           isFalse,
           reason: '`*` does not imply `__manage` anywhere else in the server '
               'and must not here');
     });
 
-    test('a root that expires before the deadline does not count', () async {
+    test('a short-lived root does not count', () async {
       await mint('probe-shortlived', {'*': 'rw', '__manage': 'rw'},
           ttl: Duration(minutes: 1));
-      expect(
-          await enMgr.hasRootEnrollmentAliveAfter({etu.primaryEnId}, deadline),
+      expect(await enMgr.hasUnexpiringRootEnrollment({etu.primaryEnId}),
           isFalse,
-          reason: 'an enrollment that will be gone when the cap fires cannot '
-              'be what keeps the atSign recoverable');
+          reason: 'an enrollment that will be gone cannot be what keeps the '
+              'atSign recoverable');
+    });
+
+    test('nor does a root that expires in ten years', () async {
+      // The case that separates this rule from the one it replaced. A root
+      // 3650 days out satisfied every deadline anyone would compute, so the
+      // atSign read as safe — and then stopped being recoverable on a date
+      // nothing reported at the time of the act that relied on it.
+      await mint('probe-longlived', {'*': 'rw', '__manage': 'rw'},
+          ttl: Duration(days: 3650));
+      expect(await enMgr.hasUnexpiringRootEnrollment({etu.primaryEnId}),
+          isFalse,
+          reason: 'a finite root defers the stranding rather than preventing '
+              'it, so it must not answer the question');
+    });
+
+    test('...while the same root with no expiry does', () async {
+      // The control for both cases above: identical grants and status, and
+      // the only difference is the ttl, so a false there is about expiry and
+      // not about the mint helper producing something unrecognisable.
+      await mint('probe-permanent', {'*': 'rw', '__manage': 'rw'});
+      expect(await enMgr.hasUnexpiringRootEnrollment({etu.primaryEnId}),
+          isTrue);
     });
 
     test('an unapproved root does not count', () async {
       await mint('probe-revoked', {'*': 'rw', '__manage': 'rw'},
           status: EnrollmentStatus.revoked);
       expect(
-          await enMgr.hasRootEnrollmentAliveAfter({etu.primaryEnId}, deadline),
+          await enMgr.hasUnexpiringRootEnrollment({etu.primaryEnId}),
           isFalse);
     });
   });
@@ -2549,8 +2568,7 @@ void main() {
       await enMgr.put(etu.primaryEnId, rootData, EnrollmentStatus.revoked);
 
       expect(
-          await enMgr.hasRootEnrollmentAliveAfter(
-              {predecessorId}, DateTime.now().toUtc().add(Duration(days: 30))),
+          await enMgr.hasUnexpiringRootEnrollment({predecessorId}),
           isFalse,
           reason: 'precondition: nothing could restore a root, so only the '
               'short-circuit can be what lets the cap through');

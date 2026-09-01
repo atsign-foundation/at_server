@@ -812,37 +812,36 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // refusals — the caller is not the target, and a target with no
       // descendants cannot contain the caller in its cascade.
       //
-      // The DEADLINE is what the caller's own record buys. A caller that
-      // never expires and is itself fully privileged answers the question by
-      // existing (it is not in the excluded set, so it is counted). A caller
-      // that expires must leave someone alive past that moment. A caller that
-      // is NOT fully privileged is never counted whatever its lifetime —
-      // which is right, and closes a second gap: revoking a root requires
-      // authority over the target's namespaces, and `__manage:r` satisfies
-      // that, so a caller who could not restore a root could previously
-      // remove the last one.
+      // The survivor has to be PERMANENT. A fully privileged root with a
+      // finite life does not answer the question, it only defers it — the
+      // atSign keeps the ability to restore a root until that date and loses
+      // it afterwards, with nothing at the time of the revoke to say so. A
+      // caller that is itself an unexpiring root answers the question by
+      // existing, since it is not in the excluded set. A caller that is NOT
+      // fully privileged is never counted whatever its lifetime — which is
+      // right, and closes a second gap: revoking a root requires authority
+      // over the target's namespaces, and `__manage:r` satisfies that, so a
+      // caller who could not restore a root could previously remove the last
+      // one.
       //
       // Asked over what SURVIVES the cascade, not over what is stored: the
       // descendants are still `approved` while this runs, so counting them
       // would report the atSign safe at the moment it is being stranded.
       //
-      // Skipped entirely for a connection carrying no enrollment id — a
-      // legacy-PKAM or CRAM owner can always mint a fresh enrollment, so it
-      // cannot strand itself this way.
+      // Still skipped for a CRAM connection, which carries no enrollment id
+      // and can always mint a fresh enrollment. A legacy-PKAM connection is no
+      // longer skipped: it now carries the housekeeping enrollment's id, and
+      // the exemption's premise — that such an owner can always mint a fresh
+      // enrollment — is exactly what stops being true, because minting one
+      // requires authenticating and authenticating requires that enrollment.
       if (enVal.isRootEnrollment && callerId != null) {
-        final AtMetaData? callerRecord =
-            await keyStore.getMeta(enMgr.buildEnrollmentKey(callerId));
-        final DateTime deadline =
-            callerRecord?.expiresAt?.toUtc() ?? DateTime.now().toUtc();
-        final bool someoneSurvives = await enMgr.hasRootEnrollmentAliveAfter(
-            {enId, ...cascadeIds}, deadline);
-        if (!someoneSurvives) {
+        if (!await enMgr.hasUnexpiringRootEnrollment({enId, ...cascadeIds})) {
           throw AtEnrollmentRevokeException(
               'Cannot revoke enrollment $enId: it holds full privilege and no '
-              'other fully privileged enrollment on $currentAtSign would '
-              'survive $deadline, so the atSign would be left unable to '
-              'approve a replacement. Approve another fully privileged '
-              'enrollment first');
+              'other fully privileged enrollment on $currentAtSign is '
+              'permanent, so the atSign would be left unable to approve a '
+              'replacement once the remaining ones expire. Approve another '
+              'fully privileged enrollment that does not expire first');
         }
       }
     } else if (operation == 'approve' || operation == 'unrevoke') {

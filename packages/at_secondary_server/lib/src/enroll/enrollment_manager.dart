@@ -784,15 +784,28 @@ class EnrollmentManager {
     return cappedTtl < 1 ? 1 : cappedTtl;
   }
 
-  /// Whether any enrollment outside [excluding] would still hold FULL
-  /// PRIVILEGE — `rw` on both `*` and `__manage` — once [deadline] has passed.
+  /// Whether any enrollment outside [excluding] is an APPROVED root that will
+  /// NOT expire — `rw` on both `*` and `__manage`, and no expiry at all.
   ///
   /// The precise question behind sparing a predecessor, and behind refusing a
   /// self-revocation: not "is this the atSign's first enrollment", nor "does
   /// the successor outlive it", but whether the act about to be performed
-  /// would leave nobody able to restore a root. A candidate that dies before
-  /// [deadline] does not count — which is exactly the case that would
-  /// otherwise strand the atSign.
+  /// leaves the atSign able to restore a root INDEFINITELY.
+  ///
+  /// A candidate with any expiry does not count, however distant (gkc,
+  /// 2026-09-01). It was previously enough to outlive a deadline computed from
+  /// the caller's own record, and that only defers the stranding: the atSign
+  /// keeps the ability to restore a root until that date and loses it
+  /// afterwards, with nothing at the time of the revoke to say so. Comparing
+  /// one record's expiry against another's also made the answer depend on who
+  /// was asking, so the same atSign was safe or stranded according to which
+  /// credential ran the verb.
+  ///
+  /// ⚠️ APPROVED is load-bearing, not incidental. The housekeeping enrollment
+  /// is a permanent root and would otherwise satisfy this on every atSign
+  /// forever — but it can be REVOKED like any other, and a revoked one must
+  /// stop counting the moment it is. Counting it would report the atSign safe
+  /// at exactly the moment its last usable root was taken away.
   ///
   /// Full privilege rather than the ability to approve, because approving is
   /// checked per namespace against what the approver itself holds: an
@@ -805,8 +818,7 @@ class EnrollmentManager {
   /// keystore while this runs, so asking the question without them would count
   /// the very enrollments the act is about to remove — and report the atSign
   /// safe at the moment it is being stranded.
-  Future<bool> hasRootEnrollmentAliveAfter(
-      Set<String> excluding, DateTime deadline) async {
+  Future<bool> hasUnexpiringRootEnrollment(Set<String> excluding) async {
     final excludedKeys = excluding.map(buildEnrollmentKey).toSet();
     for (final ek in await getAllEnrollmentKeys()) {
       if (excludedKeys.contains(ek)) continue;
@@ -819,8 +831,7 @@ class EnrollmentManager {
       if (other.approval?.state != EnrollmentStatus.approved.name) continue;
       if (!other.isRootEnrollment) continue;
       final AtData? record = await keyStore.get(ek);
-      final expiresAt = record?.metaData?.expiresAt;
-      if (expiresAt == null || expiresAt.isAfter(deadline)) return true;
+      if (record?.metaData?.expiresAt == null) return true;
     }
     return false;
   }
@@ -1276,7 +1287,7 @@ class EnrollmentManager {
           // make the grace setting work backwards.
           if (!successorOutlivesCap &&
               predecessor.isRootEnrollment &&
-              !await hasRootEnrollmentAliveAfter({predecessorId}, deadline)) {
+              !await hasUnexpiringRootEnrollment({predecessorId})) {
             logger.warning(
                 'Not capping $predecessorId at $deadline on the word of '
                 '$successorEnrollmentId, which expires at $successorExpiry: '
