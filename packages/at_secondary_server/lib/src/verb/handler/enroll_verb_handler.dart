@@ -788,19 +788,20 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       cascadeIds = (await enMgr.descendantsOf(enId)).toList();
 
       // A revoker must survive its own act. The authorisation loop above only
-      // asks whether the caller covers the target's namespaces, and a
-      // successor holds its predecessor's grants EXACTLY — so a successor
-      // always passes it against its predecessor, and a successor is a
-      // descendant of what it replaced. The cascade would therefore take the
-      // caller with it. On a two-enrollment atSign that is stranding reached
-      // without anyone self-revoking, which is why neither the self-revoke
-      // refusal on the way in nor the liveness check below ever sees it.
+      // asks whether the caller covers the target's namespaces, and a fully
+      // privileged enrollment admits administrators holding exactly the
+      // grants it holds — so an enrollment the target admitted passes that
+      // check against the very enrollment that admitted it, while being a
+      // descendant of it. The cascade would therefore take the caller with
+      // it. On a two-enrollment atSign that is stranding reached without
+      // anyone self-revoking, which is why neither the self-revoke refusal on
+      // the way in nor the liveness check below ever sees it.
       if (callerId != null && cascadeIds.contains(callerId)) {
         throw AtEnrollmentRevokeException(
             'Cannot revoke enrollment $enId: $callerId, the enrollment making '
-            'this request, replaced it and would be revoked by the same '
-            'cascade. Revoke $enId from an enrollment outside the chain that '
-            'replaced it');
+            'this request, descends from it by approval and would be revoked '
+            'by the same cascade. Revoke $enId from an enrollment outside the '
+            'chain of approvals beneath it');
       }
 
       // Revoking a fully privileged enrollment may not leave the atSign
@@ -1883,13 +1884,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // that asked nothing: `enroll:fetch`, which reads a secret rather than
     // destroying a record, has had this check all along. Two things now rest
     // on it that did not before. `EnrollmentManager.descendantsOf` climbs
-    // `parentEnrollmentId` and fetches each link BY KEY, so a delete of a
+    // `approvedByEnrollmentId` and fetches each link BY KEY, so a delete of a
     // middle link puts everything behind it permanently out of reach of a
     // later cascade. (Expiry severs a chain too, once the scheduled sweep
     // removes the record — see [EnrollmentManager.descendantsOf]. A delete is
     // the half a caller chooses.) And [_refuseIfApproverNotApproved] permits an
-    // enrollment whose predecessor no longer exists, so deleting that
-    // predecessor is what makes the orphan un-revokable.
+    // enrollment whose approver no longer exists, so deleting that approver is
+    // what makes the orphan un-revokable.
     final inboundConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
     final callerEnrollmentId = inboundConnectionMetadata.enrollmentId;
