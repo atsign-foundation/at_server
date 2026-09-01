@@ -1099,6 +1099,12 @@ class EnrollmentManager {
   /// authentication refused because bookkeeping failed is an outage.
   Future<void> armRetrofitCapOnFirstAuth(String successorEnrollmentId) async {
     try {
+      // The generation the decision is READ at, not the one it finishes at.
+      // Everything below this line awaits, and an enrollment write landing in
+      // that window bumps the counter. Recording the post-bump value would
+      // tell the next authentication that a change the decision never saw is
+      // already accounted for, and the question would not be re-opened.
+      final int decisionGeneration = cacheInvalidations;
       // The early exit goes through the cached read, because this runs on
       // EVERY APKAM authentication and all but a retrofit's successor leave
       // here. The PKAM path has just read this same enrollment, so it is warm.
@@ -1109,7 +1115,7 @@ class EnrollmentManager {
       if (cached.predecessorCapArmedAt != null) return;
       // Declined already, and nothing has been written since, so the answer
       // cannot have changed.
-      if (declinedAtGeneration[successorEnrollmentId] == cacheInvalidations) {
+      if (declinedAtGeneration[successorEnrollmentId] == decisionGeneration) {
         return;
       }
 
@@ -1137,7 +1143,7 @@ class EnrollmentManager {
           logger.info(
               'Enrollment $successorEnrollmentId replaced $predecessorId, '
               'which is ${predecessor.approval?.state} — not capping it');
-          declinedAtGeneration[successorEnrollmentId] = cacheInvalidations;
+          declinedAtGeneration[successorEnrollmentId] = decisionGeneration;
         } else {
           final now = DateTime.now().toUtc();
           final AtData? predecessorRecord =
@@ -1177,7 +1183,7 @@ class EnrollmentManager {
                 '$predecessorId holds full privilege and no other '
                 'fully-privileged enrollment would still be alive then. The '
                 'atSign would be left unable to restore a root');
-            declinedAtGeneration[successorEnrollmentId] = cacheInvalidations;
+            declinedAtGeneration[successorEnrollmentId] = decisionGeneration;
           } else {
             armPredecessor = true;
           }
@@ -1263,7 +1269,7 @@ class EnrollmentManager {
         if (outcome == RetrofitCapOutcome.notApproved ||
             outcome == RetrofitCapOutcome.unreadable) {
           await _clearCapStamp(successorEnrollmentId, key);
-          declinedAtGeneration[successorEnrollmentId] = cacheInvalidations;
+          declinedAtGeneration[successorEnrollmentId] = decisionGeneration;
         }
       }
     } catch (e) {

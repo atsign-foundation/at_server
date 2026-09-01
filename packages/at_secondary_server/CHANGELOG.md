@@ -244,6 +244,14 @@
   measurement went negative for an enrollment retrofitted between them —
   capping it to one millisecond, killing a credential with hours of legitimate
   life left and locking out every sibling clone that had still to upgrade.
+- fix: the decline memo records the generation the cap decision was READ at,
+  not the one it finished at. The memo exists so a declined cap is not
+  re-decided on every authentication, and its contract is that any enrollment
+  write re-opens the question. It was written after the decision's awaits from
+  a counter read live at that point, which folds in every write that landed
+  DURING the decision — so a change the decision never saw was reported as
+  already accounted for, and the decline stood against state it had not read.
+  The widest window is the site that follows a whole-keystore walk.
 - fix: arming the cap no longer reverts a concurrent change to the successor.
   The successor's record is read immediately before it is written rather than
   before the predecessor lookup and the cap, so an `enroll:update` rotating its
