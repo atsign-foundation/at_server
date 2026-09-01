@@ -424,15 +424,22 @@ class EnrollmentManager {
   /// held rather than the enrollment, the record having very possibly been
   /// reaped since — so the same rule has to be askable without one.
   String? accessInNamespaces(Map<String, String> namespaces, String namespace) {
+    // An EXPLICIT grant wins, and the wildcard is only a fallback — which is
+    // the atServer's own rule: it walks the enrolled namespaces for a suffix
+    // match and reaches for `*` only when none matched. Testing `*` inside the
+    // loop instead returns whichever entry happens to come first in the stored
+    // map, and that map is insertion-ordered off `jsonDecode`, so an
+    // enrollment holding both `*` and a narrower grant at different access
+    // letters would report a letter the server itself would not act on —
+    // whenever `*` happened to be stored first.
     for (final entry in namespaces.entries) {
       final ns = entry.key;
-      if (ns == EnrollmentConstants.allNamespaces ||
-          ns == namespace ||
-          namespace.endsWith('.$ns')) {
+      if (ns == EnrollmentConstants.allNamespaces) continue;
+      if (ns == namespace || namespace.endsWith('.$ns')) {
         return entry.value;
       }
     }
-    return null;
+    return namespaces[EnrollmentConstants.allNamespaces];
   }
 
   /// The approved enrollments holding [namespace].

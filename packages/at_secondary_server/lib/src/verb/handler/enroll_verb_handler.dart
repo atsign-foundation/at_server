@@ -1419,6 +1419,18 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       throw UnAuthorizedException(
           'Caller enrollment is not authorised for namespace "$namespace"');
     }
+    // `*` does not imply `__manage` anywhere else in the server and it must
+    // not here. The matcher above falls back to the wildcard for any namespace
+    // it holds no explicit grant on, `__manage` included, so without this a
+    // caller holding `*` and no `__manage` is admitted to the `__manage`
+    // roster and to its revocation history — which is exactly what the
+    // general authorisation path refuses.
+    if (namespace == EnrollmentConstants.enrollManageNamespace &&
+        !_doesEnrollmentHaveManageNamespace(callerEnVal)) {
+      throw UnAuthorizedException(
+          'Caller enrollment is not authorised for namespace "$namespace":'
+          ' it must be held explicitly, and a `*` grant does not confer it');
+    }
   }
 
   /// The caller's access (`r`|`rw`) to [namespace] under the atServer's own

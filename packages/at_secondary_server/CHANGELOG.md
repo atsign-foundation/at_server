@@ -244,6 +244,22 @@
   measurement went negative for an enrollment retrofitted between them —
   capping it to one millisecond, killing a credential with hours of legitimate
   life left and locking out every sibling clone that had still to upgrade.
+- fix: `enroll:listns` and `enroll:infons` no longer admit a caller holding
+  `*` to the `__manage` roster. The shared gate asks whether the caller has
+  any access to the named namespace, and the matcher falls back to the
+  wildcard for a namespace no explicit grant covers — `__manage` included. So
+  a caller holding `*` and no `__manage` could read the `__manage` roster and,
+  through `infons`, its revocation history. `*` does not imply `__manage`
+  anywhere else in the server; it does not here either, and the namespace must
+  now be held explicitly.
+- fix: the namespace matcher prefers an EXPLICIT grant to the wildcard,
+  matching the atServer's own rule. It tested `*` inside its loop and returned
+  the first entry that matched, while the server looks for an explicit suffix
+  match across every enrolled namespace and reaches for `*` only when none
+  matched. The stored grants map is insertion-ordered, so an enrollment
+  holding both `*` and a narrower grant at different access letters had its
+  roster entry decided by which grant happened to be written first — and could
+  report a letter the server itself would not act on.
 - fix: the retrofit cap computes its ttl against the record it just read,
   rather than taking one the caller computed earlier. A ttl is a distance from
   the instant it was computed at and the store re-anchors it at the instant of

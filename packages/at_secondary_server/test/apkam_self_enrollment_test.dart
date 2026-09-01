@@ -1885,6 +1885,87 @@ void main() {
   /// fails leaves the successor existing here and nowhere else — with a clock
   /// already started on the predecessor, by then the only credential that
   /// still works.
+  /// `enroll:listns` and `enroll:infons` share one gate, and that gate asks
+  /// the same namespace matcher the rest of the server asks. Two ways the
+  /// matcher disagreed with the atServer's own rule, both reachable from those
+  /// verbs, and neither pinned before now.
+  group('the namespace matcher agrees with the server\'s own rule', () {
+    Future<String> enrollmentHolding(
+        String id, Map<String, String> namespaces) async {
+      final v = EnrollDataStoreValue('sid-$id', 'app-$id', 'device-$id', 'pk')
+        ..namespaces = Map<String, String>.from(namespaces)
+        ..approval = EnrollApproval(EnrollmentStatus.approved.name);
+      await enMgr.put(id, AtData()..data = jsonEncode(v.toJson()),
+          EnrollmentStatus.approved);
+      return id;
+    }
+
+    Future<Response> rosterVerb(
+        String operation, String callerId, String namespace) async {
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metadata.enrollmentId = callerId;
+      final r = Response();
+      try {
+        await etu.evh.processVerb(
+            r,
+            HashMap<String, String?>.from(
+                {'operation': operation, 'listNamespace': namespace}),
+            inboundConnection);
+      } on AtException catch (e) {
+        r.isError = true;
+        r.errorMessage = e.message;
+      }
+      return r;
+    }
+
+    test('an explicit grant wins over the wildcard, whichever is stored first',
+        () async {
+      // The grants map is insertion-ordered off `jsonDecode`, so a matcher
+      // that tests `*` inside its loop answers differently depending on which
+      // grant happened to be written first. The server's own rule has no such
+      // dependence: it looks for an explicit suffix match across every
+      // enrolled namespace and reaches for `*` only when none matched.
+      expect(enMgr.accessInNamespaces({'*': 'r', 'wavi': 'rw'}, 'wavi'), 'rw',
+          reason: 'the explicit grant is the one the server would act on, '
+              'even though the wildcard is stored first');
+      expect(enMgr.accessInNamespaces({'wavi': 'rw', '*': 'r'}, 'wavi'), 'rw',
+          reason: 'control: the order the grants are stored in must not '
+              'change the answer');
+      expect(enMgr.accessInNamespaces({'*': 'r', 'wavi': 'rw'}, 'buzz'), 'r',
+          reason: 'control: the wildcard is still the fallback for a '
+              'namespace no explicit grant covers');
+      expect(enMgr.accessInNamespaces({'*': 'r'}, 'data.wavi'), 'r',
+          reason: 'control: and it still covers a dotted namespace');
+      expect(enMgr.accessInNamespaces({'wavi': 'rw'}, 'buzz'), isNull,
+          reason: 'control: no grant at all is still no access');
+    });
+
+    test('a `*` grant does not confer `__manage` on the roster verbs',
+        () async {
+      final caller = await enrollmentHolding('fg-star-only', {'*': 'rw'});
+      for (final operation in ['listns', 'infons']) {
+        final r = await rosterVerb(operation, caller,
+            EnrollmentConstants.enrollManageNamespace);
+        expect(r.isError, true,
+            reason: '`*` does not imply `__manage` anywhere else in the '
+                'server and enroll:$operation must not be the exception: the '
+                '__manage roster and its revocation history are exactly what '
+                'a caller holding only `*` may not read');
+      }
+    });
+
+    test('control: the same caller still reaches an ordinary namespace',
+        () async {
+      // Without this the refusal above is satisfied by a caller that cannot
+      // use the verb at all, rather than by one refused `__manage` alone.
+      final caller = await enrollmentHolding('fg-star-control', {'*': 'rw'});
+      final r = await rosterVerb('listns', caller, 'wavi');
+      expect(r.isError, false,
+          reason: 'the wildcard still admits an ordinary namespace; only '
+              '__manage is withheld. Got: ${r.errorMessage}');
+    });
+  });
+
   group('the retrofit cap is armed by the successor\'s first authentication',
       () {
     test('a successor that never authenticates leaves its predecessor alone',
