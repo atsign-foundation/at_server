@@ -1296,14 +1296,14 @@ class EnrollmentManager {
   ///   writing it back would hand it a fresh ttl it has no business carrying.
   ///   An unrevoke restores an ordinary predecessor, so this must not become
   ///   permanent.
-  /// * **A successor that would die before the deadline, when the predecessor
-  ///   is the atSign's LAST holder of `__manage`.** Capping the only
-  ///   enrollment that can approve another, in favour of one that will be gone
-  ///   first, leaves nobody able to admit a replacement. Every other
-  ///   predecessor is capped regardless of the successor's lifetime: declining
-  ///   more widely than this would silently switch retirement off for any
-  ///   fleet whose APKAM keys are shorter-lived than the grace, and would make
-  ///   the grace knob work backwards — a longer grace declining more often.
+  /// * **A predecessor whose retirement would leave the atSign with no
+  ///   unexpiring root.** The predecessor holds full privilege and no OTHER
+  ///   approved root without an expiry would survive it, so capping it leaves
+  ///   nobody able to give the atSign a root back. The successor is not
+  ///   special-cased: it stands in that walk like any other enrollment, and an
+  ///   unexpiring root successor — what a plain retrofit produces — satisfies
+  ///   it, so the cap arms. The successor's own lifetime is never consulted,
+  ///   which is what keeps the grace setting from working backwards.
   ///
   /// Never throws. This runs after an authentication has already succeeded, and
   /// a predecessor that outlives its window is a slower migration, while an
@@ -1363,37 +1363,40 @@ class EnrollmentManager {
               predecessorRecord?.metaData, predecessor, now);
           final deadline = now.add(Duration(milliseconds: capTtlMillis));
 
-          // Would the successor still be here when the cap fires? If so it IS
-          // a live root — it carries the predecessor's grants verbatim — so
-          // nothing can be stranded and the walk below is unnecessary. This is
-          // the ordinary case and it costs no keystore scan.
+          // Spared only when capping would leave the atSign unable to restore
+          // itself: the predecessor holds FULL privilege and no OTHER approved
+          // root without an expiry would be left behind. Full privilege rather
+          // than the ability to approve, because approving is checked per
+          // namespace against what the approver holds — a `__manage`-only
+          // enrollment can admit new enrollments and can never admit one
+          // carrying `*`, so it keeps an atSign running without being able to
+          // give it a root back.
+          //
+          // ⛔ The successor gets NO shortcut here, though satisfying this is
+          // the ordinary reason a retrofit's cap arms. It is in the keystore,
+          // approved, and is not the excluded predecessor, so the walk finds
+          // it on the walk's own terms. A separate deadline-relative test used
+          // to short-circuit that walk, and it went on asking whether the
+          // successor outlived the deadline after the walk had been given a
+          // stricter question — so a successor whose posture merely EXCEEDED
+          // the grace skipped the check entirely and the predecessor was
+          // capped with nothing verified. Asking for a LONGER-lived credential
+          // switched the protection off. One question, asked in one place, is
+          // what stops that recurring.
+          //
+          // The cost is a keystore walk per retrofit successor rather than per
+          // decline, bounded by the `predecessorCapArmedAt` stamp: it runs
+          // once for a successor that arms.
           final successorExpiry =
               (await keyStore.get(key))?.metaData?.expiresAt;
-          final successorOutlivesCap = successorExpiry == null ||
-              !successorExpiry.isBefore(deadline);
-
-          // Spared only when capping would leave the atSign unable to restore
-          // itself: the predecessor holds FULL privilege, the successor will
-          // be gone by the deadline, and no other fully-privileged enrollment
-          // survives it. Full privilege rather than the ability to approve,
-          // because approving is checked per namespace against what the
-          // approver holds — a `__manage`-only enrollment can admit new
-          // enrollments and can never admit one carrying `*`, so it keeps an
-          // atSign running without being able to give it a root back.
-          //
-          // Every other predecessor is capped regardless of its successor's
-          // lifetime: declining more widely would switch retirement off for
-          // any fleet whose keys are shorter-lived than the grace, and would
-          // make the grace setting work backwards.
-          if (!successorOutlivesCap &&
-              predecessor.isRootEnrollment &&
+          if (predecessor.isRootEnrollment &&
               !await hasUnexpiringRootEnrollment({predecessorId})) {
             logger.warning(
                 'Not capping $predecessorId at $deadline on the word of '
                 '$successorEnrollmentId, which expires at $successorExpiry: '
-                '$predecessorId holds full privilege and no other '
-                'fully-privileged enrollment would still be alive then. The '
-                'atSign would be left unable to restore a root');
+                '$predecessorId holds full privilege and no other approved '
+                'root without an expiry would be left. The atSign would be '
+                'left unable to restore a root');
             declinedAtGeneration[successorEnrollmentId] = decisionGeneration;
           } else {
             armPredecessor = true;
