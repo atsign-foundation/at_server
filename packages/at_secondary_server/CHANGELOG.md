@@ -224,6 +224,10 @@
   has run, so a first approval reads none and passes vacuously; the check bites
   on `unrevoke`, and on any later transition of a record that already names
   one.
+- feat: the housekeeping enrollment appears in `enroll:list` like any other.
+  The roster genuinely contains it, and hiding it would make the verb lie
+  about what can authenticate against the atSign.
+
 - BREAKING: an `enroll:request` auto-approved on a CRAM connection no longer
   writes `at_pkam_publickey`. It used to copy the enrolling app's APKAM public
   key there "for old clients". `at_pkam_publickey` is the credential for

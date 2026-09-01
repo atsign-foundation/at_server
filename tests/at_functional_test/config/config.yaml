@@ -8,4 +8,21 @@ firstAtSignServer:
 
 secondAtSignServer:
   secondAtSignName: "@bob🛠"
+
+# A THIRD atSign, used by exactly one test file: the legacy-PKAM retrofit pack.
+# It needs its own because retrofitting an atSign's legacy credential is
+# ONE-SHOT and irreversible — the successor exists, the housekeeping enrollment
+# is capped, and a second retrofit is refused for ever after. Running that
+# against @alice would poison every other file in the pack, and would pass on a
+# fresh virtualenv while failing on any re-run against the same container.
+# @relay1 rather than a prettier name for one measured reason: it is the only
+# unused demo atSign that has BOTH halves this test needs — a legacy PKAM
+# credential (it is in at_demo_data's allAtsigns, so pkamLoad provisions one)
+# AND an APKAM keypair (only @alice and @relay1 are in apkamPublicKeyMap, and
+# @alice is the shared atSign). Without the APKAM half the successor cannot
+# authenticate, and the successor's first authentication is the whole subject.
+thirdAtSignServer:
+  thirdAtSignName: "@relay1"
+  thirdAtSignPort: 25018
+  thirdAtSignUrl: vip.ve.atsign.zone
   
