@@ -159,11 +159,21 @@ abstract class AbstractVerbHandler implements VerbHandler {
 
   /// Whether [atKey] lives in a per-enrollment reserved namespace
   /// (`<id>.a|r|d.__e`) owned by an enrollment *other than* [enrollmentId].
-  /// Public keys are never treated as foreign — they are world-readable by
-  /// design (e.g. the `public:_apsk.<id>.a.__e@` APKAM signing key).
+  ///
+  /// A public key is exempt for READS only — `public:_apsk.<id>.a.__e@` is the
+  /// APKAM signing key, and it is world-readable by design. It is NOT exempt
+  /// for writes or deletes, which is what [isMutating] distinguishes: being
+  /// readable by everyone is not a reason to be writable by anyone. A caller
+  /// holding `*` and no `__manage` would otherwise reach another enrollment's
+  /// published signing key — the namespace resolves to one nothing in its map
+  /// matches, the wildcard fallback supplies `rw`, and the `__manage` guard
+  /// is skipped because the namespace is not `__manage`. Whoever can write
+  /// that record controls both the algorithm set and the key ids a verifier
+  /// trusts, so it is forgery rather than vandalism.
   static bool isForeignPerEnrollmentReservedKey(
-      String atKey, String? enrollmentId) {
-    if (atKey.startsWith('public:')) {
+      String atKey, String? enrollmentId,
+      {bool isMutating = false}) {
+    if (!isMutating && atKey.startsWith('public:')) {
       return false;
     }
     final match = _perEnrollmentReservedKeyRegex.firstMatch(atKey);
@@ -280,11 +290,13 @@ abstract class AbstractVerbHandler implements VerbHandler {
     // A per-enrollment reserved namespace (<id>.a|r|d.__e) is private to the
     // enrollment that owns it. Deny any *other* enrollment — including one with
     // '*:rw', which would otherwise reach it via the wildcard fallback below.
-    // (Public keys are exempt; see isForeignPerEnrollmentReservedKey.) A
-    // connection with no enrollmentId already short-circuited to `true` above,
-    // so this does not alter owner/legacy access.
+    // (Public keys are exempt for READS only; see
+    // isForeignPerEnrollmentReservedKey.) A connection with no enrollmentId
+    // already short-circuited to `true` above, so this does not alter
+    // owner/legacy access.
     if (atKey != null &&
-        isForeignPerEnrollmentReservedKey(atKey, enrollmentId)) {
+        isForeignPerEnrollmentReservedKey(atKey, enrollmentId,
+            isMutating: isMutatingVerb())) {
       return false;
     }
 

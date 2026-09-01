@@ -260,6 +260,23 @@
   measurement went negative for an enrollment retrofitted between them —
   capping it to one millisecond, killing a credential with hours of legitimate
   life left and locking out every sibling clone that had still to upgrade.
+- fix: a published APKAM signing key is world-READABLE, not world-writable.
+  The only cross-enrollment denial in the authorisation path short-circuited on
+  the `public:` prefix, and its own comment justified that on read grounds —
+  but the same predicate gated writes and deletes. A caller holding `*` and no
+  `__manage` therefore reached another enrollment's
+  `public:_apsk.<id>.a.__e@`: the namespace resolves to one nothing in its map
+  matches, the wildcard fallback supplies `rw`, and the `__manage` guard is
+  skipped because the namespace is not `__manage`.
+
+  That record is what a verifier resolves to check a signature, so whoever can
+  write it controls both the algorithm set and the key ids the victim is
+  trusted under — signing AS the victim, and withdrawing a key unverifies
+  everything it had signed. The exemption is now gated on the handler's
+  existing mutating-verb predicate: reads are unchanged, and writes, deletes
+  and `update:meta` are refused. An enrollment's access to its OWN
+  per-enrollment namespace is unaffected, public or not.
+
 - fix: a retrofit successor may not outlive the credential it replaced. The
   mint-time check compared TERMS, and a term restarts its clock at the
   successor's own write — so an inherited term always expired later in

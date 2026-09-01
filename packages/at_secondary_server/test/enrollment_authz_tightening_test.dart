@@ -19,8 +19,13 @@ import 'test_utils.dart';
 ///      reach `__manage` keys (enrollment records / PEK / SEK) via any generic
 ///      data verb — the `*` fallback previously laundered `__manage` into `*`
 ///      and bypassed the `__manage` guard.
-/// Public keys remain reachable (they are world-readable), and an enrollment's
-/// access to its OWN per-enrollment namespace is unchanged.
+///   3. A `public:` key in another enrollment's reserved namespace is
+///      world-READABLE and is NOT world-writable. The published
+///      `public:_apsk.<id>.a.__e@` signing key is what a verifier resolves, so
+///      whoever can write it controls the algorithms and key ids the victim is
+///      trusted under — forgery, not vandalism.
+/// An enrollment's access to its OWN per-enrollment namespace is unchanged,
+/// public or not.
 void main() {
   AtSignLogger.root_level = 'WARNING';
 
@@ -107,6 +112,73 @@ void main() {
           'update:$ownKey myvalue', inboundConnection);
       expect(inboundConnection.lastWrittenData, contains('data:'),
           reason: 'own per-enrollment namespace access must be unaffected');
+    });
+
+    // ---- Q1b: a PUBLIC key in a foreign per-enrollment namespace ----
+    //
+    // The only cross-enrollment denial short-circuited on the `public:` prefix
+    // for EVERY verb, and its own comment justified that on read grounds. The
+    // same predicate gated writes and deletes.
+
+    test('*:rw enrollment cannot UPDATE another enrollment\'s PUBLIC a.__e key',
+        () async {
+      await bindWildcardEnrollment();
+      final foreignEnId = Uuid().v4();
+      final foreignKey = 'public:_apsk.$foreignEnId.a.__e$alice';
+
+      await expectLater(
+          updateVerbHandler.process(
+              'update:$foreignKey forged', inboundConnection),
+          throwsA(isA<UnAuthorizedException>()),
+          reason: 'world-readable is not world-writable: whoever writes a '
+              'published _apsk chooses the key ids a verifier trusts for that '
+              'enrollment');
+    });
+
+    test('*:rw enrollment cannot DELETE another enrollment\'s PUBLIC a.__e key',
+        () async {
+      await bindWildcardEnrollment();
+      final foreignEnId = Uuid().v4();
+      final foreignKey = 'public:_apsk.$foreignEnId.a.__e$alice';
+      await keyValueStore.put(foreignKey, AtData()..data = 'thevictimskey');
+
+      await expectLater(
+          deleteVerbHandler.process('delete:$foreignKey', inboundConnection),
+          throwsA(isA<UnAuthorizedException>()),
+          reason: 'withdrawing a signing key unverifies everything it signed, '
+              'and needs no key material at all to attempt');
+      expect(await keyValueStore.get(foreignKey), isNotNull,
+          reason: 'and the record is still there');
+    });
+
+    test('*:rw enrollment CAN still LLOOKUP a foreign PUBLIC a.__e key',
+        () async {
+      // The control, and the half that must NOT change. The exemption exists
+      // because the atServer publishes the signing key on the enrollee's
+      // behalf for anyone to resolve; sync depends on it too. A fix that
+      // simply removed the exemption would break reading.
+      await bindWildcardEnrollment();
+      final foreignEnId = Uuid().v4();
+      final foreignKey = 'public:_apsk.$foreignEnId.a.__e$alice';
+      await keyValueStore.put(foreignKey, AtData()..data = 'thevictimskey');
+
+      await localLookupVerbHandler.process(
+          'llookup:$foreignKey', inboundConnection);
+      expect(inboundConnection.lastWrittenData ?? '',
+          contains('thevictimskey'),
+          reason: 'a published signing key stays world-readable');
+    });
+
+    test('an enrollment CAN still update its OWN public a.__e key', () async {
+      // The other control: the narrowing is about FOREIGN keys. An enrollment
+      // publishing its own signing key must be unaffected, and a live
+      // functional test depends on exactly this.
+      final enrollId = await bindWildcardEnrollment();
+      final ownKey = 'public:_apsk.$enrollId.a.__e$alice';
+
+      await updateVerbHandler.process(
+          'update:$ownKey mine', inboundConnection);
+      expect(inboundConnection.lastWrittenData, contains('data:'));
     });
 
     // ---- Q2: direct __manage access (enrollment record / PEK / SEK) ----
