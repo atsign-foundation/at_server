@@ -224,6 +224,20 @@
   has run, so a first approval reads none and passes vacuously; the check bites
   on `unrevoke`, and on any later transition of a record that already names
   one.
+- fix: `update:meta` is authorised like `update` rather than refused to every
+  enrollment (#2691). `UpdateMeta` extends `Verb` and not `Update`, and
+  appeared in neither the read nor the write allow-list, so the per-namespace
+  check returned false for every access level — `*:rw` included — and an app
+  that could `update` a key could not set a ttl on it. A metadata write is a
+  write: it now requires `rw` on the key's namespace, and read access does not
+  carry it.
+
+  It survived this long because a connection carrying no enrollment id skipped
+  the enrollment check entirely, and that was every legacy-PKAM and CRAM
+  connection — so the paths that exercise `update:meta` most never reached the
+  gate. Giving the legacy credential an enrollment is what made it reachable,
+  and four functional tests found it immediately.
+
 - BREAKING: the enrollment that keeps an atSign recoverable must be
   PERMANENT. The refusals that stop an atSign stranding itself asked whether
   any other fully privileged enrollment would outlive a deadline computed from

@@ -4,6 +4,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:test/test.dart';
@@ -102,6 +103,88 @@ void main() {
               'a *:rw enrollment must not read another enrollment\'s a.__e');
       expect(inboundConnection.lastWrittenData ?? '',
           isNot(contains('topsecret')));
+    });
+
+    // ---- update:meta is a WRITE, and was refused to every enrollment ----
+
+    /// Binds an approved enrollment holding exactly [namespaces].
+    Future<String> bindEnrollment(Map<String, String> namespaces) async {
+      inboundConnection.metadata.isAuthenticated = true;
+      final enrollId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollId;
+      await keyValueStore.put(
+          '$enrollId.new.enrollments.__manage$alice',
+          AtData()
+            ..data = jsonEncode({
+              'sessionId': '123',
+              'appName': 'wavi',
+              'deviceName': 'pixel',
+              'namespaces': namespaces,
+              'apkamPublicKey': 'testPublicKeyValue',
+              'requestType': 'newEnrollment',
+              'approval': {'state': 'approved'}
+            }));
+      return enrollId;
+    }
+
+    /// Writes the key as the OWNER, so the update:meta below is the only act
+    /// under test.
+    Future<void> seedAsOwner(String key) async {
+      inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.enrollmentId = null;
+      await updateVerbHandler.process('update:$key hello', inboundConnection);
+    }
+
+    test('an enrollment holding rw on the namespace CAN update:meta',
+        () async {
+      // Issue #2691. `UpdateMeta` extends `Verb` rather than `Update` and was
+      // in neither the read nor the write allow-list, so the namespace check
+      // returned false for EVERY access level — `*:rw` included — and the
+      // verb was refused to every enrollment. It went unnoticed because a
+      // connection carrying no enrollment id skipped the check altogether,
+      // which was every legacy and CRAM connection.
+      final key = '@bob:phone.wavi$alice';
+      await seedAsOwner(key);
+      await bindEnrollment({'wavi': 'rw'});
+
+      final h = UpdateMetaVerbHandler(
+          keyValueStore, statsNotificationService, notificationManager, alice);
+      await h.process('update:meta:$key:ttl:60000', inboundConnection);
+
+      expect((await keyValueStore.getMeta(key))?.ttl, 60000,
+          reason: 'a metadata write is a write, and this enrollment holds rw '
+              'on the namespace — it may already `update` the same key');
+    });
+
+    test('...and one holding only r on it may NOT', () async {
+      // The control. Without it the test above would be satisfied by
+      // "update:meta is allowed to everyone", which is the opposite defect
+      // and just as wrong.
+      final key = '@bob:phone.wavi$alice';
+      await seedAsOwner(key);
+      await bindEnrollment({'wavi': 'r'});
+
+      final h = UpdateMetaVerbHandler(
+          keyValueStore, statsNotificationService, notificationManager, alice);
+      await expectLater(
+          h.process('update:meta:$key:ttl:60000', inboundConnection),
+          throwsA(isA<UnAuthorizedException>()),
+          reason: 'read access must not carry a metadata write');
+      expect((await keyValueStore.getMeta(key))?.ttl, isNot(60000),
+          reason: 'and nothing was written');
+    });
+
+    test('...nor one holding rw on a DIFFERENT namespace', () async {
+      final key = '@bob:phone.wavi$alice';
+      await seedAsOwner(key);
+      await bindEnrollment({'buzz': 'rw'});
+
+      final h = UpdateMetaVerbHandler(
+          keyValueStore, statsNotificationService, notificationManager, alice);
+      await expectLater(
+          h.process('update:meta:$key:ttl:60000', inboundConnection),
+          throwsA(isA<UnAuthorizedException>()),
+          reason: 'the gate is per-namespace, exactly as it is for `update`');
     });
 
     test('*:rw enrollment CAN update its OWN a.__e key', () async {

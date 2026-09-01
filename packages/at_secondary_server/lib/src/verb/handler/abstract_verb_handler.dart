@@ -510,6 +510,19 @@ abstract class AbstractVerbHandler implements VerbHandler {
 
   bool _isWriteAllowed(Verb verb, String access) {
     return (verb is Update ||
+            // `update:meta` is a metadata WRITE — ttl, ttb, ccd — so it is
+            // gated exactly like `update`: allowed on `rw` over the key's
+            // namespace, refused otherwise. It was in neither list, and
+            // `UpdateMeta` extends `Verb` rather than `Update`, so
+            // checkEnrollmentNamespaceAccess returned false for every access
+            // level including `*:rw` and the verb was refused to every
+            // enrollment. Issue #2691.
+            //
+            // It went unnoticed because a connection carrying no enrollment
+            // id skipped the check entirely, and that was every legacy and
+            // CRAM connection — so the paths that exercise `update:meta` most
+            // never reached this.
+            verb is UpdateMeta ||
             verb is Delete ||
             verb is Config ||
             verb is Notify ||
