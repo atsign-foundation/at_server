@@ -136,6 +136,20 @@ class PkamVerbHandler extends AbstractVerbHandler {
           throw UnAuthenticatedException(
               'the legacy credential for this atSign has been retired');
         }
+
+        // The legacy credential is only as live as its enrollment. Revoking
+        // that record is what makes revoking the legacy keyfile possible at
+        // all — before it there was no verb that could — and an EXPIRED one
+        // is the cap having retired it after a successful retrofit. Either
+        // way the signature was valid and the credential is not.
+        final String? state = housekeeping.approval?.state;
+        if (state != EnrollmentStatus.approved.name) {
+          atConnectionMetadata.isAuthenticated = false;
+          logger.warning('Refusing legacy PKAM authentication: '
+              '${EnrollmentManager.housekeepingEnrollmentId} is $state');
+          throw UnAuthenticatedException(
+              'the legacy credential for this atSign is $state');
+        }
         connectionEnrollmentId = EnrollmentManager.housekeepingEnrollmentId;
       }
 
@@ -176,6 +190,24 @@ class PkamVerbHandler extends AbstractVerbHandler {
     EnrollmentStatus? enrollStatus;
     EnrollmentManager enMgr =
         AtSecondaryServerImpl.getInstance().enrollmentManager;
+
+    // The housekeeping enrollment is reachable ONLY by legacy authentication.
+    // It exists to give the legacy keyfile a lifecycle, and a credential
+    // reachable both with and without an enrollment id would have two: the
+    // legacy gates below would be bypassed by naming it, and its retirement
+    // could be sidestepped by the very keyfile it retires. It also holds the
+    // LEGACY public key, so an APKAM signature could never verify against it
+    // — this refuses the attempt in terms of what it is rather than letting
+    // it fail as a bad signature.
+    if (enId == EnrollmentManager.housekeepingEnrollmentId) {
+      apkamResult.response.isError = true;
+      apkamResult.response.errorCode = 'AT0009';
+      apkamResult.response.errorMessage =
+          'enrollment_id: $enId is reachable only by legacy PKAM '
+          'authentication';
+      return apkamResult;
+    }
+
     try {
       enVal = await enMgr.getEnrollmentById(enId);
       enrollStatus = EnrollmentStatus.values.byName(enVal.approval!.state);

@@ -1,9 +1,15 @@
 import 'dart:convert';
 
+import 'dart:typed_data';
+
+import 'package:at_chops/at_chops.dart' show MlDsa65PureDartAlgo;
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
+import 'package:at_secondary/src/utils/handler_util.dart';
+import 'package:at_secondary/src/verb/handler/pkam_verb_handler.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 import 'package:test/test.dart';
 
 import 'enrollment_test_utils.dart';
@@ -45,6 +51,40 @@ void main() {
   tearDown(() async {
     await verbTestsTearDown();
   });
+
+  /// A genuine legacy PKAM authentication, end to end through the verb
+  /// handler: no enrollment id on the wire, and the signature verified
+  /// against `at_pkam_publickey`. The legacy path takes the signing algorithm
+  /// from the wire — it has no record to be authoritative about — so ML-DSA
+  /// serves as well as RSA and needs no fixture keys.
+  ///
+  /// Returns the handler's [Response]; the caller decides whether success or
+  /// refusal is what it expects.
+  Future<Response> authenticateLegacy({String sessionId = 'legacy-session'}) async {
+    final mlDsa = await MlDsa65PureDartAlgo().generateKeyPair();
+    await seedLegacyKey(base64Encode(mlDsa.publicKey));
+
+    const challenge = 'a-per-connection-challenge';
+    await keyValueStore.put(
+        'private:$sessionId$alice', AtData()..data = challenge);
+    final signature = await MlDsa65PureDartAlgo().signBytes(
+        Uint8List.fromList(utf8.encode('$sessionId$alice:$challenge')),
+        secretKey: mlDsa.secretKey);
+
+    inboundConnection.metaData
+      ..isAuthenticated = false
+      ..enrollmentId = null
+      ..sessionID = sessionId;
+
+    final r = Response();
+    await PkamVerbHandler(keyValueStore).processVerb(
+      r,
+      getVerbParam(VerbSyntax.pkam,
+          'pkam:signingAlgo:mldsa65:${base64Encode(signature)}'),
+      inboundConnection,
+    );
+    return r;
+  }
 
   String hKey() =>
       enMgr.buildEnrollmentKey(EnrollmentManager.housekeepingEnrollmentId);
@@ -200,6 +240,37 @@ void main() {
       expect(await storedH(), isNotNull);
     });
 
+    test('legacy authentication creates it and CONNECTS as it', () async {
+      // The call site, not just the mechanism: a real signature, through the
+      // verb handler, with no enrollment id on the wire.
+      final r = await authenticateLegacy();
+
+      expect(r.data, 'success', reason: '${r.errorMessage}');
+      expect(await storedH(), isNotNull,
+          reason: 'the authentication is what creates it');
+      expect(inboundConnection.metaData.authType, AuthType.pkamLegacy);
+      expect(inboundConnection.metaData.enrollmentId,
+          EnrollmentManager.housekeepingEnrollmentId,
+          reason: 'the connection carries it, so every authorisation check '
+              'downstream sees a real enrollment instead of a null that used '
+              'to mean unrestricted access');
+    });
+
+    test('legacy authentication is REFUSED once it is revoked', () async {
+      expect((await authenticateLegacy()).data, 'success',
+          reason: 'precondition: it authenticates while approved');
+
+      await setHStatus(EnrollmentStatus.revoked);
+
+      await expectLater(
+          () => authenticateLegacy(sessionId: 'second-session'),
+          throwsA(isA<UnAuthenticatedException>()),
+          reason: 'revoking this record is what makes revoking the legacy '
+              'keyfile possible at all — before it there was no verb that '
+              'could. A valid signature is not enough if the credential it '
+              'proves has been withdrawn');
+    });
+
     test('the signing key a legacy client already published becomes its '
         'per-enrollment data', () async {
       // The whole reason the id is `primary` rather than something coined.
@@ -229,6 +300,33 @@ void main() {
       expect(await keyValueStore.exists(approvedKey), isFalse,
           reason: 'and it must no longer resolve at the address a verifier '
               'reads');
+    });
+  });
+
+  group('APKAM authentication', () {
+    test('may not name the housekeeping enrollment', () async {
+      final result = await PkamVerbHandler(keyValueStore)
+          .verifyEnrollmentIsActive(
+              EnrollmentManager.housekeepingEnrollmentId, alice);
+
+      expect(result.response.isError, isTrue,
+          reason: 'a credential reachable both with and without an enrollment '
+              'id would have two lifecycles: naming it would bypass the '
+              'legacy gates, and its retirement could be sidestepped by the '
+              'very keyfile it retires');
+      expect(result.response.errorCode, 'AT0009');
+      expect(result.response.errorMessage, contains('legacy PKAM'));
+    });
+
+    test('...but an ordinary enrollment id is unaffected', () async {
+      // The control. Without it the refusal above would be satisfied by
+      // "verifyEnrollmentIsActive refuses everything".
+      final ordinary = (await etu.createEnrollments(n: 1)).$1.first;
+      final result =
+          await PkamVerbHandler(keyValueStore).verifyEnrollmentIsActive(
+              ordinary, alice);
+      expect(result.response.isError, isFalse,
+          reason: '${result.response.errorMessage}');
     });
   });
 }
