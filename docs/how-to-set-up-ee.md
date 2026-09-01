@@ -161,6 +161,40 @@ volumes:
 
 The atDirectory and atServers can share the same certificate. The DNS record must resolve to the container's IP.
 
+## Proxy server
+
+To route all atServer traffic through a single port instead of exposing the full `BASE+1` .. `BASE+80` range, add the `at_proxyserver` container alongside the EE:
+
+```yaml
+services:
+  ephemeral:
+    container_name: ee
+    image: atsigncompany/ephemeral:latest
+    ports:
+      - '127.0.0.1:2500:2500'
+    extra_hosts:
+      - 'vip.ve.atsign.zone:127.0.0.1'
+    environment:
+      - EPHEMERAL_BASE_PORT=2500
+
+  proxy:
+    container_name: ee-proxy
+    image: atsigncompany/at_proxyserver
+    command: >-
+      --proxy-url vip.ve.atsign.zone:443
+      --root-url vip.ve.atsign.zone:2500
+      --bind-port 443
+      --cert-dir /atsign/certs
+    ports:
+      - '443:443'
+    extra_hosts:
+      - 'vip.ve.atsign.zone:127.0.0.1'
+    # volumes:
+    #   - /path/to/certs:/atsign/certs  # mount your own certs for non-localhost
+```
+
+With this setup, clients connect to `vip.ve.atsign.zone:443` and the proxy routes to the correct atServer internally. You only expose two ports: 2500 (atDirectory) and 443 (proxy).
+
 ## Running multiple EEs side-by-side
 
 To run multiple EEs on one host, create a separate compose file per instance with a different base port:

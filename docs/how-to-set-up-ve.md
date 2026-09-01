@@ -32,7 +32,7 @@ services:
     # Uncomment below for additional access:
     # - '127.0.0.1:6379:6379'   # Redis (only needed for direct DB inspection)
     # - '127.0.0.1:9001:9001'   # supervisord web UI (process manager)
-    # - '443:443'               # atProxyServer (TLS reverse proxy for atServers)
+    # - '443:443'               # Root server HTTPS
     #
     # To route all atServer traffic through a single port (e.g. 443) instead
     # of exposing 25000-25039, set up the atProxyServer:
@@ -43,7 +43,7 @@ services:
 |------|---------|---------|
 | 64 | atDirectory (root server) | Yes |
 | 25000-25039 | atServers (one per demo atSign) | Yes |
-| 443 | atProxyServer (TLS reverse proxy for atServers) | Optional |
+| 443 | Root server HTTPS | Optional |
 | 6379 | Redis | Optional, localhost only |
 | 9001 | supervisord web UI | Optional, localhost only |
 
@@ -119,7 +119,7 @@ With `VIRTUALENV_BASE_PORT=30000`, services bind to:
 |---------|------|
 | atDirectory | 30000 (`BASE`) |
 | atServers | 30001-30080 (`BASE+1` .. `BASE+80`) |
-| atProxyServer | 30098 (`BASE+98`) |
+| Root server HTTPS | 30098 (`BASE+98`) |
 | Redis | 30099 (`BASE+99`) |
 
 For a second VE, copy the file, change the container name and base port, and run with `-f`:
