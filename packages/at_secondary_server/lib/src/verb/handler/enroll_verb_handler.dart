@@ -1024,10 +1024,52 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // this carry an enrollment could postpone its own retirement indefinitely
     // by amending itself, one `enroll:update` per grace period, and the
     // retrofit cap would be advisory rather than a deadline.
-    final AtMetaData? storedMeta =
-        await keyStore.getMeta(enMgr.buildEnrollmentKey(enId));
-    await enMgr.put(
-        enId, AtData()..data = jsonEncode(enVal), EnrollmentStatus.approved,
+    // The status is read off the record JUST BEFORE the write, never off the
+    // snapshot taken at the top of this method. Between the two this method
+    // awaits an APKAM signature verification, and a revoke landing in that
+    // window would otherwise be UNDONE: `put` moves an enrollment's
+    // per-enrollment data to match the status it is handed, so writing
+    // `approved` back would return the revoked enrollment's published `_apsk`
+    // to the live address the revocation had just parked it from.
+    //
+    // It REFUSES rather than adjusting, because correcting the status handed
+    // to `put` would not be enough. `_publishApskSigningKey` below writes the
+    // signing key straight to the approved address without going through
+    // `put` at all, so an update carrying an apsk would republish it whatever
+    // status the record write used. Nothing is written once the record is no
+    // longer approved.
+    //
+    // `getMeta` is `(await get(key))?.metaData`, so reading the whole record
+    // here costs nothing the discarded read did not already cost.
+    final AtData? fresh;
+    try {
+      fresh = await keyStore.get(enMgr.buildEnrollmentKey(enId));
+    } on KeyNotFoundException {
+      throw AtEnrollmentException(
+          'enroll:update: enrollment $enId no longer exists');
+    }
+    final String? freshRaw = fresh?.data;
+    EnrollmentStatus? current;
+    if (freshRaw != null) {
+      try {
+        current = EnrollmentStatus.values.asNameMap()[
+            EnrollDataStoreValue.fromJson(jsonDecode(freshRaw)).approval?.state ??
+                ''];
+      } on FormatException {
+        current = null;
+      }
+    }
+    if (current == null) {
+      throw AtEnrollmentException(
+          'enroll:update: enrollment $enId does not decode as of this write');
+    }
+    if (current != EnrollmentStatus.approved) {
+      throw AtEnrollmentException(
+          'enroll:update: enrollment $enId is ${current.name} as of this'
+          ' write, though it was approved when the request was checked');
+    }
+    final AtMetaData? storedMeta = fresh!.metaData;
+    await enMgr.put(enId, AtData()..data = jsonEncode(enVal), current,
         assertedTimestamps: storedMeta?.expiresAt == null
             ? null
             : AtAssertedTimestamps(expiresAt: storedMeta!.expiresAt));
@@ -1039,7 +1081,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
 
     responseJson['enrollmentId'] = enId;
-    responseJson['status'] = EnrollmentStatus.approved.name;
+    // The status just read off the record, not a constant: the write above
+    // refuses unless the record is approved, so this cannot disagree with
+    // what is on disk.
+    responseJson['status'] = current.name;
   }
 
   /// Verifies that whoever sent this `enroll:update` holds the private half of

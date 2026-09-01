@@ -3684,6 +3684,59 @@ void main() {
           reason: 'a rotation must not move the enrollment lifecycle');
     });
 
+    test('a revoke landing during the update is not undone', () async {
+      // The handler reads the enrollment, then awaits an APKAM signature
+      // verification before writing it back with the status it read at the
+      // top. `put` moves an enrollment's per-enrollment data to match the
+      // status it is handed, so writing `approved` back from that snapshot
+      // returns a revoked enrollment's published `_apsk` to the live address
+      // the revocation had just parked it from. `enroll:update` is self-only,
+      // so the caller IS the enrollment being revoked — precisely the
+      // compromised-client case revocation exists for.
+      //
+      // The window is REPRODUCED rather than raced. The handler's first read
+      // goes through EnrollmentManager's cache, which is evicted only by a
+      // write through the manager, so revoking the record straight on the
+      // keystore leaves that snapshot saying approved while the disk says
+      // revoked — the state the race produces, without depending on
+      // scheduling.
+      final enId = (await etu.createEnrollments(n: 1)).$1.first;
+      final newPair = AtChopsUtil.generateAtPkamKeyPair();
+      final newPub = newPair.atPublicKey.publicKey;
+
+      // Prime the snapshot the handler will read at the top of the method.
+      await etu.evh.enMgr.getEnrollmentById(enId);
+
+      final key = etu.evh.enMgr.buildEnrollmentKey(enId);
+      final onDisk = await keyValueStore.get(key);
+      final v = EnrollDataStoreValue.fromJson(jsonDecode(onDisk!.data!));
+      v.approval = EnrollApproval(EnrollmentStatus.revoked.name);
+      onDisk.data = jsonEncode(v.toJson());
+      await keyValueStore.put(key, onDisk);
+
+      await expectLater(
+        sendUpdate(
+            enId,
+            EnrollParams()
+              ..enrollmentId = enId
+              ..apkamPublicKey = newPub
+              ..signingAlgo = 'rsa2048'
+              ..apkamPublicKeySignature =
+                  popSignature(newPair, enId, newPub, 'rsa2048')),
+        throwsA(isA<AtEnrollmentException>()),
+        reason: 'the status is read off the record immediately before the '
+            'write, so a revoke that landed while the request was in flight '
+            'refuses the update rather than being written back as approved',
+      );
+
+      final after = EnrollDataStoreValue.fromJson(
+          jsonDecode((await keyValueStore.get(key))!.data!));
+      expect(after.approval?.state, EnrollmentStatus.revoked.name,
+          reason: 'the revocation stands');
+      expect(after.apkamPublicKey, isNot(newPub),
+          reason: 'and nothing of the refused rotation was written');
+    });
+
     test('an mldsa65 rotation proves possession of the ML-DSA key', () async {
       // The rsa2048 arms above cannot reach this: at_chops verifies rsa2048
       // synchronously and mldsa65 asynchronously, so only the ML-DSA path

@@ -244,6 +244,23 @@
   measurement went negative for an enrollment retrofitted between them —
   capping it to one millisecond, killing a credential with hours of legitimate
   life left and locking out every sibling clone that had still to upgrade.
+- fix: an `enroll:update` landing concurrently with a revoke no longer undoes
+  it. The handler read the enrollment, checked it was approved, then awaited an
+  APKAM signature verification and a metadata read before writing the record
+  back with `approved` hardcoded — the status was never re-read. A revoke
+  arriving in that window was silently reverted, and because the write moves
+  per-enrollment data to match the status it is handed, the `_apsk` signing key
+  the revocation had just parked was republished at the live address.
+  `enroll:update` is self-only, so the caller IS the enrollment being revoked:
+  the compromised-client case revocation exists for.
+
+  The status is now read off the record immediately before the write, and the
+  update is REFUSED rather than adjusted once the record is no longer approved.
+  Refusing is what makes it safe: `_publishApskSigningKey` writes the signing
+  key straight to the approved address without going through the record write
+  at all, so correcting the status alone would still have republished it for
+  any update carrying one. The reply's status is likewise read rather than
+  asserted.
 - fix: `enroll:listns` and `enroll:infons` no longer admit a caller holding
   `*` to the `__manage` roster. The shared gate asks whether the caller has
   any access to the named namespace, and the matcher falls back to the
