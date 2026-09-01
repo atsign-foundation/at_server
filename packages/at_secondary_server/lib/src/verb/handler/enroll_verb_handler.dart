@@ -432,15 +432,30 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       final inboundConnectionMetadata =
           atConnection.metaData as InboundConnectionMetadata;
       inboundConnectionMetadata.enrollmentId = newEnrollmentId;
-      // Before any write: a refusal must not leave a published _apsk or a
-      // rewritten default pkam public key behind for an enrollment that was
-      // never created.
+      // Before any write: a refusal must not leave a published _apsk behind
+      // for an enrollment that was never created.
       _validateRecordSize(enrollmentValue);
-      // store this apkam as default pkam public key for old clients
-      // The keys with AT_PKAM_PUBLIC_KEY does not sync to client.
-      await keyStore.put(AtConstants.atPkamPublicKey,
-          AtData()..data = enrollParams.apkamPublicKey!,
-          skipCommit: true);
+
+      // This branch used to copy the enrolling app's APKAM public key into
+      // `at_pkam_publickey` "for old clients". It no longer does, and the
+      // reason is a separation of concerns rather than a tightening:
+      // `at_pkam_publickey` is the credential for LEGACY PKAM authentication,
+      // which by definition supplies no enrollment id. An `enroll:request`
+      // produces an APKAM credential, which always authenticates WITH one. A
+      // key minted for the second has no business becoming the first.
+      //
+      // The copy gave one keypair two identities with separate lifecycles —
+      // revoking the enrollment left the same key authenticating over the
+      // legacy path — and, being an unconditional write, it also DESTROYED
+      // any legacy credential the atSign already had. That second effect is
+      // the sharper one: `enroll:request` is deliberately repeatable on a
+      // CRAM connection, so every repeat clobbered the key again.
+      //
+      // ⚠️ An atSign onboarded by an older server still holds such a copy.
+      // It is removed by [EnrollmentManager.dropVestigialLegacyKey] on that
+      // enrollment's own APKAM authentication, which is now unambiguous:
+      // nothing writes the copy any more, so a value that matches an
+      // enrollment's own key can only be one.
       // Publish the client-composed `_apsk` signing key, if it sent one.
       await _publishApskSigningKey(
           newEnrollmentId, enrollmentValue, currentAtSign);

@@ -224,6 +224,24 @@
   has run, so a first approval reads none and passes vacuously; the check bites
   on `unrevoke`, and on any later transition of a record that already names
   one.
+- BREAKING: an `enroll:request` auto-approved on a CRAM connection no longer
+  writes `at_pkam_publickey`. It used to copy the enrolling app's APKAM public
+  key there "for old clients". `at_pkam_publickey` is the credential for
+  LEGACY PKAM authentication, which by definition supplies no enrollment id;
+  an `enroll:request` produces an APKAM credential, which always authenticates
+  with one. A key minted for the second has no business becoming the first.
+
+  ⚠️ It was an UNCONDITIONAL write, so it also destroyed any legacy credential
+  the atSign already had — and `enroll:request` is deliberately repeatable on
+  a CRAM connection (#2208), so every repeat clobbered it again. That is the
+  sharper of the two effects and it predates this release.
+
+  ⚠️ Deployment-visible: an atSign onboarded by CRAM plus `enroll:request` now
+  has no `at_pkam_publickey` at all, so legacy PKAM authentication is
+  impossible for it. That is the intent — such an atSign is APKAM-only — but a
+  client that expected to authenticate without an enrollment id after
+  onboarding will not be able to.
+
 - feat: a vestigial `at_pkam_publickey` is dropped on its enrollment's first
   APKAM authentication. An atSign onboarded by CRAM plus `enroll:request` has
   that first enrollment's APKAM public key copied into `at_pkam_publickey` by

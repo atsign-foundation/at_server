@@ -466,9 +466,13 @@ void main() {
   });
 
   group('the vestigial legacy key on a CRAM-onboarded atSign', () {
-    /// The case-1 shape: the CRAM auto-approve branch copies the first
-    /// enrollment's APKAM key into `at_pkam_publickey` "for old clients", so
-    /// one keypair ends up with two identities.
+    /// The case-1 shape, as an atSign onboarded by an OLDER server holds it:
+    /// the CRAM auto-approve branch used to copy the first enrollment's APKAM
+    /// key into `at_pkam_publickey` "for old clients", leaving one keypair
+    /// with two identities. This server no longer writes it, so the copy is
+    /// now unambiguous — nothing else can produce a value that matches an
+    /// enrollment's own key — but the records already on disk still need
+    /// clearing up.
     Future<String> anEnrollmentWhoseKeyWasCopied() async {
       final id = await etu.createPendingEnrollment(
           appName: 'copied',
