@@ -706,11 +706,13 @@ class EnrollmentManager {
   /// reaped as it walked. Fixing the read is what makes that consistent
   /// without every caller having to know.
   ///
-  /// Nothing is leaked by not reaping here. The server schedules a periodic
-  /// `deleteExpiredKeys()` pass, which removes expired records through the
-  /// same [AtKeyValueStore.remove] and so fires the same hooks; and the value
-  /// handed back is identical either way, because callers decide on the
-  /// `expired` state rather than on the record's absence.
+  /// Nothing is leaked by not reaping here. The server sweeps expired keys on
+  /// a timer it re-arms from the store's own next expiry — floored at ten
+  /// seconds and jittered by up to thirty, so a record is removed within tens
+  /// of seconds of expiring — and that pass removes them through the same
+  /// [AtKeyValueStore.remove], so the same hooks fire. The value handed back
+  /// is identical either way, because callers decide on the `expired` state
+  /// rather than on the record's absence.
   Future<EnrollDataStoreValue> getEnrollmentByFullKey(
     String ek,
   ) async {

@@ -110,7 +110,9 @@
   credential it replaces, carrying the same proof of possession this verb
   demands (see below).
 - fix: `primary` counts as an unexpiring root only while `at_pkam_publickey` is
-  in the keystore AND NON-EMPTY. Alone among enrollments it holds no credential
+  in the keystore AND NON-EMPTY. (A special case of the general rule above:
+  an enrollment nothing can authenticate as is not a root, whoever it is;
+  `primary` is where the credential lives somewhere other than the record.) Alone among enrollments it holds no credential
   of its own, so a record standing over a key nobody can authenticate with is a
   PHANTOM root — approved, fully privileged, permanent and impossible to
   authenticate as. Counting it answered "this atSign can restore a root" for a
@@ -617,7 +619,7 @@
   itself: the record's absence means "never existed" only while a usable
   legacy key is still there, because removing the record always takes that key
   too. A usable key is necessary and not sufficient — see the entries above on
-  emptiness and on a key that is some enrollment's own credential.
+  emptiness and on minting only for an atSign that holds no enrollment.
 
 - feat: the housekeeping enrollment appears in `enroll:list` like any other.
   The roster genuinely contains it, and hiding it would make the verb lie
