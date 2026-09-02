@@ -1277,7 +1277,24 @@ class EnrollmentManager {
   /// holding the key does not already confer. That is the difference between
   /// this and a mint gate, where arranging state bought the right to create a
   /// credential.
-  Future<void> retireLegacyCredentialIfDue() async {
+  Future<void> retireLegacyCredentialIfDue() =>
+      serialiseMutation(_retireLegacyCredentialIfDueUnderLock);
+
+  /// [retireLegacyCredentialIfDue]'s body, inside the enrollment-mutation
+  /// section.
+  ///
+  /// It has to be: this decides on the enrollment roster ("does an unexpiring
+  /// root survive?") and then removes the flat credential, which is a
+  /// decide-then-write over exactly the state `enroll:revoke` mutates. Run
+  /// outside the section, a sweep and a concurrent revoke each decide on state
+  /// the other is about to change — the sweep removes the key because the
+  /// roster still shows a root, the revoke removes that root because the key
+  /// is still on disk — and the atSign ends with no usable root and no verb
+  /// that can put either back. Serialised, whichever runs second sees the
+  /// other's write and declines.
+  ///
+  /// [serialiseMutation] is re-entrant, so this is safe from any caller.
+  Future<void> _retireLegacyCredentialIfDueUnderLock() async {
     final DateTime deadline;
     try {
       final AtData? record;

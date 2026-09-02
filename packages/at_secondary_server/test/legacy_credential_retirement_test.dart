@@ -453,5 +453,101 @@ void main() {
           reason: 'the sweep the expiry timer drives is what notices a '
               'deadline nothing else is watching');
     });
+
+    /// A second fully privileged enrollment that is NOT a permanent survivor:
+    /// same grants as a root, but with an expiry, so it cannot be the
+    /// unexpiring root the stranding question is satisfied by.
+    Future<String> storeExpiringFullGrant() async {
+      final id = await storeApprovedEnrollment({'*': 'rw', '__manage': 'rw'});
+      final AtData record =
+          (await keyValueStore.get(enMgr.buildEnrollmentKey(id)))!;
+      await enMgr.put(id, record, EnrollmentStatus.approved,
+          assertedTimestamps: AtAssertedTimestamps(
+              expiresAt: DateTime.now().toUtc().add(Duration(hours: 1)),
+              deriveTtl: true));
+      return id;
+    }
+
+    /// `enroll:revoke` of [target], issued by the enrollment [asId].
+    Future<Response> revoke(String target, {required String asId}) async {
+      inboundConnection.metaData
+        ..isAuthenticated = true
+        ..authType = AuthType.apkam
+        ..sessionID = 'session-${Uuid().v4()}';
+      inboundConnection.metadata.enrollmentId = asId;
+      final r = Response();
+      await enrollVerbHandler.processVerb(
+          r,
+          getVerbParam(
+              VerbSyntax.enroll, 'enroll:revoke:{"enrollmentId":"$target"}'),
+          inboundConnection);
+      return r;
+    }
+
+    Future<bool> aUsableRootSurvives() =>
+        enMgr.hasUnexpiringRootEnrollment({});
+
+    test('the sweep and a revoke in flight together cannot strand the atSign',
+        () async {
+      // The sweep decides "an unexpiring root survives, so the flat key may
+      // go" on the roster; the revoke decides "the flat key still works, so
+      // this root may go" on the store. Each is right on the state it read,
+      // and if they read it at the same moment they are each licensed by the
+      // thing the other is removing. That is a decide-then-write over the same
+      // state as every enroll: mutation, so it belongs in the same section.
+      //
+      // The caller is FULLY privileged but EXPIRING, which is load-bearing: a
+      // permanent caller would itself be the surviving root, and neither
+      // removal would strand anything.
+      await installFlatCredential();
+      await writeDeadline(DateTime.now()
+          .toUtc()
+          .subtract(Duration(minutes: 1))
+          .toIso8601String());
+      final root = await storeApprovedEnrollment({'*': 'rw', '__manage': 'rw'});
+      final caller = await storeExpiringFullGrant();
+      expect(await aUsableRootSurvives(), isTrue,
+          reason: 'precondition: the atSign starts with something to lose');
+
+      await Future.wait([
+        AtSecondaryServerImpl.getInstance().runHousekeepingSweep(),
+        revoke(root, asId: caller),
+      ]);
+
+      expect(await aUsableRootSurvives(), isTrue,
+          reason: 'whichever ran second saw the other\'s write and declined: '
+              'either the flat key was kept because the root had gone, or '
+              'the revoke was refused because the flat key had gone. Both '
+              'gone is the race, and there is no verb that puts either back');
+    });
+
+    test('...and each SERIAL order is safe on its own, which is the control',
+        () async {
+      // Without this the assertion above is satisfied by a sweep that never
+      // removes anything, or a revoke that never succeeds. Each order must
+      // leave a root AND must show one of the two acts actually happened.
+      await installFlatCredential();
+      await writeDeadline(DateTime.now()
+          .toUtc()
+          .subtract(Duration(minutes: 1))
+          .toIso8601String());
+      final root = await storeApprovedEnrollment({'*': 'rw', '__manage': 'rw'});
+      final caller = await storeExpiringFullGrant();
+
+      // Sweep first: the root licenses removing the flat key; the revoke is
+      // then refused as taking the last permanent root.
+      await AtSecondaryServerImpl.getInstance().runHousekeepingSweep();
+      expect(await enMgr.legacyPkamPublicKey(), isNull,
+          reason: 'sweep-first: the flat key really was removed');
+      await expectLater(
+          () => revoke(root, asId: caller),
+          throwsA(isA<AtEnrollmentRevokeException>().having(
+              (e) => e.message, 'message', contains('is permanent'))),
+          reason: 'sweep-first: with the flat key gone, this revoke would take '
+              'the last permanent root and must be refused — and it is '
+              'refused by THROWING, which is the channel this handler uses');
+      expect(await aUsableRootSurvives(), isTrue,
+          reason: 'sweep-first leaves the root standing');
+    });
   });
 }
