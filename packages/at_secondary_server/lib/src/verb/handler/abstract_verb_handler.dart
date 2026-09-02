@@ -5,6 +5,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
+import 'package:at_secondary/src/enroll/enrollment_access.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as handler_util;
@@ -448,12 +449,14 @@ abstract class AbstractVerbHandler implements VerbHandler {
       //
       // An empty [enrolledNamespaceAccess] is not a grant: it is a caller
       // reaching a __manage KEY, for which read access is enough.
-      final bool targetHoldsWriteOnManage = enrolledNamespaceAccess == 'rw';
+      final bool targetHoldsWriteOnManage =
+          EnrollmentAccess.allowsWrite(enrolledNamespaceAccess);
       // ignore: experimental_member_use
       return holdsManageNamespaceExplicitly &&
           (getVerb() is Otp || getVerb() is Enroll || getVerb() is Monitor) &&
-          (callerAccess == 'rw' ||
-              (callerAccess == 'r' && !targetHoldsWriteOnManage));
+          (EnrollmentAccess.allowsWrite(callerAccess) ||
+              (EnrollmentAccess.allowsRead(callerAccess) &&
+                  !targetHoldsWriteOnManage));
     }
     return checkEnrollmentNamespaceAccess(authorizedNamespace.$2!,
         enrolledNamespaceAccess: enrolledNamespaceAccess);
@@ -580,7 +583,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
             verb is Monitor ||
             verb is Scan ||
             verb is SyncFrom) &&
-        (access == 'r' || access == 'rw');
+        EnrollmentAccess.allowsRead(access);
   }
 
   bool _isWriteAllowed(Verb verb, String access) {
@@ -605,7 +608,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
             verb is NotifyRemove ||
             verb is Monitor ||
             verb is SyncFrom) &&
-        access == 'rw';
+        EnrollmentAccess.allowsWrite(access);
   }
 
   /// An atSign body, without the leading '@'. Reuses at_commons' own charset

@@ -10,6 +10,7 @@ import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
+import 'package:at_secondary/src/enroll/enrollment_access.dart';
 
 class KeysVerbHandler extends AbstractVerbHandler {
   static Keys keys = Keys();
@@ -53,9 +54,8 @@ class KeysVerbHandler extends AbstractVerbHandler {
         throw AtEnrollmentException(
             'Enrollment Id $enrollIdFromMetadata is not approved. current state: ${enrollDataStoreValue.approval?.state}');
       }
-      hasManageAccess = enrollDataStoreValue
-              .namespaces[EnrollmentConstants.enrollManageNamespace] ==
-          'rw';
+      hasManageAccess = EnrollmentAccess.allowsWrite(enrollDataStoreValue
+          .namespaces[EnrollmentConstants.enrollManageNamespace]);
     } on KeyNotFoundException {
       logger.severe(
           'Enrollment details not found for the enrollmentId: ${connectionMetadata.enrollmentId}');

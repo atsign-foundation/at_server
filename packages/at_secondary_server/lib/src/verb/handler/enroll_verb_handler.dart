@@ -18,6 +18,7 @@ import 'package:meta/meta.dart';
 import 'package:uuid/uuid.dart';
 
 import 'abstract_verb_handler.dart';
+import 'package:at_secondary/src/enroll/enrollment_access.dart';
 
 /// Verb handler to process APKAM enroll requests
 class EnrollVerbHandler extends AbstractVerbHandler {
@@ -1953,6 +1954,24 @@ class EnrollVerbHandler extends AbstractVerbHandler {
               'At least one namespace must be specified for enroll:request');
         }
 
+        // The access level is client-supplied JSON that is stored verbatim
+        // and then read by every authorisation decision on the atSign, so
+        // this is the one place a spelling the server does not act on can be
+        // kept out of the store. Refused rather than coerced: a grant is an
+        // authorisation decision, and guessing what `wr` or `RW` was meant
+        // to say hands out an authority nobody asked for. Before this, such
+        // a request was accepted and produced an enrollment that could do
+        // nothing while still counting as read-only to the checks that ask
+        // how powerful it is.
+        enrollParams.namespaces?.forEach((namespace, access) {
+          if (EnrollmentAccess.canonicalise(access) == null) {
+            throw IllegalArgumentException(
+                'Invalid access "$access" for namespace "$namespace" in '
+                'enroll:request. Valid values are '
+                '${EnrollmentAccess.canonicalSpellings.join(' and ')}');
+          }
+        });
+
         break;
       case 'approve':
         if (enrollParams!.enrollmentId.isNullOrEmpty) {
@@ -2046,11 +2065,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (enrolledNamespaceAccess.isEmpty) {
       return false;
     }
-    if (authorisedNamespaceAccess == 'rw' ||
-        (authorisedNamespaceAccess == 'r' && enrolledNamespaceAccess == 'r')) {
-      return true;
-    }
-    return false;
+    // A caller holding write may act on any grant; a caller holding only read
+    // may act only on a grant that is itself read-only. Read as letter sets,
+    // so a non-canonical spelling on either side answers the same question
+    // here as it does everywhere else.
+    return EnrollmentAccess.allowsWrite(authorisedNamespaceAccess) ||
+        (EnrollmentAccess.allowsRead(authorisedNamespaceAccess) &&
+            !EnrollmentAccess.allowsWrite(enrolledNamespaceAccess));
   }
 
   /// NOT a part of API. Used for unit tests

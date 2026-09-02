@@ -1,5 +1,6 @@
 import 'package:at_commons/at_commons.dart';
 import 'package:json_annotation/json_annotation.dart';
+import 'package:at_secondary/src/enroll/enrollment_access.dart';
 
 part 'enroll_datastore_value.g.dart';
 
@@ -153,8 +154,10 @@ class EnrollDataStoreValue {
   /// restore a root to it. That comparison covers `__manage` itself, so an
   /// approver holding `__manage:r` confers no more than `__manage:r` either.
   bool get isRootEnrollment =>
-      namespaces[EnrollmentConstants.allNamespaces] == 'rw' &&
-      namespaces[EnrollmentConstants.enrollManageNamespace] == 'rw';
+      EnrollmentAccess.allowsWrite(
+          namespaces[EnrollmentConstants.allNamespaces]) &&
+      EnrollmentAccess.allowsWrite(
+          namespaces[EnrollmentConstants.enrollManageNamespace]);
 
   factory EnrollDataStoreValue.fromJson(Map<String, dynamic> json) =>
       _$EnrollDataStoreValueFromJson(json);
