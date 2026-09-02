@@ -1,4 +1,45 @@
 # 3.16.4
+- fix: every enrollment mutation now runs inside ONE store-wide critical
+  section, and it covers the whole read-decide-write rather than the write:
+  `enroll:request` (past the throttle and the OTP gate), `enroll:approve`,
+  `deny`, `revoke`, `unrevoke`, `update` and `delete`, the housekeeping
+  enrollment's creation, the retrofit cap's arming, and the adoption of a
+  capped approver's children.
+
+  The keystore has no compare-and-set, and the decision each write rests on
+  is a question about the WHOLE store — "would any unexpiring root survive
+  this act?" above all — so two mutations of two DIFFERENT records each
+  passed an individually correct check and stranded the atSign between them.
+  A per-record lock cannot see that; only a store-wide section holds it.
+
+  Measured on this tree before the change: two concurrent `enroll:revoke`
+  commands each counted the root the other was about to remove and left the
+  atSign with none; a retrofit cap arming alongside an `enroll:revoke` did
+  the same, while both serial orderings are safe; and a revoke and a cap
+  arming writing the same record lost one of the two whole-record snapshots
+  — the verb answering `{"status":"revoked"}` over a record the store held
+  `approved`, with that credential's published `_apsk` back at the live
+  address. The adoption of a capped approver's children is the sharpest of
+  them, because its lost update is permanent and silent: nothing re-parents
+  twice, so a child left naming its old approver is outside every later
+  revocation cascade for the rest of its life.
+
+  The section replaces the arming-only lock, whose docstring claimed it made
+  the liveness answer safe to act on — true only against another arming.
+
+  ⚠️ Throughput: an enrollment mutation arriving while another is in flight
+  now waits for it. Measured at 100 enrollments, a retrofit cap arming takes
+  9-10ms with nothing to adopt and 36-39ms adopting 50 children, each adopted
+  child being a record write that walks the keystore.
+
+  AUTHENTICATION is not affected. The retrofit cap's early exits sit outside
+  the section, so an APKAM authentication with nothing to arm — every
+  authentication except a retrofit successor's first — costs 2-8us whether or
+  not a mutation is in flight. With those exits inside the section, twenty
+  such authentications took as long as the arming they queued behind: 9.8ms,
+  21ms and 37-38ms at 0, 25 and 50 adopted children respectively. Reads are
+  outside the section entirely, so no verb queues behind an enrollment write
+  to read one.
 - fix: an enrollment id is canonicalised to the keystore's own fold wherever
   it enters the server or is used to build a keystore key, so handler-side
   identity and stored identity agree by construction. The keystore normalises
@@ -785,8 +826,9 @@
   The successor's record is read immediately before it is written rather than
   before the predecessor lookup and the cap, so an `enroll:update` rotating its
   APKAM public key, or an `enroll:revoke` of it, is no longer overwritten from
-  a stale snapshot. The keystore has no compare-and-set, so this narrows the
-  window rather than closing it.
+  a stale snapshot. The keystore has no compare-and-set, so on its own this
+  narrowed the window rather than closing it; the enrollment-mutation critical
+  section described above is what closes it.
 - `enroll:list` responses carry a new `predecessorCapArmedAt` field on an
   enrollment that has retired the one it replaced: the UTC instant it did so.
   Absent on every other enrollment, and on any record written before this

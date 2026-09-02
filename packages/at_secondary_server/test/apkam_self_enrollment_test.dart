@@ -2858,9 +2858,11 @@ void main() {
       // cap. Run two at once and both walks finished before either write, so
       // each saw the other's root still uncapped, each concluded it was safe,
       // and both were capped — leaving the atSign with no root it could
-      // restore itself from. Two devices reconnecting together is enough, and
-      // the re-read before the write narrows the lost update on the
-      // successor's own record without ever re-taking the decision.
+      // restore itself from. Two devices reconnecting together is enough.
+      // The read before the write is not what holds this: it narrows the lost
+      // update on the successor's own record and never re-takes the decision.
+      // What holds it is that the walk and the cap are one enrollment-mutation
+      // critical section — see EnrollmentManager.serialiseMutation.
       //
       // SHORT-LIVED successors are load-bearing. An unexpiring successor is
       // itself a root, so capping both predecessors would strand nothing and

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
@@ -43,20 +44,58 @@ class EnrollmentManager {
   final AtKeyValueStore<String, AtData, AtMetaData?> keyStore;
   final String atSign;
 
-  /// Serialises [armRetrofitCapOnFirstAuth] against itself.
+  /// The atSign's ONE enrollment-mutation critical section.
   ///
-  /// The decision it takes is read-modify-write over the WHOLE keystore: it
-  /// asks whether any unexpiring root would survive capping this predecessor,
-  /// and then caps. Two successors authenticating at once each ran that walk
-  /// before either wrote, so each saw the other's root still uncapped, each
-  /// concluded it was safe, and both roots were capped — leaving the atSign
-  /// with no root it could restore itself from. Two devices reconnecting
-  /// together is enough; the re-read before the write narrows the lost update
-  /// on the successor's own record and never re-takes the decision.
+  /// Store-wide rather than per record, and that is the whole of why a single
+  /// lock is the right shape. Every enrollment mutation is read-decide-write
+  /// over a keystore with no compare-and-set, and the decision each write
+  /// rests on is a question about the WHOLE store — "would any unexpiring
+  /// root survive this act?" above all. Two mutations of two DIFFERENT
+  /// records therefore each pass an individually correct check and strand the
+  /// atSign between them: two concurrent `enroll:revoke` commands each counted
+  /// the root the other was about to remove and left zero unexpiring roots,
+  /// and a retrofit cap arming alongside a revoke did the same. A per-record
+  /// lock cannot see any of that, because neither writer touches the other's
+  /// record.
+  ///
+  /// It closes the plain lost update as well, which a per-record lock WOULD
+  /// have closed: a revoke and a cap arming each write a whole-record
+  /// snapshot, so whichever wrote second reinstated what the other had just
+  /// left — the verb answering `revoked` over a record the store held
+  /// `approved`, with that credential's published `_apsk` back at the live
+  /// address.
+  ///
+  /// READS are deliberately outside it. Enrollments are read on every verb
+  /// command and on every authorisation check, so serialising reads would put
+  /// the whole atSign behind one queue; a reader can still observe a cascade
+  /// part-applied, exactly as it could before.
   ///
   /// One instance per atSign, built once by `AtSecondaryServerImpl`, so an
   /// instance field is the whole of the contention.
-  final Mutex _capArmingLock = Mutex();
+  final Mutex _mutationLock = Mutex();
+
+  /// Marks the zone a [serialiseMutation] action runs in, so a mutation
+  /// reached from INSIDE another one can be told from a genuinely concurrent
+  /// one. Zone values propagate across every await in the action, which is
+  /// what makes the distinction hold for asynchronous code.
+  static const Object _inMutationZoneKey = #atEnrollmentMutation;
+
+  /// Runs [action] as this atSign's only in-flight enrollment mutation.
+  ///
+  /// Wrap the whole read-decide-write, never just the write. The write is not
+  /// what races; the decision the write rests on is.
+  ///
+  /// RE-ENTRANT, and [Mutex.protect] is not: a nested `protect` never
+  /// completes, so getting the nesting wrong costs a permanent hang on the
+  /// authentication path rather than a wrong answer. An action reached from
+  /// inside another one is already in the critical section and runs straight
+  /// through. A genuinely concurrent caller arrives in a different zone and
+  /// waits.
+  Future<T> serialiseMutation<T>(Future<T> Function() action) {
+    if (Zone.current[_inMutationZoneKey] == true) return action();
+    return _mutationLock.protect(
+        () => runZoned(action, zoneValues: {_inMutationZoneKey: true}));
+  }
 
   static int cacheHits = 0;
   static int cacheMisses = 0;
@@ -229,8 +268,13 @@ class EnrollmentManager {
   /// oversight — a cascade able to sweep it away would strand the very
   /// credential it exists to govern.
   ///
-  /// Two legacy connections authenticating at once may both find it absent and
-  /// both write it. They write identical content, so the race is benign.
+  /// The already-created case is answered OUTSIDE [serialiseMutation],
+  /// because it is the case every legacy authentication takes and putting it
+  /// behind the lock would queue authentications behind whatever enrollment
+  /// mutation was in flight. Only the CREATE is serialised, and it re-asks
+  /// the question inside the section: `enroll:delete` of this record removes
+  /// the legacy key in the same breath, so a decision taken outside would
+  /// re-create the identity that delete had just retired.
   ///
   /// Returns NULL when the record is absent and must not be created. The
   /// caller must refuse the authentication rather than treat it as a
@@ -248,6 +292,19 @@ class EnrollmentManager {
     } on KeyNotFoundException {
       // Absent — but absent says nothing on its own, and this is the
       // distinction the whole retirement path rests on.
+    }
+    return serialiseMutation(_createHousekeepingEnrollment);
+  }
+
+  /// [ensureHousekeepingEnrollment]'s create half, under the mutation lock.
+  Future<EnrollDataStoreValue?> _createHousekeepingEnrollment() async {
+    // Asked again now that nothing else is writing. The read above ran
+    // outside the section, so a create or a retirement may have landed while
+    // this call waited.
+    try {
+      return await getEnrollmentById(housekeepingEnrollmentId);
+    } on KeyNotFoundException {
+      // Still absent.
     }
 
     // Whether absence means "never existed" or "already retired" is decided by
@@ -1302,6 +1359,19 @@ class EnrollmentManager {
   /// predecessor's approver rather than naming the predecessor, so it is not
   /// among these children — but a self-approving record would be a cycle in
   /// stored data, and that is not worth leaving to an invariant elsewhere.
+  ///
+  /// Runs INSIDE [serialiseMutation]; its caller holds the section. Every
+  /// child here is a read-modify-write of a whole record, and this is the one
+  /// place where losing that update is PERMANENT and silent: nothing ever
+  /// re-parents again, so a child left naming a predecessor on its way out
+  /// sits outside the revocation cascade for the rest of its life.
+  ///
+  /// The WHOLE loop is in the section rather than a re-read per child. A
+  /// re-read would narrow the window and not close it — `put` walks the
+  /// keystore before writing — and the loop is not on the authentication fast
+  /// path: an authentication with nothing to arm never enters the section at
+  /// all, and this runs once per successor that actually caps, behind the
+  /// `predecessorCapArmedAt` stamp.
   Future<void> _adoptApprovalChildren(
       String predecessorId, String successorId) async {
     for (final ek in await getAllEnrollmentKeys()) {
@@ -1451,11 +1521,12 @@ class EnrollmentManager {
 
   /// Takes back a `predecessorCapArmedAt` stamp whose cap did not happen.
   ///
-  /// Re-read immediately before the write for the same reason the stamp itself
+  /// Read immediately before the write for the same reason the stamp itself
   /// is: everything in between awaits, and a snapshot from before all of it
-  /// would revert a concurrent change to this successor. Best-effort — if it
-  /// fails the successor stays stamped, which is the pre-existing behaviour
-  /// and no worse than not trying.
+  /// would revert a change made since. Called from inside
+  /// [serialiseMutation], so no other enrollment mutation can be that change.
+  /// Best-effort — if it fails the successor stays stamped, which is the
+  /// pre-existing behaviour and no worse than not trying.
   Future<void> _clearCapStamp(String successorEnrollmentId, String key) async {
     try {
       final AtData? atData = await keyStore.get(key);
@@ -1594,17 +1665,49 @@ class EnrollmentManager {
   ///   it, so the cap arms. The successor's own lifetime is never consulted,
   ///   which is what keeps the grace setting from working backwards.
   ///
-  /// Runs under [_capArmingLock], which is what makes "no other unexpiring
-  /// root survives" a safe thing to act on: the walk and the cap that follows
-  /// it are one critical section, so a concurrent arming cannot cap the very
-  /// root this one counted.
+  /// The decide-and-write half runs under [serialiseMutation], which is what
+  /// makes "no other unexpiring root survives" a safe thing to act on: the
+  /// walk, the stamp, the cap and the adoption of the predecessor's children
+  /// are one critical section, so nothing can remove the root this walk
+  /// counted and nothing can overwrite the records it writes. It is the
+  /// atSign's single enrollment-mutation lock rather than an arming-only one,
+  /// because a concurrent `enroll:revoke` strands the atSign exactly as a
+  /// concurrent arming does and neither touches the other's record.
+  ///
+  /// The EARLY EXITS are outside it, deliberately. This runs on every APKAM
+  /// authentication and everything except a retrofit's successor leaves at
+  /// the three tests below; reaching them through the lock put every
+  /// authentication behind whatever mutation was in flight. Nothing in them
+  /// writes, and every one is re-made inside the section, so an answer that
+  /// goes stale between the two costs at most an arming deferred to the next
+  /// authentication.
   ///
   /// Never throws. This runs after an authentication has already succeeded, and
   /// a predecessor that outlives its window is a slower migration, while an
   /// authentication refused because bookkeeping failed is an outage.
   Future<void> armRetrofitCapOnFirstAuth(String successorEnrollmentId) async {
-    await _capArmingLock
-        .protect(() => _armRetrofitCapOnFirstAuth(successorEnrollmentId));
+    try {
+      // Through the cached read: the PKAM path has just read this same
+      // enrollment, so it is warm.
+      final EnrollDataStoreValue cached =
+          await getEnrollmentById(successorEnrollmentId);
+      // Replaced nothing, so there is nothing to cap. This is the exit almost
+      // every authentication takes.
+      if (cached.parentEnrollmentId == null) return;
+      // Already armed.
+      if (cached.predecessorCapArmedAt != null) return;
+      // Declined already, and nothing has been written since, so the answer
+      // cannot have changed.
+      if (declinedAtGeneration[successorEnrollmentId] == cacheInvalidations) {
+        return;
+      }
+    } catch (e) {
+      logger.warning('Could not decide whether to arm the retrofit cap for '
+          '$successorEnrollmentId: $e');
+      return;
+    }
+    await serialiseMutation(
+        () => _armRetrofitCapOnFirstAuth(successorEnrollmentId));
   }
 
   Future<void> _armRetrofitCapOnFirstAuth(String successorEnrollmentId) async {
@@ -1615,9 +1718,10 @@ class EnrollmentManager {
       // tell the next authentication that a change the decision never saw is
       // already accounted for, and the question would not be re-opened.
       final int decisionGeneration = cacheInvalidations;
-      // The early exit goes through the cached read, because this runs on
-      // EVERY APKAM authentication and all but a retrofit's successor leave
-      // here. The PKAM path has just read this same enrollment, so it is warm.
+      // Re-asked inside the critical section. The same three tests ran
+      // outside it so that a plain authentication never takes the lock, and
+      // any of them can have changed while this call waited — another
+      // successor's arming, or a revoke, is exactly what it waited behind.
       final EnrollDataStoreValue cached =
           await getEnrollmentById(successorEnrollmentId);
       final predecessorId = cached.parentEnrollmentId;
@@ -1722,22 +1826,21 @@ class EnrollmentManager {
       // on the next authentication rather than frozen here.
       if (!armPredecessor && !predecessorGone) return;
 
-      // Re-read immediately before the write, NARROWING a lost update rather
-      // than closing it. Everything above awaits — the predecessor lookup, and
-      // a cap that walks the whole keystore — so a snapshot taken before all
-      // that would very likely revert a concurrent `enroll:update` key
-      // rotation or an `enroll:revoke` of this successor. A window remains:
-      // `put` itself walks the keystore before writing, and the keystore has
-      // no compare-and-set, so this is read-modify-write on shared durable
-      // state and the guarantee is probabilistic.
+      // Read immediately before the write. The critical section is what
+      // closes the lost update — no other enrollment mutation can be in
+      // flight, and the keystore has no compare-and-set to close it with —
+      // and this read is what makes the record written here the one the
+      // section is working from rather than a snapshot taken before the
+      // predecessor lookup and the keystore walk above.
       final AtData? atData = await keyStore.get(key);
       final String? raw = atData?.data;
       if (atData == null || raw == null) return;
       final successor = EnrollDataStoreValue.fromJson(jsonDecode(raw));
       // Load-bearing, not belt-and-braces: `put` invalidates the cache only
-      // after its own await, so a concurrent reader can repopulate it with a
-      // pre-write value. This uncached re-test is what actually makes "first"
-      // hold; the cached check above is only the fast path.
+      // after its own await, so a concurrent READER — which the critical
+      // section does not serialise — can repopulate it with a pre-write
+      // value. This uncached re-test is what actually makes "first" hold;
+      // the cached checks at the entry point are only a fast path.
       if (successor.predecessorCapArmedAt != null) return;
 
       successor.predecessorCapArmedAt = DateTime.now().toUtc();

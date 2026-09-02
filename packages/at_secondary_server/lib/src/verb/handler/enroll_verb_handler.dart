@@ -375,6 +375,32 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       }
     }
 
+    // The throttle and the OTP gate above stay OUTSIDE the section. Neither
+    // reads or writes an enrollment, and the invalid-OTP arm deliberately
+    // sleeps for a growing interval before it answers — holding this atSign's
+    // one enrollment-mutation lock across that would let a stream of wrong
+    // passcodes stall every approve, revoke and cap arming on the atSign.
+    //
+    // What is inside is the part that decides against stored enrollments and
+    // writes: a retrofit reads its predecessor, checks it is approved, reads
+    // its stored deadline and mints a successor carrying its grants — so a
+    // revoke of that predecessor landing mid-decision would otherwise be
+    // answered by a fresh, approved credential holding exactly what the
+    // revoke was taking away.
+    return enMgr.serialiseMutation(() => _enrollmentRequestUnderLock(
+        enMgr, enrollParams, currentAtSign, responseJson, atConnection));
+  }
+
+  /// The read-decide-write half of [_handleEnrollmentRequest], run under
+  /// [EnrollmentManager.serialiseMutation].
+  Future<void> _enrollmentRequestUnderLock(
+      EnrollmentManager enMgr,
+      EnrollParams enrollParams,
+      currentAtSign,
+      Map<dynamic, dynamic> responseJson,
+      InboundConnection atConnection) async {
+    var enrollNamespaces = enrollParams.namespaces ?? {};
+
     if (atConnection.metaData.authType == AuthType.cram) {
       // A CRAM-authenticated connection is allowed a 'duplicate' enrollment
       // request. See #2208
@@ -401,7 +427,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       await preventDuplicateEnrollRequest(enrollParams);
     }
 
-    var enrollNamespaces = enrollParams.namespaces ?? {};
     var newEnrollmentId = Uuid().v4();
     var enrollmentKey = enMgr.buildEnrollmentKey(newEnrollmentId);
     logger.finer('New enrollment key created : $enrollmentKey$currentAtSign');
@@ -827,6 +852,38 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'removes ${AtConstants.atPkamPublicKey} with the record');
     }
 
+    // Everything below is read-decide-write across the whole store, so it
+    // runs as this atSign's only in-flight enrollment mutation. The refusal
+    // above is decided from the operation and the id alone, reads nothing and
+    // writes nothing, so it stays outside the section.
+    //
+    // The SPAN is the point rather than the write. A revoke reads the target,
+    // walks its descendants, asks whether any unexpiring root would survive
+    // the act, and only then writes; two of those at once each counted the
+    // root the other was about to remove and left the atSign with none.
+    // Serialising the writes alone would not have changed that by one record.
+    return enMgr.serialiseMutation(() => _approveDenyRevokeUnrevokeUnderLock(
+        enMgr,
+        inboundConnectionMetadata,
+        enrollParams,
+        currentAtSign,
+        operation,
+        responseJson,
+        response));
+  }
+
+  /// The read-decide-write half of [_handleApproveDenyRevokeUnrevoke], run
+  /// under [EnrollmentManager.serialiseMutation].
+  Future<List<String>> _approveDenyRevokeUnrevokeUnderLock(
+      EnrollmentManager enMgr,
+      InboundConnectionMetadata inboundConnectionMetadata,
+      EnrollParams enrollParams,
+      currentAtSign,
+      String operation,
+      Map<dynamic, dynamic> responseJson,
+      Response response) async {
+    final String enId = enrollParams.enrollmentId!;
+
     EnrollDataStoreValue? enVal;
     EnrollmentStatus? status;
     try {
@@ -1227,6 +1284,23 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           '${connectionMetadata.enrollmentId ?? "the owner"}, not $enId. '
           'Authenticate as $enId to update it');
     }
+
+    // As for approve/deny/revoke/unrevoke: the identity checks above decide
+    // from the connection and the id alone, and everything below reads the
+    // record, decides against it and writes it back.
+    return enMgr.serialiseMutation(() => _enrollmentUpdateUnderLock(
+        enMgr, enrollParams, currentAtSign, responseJson));
+  }
+
+  /// The read-decide-write half of [_handleEnrollmentUpdate], run under
+  /// [EnrollmentManager.serialiseMutation].
+  Future<void> _enrollmentUpdateUnderLock(
+    EnrollmentManager enMgr,
+    EnrollParams enrollParams,
+    String currentAtSign,
+    Map<dynamic, dynamic> responseJson,
+  ) async {
+    final enId = enrollParams.enrollmentId!;
 
     final enVal = await enMgr.getEnrollmentById(enId);
     final status = EnrollmentStatus.values.byName(enVal.approval!.state);
@@ -2026,6 +2100,23 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       EnrollmentManager enMgr,
       EnrollParams? enrollParams,
       String atSign,
+      Map responseJson,
+      response,
+      InboundConnection atConnection) async {
+    // Read-decide-write from the first line, so the whole of it is one
+    // mutation: the record is read, the caller's authority and the record's
+    // state are decided against it, and then it is removed — taking its
+    // per-enrollment data, and for the housekeeping record the legacy PKAM
+    // key, with it.
+    return enMgr.serialiseMutation(() => _deleteEnrollmentUnderLock(
+        enMgr, enrollParams, responseJson, response, atConnection));
+  }
+
+  /// The read-decide-write half of [_deleteEnrollment], run under
+  /// [EnrollmentManager.serialiseMutation].
+  Future<void> _deleteEnrollmentUnderLock(
+      EnrollmentManager enMgr,
+      EnrollParams? enrollParams,
       Map responseJson,
       response,
       InboundConnection atConnection) async {
