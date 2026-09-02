@@ -1852,11 +1852,11 @@ void main() {
       // it the case above is equally satisfied by the refusal having been
       // removed altogether.
       //
-      // Empty is reachable rather than theoretical: the update grammar
-      // demands a non-empty value, but update:json carries the value inside
-      // the document. Authentication refuses an empty public key before it
-      // looks at a signature, so an empty value and a missing one are the
-      // same credential — none.
+      // Empty is a state a store can be found in — one written by an older
+      // server, before both spellings of update demanded a non-empty value.
+      // Authentication refuses an empty public key before it looks at a
+      // signature, so an empty value and a missing one are the same
+      // credential — none.
       await keyValueStore.put(AtConstants.atPkamPublicKey,
           AtData()..data = '',
           skipCommit: true);

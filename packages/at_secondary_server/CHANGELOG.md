@@ -1,4 +1,83 @@
 # 3.16.4
+- ⚠️ BREAKING: `update:json` is held to the same bar as the plain `update`
+  grammar. It was not a second spelling of the verb — it was the same keystore
+  behind a different door, and the plain door's validation lived in two places
+  the json door reached neither of: the wire grammar and the tail of
+  `getUpdateParams`. So a json document could carry an empty or multi-line
+  value, a null or non-String value, a negative ttl, a non-UTC asserted
+  timestamp, `isPublic` together with `sharedWith`, an un-normalised sharedBy,
+  another atSign's sharedBy — writing into this atSign's keystore under a
+  foreign identity — or no atKey at all.
+
+  The atKey's CHARSET is deliberately not among the tightened rules.
+  `update:json` is the route that exists to name keys the plain grammar cannot
+  express — a namespace-less `privatekey:` key with an arbitrary suffix among
+  them — and holding it to the grammar's colon-free charset would remove a
+  capability the server relies on. Which of those keys a caller may write is
+  answered by authorisation, and that is where the related hole was closed
+  (below).
+
+  Malformed documents now fail as `InvalidSyntaxException` rather than escaping
+  as raw Dart `TypeError`s reported to the caller as `InternalServerError`, so
+  a client can tell its own bad request from a server fault.
+- ⚠️ BREAKING: a `from:` challenge buys ONE verification attempt, and only
+  while it is live. `pkam`, `cram` and `pol` removed the challenge on the
+  success path only, so a caller could present signature after signature
+  against a single `from:` until one verified; and no verifier asked whether
+  the record was still live, so the 60-second ttl was enforced by nothing but a
+  background sweep and a challenge hours past its `expiresAt` still
+  authenticated. All three now share `consumeChallenge`, which reads, removes
+  unconditionally, and returns the value only if it is still active.
+
+  A client that sends a speculative or mistaken `pkam:`/`cram:` must send a
+  fresh `from:` before retrying, and the 60-second bound now bites for the
+  first time. `pol` was the worst of the three: its challenge is handed to
+  another atSign to sign, so a challenge surviving a failed verification left
+  the replay window unbounded.
+- ⚠️ BREAKING: `enroll:list` projects by the caller's `__manage` letter. Its
+  gate was `containsKey('__manage')` and did not read the access level at all,
+  so a caller holding `__manage:r` — which can never approve anything — was
+  handed `encryptedAPKAMSymmetricKey` for every enrollment on the atSign, while
+  `enroll:fetch` refused it the same field for one. A read-only administrator
+  now gets a roster: who exists, what each holds, its state and the approval
+  topology, and none of the key material. The roster is an explicit field set,
+  so a field added to the record is absent from it until somebody adds it
+  deliberately. Owner/CRAM/legacy connections and a caller's own record are
+  unchanged.
+- ⚠️ BREAKING: an enrollment grant's access level must be `r` or `rw`.
+  `enroll:request` now refuses any other spelling rather than storing it.
+  Ten sites compared the level exactly while one read it as a set of letters,
+  so `wr` got two different answers in one request — and not symmetrically:
+  exact comparison fails closed for the powers a grant confers and fails OPEN
+  for "is this enrollment powerful enough that I need authority over it". A
+  target holding `__manage:wr` did not count as holding write on `__manage`,
+  admitting a read-only administrator to approve, revoke and delete it; a root
+  spelled `{'*':'wr','__manage':'wr'}` did not count as a root, so the guard
+  that refuses to revoke an atSign's last root counted zero and permitted the
+  revoke that strands it. Every site now reads the letters as a set, so a
+  record already stored with a non-canonical spelling answers alike everywhere
+  — which does widen what such a record confers.
+- ⚠️ BREAKING: NO enrollment may WRITE `privatekey:at_secret` or
+  `privatekey:at_secret_deleted`, root included. The guard that refuses the
+  legacy PKAM credential to every enrollment named only that key, and the CRAM
+  secret mints an identity in exactly the same way: a caller that installs a
+  secret it knows can authenticate as the atSign's owner whenever it likes,
+  carrying no enrollment id, so revoking the enrollment that planted it takes
+  nothing back. The tombstone is named for the same reason — planting it
+  permanently disables CRAM replanting. Reachable only over `update:json`,
+  which the plain grammar's charset cannot express.
+
+  WRITES only: onboarding deletes the CRAM secret once PKAM is established,
+  and that stays a root enrollment's job.
+- fix: the CRAM-secret tombstone records a deletion that happened. It was
+  written at the top of the delete handler, before the authorisation check and
+  before the removal was attempted, so any connection reaching the handler
+  could plant it — an enrollment holding one ordinary namespace was refused the
+  delete and still permanently disabled CRAM replanting, and it fired on an
+  atSign that had no CRAM secret at all. With the flat credential retired, CRAM
+  is an atSign's last recovery route, so this was a stranding vector. The
+  marker is now written after the authorisation check and after a removal that
+  actually removed something. Its permanence is unchanged.
 - ⚠️ BREAKING: the atSign's flat PKAM credential has no enrollment record, and
   a legacy `pkam:` carries no enrollment id.
 
@@ -244,9 +323,9 @@
   question is asked of the live key rather than of any record, and PRESENT is
   not the bar — NON-EMPTY is. Authentication refuses an empty public key
   before it looks at a signature, so an empty value and a missing one are the
-  same credential, none. Zero-length is reachable rather than theoretical: the
-  `update` grammar demands a non-empty value, but `update:json` carries the
-  value inside the JSON document.
+  same credential, none. Zero-length is reachable rather than theoretical: an
+  enrollment record's `apkamPublicKey` is whatever `enroll:request` was sent,
+  and a store written by an older server can hold one at the flat key too.
 - ⚠️ fix: every decision that asks what enrollments an atSign HOLDS now reads
   the STORED roster, expired records included. Only the answers that merely
   REPORT a roster read the visible one.

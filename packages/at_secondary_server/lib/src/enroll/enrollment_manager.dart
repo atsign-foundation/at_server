@@ -248,9 +248,12 @@ class EnrollmentManager {
   /// counted as one by [hasUnexpiringRootEnrollment], which is the caller
   /// that decides whether an act would strand the atSign.
   ///
-  /// Zero-length is a state the atSign can genuinely be found in: the `update`
-  /// grammar demands a non-empty value, but `update:json` carries the value
-  /// inside the JSON document instead, so an owner connection can store one.
+  /// Zero-length is a state the atSign can be found in even though no route
+  /// on this server writes one any more: both spellings of `update` now
+  /// demand a non-empty value, but a store written by an older server, when
+  /// `update:json` carried the value inside a JSON document nothing checked,
+  /// can still hold one. The guard is kept because a credential read as
+  /// present-but-empty is the one mistake that strands an atSign.
   ///
   /// `keyStore.get` THROWS for a missing key rather than returning null, so
   /// absence has to be caught here rather than tested for.
@@ -1125,10 +1128,10 @@ class EnrollmentManager {
   /// applies before it looks at a signature: `PkamVerbHandler` refuses an
   /// empty public key on the legacy and APKAM branches alike, so an empty
   /// value and a missing one are the same credential — none. Zero-length is
-  /// reachable rather than theoretical: the `update` grammar demands a
-  /// non-empty value, but `update:json` carries the value inside the JSON
-  /// document, and an enrollment record's `apkamPublicKey` is whatever
-  /// `enroll:request` was sent.
+  /// reachable rather than theoretical, and the route that reaches it is
+  /// `enroll:request`: an enrollment record's `apkamPublicKey` is whatever
+  /// the request was sent, and no update-path validation stands between a
+  /// request and the record it writes.
   ///
   /// It is applied on both sides of every stranding decision — what an act
   /// REMOVES and what SURVIVES it — so that "root" means one thing in both. A
@@ -1186,10 +1189,11 @@ class EnrollmentManager {
   /// expiry sweep has no way to ask and no way to answer "no" to.
   ///
   /// Unwritable and undeletable from the wire, and measured rather than
-  /// assumed: `AtKey.getKeyType` calls it `privateKey`, which the `update`
-  /// grammar cannot express and which the update seam refuses outright on
-  /// the `update:json` route that CAN express it; `delete` whitelists only
-  /// `privatekey:at_secret`. It never syncs either — the commit log returns
+  /// assumed: the name carries a ':', which neither spelling of `update` will
+  /// accept — the grammar's atKey charset admits one colon-bearing literal
+  /// and this is not it, and `update:json` is held to that same charset — and
+  /// `AtKey.getKeyType` calls it `privateKey`, which the update seam refuses
+  /// outright behind that; `delete` whitelists only `privatekey:at_secret`. It never syncs either — the commit log returns
   /// without writing for every key on the `private:` prefix.
   ///
   /// The `privatekey:` prefix the credential itself uses is NOT available:

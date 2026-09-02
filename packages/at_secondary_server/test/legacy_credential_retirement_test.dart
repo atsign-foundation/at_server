@@ -211,7 +211,8 @@ void main() {
     test('a zero-length flat credential does not arm the clock', () async {
       // Not a credential: authentication refuses an empty public key before
       // it looks at any signature, so an empty value and a missing one are
-      // the same thing — and this is the state update:json can leave behind.
+      // the same thing — and a store written by an older server, before both
+      // spellings of update demanded a non-empty value, can hold one.
       await installFlatCredential('');
 
       await mintOverCram();

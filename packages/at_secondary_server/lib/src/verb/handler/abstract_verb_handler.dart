@@ -701,6 +701,19 @@ abstract class AbstractVerbHandler implements VerbHandler {
         verb is NotifyRemove;
   }
 
+  /// Whether this verb puts a CALLER-CHOSEN value into the keystore, as
+  /// distinct from [isMutatingVerb], which also covers removal.
+  ///
+  /// The distinction matters for the keys that mint an identity: installing a
+  /// chosen value at one of them hands the caller a credential, while
+  /// removing what is there does not — and removing some of them is a
+  /// legitimate act (onboarding deletes the CRAM secret once PKAM is
+  /// established).
+  bool isWritingVerb() {
+    final Verb verb = getVerb();
+    return verb is Update || verb is UpdateMeta;
+  }
+
   /// Decides a namespace-less key for an enrollment, or returns null to let
   /// the namespace check decide.
   bool? _decideRootKey(
@@ -725,12 +738,33 @@ abstract class AbstractVerbHandler implements VerbHandler {
     final bool isOwnKeyMaterial = _ownKeyMaterialRegex.hasMatch(key);
     if (isOwnKeyMaterial || _rootOnlyWritableKeyRegex.hasMatch(key)) {
       if (isMutatingVerb()) {
-        // NO enrollment may write the legacy PKAM credential, whatever it
-        // holds. Every other key in this branch is decided by what the
-        // enrollment holds; this one is refused outright, because writing it
-        // mints an identity rather than serving one — see
+        // NO enrollment may write these, whatever it holds. Every other key
+        // in this branch is decided by what the enrollment holds; these are
+        // refused outright, because writing one MINTS AN IDENTITY rather
+        // than serving one — see
         // `AbstractUpdateVerbHandler.refuseLegacyCredentialWrite`, which
         // refuses the connections that never reach here.
+        //
+        // The CRAM secret is here for the same reason as the PKAM key, and
+        // it was missed when that guard was written. A caller that installs
+        // a CRAM secret it knows can authenticate as the atSign's owner
+        // whenever it likes, carrying no enrollment id — so revoking the
+        // enrollment that planted it takes nothing back. Its tombstone is
+        // named too: whoever can plant that marker permanently disables CRAM
+        // replanting, which is the atSign's last recovery route once the
+        // flat credential is retired.
+        //
+        // WRITES only, unlike the PKAM key above. Onboarding deletes the
+        // CRAM secret once PKAM is established, and that is a root
+        // enrollment's job to do — the hazard is installing a chosen value,
+        // not removing the one that is there. Deleting it is answered for
+        // separately, by DeleteVerbHandler, which records the tombstone only
+        // after an authorised delete that actually removed something.
+        if (isWritingVerb() &&
+            (key == AtConstants.atCramSecret ||
+                key == AtConstants.atCramSecretDeleted)) {
+          return false;
+        }
         if (key == AtConstants.atPkamPublicKey) {
           return false;
         }

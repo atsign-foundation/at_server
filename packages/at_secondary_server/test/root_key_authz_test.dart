@@ -351,13 +351,16 @@ void main() {
     // raw command literals rather than built from constants.
 
     test('update:json reaches the ban', () async {
-      // The route the plain grammar's own value check does NOT cover:
-      // `update:` demands a non-empty value, while update:json carries the
-      // value inside the document and can therefore store a zero-length one.
-      // A zero-length credential is not harmless — it is the state that makes
-      // the atSign's flat key stop counting as a root it can fall back on —
-      // so this route has to be refused by the ban and not merely by the
-      // grammar.
+      // update:json is the route that can NAME this key without the plain
+      // grammar's charset having a say, so the ban — not the grammar — has to
+      // be what refuses it. A ban that covered only the plain form would
+      // leave the sharper write open.
+      //
+      // The value is non-empty deliberately. update:json now demands a
+      // non-empty single-line value like the plain grammar does, so a
+      // zero-length document is refused as a syntax error BEFORE the ban is
+      // consulted — which would make this case green without exercising the
+      // ban at all. The zero-length route is asserted separately below.
       bindCram();
       await keyValueStore.put(
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
@@ -367,7 +370,7 @@ void main() {
       // actually send rather than a hand-rolled document.
       final json = jsonEncode({
         'atKey': AtConstants.atPkamPublicKey,
-        'value': '',
+        'value': 'REPLACEMENT_KEY',
         'metadata': Metadata().toJson(),
       });
       await expectLater(
@@ -381,6 +384,32 @@ void main() {
       expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
           'ORIGINAL_KEY',
           reason: 'and the refusal happened before the write');
+    });
+
+    test('a zero-length update:json value is refused before it can be stored',
+        () async {
+      // The other half of what the ban case used to carry on its own. A
+      // zero-length credential is not harmless: it is the state that makes
+      // the atSign's flat key stop counting as a root it can fall back on.
+      // It is now refused by the value check rather than by the ban, so both
+      // mechanisms are asserted rather than one standing in for the other.
+      bindCram();
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+
+      final json = jsonEncode({
+        'atKey': AtConstants.atPkamPublicKey,
+        'value': '',
+        'metadata': Metadata().toJson(),
+      });
+      await expectLater(
+          updateVerbHandler.process('update:json:$json', inboundConnection),
+          throwsA(isA<InvalidSyntaxException>()),
+          reason: 'update:json carries the value inside the document, which '
+              'is how a zero-length value used to reach the keystore at all');
+
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'ORIGINAL_KEY');
     });
 
     test('CONTROL: update:json writes an ordinary key on this connection',
@@ -667,6 +696,57 @@ void main() {
             throwsA(isA<UnAuthorizedException>()));
       });
     }
+
+    test('NO enrollment may WRITE the CRAM secret, root included', () async {
+      // The CRAM secret mints an identity exactly as the PKAM key does, and
+      // was missed when that guard was written. A caller that installs a
+      // secret it knows can authenticate as the atSign's owner whenever it
+      // likes, carrying NO enrollment id — so revoking the enrollment that
+      // planted it takes nothing back.
+      //
+      // The json form because the plain grammar cannot express this key at
+      // all, which is what made update:json the whole of the exposure.
+      await bindRoot();
+      await keyValueStore.put(
+          AtConstants.atCramSecret, AtData()..data = 'ORIGINAL_SECRET');
+
+      final json = jsonEncode({
+        'atKey': AtConstants.atCramSecret,
+        'value': 'A_SECRET_THE_CALLER_KNOWS',
+        'metadata': Metadata().toJson(),
+      });
+      await expectLater(
+          updateVerbHandler.process('update:json:$json', inboundConnection),
+          throwsA(isA<UnAuthorizedException>()),
+          reason: 'root privilege decides every other key on this prefix; '
+              'this one is refused outright');
+
+      expect((await keyValueStore.get(AtConstants.atCramSecret))?.data,
+          'ORIGINAL_SECRET',
+          reason: 'and the refusal happened before the write');
+    });
+
+    test('NO enrollment may WRITE the CRAM tombstone, root included', () async {
+      // Whoever can plant this marker permanently disables CRAM replanting,
+      // which is the atSign's last recovery route once the flat credential is
+      // retired. It is reachable only over update:json — the delete grammar
+      // cannot name it and neither can a plain update.
+      await bindRoot();
+
+      final json = jsonEncode({
+        'atKey': AtConstants.atCramSecretDeleted,
+        'value': 'true',
+        'metadata': Metadata().toJson(),
+      });
+      await expectLater(
+          updateVerbHandler.process('update:json:$json', inboundConnection),
+          throwsA(isA<UnAuthorizedException>()));
+
+      expect(await keyValueStore.exists(AtConstants.atCramSecretDeleted),
+          isFalse,
+          reason: 'an atSign that never deleted its CRAM secret must not be '
+              'left unable to replant one');
+    });
 
     test('a root enrollment can still delete the CRAM secret', () async {
       // Onboarding removes privatekey:at_secret once PKAM is established.

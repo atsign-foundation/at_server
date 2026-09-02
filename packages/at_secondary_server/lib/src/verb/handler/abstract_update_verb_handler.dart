@@ -403,12 +403,33 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
             (metadata.ttb == null || metadata.ttb == 0));
   }
 
+  /// The value charset the plain grammar pins: ` (?<value>.+)`, and Dart's
+  /// `.` does not match a newline. A line-oriented protocol cannot carry a
+  /// multi-line value, so a document that supplies one is refused rather
+  /// than stored for something downstream to mis-frame.
+  static final RegExp _grammarValue = RegExp(r'^.+$');
+
   UpdateParams getUpdateParams(HashMap<String, String?> verbParams) {
     if (verbParams['json'] != null) {
       var jsonString = verbParams['json']!;
-      Map jsonMap = jsonDecode(jsonString);
-      final updateParams = UpdateParams.fromJson(jsonMap);
+      final UpdateParams updateParams;
+      final Map jsonMap;
+      try {
+        jsonMap = jsonDecode(jsonString);
+        updateParams = UpdateParams.fromJson(jsonMap);
+      } on AtException {
+        rethrow;
+      } catch (e) {
+        // A malformed document used to surface as a raw Dart TypeError or
+        // FormatException and reach the client as InternalServerError, so a
+        // caller could not tell its own bad request from a server fault. A
+        // metadata map omitting isBinary/isEncrypted/isPublic is the common
+        // case: commons assigns those three into non-nullable bools.
+        throw InvalidSyntaxException('invalid update:json document: $e');
+      }
       _restoreUnmentionedRelatives(updateParams.metadata, jsonMap['metadata']);
+      _validateJsonUpdateParams(updateParams);
+      _validateUpdateParams(updateParams);
       return updateParams;
     }
     var updateParams = UpdateParams();
@@ -495,6 +516,18 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
 
     updateParams.metadata = metadata;
 
+    _validateUpdateParams(updateParams);
+
+    return updateParams;
+  }
+
+  /// The checks that hold however the command was spelled.
+  ///
+  /// These used to sit at the tail of the plain path only, because the json
+  /// branch returned before reaching them — so `update:json` could write a
+  /// key with no name at all, and could write into ANOTHER atSign's
+  /// namespace inside this atSign's keystore.
+  void _validateUpdateParams(UpdateParams updateParams) {
     if (updateParams.atKey == null || updateParams.atKey!.isEmpty) {
       throw InvalidSyntaxException('atKey.key not supplied');
     }
@@ -509,8 +542,90 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       logger.warning(message);
       throw InvalidAtKeyException(message);
     }
+  }
 
-    return updateParams;
+  /// Holds a decoded `update:json` document to the bar the plain grammar
+  /// enforces before a command ever reaches a handler.
+  ///
+  /// `update:json` is not a second spelling of `update:` — it is the same
+  /// keystore behind a different door, and the plain door's validation lives
+  /// in TWO places the json door reached neither of: the wire grammar, which
+  /// pins the atKey to a colon-free token, the value to one non-empty line
+  /// and the asserted timestamps to UTC; and the tail of [getUpdateParams].
+  ///
+  /// What it does NOT enforce is the grammar's atKey charset: see the note
+  /// at the head of the body. The keys `update:json` can name that a plain
+  /// `update:` cannot are its purpose, and they are answered for by
+  /// authorisation rather than by syntax.
+  void _validateJsonUpdateParams(UpdateParams updateParams) {
+    // NOTE the atKey CHARSET is deliberately not checked here. `update:json`
+    // is not merely a second spelling of `update:` — it is the route that
+    // exists to express keys the plain grammar cannot, a namespace-less
+    // `privatekey:` key with an arbitrary suffix among them. Holding it to
+    // the grammar's colon-free charset would remove a capability the server
+    // relies on. What governs that wider surface is authorisation —
+    // `_decideRootKey` and the key-type switch in [preProcess] — not syntax,
+    // and a syntax refusal here would pre-empt the very ban that is supposed
+    // to answer for these keys.
+    final dynamic value = updateParams.value;
+    if (value is! String || !_grammarValue.hasMatch(value)) {
+      throw InvalidSyntaxException(
+          'invalid value: update:json requires a non-empty, single-line'
+          ' string, as the update grammar does');
+    }
+
+    // fixAtSign lowercases, prepends the '@', refuses a second '@' and
+    // strips a trailing dotted domain — the normalisation the plain path
+    // applies to both atSigns before anything compares them. Without it a
+    // sharedBy of 'Alice' or '@alice@evil' reached the keystore verbatim and
+    // the identity check below compared the wrong string.
+    if (updateParams.sharedBy.isNotNullOrEmpty) {
+      updateParams.sharedBy = AtUtils.fixAtSign(updateParams.sharedBy!);
+    }
+    if (updateParams.sharedWith.isNotNullOrEmpty) {
+      updateParams.sharedWith = AtUtils.fixAtSign(updateParams.sharedWith!);
+    }
+
+    final Metadata? metadata = updateParams.metadata;
+    if (metadata == null) {
+      return;
+    }
+    if (metadata.ttl != null) {
+      AtMetadataUtil.validateTTL(metadata.ttl.toString());
+    }
+    if (metadata.ttb != null) {
+      AtMetadataUtil.validateTTB(metadata.ttb.toString());
+    }
+    if (metadata.ttr != null) {
+      hu.validateTTR(metadata.ttr!);
+    }
+
+    // The grammar makes `public` and `@<forAtSign>` alternatives of one
+    // group, so a plain command cannot say both. A record that is public AND
+    // shared with one atSign has no meaning here, and the two halves are
+    // read by different code paths.
+    if (metadata.isPublic == true && updateParams.sharedWith.isNotNullOrEmpty) {
+      throw InvalidSyntaxException(
+          'invalid update:json document: a key cannot be public and shared'
+          ' with ${updateParams.sharedWith} at once');
+    }
+
+    // The grammar pins :cAt/:uAt/:eAt/:aAt to ISO-8601 with a trailing 'Z',
+    // so a plain command cannot assert a local time. These timestamps are
+    // compared against other atSigns' and ordered against the commit log; a
+    // local one silently shifts by the server's offset.
+    for (final MapEntry<String, DateTime?> asserted in {
+      'createdAt': metadata.createdAt,
+      'updatedAt': metadata.updatedAt,
+      'expiresAt': metadata.expiresAt,
+      'availableAt': metadata.availableAt,
+    }.entries) {
+      if (asserted.value != null && !asserted.value!.isUtc) {
+        throw InvalidSyntaxException(
+            'invalid update:json document: ${asserted.key} must be UTC, as'
+            ' the update grammar requires');
+      }
+    }
   }
 
   Future<AtNotification?> notify(
