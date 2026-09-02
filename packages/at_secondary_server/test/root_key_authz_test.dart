@@ -77,6 +77,22 @@ void main() {
     Future<String> bindLegacy() =>
         bindRoot(id: EnrollmentManager.housekeepingEnrollmentId);
 
+    /// The housekeeping id WITHOUT root privilege.
+    ///
+    /// Not a record this server mints — the housekeeping enrollment is created
+    /// fully privileged — and it is not pretending to be one. It exists to
+    /// take the OTHER grant away, so that the carve-out is the only thing left
+    /// that can admit the write.
+    ///
+    /// [bindLegacy] cannot do that job. The PKAM key is decided in a branch
+    /// that falls through to `isRootEnrollment` whenever the exact comparison
+    /// against the key misses, and a fully privileged legacy record satisfies
+    /// that fallback — so a case test built on it is admitted either way and
+    /// pins nothing.
+    Future<String> bindLegacyWithoutRootPrivilege() => bindEnrollment(
+        {'wavi': 'rw'},
+        id: EnrollmentManager.housekeepingEnrollmentId);
+
     // ---- the legacy PKAM public key ----
 
     test('scoped enrollment cannot overwrite the legacy PKAM public key',
@@ -198,23 +214,21 @@ void main() {
           'NEW_VALUE');
     });
 
-    test('the PKAM key guard is not case-sensitive', () async {
-      // Verb regexes are built caseSensitive:false and the keystore lowercases
-      // on put, so an uppercase spelling addresses the same record.
-      await bindScoped();
-      await expectLater(
-          updateVerbHandler.process(
-              'update:PRIVATEKEY:AT_PKAM_PUBLICKEY REPLACEMENT_KEY',
-              inboundConnection),
-          throwsA(isA<UnAuthorizedException>()));
-    });
-
-    test('...and neither is it for a ROOT enrollment', () async {
-      // The arm that matters now that the refusal turns on an exact key
-      // comparison rather than on a case-insensitive regex alone. Comparing
-      // the key AS RECEIVED rather than as the keystore folds it would let a
-      // root enrollment reach the very record the test above protects, by
-      // holding down shift.
+    test('the PKAM key guard is not case-sensitive, for a ROOT enrollment',
+        () async {
+      // A ROOT enrollment is the only fixture that can pin this, and the
+      // reason is worth stating because the obvious scoped arm was here until
+      // it was measured. The refusal turns on an exact comparison of the
+      // FOLDED key against `privatekey:at_pkam_publickey`; when that
+      // comparison misses, the branch falls through to `isRootEnrollment`. So
+      // for a scoped enrollment the fold changes nothing — the fallback
+      // refuses it too, with the same exception, and an uppercase scoped case
+      // is green whether or not the key is folded. Only a caller the FALLBACK
+      // would admit can tell the two apart.
+      //
+      // What it pins: comparing the key AS RECEIVED rather than as the
+      // keystore folds it lets a root enrollment reach the record every other
+      // case here protects, by holding down shift.
       await bindRoot();
       await keyValueStore.put(
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
@@ -230,19 +244,54 @@ void main() {
 
     test('...and the legacy carve-out is not case-sensitive either', () async {
       // The carve-out compares against the key AFTER the same normalisation
-      // the keystore applies. Comparing against the spelling as received
-      // would refuse the legacy connection its own rotation for a shift key,
-      // and the refusal would read as an authorisation bug.
+      // the keystore applies. Comparing against the spelling as received would
+      // refuse the legacy connection its own rotation for a shift key, and the
+      // refusal would read as an authorisation bug.
+      //
+      // The fixture withholds root privilege ON PURPOSE — see
+      // bindLegacyWithoutRootPrivilege. With it, an unfolded comparison misses
+      // and the branch falls through to `isRootEnrollment`, which admits the
+      // write for a different reason and gives the identical outcome; the case
+      // was green with the fold gone. Without it, the carve-out is the only
+      // grant that can admit this connection, so the outcome is the fold's.
       //
       // Same discriminator as above: an IllegalArgumentException means this
       // spelling reached the possession check, so authorization admitted it.
-      await bindLegacy();
+      await bindLegacyWithoutRootPrivilege();
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
       await expectLater(
           updateVerbHandler.process(
               'update:PRIVATEKEY:AT_PKAM_PUBLICKEY NEW_KEY',
               inboundConnection),
           throwsA(isA<IllegalArgumentException>().having((e) => e.message,
-              'message', contains('requires proof'))));
+              'message', contains('requires proof'))),
+          reason: 'an UnAuthorizedException here means the carve-out stopped '
+              'recognising this spelling as its own key');
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'ORIGINAL_KEY',
+          reason: 'and the refusal happened before the write');
+    });
+
+    test('CONTROL: the same grants under an ordinary id are refused', () async {
+      // The discriminator is the ID and nothing else. Identical grants,
+      // identical spelling, identical command — only the enrollment id
+      // differs. Without it the case above would be satisfied by this key
+      // being reachable by any enrollment at all, which is the opposite of
+      // what the carve-out says.
+      await bindEnrollment({'wavi': 'rw'});
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+      await expectLater(
+          updateVerbHandler.process(
+              'update:PRIVATEKEY:AT_PKAM_PUBLICKEY NEW_KEY',
+              inboundConnection),
+          throwsA(isA<UnAuthorizedException>()),
+          reason: 'only the housekeeping enrollment may rotate the legacy '
+              'credential; every other enrollment is refused whatever it '
+              'holds');
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'ORIGINAL_KEY');
     });
 
     // ---- the atSign's own key material ----
@@ -379,17 +428,25 @@ void main() {
 
     // ---- matching the key the keystore writes ----
 
+    // WHITESPACE ONLY, and the uppercase variant that used to sit here was
+    // removed rather than kept. HiveKeyStoreHelper.prepareKey normalises with
+    // trim().toLowerCase().replaceAll(' ',''), and only the trim and the strip
+    // are load-bearing for THIS key: `_ownKeyMaterialRegex` is anchored, so a
+    // stray space or tab defeats it and nothing but the fold puts the key
+    // back. Case is decided twice over and so cannot be isolated — measured
+    // both ways: with the fold removed the uppercase case stays green, because
+    // the regex is built caseSensitive:false; with that flag set to true it
+    // stays green as well, because the fold has already lowercased the key
+    // before the regex sees it. A case that cannot fail for either of its
+    // stated reasons is worse than none.
     for (final variant in [
       'public:publickey@alice ',
       ' public:publickey@alice',
       'public:publickey@alice\t',
-      'PUBLIC:PUBLICKEY@ALICE'
     ]) {
       test('a non-root enrollment is denied ${jsonEncode(variant)}', () async {
-        // HiveKeyStoreHelper.prepareKey normalises with
-        // trim().toLowerCase().replaceAll(' ',''), so these variants all
-        // address the same record. A '*:rw' enrollment is not a root
-        // enrollment.
+        // A '*:rw' enrollment is not a root enrollment, and these variants all
+        // address the record it must not reach.
         await bindWildcard();
         await keyValueStore.put(
             'public:publickey$alice', AtData()..data = 'GENUINE');
