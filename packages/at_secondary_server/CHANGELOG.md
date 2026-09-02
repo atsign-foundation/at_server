@@ -1,4 +1,45 @@
 # 3.16.4
+- fix: the housekeeping enrollment `primary` no longer holds a copy of the
+  legacy PKAM credential. It snapshotted `at_pkam_publickey` into its
+  `apkamPublicKey` once, at creation, and never refreshed it — so the record
+  and the credential it stands for could diverge, and every divergence was
+  either a stranding or an authentication bypass. Legacy PKAM verifies against
+  the LIVE key and reads nothing off the record, so the copy served no reader.
+  The record now carries an EMPTY key, and an APKAM authentication naming
+  `primary` fails closed at the verifier's existing emptiness guard whatever
+  the id spelling. That matters because the identifier comparison which also
+  refuses it is exact, while the keystore folds ids on the way in
+  (`trim().toLowerCase().replaceAll(' ','')`): a folded spelling walked past
+  the comparison, resolved to the record, and authenticated against the
+  snapshot — as `primary`, over APKAM, with a key the atSign had rotated out.
+
+  ⚠️ `enroll:list` and `enroll:fetch` now report an empty `apkamPubKey` for
+  `primary`. That is the honest answer rather than a regression: it is an
+  identity for a credential held elsewhere, and nothing can authenticate
+  against it.
+- fix: `enroll:update` refuses a target of `primary` outright. The self-only
+  gate asks whether the connection is authenticated AS its target, and a
+  legacy connection carries `primary` — so the one identity this verb must
+  never be pointed at was the one identity that satisfied the check. A legacy
+  connection could install an APKAM public key of its own choosing on the
+  atSign's legacy identity and be answered
+  `{"enrollmentId":"primary","status":"approved"}`. The refusal names the
+  remedy: the legacy credential is rotated with
+  `update:privatekey:at_pkam_publickey`, over a connection authenticated with
+  the credential it replaces.
+- fix: `primary` counts as an unexpiring root only while `at_pkam_publickey` is
+  in the keystore. Alone among enrollments it holds no credential of its own,
+  so a record standing over a key that is gone is a PHANTOM root — approved,
+  fully privileged, permanent and impossible to authenticate as. Counting it
+  answered "this atSign can restore a root" for a record nobody holds a
+  credential for, and the caller then revoked or capped the last root that
+  actually worked.
+- fix: the retrofit cap's decline now NAMES the remedy. An atSign whose only
+  root asks for a bounded key life declines on every authentication and has
+  both revoke routes refused, so its legacy credential is un-retirable and
+  nothing said what would change that. The warning now says: approve an
+  enrollment holding `rw` on both `*` and `__manage` with no key expiry, then
+  revoke or delete the predecessor.
 - fix: a revocation could be partly undone by a retrofit cap running
   concurrently. `capEnrollmentExpiry` re-read the record but took the STATUS
   from the caller's snapshot, taken before a keystore walk and a write — so a

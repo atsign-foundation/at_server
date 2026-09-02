@@ -2,7 +2,17 @@ import 'dart:convert';
 
 import 'dart:typed_data';
 
-import 'package:at_chops/at_chops.dart' show MlDsa65PureDartAlgo;
+import 'package:at_chops/at_chops.dart'
+    show
+        AtChopsImpl,
+        AtChopsKeys,
+        AtChopsUtil,
+        AtPkamKeyPair,
+        AtSigningInput,
+        AtSigningMode,
+        HashingAlgoType,
+        MlDsa65PureDartAlgo,
+        SigningAlgoType;
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
@@ -134,9 +144,13 @@ void main() {
           'point of the record');
       expect(h.isRootEnrollment, isTrue,
           reason: 'so the stranding refusals count it like any other root');
-      expect(h.apkamPublicKey, 'the-legacy-pkam-key',
-          reason: 'the record describes the credential it stands for rather '
-              'than being a bare marker');
+      expect(h.apkamPublicKey, isEmpty,
+          reason: 'BEHAVIOUR CHANGED — it used to snapshot the legacy key '
+              'here. The record is an IDENTITY for the legacy credential, '
+              'never a second copy of it: legacy PKAM verifies against the '
+              'live at_pkam_publickey and reads nothing off this record, so a '
+              'copy here is read by nothing and can only drift from the key '
+              'that actually authenticates');
     });
 
     test('carries NO approver, so no cascade can reach it', () async {
@@ -502,11 +516,11 @@ void main() {
     test('legacy authentication does not delete its own credential', () async {
       // A legacy credential must survive the authentication it performs and
       // still work on the next connection. A standing guard rather than the
-      // test of one mechanism: the housekeeping enrollment's recorded
-      // apkamPublicKey IS `at_pkam_publickey` by construction — it is created
-      // FROM that value — so a legacy connection is a perfect value match for
-      // anything that ever keys on that equality, and this is what would go
-      // red first.
+      // test of one mechanism: creating the housekeeping enrollment READS
+      // `at_pkam_publickey` — that read is how a bootstrap is told from a
+      // retirement — so a legacy authentication touches the credential it
+      // authenticated with, and this is what would go red first if that read
+      // ever became a consuming one.
       //
       // ⚠️ Deliberately does NOT re-seed the key between authentications —
       // the helper does, and re-seeding would paper over exactly the deletion
@@ -570,6 +584,309 @@ void main() {
               ordinary, alice);
       expect(result.response.isError, isFalse,
           reason: '${result.response.errorMessage}');
+    });
+  });
+
+  /// The housekeeping enrollment stands for a credential it does not hold.
+  /// Everything in this group turns on that: the record and the credential
+  /// must not be able to come apart, and the way to guarantee it is for the
+  /// record to carry nothing that could diverge.
+  group('it holds NO credential of its own', () {
+    /// An RSA legacy credential, replacing the seed `setUp` wrote.
+    ///
+    /// RSA rather than the ML-DSA [authenticateLegacy] uses, and that is
+    /// load-bearing for the APKAM arm below. The housekeeping record carries
+    /// no `signingAlgo`, and PKAM is record-authoritative for an enrollment —
+    /// it resolves a null to rsa2048 EXPLICITLY rather than taking the wire's
+    /// word — so an ML-DSA signature naming this enrollment would be verified
+    /// as RSA and fail on the algorithm, whatever key the record held. That
+    /// failure would look exactly like the refusal under test and would
+    /// survive any mutation of it.
+    late AtPkamKeyPair legacyPair;
+
+    Future<void> seedRsaLegacyKey() async {
+      legacyPair = AtChopsUtil.generateAtPkamKeyPair();
+      await seedLegacyKey(legacyPair.atPublicKey.publicKey);
+    }
+
+    /// The PKAM signature over `<sessionId><atSign>:<challenge>` — the same
+    /// framing the verb handler verifies, for both legacy and APKAM.
+    String pkamSignature(String sessionId, String challenge) {
+      final input = AtSigningInput('$sessionId$alice:$challenge')
+        ..signingAlgoType = SigningAlgoType.rsa2048
+        ..hashingAlgoType = HashingAlgoType.sha256
+        ..signingMode = AtSigningMode.pkam;
+      return AtChopsImpl(AtChopsKeys.create(null, legacyPair))
+          .sign(input)
+          .result;
+    }
+
+    /// Drives `pkam:` on a fresh connection. [idOnTheWire] null is a legacy
+    /// authentication; anything else is an APKAM one naming that id.
+    Future<Response> pkam(String sessionId, {String? idOnTheWire}) async {
+      final challenge = 'challenge-$sessionId';
+      await keyValueStore.put(
+          'private:$sessionId$alice', AtData()..data = challenge);
+      inboundConnection.metaData
+        ..isAuthenticated = false
+        ..enrollmentId = null
+        ..sessionID = sessionId;
+      final signature = pkamSignature(sessionId, challenge);
+      final r = Response();
+      await PkamVerbHandler(keyValueStore).processVerb(
+        r,
+        getVerbParam(
+            VerbSyntax.pkam,
+            idOnTheWire == null
+                ? 'pkam:$signature'
+                : 'pkam:enrollmentId:$idOnTheWire:$signature'),
+        inboundConnection,
+      );
+      return r;
+    }
+
+    test('an APKAM authentication naming it fails for want of a key, not for '
+        'want of a matching name', () async {
+      await seedRsaLegacyKey();
+
+      // The control, and it is drawn from the capability rather than from the
+      // property under test: the SAME keypair, the SAME framing, presented
+      // the way the legacy keyfile presents it. A green here says the
+      // signature and the credential are both good, so the refusal below is
+      // about the enrollment record and not about a fixture that cannot sign.
+      expect((await pkam('control-session')).data, 'success',
+          reason: 'precondition: this keypair IS the atSign\'s live legacy '
+              'credential and authenticates with it');
+
+      // ` primary`, deliberately. The refusal that compares the id against
+      // the housekeeping id is EXACT, while the keystore folds a key on the
+      // way in — trim, lowercase, strip spaces — so this spelling walks past
+      // that comparison and still resolves to the housekeeping record.
+      await expectLater(
+          () => pkam('bypass-session', idOnTheWire: ' primary'),
+          throwsA(isA<UnAuthenticatedException>().having((e) => e.message,
+              'message', contains('pkam publickey not found'))),
+          reason: 'the record carries an EMPTY apkamPublicKey, so an APKAM '
+              'authentication naming it has nothing to verify against and is '
+              'refused before any signature is looked at. With the legacy key '
+              'snapshotted onto the record this exact call SUCCEEDS — the '
+              'signature is valid against it — and the connection is APKAM '
+              'authenticated as the atSign\'s legacy identity');
+
+      expect(inboundConnection.metaData.isAuthenticated, isFalse,
+          reason: 'and the connection is left unauthenticated');
+
+      // The positive control for the bypass itself. Without this the refusal
+      // above would be satisfied by ` primary` naming nothing at all, which
+      // would make the whole test a statement about an unknown enrollment id.
+      final resolved = await enMgr.getEnrollmentById(' primary');
+      expect(resolved.appName, 'legacy',
+          reason: 'the folded spelling really does reach the housekeeping '
+              'record, so the exact-name refusal really was walked past');
+      expect(resolved.apkamPublicKey, isEmpty,
+          reason: 'and what stopped the authentication was the empty key');
+    });
+
+    test('...while the exact spelling is refused by name, before any of that',
+        () async {
+      // The other layer, kept honest alongside the first. Two independent
+      // refusals: this one is cheap and says what is wrong, the empty key is
+      // the one that cannot be spelled around.
+      await seedRsaLegacyKey();
+      final r = await pkam('named-session',
+          idOnTheWire: EnrollmentManager.housekeepingEnrollmentId);
+      expect(r.isError, isTrue);
+      expect(r.errorCode, 'AT0009');
+      expect(inboundConnection.metaData.isAuthenticated, isFalse);
+    });
+
+    test('a legacy connection rotates the credential through the update verb',
+        () async {
+      // The remedy the enroll:update refusal names, proved end to end. This
+      // is why `primary` needs no writable key on its record: the credential
+      // it stands for is rotated where the credential actually lives.
+      await seedRsaLegacyKey();
+      expect((await pkam('rotate-session')).data, 'success',
+          reason: 'precondition: authenticated as the legacy credential, so '
+              'the connection carries the housekeeping id');
+      expect(inboundConnection.metaData.enrollmentId,
+          EnrollmentManager.housekeepingEnrollmentId);
+
+      final replacement = AtChopsUtil.generateAtPkamKeyPair();
+      await etu.uvh.process(
+          'update:${AtConstants.atPkamPublicKey} '
+          '${replacement.atPublicKey.publicKey}',
+          inboundConnection);
+
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          replacement.atPublicKey.publicKey,
+          reason: 'a connection that authenticated with the old key has '
+              'proved possession of it, so rotating to a new one is the same '
+              'act every other enrollment performs with enroll:update');
+
+      legacyPair = replacement;
+      expect((await pkam('post-rotation-session')).data, 'success',
+          reason: 'and the new credential authenticates — a rotation nothing '
+              'can authenticate with afterwards is a lockout');
+
+      expect((await storedH())!.apkamPublicKey, isEmpty,
+          reason: 'the record is untouched by the rotation, which is the '
+              'whole reason it holds no key: there is no second copy to keep '
+              'in step');
+    });
+  });
+
+  group('enroll:update may not be pointed at it', () {
+    /// The possession self-signature `enroll:update` demands over
+    /// `<enrollmentId>|<apkamPublicKey>|<signingAlgo>`. Real crypto: a
+    /// stand-in string would make the refusal below pass for want of a
+    /// signature rather than because the target was refused.
+    String possessionSignature(
+        AtPkamKeyPair pair, String enId, String pub, String algo) {
+      final input = AtSigningInput('$enId|$pub|$algo')
+        ..signingAlgoType = SigningAlgoType.rsa2048
+        ..hashingAlgoType = HashingAlgoType.sha256
+        ..signingMode = AtSigningMode.pkam;
+      return AtChopsImpl(AtChopsKeys.create(null, pair)).sign(input).result;
+    }
+
+    Future<Response> sendUpdate(String asEnrollmentId, EnrollParams p) async {
+      inboundConnection.metaData
+        ..isAuthenticated = true
+        ..enrollmentId = asEnrollmentId;
+      final r = Response();
+      await etu.evh.processVerb(
+        r,
+        getVerbParam(
+            VerbSyntax.enroll, 'enroll:update:${jsonEncode(p.toJson())}'),
+        inboundConnection,
+      );
+      return r;
+    }
+
+    /// An `enroll:update` installing a freshly minted APKAM keypair on
+    /// [target] — the attacker's request, fully formed and correctly signed.
+    EnrollParams installFreshKey(String target) {
+      final pair = AtChopsUtil.generateAtPkamKeyPair();
+      final pub = pair.atPublicKey.publicKey;
+      return EnrollParams()
+        ..enrollmentId = target
+        ..apkamPublicKey = pub
+        ..signingAlgo = 'rsa2048'
+        ..apkamPublicKeySignature =
+            possessionSignature(pair, target, pub, 'rsa2048');
+    }
+
+    test('a LEGACY connection cannot install an APKAM key on it', () async {
+      // The self-only gate cannot refuse this, which is the whole reason for a
+      // separate one: that gate asks whether the connection is authenticated
+      // as its target, and a legacy connection IS authenticated as `primary`.
+      // So the one identity this verb must never be pointed at is the one
+      // identity that satisfies the check.
+      expect((await authenticateLegacy()).data, 'success');
+      expect(inboundConnection.metaData.enrollmentId,
+          EnrollmentManager.housekeepingEnrollmentId,
+          reason: 'precondition: the connection carries the housekeeping id, '
+              'so it is its own target');
+      final keyBefore = (await storedH())!.apkamPublicKey;
+
+      await expectLater(
+          () => sendUpdate(EnrollmentManager.housekeepingEnrollmentId,
+              installFreshKey(EnrollmentManager.housekeepingEnrollmentId)),
+          throwsA(isA<AtEnrollmentException>().having(
+              (e) => e.message,
+              'message',
+              contains('update:${AtConstants.atPkamPublicKey}'))),
+          reason: 'without this refusal the request SUCCEEDS and answers '
+              '{"enrollmentId":"primary","status":"approved"} — a legacy '
+              'connection installing an APKAM key of its choosing on the '
+              'atSign\'s legacy identity, which then authenticates over APKAM '
+              'against a lifecycle nothing governs. The message names the '
+              'remedy because the operation is legitimate and the route is '
+              'not: the legacy credential is rotated where it lives');
+
+      // Compared against what the record held BEFORE the request, not against
+      // the empty string the record is created with. This test is about the
+      // refusal and must stay green under any change to what the record
+      // carries; asserting emptiness here would make it fail whenever the
+      // record's contents moved, for reasons that have nothing to do with
+      // enroll:update.
+      expect((await storedH())!.apkamPublicKey, keyBefore,
+          reason: 'and nothing was written — a refusal that had already '
+              'installed the key would be a refusal in name only');
+    });
+
+    test('...and an ordinary enrollment can still rotate its own key',
+        () async {
+      // The control. Without it the refusal above would be satisfied by
+      // enroll:update refusing every rotation, which would say nothing about
+      // the housekeeping enrollment at all.
+      final enId = (await etu.createEnrollments(n: 1)).$1.first;
+      final params = installFreshKey(enId);
+      final r = await sendUpdate(enId, params);
+
+      expect(r.isError, isFalse, reason: '${r.errorMessage}');
+      expect((await enMgr.getEnrollmentById(enId)).apkamPublicKey,
+          params.apkamPublicKey,
+          reason: 'the same request shape, correctly signed, against an '
+              'ordinary enrollment: this is the operation the housekeeping '
+              'enrollment is carved out of');
+    });
+  });
+
+  group('a record standing over a gone credential is not a root', () {
+    test('it stops counting once at_pkam_publickey is gone', () async {
+      await enMgr.ensureHousekeepingEnrollment();
+
+      expect(await enMgr.hasUnexpiringRootEnrollment({etu.primaryEnId}),
+          isTrue,
+          reason: 'precondition: approved, fully privileged and permanent, so '
+              'it answers the stranding question while its credential lives');
+
+      // Removed on its own, leaving the record behind. That is not a shape
+      // this server writes — `remove` takes both — but it is the shape the
+      // atSign can be found in, and every route to it ends the same way: a
+      // record that is approved, fully privileged, permanent, and impossible
+      // to authenticate as.
+      await keyValueStore.remove(AtConstants.atPkamPublicKey, skipCommit: true);
+
+      expect(await enMgr.hasUnexpiringRootEnrollment({etu.primaryEnId}),
+          isFalse,
+          reason: 'a PHANTOM root: counting it answers "this atSign can '
+              'restore a root" with a record nobody holds a credential for, '
+              'and the caller then revokes or caps the last root that '
+              'actually works');
+
+      // The control, and it is what stops the guard being satisfied by a walk
+      // that has simply stopped finding anything.
+      await seedLegacyKey();
+      expect(await enMgr.hasUnexpiringRootEnrollment({etu.primaryEnId}),
+          isTrue,
+          reason: 'the record never changed — only the credential it stands '
+              'for came back');
+    });
+
+    test('...and an ordinary root is unaffected by the legacy key', () async {
+      // The scope control: the extra condition applies to the housekeeping
+      // enrollment ALONE. Every other enrollment carries its own key in its
+      // own record, so record and credential cannot come apart for them.
+      final other = await etu.createPendingEnrollment(
+          appName: 'other-root',
+          deviceName: 'device',
+          namespaces: {
+            EnrollmentConstants.allNamespaces: 'rw',
+            EnrollmentConstants.enrollManageNamespace: 'rw',
+          },
+          apkamKeysExpiryDuration: null);
+      await etu.approveEnrollment(etu.primaryEnId, other);
+      await keyValueStore.remove(AtConstants.atPkamPublicKey, skipCommit: true);
+
+      expect(
+          await enMgr
+              .hasUnexpiringRootEnrollment({etu.primaryEnId, 'primary'}),
+          isTrue,
+          reason: 'with the housekeeping enrollment excluded outright, the '
+              'legacy key\'s absence must decide nothing');
     });
   });
 }

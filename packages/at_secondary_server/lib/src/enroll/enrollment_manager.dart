@@ -165,12 +165,23 @@ class EnrollmentManager {
   /// Called on every legacy PKAM authentication, so the already-created case
   /// is one key read and no write.
   ///
-  /// [legacyPkamPublicKey] is the key the connection just authenticated
-  /// against, recorded so the enrollment describes the credential it stands
-  /// for rather than being a bare marker. It is deliberately NOT usable for
-  /// APKAM authentication; that is refused separately, because a credential
-  /// reachable both with and without an enrollment id would have two
-  /// lifecycles.
+  /// The record holds NO credential of its own: `apkamPublicKey` is stored
+  /// EMPTY, and that is the point of it rather than an omission. Legacy PKAM
+  /// verifies against the LIVE `at_pkam_publickey` in the keystore and never
+  /// against this record, so a copy here is read by nothing and can only go
+  /// stale — one credential with two at-rest spellings that nothing keeps in
+  /// step, where every divergence is either a stranding or an authentication
+  /// against a key the atSign has replaced.
+  ///
+  /// Empty is also what makes APKAM-as-`primary` impossible BY CONSTRUCTION.
+  /// An APKAM authentication takes the public key off the record and refuses
+  /// an absent or empty one before any signature is looked at, so there is no
+  /// key for such a signature to verify against however the id reaches the
+  /// lookup. The identifier comparison that also refuses it is exact, while
+  /// the keystore folds ids on the way in — it trims, lowercases and strips
+  /// spaces — so a spelling that resolves to this very record can compare
+  /// unequal to the literal id. The empty key does not care how the id was
+  /// spelled.
   ///
   /// An existing record is returned exactly as stored, whatever its status.
   /// Re-approving a revoked housekeeping enrollment here would make legacy
@@ -226,11 +237,15 @@ class EnrollmentManager {
       return null;
     }
 
+    // EMPTY, never a snapshot of the key just read. See the doc comment: the
+    // record is an identity for the legacy credential, not a second copy of
+    // it, and an empty key is what makes an APKAM authentication naming this
+    // enrollment fail closed at the verifier's own emptiness guard.
     final EnrollDataStoreValue value = EnrollDataStoreValue(
       Uuid().v4(),
       'legacy',
       'legacy',
-      legacyPkamPublicKey,
+      '',
     )
       ..namespaces = {
         EnrollmentConstants.allNamespaces: 'rw',
@@ -889,6 +904,17 @@ class EnrollmentManager {
   /// never admit one carrying `*`, so it keeps an atSign running without being
   /// able to give it a root back.
   ///
+  /// ⚠️ The housekeeping enrollment counts only while `at_pkam_publickey` is
+  /// still in the keystore. Alone among enrollments it holds no credential of
+  /// its own — it is an identity for the legacy keyfile, and the keyfile
+  /// authenticates against that key — so a record standing over a key that is
+  /// gone is a PHANTOM root: fully privileged, approved, permanent, and
+  /// impossible to authenticate as. Counting it answers "the atSign can
+  /// restore a root" with a record nobody holds a credential for, which is
+  /// the same stranding this method exists to refuse, arrived at from the
+  /// other direction. Every other enrollment carries its own key in the
+  /// record, so record and credential cannot come apart for them.
+  ///
   /// [excluding] is a SET rather than a single id because a revoke CASCADES.
   /// The enrollments a cascade is about to revoke are still `approved` in the
   /// keystore while this runs, so asking the question without them would count
@@ -896,6 +922,8 @@ class EnrollmentManager {
   /// safe at the moment it is being stranded.
   Future<bool> hasUnexpiringRootEnrollment(Set<String> excluding) async {
     final excludedKeys = excluding.map(buildEnrollmentKey).toSet();
+    final String housekeepingKey =
+        buildEnrollmentKey(housekeepingEnrollmentId);
     for (final ek in await getAllEnrollmentKeys()) {
       if (excludedKeys.contains(ek)) continue;
       final EnrollDataStoreValue other;
@@ -906,6 +934,10 @@ class EnrollmentManager {
       }
       if (other.approval?.state != EnrollmentStatus.approved.name) continue;
       if (!other.isRootEnrollment) continue;
+      if (ek == housekeepingKey &&
+          !await keyStore.exists(AtConstants.atPkamPublicKey)) {
+        continue;
+      }
       final AtData? record = await keyStore.get(ek);
       if (record?.metaData?.expiresAt == null) return true;
     }
@@ -1445,12 +1477,25 @@ class EnrollmentManager {
               (await keyStore.get(key))?.metaData?.expiresAt;
           if (predecessor.isRootEnrollment &&
               !await hasUnexpiringRootEnrollment({predecessorId})) {
+            // The REMEDY is named, because a decline is otherwise a dead end
+            // the operator cannot see out of. An atSign whose only root asks
+            // for a bounded key life declines here on every authentication,
+            // and the same stranding rule refuses both routes that could
+            // revoke that root — so the predecessor is un-retirable and
+            // nothing anywhere says what would change that. What changes it
+            // is another root that does not expire; once one exists this
+            // decline stops firing on the next authentication, and the
+            // predecessor can then be retired by ordinary means.
             logger.warning(
                 'Not capping $predecessorId at $deadline on the word of '
                 '$successorEnrollmentId, which expires at $successorExpiry: '
                 '$predecessorId holds full privilege and no other approved '
                 'root without an expiry would be left. The atSign would be '
-                'left unable to restore a root');
+                'left unable to restore a root. To retire $predecessorId, '
+                'first approve an enrollment holding rw on both '
+                '${EnrollmentConstants.allNamespaces} and '
+                '${EnrollmentConstants.enrollManageNamespace} with NO key '
+                'expiry, and then revoke or delete $predecessorId');
             declinedAtGeneration[successorEnrollmentId] = decisionGeneration;
           } else {
             armPredecessor = true;

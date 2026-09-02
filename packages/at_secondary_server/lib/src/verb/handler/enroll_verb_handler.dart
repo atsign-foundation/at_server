@@ -1108,6 +1108,29 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   ) async {
     final enId = enrollParams.enrollmentId!;
 
+    // The housekeeping enrollment is refused outright, and BEFORE the
+    // self-only gate below, because that gate cannot refuse it: the gate asks
+    // whether the connection is authenticated as its target, and a legacy
+    // connection is authenticated as exactly this id. So the one identity
+    // this verb must never be pointed at is the one identity that satisfies
+    // the check — a legacy connection could install an APKAM public key of
+    // its choosing on the record, and be told it succeeded.
+    //
+    // It must never be pointed at it because the record holds NO credential:
+    // legacy PKAM verifies against `at_pkam_publickey` in the keystore, and
+    // an empty `apkamPublicKey` on the record is what makes an APKAM
+    // authentication naming this id fail closed. Writing a key into it
+    // reverses that, turning a legacy identity into an APKAM-reachable one
+    // whose lifecycle nothing governs.
+    if (enId == EnrollmentManager.housekeepingEnrollmentId) {
+      throw AtEnrollmentException(
+          'enroll:update cannot be used on $enId: it is the atSign\'s legacy '
+          'PKAM identity and holds no credential of its own. The legacy '
+          'credential is rotated with '
+          'update:${AtConstants.atPkamPublicKey} <new public key>, over a '
+          'connection authenticated with the credential it replaces');
+    }
+
     // Self-only. An explicit exception to `isAuthorized`'s "no enrollmentId
     // means full permissions" default: an owner or legacy-PKAM connection is
     // refused here, not waved through. An owner cannot sign anything with this
