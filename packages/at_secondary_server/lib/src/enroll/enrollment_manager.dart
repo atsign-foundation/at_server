@@ -1208,7 +1208,9 @@ class EnrollmentManager {
   /// atSign's owner, over CRAM or over the flat credential itself — mints an
   /// approved enrollment. That is the moment the atSign acquires a credential
   /// that CAN be withdrawn, and it is what the migration window is measured
-  /// from.
+  /// from. Also called at startup, through
+  /// [armLegacyCredentialRetirementIfAlreadyEnrolled], for an atSign whose
+  /// owner did that minting before this server ever ran.
   ///
   /// It arms once and never re-arms. A deadline is written as an absolute, so
   /// a second arming would push it out by a whole window — an owner who mints
@@ -1224,6 +1226,38 @@ class EnrollmentManager {
   /// enrollment the owner asked for. The clock is a migration aid, and an
   /// atSign that keeps its flat credential a while longer is in the state it
   /// was already in.
+  /// Arms the retirement clock at startup for an atSign that ALREADY holds
+  /// enrollments alongside its flat credential.
+  ///
+  /// [armLegacyCredentialRetirement] fires when an owner mints an enrollment,
+  /// and an atSign onboarded by an older server may have done all its minting
+  /// before this server ever ran — leaving its flat credential, and the stale
+  /// copy of an app's key an older server's CRAM auto-approve wrote there,
+  /// with no clock ever started. Holding enrollments IS migration having
+  /// begun, so the clock starts now.
+  ///
+  /// This is a startup step of the kind that was withdrawn for MINTING an
+  /// identity, and it is safe where that was not: it schedules a REMOVAL that
+  /// [retireLegacyCredentialIfDue] guards with the stranding question, so
+  /// arranging the store beforehand can only delay it, never gain anything.
+  ///
+  /// The STORED roster, expired records included: an atSign whose only
+  /// enrollment has lapsed but not yet been swept has still migrated. A
+  /// virgin store arms nothing — there is nothing to migrate from.
+  Future<void> armLegacyCredentialRetirementIfAlreadyEnrolled() async {
+    try {
+      if (await legacyPkamPublicKey() == null) return;
+      final List<String> stored =
+          await getAllEnrollmentKeys(includeExpired: true);
+      if (stored.isEmpty) return;
+    } catch (e) {
+      logger.warning('Could not decide whether to arm the flat PKAM '
+          'credential\'s retirement clock at startup: $e');
+      return;
+    }
+    await armLegacyCredentialRetirement();
+  }
+
   Future<void> armLegacyCredentialRetirement() async {
     try {
       if (await legacyPkamPublicKey() == null) return;

@@ -487,6 +487,45 @@ void main() {
     Future<bool> aUsableRootSurvives() =>
         enMgr.hasUnexpiringRootEnrollment({});
 
+    test('startup arms the clock for an atSign that already holds enrollments',
+        () async {
+      // The owner of an atSign onboarded by an older server may have minted
+      // every enrollment they need BEFORE this server ran, so the mint-time
+      // arming never fires for them — and the stale copy of an app's key that
+      // an older server's CRAM auto-approve left at the flat credential stays
+      // a live owner credential for a revoked app, for ever. Holding
+      // enrollments IS having migrated, so startup arms the clock.
+      await installFlatCredential();
+      await storeApprovedEnrollment({'wavi': 'rw'});
+      expect(await deadlineRecord(), isNull,
+          reason: 'precondition: nothing has armed it yet');
+
+      await AtSecondaryServerImpl.getInstance().prepareStoreForFirstConnection();
+
+      expect(await deadlineRecord(), isNotNull,
+          reason: 'an enrollment already exists, so migration has begun and '
+              'the flat credential is on the clock without the owner having '
+              'to mint anything more');
+    });
+
+    test('...but a virgin store arms nothing, and neither does an atSign '
+        'with no flat credential', () async {
+      // Two controls, because the arm has two preconditions and a startup
+      // step that armed on a virgin store would put a removal deadline
+      // against a key installed later for some entirely different reason.
+      await installFlatCredential();
+      await AtSecondaryServerImpl.getInstance().prepareStoreForFirstConnection();
+      expect(await deadlineRecord(), isNull,
+          reason: 'flat credential but NO enrollments: nothing has migrated, '
+              'nothing to schedule');
+
+      await keyValueStore.remove(AtConstants.atPkamPublicKey, skipCommit: true);
+      await storeApprovedEnrollment({'wavi': 'rw'});
+      await AtSecondaryServerImpl.getInstance().prepareStoreForFirstConnection();
+      expect(await deadlineRecord(), isNull,
+          reason: 'enrollments but NO flat credential: nothing to retire');
+    });
+
     test('the sweep and a revoke in flight together cannot strand the atSign',
         () async {
       // The sweep decides "an unexpiring root survives, so the flat key may

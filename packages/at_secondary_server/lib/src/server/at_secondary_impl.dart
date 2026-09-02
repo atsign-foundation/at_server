@@ -509,6 +509,13 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     keyValueStore.preRemoveHooks.add(enrollmentManager.preRemoveHook);
     keyValueStore.postRemoveHooks.add(enrollmentManager.postRemoveHook);
 
+    // An atSign that finished migrating to enrollments before this server
+    // ever ran has a flat credential nothing scheduled for removal. Arm it
+    // here, before any client connects: the clock only ever REMOVES, and the
+    // removal asks the stranding question first, so nothing a client can
+    // arrange gains from the arming — it can only be delayed.
+    await enrollmentManager.armLegacyCredentialRetirementIfAlreadyEnrolled();
+
     await runHousekeepingSweep();
   }
 
