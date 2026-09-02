@@ -281,13 +281,18 @@ class EnrollmentManager {
   /// oversight — a cascade able to sweep it away would strand the very
   /// credential it exists to govern.
   ///
-  /// The already-created case is answered OUTSIDE [serialiseMutation],
-  /// because it is the case every legacy authentication takes and putting it
-  /// behind the lock would queue authentications behind whatever enrollment
-  /// mutation was in flight. Only the CREATE is serialised, and it re-asks
-  /// the question inside the section: `enroll:delete` of this record removes
-  /// the legacy key in the same breath, so a decision taken outside would
-  /// re-create the identity that delete had just retired.
+  /// This method takes no section of its own for the already-created case;
+  /// only the CREATE is serialised. Its authentication caller holds the
+  /// enrollment-mutation section across the whole call, because admitting a
+  /// connection AS this record is a decision about this record's state, so on
+  /// that path the read is already serialised and the create's own
+  /// [serialiseMutation] is the re-entrant case.
+  ///
+  /// The split is what makes the method safe for a caller holding nothing:
+  /// the create re-asks its question inside the section, because
+  /// `enroll:delete` of this record removes the legacy key in the same
+  /// breath, so a decision taken outside would re-create the identity that
+  /// delete had just retired.
   ///
   /// Returns NULL when the record is absent and must not be created. The
   /// caller must refuse the authentication rather than treat it as a
@@ -2002,12 +2007,13 @@ class EnrollmentManager {
   /// concurrent arming does and neither touches the other's record.
   ///
   /// The EARLY EXITS are outside it, deliberately. This runs on every APKAM
-  /// authentication and everything except a retrofit's successor leaves at
-  /// the three tests below; reaching them through the lock put every
-  /// authentication behind whatever mutation was in flight. Nothing in them
-  /// writes, and every one is re-made inside the section, so an answer that
-  /// goes stale between the two costs at most an arming deferred to the next
-  /// authentication.
+  /// authentication, after the section that admitted the connection has been
+  /// released, and everything except a retrofit's successor leaves at the
+  /// three tests below; taking the section again for them would queue the
+  /// authentication a second time, behind whatever mutation started in
+  /// between, to decide nothing. Nothing in them writes, and every one is
+  /// re-made inside the section, so an answer that goes stale between the two
+  /// costs at most an arming deferred to the next authentication.
   ///
   /// Never throws. This runs after an authentication has already succeeded, and
   /// a predecessor that outlives its window is a slower migration, while an

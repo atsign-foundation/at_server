@@ -139,75 +139,17 @@ class PkamVerbHandler extends AbstractVerbHandler {
         logger.warning('Failed to immediately remove $storedSecretId');
       }
 
-      // A legacy connection authenticates AS the housekeeping enrollment.
-      // Created here, on the first legacy authentication, rather than at
-      // onboarding: almost every atSign predates the record, and this is the
-      // one moment the server can prove the legacy credential is live.
-      //
-      // BEFORE the connection is marked authenticated, so a store fault fails
-      // the authentication rather than admitting a connection whose enrollment
-      // id names nothing. That is the opposite posture from the cap arming
-      // below, deliberately — the cap is bookkeeping about a different record,
-      // this is the identity this connection is about to carry.
-      //
-      // ⚠️ A READ therefore mutates the atSign: the first `enroll:list` over a
-      // legacy connection creates this record. Accepted, because the
-      // alternative is a credential no roster shows and no verb can retire.
-      String? connectionEnrollmentId = enrollId;
-      if (pkamAuthType == AuthType.pkamLegacy) {
-        final housekeeping = await AtSecondaryServerImpl.getInstance()
-            .enrollmentManager
-            .ensureHousekeepingEnrollment();
-        if (housekeeping == null) {
-          // The record is absent and must not be created, so this is NOT a
-          // first authentication. Either the credential was retired — the key
-          // goes with the record, so its absence says so — or the key at
-          // `at_pkam_publickey` appeared on an atSign that already holds
-          // enrollments, AFTER the server came up and adopted whatever legacy
-          // credential the atSign genuinely had. An existing credential is
-          // adopted at startup, from the store the previous run left; a key
-          // that turns up later, on a populated store, is not one this atSign
-          // was onboarded with. Creating the record in either case would hand
-          // a keypair a fresh, unexpiring root identity; in the first it would
-          // undo the retirement every time the record expired.
-          //
-          // The refusal does not say WHICH, because the caller has not
-          // authenticated and the two are not its business. The manager logs
-          // the distinction, naming what it found. It does name the REMEDY,
-          // which is the same either way and is what an operator arriving
-          // here actually needs — an established atSign is reached with an
-          // enrollment id, not with a flat keyfile.
-          atConnectionMetadata.isAuthenticated = false;
-          logger.warning('Refusing legacy PKAM authentication: this atSign has '
-              'no usable legacy credential');
-          throw UnAuthenticatedException(
-              'this atSign has no usable legacy PKAM credential. A legacy '
-              'credential is adopted at server startup, from the keystore the '
-              'previous run left; a key installed at this atSign afterwards is '
-              'not adopted. Authenticate with the enrollment id the keyfile '
-              'carries, as pkam:enrollmentId:<id>:<signature>, or enrol this '
-              'client with enroll:request');
-        }
-
-        // The legacy credential is only as live as its enrollment. Revoking
-        // that record is what makes revoking the legacy keyfile possible at
-        // all — before it there was no verb that could — and an EXPIRED one
-        // is the cap having retired it after a successful retrofit. Either
-        // way the signature was valid and the credential is not.
-        final String? state = housekeeping.approval?.state;
-        if (state != EnrollmentStatus.approved.name) {
-          atConnectionMetadata.isAuthenticated = false;
-          logger.warning('Refusing legacy PKAM authentication: '
-              '${EnrollmentManager.housekeepingEnrollmentId} is $state');
-          throw UnAuthenticatedException(
-              'the legacy credential for this atSign is $state');
-        }
-        connectionEnrollmentId = EnrollmentManager.housekeepingEnrollmentId;
+      // Admitting the connection is a read-decide-write like every other
+      // enrollment act — the write is the connection's identity rather than a
+      // record — so it runs inside the atSign's one enrollment-mutation
+      // critical section. See [_admitUnderLock].
+      final bool admitted = await AtSecondaryServerImpl.getInstance()
+          .enrollmentManager
+          .serialiseMutation(() => _admitUnderLock(
+              atConnectionMetadata, pkamAuthType, enrollId, atSign, response));
+      if (!admitted) {
+        return;
       }
-
-      atConnectionMetadata.isAuthenticated = true;
-      atConnectionMetadata.authType = pkamAuthType;
-      atConnectionMetadata.enrollmentId = connectionEnrollmentId;
       response.data = 'success';
 
       // A retrofit's successor arms the expiry cap on the enrollment it
@@ -237,6 +179,147 @@ class PkamVerbHandler extends AbstractVerbHandler {
       logger.severe('pkam authentication failed');
       throw UnAuthenticatedException('pkam authentication failed');
     }
+  }
+
+  /// The last read of the enrollment state this connection's identity rests
+  /// on, and the marking that acts on it, as ONE enrollment-mutation critical
+  /// section. Returns whether the connection was admitted; a refusal that has
+  /// a wire error code of its own is written into [response] instead of being
+  /// thrown, exactly as the same refusal is before the signature is checked.
+  ///
+  /// The decision is a read-decide-write like every other enrollment act —
+  /// what it writes is the connection's identity rather than a record — so it
+  /// belongs in the same section for the same reason. Taken outside it, an
+  /// `enroll:revoke` landing between the read and the marking is answered
+  /// `success`: the revoke sweeps open connections by the enrollment id each
+  /// one CARRIES, and a connection still being authenticated has not been
+  /// given one, so the sweep passes over it and the marking then happens on a
+  /// state the revoke has already replaced.
+  ///
+  /// Serialising it leaves only the two orders that are coherent. A revoke
+  /// that takes the section first is seen by the read here, and the
+  /// authentication is refused; one that takes it second finds a connection
+  /// already carrying the id, and closes it.
+  ///
+  /// It is the store-wide section rather than an understanding with the
+  /// revoke path because revocation is not the only way an enrollment stops
+  /// serving: `enroll:delete` and an elapsed ttl sweep no connections at all,
+  /// and only a read taken inside the section is ordered against them.
+  ///
+  /// The cost is that an authentication waits for an enrollment mutation in
+  /// flight. That is the right trade — the answer it is about to give is
+  /// exactly what that mutation decides — and it is bounded by how long a
+  /// mutation takes, on a store where mutations are rare next to
+  /// authentications.
+  ///
+  /// This does not stand in for the per-command check. A credential revoked
+  /// after a connection is admitted is caught by
+  /// `AbstractVerbHandler.processInternal`, which re-reads the enrollment
+  /// before every command and closes a connection whose enrollment has left
+  /// `approved`. What the section adds is that the `success` answer itself is
+  /// never given on a state that has already been replaced.
+  Future<bool> _admitUnderLock(
+      InboundConnectionMetadata atConnectionMetadata,
+      AuthType pkamAuthType,
+      String? enrollId,
+      String atSign,
+      Response response) async {
+    // A legacy connection authenticates AS the housekeeping enrollment.
+    // Created here, on the first legacy authentication, rather than at
+    // onboarding: almost every atSign predates the record, and this is the
+    // one moment the server can prove the legacy credential is live.
+    //
+    // BEFORE the connection is marked authenticated, so a store fault fails
+    // the authentication rather than admitting a connection whose enrollment
+    // id names nothing. That is the opposite posture from the cap arming in
+    // [processVerb], deliberately — the cap is bookkeeping about a different
+    // record, this is the identity this connection is about to carry.
+    //
+    // ⚠️ A READ therefore mutates the atSign: the first `enroll:list` over a
+    // legacy connection creates this record. Accepted, because the
+    // alternative is a credential no roster shows and no verb can retire.
+    String? connectionEnrollmentId = enrollId;
+    if (pkamAuthType == AuthType.pkamLegacy) {
+      final housekeeping = await AtSecondaryServerImpl.getInstance()
+          .enrollmentManager
+          .ensureHousekeepingEnrollment();
+      if (housekeeping == null) {
+        // The record is absent and must not be created, so this is NOT a
+        // first authentication. Either the credential was retired — the key
+        // goes with the record, so its absence says so — or the key at
+        // `at_pkam_publickey` appeared on an atSign that already holds
+        // enrollments, AFTER the server came up and adopted whatever legacy
+        // credential the atSign genuinely had. An existing credential is
+        // adopted at startup, from the store the previous run left; a key
+        // that turns up later, on a populated store, is not one this atSign
+        // was onboarded with. Creating the record in either case would hand
+        // a keypair a fresh, unexpiring root identity; in the first it would
+        // undo the retirement every time the record expired.
+        //
+        // The refusal does not say WHICH, because the caller has not
+        // authenticated and the two are not its business. The manager logs
+        // the distinction, naming what it found. It does name the REMEDY,
+        // which is the same either way and is what an operator arriving
+        // here actually needs — an established atSign is reached with an
+        // enrollment id, not with a flat keyfile.
+        atConnectionMetadata.isAuthenticated = false;
+        logger.warning('Refusing legacy PKAM authentication: this atSign has '
+            'no usable legacy credential');
+        throw UnAuthenticatedException(
+            'this atSign has no usable legacy PKAM credential. A legacy '
+            'credential is adopted at server startup, from the keystore the '
+            'previous run left; a key installed at this atSign afterwards is '
+            'not adopted. Authenticate with the enrollment id the keyfile '
+            'carries, as pkam:enrollmentId:<id>:<signature>, or enrol this '
+            'client with enroll:request');
+      }
+
+      // The legacy credential is only as live as its enrollment. Revoking
+      // that record is what makes revoking the legacy keyfile possible at
+      // all — before it there was no verb that could — and an EXPIRED one
+      // is the cap having retired it after a successful retrofit. Either
+      // way the signature was valid and the credential is not.
+      final String? state = housekeeping.approval?.state;
+      if (state != EnrollmentStatus.approved.name) {
+        atConnectionMetadata.isAuthenticated = false;
+        logger.warning('Refusing legacy PKAM authentication: '
+            '${EnrollmentManager.housekeepingEnrollmentId} is $state');
+        throw UnAuthenticatedException(
+            'the legacy credential for this atSign is $state');
+      }
+      connectionEnrollmentId = EnrollmentManager.housekeepingEnrollmentId;
+    } else {
+      // Asked again, inside the section, over the record the connection is
+      // about to be admitted as. The first ask ran before the signature was
+      // verified, because it is where the public key comes from, and
+      // verifying a signature is the longest step on this path — so the state
+      // it read is the state from before all of it.
+      //
+      // The refusal is the FIRST ask's refusal, code for code: the two are
+      // one check made at two moments, and a client must not be able to tell
+      // which of them refused it from the answer it gets back.
+      //
+      // `isAuthenticated` is deliberately left alone here, exactly as the
+      // first ask leaves it. A failed re-authentication over a connection
+      // that is already authenticated as something else does not end that
+      // session; only a bad signature does.
+      final ApkamVerificationResult recheck =
+          await verifyEnrollmentIsActive(enrollId!, atSign);
+      if (recheck.response.isError) {
+        logger.warning('Refusing APKAM authentication: enrollment $enrollId '
+            'stopped serving while the signature was being verified — '
+            '${recheck.response.errorMessage}');
+        response.isError = true;
+        response.errorCode = recheck.response.errorCode;
+        response.errorMessage = recheck.response.errorMessage;
+        return false;
+      }
+    }
+
+    atConnectionMetadata.isAuthenticated = true;
+    atConnectionMetadata.authType = pkamAuthType;
+    atConnectionMetadata.enrollmentId = connectionEnrollmentId;
+    return true;
   }
 
   @visibleForTesting

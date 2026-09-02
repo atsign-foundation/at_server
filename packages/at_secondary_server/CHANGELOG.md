@@ -1,4 +1,37 @@
 # 3.16.4
+- fix: `pkam` decides the connection's identity inside the atSign's
+  enrollment-mutation critical section, so an `enroll:revoke` landing while an
+  authentication is in flight is not answered `success`.
+
+  Admitting a connection is a read-decide-write whose write is the
+  connection's IDENTITY: the enrollment state is read, and the connection is
+  then marked authenticated and given an enrollment id. Both halves ran
+  outside the section every enrollment mutation holds, so a revoke could land
+  between them — and the revoke sweeps open connections by the enrollment id
+  each one CARRIES, so a connection still being authenticated has not been
+  given one and the sweep passes over it. The marking then happened on a state
+  the revoke had already replaced.
+
+  Both branches are covered. Legacy PKAM reads the housekeeping enrollment;
+  APKAM reads its own record before the signature is verified, because that
+  read is where the public key comes from, so the state it decides on is the
+  state from before the longest step on the path. The APKAM branch now asks
+  again inside the section, and refuses code for code as the first ask would
+  have.
+
+  It is the store-wide section rather than an understanding with the revoke
+  path because revocation is not the only way an enrollment stops serving:
+  `enroll:delete` and an elapsed ttl sweep no connections at all, and only a
+  read taken inside the section is ordered against them. The cost is that an
+  authentication waits for an enrollment mutation in flight, which is exactly
+  the mutation that decides the answer it is about to give.
+
+  This is not what stands between a revoked credential and a live session —
+  `AbstractVerbHandler` re-reads the enrollment before every command and
+  closes a connection whose enrollment has left `approved`, so the exposure
+  was one `success` answer rather than a usable session. What is fixed is that
+  answer.
+
 - fix: an enrollment record removed from the keystore is no longer served
   from the enrollment cache, and a read in flight across an enrollment write
   no longer puts the superseded value back.

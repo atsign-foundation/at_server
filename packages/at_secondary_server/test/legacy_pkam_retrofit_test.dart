@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'dart:convert';
 
 import 'dart:typed_data';
@@ -2119,6 +2121,236 @@ void main() {
           reason: 'it names the key it is refusing to adopt');
       expect(line, contains('enrollment id'),
           reason: 'and the remedy — that app authenticates with its own id');
+    });
+  });
+  /// Admitting a connection is a read-decide-write whose write is the
+  /// connection's IDENTITY, so it belongs in the atSign's one
+  /// enrollment-mutation critical section for the same reason every act that
+  /// writes a record does.
+  ///
+  /// Taken outside it, an `enroll:revoke` landing between the read of the
+  /// enrollment and the marking of the connection is answered `success`: the
+  /// revoke sweeps open connections by the enrollment id each one CARRIES, and
+  /// a connection still being authenticated has not been given one, so the
+  /// sweep passes over it.
+  ///
+  /// Observed by HOLDING the section rather than by racing something against
+  /// it: whether a race lands in the gap between the read and the marking
+  /// depends on how many awaits each side happens to take, which is not a
+  /// property of the code under test. Each hold has a LATENCY CONTROL — the
+  /// identical act with nothing holding the section, which must have been
+  /// admitted inside the same window. Without it, "not admitted" is equally
+  /// satisfied by an authentication that never got that far.
+  group('admitting a connection is inside the enrollment-mutation section',
+      () {
+    /// How long a HELD case waits before reading the connection, and how long
+    /// its latency control gives the same act to finish unobstructed. Ample
+    /// for a keypair that is generated once per test and reused, which is what
+    /// the control measures rather than assumes.
+    const Duration holdWindow = Duration(milliseconds: 300);
+
+    /// Takes the section and holds it until the returned completer is
+    /// completed. Complete the gate and await the holder, or the section is
+    /// still held when the test ends.
+    (Completer<void>, Future<void>) holdTheSection() {
+      final gate = Completer<void>();
+      return (gate, enMgr.serialiseMutation(() => gate.future));
+    }
+
+    /// Writes [state] onto the housekeeping record directly.
+    ///
+    /// Deliberately not `enroll:revoke`: that verb takes the section itself,
+    /// so it could not land WHILE the section is held, which is the moment
+    /// under test. Through [EnrollmentManager.put] rather than the keystore,
+    /// so the enrollment cache goes with it — otherwise the re-read under
+    /// test would answer from before this write and the test would pass
+    /// whatever the handler did.
+    Future<void> setHousekeepingState(String state) async {
+      final EnrollDataStoreValue value = (await storedH())!;
+      value.approval!.state = state;
+      await enMgr.put(EnrollmentManager.housekeepingEnrollmentId,
+          AtData()..data = jsonEncode(value.toJson()),
+          EnrollmentStatus.values.byName(state));
+    }
+
+    test('a legacy authentication is not marked while another mutation holds '
+        'the section', () async {
+      final pair = await MlDsa65PureDartAlgo().generateKeyPair();
+      expect(
+          (await authenticateLegacy(sessionId: 'mint', keyPair: pair)).data,
+          'success',
+          reason: 'precondition: the housekeeping record now exists, so what '
+              'is measured below is the admission and not the mint');
+
+      final (gate, holder) = holdTheSection();
+      final authenticating =
+          authenticateLegacy(sessionId: 'held', keyPair: pair);
+      await Future<void>.delayed(holdWindow);
+      final bool markedDuringHold = inboundConnection.metaData.isAuthenticated;
+      final String? idDuringHold = inboundConnection.metaData.enrollmentId;
+
+      gate.complete();
+      final Response r = await authenticating;
+      await holder;
+
+      expect(markedDuringHold, isFalse,
+          reason: 'the connection must not be marked authenticated on a state '
+              'another mutation is in the middle of changing');
+      expect(idDuringHold, isNull,
+          reason: 'and it must not be carrying the enrollment id yet either — '
+              'a revoke sweeps open connections by the id each one carries, '
+              'so an id set on a half-admitted connection is the only thing '
+              'that sweep can see');
+      expect(r.data, 'success',
+          reason: 'and it is admitted once the section is free — otherwise '
+              'this would be measuring an authentication that simply never '
+              'ran');
+    });
+
+    test('LATENCY CONTROL: unobstructed, the same authentication is marked '
+        'inside the same window', () async {
+      final pair = await MlDsa65PureDartAlgo().generateKeyPair();
+      expect(
+          (await authenticateLegacy(sessionId: 'mint', keyPair: pair)).data,
+          'success');
+
+      final authenticating =
+          authenticateLegacy(sessionId: 'unobstructed', keyPair: pair);
+      await Future<void>.delayed(holdWindow);
+      final bool markedDuringWindow =
+          inboundConnection.metaData.isAuthenticated;
+      await authenticating;
+
+      expect(markedDuringWindow, isTrue,
+          reason: 'the window is ample for the act, so "not marked" above is '
+              'a statement about the section rather than about latency — and '
+              'this needs no serialisation, so it stays green when the '
+              'critical section is removed');
+    });
+
+    test('a legacy authentication is refused on the state a mutation left '
+        'while it waited', () async {
+      final pair = await MlDsa65PureDartAlgo().generateKeyPair();
+      expect(
+          (await authenticateLegacy(sessionId: 'mint', keyPair: pair)).data,
+          'success',
+          reason: 'precondition: this credential authenticates while its '
+              'record is approved');
+
+      final (gate, holder) = holdTheSection();
+      final authenticating =
+          authenticateLegacy(sessionId: 'raced', keyPair: pair);
+      await Future<void>.delayed(holdWindow);
+      await setHousekeepingState(EnrollmentStatus.revoked.name);
+
+      gate.complete();
+      Object? refusal;
+      try {
+        await authenticating;
+      } catch (e) {
+        refusal = e;
+      }
+      await holder;
+
+      expect(refusal, isA<UnAuthenticatedException>(),
+          reason: 'the authentication read the record before it waited; it '
+              'must decide on the record as it is when it is let through, or '
+              'a credential revoked in that window is answered success and '
+              'the revoke\'s connection sweep never saw the connection to '
+              'close it');
+      expect('$refusal', contains(EnrollmentStatus.revoked.name),
+          reason: 'and it names the state it refused on');
+      expect(inboundConnection.metaData.isAuthenticated, isFalse,
+          reason: 'and the connection is left unauthenticated');
+    });
+
+    test('SERIAL CONTROL: with nothing holding the section, the same revoked '
+        'record refuses the same authentication', () async {
+      // Drawn from a property the section does not touch: a record that is
+      // already revoked when the authentication starts is refused by the
+      // FIRST read, so this stays green when the critical section is removed.
+      final pair = await MlDsa65PureDartAlgo().generateKeyPair();
+      expect(
+          (await authenticateLegacy(sessionId: 'mint', keyPair: pair)).data,
+          'success');
+      await setHousekeepingState(EnrollmentStatus.revoked.name);
+
+      Object? refusal;
+      try {
+        await authenticateLegacy(sessionId: 'serial', keyPair: pair);
+      } catch (e) {
+        refusal = e;
+      }
+
+      expect(refusal, isA<UnAuthenticatedException>(),
+          reason: 'a revoked legacy credential does not authenticate — this '
+              'is the refusal the raced case has to reproduce');
+      expect('$refusal', contains(EnrollmentStatus.revoked.name));
+    });
+
+    test('an APKAM authentication is refused on the state a mutation left '
+        'while it waited', () async {
+      // The same window, on the branch that reads an enrollment record of its
+      // own. Its first read is where the public key comes from, so it happens
+      // before the signature is verified — the longest step on the path — and
+      // the state it read is the state from before all of it.
+      final AtPkamKeyPair pair = AtChopsUtil.generateAtPkamKeyPair();
+      const String enId = 'apkam-admission';
+      final EnrollDataStoreValue value = EnrollDataStoreValue(
+          'session', 'app', 'device', pair.atPublicKey.publicKey)
+        ..namespaces = {'wavi': 'rw'}
+        ..approval = EnrollApproval(EnrollmentStatus.approved.name);
+      await enMgr.put(enId, AtData()..data = jsonEncode(value.toJson()),
+          EnrollmentStatus.approved);
+
+      Future<Response> apkam(String sessionId) async {
+        final challenge = 'challenge-$sessionId';
+        await keyValueStore.put(
+            'private:$sessionId$alice', AtData()..data = challenge);
+        inboundConnection.metaData
+          ..isAuthenticated = false
+          ..enrollmentId = null
+          ..sessionID = sessionId;
+        final signature = AtChopsImpl(AtChopsKeys.create(null, pair))
+            .sign(AtSigningInput('$sessionId$alice:$challenge')
+              ..signingAlgoType = SigningAlgoType.rsa2048
+              ..hashingAlgoType = HashingAlgoType.sha256
+              ..signingMode = AtSigningMode.pkam)
+            .result;
+        final r = Response();
+        await PkamVerbHandler(keyValueStore).processVerb(
+          r,
+          getVerbParam(
+              VerbSyntax.pkam, 'pkam:enrollmentId:$enId:$signature'),
+          inboundConnection,
+        );
+        return r;
+      }
+
+      expect((await apkam('control')).data, 'success',
+          reason: 'precondition: this keypair IS the enrollment\'s credential '
+              'and authenticates with it while the record is approved');
+
+      final (gate, holder) = holdTheSection();
+      final authenticating = apkam('raced');
+      await Future<void>.delayed(holdWindow);
+      value.approval!.state = EnrollmentStatus.revoked.name;
+      await enMgr.put(enId, AtData()..data = jsonEncode(value.toJson()),
+          EnrollmentStatus.revoked);
+
+      gate.complete();
+      final Response r = await authenticating;
+      await holder;
+
+      expect(r.isError, isTrue,
+          reason: 'the enrollment stopped serving while the signature was '
+              'being verified, so the answer must be the refusal, not the '
+              'state read before the wait');
+      expect(r.errorCode, 'AT0027',
+          reason: 'and code for code the refusal it would have been given had '
+              'it connected a moment later');
+      expect(inboundConnection.metaData.isAuthenticated, isFalse,
+          reason: 'and the connection carries no authentication');
     });
   });
 }

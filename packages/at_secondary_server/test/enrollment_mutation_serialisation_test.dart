@@ -502,13 +502,15 @@ void main() {
       expect(reachedTheSection, isTrue);
     });
 
-    test('an authentication with nothing to arm never takes the lock',
+    test('the cap arming takes no section when there is nothing to arm',
         () async {
       // The early exits in armRetrofitCapOnFirstAuth are outside the section
-      // deliberately: it runs on EVERY APKAM authentication and everything
-      // except a retrofit's successor leaves at the first three tests.
-      // Reaching them through the lock put every authentication behind
-      // whatever mutation was in flight.
+      // deliberately: it runs on EVERY APKAM authentication, after the
+      // section that admitted the connection has been released, and
+      // everything except a retrofit's successor leaves at the first three
+      // tests. Taking the section again for them would queue the
+      // authentication a second time, behind whatever mutation started in
+      // between, to decide nothing.
       final plain = await addUnexpiringRoot('replaced-nothing');
 
       final held = enMgr.serialiseMutation(() async {
@@ -839,12 +841,14 @@ void main() {
               'critical section is removed');
     });
 
-    test('the ALREADY-CREATED case answers while the section is held',
-        () async {
-      // The other half of the same decision, deliberately OUTSIDE the
-      // section: this is the case every legacy authentication takes, so
-      // putting it behind the lock would queue authentication behind whatever
-      // enrollment mutation happened to be in flight.
+    test('the ALREADY-CREATED case takes no section of its own', () async {
+      // The other half of the same decision. Only the CREATE is serialised
+      // by this method; the read half takes nothing, which is what lets a
+      // caller that already holds the section reach it without the create's
+      // own serialiseMutation being anything but the re-entrant case. A
+      // legacy authentication is exactly such a caller — admitting a
+      // connection AS this record is a decision about this record's state —
+      // so the split is what keeps the method usable from both sides.
       await emptyRosterWithLegacyKey();
       expect(await enMgr.ensureHousekeepingEnrollment(), isNotNull,
           reason: 'precondition: the record now exists');
