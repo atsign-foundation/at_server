@@ -1,5 +1,14 @@
 ## 5.3.0
 
+- fix: the fold that decides which record a key names has ONE definition,
+  `canonicalAtKey`, exported from the keystore spec and called by
+  `HiveKeyStoreHelper.prepareKey` and by the SQLite backend's own
+  normalisation. It was written out by hand in several places, which is a
+  divergence nothing can go red about: a non-canonical key still resolves, so
+  two spellings of the fold show up only as a caller quietly asking about a
+  string the store does not hold. No behaviour change — the expression is the
+  one every copy already used.
+
 - fix: a store now honours the `storagePath` it is given. Hive keeps its box
   registry and home path on a `HiveImpl` *instance*, and this package ran
   everything through the one global instance `package:hive` exposes — so a

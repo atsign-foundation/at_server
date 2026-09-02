@@ -22,6 +22,7 @@ export 'keystore/keystore_txn.dart';
 export 'keystore/order_by_key.dart';
 export 'keystore/predicate.dart';
 export 'keystore/at_asserted_timestamps.dart';
+export 'keystore/at_key_canonicalisation.dart';
 export 'keystore/at_keyvalue_store.dart';
 export 'keystore/at_data.dart';
 export 'keystore/at_meta_data.dart';

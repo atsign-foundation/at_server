@@ -1,4 +1,5 @@
 import 'package:at_persistence_secondary_server/src/spec/keystore/at_asserted_timestamps.dart';
+import 'package:at_persistence_secondary_server/src/spec/keystore/at_key_canonicalisation.dart';
 import 'package:at_persistence_secondary_server/src/spec/keystore/at_data.dart';
 import 'package:at_persistence_secondary_server/src/spec/keystore/at_metadata_builder.dart';
 import 'package:at_utf7/at_utf7.dart';
@@ -11,11 +12,15 @@ class HiveKeyStoreHelper {
   HiveKeyStoreHelper._();
 
   /// Normalises a raw atKey into the form actually stored on disk:
-  /// trimmed, lowercased, whitespace-stripped, then utf7-encoded.
-  static String prepareKey(String key) {
-    key = key.trim().toLowerCase().replaceAll(' ', '');
-    return Utf7.encode(key);
-  }
+  /// [canonicalAtKey], then utf7-encoded.
+  ///
+  /// The fold itself lives in [canonicalAtKey] rather than here because
+  /// callers above the keystore have to reproduce it exactly — a key they
+  /// build, or an id they compare against one an enumeration returned, is
+  /// about a different string from the one on disk otherwise. Two spellings
+  /// of one fold can disagree with nothing going red, since a non-canonical
+  /// key still resolves; one definition is what removes that.
+  static String prepareKey(String key) => Utf7.encode(canonicalAtKey(key));
 
   /// Builds the [AtData] that should land in the keystore for an
   /// `update`-style operation, merging the new payload with any
