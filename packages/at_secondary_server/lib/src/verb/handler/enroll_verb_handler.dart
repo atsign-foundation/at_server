@@ -291,11 +291,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (callerEnrollmentId != null &&
         callerEnrollmentId.isNotEmpty &&
         callerEnrollmentId != targetEnrollmentId) {
-      // ⚠️ A LEGACY-PKAM connection is NOT exempt. It authenticates as the
-      // housekeeping enrollment and carries its id, so it reaches this gate
-      // like any other enrollment and is refused by it — which is why the
-      // remedy names the connections that carry no enrollment id at all
-      // rather than "an owner".
+      // The remedy names the connections that carry no enrollment id at all
+      // rather than "an owner", because that is the condition this gate is
+      // keyed on: CRAM, owner and legacy PKAM all take the exempt branch.
       if (enrollDataStoreValue.namespaces.isEmpty) {
         throw UnAuthorizedException(
             'Not authorized to fetch enrollment $targetEnrollmentId: it holds'
@@ -411,21 +409,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // request. See #2208
       logger.warning('CRAM-authenticated connection - i.e. initial enrollment;'
           ' will replace the existing initial enrollment, if any');
-    } else if (atConnection.metaData.authType == AuthType.apkam ||
-        atConnection.metaData.authType == AuthType.pkamLegacy) {
+    } else if (atConnection.metaData.authType == AuthType.apkam) {
       // A self-enrollment keeps its app's own (appName, deviceName): a
       // retrofit is the same app re-enrolling itself, and sibling clones of
       // one keyfile share those names, each needing to coexist with the
       // approved enrollments the others already spawned. Uniqueness of
       // (appName, deviceName) among live enrollments therefore ends on this
       // branch by design.
-      //
-      // Legacy belongs here for the same reason and would otherwise never
-      // reach the retrofit branch at all: a retrofit of the housekeeping
-      // enrollment keeps ITS names, and preventDuplicateEnrollRequest throws
-      // on a same-name approved enrollment — so the request would be refused
-      // here, hundreds of lines before the gate that was widened for it, and
-      // the widening would appear to do nothing.
     } else {
       // Every other connection must not duplicate an existing enrollment's
       // (appName, deviceName).
@@ -526,22 +516,20 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // has authenticated, so sibling clones of the same keyfile can still
     // retrofit until the cap elapses.
     //
-    // A LEGACY-PKAM connection reaches this by the same rule rather than by a
-    // special case: it authenticates as the housekeeping enrollment, so the
-    // enrollment it authenticated as is the one it replaces. That is the
-    // whole of what gives the atSign's oldest keyfile the no-approver upgrade
-    // path every other credential already had.
+    // What retrofit is FOR: splitting a shared keyfile into per-device
+    // credentials. Every party to that already holds an enrollment, so the
+    // branch is entered only by a connection carrying one — a legacy
+    // connection has no enrollment to replace and no id to name one with.
     //
-    // ⚠️ The two are named EXPLICITLY rather than written as "authenticated
-    // and not CRAM". A CRAM connection must never receive retrofit treatment
-    // — at_auth throws unless a first enrollment comes back `approved`, so
-    // onboarding would break for every new user — and today it never does
-    // ONLY because the auto-approve block above returns before this point. An
-    // allow-list of two says that in the condition; a negation would leave it
-    // resting on statement order, where a reordering breaks onboarding
-    // silently.
-    if (atConnection.metaData.authType == AuthType.apkam ||
-        atConnection.metaData.authType == AuthType.pkamLegacy) {
+    // ⚠️ The auth type is named EXPLICITLY rather than written as
+    // "authenticated and not CRAM". A CRAM connection must never receive
+    // retrofit treatment — at_auth throws unless a first enrollment comes
+    // back `approved`, so onboarding would break for every new user — and
+    // today it never does ONLY because the auto-approve block above returns
+    // before this point. An allow-list says that in the condition; a negation
+    // would leave it resting on statement order, where a reordering breaks
+    // onboarding silently.
+    if (atConnection.metaData.authType == AuthType.apkam) {
       final inboundConnectionMetadata =
           atConnection.metaData as InboundConnectionMetadata;
       final predecessorId = inboundConnectionMetadata.enrollmentId;
@@ -925,13 +913,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // enrollment on the atSign becomes the one nothing can clear up. The self
     // clause keeps a forced self-revoke working.
     //
-    // ⚠️ A LEGACY-PKAM connection is NOT exempt. It authenticates as the
-    // housekeeping enrollment and carries its id, so it reaches this gate
-    // like any other enrollment and is refused by it, however privileged that
-    // enrollment is — the gate fires before the loop that would have found
-    // its grants sufficient. On an atSign whose only owner access is the
-    // legacy keyfile there is therefore no connection that can clear up such
-    // a record.
+    // A legacy-PKAM connection carries no enrollment id either, so it takes
+    // the exempt branch alongside CRAM and owner — which is what leaves an
+    // atSign whose only owner access is the flat keyfile able to clear up
+    // such a record.
     final String? callerIdForAuthz = inboundConnectionMetadata.enrollmentId;
     if (callerIdForAuthz != null &&
         callerIdForAuthz.isNotEmpty &&
@@ -1111,11 +1096,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // Record WHO approved, so a later revocation of the approver can take the
     // enrollments it admitted with it. Read off the connection rather than the
     // request: an approver cannot name someone else as the admitting party.
-    // Null over a CRAM connection, which carries no enrollment id — there is
-    // nothing there to revoke later. A LEGACY-PKAM connection is no longer in
-    // that company: it authenticates as the housekeeping enrollment and
-    // carries its id, so what it approves records `primary` as its approver
-    // and `enroll:revoke primary` reaches it.
+    // Null over a connection carrying no enrollment id — CRAM, owner or
+    // legacy PKAM — because there is nothing there to revoke later.
     if (operation == 'approve') {
       final String? approverId = inboundConnectionMetadata.enrollmentId;
       enVal.approvedByEnrollmentId =
@@ -1719,13 +1701,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       {EnrollParams? enrollVerbParams}) async {
     String? authenticatedEnrollmentId =
         (atConnection.metaData as InboundConnectionMetadata).enrollmentId;
-    // A connection carrying no enrollment id is a CRAM or owner connection,
-    // which stands over no record to narrow to. Return all the enrollments.
-    //
-    // A LEGACY-PKAM connection is not one of those: it authenticates as the
-    // housekeeping enrollment and carries its id, so it takes the branch
-    // below and sees everything because that enrollment holds `__manage` —
-    // by its grants, like any other caller, rather than by being exempt.
+    // A connection carrying no enrollment id — CRAM, owner or legacy PKAM —
+    // stands over no record to narrow to. Return all the enrollments.
     if (authenticatedEnrollmentId == null ||
         authenticatedEnrollmentId.isEmpty) {
       final enrollmentRequestsMap = await enMgr.getEnrollmentsAsJson(
@@ -2020,7 +1997,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         final AuthType? authType = inboundConnection.metaData.authType;
         if (authType != AuthType.cram &&
             authType != AuthType.apkam &&
-            authType != AuthType.pkamLegacy &&
             (enrollParams.namespaces == null ||
                 enrollParams.namespaces!.isEmpty)) {
           throw IllegalArgumentException(
@@ -2197,13 +2173,14 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // is most anomalous.
       //
       // Reachable from storage written by an older build, and that is now the
-      // whole of it. A LEGACY-PKAM `enroll:request` used to land one — it took
-      // the `else` branch, getting neither the CRAM branch's `__manage`+`*`
-      // nor the APKAM branch's copy of the predecessor's grants, while the "at
-      // least one namespace" check sits inside the OTP branch of
-      // _validateParams, which an authenticated connection does not enter.
-      // That path is a RETROFIT now and copies the housekeeping enrollment's
-      // grants verbatim, so this server no longer mints such a record. The
+      // whole of it. Such a record used to be mintable by any AUTHENTICATED
+      // `enroll:request` naming no namespaces: it took the `else` branch,
+      // getting neither the CRAM branch's `__manage`+`*` nor the retrofit
+      // branch's copy of the predecessor's grants, while the "at least one
+      // namespace" check sat inside the OTP branch of _validateParams, which
+      // an authenticated connection does not enter. That check is outside the
+      // OTP branch now and exempts only the two auth types whose grants are
+      // filled in for them, so this server no longer mints such a record. The
       // gate stays for the ones already on disk.
       //
       // Every path that decides by iterating a target's grants refuses an
@@ -2211,9 +2188,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // same words: this gate, the shared approve/deny/revoke/unrevoke gate,
       // and `enroll:fetch`'s. The refusal has to live at each of them because
       // it is the LOOP that passes such a record, and each has its own.
-      // ⚠️ A LEGACY-PKAM connection is NOT exempt, for the reason given on
-      // the shared approve/deny/revoke/unrevoke gate: it carries the
-      // housekeeping enrollment's id and is refused here like any other.
       if (enVal.namespaces.isEmpty) {
         throw UnAuthorizedException(
             'Not authorized to delete enrollment $targetEnrollmentId: it holds'

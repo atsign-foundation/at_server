@@ -3184,6 +3184,37 @@ void main() {
                 'living inside the OTP branch never saw it');
       });
 
+      test('...and a LEGACY connection naming none is refused too', () async {
+        // ⛔ THE SILENT REGRESSION. The namespace requirement carries an
+        // exemption per auth type, because the auth type decides which branch
+        // of the request path fills the grants in: CRAM grants `__manage` and
+        // `*`, a self-enrolment copies its predecessor's. A legacy connection
+        // does neither — it has no predecessor to copy and gets no CRAM
+        // grants — so exempting it lands exactly the record the three gates
+        // above exist to refuse, written successfully, with nothing red.
+        //
+        // Its sibling above uses an owner connection, which is not the same
+        // arm: the exemption is keyed on the auth type, and only a connection
+        // carrying AuthType.pkamLegacy exercises the term that was struck.
+        inboundConnection.metadata.isAuthenticated = true;
+        inboundConnection.metaData.authType = AuthType.pkamLegacy;
+        castMetadata(inboundConnection).enrollmentId = null;
+        final h = EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
+        await expectLater(
+            () => h.processVerb(
+                response,
+                h.parse('enroll:request:{"appName":"legacy-app",'
+                    '"deviceName":"legacy-device","namespaces":{},'
+                    '"apkamPublicKey":"dummy_apkam_public_key",'
+                    '"encryptedAPKAMSymmetricKey":"dummy_symm_key"}'),
+                inboundConnection),
+            throwsA(isA<IllegalArgumentException>().having((e) => e.message,
+                'message', contains('At least one namespace'))),
+            reason: 'a legacy connection gets no grants filled in on its '
+                'behalf, so a request naming none would mint a record no '
+                'caller can ever demonstrate authority over');
+      });
+
       test('control: an owner connection may still act on it', () async {
         // Why the guards are gated on caller-vs-target rather than applied
         // unconditionally. A CRAM or owner connection carries no enrollment
