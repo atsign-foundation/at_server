@@ -161,20 +161,29 @@ class PkamVerbHandler extends AbstractVerbHandler {
         if (housekeeping == null) {
           // The record is absent and must not be created, so this is NOT a
           // first authentication. Either the credential was retired — the key
-          // goes with the record, so its absence says so — or the key that is
-          // there belongs to an enrollment and was never a legacy credential
-          // at all. Creating the record in either case would hand a keypair a
-          // fresh, unexpiring root identity; in the first it would undo the
-          // retirement every time the record expired.
+          // goes with the record, so its absence says so — or this atSign
+          // already holds enrollment records, in which case the key at
+          // `at_pkam_publickey` did not authenticate before any enrollment
+          // existed and so is not a legacy credential. Creating the record in
+          // either case would hand a keypair a fresh, unexpiring root
+          // identity; in the first it would undo the retirement every time
+          // the record expired.
           //
           // The refusal does not say WHICH, because the caller has not
           // authenticated and the two are not its business. The manager logs
-          // the distinction, naming what it found.
+          // the distinction, naming what it found. It does name the REMEDY,
+          // which is the same either way and is what an operator arriving
+          // here actually needs — an established atSign is reached with an
+          // enrollment id, not with a flat keyfile.
           atConnectionMetadata.isAuthenticated = false;
           logger.warning('Refusing legacy PKAM authentication: this atSign has '
               'no usable legacy credential');
           throw UnAuthenticatedException(
-              'this atSign has no usable legacy PKAM credential');
+              'this atSign has no usable legacy PKAM credential. A legacy '
+              'credential is adopted only by an atSign that holds no '
+              'enrollments: on any other, authenticate with the enrollment id '
+              'the keyfile carries, as pkam:enrollmentId:<id>:<signature>, or '
+              'enrol this client with enroll:request');
         }
 
         // The legacy credential is only as live as its enrollment. Revoking

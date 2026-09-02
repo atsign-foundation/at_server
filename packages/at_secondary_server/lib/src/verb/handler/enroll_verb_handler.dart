@@ -494,14 +494,15 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // CRAM connection, so every repeat clobbered the key again.
       //
       // ⚠️ An atSign onboarded by an older server still holds such a copy,
-      // and nothing removes it automatically. It is no longer anonymous,
-      // though: a legacy authentication with it mints the housekeeping
-      // enrollment, so it now has an identity that `enroll:revoke` can retire
-      // and that a retrofit's cap can put a clock on. Retiring it is a
-      // deliberate act rather than a side effect of some other
-      // authentication, which is the only safe way to delete a credential
-      // this server cannot distinguish from one an owner provisioned on
-      // purpose.
+      // and nothing removes it automatically. The auto-approve that wrote it
+      // created an enrollment record in the same breath, so on that atSign
+      // the store is not empty of enrollments and a legacy authentication
+      // with the copy is REFUSED rather than minting the housekeeping
+      // enrollment for it — the identity is minted only for a credential
+      // that authenticated before any enrollment existed. Nothing deletes
+      // the copy either: this server cannot distinguish it from a credential
+      // an owner provisioned on purpose, so removing it would lock an owner
+      // out rather than tidy up after an app.
       // Publish the client-composed `_apsk` signing key, if it sent one.
       await _publishApskSigningKey(
           newEnrollmentId, enrollmentValue, currentAtSign);

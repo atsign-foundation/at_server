@@ -54,7 +54,12 @@ void main() {
 
   setUp(() async {
     await verbTestsSetUp();
-    await etu.init();
+    // NO primary enrollment. The housekeeping enrollment is minted only for a
+    // credential that authenticated before any enrollment existed, so a
+    // fixture that enrols first would refuse every mint under test and turn
+    // each of these into a test of the fixture. A test that needs an approver
+    // calls `etu.initPrimaryEnrollment()` once it has minted.
+    await etu.init(withPrimaryEnrollment: false);
     await seedLegacyKey();
   });
 
@@ -123,13 +128,15 @@ void main() {
   /// `ETU.createPendingEnrollment` derives the key from the app and device
   /// names, and what these tests need to control is precisely that value.
   Future<String> enrollmentHolding(String apkamPublicKey,
-      {String appName = 'holder', String deviceName = 'device'}) async {
+      {String appName = 'holder',
+      String deviceName = 'device',
+      Map<String, String> namespaces = const {'wavi': 'rw'}}) async {
     final EnrollParams ep = EnrollParams()
       ..appName = appName
       ..deviceName = deviceName
       ..apkamPublicKey = apkamPublicKey
       ..encryptedAPKAMSymmetricKey = 'encrypted apkam aes key'
-      ..namespaces = {'wavi': 'rw'}
+      ..namespaces = namespaces
       ..otp = await etu.getOtp();
     inboundConnection.metaData
       ..isAuthenticated = false
@@ -195,6 +202,7 @@ void main() {
 
     test('carries NO approver, so no cascade can reach it', () async {
       await enMgr.ensureHousekeepingEnrollment();
+      await etu.initPrimaryEnrollment();
       final admitted = await etu.createPendingEnrollment(
           appName: 'admitted',
           deviceName: 'device',
@@ -254,6 +262,7 @@ void main() {
     test('a REVOKED one stops counting as the atSign\'s surviving root',
         () async {
       await enMgr.ensureHousekeepingEnrollment();
+      await etu.initPrimaryEnrollment();
 
       expect(await enMgr.hasUnexpiringRootEnrollment({etu.primaryEnId}),
           isTrue,
@@ -303,14 +312,13 @@ void main() {
               'that cannot authenticate is the phantom root, minted');
     });
 
-    test('it is NOT minted from a key that is an enrollment\'s own credential',
-        () async {
-      // `at_pkam_publickey` holding some enrollment's own `apkamPublicKey` is
-      // a COPY of that enrollment's credential rather than a legacy one —
-      // older servers' CRAM auto-approve branch wrote the enrolling app's key
-      // there "for old clients". Minting `primary` from it gives one keypair a
-      // second identity with a lifecycle of its own, which is the
-      // dual-identity bug the record exists to end.
+    test('it is NOT minted once the atSign holds ANY enrollment', () async {
+      // RULED: a legacy credential is one that authenticated BEFORE any
+      // enrollment existed, because authenticating with no enrollment id at
+      // all is what the legacy flow IS. A key presented as one on a populated
+      // store arrived some other way, and the commonest way is older servers'
+      // CRAM auto-approve branch, which wrote the enrolling app's own APKAM
+      // key here "for old clients".
       final String holder = await enrollmentHolding('a keypair the app holds');
       await seedLegacyKey('a keypair the app holds');
 
@@ -327,38 +335,83 @@ void main() {
               'out instead of tidying up after an app');
     });
 
-    test('...while a key NO enrollment holds is minted as usual', () async {
+    test('...while an atSign holding none mints as usual', () async {
       // The control, and it is what stops the refusal above being satisfied
-      // by creation never happening: the same shape, differing only in the
-      // value the guard reads.
-      await enrollmentHolding('a keypair the app holds');
-      await seedLegacyKey('a keypair no enrollment holds');
+      // by creation never happening: the same key, the same call, differing
+      // only in whether the store holds an enrollment.
+      await seedLegacyKey('a keypair the app holds');
 
       expect(await enMgr.ensureHousekeepingEnrollment(), isNotNull);
       expect(await storedH(), isNotNull);
     });
 
-    test('a REVOKED enrollment\'s key refuses the mint too', () async {
-      // The measured consequence, and the reason status is not filtered.
-      // Revoking an app root is exactly the moment its keypair would
-      // otherwise be left authenticating as `primary` — fully privileged,
-      // permanent, and with nothing able to withdraw it, since the record
-      // that would be revoked is the one being minted here.
-      final String holder =
-          await enrollmentHolding('the revoked app\'s keypair');
-      await etu.approveEnrollment(etu.primaryEnId, holder);
-      await etu.revokeEnrollment(etu.primaryEnId, holder);
-      expect((await enMgr.getEnrollmentById(holder)).approval?.state,
-          EnrollmentStatus.revoked.name,
-          reason: 'precondition: the enrollment holding this keypair is gone');
-
-      await seedLegacyKey('the revoked app\'s keypair');
+    test('the enrollment that refuses it need not hold the legacy key',
+        () async {
+      // BEHAVIOUR CHANGED — the rule this replaces declined only when
+      // `at_pkam_publickey` equalled some enrollment's own `apkamPublicKey`,
+      // which keyed the decision on a record the holder of that key CONTROLS.
+      // The question is now asked of the STORE, so an enrollment with no
+      // connection to the key at all refuses the mint just the same.
+      await enrollmentHolding('a keypair of the app\'s own');
+      await seedLegacyKey('a key no enrollment holds');
 
       expect(await enMgr.ensureHousekeepingEnrollment(), isNull,
-          reason: 'a revoked enrollment\'s key is the case that matters most: '
-              'minting `primary` from it would hand the revoked app\'s own '
-              'keypair a fresh, unexpiring root identity, which is the '
-              'revocation being undone by the credential it revoked');
+          reason: 'the previous rule minted here, because no enrollment held '
+              'this key. Whether an enrollment holds it is not the question: '
+              'whether the atSign had been enrolled before this credential '
+              'turned up is');
+    });
+
+    test('deleting the enrollment that held the key no longer mints it',
+        () async {
+      // The defeat this rule was ruled for, driven through the wire verbs.
+      // The previous rule protected a record the attacker owned, so four
+      // commands were enough: revoke itself with the force flag, which alone
+      // lifts the self-revoke refusal; delete itself, which demonstrates no
+      // `__manage` because a caller may always delete its own enrollment; and
+      // then a legacy authentication minted `primary` at `*:rw` +
+      // `__manage:rw`, with no approver and no expiry, for the keypair whose
+      // enrollment had just gone.
+      await etu.initPrimaryEnrollment();
+      const String stolen = 'the app\'s own keypair, also at at_pkam_publickey';
+      final String app = await enrollmentHolding(stolen, namespaces: {
+        EnrollmentConstants.allNamespaces: 'rw',
+        EnrollmentConstants.enrollManageNamespace: 'rw',
+      });
+      await etu.approveEnrollment(etu.primaryEnId, app);
+      await seedLegacyKey(stolen);
+
+      // enroll:revoke:force on ITSELF.
+      inboundConnection.metaData
+        ..isAuthenticated = true
+        ..enrollmentId = app;
+      final revoke = Response();
+      await etu.evh.processVerb(
+        revoke,
+        getVerbParam(
+            VerbSyntax.enroll,
+            'enroll:revoke:force:'
+            '${jsonEncode((EnrollParams()..enrollmentId = app).toJson())}'),
+        inboundConnection,
+      );
+      expect(jsonDecode(revoke.data!)['status'], EnrollmentStatus.revoked.name,
+          reason: 'precondition: the force flag lifts the self-revoke refusal');
+
+      // enroll:delete on ITSELF.
+      await etu.deleteEnrollment(app, app);
+      expect(await keyValueStore.exists(enMgr.buildEnrollmentKey(app)), isFalse,
+          reason: 'precondition: no record now holds this keypair, which is '
+              'the whole of what the previous rule looked at');
+
+      expect(await enMgr.ensureHousekeepingEnrollment(), isNull,
+          reason: 'the atSign has been enrolled — the enrollment this app '
+              'destroyed was not the only one — so the key at '
+              'at_pkam_publickey did not authenticate before any enrollment '
+              'existed and is not a legacy credential, whatever the roster '
+              'now says');
+      expect(await storedH(), isNull,
+          reason: 'and no unexpiring root was minted for the keypair the app '
+              'still holds');
     });
 
     test('legacy authentication with such a key is REFUSED', () async {
@@ -367,7 +420,7 @@ void main() {
       // signature, and the credential really would have been granted root.
       final mlDsa = await MlDsa65PureDartAlgo().generateKeyPair();
       final String key = base64Encode(mlDsa.publicKey);
-      await enrollmentHolding(key);
+      await enrollmentHolding('a keypair of the app\'s own');
       await seedLegacyKey(key);
 
       const String sessionId = 'vestigial-session';
@@ -389,11 +442,18 @@ void main() {
                 'pkam:signingAlgo:mldsa65:${base64Encode(signature)}'),
             inboundConnection,
           ),
-          throwsA(isA<UnAuthenticatedException>().having((e) => e.message,
-              'message', contains('no usable legacy PKAM credential'))),
+          throwsA(isA<UnAuthenticatedException>().having(
+              (e) => e.message,
+              'message',
+              allOf(
+                contains('no usable legacy PKAM credential'),
+                contains('an atSign that holds no enrollments'),
+              ))),
           reason: 'the signature is GOOD — this keypair really does hold the '
               'key at at_pkam_publickey — so the only thing between it and a '
-              'permanent root identity is this refusal');
+              'permanent root identity is this refusal. The message names the '
+              'remedy because the population that hits it is an operator on '
+              'an established atSign, not an attacker');
 
       expect(inboundConnection.metaData.isAuthenticated, isFalse,
           reason: 'and the connection is left unauthenticated rather than '
@@ -513,6 +573,7 @@ void main() {
       // The control. Without it the refusal above is satisfied by
       // `enroll:unrevoke` refusing everything, which would say nothing about
       // the housekeeping enrollment at all.
+      await etu.initPrimaryEnrollment();
       final String other = await etu.createPendingEnrollment(
           appName: 'other',
           deviceName: 'device',
@@ -814,6 +875,7 @@ void main() {
     test('...but an ordinary enrollment id is unaffected', () async {
       // The control. Without it the refusal above would be satisfied by
       // "verifyEnrollmentIsActive refuses everything".
+      await etu.initPrimaryEnrollment();
       final ordinary = (await etu.createEnrollments(n: 1)).$1.first;
       final result =
           await PkamVerbHandler(keyValueStore).verifyEnrollmentIsActive(
@@ -1060,6 +1122,7 @@ void main() {
       // The control. Without it the refusal above would be satisfied by
       // enroll:update refusing every rotation, which would say nothing about
       // the housekeeping enrollment at all.
+      await etu.initPrimaryEnrollment();
       final enId = (await etu.createEnrollments(n: 1)).$1.first;
       final params = installFreshKey(enId);
       final r = await sendUpdate(enId, params);
@@ -1141,6 +1204,7 @@ void main() {
       // The scope control: the extra condition applies to the housekeeping
       // enrollment ALONE. Every other enrollment carries its own key in its
       // own record, so record and credential cannot come apart for them.
+      await etu.initPrimaryEnrollment();
       final other = await etu.createPendingEnrollment(
           appName: 'other-root',
           deviceName: 'device',

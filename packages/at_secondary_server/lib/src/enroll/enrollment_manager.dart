@@ -282,10 +282,11 @@ class EnrollmentManager {
   ///
   ///   * there is no usable legacy key — the credential has been RETIRED,
   ///     because removing this record always takes the key with it;
-  ///   * the legacy key is some enrollment's own `apkamPublicKey` — it is a
-  ///     COPY of that enrollment's credential rather than a legacy one, and
-  ///     minting an identity for it is the dual-identity bug this record
-  ///     exists to end.
+  ///   * the atSign already holds an enrollment record. A legacy credential
+  ///     authenticates before any enrollment exists — that is what the legacy
+  ///     flow IS — so a key presented as one on a populated store is a key
+  ///     that arrived some other way, and minting an unexpiring root for it
+  ///     is the dual-identity bug this record exists to end.
   Future<EnrollDataStoreValue?> ensureHousekeepingEnrollment() async {
     try {
       return await getEnrollmentById(housekeepingEnrollmentId);
@@ -320,40 +321,50 @@ class EnrollmentManager {
     // breath — so a key the caller read moments ago, to verify the signature,
     // may already be gone by the time we get here. Re-reading is what closes
     // that window rather than widening it.
-    final String? legacyKey = await legacyPkamPublicKey();
-    if (legacyKey == null) {
+    if (await legacyPkamPublicKey() == null) {
       logger.info('Not creating the housekeeping enrollment: '
           '${AtConstants.atPkamPublicKey} is absent or empty, so there is no '
           'credential for the record to stand for');
       return null;
     }
 
-    // A LEGACY credential is one no enrollment holds. A value that is some
-    // enrollment's own `apkamPublicKey` is a copy of that enrollment's
-    // credential — older servers' CRAM auto-approve branch wrote the enrolling
-    // app's key here "for old clients" — and minting `primary` from it would
-    // give one keypair a second identity with a lifecycle of its own. That is
-    // the dual-identity bug itself: revoking the app's enrollment would leave
-    // its own keypair authenticating as `primary`, fully privileged and
-    // permanent, with nothing left able to withdraw it.
+    // A LEGACY credential is one the atSign held BEFORE any enrollment did.
+    // Authenticating with no enrollment id at all is what the legacy flow IS,
+    // and it is the flow an atSign is onboarded through, while nothing has yet
+    // enrolled. So the identity is minted only on a store holding no
+    // enrollment record, and refused on every other.
     //
-    // Declining is a REFUSAL, not a repair. Nothing here deletes the key: this
-    // server cannot tell such a copy from a credential an owner provisioned on
-    // purpose with a keypair it also enrolled, so removing one would lock out
-    // an owner rather than tidy up an app. The atSign is left exactly as it
-    // was, with legacy authentication refused, and an operator who meant the
-    // key to be legacy can rotate it to a keypair no enrollment holds with
-    // `update:privatekey:at_pkam_publickey <new public key>` over an owner
-    // connection.
-    final List<String> holders =
-        await enrollmentsHoldingApkamPublicKey(legacyKey);
-    if (holders.isNotEmpty) {
-      logger.warning('Not creating the housekeeping enrollment: '
-          '${AtConstants.atPkamPublicKey} is the apkamPublicKey of '
-          'enrollment(s) ${holders.join(', ')}, so it is a copy of an '
-          'enrollment\'s own credential rather than a legacy one. Legacy '
-          'authentication is refused rather than granting that keypair a '
-          'second, separately governed identity');
+    // The narrower rule this replaces asked whether the key was some
+    // enrollment's own `apkamPublicKey` — older servers' CRAM auto-approve
+    // branch wrote the enrolling app's key here "for old clients". That keyed
+    // the decision on a record the holder of that key CONTROLS, and it was
+    // defeated end to end in four wire commands: `enroll:revoke:force` on
+    // itself, since the force flag alone lifts the self-revoke refusal;
+    // `enroll:delete` on itself, since a caller may always delete its own
+    // enrollment and so demonstrates no `__manage`; and then a legacy
+    // authentication minted `primary` at `*:rw` + `__manage:rw` with no
+    // approver and no expiry. `enroll:update` reached the same end without
+    // deleting anything — an app rotating its own APKAM key leaves the
+    // orphaned keypair at `at_pkam_publickey` with no record holding it.
+    //
+    // Asking about the STORE is what makes that arrangement expensive rather
+    // than impossible: the defeat above touched only the attacker's OWN
+    // record and left the atSign otherwise intact, while emptying the roster
+    // means destroying every other credential on the atSign first.
+    //
+    // Declining is a REFUSAL, not a repair. Nothing here deletes the key:
+    // this server cannot tell such a key from one an owner provisioned on
+    // purpose, so removing it would lock an owner out rather than tidy up
+    // after an app. The atSign is left exactly as it was, with legacy
+    // authentication refused.
+    final List<String> stored = await getAllEnrollmentKeys();
+    if (stored.isNotEmpty) {
+      logger.warning('Not creating the housekeeping enrollment: this atSign '
+          'already holds ${stored.length} enrollment record(s), so the key at '
+          '${AtConstants.atPkamPublicKey} did not authenticate before any '
+          'enrollment existed and is not a legacy credential. Legacy '
+          'authentication is refused rather than minting an unexpiring root '
+          'for it; enrol through enroll:request instead');
       return null;
     }
 
@@ -410,51 +421,6 @@ class EnrollmentManager {
     }
     final String? value = record?.data;
     return (value == null || value.isEmpty) ? null : value;
-  }
-
-  /// The ids of every stored enrollment whose own APKAM credential is
-  /// [apkamPublicKey].
-  ///
-  /// Read straight through the keystore rather than through
-  /// [getEnrollmentByFullKey], which treats an elapsed ttl as a reason to
-  /// DELETE the record. Callers are deciding whether to REFUSE something and
-  /// have not decided to write anything, so reaping enrollments here would
-  /// turn a question into a mutation.
-  ///
-  /// EVERY status is compared, revoked included, and that is the case the
-  /// answer exists for: a key that goes on authenticating after the enrollment
-  /// holding it was revoked is the whole hazard, so filtering by status would
-  /// look past exactly the record being asked about.
-  ///
-  /// An empty [apkamPublicKey] matches nothing. The housekeeping enrollment
-  /// stores an empty key deliberately, so an emptiness that matched would
-  /// report every credential-less record as a holder of every other one.
-  Future<List<String>> enrollmentsHoldingApkamPublicKey(
-      String apkamPublicKey) async {
-    if (apkamPublicKey.isEmpty) return const [];
-    final List<String> holders = [];
-    for (final ek in await getAllEnrollmentKeys()) {
-      final AtData? record;
-      try {
-        record = await keyStore.get(ek);
-      } on KeyNotFoundException {
-        continue; // removed between the enumeration and this read
-      }
-      final String? raw = record?.data;
-      if (raw == null) continue;
-      final EnrollDataStoreValue value;
-      try {
-        value = EnrollDataStoreValue.fromJson(jsonDecode(raw));
-      } catch (e) {
-        logger.severe('Could not decode enrollment ${getIdFromKey(ek)} while '
-            'looking for the holders of an APKAM public key: $e');
-        continue;
-      }
-      if (value.apkamPublicKey == apkamPublicKey) {
-        holders.add(getIdFromKey(ek));
-      }
-    }
-    return holders;
   }
 
   /// Stores the enrollment data associated with the given [enId].

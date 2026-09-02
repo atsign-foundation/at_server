@@ -120,36 +120,50 @@
   is reachable rather than theoretical: the `update` grammar demands a
   non-empty value, but `update:json` carries the value inside the JSON document
   instead, so an owner connection can store one.
-- ⚠️ fix: `primary` is no longer minted from an `at_pkam_publickey` that is
-  some enrollment's own `apkamPublicKey`. Such a value is a COPY of that
-  enrollment's credential rather than a legacy one — older servers' CRAM
-  auto-approve branch wrote the enrolling app's key there "for old clients" —
-  and granting it a second identity is the dual-identity bug itself: revoking
-  that app root left its own keypair authenticating as `primary`, fully
-  privileged and permanent, with nothing able to withdraw it, since the record
-  a revoke would name is the one the next legacy authentication creates.
-  Legacy authentication is refused instead, and the server logs at warning
-  which enrollments hold the key. Nothing is deleted: the server cannot tell
-  such a copy from a credential an owner provisioned with a keypair it also
-  enrolled, so removing one would lock an owner out rather than tidy up after
-  an app.
+- ⚠️ fix: `primary` is minted ONLY for an atSign whose keystore holds no other
+  enrollment record. A legacy credential is one that authenticated BEFORE any
+  enrollment existed — authenticating with no enrollment id at all is what the
+  legacy flow IS — so a key presented as one on a populated store arrived some
+  other way, and minting an unexpiring, unapprovable root for it is the
+  dual-identity bug this record exists to end.
 
-  ⚠️ The cost, stated rather than smoothed over: an operator who deliberately
-  provisioned `at_pkam_publickey` with a keypair they ALSO hold as an APKAM
-  enrollment loses legacy authentication on that atSign. `enroll:request`
-  accepts whatever `apkamPublicKey` a client sends, so that shape is
-  reachable, and nothing distinguishes it from the vestigial one. The remedy
-  is to rotate the legacy credential onto a keypair no enrollment holds, with
-  `update:privatekey:at_pkam_publickey <new public key>` over an owner
-  connection. The comparison is made only when the record is MINTED, so an
-  atSign that already has `primary` is unaffected whatever is enrolled
-  afterwards.
+  It replaces a narrower rule that declined only when `at_pkam_publickey`
+  equalled some enrollment's own `apkamPublicKey` — the shape older servers'
+  CRAM auto-approve branch wrote "for old clients". That rule keyed the
+  decision on a record the holder of that key CONTROLS, and was defeated end
+  to end in four wire commands: `enroll:revoke:force` on itself, since the
+  force flag alone lifts the self-revoke refusal; `enroll:delete` on itself,
+  since a caller may always delete its own enrollment and so demonstrates no
+  `__manage`; and then a legacy authentication minted `primary` at `*:rw` +
+  `__manage:rw`, with no approver and no expiry, for the keypair whose
+  enrollment had just gone. `enroll:update` reached the same end without
+  deleting anything — an app rotating its own APKAM key leaves the orphaned
+  keypair at `at_pkam_publickey` with no record holding it. Asking about the
+  STORE is what makes the arrangement expensive rather than merely awkward:
+  the defeat above touched only the attacker's own record, while emptying the
+  roster means destroying every other credential on the atSign first.
+
+  Nothing is deleted. The server cannot tell such a key from one an owner
+  provisioned on purpose, so removing it would lock an owner out rather than
+  tidy up after an app; the atSign is left exactly as it was, with legacy
+  authentication refused.
+
+  ⚠️ THE COST, stated rather than smoothed over: an atSign that already holds
+  enrollments can no longer adopt a legacy credential, and if it never minted
+  `primary` its legacy keyfile stops authenticating. That is every atSign
+  onboarded through `enroll:request` (whose CRAM auto-approve writes an
+  enrollment record) and every atSign that has enrolled an app since. There
+  is no remedy that re-admits the keyfile, and the refusal says so: it names
+  the rule and points the caller at the enrollment id its keyfile carries, or
+  at `enroll:request`. The gate is applied only when the record is MINTED, so
+  an atSign that already holds `primary` is unaffected whatever is enrolled
+  afterwards, and its legacy credential keeps working.
 
   ⚠️ The refusal a legacy client sees when the record is absent and must not
   be created changed wording, because there are now two reasons for it:
   `the legacy credential for this atSign has been retired` became `this atSign
-  has no usable legacy PKAM credential`. Which of the two it was is in the
-  server log, not on the wire.
+  has no usable legacy PKAM credential`, followed by the remedy. Which of the
+  two reasons it was is in the server log, not on the wire.
 - ⚠️ fix: `enroll:unrevoke` is refused on `primary`. Revoking that record is
   how an atSign withdraws its legacy keyfile — nothing else can, because the
   credential is a flat key the delete verb refuses on grammar and the record

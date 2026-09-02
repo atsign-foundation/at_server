@@ -23,7 +23,17 @@ class ETU {
   late ProxyLookupVerbHandler plvh;
   late String primaryEnId;
 
-  Future<void> init() async {
+  /// Builds the handlers and, unless [withPrimaryEnrollment] says otherwise,
+  /// the CRAM-auto-approved enrollment [primaryEnId] names.
+  ///
+  /// [withPrimaryEnrollment] false leaves the keystore holding NO enrollment
+  /// at all, which some subjects require: the housekeeping enrollment is
+  /// minted only for a credential that authenticated before any enrollment
+  /// existed, so a fixture that enrols first refuses the mint and every
+  /// assertion past it is about the fixture. Such a test calls
+  /// [initPrimaryEnrollment] once it has minted, wherever it needs an
+  /// approver.
+  Future<void> init({bool withPrimaryEnrollment = true}) async {
     evh = EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
     ovh = OtpVerbHandler(keyValueStore);
     uvh = UpdateVerbHandler(
@@ -39,8 +49,14 @@ class ETU {
     plvh = ProxyLookupVerbHandler(
         keyValueStore, mockOutboundClientManager, cacheManager,
         accessLog: atAccessLog);
-    primaryEnId = await createPrimaryEnrollment();
+    if (withPrimaryEnrollment) {
+      await initPrimaryEnrollment();
+    }
   }
+
+  /// Creates the CRAM-auto-approved enrollment and binds [primaryEnId] to it.
+  Future<String> initPrimaryEnrollment() async =>
+      primaryEnId = await createPrimaryEnrollment();
 
   Future<String> getOtp() async {
     inboundConnection.metaData.isAuthenticated = true;
