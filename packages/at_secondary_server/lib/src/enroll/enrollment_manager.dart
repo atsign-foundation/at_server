@@ -120,9 +120,11 @@ class EnrollmentManager {
   /// all of it. The triggering posture is ordinary rather than exotic: a
   /// single-root atSign whose root retrofits asking for a shorter key life.
   ///
-  /// [cacheInvalidations] is bumped by every enrollment write, so any change
-  /// to any enrollment re-opens the question. In-process only: a restart
-  /// re-decides, which is correct and costs one walk.
+  /// [cacheInvalidations] is bumped by every enrollment write and by every
+  /// enrollment removal — including the removals that reach the keystore
+  /// without passing through [remove], which [postRemoveHook] catches — so
+  /// any change to any enrollment re-opens the question. In-process only: a
+  /// restart re-decides, which is correct and costs one walk.
   static final Map<String, int> declinedAtGeneration = {};
 
   final AtSignLogger logger = AtSignLogger('EnrollmentManager');
@@ -134,8 +136,13 @@ class EnrollmentManager {
   /// an EnrollDataStoreValue because the EnrollDataStoreValue is mutable and
   /// we don't want its state changing and thus polluting the cache.
   ///
-  /// Cache is used by [getEnrollmentByFullKey]. It is invalidated by calls to
-  /// [put] and [remove]
+  /// Cache is used by [getEnrollmentByFullKey]. It is invalidated by [put],
+  /// and by [postRemoveHook] for every removal of an enrollment key however
+  /// that removal was reached — [remove], the `delete` verb, or the scheduled
+  /// expired-keys sweep. [getEnrollmentByFullKey] additionally declines to
+  /// populate it at all when an enrollment changed while its store read was
+  /// in flight, because the value it holds is then the one from before that
+  /// change.
   ///
   /// Context:<p/>
   /// Enrollments are fetched on every new verb command received, and on every
@@ -756,6 +763,35 @@ class EnrollmentManager {
     }
   }
 
+  /// Called after *any* key in the keystore is removed. Drops the cached
+  /// enrollment, if that is what went.
+  ///
+  /// AFTER rather than in [preRemoveHook], and that is the whole of why it is
+  /// a second hook: the pre-hook runs while the record is still on disk and
+  /// does several awaits of its own, so anything invalidated there is
+  /// reinstated by any read arriving before the delete lands. There is
+  /// nothing left to read back by the time this runs.
+  ///
+  /// A hook rather than a line in [remove], because [remove] is not the only
+  /// way an enrollment key leaves the keystore — `delete` from an owner
+  /// connection and the scheduled expired-keys sweep both go straight to
+  /// [AtKeyValueStore.remove]. Those paths left the record cached, so it went
+  /// on being served as approved for the life of the process, and went on
+  /// authorising every verb its grants covered, with nothing on disk to say
+  /// so.
+  ///
+  /// The key is canonicalised because the cache is keyed by
+  /// [buildEnrollmentKey], which is, while a keystore hands its hooks the key
+  /// as the caller spelled it apart from case.
+  Future<void> postRemoveHook(String key, {required bool skipCommit}) async {
+    final String ek = canonicalAtKey(key);
+    if (!ekRegex.hasMatch(ek)) {
+      return;
+    }
+    cacheInvalidations++;
+    atDataCache.remove(ek);
+  }
+
   Future<void> _preRemove({
     required String ek,
   }) async {
@@ -829,17 +865,17 @@ class EnrollmentManager {
   /// Parameters:
   ///  - [enId]: The ID associated with the enrollment.
   Future<void> remove({required String enId}) async {
-    if (!keyStore.preRemoveHooks.contains(preRemoveHook)) {
+    if (!keyStore.preRemoveHooks.contains(preRemoveHook) ||
+        !keyStore.postRemoveHooks.contains(postRemoveHook)) {
       throw StateError('Managing datastore consistency for enrollments requires'
-          ' that the preRemoveHook be active');
+          ' that the preRemoveHook and the postRemoveHook be active');
     }
     String ek = buildEnrollmentKey(enId);
 
+    // The cache is invalidated by [postRemoveHook], which the guard above
+    // insists on, rather than by a line here: this method is one removal path
+    // among several and the invariant belongs where every path passes.
     await keyStore.remove(ek, skipCommit: true);
-
-    // invalidate the cache
-    cacheInvalidations++;
-    atDataCache.remove(ek);
   }
 
   /// Every enrollment record key this atSign holds.
@@ -931,9 +967,26 @@ class EnrollmentManager {
     } else {
       // not in cache - fetch from keystore, and populate the cache
       cacheMisses++;
+      // The generation the value is read AT. The store read below is an
+      // await, so an enrollment write can land while it is in flight — and
+      // the value it hands back is then the one from BEFORE that write.
+      // Caching it unconditionally reinstates the superseded record after the
+      // writer has already invalidated it, and nothing invalidates it again:
+      // the entry outlives the process's memory of the write. Measured as a
+      // PKAM that succeeded for an enrollment the store said was revoked.
+      //
+      // The counter is bumped by every enrollment write and every enrollment
+      // removal, so this is deliberately coarse — a write to some OTHER
+      // enrollment costs this read its cache fill, which the next read pays
+      // again. That is the whole cost, and it buys the invariant with no new
+      // state: enrollments are written extremely rarely compared to how often
+      // they are read, which is why there is a cache here at all.
+      final int generationAtRead = cacheInvalidations;
       enrollData = (await keyStore.get(ek))!;
       enrollJson = jsonDecode(enrollData.data!);
-      atDataCache[ek] = (enrollData, enrollJson);
+      if (cacheInvalidations == generationAtRead) {
+        atDataCache[ek] = (enrollData, enrollJson);
+      }
     }
 
     EnrollDataStoreValue value = EnrollDataStoreValue.fromJson(enrollJson);

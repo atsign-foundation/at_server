@@ -519,6 +519,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   @visibleForTesting
   Future<void> prepareStoreForFirstConnection() async {
     keyValueStore.preRemoveHooks.add(enrollmentManager.preRemoveHook);
+    keyValueStore.postRemoveHooks.add(enrollmentManager.postRemoveHook);
 
     // A successful adoption logs itself, at `shout`, naming what it did.
     await enrollmentManager.adoptLegacyCredential();

@@ -423,6 +423,7 @@ verbTestsSetUp() async {
       enMgr = EnrollmentManager(keyValueStore, alice);
   enMgr.logger.level = 'shout';
   keyValueStore.preRemoveHooks.add(enMgr.preRemoveHook);
+  keyValueStore.postRemoveHooks.add(enMgr.postRemoveHook);
 
   DateTime now = DateTime.now().toUtcMillisecondsPrecision();
   bobOriginalPublicKeyAtData = AtData();

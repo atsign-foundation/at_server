@@ -80,6 +80,7 @@ void main() async {
           enMgr = EnrollmentManager(mockKeyStore, alice);
       enMgr.logger.level = 'shout';
       mockKeyStore.preRemoveHooks.add(enMgr.preRemoveHook);
+      mockKeyStore.postRemoveHooks.add(enMgr.postRemoveHook);
       pkamVerbHandler = PkamVerbHandler(mockKeyStore);
     });
 

@@ -1,4 +1,30 @@
 # 3.16.4
+- fix: an enrollment record removed from the keystore is no longer served
+  from the enrollment cache, and a read in flight across an enrollment write
+  no longer puts the superseded value back.
+
+  The cache was invalidated by `EnrollmentManager.put` and by
+  `EnrollmentManager.remove`, and by nothing else. Every other way an
+  enrollment key leaves the keystore — `delete` from an owner connection, the
+  scheduled expired-keys sweep — went straight to the keystore's own `remove`,
+  which fires the pre-remove hook that keeps per-enrollment data consistent
+  but touched no cache. The record went from disk while the cache went on
+  serving it as approved, and on authorising every verb its grants covered,
+  for the life of the process. Invalidation now lives in a POST-remove hook,
+  which every removal path fires and which runs when there is no longer
+  anything on disk to read back; `EnrollmentManager.remove` refuses to run at
+  all unless that hook is registered.
+
+  Separately, `getEnrollmentByFullKey` filled the cache AFTER awaiting the
+  store, so a read that overlapped a write reinstated the pre-write record
+  once the writer had already invalidated it — and nothing invalidated it
+  again. Measured as a PKAM that succeeded for an enrollment the store said
+  was revoked. The fill is now skipped when the enrollment generation moved
+  while the read was in flight. The generation is global to all enrollments,
+  so a write to any enrollment costs a concurrent read its cache fill; that is
+  the deliberate price of holding the invariant with no new state, and the
+  next read makes the fill again.
+
 - fix: `scan` re-checks the enrollment's approval state on the wildcard fast
   path, and a connection whose enrollment has left `approved` is closed.
 
