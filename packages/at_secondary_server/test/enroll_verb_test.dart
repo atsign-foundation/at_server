@@ -555,7 +555,7 @@ void main() {
       // Verify that the keystore state is as expected with all keys
       await etu.verifyKeyStoreState(allEnIds, [], cleanedUp: false);
 
-      Map m1 = await enMgr.getEnrollmentsAsJson();
+      Map m1 = await enMgr.getEnrollmentsAsJson(redactSecrets: false);
       expect(m1.length, allEnIds.length + 1);
       // remove the primary enrollment id from what we got
       m1.remove(enMgr.buildEnrollmentKey(etu.primaryEnId));
@@ -589,6 +589,7 @@ void main() {
       // the _expiryCache which HiveAtKeyValueStore maintains.
       final int writesBefore = EnrollmentManager.cacheInvalidations;
       Map m = await enMgr.getEnrollmentsAsJson(
+          redactSecrets: false,
           ekList:
               allEnIds.map((enId) => enMgr.buildEnrollmentKey(enId)).toList());
       expect(m.length, allEnIds.length);
@@ -3740,7 +3741,7 @@ void main() {
 
     test('a record over the cap is refused, and creates no enrollment',
         () async {
-      final before = (await enMgr.getEnrollmentsAsJson()).length;
+      final before = (await enMgr.getEnrollmentsAsJson(redactSecrets: false)).length;
       final ep = await sizedRequest('tooBig')
         ..apsk = {
           'publicKey': 'x' * (EnrollVerbHandler.maxEnrollmentRecordBytes + 1)
@@ -3748,7 +3749,7 @@ void main() {
 
       await expectLater(submitRequest(ep), refusedForSize);
 
-      expect((await enMgr.getEnrollmentsAsJson()).length, before,
+      expect((await enMgr.getEnrollmentsAsJson(redactSecrets: false)).length, before,
           reason: 'the refusal lands before the record is created, so an '
               'oversized value cannot leave a half-made enrollment behind');
     });
@@ -3783,7 +3784,7 @@ void main() {
       // carries the enrollment's key package — the largest blob in play — and
       // was uncapped while apsk was capped, so the bound applied to the one
       // field nobody would use to make a record big.
-      final before = (await enMgr.getEnrollmentsAsJson()).length;
+      final before = (await enMgr.getEnrollmentsAsJson(redactSecrets: false)).length;
       final ep = await sizedRequest('bigMetadata')
         ..metadata = {
           'keyPackage': {
@@ -3792,7 +3793,7 @@ void main() {
         };
 
       await expectLater(submitRequest(ep), refusedForSize);
-      expect((await enMgr.getEnrollmentsAsJson()).length, before);
+      expect((await enMgr.getEnrollmentsAsJson(redactSecrets: false)).length, before);
     });
 
     test('the cap counts the whole record, not each field separately',
@@ -3801,7 +3802,7 @@ void main() {
       // per-field bound goes green here, which is exactly the hole that made
       // the old one worth replacing.
       final half = EnrollVerbHandler.maxEnrollmentRecordBytes ~/ 2;
-      final before = (await enMgr.getEnrollmentsAsJson()).length;
+      final before = (await enMgr.getEnrollmentsAsJson(redactSecrets: false)).length;
       final ep = await sizedRequest('sumOverCap')
         ..apsk = {'publicKey': 'x' * half}
         ..metadata = {
@@ -3814,7 +3815,7 @@ void main() {
               'testing the per-field bound it is meant to distinguish from');
 
       await expectLater(submitRequest(ep), refusedForSize);
-      expect((await enMgr.getEnrollmentsAsJson()).length, before);
+      expect((await enMgr.getEnrollmentsAsJson(redactSecrets: false)).length, before);
     });
 
     test('a record comfortably under the cap is accepted and published',
@@ -3914,7 +3915,7 @@ void main() {
       // Not a precedence question: one record publishes one value, and the
       // server has no basis for choosing between two the client disagreed with
       // itself about. Refusing is also what keeps the choice observable.
-      final before = (await enMgr.getEnrollmentsAsJson()).length;
+      final before = (await enMgr.getEnrollmentsAsJson(redactSecrets: false)).length;
 
       await expectLater(
           etu.createPendingEnrollment(
@@ -3930,14 +3931,14 @@ void main() {
           throwsA(isA<IllegalArgumentException>().having(
               (e) => e.message, 'message', contains('mutually exclusive'))));
 
-      expect((await enMgr.getEnrollmentsAsJson()).length, before,
+      expect((await enMgr.getEnrollmentsAsJson(redactSecrets: false)).length, before,
           reason: 'the refusal lands before the record is created');
     });
 
     test('an apskLegacy over the cap is refused, and creates no enrollment',
         () async {
       final overCap = 'x' * (EnrollVerbHandler.maxEnrollmentRecordBytes + 1);
-      final before = (await enMgr.getEnrollmentsAsJson()).length;
+      final before = (await enMgr.getEnrollmentsAsJson(redactSecrets: false)).length;
 
       await expectLater(
           etu.createPendingEnrollment(
@@ -3948,7 +3949,7 @@ void main() {
               apskLegacy: overCap),
           refusedForSize);
 
-      expect((await enMgr.getEnrollmentsAsJson()).length, before);
+      expect((await enMgr.getEnrollmentsAsJson(redactSecrets: false)).length, before);
     });
 
     test('metadata + signingAlgo on enroll:request are persisted on the record',

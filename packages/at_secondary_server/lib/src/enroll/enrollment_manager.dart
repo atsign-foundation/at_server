@@ -644,8 +644,17 @@ class EnrollmentManager {
   ///
   /// When [ekList] is null, fetch and filter all enrollments.
   /// When [statuses] is null, do not filter by status.
+  ///
+  /// [redactSecrets] selects the roster projection
+  /// ([EnrollDataStoreValue.toJsonRoster]) instead of the full record. It is
+  /// REQUIRED rather than defaulted: every caller has to state which audience
+  /// it is answering, because the full record carries the wrapped APKAM
+  /// symmetric key and a caller that gets it by omission is the defect this
+  /// parameter exists to prevent.
   Future<Map<String, Map<String, dynamic>>> getEnrollmentsAsJson(
-      {List<String>? ekList, List<EnrollmentStatus>? statuses}) async {
+      {required bool redactSecrets,
+      List<String>? ekList,
+      List<EnrollmentStatus>? statuses}) async {
     // set default values for optional arguments - all enrollments, all statuses
     //
     // The VISIBLE roster: this REPORTS a roster (`enroll:list`), it decides
@@ -667,7 +676,8 @@ class EnrollmentManager {
       if (statuses == null ||
           statuses.contains(
               EnrollmentStatus.values.byName(enVal.approval!.state))) {
-        ejList[ek] = enVal.toJsonExtended();
+        ejList[ek] =
+            redactSecrets ? enVal.toJsonRoster() : enVal.toJsonExtended();
       }
     }
     return ejList;

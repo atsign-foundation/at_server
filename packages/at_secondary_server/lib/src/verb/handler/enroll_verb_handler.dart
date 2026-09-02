@@ -1653,10 +1653,14 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     String? authenticatedEnrollmentId =
         (atConnection.metaData as InboundConnectionMetadata).enrollmentId;
     // A connection carrying no enrollment id — CRAM, owner or legacy PKAM —
-    // stands over no record to narrow to. Return all the enrollments.
+    // stands over no record to narrow to. Return all the enrollments, and
+    // return them whole: this connection holds the atSign itself rather than
+    // a delegated share of it, so there is no secret here it is not already
+    // entitled to read straight out of the keystore.
     if (authenticatedEnrollmentId == null ||
         authenticatedEnrollmentId.isEmpty) {
       final enrollmentRequestsMap = await enMgr.getEnrollmentsAsJson(
+        redactSecrets: false,
         statuses: enrollVerbParams?.enrollmentStatusFilter,
       );
       return jsonEncode(enrollmentRequestsMap);
@@ -1670,7 +1674,26 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         await enMgr.getEnrollmentById(authenticatedEnrollmentId);
 
     if (_doesEnrollmentHaveManageNamespace(enrollDataStoreValue)) {
+      // Which projection is the caller's own __manage LETTER, not merely
+      // whether it holds the namespace at all.
+      //
+      // The record carries `encryptedAPKAMSymmetricKey` — the wrapped key an
+      // approver needs to admit an enrollment — and the server already states
+      // that value's audience elsewhere: the pending-enrollment notification
+      // goes to clients holding __manage at `rw`. A read-only administrator
+      // can never approve, so it can never have a use for the key; it needs
+      // to know which enrollments exist, what each holds and what state each
+      // is in, which is what the roster projection carries.
+      //
+      // enroll:fetch asks a different question of the same data — authority
+      // over the TARGET, namespace by namespace — and keeps its own gate.
+      // The two are not redundant: fetch answers about one enrollment a
+      // caller named, this answers about every enrollment on the atSign.
+      final bool callerMayApprove = EnrollmentAccess.allowsWrite(
+          enrollDataStoreValue
+              .namespaces[EnrollmentConstants.enrollManageNamespace]);
       final jsonMap = await enMgr.getEnrollmentsAsJson(
+        redactSecrets: !callerMayApprove,
         statuses: enrollVerbParams?.enrollmentStatusFilter,
       );
       return jsonEncode(jsonMap);
@@ -1678,6 +1701,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       final jsonMap = {};
       if (enrollDataStoreValue.approval!.state !=
           EnrollmentStatus.expired.name) {
+        // The caller's OWN record, whole: it is this enrollment's own key
+        // material, which the client that holds the enrollment already has.
         String ek = enMgr.buildEnrollmentKey(authenticatedEnrollmentId);
         jsonMap[ek] = enrollDataStoreValue.toJsonExtended();
       }

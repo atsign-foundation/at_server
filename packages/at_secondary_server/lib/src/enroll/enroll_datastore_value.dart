@@ -170,6 +170,41 @@ class EnrollDataStoreValue {
     m['namespace'] = m['namespaces'];
     return m;
   }
+
+  /// The roster view of this enrollment: everything an administrator needs to
+  /// render it, audit it and decide what to ask of it, and none of the key
+  /// material that would let one USE it.
+  ///
+  /// Built as an explicit field set rather than [toJsonExtended] with the
+  /// secrets removed. Blanking would make a redacted field indistinguishable
+  /// from an enrollment that never had one, and it puts the burden on
+  /// whoever adds the NEXT secret-bearing field to remember to strike it
+  /// here. A field added to the record is absent from this view until
+  /// somebody adds it deliberately, which is the direction that fails safe.
+  ///
+  /// Omitted, and why: `encryptedAPKAMSymmetricKey` and `apsk`/`apskLegacy`
+  /// are the wrapped key material an approver needs and nobody else can use;
+  /// `apkamPublicKey` and `metadata` (which carries the key package) identify
+  /// the credential itself; `sessionId` names the connection the request
+  /// arrived on. None is needed to decide whether an enrollment should stand.
+  Map<String, dynamic> toJsonRoster() => <String, dynamic>{
+        'appName': appName,
+        'deviceName': deviceName,
+        'namespaces': namespaces,
+        // `namespace` is the alias toJsonExtended emits; kept so a roster
+        // entry reads the same either side of the redaction.
+        'namespace': namespaces,
+        'requestType': requestType?.name,
+        'approval': approval,
+        'status': approval?.state,
+        'apkamKeysExpiryInMillis': apkamKeysExpiryDuration.inMilliseconds,
+        if (signingAlgo != null) 'signingAlgo': signingAlgo,
+        if (parentEnrollmentId != null) 'parentEnrollmentId': parentEnrollmentId,
+        if (approvedByEnrollmentId != null)
+          'approvedByEnrollmentId': approvedByEnrollmentId,
+        if (predecessorCapArmedAt != null)
+          'predecessorCapArmedAt': predecessorCapArmedAt!.toIso8601String(),
+      };
 }
 
 class EnrollApproval {

@@ -206,7 +206,7 @@ void main() {
       when(() => store.get(liveKey))
           .thenAnswer((_) async => AtData()..data = recordFor(liveId));
 
-      final roster = await enMgr.getEnrollmentsAsJson();
+      final roster = await enMgr.getEnrollmentsAsJson(redactSecrets: false);
 
       expect(roster.keys, [liveKey],
           reason: 'the survivor is served; the reaped one is skipped rather '
@@ -227,7 +227,7 @@ void main() {
       when(() => store.get(bKey))
           .thenAnswer((_) async => AtData()..data = recordFor(bId));
 
-      expect((await enMgr.getEnrollmentsAsJson()).keys.toSet(), {aKey, bKey});
+      expect((await enMgr.getEnrollmentsAsJson(redactSecrets: false)).keys.toSet(), {aKey, bKey});
     });
   });
 
