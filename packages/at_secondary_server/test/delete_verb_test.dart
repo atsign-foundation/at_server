@@ -153,8 +153,13 @@ void main() {
     // onboarding. The delete verb's atKey regex only special-cases the literal
     // 'privatekey:at_secret'; the marker contains a colon and is not that
     // literal, so it cannot be parsed - and therefore cannot be deleted via the
-    // delete verb to resurrect CRAM. (The keys verb path is closed separately
-    // by KeysVerbHandler authorization.)
+    // delete verb to resurrect CRAM.
+    //
+    // This pins ONE route. The others are closed elsewhere and each has its
+    // own coverage: the keys verb by KeysVerbHandler authorization, and
+    // update:json - the one grammar that CAN name a colon-bearing key - by
+    // the outright refusal in _decideRootKey, pinned in root_key_authz_test.
+    // Read together they are the property; read alone this one is not.
     test('verify the cram-secret-deleted marker cannot be deleted', () {
       inboundConnection.metadata.isAuthenticated = true;
       var command = 'delete:${AtConstants.atCramSecretDeleted}';
