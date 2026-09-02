@@ -1265,6 +1265,61 @@ void main() {
               'in step');
     });
 
+    test('the signable is exactly "primary|<value>|<signingAlgo>"', () async {
+      // RAW LITERAL, not composed from the constants the server composes it
+      // from — a comparison against the constants that define a value pins
+      // nothing, and `rotationCommand` above builds the signable that way.
+      //
+      // FROZEN: a client makes this signature before anything reaches the
+      // server, so a change to the framing is a change every rotating client
+      // has to ship in the same release. An intended change edits this
+      // literal, and that edit is the review.
+      await seedRsaLegacyKey();
+      expect((await pkam('framing-session')).data, 'success',
+          reason: 'precondition: the connection is entitled to rotate the '
+              'credential, so what is measured below is the framing');
+
+      final replacement = AtChopsUtil.generateAtPkamKeyPair();
+      final String pub = replacement.atPublicKey.publicKey;
+      String signOver(String message) =>
+          AtChopsImpl(AtChopsKeys.create(null, replacement))
+              .sign(AtSigningInput(message)
+                ..signingAlgoType = SigningAlgoType.rsa2048
+                ..hashingAlgoType = HashingAlgoType.sha256
+                ..signingMode = AtSigningMode.pkam)
+              .result;
+
+      // The NEGATIVE control first, and it is the atSign-bound framing on
+      // purpose: this signable carries no atSign, deliberately, so that a
+      // client implements one rule for this rotation and for enroll:update.
+      // The binding is not what stops a replay — authorisation is — so the
+      // server must NOT accept the bound spelling by accident.
+      final String before =
+          (await keyValueStore.get(AtConstants.atPkamPublicKey))!.data!;
+      await expectLater(
+          etu.uvh.process(
+              rotationCommand(replacement,
+                  signature: signOver('primary|$pub|rsa2048|$alice')),
+              inboundConnection),
+          throwsA(isA<UnAuthorizedException>()),
+          reason: 'a signature over any other framing must not verify, or the '
+              'pin below is satisfied by a server that checks nothing');
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          before,
+          reason: 'and the refusal is not one in name only');
+
+      await etu.uvh.process(
+          rotationCommand(replacement,
+              signature: signOver('primary|$pub|rsa2048')),
+          inboundConnection);
+
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data, pub,
+          reason: 'the bytes a client signs are the enrollment id, the new '
+              'public key and the signing algorithm, joined by "|" in that '
+              'order, with the id spelled "primary" — the same framing '
+              'enroll:update demands of every other credential');
+    });
+
     test('a rotation carrying NO proof of possession is refused', () async {
       // MEASURED: without this the same request installs a well-formed key
       // whose private half was never persisted, and `primary` goes on being

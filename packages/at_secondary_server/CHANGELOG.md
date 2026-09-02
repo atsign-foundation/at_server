@@ -1,4 +1,31 @@
 # 3.16.4
+- docs/test: the proof of possession on `at_pkam_publickey` says why its
+  signable is a constant, and the framing is pinned by a raw literal.
+
+  The signable is `primary|<value>|<signingAlgo>` — no challenge, no session,
+  no atSign — so an identical `update:json` document is replayable byte for
+  byte, on this atSign and on any other. That is deliberate and is now stated
+  as such: the signature is not an authenticator and never stood between
+  anyone and this key. `update` requires authentication, and the only
+  connections authorised to write this key are an owner or CRAM connection,
+  which carries no enrollment id, and a connection authenticated as the
+  housekeeping enrollment. A replayer is therefore already entitled to install
+  a key of its own choosing and can sign a fresh document with any key it
+  holds; the one thing a captured document buys it is installing a key it does
+  NOT hold, which is defeating this guard against itself.
+
+  `enroll:update`'s equivalent differs only in that its signable names a
+  server-issued enrollment id, unique to the atSign that issued it, so that
+  document is incidentally bound to one atSign. Nothing rests on the binding
+  in either case, so the legacy framing is kept byte-identical rather than
+  hardened with an atSign or a nonce: a client implements one rule for both
+  rotations, and `EnrollParams.apkamPublicKeySignature` publishes that rule.
+
+  The framing was built in tests from the constant that defines it, which pins
+  nothing. It now has a raw-literal pin, whose negative control is the
+  atSign-bound spelling — so the server accepting that spelling is a failure
+  rather than an improvement nobody notices.
+
 - docs: `EnrollmentManager.isUsableRootEnrollment` says what its bar is and
   what it does not cover.
 

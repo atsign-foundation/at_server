@@ -1456,6 +1456,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// connection, and the old key stops authenticating the moment the rotation
   /// lands, so a replayed request can only be sent by the current holder. That
   /// makes a rollback self-harm rather than an attack.
+  ///
+  /// The signable happens to name a server-issued enrollment id, which is
+  /// unique to the atSign that issued it, so this document is incidentally
+  /// bound to one atSign. Nothing rests on that: the authorisation above is
+  /// what stops a replay, and the sibling rotation of the legacy credential —
+  /// `AbstractUpdateVerbHandler.verifyLegacyCredentialPossession` — uses the
+  /// same framing over the constant `primary` and is safe for the same reason.
   Future<void> _verifyApkamPublicKeyPossession({
     required String enrollmentId,
     required String apkamPublicKey,

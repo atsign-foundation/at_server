@@ -279,6 +279,34 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   /// per connection — so there is nothing here to fall back on, and a wrong
   /// guess would install a key that cannot authenticate, which is the failure
   /// this method exists to prevent.
+  ///
+  /// REPLAY, stated because the shape invites the question. The signable is a
+  /// CONSTANT — `primary|<value>|<signingAlgo>` carries no challenge, no
+  /// session and no atSign — so an identical `update:json` document is
+  /// replayable byte for byte, here and on any other atSign. That is
+  /// deliberate, because this signature is not an authenticator and never
+  /// stood between anyone and this key. `update` requires authentication, and
+  /// the only connections authorised to write this key are an owner or CRAM
+  /// connection, which carries no enrollment id, and a connection
+  /// authenticated as the housekeeping enrollment; every other enrollment is
+  /// refused before the value is looked at. Whoever replays a captured
+  /// document is therefore already entitled to install a key of its own
+  /// choosing, and can sign a fresh one with any key it holds. The single
+  /// thing a captured document buys it is installing a key it does NOT hold —
+  /// which is defeating this guard against itself.
+  ///
+  /// It differs from `enroll:update`'s equivalent in one respect, and the
+  /// difference decides nothing. That signable names a server-issued
+  /// enrollment id, unique to the atSign that issued it, so it is
+  /// incidentally bound to one atSign; `primary` is the same literal on every
+  /// atSign, so this one is not. Both are gated by the same authorisation, so
+  /// neither binding is what stops a replay.
+  ///
+  /// The framing is therefore kept byte-identical to `enroll:update`'s rather
+  /// than hardened with an atSign or a nonce. A client implements one rule for
+  /// both rotations, `EnrollParams.apkamPublicKeySignature` publishes that
+  /// rule, and a second framing that bought no security would be a footgun for
+  /// the client author and nothing else.
   Future<void> verifyLegacyCredentialPossession(
       HashMap<String, String?> verbParams, dynamic value) async {
     final EnrollmentManager enMgr =
