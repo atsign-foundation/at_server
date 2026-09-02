@@ -34,6 +34,18 @@
   answered "this atSign can restore a root" for a record nobody holds a
   credential for, and the caller then revoked or capped the last root that
   actually worked.
+- ⚠️ fix: `update:privatekey:at_pkam_publickey` is no longer writable by any
+  root enrollment. It is the one key an enrollment can write that MINTS AN
+  IDENTITY rather than serving one: legacy PKAM authenticates against it and
+  carries no enrollment id, so an app root that planted a key it held gained a
+  second identity its own revocation could not reach — a compromised root
+  surviving its own revocation, permanently, with nothing on the roster to
+  show for it. It is now writable by an owner or CRAM connection (which
+  carries no enrollment id at all, and is what onboarding uses to plant the
+  first key) and by a LEGACY-PKAM connection rotating its OWN credential,
+  which has already proved possession of the key it is replacing by
+  authenticating with it. Every other `privatekey:` key is unchanged and still
+  decided by root privilege alone.
 - fix: the retrofit cap's decline now NAMES the remedy. An atSign whose only
   root asks for a bounded key life declines on every authentication and has
   both revoke routes refused, so its legacy credential is un-retirable and

@@ -5,6 +5,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as handler_util;
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -302,7 +303,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
 
     // Namespace-less keys carry no namespace an enrollment can hold. A null
     // verdict defers the decision to the namespace check below.
-    final bool? rootKeyVerdict = _decideRootKey(atKey, enrollDataStoreValue);
+    final bool? rootKeyVerdict =
+        _decideRootKey(atKey, enrollDataStoreValue, enrollmentId);
     if (rootKeyVerdict != null) {
       return rootKeyVerdict;
     }
@@ -625,8 +627,12 @@ abstract class AbstractVerbHandler implements VerbHandler {
 
   /// Decides a namespace-less key for an enrollment, or returns null to let
   /// the namespace check decide.
-  bool? _decideRootKey(
-      String? atKey, EnrollDataStoreValue enrollDataStoreValue) {
+  ///
+  /// [enrollmentId] is the id the connection carries. Only one key is decided
+  /// by WHICH enrollment is asking rather than by what it holds — see
+  /// [_isLegacyCredentialRotation].
+  bool? _decideRootKey(String? atKey,
+      EnrollDataStoreValue enrollDataStoreValue, String enrollmentId) {
     if (atKey == null) {
       return null;
     }
@@ -645,6 +651,12 @@ abstract class AbstractVerbHandler implements VerbHandler {
     final bool isOwnKeyMaterial = _ownKeyMaterialRegex.hasMatch(key);
     if (isOwnKeyMaterial || _rootOnlyWritableKeyRegex.hasMatch(key)) {
       if (isMutatingVerb()) {
+        // Root privilege alone is NOT enough for the legacy PKAM credential.
+        // Every other key in this branch is decided by what the enrollment
+        // holds; this one is decided by which enrollment is asking.
+        if (key == AtConstants.atPkamPublicKey) {
+          return _isLegacyCredentialRotation(enrollmentId);
+        }
         return enrollDataStoreValue.isRootEnrollment;
       }
       // Own key material stays readable; the rest is decided below.
@@ -652,6 +664,32 @@ abstract class AbstractVerbHandler implements VerbHandler {
     }
     return null;
   }
+
+  /// Whether a connection carrying [enrollmentId] may write
+  /// `privatekey:at_pkam_publickey` — the credential LEGACY PKAM
+  /// authenticates against, and the only key an enrollment can write that
+  /// mints an identity rather than serving one.
+  ///
+  /// True only for the housekeeping enrollment, which is what a legacy
+  /// connection is authenticated as. That connection proved possession of the
+  /// key it is replacing by authenticating with it, so this is a credential
+  /// rotating ITSELF — the same act every other enrollment performs through
+  /// `enroll:update`, which cannot serve this one because the housekeeping
+  /// record holds no credential to update.
+  ///
+  /// Every other root enrollment is refused, and that is the point. An APKAM
+  /// root writing this key installs a credential IT holds as the atSign's
+  /// legacy credential, and the legacy credential authenticates with no
+  /// enrollment id — so revoking or expiring that root leaves the key it
+  /// planted working. A compromised app root would survive its own
+  /// revocation, permanently, with nothing on the roster to show for it.
+  ///
+  /// An owner or CRAM connection carries no enrollment id at all and never
+  /// reaches here: [isAuthorized] and [isAuthorizedSync] return true for a
+  /// null id before any key is examined. That is what onboarding uses to
+  /// plant the first key, and it is unaffected.
+  bool _isLegacyCredentialRotation(String enrollmentId) =>
+      enrollmentId == EnrollmentManager.housekeepingEnrollmentId;
 
   /// This function checks the validity of a provided OTP.
   /// It returns true if the OTP is valid; otherwise, it returns false.

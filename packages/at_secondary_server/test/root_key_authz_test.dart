@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/verb/handler/config_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
@@ -43,9 +44,14 @@ void main() {
     });
 
     /// Binds an approved enrollment with [namespaces] and returns its id.
-    Future<String> bindEnrollment(Map<String, String> namespaces) async {
+    ///
+    /// [id] names the enrollment explicitly. Only one key is decided by WHICH
+    /// enrollment is asking rather than by what it holds, and pinning that
+    /// needs a connection carrying the housekeeping id.
+    Future<String> bindEnrollment(Map<String, String> namespaces,
+        {String? id}) async {
       inboundConnection.metadata.isAuthenticated = true;
-      final enrollId = Uuid().v4();
+      final enrollId = id ?? Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollId;
       final enrollJson = {
         'sessionId': '123',
@@ -63,7 +69,13 @@ void main() {
 
     Future<String> bindScoped() => bindEnrollment({'wavi': 'rw'});
     Future<String> bindWildcard() => bindEnrollment({'*': 'rw'});
-    Future<String> bindRoot() => bindEnrollment({'*': 'rw', '__manage': 'rw'});
+    Future<String> bindRoot({String? id}) =>
+        bindEnrollment({'*': 'rw', '__manage': 'rw'}, id: id);
+
+    /// The connection a LEGACY PKAM authentication leaves behind: the
+    /// housekeeping enrollment's id, fully privileged and approved.
+    Future<String> bindLegacy() =>
+        bindRoot(id: EnrollmentManager.housekeepingEnrollmentId);
 
     // ---- the legacy PKAM public key ----
 
@@ -98,12 +110,77 @@ void main() {
       expect(stored?.data, 'ORIGINAL_KEY');
     });
 
-    test('a root enrollment CAN write the PKAM public key', () async {
+    test('a root enrollment CANNOT write the PKAM public key', () async {
+      // BEHAVIOUR CHANGED — a root enrollment used to be allowed this, on the
+      // same footing as every other key in the root-only set.
+      //
+      // It is the one key an enrollment can write that MINTS AN IDENTITY
+      // rather than serving one. `at_pkam_publickey` is what LEGACY PKAM
+      // authenticates against, and legacy PKAM carries no enrollment id — so
+      // an app root that plants a key it holds gains a second identity that
+      // its own revocation cannot reach. A compromised app root would survive
+      // being revoked, permanently, with nothing on the roster to show it.
       await bindRoot();
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+
+      await expectLater(
+          updateVerbHandler.process(
+              'update:${AtConstants.atPkamPublicKey} REPLACEMENT_KEY',
+              inboundConnection),
+          throwsA(isA<UnAuthorizedException>()),
+          reason: 'root privilege is not enough for THIS key: an APKAM root '
+              'that plants a key it holds gains a legacy identity, and legacy '
+              'PKAM carries no enrollment id — so revoking that root leaves '
+              'the planted key authenticating');
+      final stored = await keyValueStore.get(AtConstants.atPkamPublicKey);
+      expect(stored?.data, 'ORIGINAL_KEY',
+          reason: 'and the refusal happened before the write');
+    });
+
+    test('the legacy enrollment CAN write the PKAM public key', () async {
+      // The carve-out, and the control for the refusal above: without it that
+      // refusal would be satisfied by nobody being able to write this key at
+      // all, which would leave the legacy credential unrotatable.
+      //
+      // A legacy connection carries the housekeeping id, and it got there by
+      // authenticating with the key it is replacing — so it has already
+      // proved possession of the old credential. That is a credential
+      // rotating ITSELF, which is what every other enrollment does through
+      // enroll:update; the housekeeping record cannot use that verb because
+      // it holds no key to update.
+      await bindLegacy();
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+
       await updateVerbHandler.process(
           'update:${AtConstants.atPkamPublicKey} NEW_KEY', inboundConnection);
+
       final stored = await keyValueStore.get(AtConstants.atPkamPublicKey);
       expect(stored?.data, 'NEW_KEY');
+    });
+
+    test('a root enrollment can still write ANOTHER privatekey: key',
+        () async {
+      // The scope control. `_rootOnlyWritableKeyRegex` covers the whole
+      // `privatekey:` prefix, and only the at_pkam_publickey case is narrowed
+      // — everything else in that set is still decided by root privilege
+      // alone. Without this the refusal above would be indistinguishable from
+      // having locked root enrollments out of the entire prefix.
+      //
+      // The JSON form because the plain `update:` grammar does not accept a
+      // namespace-less `privatekey:` key with an arbitrary suffix — the same
+      // form the non-root refusals for these keys already use, so the two
+      // arms differ in the enrollment and in nothing else.
+      await bindRoot();
+      final params = UpdateParams()
+        ..atKey = 'privatekey:self_encryption_key'
+        ..value = 'NEW_VALUE'
+        ..metadata = Metadata();
+      await updateVerbHandler.process(
+          'update:json:${jsonEncode(params.toJson())}', inboundConnection);
+      expect((await keyValueStore.get('privatekey:self_encryption_key'))?.data,
+          'NEW_VALUE');
     });
 
     test('the PKAM key guard is not case-sensitive', () async {
@@ -115,6 +192,37 @@ void main() {
               'update:PRIVATEKEY:AT_PKAM_PUBLICKEY REPLACEMENT_KEY',
               inboundConnection),
           throwsA(isA<UnAuthorizedException>()));
+    });
+
+    test('...and neither is it for a ROOT enrollment', () async {
+      // The arm that matters now that the refusal turns on an exact key
+      // comparison rather than on a case-insensitive regex alone. Comparing
+      // the key AS RECEIVED rather than as the keystore folds it would let a
+      // root enrollment reach the very record the test above protects, by
+      // holding down shift.
+      await bindRoot();
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+      await expectLater(
+          updateVerbHandler.process(
+              'update:PRIVATEKEY:AT_PKAM_PUBLICKEY REPLACEMENT_KEY',
+              inboundConnection),
+          throwsA(isA<UnAuthorizedException>()),
+          reason: 'the same record under another spelling is the same record');
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'ORIGINAL_KEY');
+    });
+
+    test('...and the legacy carve-out is not case-sensitive either', () async {
+      // The carve-out compares against the key AFTER the same normalisation
+      // the keystore applies. Comparing against the spelling as received
+      // would refuse the legacy connection its own rotation for a shift key,
+      // and the refusal would read as an authorisation bug.
+      await bindLegacy();
+      await updateVerbHandler.process(
+          'update:PRIVATEKEY:AT_PKAM_PUBLICKEY NEW_KEY', inboundConnection);
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'NEW_KEY');
     });
 
     // ---- the atSign's own key material ----
