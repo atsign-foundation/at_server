@@ -6,11 +6,8 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/wire_param_names.dart';
-import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
-import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:at_secondary/src/utils/apkam_signature_verifier.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as hu;
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/change_verb_handler.dart';
@@ -112,13 +109,11 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
           apkamUnauthorizedMsg(md.enrollmentId ?? 'primary', atKey));
     }
 
-    // Being ALLOWED to rotate the legacy PKAM credential is not the same as
-    // having proved you hold what you are installing — see
-    // [verifyLegacyCredentialPossession]. Folded the keystore's own way, so
-    // the comparison is against the string the store would hold rather than
-    // against the spelling the wire happened to use.
+    // Folded the keystore's own way, so the comparison is against the string
+    // the store would hold rather than against the spelling the wire happened
+    // to use.
     if (canonicalAtKey(atKey) == AtConstants.atPkamPublicKey) {
-      await verifyLegacyCredentialPossession(verbParams, updateParams.value);
+      refuseLegacyCredentialWrite(md);
     }
 
     var keyType = AtKey.getKeyType(atKey, enforceNameSpace: false);
@@ -212,170 +207,52 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
             existingAtMetaData));
   }
 
-  /// Refuses a write of `privatekey:at_pkam_publickey` that does not prove
-  /// possession of the key it is installing.
+  /// Refuses EVERY write of `privatekey:at_pkam_publickey` except the one a
+  /// test fixture makes over CRAM.
   ///
-  /// The legacy PKAM credential is the one credential on the atSign whose
-  /// public key lives outside any enrollment record, so it is the one
-  /// credential a rotation could install without proving anything.
-  /// `enroll:update` has demanded a verifying self-signature for every other
-  /// enrollment's key since it existed; this is the same demand, in the same
-  /// framing, for the one key that verb cannot reach.
+  /// That key is the credential LEGACY PKAM authenticates against, and a
+  /// legacy authentication carries no enrollment id — so a key written here
+  /// is an identity that nothing on the roster shows and no revocation can
+  /// reach. Every other credential the atSign holds arrives through
+  /// `enroll:request` and is rotated through `enroll:update`, both of which
+  /// leave a record that can be revoked, expired and cascaded from. This one
+  /// leaves nothing, and there is no verb that can take it back: `delete`
+  /// refuses `privatekey:` keys on grammar.
   ///
-  /// MEASURED consequence of not demanding it, in three arms differing only
-  /// in the bytes stored at `at_pkam_publickey`: rotated to a well-formed key
-  /// whose private half was never persisted, `primary` went on being counted
-  /// as the atSign's surviving unexpiring root — the bar is a credential
-  /// something can authenticate with, and a well-formed orphan passes it —
-  /// while nothing could authenticate as it, so revoking the last root that
-  /// really worked was permitted. Stored EMPTY it was not counted and the
-  /// revoke was refused; left alone it was counted and authentication worked.
-  /// The server cannot tell an orphan from a live key after the fact, so the
-  /// demand has to be made at the moment of the write.
+  /// So the refusal is of the CONNECTION rather than of a privilege, and it
+  /// covers the owner as squarely as an app. An enrollment is already refused
+  /// upstream — `AbstractVerbHandler.isAuthorized` decides this key `false`
+  /// whatever the enrollment holds — but a connection carrying no enrollment
+  /// id is authorised for everything before any key is examined, and that is
+  /// the connection this exists for.
   ///
-  /// BOOTSTRAP is exempt, and that exemption is what keeps onboarding
-  /// working: when the atSign holds no housekeeping enrollment record there is
-  /// nothing standing over the key, so an unusable value counts as nothing and
-  /// mints nothing. Possession is proved later and by construction — the
-  /// record is minted only by a legacy authentication that has already
-  /// verified a signature against this key. Every other write is a ROTATION
-  /// over a live identity and must prove itself, whoever is asking: a CRAM or
-  /// owner connection included, since it can strand the atSign the same way.
+  /// THE ONE EXCEPTION is a CRAM connection on a server running as a test
+  /// fixture: the virtual environment installs a keypair that way against a
+  /// fresh atSign, so that the packs have something to authenticate with.
+  /// [AtSecondaryConfig.testingMode] is false in every shipped configuration,
+  /// and false is also what every failure to read the setting answers, so a
+  /// server that cannot read its config is not a server that permits this.
+  /// CRAM is named as well as the flag because the two say different things —
+  /// the flag says this atSign is disposable, CRAM says the caller holds the
+  /// secret the atSign was created with.
   ///
-  /// A legacy connection is authenticated AS `primary`, so the record always
-  /// exists for the one enrollment that may write this key at all — the
-  /// exemption is reachable only by an owner or CRAM connection on an atSign
-  /// that has never minted the identity.
-  ///
-  /// THE CLIENT CONTRACT. The signature travels in the `update:json` document
-  /// as `apkamPublicKeySignature`, alongside `signingAlgo`, spelled exactly as
-  /// `enroll:update` spells them:
-  ///
-  /// ```
-  /// update:json:{"atKey":"privatekey:at_pkam_publickey",
-  ///              "value":"<new public key>",
-  ///              "metadata":{...},
-  ///              "signingAlgo":"rsa2048",
-  ///              "apkamPublicKeySignature":"<base64>"}
-  /// ```
-  ///
-  /// A client builds that by taking `UpdateParams.toJson()` — `metadata` must
-  /// be a whole `Metadata` document, because `Metadata.fromJson` reads
-  /// `isPublic` into a non-nullable bool — and adding the two fields to the
-  /// map. They are read off the raw document rather than off `UpdateParams`,
-  /// which drops what it does not model, the same way `metadata` relatives
-  /// are already recovered here.
-  ///
-  /// The plain `update:privatekey:at_pkam_publickey <value>` form has no
-  /// parameter that could carry a signature, so a rotation must use the JSON
-  /// form; the plain form still serves the bootstrap. Nothing new is added to
-  /// the `update` grammar for this, deliberately: a wire parameter this
-  /// server read and no published builder could produce would be a fork of
-  /// the protocol that only looks like an extension.
-  ///
-  /// [signingAlgo] is REQUIRED rather than defaulted. Every other APKAM key
-  /// has its algorithm recorded on its enrollment; the legacy credential has
-  /// none anywhere, because a legacy `pkam:` names its algorithm on the wire
-  /// per connection — so there is nothing here to fall back on, and a wrong
-  /// guess would install a key that cannot authenticate, which is the failure
-  /// this method exists to prevent.
-  ///
-  /// REPLAY, stated because the shape invites the question. The signable is a
-  /// CONSTANT — `primary|<value>|<signingAlgo>` carries no challenge, no
-  /// session and no atSign — so an identical `update:json` document is
-  /// replayable byte for byte, here and on any other atSign. That is
-  /// deliberate, because this signature is not an authenticator and never
-  /// stood between anyone and this key. `update` requires authentication, and
-  /// the only connections authorised to write this key are an owner or CRAM
-  /// connection, which carries no enrollment id, and a connection
-  /// authenticated as the housekeeping enrollment; every other enrollment is
-  /// refused before the value is looked at. Whoever replays a captured
-  /// document is therefore already entitled to install a key of its own
-  /// choosing, and can sign a fresh one with any key it holds. The single
-  /// thing a captured document buys it is installing a key it does NOT hold —
-  /// which is defeating this guard against itself.
-  ///
-  /// It differs from `enroll:update`'s equivalent in one respect, and the
-  /// difference decides nothing. That signable names a server-issued
-  /// enrollment id, unique to the atSign that issued it, so it is
-  /// incidentally bound to one atSign; `primary` is the same literal on every
-  /// atSign, so this one is not. Both are gated by the same authorisation, so
-  /// neither binding is what stops a replay.
-  ///
-  /// The framing is therefore kept byte-identical to `enroll:update`'s rather
-  /// than hardened with an atSign or a nonce. A client implements one rule for
-  /// both rotations, `EnrollParams.apkamPublicKeySignature` publishes that
-  /// rule, and a second framing that bought no security would be a footgun for
-  /// the client author and nothing else.
-  Future<void> verifyLegacyCredentialPossession(
-      HashMap<String, String?> verbParams, dynamic value) async {
-    final EnrollmentManager enMgr =
-        AtSecondaryServerImpl.getInstance().enrollmentManager;
-    if (!await keyStore.exists(enMgr
-        .buildEnrollmentKey(EnrollmentManager.housekeepingEnrollmentId))) {
-      // Bootstrap. See the doc comment: nothing stands over the key yet.
+  /// [md] carries the connection's auth type. The key itself is folded by the
+  /// caller, which is what makes a spelling the keystore would fold onto this
+  /// record reach this refusal rather than slip past it.
+  void refuseLegacyCredentialWrite(InboundConnectionMetadata md) {
+    if (md.authType == AuthType.cram && AtSecondaryConfig.testingMode) {
+      logger.warning('Permitting a write of ${AtConstants.atPkamPublicKey} '
+          'over a CRAM connection because testingMode is on. This installs a '
+          'credential that authenticates with no enrollment id and that no '
+          'verb can withdraw; it must never be reachable on a real atSign');
       return;
     }
-
-    if (value is! String || value.isEmpty) {
-      throw IllegalArgumentException(
-          'update of ${AtConstants.atPkamPublicKey} requires a non-empty '
-          'public key value');
-    }
-
-    final Map<String, dynamic> document;
-    final String? json = verbParams['json'];
-    try {
-      document = json == null
-          ? const {}
-          : (jsonDecode(json) as Map).cast<String, dynamic>();
-    } on FormatException {
-      // getUpdateParams decoded the same string moments ago, so this cannot
-      // be reached through the update verb; it is here so a malformed
-      // document can never be read as "no signature was required".
-      throw IllegalArgumentException(
-          'update:json document does not parse as JSON');
-    }
-
-    final Object? signature = document['apkamPublicKeySignature'];
-    final Object? signingAlgo = document['signingAlgo'];
-    if (signature is! String ||
-        signature.isEmpty ||
-        signingAlgo is! String ||
-        signingAlgo.isEmpty) {
-      // An IllegalArgumentException rather than an UnAuthorizedException,
-      // because the caller IS entitled to rotate this key and the request is
-      // simply not the shape that can carry the proof. Keeping the two
-      // distinguishable is what lets the authorisation tests assert that the
-      // legacy carve-out still admits a legacy connection.
-      throw IllegalArgumentException(
-          'rotating ${AtConstants.atPkamPublicKey} requires proof that the '
-          'sender holds the private half of the key it is installing: send '
-          'the update as update:json carrying signingAlgo and '
-          'apkamPublicKeySignature, a signature over '
-          '"${EnrollmentManager.housekeepingEnrollmentId}|<new public key>|'
-          '<signingAlgo>" made with the new key, as enroll:update requires of '
-          'every other credential');
-    }
-
-    // Verified through ApkamSignatureVerifier, the same path `pkam:` and
-    // `enroll:update` use, over the same three-part framing. A key that can
-    // authenticate has to be installable, and a key installed here has to be
-    // able to authenticate afterwards, so the two must agree byte for byte
-    // about how a signature is framed.
-    final String signable =
-        '${EnrollmentManager.housekeepingEnrollmentId}|$value|$signingAlgo';
-    final bool verified = await ApkamSignatureVerifier.verify(
-      message: utf8.encode(signable),
-      base64Signature: signature,
-      publicKey: value,
-      signingAlgo: ApkamSignatureVerifier.signingAlgoTypeOf(signingAlgo),
-    );
-    if (!verified) {
-      throw UnAuthorizedException(
-          'apkamPublicKeySignature does not verify against the '
-          '${AtConstants.atPkamPublicKey} value being installed');
-    }
+    throw UnAuthorizedException(
+        '${AtConstants.atPkamPublicKey} may not be written. It is the '
+        'credential legacy PKAM authenticates against, it carries no '
+        'enrollment id, and nothing can revoke it once it is installed. '
+        'Enrol a credential with enroll:request and rotate it with '
+        'enroll:update, both of which leave a record that can be withdrawn');
   }
 
   /// Queues the auto-notification for a write that has already succeeded,

@@ -26,42 +26,29 @@ void main() {
         firstAtSign, firstAtSignHost, firstAtSignPort);
   });
 
-  /// The id the server gives the housekeeping enrollment — the identity a
-  /// legacy PKAM connection authenticates as. A RAW LITERAL: it is at-rest
-  /// and cross-repo, so a change to it has to break this test rather than
-  /// follow along.
-  const String housekeepingId = 'primary';
+  /// Installs [publicKey] at `privatekey:at_pkam_publickey` over the
+  /// CURRENTLY AUTHENTICATED connection.
+  ///
+  /// The plain `update` form, because the server no longer asks a writer to
+  /// prove anything about the value: it refuses the write outright unless the
+  /// connection is CRAM-authenticated AND the server is running with
+  /// testingMode on, which the virtual environment this pack talks to is.
+  /// That is the only way this key can be written at all — it is the
+  /// credential legacy PKAM authenticates against, it carries no enrollment
+  /// id, and nothing can withdraw it once it is installed.
+  String rotationCommand(String publicKey) =>
+      'update:${AtConstants.atPkamPublicKey} $publicKey';
 
-  /// The `update:json` command that installs [publicKey] at
-  /// `privatekey:at_pkam_publickey`, carrying the proof of possession the
-  /// server demands of a ROTATION.
-  ///
-  /// The server refuses a rotation that does not prove the sender holds the
-  /// private half of the key it is installing, because it cannot test that
-  /// afterwards: a well-formed key nobody holds leaves `primary` counted as
-  /// the atSign's surviving unexpiring root while nothing can authenticate as
-  /// it. [signature] is over `primary|<publicKey>|<signingAlgo>`, made with
-  /// the NEW private half — the same framing `enroll:update` demands of every
-  /// other credential.
-  ///
-  /// The plain `update:privatekey:at_pkam_publickey <value>` form has no
-  /// parameter that could carry a signature, so a rotation must use the JSON
-  /// form. `metadata` is a whole Metadata document because `Metadata.fromJson`
-  /// reads `isPublic` into a non-nullable bool.
-  String rotationCommand(
-      String publicKey, String signingAlgo, String signature) {
-    final document = (UpdateParams()
-          ..atKey = AtConstants.atPkamPublicKey
-          ..value = publicKey
-          ..metadata = Metadata())
-        .toJson();
-    document['signingAlgo'] = signingAlgo;
-    document['apkamPublicKeySignature'] = signature;
-    return 'update:json:${jsonEncode(document)}';
+  /// Authenticates the connection with the atSign's CRAM secret.
+  Future<void> authenticateWithCram() async {
+    String fromResponse =
+        await firstAtSignConnection.sendRequestToServer('from:$firstAtSign');
+    fromResponse = fromResponse.replaceAll('data:', '');
+    String cramDigest =
+        AuthenticationUtils.getCRAMDigest(firstAtSign, fromResponse);
+    expect(await firstAtSignConnection.sendRequestToServer('cram:$cramDigest'),
+        'data:success');
   }
-
-  String signableFor(String publicKey, String signingAlgo) =>
-      '$housekeepingId|$publicKey|$signingAlgo';
 
   test('pkam authentication using the old syntax', () async {
     String fromResponse =
@@ -102,26 +89,20 @@ void main() {
     var ec = getSecp256r1();
     final eccPrivateKey = ec.generatePrivateKey();
     eccAlgo.privateKey = eccPrivateKey;
-    // authenticating to the server to update the public key
-    String fromResponse =
-        await firstAtSignConnection.sendRequestToServer('from:$firstAtSign');
-    fromResponse = fromResponse.replaceAll('data:', '');
-    String pkamDigest = AuthenticationUtils.generatePKAMDigest(
-        pkamPrivateKeyMap[firstAtSign]!, fromResponse);
-    String pkamResponse =
-        await firstAtSignConnection.sendRequestToServer('pkam:$pkamDigest');
-    expect(pkamResponse, 'data:success');
-    // updating the public key to ecc public key. The connection has just
-    // authenticated with the key it is replacing, which proves possession of
-    // the OLD one; the signature below proves possession of the NEW one,
-    // which is what the server demands of every rotation.
+
+    // CRAM, not PKAM. Installing this key is refused to every connection
+    // except a CRAM one on a server running with testingMode on, so the
+    // rotation this test needs cannot be made over the PKAM connection that
+    // used to make it — authenticating with the key being replaced no longer
+    // buys the right to replace it.
+    await authenticateWithCram();
+
     final String eccPublicKey = eccPrivateKey.publicKey.toString();
-    final String eccProof = base64Encode(eccAlgo.sign(Uint8List.fromList(
-        utf8.encode(signableFor(eccPublicKey, 'ecc_secp256r1')))));
-    var response = await firstAtSignConnection.sendRequestToServer(
-        rotationCommand(eccPublicKey, 'ecc_secp256r1', eccProof));
+    var response = await firstAtSignConnection
+        .sendRequestToServer(rotationCommand(eccPublicKey));
     expect(response, 'data:-1');
-    fromResponse =
+
+    String fromResponse =
         await firstAtSignConnection.sendRequestToServer('from:$firstAtSign');
     fromResponse = fromResponse.replaceAll('data:', '');
 
@@ -134,26 +115,13 @@ void main() {
           'pkam:signingAlgo:ecc_secp256r1:hashingAlgo:sha256:$encodedSignature');
       expect(pkamResult, 'data:success');
     } finally {
-      // authenticating to the server to update the public key
-      fromResponse =
-          await firstAtSignConnection.sendRequestToServer('from:$firstAtSign');
-      fromResponse = fromResponse.replaceAll('data:', '');
-      String cramDigest =
-          AuthenticationUtils.getCRAMDigest(firstAtSign, fromResponse);
-      String cramResult =
-          await firstAtSignConnection.sendRequestToServer('cram:$cramDigest');
-      expect(cramResult, 'data:success');
-      // updating the public key back to the original one, proving possession
-      // of it exactly as the rotation above did. A CRAM connection is not
-      // exempt: it can strand the atSign the same way, and the exemption is
-      // about the atSign never having minted the legacy identity rather than
-      // about who is asking.
-      var publicKey = pkamPublicKeyMap[firstAtSign]!;
-      final String restoreProof = AuthenticationUtils.generatePKAMDigest(
-          pkamPrivateKeyMap[firstAtSign]!,
-          signableFor(publicKey, 'rsa2048'));
-      await firstAtSignConnection.sendRequestToServer(
-          rotationCommand(publicKey, 'rsa2048', restoreProof));
+      // Back over CRAM for the same reason: the ECC PKAM connection this test
+      // just proved works is no more entitled to write this key than any
+      // other. Leaving the rig's own keypair behind matters — every other
+      // test in the pack authenticates with it.
+      await authenticateWithCram();
+      await firstAtSignConnection
+          .sendRequestToServer(rotationCommand(pkamPublicKeyMap[firstAtSign]!));
     }
   });
 }

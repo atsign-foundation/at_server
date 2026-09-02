@@ -2,7 +2,8 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/enroll/enrollment_manager.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_secondary/src/verb/handler/config_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
@@ -45,9 +46,8 @@ void main() {
 
     /// Binds an approved enrollment with [namespaces] and returns its id.
     ///
-    /// [id] names the enrollment explicitly. Only one key is decided by WHICH
-    /// enrollment is asking rather than by what it holds, and pinning that
-    /// needs a connection carrying the housekeeping id.
+    /// [id] names the enrollment explicitly, which is what lets a case assert
+    /// that no id is special.
     Future<String> bindEnrollment(Map<String, String> namespaces,
         {String? id}) async {
       inboundConnection.metadata.isAuthenticated = true;
@@ -72,26 +72,23 @@ void main() {
     Future<String> bindRoot({String? id}) =>
         bindEnrollment({'*': 'rw', '__manage': 'rw'}, id: id);
 
-    /// The connection a LEGACY PKAM authentication leaves behind: the
-    /// housekeeping enrollment's id, fully privileged and approved.
-    Future<String> bindLegacy() =>
-        bindRoot(id: EnrollmentManager.housekeepingEnrollmentId);
+    /// A fully privileged enrollment under the id `primary`.
+    ///
+    /// The literal is deliberate. `primary` is the atSign-wide sentinel for
+    /// "no enrollment id", and it once named a carve-out that let a connection
+    /// carrying it write the PKAM key. Naming it here is what pins that no id
+    /// is special any more — an id-keyed exception reintroduced under any
+    /// other name would not be caught by a case that used a random uuid.
+    Future<String> bindPreviouslyCarvedOutId() => bindRoot(id: 'primary');
 
-    /// The housekeeping id WITHOUT root privilege.
-    ///
-    /// Not a record this server mints — the housekeeping enrollment is created
-    /// fully privileged — and it is not pretending to be one. It exists to
-    /// take the OTHER grant away, so that the carve-out is the only thing left
-    /// that can admit the write.
-    ///
-    /// [bindLegacy] cannot do that job. The PKAM key is decided in a branch
-    /// that falls through to `isRootEnrollment` whenever the exact comparison
-    /// against the key misses, and a fully privileged legacy record satisfies
-    /// that fallback — so a case test built on it is admitted either way and
-    /// pins nothing.
-    Future<String> bindLegacyWithoutRootPrivilege() => bindEnrollment(
-        {'wavi': 'rw'},
-        id: EnrollmentManager.housekeepingEnrollmentId);
+    /// A connection carrying NO enrollment id, authenticated with the CRAM
+    /// secret — the shape the virtual environment installs the first PKAM
+    /// keypair over.
+    void bindCram() {
+      inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.enrollmentId = null;
+      inboundConnection.metadata.authType = AuthType.cram;
+    }
 
     // ---- the legacy PKAM public key ----
 
@@ -154,25 +151,22 @@ void main() {
           reason: 'and the refusal happened before the write');
     });
 
-    test('the legacy enrollment gets PAST the authorization gate', () async {
-      // The carve-out, and the control for the refusal above: without it that
-      // refusal would be satisfied by nobody being able to write this key at
-      // all, which would leave the legacy credential unrotatable.
+    test('the id that once had a carve-out is refused like any other',
+        () async {
+      // INVERTED. `primary` used to be admitted here: a legacy connection was
+      // authenticated as that enrollment, so the id named the one principal
+      // allowed to rotate the credential it had just authenticated with.
       //
-      // A legacy connection carries the housekeeping id, and it got there by
-      // authenticating with the key it is replacing — so it has already
-      // proved possession of the OLD credential. That is a credential
-      // rotating ITSELF, which is what every other enrollment does through
-      // enroll:update; the housekeeping record cannot use that verb because
-      // it holds no key to update.
+      // Legacy PKAM carries no enrollment id again, so there is no principal
+      // for such a carve-out to name — and an id-keyed permission on this key
+      // is exactly the shape to avoid, because whoever holds an enrollment
+      // spelled that way inherits the atSign's unrevokable credential.
       //
-      // It is stopped here by a DIFFERENT rule, and the exception type is the
-      // discriminator: possession of the NEW key is demanded separately, and
-      // this plain-form request carries no proof. An UnAuthorizedException
-      // would mean the carve-out had stopped admitting a legacy connection at
-      // all. The rotation itself, signature and all, is pinned end to end in
-      // legacy_pkam_retrofit_test.dart, which has real keypairs to hand.
-      await bindLegacy();
+      // The MESSAGE is the discriminator, not the type: both refusals on this
+      // path throw UnAuthorizedException, and the one that must fire here is
+      // the per-enrollment authorization check. Restoring the carve-out would
+      // carry this past it and into the write ban, whose message is different.
+      await bindPreviouslyCarvedOutId();
       await keyValueStore.put(
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
 
@@ -180,15 +174,68 @@ void main() {
           updateVerbHandler.process(
               'update:${AtConstants.atPkamPublicKey} NEW_KEY',
               inboundConnection),
-          throwsA(isA<IllegalArgumentException>().having((e) => e.message,
-              'message', contains('requires proof'))),
-          reason: 'past authorization, stopped by proof of possession — an '
-              'UnAuthorizedException here would mean the carve-out itself had '
-              'stopped working');
+          throwsA(isA<UnAuthorizedException>().having((e) => e.message,
+              'message', contains('is not authorized to update key'))),
+          reason: 'refused by the per-enrollment authorization check, like '
+              'every other enrollment: no id carries a right to write this '
+              'key');
 
       final stored = await keyValueStore.get(AtConstants.atPkamPublicKey);
       expect(stored?.data, 'ORIGINAL_KEY',
           reason: 'and the refusal happened before the write');
+    });
+
+    test('a connection carrying NO enrollment id is refused too', () async {
+      // The whole point of the ban, and the case the per-enrollment check
+      // cannot make: `isAuthorizedSync` returns true for a null enrollment id
+      // before any key is examined, so an owner connection never reaches the
+      // decision the cases above exercise. It is stopped by the second gate
+      // instead, and the message says which.
+      //
+      // testingMode is false here — the shipped default, and what every
+      // failure to read the setting answers.
+      bindCram();
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+
+      await expectLater(
+          updateVerbHandler.process(
+              'update:${AtConstants.atPkamPublicKey} NEW_KEY',
+              inboundConnection),
+          throwsA(isA<UnAuthorizedException>().having(
+              (e) => e.message, 'message', contains('may not be written'))),
+          reason: 'a credential that carries no enrollment id and that no '
+              'verb can withdraw is not installable on a production atSign, '
+              'by an owner or by anybody');
+
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'ORIGINAL_KEY',
+          reason: 'and the refusal happened before the write');
+    });
+
+    test('a CRAM connection under testingMode may write it', () async {
+      // The positive control for the case above, and the reason the exception
+      // exists: the virtual environment installs the first keypair this way
+      // against a throwaway atSign, over CRAM, with a plain unsigned update.
+      //
+      // Its negative control is the case above, which differs from this one in
+      // testingMode and in NOTHING else — same connection shape, same command,
+      // same stored value beforehand.
+      AtSecondaryConfig.testingModeOverride = true;
+      addTearDown(() => AtSecondaryConfig.testingModeOverride = null);
+
+      bindCram();
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+
+      await updateVerbHandler.process(
+          'update:${AtConstants.atPkamPublicKey} NEW_KEY', inboundConnection);
+
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'NEW_KEY',
+          reason: 'the virtual environment installs the atSign\'s first PKAM '
+              'keypair over CRAM, and the packs have nothing to authenticate '
+              'with if this is refused');
     });
 
     test('a root enrollment can still write ANOTHER privatekey: key',
@@ -242,43 +289,42 @@ void main() {
           'ORIGINAL_KEY');
     });
 
-    test('...and the legacy carve-out is not case-sensitive either', () async {
-      // The carve-out compares against the key AFTER the same normalisation
-      // the keystore applies. Comparing against the spelling as received would
-      // refuse the legacy connection its own rotation for a shift key, and the
-      // refusal would read as an authorisation bug.
+    test('...and neither is the write ban, for a connection with no id',
+        () async {
+      // PORTED, not deleted. The invariant is the same one the case above
+      // pins — the record is compared as the KEYSTORE would fold it, so a
+      // spelling that lands on this record cannot slip past the guard — but
+      // it has moved with the guard.
       //
-      // The fixture withholds root privilege ON PURPOSE — see
-      // bindLegacyWithoutRootPrivilege. With it, an unfolded comparison misses
-      // and the branch falls through to `isRootEnrollment`, which admits the
-      // write for a different reason and gives the identical outcome; the case
-      // was green with the fold gone. Without it, the carve-out is the only
-      // grant that can admit this connection, so the outcome is the fold's.
-      //
-      // Same discriminator as above: an IllegalArgumentException means this
-      // spelling reached the possession check, so authorization admitted it.
-      await bindLegacyWithoutRootPrivilege();
+      // It has to be asked over a connection carrying no enrollment id, and
+      // the old fixture (the housekeeping id, root privilege withheld) can no
+      // longer ask it: with no carve-out left, an unfolded comparison misses
+      // and the branch refuses that connection anyway, so both spellings give
+      // the identical outcome and the case pins nothing. A connection with no
+      // id is the one the write ban decides on its own.
+      bindCram();
       await keyValueStore.put(
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
       await expectLater(
           updateVerbHandler.process(
               'update:PRIVATEKEY:AT_PKAM_PUBLICKEY NEW_KEY',
               inboundConnection),
-          throwsA(isA<IllegalArgumentException>().having((e) => e.message,
-              'message', contains('requires proof'))),
-          reason: 'an UnAuthorizedException here means the carve-out stopped '
-              'recognising this spelling as its own key');
+          throwsA(isA<UnAuthorizedException>().having(
+              (e) => e.message, 'message', contains('may not be written'))),
+          reason: 'the same record under another spelling is the same record: '
+              'comparing the key as RECEIVED would let a shift key install an '
+              'unrevokable credential');
       expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
           'ORIGINAL_KEY',
           reason: 'and the refusal happened before the write');
     });
 
     test('CONTROL: the same grants under an ordinary id are refused', () async {
-      // The discriminator is the ID and nothing else. Identical grants,
-      // identical spelling, identical command — only the enrollment id
-      // differs. Without it the case above would be satisfied by this key
-      // being reachable by any enrollment at all, which is the opposite of
-      // what the carve-out says.
+      // The scope control for the fold. Identical spelling, identical
+      // command; an ordinary enrollment id and ordinary grants. Without it
+      // the case above would be satisfied by this key being unreachable only
+      // to the connections that carry no id, leaving every enrollment able to
+      // write it under a shifted spelling.
       await bindEnrollment({'wavi': 'rw'});
       await keyValueStore.put(
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
@@ -287,9 +333,9 @@ void main() {
               'update:PRIVATEKEY:AT_PKAM_PUBLICKEY NEW_KEY',
               inboundConnection),
           throwsA(isA<UnAuthorizedException>()),
-          reason: 'only the housekeeping enrollment may rotate the legacy '
-              'credential; every other enrollment is refused whatever it '
-              'holds');
+          reason: 'NO enrollment may write at_pkam_publickey, whatever it '
+              'holds — an enrollment that plants a key it possesses gains a '
+              'credential its own revocation cannot reach');
       expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
           'ORIGINAL_KEY');
     });
