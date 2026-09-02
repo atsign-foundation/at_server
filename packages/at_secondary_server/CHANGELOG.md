@@ -1,4 +1,31 @@
 # 3.16.4
+- docs: `EnrollmentManager.isUsableRootEnrollment` says what its bar is and
+  what it does not cover.
+
+  It read as "fully privileged AND holding a credential something can
+  authenticate with", which claims more than the server can test. What the
+  method actually tests is that the record is fully privileged and that a
+  non-empty public key is recorded for it — in the record, or at
+  `at_pkam_publickey` for `primary` — which is exactly the bar authentication
+  applies before it looks at a signature. It says nothing about whether anyone
+  holds the private half, and nothing can: the server never sees a private key,
+  so a key nobody holds is indistinguishable here from a live one.
+
+  The doc now names where that gap IS closed — at the write, where a proof can
+  be demanded: `enroll:update` refuses a new `apkamPublicKey` without a
+  signature by the private half being installed, an `update` of
+  `at_pkam_publickey` refuses one on the same terms once the housekeeping
+  record exists, and the housekeeping record is minted only by a legacy
+  authentication that has already verified a signature against the key it
+  stands over. And what remains uncovered: `enroll:request` installs an
+  `apkamPublicKey` with no proof, so an enrollment approved but never yet
+  authenticated with passes this bar holding a key whose possession is proved
+  on its first `pkam:` and not before.
+
+  No behaviour change. The same correction is made in the two other places the
+  claim was stated: `hasUnexpiringRootEnrollment` and the last-root refusal in
+  `enroll_verb_handler`.
+
 - fix: the enrollment key builders fold the id they are handed, so a
   non-canonical spelling of an id builds the key of the record it addresses
   rather than one naming no record at all.

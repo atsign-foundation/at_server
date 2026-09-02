@@ -1413,14 +1413,15 @@ class EnrollmentManager {
   /// enrollments and can never admit one carrying `*`, so it keeps an atSign
   /// running without being able to give it a root back.
   ///
-  /// ⚠️ A record nothing can authenticate as is NOT a root, whoever it is.
-  /// Every "is this a root?" question below applies [isUsableRootEnrollment]
-  /// rather than [EnrollDataStoreValue.isRootEnrollment] alone, because a
-  /// fully privileged, approved, permanent record standing over a credential
-  /// that cannot authenticate is a PHANTOM root: counting it answers "the
-  /// atSign can restore a root" with a record nobody holds a credential for,
-  /// which is the same stranding this method exists to refuse, arrived at
-  /// from the other direction.
+  /// ⚠️ A record with NO CREDENTIAL RECORDED for it is not a root, whoever it
+  /// is. Every "is this a root?" question below applies
+  /// [isUsableRootEnrollment] rather than [EnrollDataStoreValue.isRootEnrollment]
+  /// alone, because a fully privileged, approved, permanent record with an
+  /// empty public key is a PHANTOM root: counting it answers "the atSign can
+  /// restore a root" with an identity no signature can ever be checked
+  /// against, which is the same stranding this method exists to refuse,
+  /// arrived at from the other direction. What that bar does and does not
+  /// establish is set out on [isUsableRootEnrollment].
   ///
   /// [excluding] is a SET rather than a single id because a revoke CASCADES.
   /// The enrollments a cascade is about to revoke are still `approved` in the
@@ -1451,21 +1452,44 @@ class EnrollmentManager {
     return false;
   }
 
-  /// Whether [value] is a root the atSign could actually fall back on: fully
-  /// privileged AND holding a credential something can authenticate with.
+  /// Whether [value] is a root the atSign could fall back on: fully privileged
+  /// AND with a non-empty public key recorded for it.
   ///
-  /// The bar every stranding decision applies, on both sides of the question
-  /// — what an act REMOVES and what SURVIVES it — so that "root" means one
-  /// thing in both. A guard that counted a record as a root when asked one
-  /// and not the other is the asymmetry that lets an act be licensed by a
-  /// record the same act is destroying.
+  /// THAT IS THE WHOLE BAR, and it is exactly the bar authentication itself
+  /// applies before it looks at a signature: `PkamVerbHandler` refuses an
+  /// empty public key on the legacy and APKAM branches alike, so an empty
+  /// value and a missing one are the same credential — none. Zero-length is
+  /// reachable rather than theoretical: the `update` grammar demands a
+  /// non-empty value, but `update:json` carries the value inside the JSON
+  /// document, and an enrollment record's `apkamPublicKey` is whatever
+  /// `enroll:request` was sent.
   ///
-  /// ⚠️ A record nothing can authenticate as is not a root, WHOEVER it is.
-  /// Fully privileged, approved and permanent describes the GRANT; it says
-  /// nothing about whether any keypair can present it. A record standing over
-  /// a credential nobody holds answers "this atSign can restore a root" with
-  /// an identity nobody can assume, and the caller then revokes or caps the
-  /// last root that actually works.
+  /// It is applied on both sides of every stranding decision — what an act
+  /// REMOVES and what SURVIVES it — so that "root" means one thing in both. A
+  /// guard that counted a record as a root when asked one and not the other is
+  /// the asymmetry that lets an act be licensed by a record the same act is
+  /// destroying.
+  ///
+  /// ⚠️ WHAT IT DOES NOT ESTABLISH is that anybody holds the private half. The
+  /// server never sees a private key, so a key whose holder has lost it, or
+  /// which was never held by anyone, is indistinguishable here from a live
+  /// one. This method cannot close that and must not be read as though it
+  /// does; "usable" means a signature could be CHECKED against this record,
+  /// not that one could be produced for it.
+  ///
+  /// Possession is established where the key is WRITTEN instead, which is the
+  /// one moment the server can demand a proof. `enroll:update` refuses a new
+  /// `apkamPublicKey` without a signature by the private half of the key being
+  /// installed, and an `update` of `at_pkam_publickey` over an atSign that
+  /// already holds the housekeeping record refuses one on the same terms. The
+  /// housekeeping record itself is minted only by a legacy authentication that
+  /// has already verified a signature against the key it stands over.
+  ///
+  /// What that leaves uncovered, stated so nobody has to rediscover it:
+  /// `enroll:request` installs an `apkamPublicKey` with no proof at all, so an
+  /// enrollment approved but never yet authenticated with can pass this bar
+  /// holding a key nobody holds. Its possession is proved on its first `pkam:`
+  /// and not before.
   ///
   /// The credential is in a different place for the housekeeping enrollment
   /// than for every other, which is why this is a method rather than a getter
@@ -1473,15 +1497,6 @@ class EnrollmentManager {
   /// an empty `apkamPublicKey` by construction, so its credential is the live
   /// `at_pkam_publickey`; every other enrollment carries its own key in its
   /// own record.
-  ///
-  /// PRESENCE is not the bar, non-emptiness is, because that is the bar
-  /// authentication itself applies: `PkamVerbHandler` refuses an empty public
-  /// key before it looks at any signature, on the legacy and APKAM branches
-  /// alike, so an empty value and a missing one are the same credential —
-  /// none. Zero-length is reachable rather than theoretical: the `update`
-  /// grammar demands a non-empty value, but `update:json` carries the value
-  /// inside the JSON document, and an enrollment record's `apkamPublicKey` is
-  /// whatever `enroll:request` was sent.
   ///
   /// This is NOT the question `isRootPrivilegedConnection` asks. That one
   /// decides what an already-authenticated connection may do, and a legacy

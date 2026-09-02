@@ -999,10 +999,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // quiet, and the cascade is exactly where the root goes.
       //
       // Both halves ask `EnrollmentManager.isUsableRootEnrollment` rather
-      // than reading the grants, so a record nothing can authenticate as is
-      // not counted as a root taken away — the same bar the survival question
-      // applies, because an act that removes no assumable root cannot strand
-      // an atSign whatever the roster says.
+      // than reading the grants, so a record with no credential RECORDED for
+      // it is not counted as a root taken away — the same bar the survival
+      // question applies, because an act that removes no such root cannot
+      // strand an atSign whatever the roster says. That bar is about what the
+      // record holds, not about whether anyone holds the private half; see
+      // `EnrollmentManager.isUsableRootEnrollment` for what it does and does
+      // not establish.
       //
       // Both halves are load-bearing. The target is asked about because it is
       // removed too and its own cascade cannot contain it; the cascade is
