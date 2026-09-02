@@ -4,10 +4,12 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_secondary/src/verb/handler/batch_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/config_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
+import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
@@ -338,6 +340,140 @@ void main() {
               'credential its own revocation cannot reach');
       expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
           'ORIGINAL_KEY');
+    });
+
+    // ---- every route that could name the legacy PKAM credential ----
+    //
+    // The ban sits at one seam, so what these pin is the CLAIM that every
+    // route reaches that seam. Three of them are wire grammars this package
+    // does not own, so a loosening in at_commons opens a route with nothing
+    // in this repo changing — which is why the refused ones are pinned as
+    // raw command literals rather than built from constants.
+
+    test('update:json reaches the ban', () async {
+      // The route the plain grammar's own value check does NOT cover:
+      // `update:` demands a non-empty value, while update:json carries the
+      // value inside the document and can therefore store a zero-length one.
+      // A zero-length credential is not harmless — it is the state that makes
+      // the atSign's flat key stop counting as a root it can fall back on —
+      // so this route has to be refused by the ban and not merely by the
+      // grammar.
+      bindCram();
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+
+      // The metadata map is built through commons' own Metadata.toJson — the
+      // shape every real client emits — so this is the request a client can
+      // actually send rather than a hand-rolled document.
+      final json = jsonEncode({
+        'atKey': AtConstants.atPkamPublicKey,
+        'value': '',
+        'metadata': Metadata().toJson(),
+      });
+      await expectLater(
+          updateVerbHandler.process('update:json:$json', inboundConnection),
+          throwsA(isA<UnAuthorizedException>().having(
+              (e) => e.message, 'message', contains('may not be written'))),
+          reason: 'the json form is the one route that can store a value the '
+              'plain grammar rejects, so a ban that covered only the plain '
+              'form would leave the sharper write open');
+
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'ORIGINAL_KEY',
+          reason: 'and the refusal happened before the write');
+    });
+
+    test('CONTROL: update:json writes an ordinary key on this connection',
+        () async {
+      // Drawn from a route the ban does not touch, so it stays green under
+      // any mutation of the ban. Without it the case above is equally
+      // satisfied by update:json being broken, unroutable, or refused to a
+      // CRAM connection for some reason having nothing to do with the key.
+      bindCram();
+      final json = jsonEncode({
+        'atKey': 'privatekey:self_encryption_key',
+        'value': 'ORDINARY',
+        'metadata': Metadata().toJson(),
+      });
+      await updateVerbHandler.process(
+          'update:json:$json', inboundConnection);
+      expect(
+          (await keyValueStore.get('privatekey:self_encryption_key'))?.data,
+          'ORDINARY',
+          reason: 'the json route itself works on this connection; only the '
+              'one key is refused');
+    });
+
+    test('a batch-wrapped update reaches the ban', () async {
+      // batch: writes nothing itself — it re-dispatches each element through
+      // the element's own handler — so the ban is reached by the element
+      // landing back at the update seam. Pinned because "the handler covers
+      // it" is a claim about the dispatch, not about the handler.
+      bindCram();
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+
+      final batch = BatchVerbHandler(
+          keyValueStore,
+          DefaultVerbHandlerManager(
+              keyValueStore,
+              mockOutboundClientManager,
+              cacheManager,
+              statsNotificationService,
+              notificationManager,
+              enMgr,
+              alice,
+              commitLog: atCommitLog,
+              accessLog: atAccessLog));
+      final response = await batch.processInternal(
+          'batch:[{"id":1,"command":"update:privatekey:at_pkam_publickey '
+          'NEW_KEY"}]',
+          inboundConnection);
+
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'ORIGINAL_KEY',
+          reason: 'wrapping the command in a batch must not get it past the '
+              'refusal — batch re-dispatches to the same handler');
+      expect(response.data, contains('"id":1'),
+          reason: 'and the element is reported, not silently dropped');
+    });
+
+    test('update:meta cannot name the key at all', () async {
+      // A NEGATIVE pin on a grammar this repo does not own. update:meta's
+      // atKey class is colon-free, so `privatekey:...` cannot be expressed
+      // in it — the key is unreachable by that verb rather than refused by
+      // the ban. If at_commons ever widens that class the route opens with
+      // nothing here changing, and this is what goes red.
+      expect(
+          RegExp(VerbSyntax.update_meta).hasMatch(
+              'update:meta:privatekey:at_pkam_publickey@alice:ttl:1000'),
+          isFalse,
+          reason: 'update:meta has no route to the legacy PKAM credential, so '
+              'the ban has nothing to close there');
+      expect(
+          RegExp(VerbSyntax.update_meta)
+              .hasMatch('update:meta:phone.wavi@alice:ttl:1000'),
+          isTrue,
+          reason: 'CONTROL: the same regex does match an ordinary atKey, so '
+              'the miss above is about this key and not about the pattern');
+    });
+
+    test('delete cannot name the key at all', () async {
+      // The other half of "nothing can take it back", and the reason the
+      // write is banned rather than merely audited: once installed there is
+      // no verb that removes it. delete whitelists exactly one privatekey:
+      // key, and it is not this one.
+      expect(
+          RegExp(VerbSyntax.delete)
+              .hasMatch('delete:privatekey:at_pkam_publickey'),
+          isFalse,
+          reason: 'a credential installable and not removable is precisely '
+              'what the write ban exists to prevent');
+      expect(
+          RegExp(VerbSyntax.delete).hasMatch('delete:privatekey:at_secret'),
+          isTrue,
+          reason: 'CONTROL: the delete grammar does whitelist a privatekey: '
+              'key, so the miss above is about which one');
     });
 
     // ---- the atSign's own key material ----
