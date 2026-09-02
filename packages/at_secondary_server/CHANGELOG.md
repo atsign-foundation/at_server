@@ -1,4 +1,23 @@
 # 3.16.4
+- fix: the enrollment key builders fold the id they are handed, so a
+  non-canonical spelling of an id builds the key of the record it addresses
+  rather than one naming no record at all.
+
+  `buildEnrollmentKey`, `keyForPEK` and `keyForSEK` folded the COMPOSED key
+  and nothing else, and composition moves whatever trails the id into the
+  middle of that key, past the reach of the fold's trim; the fold's
+  space-strip catches a plain space and nothing else. A trailing tab, no-break
+  space or ideographic space therefore survived, and the key built from it
+  named no record — while `canonicalEnrollmentId` folds all three away, so the
+  id everything else on the path is comparing against had already lost them.
+  Leading whitespace was never the half that got through, which is why every
+  spelling the tests carried was leading.
+
+  Folded inside the builder rather than declared a precondition on the
+  caller: that is the posture `canonicalEnrollmentId` already takes, and it
+  makes the builders' claim to be byte-identical to an enumerated key true
+  unconditionally instead of true for ids somebody else folded first.
+
 - fix: `pkam` decides the connection's identity inside the atSign's
   enrollment-mutation critical section, so an `enroll:revoke` landing while an
   authentication is in flight is not answered `success`.

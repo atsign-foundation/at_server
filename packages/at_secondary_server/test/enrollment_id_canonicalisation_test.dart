@@ -407,6 +407,17 @@ void main() {
         etu.primaryEnId.toUpperCase(),
         '$wsWrite${etu.primaryEnId}',
         '$wsRead${etu.primaryEnId}',
+        // TRAILING, and that is the half a leading spelling cannot reach.
+        // Composition puts whatever trails the id in the MIDDLE of the key,
+        // past the reach of the fold's trim, and the space-strip catches a
+        // plain space and nothing else — so a key built by folding only the
+        // COMPOSED string keeps a trailing tab, no-break space or ideographic
+        // space and names no record at all. Every spelling above is leading,
+        // and leading is still leading after composition.
+        '${etu.primaryEnId} ',
+        '${etu.primaryEnId}\t',
+        '${etu.primaryEnId}$wsWrite',
+        '${etu.primaryEnId}$wsRead',
       ]) {
         expect(enMgr.buildEnrollmentKey(spelling), canonical,
             reason: 'a key built from "$spelling" has to be comparable '
@@ -743,9 +754,24 @@ void main() {
       // Idempotence of the fold, which is a different claim from the two
       // above and cannot stand in for either.
       final id = await approvedWithEncryptionKeys();
-      for (final spelling in [' $id', id.toUpperCase(), '$wsWrite$id']) {
-        expect(enMgr.keyForPEK(spelling), enMgr.keyForPEK(id));
-        expect(enMgr.keyForSEK(spelling), enMgr.keyForSEK(id));
+      for (final spelling in [
+        ' $id',
+        id.toUpperCase(),
+        '$wsWrite$id',
+        // Trailing, for the reason given in 'the enrollment key built from an
+        // id is the key the store holds': folding only the composed string
+        // leaves trailing whitespace that is not a plain space stranded in the
+        // middle of the key.
+        '$id\t',
+        '$id$wsWrite',
+        '$id$wsRead',
+      ]) {
+        expect(enMgr.keyForPEK(spelling), enMgr.keyForPEK(id),
+            reason: 'the PEK key built from "$spelling" must name the record '
+                'the approve path wrote, or `keys:` authorises a caller for a '
+                'name the store does not hold');
+        expect(enMgr.keyForSEK(spelling), enMgr.keyForSEK(id),
+            reason: 'likewise for the SEK key');
       }
     });
 

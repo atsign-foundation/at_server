@@ -206,8 +206,7 @@ class EnrollmentManager {
   /// The key format combines the [enId], a new enrollment key pattern,
   /// and the current AtSign.
   ///
-  /// CANONICAL: the composed key is folded to the form the keystore stores it
-  /// under, so the result is byte-identical to what an enumeration such as
+  /// CANONICAL: the result is byte-identical to what an enumeration such as
   /// [getAllEnrollmentKeys] returns for that record. That is what lets a key
   /// built here be COMPARED against an enumerated one — [excluding] in
   /// [hasUnexpiringRootEnrollment] does exactly that, and a raw key built from
@@ -215,10 +214,24 @@ class EnrollmentManager {
   /// refusal counted the enrollment the act was removing and let an atSign
   /// lose its last root.
   ///
+  /// The id is folded BEFORE it is composed as well as after, and the gap
+  /// between the two is narrow enough to be worth naming. Composition moves
+  /// whatever TRAILS the id into the middle of the key, where the fold's trim
+  /// can no longer reach it; the space-strip catches a plain space and nothing
+  /// else. So a trailing tab, no-break space or ideographic space survives
+  /// composition and builds a key naming no record at all, while
+  /// [canonicalEnrollmentId] would have folded it away. Leading whitespace is
+  /// still leading after composition, so it was never the half that got
+  /// through.
+  ///
+  /// Folding here rather than demanding a folded id means a caller gets the
+  /// record its id addresses whether or not it folded first — which is the
+  /// same posture [canonicalEnrollmentId] takes, and for the same reason.
+  ///
   /// Returns:
   ///   A [String] representing the enrollment key.
   String buildEnrollmentKey(String enId) {
-    return canonicalAtKey('$enId'
+    return canonicalAtKey('${canonicalEnrollmentId(enId)}'
         '.${EnrollmentConstants.enrollmentKeyPattern}'
         '.${EnrollmentConstants.enrollManageNamespace}'
         '$atSign');
@@ -728,20 +741,23 @@ class EnrollmentManager {
     }
   }
 
-  /// Canonical for the same reason [buildEnrollmentKey] is: this key is
-  /// compared against keys an enumeration returned — `keys:` authorises a
-  /// caller for its own encryption keys by name, and the orphan sweep matches
-  /// enumerated candidates against built ones.
-  String keyForPEK(String enId) => canonicalAtKey('$enId'
-      '.${AtConstants.defaultEncryptionPrivateKey}'
-      '.${EnrollmentConstants.enrollManageNamespace}'
-      '$atSign');
+  /// Canonical for the same reason [buildEnrollmentKey] is, and the id is
+  /// folded first for the same reason: this key is compared against keys an
+  /// enumeration returned — `keys:` authorises a caller for its own encryption
+  /// keys by name, and the orphan sweep matches enumerated candidates against
+  /// built ones.
+  String keyForPEK(String enId) =>
+      canonicalAtKey('${canonicalEnrollmentId(enId)}'
+          '.${AtConstants.defaultEncryptionPrivateKey}'
+          '.${EnrollmentConstants.enrollManageNamespace}'
+          '$atSign');
 
   /// Canonical for the same reason as [keyForPEK].
-  String keyForSEK(String enId) => canonicalAtKey('$enId'
-      '.${AtConstants.defaultSelfEncryptionKey}'
-      '.${EnrollmentConstants.enrollManageNamespace}'
-      '$atSign');
+  String keyForSEK(String enId) =>
+      canonicalAtKey('${canonicalEnrollmentId(enId)}'
+          '.${AtConstants.defaultSelfEncryptionKey}'
+          '.${EnrollmentConstants.enrollManageNamespace}'
+          '$atSign');
 
   /// ```
   /// public:${enVal.appName}.${enVal.deviceName}
