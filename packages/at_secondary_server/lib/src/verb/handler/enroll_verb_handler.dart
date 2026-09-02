@@ -1212,10 +1212,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // reinstate a stale value is the holder of the key it was signed with.
     if (connectionMetadata.enrollmentId != enId) {
       // The remedy is named and is value-INDEPENDENT: no branch on which
-      // identity the connection happens to carry. Glossing the identifier
-      // instead — "primary (the atSign's legacy credential)" — would be
-      // correct for exactly one value and would put a conditional in a
-      // refusal path, which a test pinning the message would then pin too.
+      // identity the connection happens to carry. Glossing a particular
+      // identifier instead would be correct for exactly one value and would
+      // put a conditional in a refusal path, which a test pinning the message
+      // would then pin too.
       throw AtEnrollmentException(
           'enroll:update is self-only: this connection is authenticated as '
           '${connectionMetadata.enrollmentId ?? "the owner"}, not $enId. '
