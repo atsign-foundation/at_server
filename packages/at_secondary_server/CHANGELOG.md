@@ -1,48 +1,31 @@
 # 3.16.4
-- ⚠️ docs: three refusals told an operator to retry over a connection that is
-  refused, and a capability this release narrowed is now stated.
+- ⚠️ BREAKING: the atSign's flat PKAM credential has no enrollment record, and
+  a legacy `pkam:` carries no enrollment id.
 
-  The empty-namespace gates on `enroll:fetch`, on the shared
-  approve/deny/revoke/unrevoke path and on `enroll:delete` each name their
-  remedy as "an owner (CRAM or legacy-PKAM) connection". A legacy-PKAM
-  connection authenticates as the housekeeping enrollment and carries its id,
-  so it reaches those gates like any other enrollment and is refused by them —
-  the gate fires before the loop that would have found `primary`'s grants
-  sufficient. The remedy therefore named the connection being refused.
-  Measured: over a connection carrying `primary`, all three refuse; over a
-  connection carrying no enrollment id, all three admit.
+  The flat key at `privatekey:at_pkam_publickey` gets no enrollment record of
+  its own: its EXISTENCE is its state, and a connection that presents no
+  enrollment id is admitted carrying none, beside CRAM and owner. A credential
+  lacking an enrollment id is the thing to ELIMINATE — which the write ban
+  below does, for every credential not already installed — rather than the
+  thing to give a lifecycle to.
 
-  ⚠️ The consequence is the one the exemption exists to prevent, for a
-  narrower population: on an atSign whose only owner access is the legacy
-  keyfile, there is no connection that can clear up an enrollment holding no
-  namespaces. The messages now name what actually works, the gates say plainly
-  that a legacy connection is not exempt, and a test pins it so the narrowing
-  is visible rather than latent.
+  ⚠️ Existing flat credentials go on authenticating. There are atSigns in the
+  field whose only credential is that key, so an unauthenticated `pkam:`
+  verified against it stays the supported path for them; nothing about such an
+  atSign changes, and no record is created by connecting to it.
 
-  Swept with it, all falsified by the same change: the doc on
-  `EnrollmentManager.revokeAll`'s `byEnrollmentId`, on
-  `EnrollmentRevocationEvent.byEnrollmentId` and on
-  `EnrollDataStoreValue.approvedByEnrollmentId`, each of which said a
-  legacy-PKAM owner records null; the comment on
-  `AbstractVerbHandler._verifyIfEnrollmentIsActive`, which said a legacy
-  connection carries no enrollment id and is therefore exempt from the
-  liveness gate; the comment on `enroll:list`'s narrowing, which gave "legacy
-  PKAM" as the reason it returns everything rather than `primary` holding
-  `__manage`; the delete gate's claim to be the only one that refuses an empty
-  grant map, when all three now do; and four test comments and reasons saying
-  the same things. A test now pins that a legacy connection IS closed by the
-  liveness gate when the housekeeping enrollment leaves `approved`.
+  Retrofit narrows to what it is for — splitting a shared keyfile into
+  per-device credentials. Every party to that already holds an enrollment, so
+  a legacy connection's `enroll:request` is an ordinary request again rather
+  than a self-replacement, and the three exemptions that admitted it to the
+  self-enrolment path are gone. The namespace-required check keeps its
+  exemption for the two auth types whose grants are filled in for them.
 
-- test: two failures that named neither their mechanism nor their assertion
-  now do.
+  The flat credential COUNTS as a usable root while it is present and
+  non-empty, so an atSign holding only that key is not refused a revoke of its
+  last enrollment root — see the stranding entry below.
 
-  The serialisation test that pins the already-created housekeeping read as
-  taking no critical section of its own completes the gate AFTER awaiting the
-  read, so a read that queued behind the held section could never be let
-  through: the failure was the runner's 30-second timeout. Measured by putting
-  the read behind the section — `TimeoutException after 0:00:30.000000` and
-  nothing else, 33 seconds to say it. It now fails in 6 with a reason naming
-  the deadlock and what may take the section.
+- test: a failure that named neither its mechanism nor its assertion now does.
 
   `ETU.verifyKeyStoreState` asserted three keys per enrollment with no reason
   strings, over twenty enrollments and several calls per test, so a failure
@@ -51,52 +34,20 @@
   state that key was expected to be in, and the helper refuses an empty corpus
   rather than reporting every state correct without asserting anything.
 
-- docs/test: the proof of possession on `at_pkam_publickey` says why its
-  signable is a constant, and the framing is pinned by a raw literal.
-
-  The signable is `primary|<value>|<signingAlgo>` — no challenge, no session,
-  no atSign — so an identical `update:json` document is replayable byte for
-  byte, on this atSign and on any other. That is deliberate and is now stated
-  as such: the signature is not an authenticator and never stood between
-  anyone and this key. `update` requires authentication, and the only
-  connections authorised to write this key are an owner or CRAM connection,
-  which carries no enrollment id, and a connection authenticated as the
-  housekeeping enrollment. A replayer is therefore already entitled to install
-  a key of its own choosing and can sign a fresh document with any key it
-  holds; the one thing a captured document buys it is installing a key it does
-  NOT hold, which is defeating this guard against itself.
-
-  `enroll:update`'s equivalent differs only in that its signable names a
-  server-issued enrollment id, unique to the atSign that issued it, so that
-  document is incidentally bound to one atSign. Nothing rests on the binding
-  in either case, so the legacy framing is kept byte-identical rather than
-  hardened with an atSign or a nonce: a client implements one rule for both
-  rotations, and `EnrollParams.apkamPublicKeySignature` publishes that rule.
-
-  The framing was built in tests from the constant that defines it, which pins
-  nothing. It now has a raw-literal pin, whose negative control is the
-  atSign-bound spelling — so the server accepting that spelling is a failure
-  rather than an improvement nobody notices.
-
 - docs: `EnrollmentManager.isUsableRootEnrollment` says what its bar is and
   what it does not cover.
 
   It read as "fully privileged AND holding a credential something can
   authenticate with", which claims more than the server can test. What the
   method actually tests is that the record is fully privileged and that a
-  non-empty public key is recorded for it — in the record, or at
-  `at_pkam_publickey` for `primary` — which is exactly the bar authentication
-  applies before it looks at a signature. It says nothing about whether anyone
+  non-empty public key is recorded for it, which is exactly the bar
+  authentication applies before it looks at a signature. It says nothing about whether anyone
   holds the private half, and nothing can: the server never sees a private key,
   so a key nobody holds is indistinguishable here from a live one.
 
   The doc now names where that gap IS closed — at the write, where a proof can
   be demanded: `enroll:update` refuses a new `apkamPublicKey` without a
-  signature by the private half being installed, an `update` of
-  `at_pkam_publickey` refuses one on the same terms once the housekeeping
-  record exists, and the housekeeping record is minted only by a legacy
-  authentication that has already verified a signature against the key it
-  stands over. And what remains uncovered: `enroll:request` installs an
+  signature by the private half being installed. And what remains uncovered: `enroll:request` installs an
   `apkamPublicKey` with no proof, so an enrollment approved but never yet
   authenticated with passes this bar holding a key whose possession is proved
   on its first `pkam:` and not before.
@@ -137,12 +88,11 @@
   given one and the sweep passes over it. The marking then happened on a state
   the revoke had already replaced.
 
-  Both branches are covered. Legacy PKAM reads the housekeeping enrollment;
   APKAM reads its own record before the signature is verified, because that
   read is where the public key comes from, so the state it decides on is the
-  state from before the longest step on the path. The APKAM branch now asks
-  again inside the section, and refuses code for code as the first ask would
-  have.
+  state from before the longest step on the path. It now asks again inside
+  the section, and refuses code for code as the first ask would have. A
+  legacy authentication stands over no record and has nothing to re-read.
 
   It is the store-wide section rather than an understanding with the revoke
   path because revocation is not the only way an enrollment stops serving:
@@ -208,9 +158,8 @@
 - fix: every enrollment mutation now runs inside ONE store-wide critical
   section, and it covers the whole read-decide-write rather than the write:
   `enroll:request` (past the throttle and the OTP gate), `enroll:approve`,
-  `deny`, `revoke`, `unrevoke`, `update` and `delete`, the housekeeping
-  enrollment's creation, the retrofit cap's arming, and the adoption of a
-  capped approver's children.
+  `deny`, `revoke`, `unrevoke`, `update` and `delete`, the retrofit cap's
+  arming, and the adoption of a capped approver's children.
 
   The keystore has no compare-and-set, and the decision each write rests on
   is a question about the WHOLE store — "would any unexpiring root survive
@@ -283,123 +232,21 @@
   `enroll:fetch`, `enroll:update` and ownership of an enrollment's own
   reserved keys now treat a non-canonical spelling as the same enrollment,
   which is what the keystore has always done with it.
-- fix: the housekeeping enrollment `primary` no longer holds a copy of the
-  legacy PKAM credential. It snapshotted `at_pkam_publickey` into its
-  `apkamPublicKey` once, at creation, and never refreshed it — so the record
-  and the credential it stands for could diverge, and every divergence was
-  either a stranding or an authentication bypass. Legacy PKAM verifies against
-  the LIVE key and reads nothing off the record, so the copy served no reader.
-  The record now carries an EMPTY key, and an APKAM authentication naming
-  `primary` fails closed at the verifier's existing emptiness guard whatever
-  the id spelling. That mattered because the identifier comparison which also
-  refuses it was exact while the keystore folded ids on the way in, so a
-  non-canonical spelling walked past the comparison, resolved to the record,
-  and authenticated against the snapshot — as `primary`, over APKAM, with a
-  key the atSign had rotated out. Incoming ids are now folded the keystore's
-  own way (see below), so that comparison catches such a spelling by name;
-  the empty key is what makes the refusal belt-and-braces rather than the
-  only thing standing in the way.
+- fix: the FLAT credential counts as a usable root, so an atSign whose only
+  credential is the key at `privatekey:at_pkam_publickey` is not refused a
+  revoke of its last enrollment root.
 
-  ⚠️ `enroll:list` and `enroll:fetch` now report an empty `apkamPubKey` for
-  `primary`. That is the honest answer rather than a regression: it is an
-  identity for a credential held elsewhere, and nothing can authenticate
-  against it.
-- fix: `enroll:update` refuses a target of `primary` outright. The self-only
-  gate asks whether the connection is authenticated AS its target, and a
-  legacy connection carries `primary` — so the one identity this verb must
-  never be pointed at was the one identity that satisfied the check. A legacy
-  connection could install an APKAM public key of its own choosing on the
-  atSign's legacy identity and be answered
-  `{"enrollmentId":"primary","status":"approved"}`. The refusal names the
-  remedy: the legacy credential is rotated where it lives, with an update of
-  `privatekey:at_pkam_publickey` over a connection authenticated with the
-  credential it replaces, carrying the same proof of possession this verb
-  demands (see below).
-- fix: `primary` counts as an unexpiring root only while `at_pkam_publickey` is
-  in the keystore AND NON-EMPTY. (A special case of the general rule above:
-  an enrollment nothing can authenticate as is not a root, whoever it is;
-  `primary` is where the credential lives somewhere other than the record.) Alone among enrollments it holds no credential
-  of its own, so a record standing over a key nobody can authenticate with is a
-  PHANTOM root — approved, fully privileged, permanent and impossible to
-  authenticate as. Counting it answered "this atSign can restore a root" for a
-  record nobody holds a credential for, and the caller then revoked or capped
-  the last root that actually worked. Presence alone was the wrong bar because
-  authentication refuses an empty public key before it looks at a signature, so
-  an empty value and a missing one are the same credential — none. Zero-length
-  is reachable rather than theoretical: the `update` grammar demands a
-  non-empty value, but `update:json` carries the value inside the JSON document
-  instead, so an owner connection can store one.
-- ⚠️ fix: the atSign's EXISTING legacy PKAM credential is adopted as `primary`
-  at SERVER STARTUP, and the lazy first-authentication mint is now strict.
-  ⚠️ Takes effect on the next RESTART of each atServer, once per atSign.
-
-  Either path has to answer the same question: is the keypair at
-  `at_pkam_publickey` this atSign's own legacy credential, or an app's APKAM
-  key left there by an older server's CRAM auto-approve branch, which wrote
-  the enrolling app's key there "for old clients"? At startup it is
-  answerable, because no client has connected and the store is exactly what
-  the previous run left. On a legacy authentication it is not, because the
-  client has already had the run of the atSign and can reshape whatever the
-  gate is about to read — a rule that declined only when `at_pkam_publickey`
-  equalled some enrollment's own `apkamPublicKey` was defeated end to end in
-  three wire commands: `enroll:revoke:force` on itself, since the force flag
-  alone lifts the self-revoke refusal; `enroll:delete` on itself, since a
-  caller may always delete its own enrollment and so demonstrates no
-  `__manage`; and then a legacy authentication over the record's own grave,
-  minting `primary` at `*:rw` + `__manage:rw` with no approver and no expiry.
-
-  So the two paths now ask different questions:
-
-  * STARTUP adoption mints `primary` for an atSign holding a usable
-    `at_pkam_publickey` and no `primary` record, WHATEVER ELSE IT HOLDS —
-    unless that key is some stored enrollment's own `apkamPublicKey`, which
-    is exactly the shape the auto-approve left behind. That refusal is the
-    only one it makes, and the evidence behind it cannot have been arranged.
-    An enrollment record that cannot be read fails CLOSED, since it cannot be
-    shown not to hold the key.
-  * The LAZY mint keeps the strict rule: any enrollment record in the store
-    refuses it. After startup adoption it is reached only by a genuinely fresh
-    atSign, or by a key that appeared at `at_pkam_publickey` while the server
-    was up on an atSign that has been enrolled — which is not a credential
-    the atSign was onboarded with.
-
-  Adoption runs after the pre-remove hook is registered and BEFORE the startup
-  expired-keys sweep, because the sweep destroys the evidence the refusal
-  reads: it removes an elapsed enrollment record while leaving the flat key
-  behind, the hook taking `at_pkam_publickey` only for `primary`.
-
-  ⚠️ WHAT AN OPERATOR SEES: an atSign upgrading to this release gains an
-  approved, fully privileged, unexpiring `primary` enrollment on its first
-  restart, logged at `shout`, and `enroll:list` shows one more row from then
-  on. Its legacy keyfile authenticates as that enrollment. Before this
-  change such an atSign — every atSign that has ever enrolled an app, which
-  includes every atSign onboarded through `enroll:request` — had its valid
-  legacy authentication refused with no route back, since `otp:get` needs an
-  authenticated connection, a self-retrofit may not ask for `*`, and the CRAM
-  secret is gone. Adoption happens once: a later restart neither re-mints it
-  nor restores one that has been revoked or retired.
-
-  ⚠️ What adoption does NOT close: an app that rotated its own APKAM key
-  through `enroll:update` during an EARLIER run leaves the superseded keypair
-  at `at_pkam_publickey` with no record naming it, so no comparison can
-  recognise it. Startup removes the ability to arrange the evidence now; it
-  cannot un-arrange evidence persisted before the process existed. The residue
-  costs such an app permanence rather than access — it already holds an
-  approved APKAM enrollment — and the price of closing it by refusing
-  populated stores is stranding every upgrading atSign.
-
-  Nothing is deleted on a refusal. The server cannot tell a vestigial key from
-  one an owner provisioned on purpose, so removing it would lock an owner out
-  rather than tidy up after an app; the atSign is left exactly as it was, with
-  legacy authentication refused.
-
-  ⚠️ The refusal a legacy client sees when the record is absent and must not
-  be created reads `this atSign has no usable legacy PKAM credential. A legacy
-  credential is adopted at server startup, from the keystore the previous run
-  left; a key installed at this atSign afterwards is not adopted.`, followed
-  by the remedy. It replaces `the legacy credential for this atSign has been
-  retired`. Which of the two reasons it was is in the server log, not on the
-  wire.
+  The stranding refusals walk the enrollment roster, and the flat credential
+  has no record on it — its existence IS its state. Such an atSign is not
+  stranded by that revoke: a `pkam:` carrying no enrollment id still
+  authenticates against the key, and the connection it admits carries no id,
+  so it is authorised for everything and can mint a fresh enrollment. The
+  question is asked of the live key rather than of any record, and PRESENT is
+  not the bar — NON-EMPTY is. Authentication refuses an empty public key
+  before it looks at a signature, so an empty value and a missing one are the
+  same credential, none. Zero-length is reachable rather than theoretical: the
+  `update` grammar demands a non-empty value, but `update:json` carries the
+  value inside the JSON document.
 - ⚠️ fix: every decision that asks what enrollments an atSign HOLDS now reads
   the STORED roster, expired records included. Only the answers that merely
   REPORT a roster read the visible one.
@@ -412,18 +259,10 @@
   enrollment's ttl is its APKAM key-expiry posture: the roster empties on a
   schedule its holder chose.
 
-  Measured on one enrollment, one variable: with the record live, a legacy
-  authentication's mint of `primary` was refused; with the same record's ttl
-  one minute in the past and the record still on disk, it minted — an
-  unexpiring, no-approver root at `*:rw` + `__manage:rw` for whoever held the
-  flat key. Nothing clears that key on the way past, either: the pre-remove
-  hook takes `at_pkam_publickey` only for `primary`.
-
   `EnrollmentManager.getAllEnrollmentKeys` now takes a REQUIRED
   `includeExpired`, so every call site states which roster it means:
 
-  * STORED — the housekeeping mint's gate and startup adoption's vestigial
-    check; `removeOrphanedApkamEncryptionKeys`, so ORPHANED means no record
+  * STORED — `removeOrphanedApkamEncryptionKeys`, so ORPHANED means no record
     holds it rather than no VISIBLE record holds it; `removeLegacyApkamPublicKeys`,
     which is the only repair for the app/device name an older server
     published and which nothing else ever revisits; `descendantsOf`, so a
@@ -440,69 +279,14 @@
   encryption keys of an enrollment whose record is still on disk, leaving
   those to the expiry sweep that removes the record. `enroll:list` and
   `enroll:listns` are unchanged.
-- ⚠️ fix: rotating `privatekey:at_pkam_publickey` now requires proof that the
-  sender holds the private half of the key it is installing — the same
-  self-signature `enroll:update` has always demanded of every other
-  credential, in the same framing, verified through the same path `pkam:`
-  uses.
-
-  Without it the legacy credential was the one key on the atSign that could be
-  replaced with no proof of anything. Measured on this tree in three arms
-  differing only in the bytes stored at that key: rotated to a WELL-FORMED key
-  whose private half was never persisted, `primary` went on being counted as
-  the atSign's surviving unexpiring root — the bar is a credential something
-  can authenticate with, and a well-formed orphan passes it — while nothing
-  could authenticate as it, so revoking the last root that really worked was
-  permitted. Stored EMPTY it was not counted and the revoke was refused; left
-  alone it was counted and authentication worked. The server cannot tell an
-  orphan from a live key after the fact, so the demand is made at the write.
-
-  ⚠️ THE CLIENT CONTRACT. The proof travels in an `update:json` document as
-  `apkamPublicKeySignature` alongside `signingAlgo`, spelled exactly as
-  `enroll:update` spells them, over
-  `primary|<new public key>|<signingAlgo>`:
-
-  ```
-  update:json:{"atKey":"privatekey:at_pkam_publickey",
-               "value":"<new public key>","metadata":{...},
-               "signingAlgo":"rsa2048",
-               "apkamPublicKeySignature":"<base64>"}
-  ```
-
-  A client builds it from `UpdateParams.toJson()` and adds the two fields.
-  Nothing is added to the `update` grammar, deliberately: a wire parameter
-  this server read and no published builder could produce would be a fork of
-  the protocol that only looks like an extension. The plain
-  `update:privatekey:at_pkam_publickey <value>` form has no parameter that
-  could carry a signature, so a ROTATION must use the JSON form.
-  `signingAlgo` is required rather than defaulted, because the legacy
-  credential records its algorithm nowhere — a legacy `pkam:` names it on the
-  wire per connection — so there is nothing to fall back on and a wrong guess
-  installs a key that cannot authenticate.
-
-  ⚠️ BOOTSTRAP is exempt and onboarding is untouched: when the atSign holds no
-  `primary` record, nothing stands over the key, an unusable value counts as
-  nothing and mints nothing, and possession is proved later by construction —
-  the record is minted only by a legacy authentication that has already
-  verified a signature against that key. `install_PKAM_Keys` and CRAM
-  onboarding plant the first key in the plain form exactly as before. Every
-  other write is a rotation over a live identity and must prove itself,
-  whoever is asking: an owner or CRAM connection included, since it can strand
-  the atSign the same way.
-
-  ⚠️ WHAT BREAKS: a client that rotates the legacy credential with the plain
-  `update:` form on an atSign that has minted `primary`. In this tree that is
-  `tests/at_functional_test/test/pkam_verb_test.dart`'s ECC round trip, ported
-  in the same commit.
-
 - fix: reading an enrollment no longer WRITES. `getEnrollmentByFullKey`
   removed a record whose ttl had elapsed as it read it, and enrollments are
   read on every verb command and every authorisation check — all of it
   deliberately outside the atSign's one enrollment-mutation critical section.
   So a reader that had decided nothing mutated the store while a mutation of
-  another record was in flight, and for `primary` it was worse than untidy:
-  `remove` fires the pre-remove hook, which takes `at_pkam_publickey` with it,
-  so an authorisation check could retire the atSign's legacy credential.
+  another record was in flight — and `remove` fires the pre-remove hook, which
+  moves per-enrollment data across several awaits, which is not work an
+  authorisation check taken on every verb command has any business doing.
 
   The read now reports the elapsed ttl as an `expired` approval state and
   leaves the record alone, which is the value every caller already decided on.
@@ -514,11 +298,10 @@
   enrollment, with `"status":"expired"`, until that pass runs — where before,
   the first read made it vanish.
 
-- ⚠️ fix: an enrollment nothing can authenticate as is not counted as a root,
-  WHOEVER it is. The credential check was special-cased to `primary`, so an
-  ordinary enrollment holding an empty `apkamPublicKey` — approved, fully
-  privileged and permanent — still answered "this atSign can restore a root",
-  and counting it licensed revoking the last root that actually works.
+- ⚠️ fix: an enrollment nothing can authenticate as is not counted as a root.
+  An enrollment holding an empty `apkamPublicKey` — approved, fully privileged
+  and permanent — still answered "this atSign can restore a root", and
+  counting it licensed revoking the last root that actually works.
   Measured on this tree: with one keyless root standing, a forced self-revoke
   of the atSign's only real root answered `{"status":"revoked"}`; the same
   record with a public key in it is what the refusal is supposed to allow, and
@@ -528,43 +311,43 @@
   nothing about whether any keypair can present it. The bar is now one
   predicate applied on both sides of every stranding decision — what an act
   REMOVES and what SURVIVES it, plus the retrofit cap's decline — so "root"
-  means one thing in all of them. The credential is the record's own
-  `apkamPublicKey` for every enrollment except `primary`, whose credential is
-  the live `at_pkam_publickey`.
+  means one thing in all of them.
 
-  It is NOT the question asked of an already-authenticated connection: a
-  legacy connection is authenticated as `primary`, whose record holds an
-  empty key by construction, and what that connection may do is still decided
-  by its grants.
+  It is NOT the question asked of an already-authenticated connection. That
+  one decides what a connection may do; this one asks whether a record would
+  still be there to authenticate as afterwards.
 
-- ⚠️ fix: `enroll:unrevoke` is refused on `primary`. Revoking that record is
-  how an atSign withdraws its legacy keyfile — nothing else can, because the
-  credential is a flat key the delete verb refuses on grammar and the record
-  holds no copy of it to overwrite. The revoke leaves `at_pkam_publickey`
-  exactly where it was, so the record's revoked state is the only thing
-  standing between that keyfile and full privilege, and an un-revoke handed it
-  back working to every holder of a copy. The guard that stops this everywhere
-  else does not reach it: an un-revoke is refused while the enrollment that
-  ADMITTED the target is not approved, and `primary` carries no approver — the
-  server created it for itself — so that gate was vacuous for the one record
-  whose revocation is a decision about a credential nothing else governs.
-  `enroll:revoke` and `enroll:delete` on `primary` are unchanged; getting a
-  working credential back is a fresh enrollment, not an undo.
-- ⚠️ fix: `update:privatekey:at_pkam_publickey` is no longer writable by any
-  root enrollment. It is the one key an enrollment can write that MINTS AN
-  IDENTITY rather than serving one: legacy PKAM authenticates against it and
-  carries no enrollment id, so an app root that planted a key it held gained a
-  second identity its own revocation could not reach — a compromised root
-  surviving its own revocation, permanently, with nothing on the roster to
-  show for it. It is now writable by an owner or CRAM connection (which
-  carries no enrollment id at all, and is what onboarding uses to plant the
-  first key) and by a LEGACY-PKAM connection rotating its OWN credential,
-  which has already proved possession of the key it is replacing by
-  authenticating with it. Every other `privatekey:` key is unchanged and still
-  decided by root privilege alone.
+- ⚠️ BREAKING: NO connection may write `privatekey:at_pkam_publickey`. The one
+  exception is a CRAM connection on a server running with `testingMode` on,
+  which is how a test fixture installs the first keypair against a throwaway
+  atSign.
 
-  ⚠️ Being ALLOWED to write it is no longer the whole of the check — see the
-  proof-of-possession entry below.
+  It is the one key whose value MINTS AN IDENTITY rather than serving one: a
+  `pkam:` carrying no enrollment id authenticates against it, so a key written
+  there is a credential nothing on the roster shows and no verb can withdraw —
+  `delete` refuses `privatekey:` keys on grammar. An app root that planted a
+  key it held therefore gained a second identity its own revocation could not
+  reach, permanently.
+
+  The refusal is of the CONNECTION rather than of a privilege, so an owner and
+  a legacy connection are refused as squarely as an app: proving you hold the
+  key you are installing is no answer to installing a credential nobody can
+  take away. Every other credential arrives through `enroll:request` and
+  rotates through `enroll:update`, both of which leave a revocable record.
+
+  ⚠️ It takes TWO gates, because neither reaches the other's callers.
+  `isAuthorizedSync` returns true for a null enrollment id before any key is
+  examined, so the per-enrollment decision — an unconditional refusal now,
+  rather than a carve-out for one id — can never see an owner or CRAM
+  connection. The second sits at the update seam. Every other `privatekey:`
+  key is unchanged and still decided by root privilege alone.
+
+- feat: `AtSecondaryConfig.testingMode` is read by Dart. The flag has been in
+  `config.yaml` and in every rig's environment for years, and `config:set`
+  documents itself as requiring it, but nothing ever read it. Absence answers
+  FALSE on every path — no environment variable, no yaml, no such entry — so a
+  server that cannot read its configuration is not a server with the
+  protections relaxed.
 - fix: the last-root refusal now asks whether the ACT removes a fully
   privileged enrollment, not whether the enrollment the command NAMES is one.
   A revoke cascades to every enrollment that descends from its target by
@@ -603,8 +386,7 @@
   `__manage:r`, and reaching a `__manage` key is unaffected.
 - fix: the retrofit cap's decline now NAMES the remedy. An atSign whose only
   root asks for a bounded key life declines on every authentication and has
-  both revoke routes refused, so its legacy credential is un-retirable and
-  nothing said what would change that. The warning now says: approve an
+  both revoke routes refused, and nothing said what would change that. The warning now says: approve an
   enrollment holding `rw` on both `*` and `__manage` with no key expiry, then
   revoke or delete the predecessor.
 - fix: a revocation could be partly undone by a retrofit cap running
@@ -832,71 +614,13 @@
   has run, so a first approval reads none and passes vacuously; the check bites
   on `unrevoke`, and on any later transition of a record that already names
   one.
-- feat: the atSign's legacy PKAM credential has an enrollment of its own. It
-  authenticates with no enrollment id, so it has never had a record: nothing
-  stated its grants, no roster showed it, no verb could revoke it and nothing
-  ever retired it. A legacy connection now authenticates AS a housekeeping
-  enrollment, created idempotently on the first legacy authentication, holding
-  `*:rw` and `__manage:rw` — the access it has always had, now stated.
-
-  Its enrollment id is the literal **`primary`**. Deterministic, so finding it
-  is one key read; and `primary` is already the atSign-wide sentinel for "no
-  enrollment id", so a legacy client's signing key at
-  `public:_apsk.primary.a.__e@<atSign>` becomes this enrollment's
-  per-enrollment data the moment the record exists — revoking or expiring the
-  legacy credential now parks that key like any other enrollment's. Nothing
-  retired it before.
-
-  It carries no approver: the server creates it for itself, so no revocation
-  cascade can reach it. A cascade able to sweep it away would strand the very
-  credential it exists to govern.
-
-  ⚠️ Deployment-visible in three ways. A legacy connection now carries an
-  enrollment id where it carried none, so authorisation checks that treated a
-  null id as unrestricted access now see `*:rw` + `__manage:rw` instead — the
-  same access, reached by a different route. A READ can mutate the atSign: the
-  first `enroll:list` over a legacy connection creates the record. And a
-  roster that was empty is no longer, so a client asserting on its size needs
-  to expect the housekeeping enrollment.
-
-- BREAKING: a legacy connection's `scan` is now FILTERED like any other
-  enrollment's, so enrollment records drop out of its results. `scan` decides
-  by whether the connection carries an enrollment id, not by auth type — a
-  legacy connection used to fall through to the unfiltered owner view simply
-  by having none, and now carries the housekeeping enrollment's id.
-
-  It is consistent rather than incidental: `enroll:list` is the management
-  path for enrollment records, an enrollment-scoped scan has always excluded
-  them whatever its grants, and a legacy connection is an enrollment now.
-  Ordinary keys are unaffected — the housekeeping enrollment holds `*:rw`.
-
-  ⚠️ A legacy client that scanned for `<id>.new.enrollments.__manage@<atSign>`
-  records will stop finding them and must use `enroll:list`. A CRAM connection
-  still carries no enrollment id and still gets the unfiltered view.
-
-- BREAKING: legacy PKAM authentication is refused unless that enrollment is
-  APPROVED, and APKAM authentication NAMING it is refused outright. Revoking
-  the record is what makes revoking the legacy keyfile possible at all —
-  before it, no verb could — and an expired one is the retrofit cap having
-  retired it. In both cases the signature is valid and the credential is not,
-  which is the distinction the record exists to carry.
-
-  The APKAM refusal returns AT0009 rather than an enrollment-status code,
-  because it is not a statement about status: a credential reachable both with
-  and without an enrollment id would have two lifecycles, and its retirement
-  could be sidestepped by the very keyfile it retires.
-
-  ⚠️ An atSign whose legacy credential has been retired refuses legacy
-  authentication as an authentication failure naming the remedy, rather than
-  surfacing a keystore exception. A retired credential cannot re-create
-  itself: the record's absence means "never existed" only while a usable
-  legacy key is still there, because removing the record always takes that key
-  too. A usable key is necessary and not sufficient — see the entries above on
-  emptiness and on minting only for an atSign that holds no enrollment.
-
-- feat: the housekeeping enrollment appears in `enroll:list` like any other.
-  The roster genuinely contains it, and hiding it would make the verb lie
-  about what can authenticate against the atSign.
+- fix: legacy PKAM authentication against an ABSENT `at_pkam_publickey`
+  refuses as an authentication failure naming the remedy, rather than
+  surfacing a keystore exception. `keyStore.get` throws for a missing key
+  rather than returning null, so the handler's own "pkam publickey not found"
+  guard never saw that case. An atSign onboarded through `enroll:request`
+  holds no flat credential at all, so the message says to authenticate with
+  the enrollment id the keyfile carries.
 
 - BREAKING: an `enroll:request` auto-approved on a CRAM connection no longer
   writes `at_pkam_publickey`. It used to copy the enrolling app's APKAM public
@@ -938,61 +662,6 @@
   restore itself from. Two devices reconnecting together was enough. The walk
   and the cap that follows it are now one critical section.
 
-- feat: retiring the housekeeping enrollment removes the legacy PKAM public
-  key with it, which is what makes the atSign's oldest credential retirable at
-  all. That key is what legacy authentication verifies against, and it cannot
-  be deleted over the wire — the delete verb refuses `privatekey:` keys on
-  grammar — so the pre-remove hook is the only path that removes it.
-
-  Deliberately without a discriminator: both ways the record can go should
-  take the key — expiry, once a retrofit's successor has proved itself, and
-  `enroll:delete` on a revoked one — so the hook not being able to tell them
-  apart stops mattering. It is also what lets absence be READ: with the key
-  always going at the same moment, a missing record alongside a present key
-  can only mean the record never existed, which is how a bootstrap is told
-  from a retirement.
-
-  ⚠️ Legacy authentication against an absent key now refuses as an
-  authentication failure rather than surfacing a keystore exception.
-  `keyStore.get` throws for a missing key rather than returning null, so the
-  handler's own "pkam publickey not found" guard never saw that case. It did
-  not matter while an absent key meant a broken atSign; it matters now that it
-  means a retired credential.
-
-- BREAKING: a legacy-PKAM connection's own `enroll:request` is a RETROFIT of
-  the housekeeping enrollment, not a way to enrol a different app. It
-  authenticates AS that enrollment, so the enrollment it authenticated as is
-  the one it replaces: auto-approved, with no human step and no OTP, carrying
-  exactly that enrollment's grants. This is what gives the atSign's oldest
-  keyfile the no-approver upgrade path every other credential already had.
-
-  ⚠️ It NARROWS what that request could do. A legacy connection asking for a
-  different app's namespaces is now refused, because a retrofit may not choose
-  its grants. Admitting a new app from a legacy connection goes through the
-  OTP path — the legacy connection MINTS the otp and the new app sends its own
-  request over its own unauthenticated connection — which is the path that
-  exists for it.
-
-  The once-off rule applies here too: several sibling clones of one legacy
-  keyfile may each retrofit the housekeeping enrollment, which is the
-  behaviour the cap re-arms for, but a successor of it may not retrofit again.
-
-  ⚠️ Three sites, not one, and the two beyond the obvious gate are where this
-  would have failed silently. The duplicate-request check runs hundreds of
-  lines EARLIER and throws on a same-(appName, deviceName) approved
-  enrollment — which a retrofit keeps — so widening only the gate would have
-  looked like doing nothing at all. And the mandatory-namespace check exempts
-  the paths that fill grants in on the request's behalf; a retrofit is one, so
-  a legacy request omitting namespaces was refused for not stating any.
-
-  The CRAM ordering is now PINNED rather than resting on statement order. A
-  CRAM connection must never receive retrofit treatment — at_auth throws
-  unless a first enrollment comes back `approved`, so onboarding would break
-  for every new user — and it avoids the branch only because the auto-approve
-  block returns first. The gate names its two auth types explicitly instead of
-  negating CRAM, and a test asserts a CRAM enrollment is minted rather than
-  replaced.
-
 - fix: `update:meta` is authorised like `update` rather than refused to every
   enrollment (#2691). `UpdateMeta` extends `Verb` and not `Update`, and
   appeared in neither the read nor the write allow-list, so the per-namespace
@@ -1001,11 +670,9 @@
   write: it now requires `rw` on the key's namespace, and read access does not
   carry it.
 
-  It survived this long because a connection carrying no enrollment id skipped
-  the enrollment check entirely, and that was every legacy-PKAM and CRAM
-  connection — so the paths that exercise `update:meta` most never reached the
-  gate. Giving the legacy credential an enrollment is what made it reachable,
-  and four functional tests found it immediately.
+  It survived this long because a connection carrying no enrollment id skips
+  the enrollment check entirely, so the paths that exercise `update:meta` most
+  never reach the gate at all.
 
 - BREAKING: the enrollment that keeps an atSign recoverable must be
   PERMANENT. The refusals that stop an atSign stranding itself asked whether
@@ -1027,10 +694,10 @@
   The same question gates the retrofit cap's decline, so a predecessor is now
   spared in one case more than before.
 
-  ⚠️ APPROVED is load-bearing rather than incidental, and the housekeeping
-  enrollment below is why it is worth saying: it is a permanent root that
-  would otherwise satisfy this on every atSign forever, and it can be revoked
-  like any other. A revoked one stops counting the moment it is revoked.
+  ⚠️ APPROVED is load-bearing rather than incidental. The walk runs while the
+  records a cascade is about to take are still `approved` on disk, so counting
+  one that is leaving reports the atSign safe at the moment its last usable
+  root is taken away.
 
 - feat: a retrofit carries its predecessor's grants and may not choose them.
   An APKAM-authenticated `enroll:request` replaces the enrollment it

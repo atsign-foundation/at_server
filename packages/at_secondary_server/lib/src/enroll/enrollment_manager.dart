@@ -72,10 +72,9 @@ class EnrollmentManager {
   ///
   /// That is only safe because a read is read-only, which it once was not:
   /// [getEnrollmentByFullKey] used to REMOVE a record whose ttl had elapsed,
-  /// so an authorisation check could mutate the store — and for `primary`
-  /// take `at_pkam_publickey` with it — while a mutation of another record
-  /// was in flight. It reports the expiry now and leaves the record to the
-  /// scheduled expired-keys pass.
+  /// so an authorisation check could mutate the store while a mutation of
+  /// another record was in flight. It reports the expiry now and leaves the
+  /// record to the scheduled expired-keys pass.
   ///
   /// One instance per atSign, built once by `AtSecondaryServerImpl`, so an
   /// instance field is the whole of the contention.
@@ -237,359 +236,6 @@ class EnrollmentManager {
         '$atSign');
   }
 
-  /// The enrollment id of the HOUSEKEEPING enrollment — the record that gives
-  /// the atSign's legacy PKAM credential an identity.
-  ///
-  /// The legacy keyfile authenticates with no enrollment id at all, so it has
-  /// never had an enrollment record: nothing states its grants, nothing can
-  /// revoke it, and nothing ever retires it. This record is what a legacy
-  /// connection authenticates AS, so that credential gets the lifecycle every
-  /// other credential already has.
-  ///
-  /// The id is the literal `primary` rather than a generated one, and that is
-  /// load-bearing twice over. It is deterministic, so finding the record is a
-  /// single key read and create-if-absent costs nothing — no scan of the
-  /// keystore, and no new at-rest field to tag it with. And `primary` is
-  /// ALREADY the atSign-wide sentinel for "no enrollment id":
-  /// `abstract_update_verb_handler` substitutes it into its authorisation
-  /// message, and a client with no enrollment publishes its signing key at
-  /// `public:_apsk.primary.a.__e@<atSign>`. That published key therefore
-  /// becomes this enrollment's per-enrollment data as soon as the record
-  /// exists, so revoking or expiring the legacy credential parks its signing
-  /// key exactly as it does for any other enrollment. Nothing retires it
-  /// today.
-  static const String housekeepingEnrollmentId = 'primary';
-
-  /// The housekeeping enrollment, creating it if this atSign has none.
-  ///
-  /// Called on every legacy PKAM authentication, so the already-created case
-  /// is one key read and no write.
-  ///
-  /// The record holds NO credential of its own: `apkamPublicKey` is stored
-  /// EMPTY, and that is the point of it rather than an omission. Legacy PKAM
-  /// verifies against the LIVE `at_pkam_publickey` in the keystore and never
-  /// against this record, so a copy here is read by nothing and can only go
-  /// stale — one credential with two at-rest spellings that nothing keeps in
-  /// step, where every divergence is either a stranding or an authentication
-  /// against a key the atSign has replaced.
-  ///
-  /// Empty is also what makes APKAM-as-`primary` impossible BY CONSTRUCTION.
-  /// An APKAM authentication takes the public key off the record and refuses
-  /// an absent or empty one before any signature is looked at, so there is no
-  /// key for such a signature to verify against however the id reaches the
-  /// lookup. The identifier comparison that also refuses it now sees the same
-  /// spelling the keystore does — ids are folded at the point they arrive, so
-  /// a spelling that RESOLVES to this record also compares equal to the
-  /// literal id and is refused by name. The empty key is what makes that
-  /// belt-and-braces rather than the only defence.
-  ///
-  /// An existing record is returned exactly as stored, whatever its status.
-  /// Re-approving a revoked housekeeping enrollment here would make legacy
-  /// authentication a way to undo its own revocation.
-  ///
-  /// Created `approved`, fully privileged, and with no expiry — it stands for
-  /// the credential the atSign was onboarded with. It carries NO approver: no
-  /// enrollment admitted it, the server created it for itself, so no
-  /// revocation cascade can reach it. That is deliberate rather than an
-  /// oversight — a cascade able to sweep it away would strand the very
-  /// credential it exists to govern.
-  ///
-  /// This method takes no section of its own for the already-created case;
-  /// only the CREATE is serialised. Its authentication caller holds the
-  /// enrollment-mutation section across the whole call, because admitting a
-  /// connection AS this record is a decision about this record's state, so on
-  /// that path the read is already serialised and the create's own
-  /// [serialiseMutation] is the re-entrant case.
-  ///
-  /// The split is what makes the method safe for a caller holding nothing:
-  /// the create re-asks its question inside the section, because
-  /// `enroll:delete` of this record removes the legacy key in the same
-  /// breath, so a decision taken outside would re-create the identity that
-  /// delete had just retired.
-  ///
-  /// Returns NULL when the record is absent and must not be created. The
-  /// caller must refuse the authentication rather than treat it as a
-  /// bootstrap. Two states reach it, and neither is a bootstrap:
-  ///
-  ///   * there is no usable legacy key — the credential has been RETIRED,
-  ///     because removing this record always takes the key with it;
-  ///   * the atSign already holds an enrollment record. A legacy credential
-  ///     authenticates before any enrollment exists — that is what the legacy
-  ///     flow IS — so a key that turns up on a populated store WHILE THE
-  ///     SERVER IS RUNNING arrived some other way, and minting an unexpiring
-  ///     root for it is the dual-identity bug this record exists to end.
-  ///
-  /// That second refusal is not what an atSign UPGRADING to a server that has
-  /// this record meets. Its existing credential is adopted at startup instead,
-  /// by [adoptLegacyCredential], from the store the previous run left and
-  /// before any client can reshape it — so by the time this path can be
-  /// reached, an atSign that had a legacy credential already has the record
-  /// for it, and this path is left to the genuinely fresh atSign it was
-  /// written for.
-  Future<EnrollDataStoreValue?> ensureHousekeepingEnrollment() async {
-    try {
-      return await getEnrollmentById(housekeepingEnrollmentId);
-    } on KeyNotFoundException {
-      // Absent — but absent says nothing on its own, and this is the
-      // distinction the whole retirement path rests on.
-    }
-    return serialiseMutation(_createHousekeepingEnrollment);
-  }
-
-  /// [ensureHousekeepingEnrollment]'s create half, under the mutation lock.
-  Future<EnrollDataStoreValue?> _createHousekeepingEnrollment() async {
-    // Asked again now that nothing else is writing. The read above ran
-    // outside the section, so a create or a retirement may have landed while
-    // this call waited.
-    try {
-      return await getEnrollmentById(housekeepingEnrollmentId);
-    } on KeyNotFoundException {
-      // Still absent.
-    }
-
-    // Whether absence means "never existed" or "already retired" is decided by
-    // re-reading the legacy key, because removing this record ALWAYS takes
-    // `at_pkam_publickey` with it. Key still usable => the record never
-    // existed and this is a bootstrap. Key gone => it was retired, and
-    // re-creating it would resurrect a credential the atSign has finished
-    // with, indefinitely.
-    //
-    // The read is deliberately made HERE rather than taken from the caller.
-    // Removing this record takes the legacy key with it, via the pre-remove
-    // hook, and the server's scheduled expired-keys pass removes an expired
-    // record like any other — so a key the caller read moments ago, to verify
-    // the signature, may already be gone by the time we get here. Re-reading
-    // is what closes that window rather than widening it.
-    if (await legacyPkamPublicKey() == null) {
-      logger.info('Not creating the housekeeping enrollment: '
-          '${AtConstants.atPkamPublicKey} is absent or empty, so there is no '
-          'credential for the record to stand for');
-      return null;
-    }
-
-    // A LEGACY credential is one the atSign held BEFORE any enrollment did.
-    // Authenticating with no enrollment id at all is what the legacy flow IS,
-    // and it is the flow an atSign is onboarded through, while nothing has yet
-    // enrolled. So the identity is minted only on a store holding no
-    // enrollment record, and refused on every other.
-    //
-    // This is strict precisely BECAUSE it runs lazily, with a client already
-    // connected and able to have arranged what it is about to read. The
-    // credential an established atSign genuinely holds is adopted at startup
-    // by [adoptLegacyCredential], where that is not true; what reaches this
-    // refusal is a key that appeared at `at_pkam_publickey` after the server
-    // was up, on an atSign that has been enrolled.
-    //
-    // The narrower rule this replaces asked whether the key was some
-    // enrollment's own `apkamPublicKey` — older servers' CRAM auto-approve
-    // branch wrote the enrolling app's key here "for old clients". That keyed
-    // the decision on a record the holder of that key CONTROLS, and it was
-    // defeated end to end in four wire commands: `enroll:revoke:force` on
-    // itself, since the force flag alone lifts the self-revoke refusal;
-    // `enroll:delete` on itself, since a caller may always delete its own
-    // enrollment and so demonstrates no `__manage`; and then a legacy
-    // authentication minted `primary` at `*:rw` + `__manage:rw` with no
-    // approver and no expiry. `enroll:update` reached the same end without
-    // deleting anything — an app rotating its own APKAM key leaves the
-    // orphaned keypair at `at_pkam_publickey` with no record holding it.
-    //
-    // Asking about the STORE is what makes that arrangement expensive rather
-    // than impossible: the defeat above touched only the attacker's OWN
-    // record and left the atSign otherwise intact, while emptying the roster
-    // means destroying every other credential on the atSign first.
-    //
-    // Declining is a REFUSAL, not a repair. Nothing here deletes the key:
-    // this server cannot tell such a key from one an owner provisioned on
-    // purpose, so removing it would lock an owner out rather than tidy up
-    // after an app. The atSign is left exactly as it was, with legacy
-    // authentication refused.
-    //
-    // The STORED roster, expired records included, because this is a question
-    // about the atSign's whole history rather than about what the keystore is
-    // serving this second. The visible roster empties BY EXPIRY: an enrollment
-    // carries its APKAM key-expiry posture as its ttl, so on an atSign whose
-    // only enrollments have elapsed and not yet been reaped the visible roster
-    // reads empty while the records are still on disk. One record, moved from
-    // live to a ttl a minute in the past and left exactly where it was, is the
-    // whole difference between the mint being refused and an unexpiring,
-    // no-approver root being handed to whoever holds the flat key. Nothing
-    // clears that key on the way past, either: the pre-remove hook takes
-    // `at_pkam_publickey` only for `primary`, so reaping any OTHER enrollment
-    // leaves it behind for the next legacy authentication to find.
-    final List<String> stored =
-        await getAllEnrollmentKeys(includeExpired: true);
-    if (stored.isNotEmpty) {
-      logger.warning('Not creating the housekeeping enrollment: this atSign '
-          'already holds ${stored.length} enrollment record(s), so the key at '
-          '${AtConstants.atPkamPublicKey} did not authenticate before any '
-          'enrollment existed and is not a legacy credential. Legacy '
-          'authentication is refused rather than minting an unexpiring root '
-          'for it; enrol through enroll:request instead');
-      return null;
-    }
-
-    return _mintHousekeepingEnrollment();
-  }
-
-  /// Writes the housekeeping enrollment record, having been told by a caller
-  /// that it should exist.
-  ///
-  /// Shared by the two paths that may create it — [adoptLegacyCredential] at
-  /// server startup and [_createHousekeepingEnrollment] on a first legacy
-  /// authentication — so that the record is IDENTICAL whichever minted it.
-  /// The two differ only in the evidence they demand beforehand; a record that
-  /// carried which path made it would be a difference nothing reads and
-  /// everything downstream would then have to allow for.
-  ///
-  /// Decides nothing. Every refusal belongs to the caller, which is what lets
-  /// each of them log the reason it declined in its own words.
-  ///
-  /// Runs INSIDE [serialiseMutation]; both callers hold the section.
-  Future<EnrollDataStoreValue> _mintHousekeepingEnrollment() async {
-    // EMPTY, never a snapshot of the legacy key. See
-    // [ensureHousekeepingEnrollment]: the record is an identity for the legacy
-    // credential, not a second copy of it, and an empty key is what makes an
-    // APKAM authentication naming this enrollment fail closed at the
-    // verifier's own emptiness guard.
-    final EnrollDataStoreValue value = EnrollDataStoreValue(
-      Uuid().v4(),
-      'legacy',
-      'legacy',
-      '',
-    )
-      ..namespaces = {
-        EnrollmentConstants.allNamespaces: 'rw',
-        EnrollmentConstants.enrollManageNamespace: 'rw',
-      }
-      ..approval = EnrollApproval(EnrollmentStatus.approved.name);
-
-    logger.info('Creating the housekeeping enrollment '
-        '$housekeepingEnrollmentId for this atSign\'s legacy PKAM credential');
-    await put(
-      housekeepingEnrollmentId,
-      AtData()..data = jsonEncode(value.toJson()),
-      EnrollmentStatus.approved,
-    );
-    return value;
-  }
-
-  /// Gives this atSign's EXISTING legacy PKAM credential its enrollment
-  /// identity, at SERVER STARTUP, before any client can connect.
-  ///
-  /// Returns the record this call minted, or NULL when it minted none —
-  /// because the atSign already has one, because it holds no usable legacy
-  /// credential, or because the credential it holds is refused below.
-  ///
-  /// ⚠️ WHY STARTUP IS THE ONLY MOMENT THIS CAN BE DECIDED.
-  ///
-  /// The question is whether the keypair at `at_pkam_publickey` is the
-  /// atSign's own legacy credential or some app's APKAM key left there by an
-  /// older server's CRAM auto-approve branch, which wrote the enrolling app's
-  /// key there "for old clients". Every gate that asked it LAZILY — on the
-  /// first legacy authentication — asked a client that had already had the
-  /// run of the atSign, and so could reshape whatever the gate was about to
-  /// read. An equality check against the enrollment roster fell to three wire
-  /// commands: `enroll:revoke:force` on itself, `enroll:delete` on itself, and
-  /// then a legacy authentication over the record's own grave. Here no client
-  /// has connected, and the store is exactly what the previous run left.
-  ///
-  /// So the roster question the lazy path still asks — has this atSign ever
-  /// been enrolled? — is NOT asked here, and must not be. Asking it would
-  /// refuse every atSign that has ever enrolled an app, which is nearly all of
-  /// them: they hold enrollments, they hold a working legacy keyfile, and they
-  /// hold no `primary`, so their valid legacy authentication would be refused
-  /// with no route back — `otp:get` needs an authenticated connection, a
-  /// self-retrofit may not ask for `*`, and the CRAM secret is long gone.
-  ///
-  /// What IS asked is the vestigial check: the key is refused when it is some
-  /// stored enrollment's own `apkamPublicKey`, which is exactly the shape the
-  /// CRAM auto-approve branch left behind. Over the STORED roster, expired
-  /// records included, so that an enrollment whose ttl has elapsed and whose
-  /// record is still on disk still speaks.
-  ///
-  /// ⚠️ What it does NOT close: an app that rotated its own APKAM key through
-  /// `enroll:update` during an EARLIER run leaves the superseded keypair at
-  /// `at_pkam_publickey` with no record naming it, so no comparison here can
-  /// recognise it. Startup removes the attacker's ability to arrange the
-  /// evidence NOW; it cannot un-arrange evidence persisted before this process
-  /// existed. The residue costs such an app permanence rather than access — it
-  /// already holds an approved APKAM enrollment — and the price of closing it
-  /// by refusing populated stores is stranding every upgrading atSign.
-  ///
-  /// An absent record with a usable key means the identity never existed:
-  /// removing this record ALWAYS takes `at_pkam_publickey` with it, so a
-  /// retired credential presents as a missing key rather than as a missing
-  /// record, and is refused on that branch instead.
-  Future<EnrollDataStoreValue?> adoptLegacyCredential() =>
-      serialiseMutation(_adoptLegacyCredential);
-
-  /// [adoptLegacyCredential]'s body, under the mutation lock.
-  Future<EnrollDataStoreValue?> _adoptLegacyCredential() async {
-    try {
-      await getEnrollmentById(housekeepingEnrollmentId);
-      // Present, whatever its state. Adoption is a one-time act: re-minting
-      // over a revoked or expired record would make a restart a way to undo
-      // the atSign's only means of withdrawing the legacy credential.
-      return null;
-    } on KeyNotFoundException {
-      // Absent — which says nothing on its own; the branches below decide.
-    }
-
-    final String? legacyKey = await legacyPkamPublicKey();
-    if (legacyKey == null) {
-      logger.info('Not adopting a legacy PKAM credential: '
-          '${AtConstants.atPkamPublicKey} is absent or empty, so there is no '
-          'credential for the record to stand for');
-      return null;
-    }
-
-    for (final String ek in await getAllEnrollmentKeys(includeExpired: true)) {
-      final AtData? record;
-      try {
-        record = await keyStore.get(ek);
-      } on KeyNotFoundException {
-        continue;
-      }
-      final String? raw = record?.data;
-      // FAIL CLOSED on a record that cannot be read. An unreadable record
-      // cannot be shown NOT to hold this key, and adopting on the strength of
-      // a record nobody could parse is how a vestigial key becomes a permanent
-      // root. Declining leaves the atSign exactly where it was — legacy
-      // authentication refused — which is the state it is in before this runs.
-      if (raw == null) {
-        logger.severe('Not adopting a legacy PKAM credential: enrollment '
-            'record $ek carries no data, so it cannot be shown not to hold '
-            'the key at ${AtConstants.atPkamPublicKey}');
-        return null;
-      }
-      final EnrollDataStoreValue other;
-      try {
-        other = EnrollDataStoreValue.fromJson(jsonDecode(raw));
-      } catch (e) {
-        logger.severe('Not adopting a legacy PKAM credential: enrollment '
-            'record $ek does not decode ($e), so it cannot be shown not to '
-            'hold the key at ${AtConstants.atPkamPublicKey}');
-        return null;
-      }
-      if (other.apkamPublicKey == legacyKey) {
-        logger.warning('Not adopting a legacy PKAM credential: the key at '
-            '${AtConstants.atPkamPublicKey} is enrollment '
-            '${getIdFromKey(ek)}\'s own APKAM credential, so it is a copy an '
-            'enrollment left behind rather than a credential this atSign was '
-            'onboarded with. Minting an unexpiring root for it would give one '
-            'keypair two identities; that app authenticates with its '
-            'enrollment id as it already does');
-        return null;
-      }
-    }
-
-    final EnrollDataStoreValue value = await _mintHousekeepingEnrollment();
-    logger.shout('Adopted this atSign\'s legacy PKAM credential as enrollment '
-        '$housekeepingEnrollmentId: it is now on the roster, it can be '
-        'revoked, and a retrofit can retire it');
-    return value;
-  }
-
   /// The atSign's legacy PKAM credential, or NULL when it holds none that
   /// could authenticate anybody.
   ///
@@ -598,9 +244,9 @@ class EnrollmentManager {
   /// `publicKey.isEmpty` guard, which covers the legacy and APKAM branches
   /// alike — so a zero-length value is a credential nobody can authenticate
   /// with, and every caller here must read it exactly as it reads the key
-  /// being gone. Anything else lets a record stand over a key that cannot
-  /// work, which is the phantom [hasUnexpiringRootEnrollment] refuses to
-  /// count.
+  /// being gone: an empty value is not a credential, so it must not be
+  /// counted as one by [hasUnexpiringRootEnrollment], which is the caller
+  /// that decides whether an act would strand the atSign.
   ///
   /// Zero-length is a state the atSign can genuinely be found in: the `update`
   /// grammar demands a non-empty value, but `update:json` carries the value
@@ -843,35 +489,6 @@ class EnrollmentManager {
       logger.info('_preRemove: $sekKey has already been removed');
     }
 
-    // The housekeeping enrollment going takes the legacy PKAM public key with
-    // it, and that is the whole of what makes the legacy credential
-    // retirable: the key is what legacy authentication verifies against, so
-    // removing it is removing the credential. This hook is the only path that
-    // removes this record — not because it is a protected key, which it is
-    // not in any way that bites, but because the delete verb refuses
-    // `privatekey:` keys on GRAMMAR.
-    //
-    // Deliberately WITHOUT a discriminator. Both ways the record can go
-    // should take the key with it — expiry, once a retrofit's successor has
-    // proved itself, and `enroll:delete` on a revoked one — so the fact that
-    // this hook cannot tell those apart stops mattering.
-    //
-    // It is also what lets absence be read: with the key always going at the
-    // same moment, a missing record plus a present key can only mean the
-    // record never existed, which is how a bootstrap is told from a
-    // retirement.
-    if (enId == housekeepingEnrollmentId) {
-      if (await keyStore.exists(AtConstants.atPkamPublicKey)) {
-        logger.warning('_preRemove: retiring the legacy PKAM credential — '
-            'removing ${AtConstants.atPkamPublicKey} with the housekeeping '
-            'enrollment');
-        await keyStore.remove(AtConstants.atPkamPublicKey, skipCommit: true);
-      } else {
-        logger.info('_preRemove: ${AtConstants.atPkamPublicKey} has already '
-            'been removed');
-      }
-    }
-
     await movePerEnrollmentData(enId,
         to: EnrollmentConstants.perEnrollmentDeleted);
   }
@@ -955,9 +572,9 @@ class EnrollmentManager {
   /// authorisation check, all of it deliberately outside the atSign's one
   /// enrollment-mutation critical section — so the reap was a store mutation
   /// taken by a reader that had decided nothing, while a mutation of another
-  /// record was in flight. For `primary` it was worse than untidy: `remove`
-  /// fires the pre-remove hook, which takes `at_pkam_publickey` with it, so an
-  /// authorisation check could retire the atSign's legacy credential.
+  /// record was in flight. `remove` also fires the pre-remove hook, which
+  /// does several awaits of per-enrollment data movement — work an
+  /// authorisation check taken on every verb command has no business running.
   ///
   /// The manager's own readers had already worked around it one at a time —
   /// [approvedRootEnrollmentsAmong], [_approverIdOf] and the descendant walk
@@ -1400,11 +1017,11 @@ class EnrollmentManager {
   /// was asking, so the same atSign was safe or stranded according to which
   /// credential ran the verb.
   ///
-  /// ⚠️ APPROVED is load-bearing, not incidental. The housekeeping enrollment
-  /// is a permanent root and would otherwise satisfy this on every atSign
-  /// forever — but it can be REVOKED like any other, and a revoked one must
-  /// stop counting the moment it is. Counting it would report the atSign safe
-  /// at exactly the moment its last usable root was taken away.
+  /// ⚠️ APPROVED is load-bearing, not incidental. Any approved, permanent,
+  /// fully privileged record can be REVOKED, and this walk runs while the
+  /// records a cascade is about to take are still `approved` on disk — so
+  /// counting one that is leaving reports the atSign safe at exactly the
+  /// moment its last usable root is taken away.
   ///
   /// Full privilege rather than the ability to approve, because approving is
   /// checked per namespace against what the approver itself holds — `__manage`
@@ -1429,6 +1046,24 @@ class EnrollmentManager {
   /// the very enrollments the act is about to remove — and report the atSign
   /// safe at the moment it is being stranded.
   Future<bool> hasUnexpiringRootEnrollment(Set<String> excluding) async {
+    // The FLAT credential counts, and it is asked about first because it is
+    // one key read against a whole-keystore walk.
+    //
+    // It is a usable root by every measure this method applies: a `pkam:`
+    // carrying no enrollment id is verified against it and the connection it
+    // admits is authorised for everything, it is answerable to no approval
+    // state, and it carries no expiry — nothing on a timer takes it away.
+    // There are atSigns in the field whose ONLY credential is this key, and
+    // for them it is the sole answer to "could this atSign approve a
+    // replacement afterwards?".
+    //
+    // [excluding] does not reach it: that set names enrollments an act is
+    // about to remove, and no enroll: verb can remove this key. It is read
+    // live rather than counted from a record, because its existence IS its
+    // state — there is no record, and a non-empty value at that key is
+    // exactly what authentication itself requires.
+    if (await legacyPkamPublicKey() != null) return true;
+
     final excludedKeys = excluding.map(buildEnrollmentKey).toSet();
     // The STORED roster. The two views cannot differ in the answer — a record
     // the visible roster omits is either not `approved` here or carries the
@@ -1445,7 +1080,7 @@ class EnrollmentManager {
         continue;
       }
       if (other.approval?.state != EnrollmentStatus.approved.name) continue;
-      if (!await isUsableRootEnrollment(getIdFromKey(ek), other)) continue;
+      if (!isUsableRootEnrollment(getIdFromKey(ek), other)) continue;
       final AtData? record = await keyStore.get(ek);
       if (record?.metaData?.expiresAt == null) return true;
     }
@@ -1478,12 +1113,9 @@ class EnrollmentManager {
   /// not that one could be produced for it.
   ///
   /// Possession is established where the key is WRITTEN instead, which is the
-  /// one moment the server can demand a proof. `enroll:update` refuses a new
-  /// `apkamPublicKey` without a signature by the private half of the key being
-  /// installed, and an `update` of `at_pkam_publickey` over an atSign that
-  /// already holds the housekeeping record refuses one on the same terms. The
-  /// housekeeping record itself is minted only by a legacy authentication that
-  /// has already verified a signature against the key it stands over.
+  /// one moment the server can demand a proof: `enroll:update` refuses a new
+  /// `apkamPublicKey` without a signature by the private half of the key
+  /// being installed.
   ///
   /// What that leaves uncovered, stated so nobody has to rediscover it:
   /// `enroll:request` installs an `apkamPublicKey` with no proof at all, so an
@@ -1491,24 +1123,27 @@ class EnrollmentManager {
   /// holding a key nobody holds. Its possession is proved on its first `pkam:`
   /// and not before.
   ///
-  /// The credential is in a different place for the housekeeping enrollment
-  /// than for every other, which is why this is a method rather than a getter
-  /// on the record. `primary` is an IDENTITY for the legacy keyfile and holds
-  /// an empty `apkamPublicKey` by construction, so its credential is the live
-  /// `at_pkam_publickey`; every other enrollment carries its own key in its
-  /// own record.
+  /// MEASURED, in three arms differing only in the bytes stored at a root's
+  /// public key: a well-formed key whose private half was never persisted
+  /// left that root counted as the atSign's surviving unexpiring root — the
+  /// bar is a credential something can authenticate with, and a well-formed
+  /// orphan passes it — while nothing could authenticate as it, so revoking
+  /// the last root that really worked was permitted. Stored EMPTY it was not
+  /// counted and the revoke was refused; left alone it was counted and
+  /// authentication worked. The server cannot tell an orphan from a live key
+  /// after the fact, which is why the demand is made at the write.
+  ///
+  /// [enrollmentId] identifies the record for the caller's own reporting; the
+  /// verdict is a property of [value] alone. The FLAT credential is not an
+  /// enrollment and is not asked about here — it has no record to be passed
+  /// in. [hasUnexpiringRootEnrollment] reads it directly.
   ///
   /// This is NOT the question `isRootPrivilegedConnection` asks. That one
-  /// decides what an already-authenticated connection may do, and a legacy
-  /// connection is authenticated as `primary` — demonstrably assumable, since
-  /// it is being assumed. This one asks whether a record would still be there
-  /// to authenticate as afterwards.
-  Future<bool> isUsableRootEnrollment(
-      String enrollmentId, EnrollDataStoreValue value) async {
+  /// decides what an already-authenticated connection may do. This one asks
+  /// whether a record would still be there to authenticate as afterwards.
+  bool isUsableRootEnrollment(
+      String enrollmentId, EnrollDataStoreValue value) {
     if (!value.isRootEnrollment) return false;
-    if (canonicalEnrollmentId(enrollmentId) == housekeepingEnrollmentId) {
-      return await legacyPkamPublicKey() != null;
-    }
     return value.apkamPublicKey.isNotEmpty;
   }
 
@@ -1553,7 +1188,7 @@ class EnrollmentManager {
         continue;
       }
       if (value.approval?.state != EnrollmentStatus.approved.name) continue;
-      if (await isUsableRootEnrollment(id, value)) roots.add(id);
+      if (isUsableRootEnrollment(id, value)) roots.add(id);
     }
     return roots;
   }
@@ -2157,7 +1792,7 @@ class EnrollmentManager {
           // once for a successor that arms.
           final successorExpiry =
               (await keyStore.get(key))?.metaData?.expiresAt;
-          if (await isUsableRootEnrollment(predecessorId, predecessor) &&
+          if (isUsableRootEnrollment(predecessorId, predecessor) &&
               !await hasUnexpiringRootEnrollment({predecessorId})) {
             // The REMEDY is named, because a decline is otherwise a dead end
             // the operator cannot see out of. An atSign whose only root asks

@@ -63,11 +63,9 @@ void main() {
       ).toJson();
 
       expect(json.containsKey('byEnrollmentId'), false,
-          reason: 'a CRAM or owner connection carries no enrollment id, and '
-              'an absent key says that more plainly than a null. NOT the '
-              'legacy-PKAM case: a legacy connection authenticates as the '
-              'housekeeping enrollment, so what it revokes records `primary` '
-              'here');
+          reason: 'a connection carrying no enrollment id — CRAM, owner or '
+              'legacy PKAM — has none to record, and an absent key says that '
+              'more plainly than a null');
       expect(json.containsKey('cascadedFrom'), false);
       expect(json.keys.toSet(), {'event', 'enrollmentId', 'at', 'namespaces'});
     });

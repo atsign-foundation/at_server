@@ -5,7 +5,6 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
-import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:test/test.dart';
@@ -727,8 +726,7 @@ void main() {
     test('removes nothing while another mutation holds the section', () async {
       // Delete is the one act that is IRREVERSIBLE, and its write takes other
       // records with it: the per-enrollment data goes through the pre-remove
-      // hook, and for the housekeeping record the legacy PKAM key goes too. It
-      // also severs an approval link, which puts everything behind that link
+      // hook. It also severs an approval link, which puts everything behind that link
       // permanently out of reach of a later cascade — so a delete that decided
       // against a store another mutation was rewriting cannot be repaired
       // afterwards.
@@ -768,111 +766,6 @@ void main() {
               'a statement about the lock rather than about latency — and '
               'this needs no serialisation, so it stays green when the '
               'critical section is removed');
-    });
-  });
-
-  group('minting the legacy identity', () {
-    /// The one state the housekeeping enrollment is minted in: a keystore
-    /// holding a usable `at_pkam_publickey` and NO enrollment record at all.
-    ///
-    /// The roster is emptied through [EnrollmentManager.remove] rather than
-    /// through the keystore directly, so the manager's cache goes with it — a
-    /// stale entry would make the re-read inside the section answer from
-    /// before the empty.
-    Future<void> emptyRosterWithLegacyKey() async {
-      for (final ek in await enMgr.getAllEnrollmentKeys(includeExpired: true)) {
-        await enMgr.remove(enId: enMgr.getIdFromKey(ek));
-      }
-      expect(await enrollmentCount(), 0,
-          reason: 'precondition: the store holds no enrollment, which is the '
-              'only state the identity is minted in');
-      await keyValueStore.put(AtConstants.atPkamPublicKey,
-          AtData()..data = 'the-legacy-pkam-key',
-          skipCommit: true);
-    }
-
-    String hKey() =>
-        enMgr.buildEnrollmentKey(EnrollmentManager.housekeepingEnrollmentId);
-
-    test('mints nothing while another mutation holds the section', () async {
-      // Only the CREATE is serialised — the already-created case is answered
-      // outside it, because that is the case every legacy authentication
-      // takes. The create re-asks BOTH of its questions inside the section,
-      // and another mutation can be changing the answer to either:
-      // `enroll:delete` of this record removes the legacy key in the same
-      // breath, so a decision taken outside would re-create the identity that
-      // delete had just retired, and an enrollment landing meanwhile is what
-      // turns a bootstrap into a key that arrived some other way.
-      await emptyRosterWithLegacyKey();
-
-      final (gate, holder) = holdTheSection();
-      final minting = enMgr.ensureHousekeepingEnrollment();
-      await Future<void>.delayed(holdWindow);
-      final existedDuringHold = await keyValueStore.exists(hKey());
-
-      gate.complete();
-      final minted = await minting;
-      await holder;
-
-      expect(existedDuringHold, isFalse,
-          reason: 'the create re-reads the record, the legacy key and the '
-              'whole roster and then writes an unexpiring, fully privileged '
-              'root with no approver — it must not decide that against a '
-              'store another mutation is in the middle of changing');
-      expect(minted, isNotNull);
-      expect(await keyValueStore.exists(hKey()), isTrue,
-          reason: 'and it lands once the section is free — otherwise this '
-              'would be measuring a mint that simply never ran');
-    });
-
-    test('LATENCY CONTROL: unobstructed, the same mint writes inside the same '
-        'window', () async {
-      await emptyRosterWithLegacyKey();
-
-      final minting = enMgr.ensureHousekeepingEnrollment();
-      await Future<void>.delayed(holdWindow);
-      final existedDuringWindow = await keyValueStore.exists(hKey());
-      await minting;
-
-      expect(existedDuringWindow, isTrue,
-          reason: 'the window is ample for the act, so "nothing minted" above '
-              'is a statement about the lock rather than about latency — and '
-              'this needs no serialisation, so it stays green when the '
-              'critical section is removed');
-    });
-
-    test('the ALREADY-CREATED case takes no section of its own', () async {
-      // The other half of the same decision. Only the CREATE is serialised
-      // by this method; the read half takes nothing, which is what lets a
-      // caller that already holds the section reach it without the create's
-      // own serialiseMutation being anything but the re-entrant case. A
-      // legacy authentication is exactly such a caller — admitting a
-      // connection AS this record is a decision about this record's state —
-      // so the split is what keeps the method usable from both sides.
-      await emptyRosterWithLegacyKey();
-      expect(await enMgr.ensureHousekeepingEnrollment(), isNotNull,
-          reason: 'precondition: the record now exists');
-
-      final (gate, holder) = holdTheSection();
-      final sw = Stopwatch()..start();
-      // The gate is completed AFTER this await, so a read that queued behind
-      // the section would never be let through: the failure would be the
-      // runner's 30-second timeout, which names neither this mechanism nor
-      // the assertion below. The deadlock is the mechanism failing, so it
-      // gets a reason of its own.
-      final again = await enMgr.ensureHousekeepingEnrollment().timeout(
-          Duration(seconds: 5),
-          onTimeout: () => fail('the already-created read queued behind the '
-              'held section and never returned: only the CREATE may take the '
-              'section, or a caller that already holds it deadlocks'));
-      sw.stop();
-      gate.complete();
-      await holder;
-
-      expect(again, isNotNull);
-      expect(sw.elapsedMilliseconds, lessThan(holdWindow.inMilliseconds),
-          reason: 'an atSign that already holds the record must answer while '
-              'a mutation is in flight rather than queue behind it');
     });
   });
 }

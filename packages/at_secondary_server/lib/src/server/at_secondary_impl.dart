@@ -487,42 +487,21 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// Everything the keystore needs done before a client can connect, IN THE
   /// ORDER IT HAS TO HAPPEN.
   ///
-  /// A method rather than three statements in [start] because the order is the
-  /// substance: each step below depends on the one above having run, and
-  /// nothing in [start] belongs between them. Separated out so the order can
-  /// be exercised — [start] goes on to bind a socket, so no test drives it,
-  /// and a sequence nothing runs is a sequence anybody can reorder.
+  /// BOTH remove hooks are registered before the expired-keys sweep, and that
+  /// ordering is the substance. `EnrollmentManager.remove` throws a StateError
+  /// unless both are active, because removing an enrollment record has to
+  /// carry its per-enrollment data with it and has to invalidate the cache
+  /// entry for it — so an enrollment reaped by a sweep that ran first would
+  /// leave its encryption keys behind and its cache entry live, authorising
+  /// verbs for the life of the process.
   ///
-  /// 1. THE PRE-REMOVE HOOK, first. From here on, removing an enrollment
-  ///    record has to carry its per-enrollment data with it and, for
-  ///    `primary`, the legacy PKAM key itself. Step 2 puts the first such
-  ///    record on atSigns that have never had one and step 3 removes records,
-  ///    so neither may run in front of the hook that knows what removal means.
-  ///
-  /// 2. ADOPTING THE LEGACY CREDENTIAL, before the sweep — because the sweep
-  ///    DESTROYS the evidence that decision reads. Adoption refuses a key at
-  ///    `at_pkam_publickey` that is some enrollment's own APKAM credential; a
-  ///    record whose ttl has elapsed still answers that question while it is
-  ///    on disk, and the sweep removes it while leaving the flat key behind —
-  ///    the pre-remove hook takes that key only for `primary`. Run after the
-  ///    sweep, adoption reads an emptied roster and mints an unexpiring,
-  ///    no-approver root for a key it has just lost the ability to recognise.
-  ///
-  ///    It is a startup act at all for the same reason: no client has
-  ///    connected, so the store is exactly what the previous run left and
-  ///    nothing has had the chance to arrange it. Every gate that asked this
-  ///    question lazily asked it of a client that had already had the run of
-  ///    the atSign.
-  ///
-  /// 3. THE EXPIRED-KEYS SWEEP, last, so what it removes is what the two
-  ///    steps above have finished with.
+  /// A method rather than two statements in [start] so the order can be
+  /// exercised: [start] goes on to bind a socket, so no test drives it, and a
+  /// sequence nothing runs is a sequence anybody can reorder.
   @visibleForTesting
   Future<void> prepareStoreForFirstConnection() async {
     keyValueStore.preRemoveHooks.add(enrollmentManager.preRemoveHook);
     keyValueStore.postRemoveHooks.add(enrollmentManager.postRemoveHook);
-
-    // A successful adoption logs itself, at `shout`, naming what it did.
-    await enrollmentManager.adoptLegacyCredential();
 
     await keyValueStore.deleteExpiredKeys();
   }

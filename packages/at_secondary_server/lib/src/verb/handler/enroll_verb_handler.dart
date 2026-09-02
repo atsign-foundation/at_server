@@ -489,15 +489,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // CRAM connection, so every repeat clobbered the key again.
       //
       // ⚠️ An atSign onboarded by an older server still holds such a copy,
-      // and nothing removes it automatically. What refuses it is that the
-      // auto-approve wrote the SAME key into an enrollment record in the same
-      // breath: the startup adoption of a legacy credential declines a key at
-      // `at_pkam_publickey` that is some stored enrollment's own
-      // `apkamPublicKey`, so no housekeeping enrollment is minted for the copy
-      // and a legacy authentication with it stays refused. Nothing deletes the
-      // copy either: this server cannot distinguish it from a credential an
-      // owner provisioned on purpose, so removing it would lock an owner out
-      // rather than tidy up after an app.
+      // and nothing removes it automatically: this server cannot distinguish
+      // it from a credential an owner provisioned on purpose, so deleting it
+      // would lock an owner out rather than tidy up after an app. What it
+      // costs that app is permanence rather than access — it already holds an
+      // approved APKAM enrollment, and the copy authenticates as the atSign
+      // itself with no record naming it.
       // Publish the client-composed `_apsk` signing key, if it sent one.
       await _publishApskSigningKey(
           newEnrollmentId, enrollmentValue, currentAtSign);
@@ -806,50 +803,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       String operation,
       Map<dynamic, dynamic> responseJson,
       Response response) async {
-    // Note: The enrollParams.enrollmentId is verified for null check in _validateParams method.
-    // Therefore, when control comes here, enrollmentId will not be null.
-    final String enId = enrollParams.enrollmentId!;
-
-    // `unrevoke` is refused on the housekeeping enrollment outright, and
-    // before anything is read, because there is no state of the record in
-    // which it would be right.
-    //
-    // Revoking that record is how an atSign withdraws its legacy keyfile —
-    // nothing else can, because the credential is a flat key the delete verb
-    // refuses on grammar and the record holds no copy of it to overwrite. The
-    // key is untouched by the revoke, sitting in the keystore exactly as
-    // before, so the record's revoked state is the ONLY thing standing between
-    // that keyfile and full privilege. Un-revoking hands it back — working,
-    // unexpiring and fully privileged — to everyone holding a copy of a file
-    // that predates enrollments: legacy authentication is refused only because
-    // the record reads `revoked`, so flipping the record is all it takes.
-    //
-    // Every other enrollment's un-revoke is gated by
-    // [_refuseIfApproverNotApproved], which will not make an enrollment active
-    // while the enrollment that ADMITTED it is not. `primary` carries no
-    // approver — the server created it for itself, so no cascade can reach it
-    // — which leaves that gate vacuous for the one record whose revocation is
-    // a decision about a credential nothing else governs.
-    //
-    // `revoke` stays available, and so does `enroll:delete`, which takes the
-    // key with the record and finishes the retirement. Getting a working
-    // credential back is a fresh enrollment, not an undo.
-    if (operation == 'unrevoke' &&
-        enId == EnrollmentManager.housekeepingEnrollmentId) {
-      throw AtEnrollmentException(
-          'enroll:unrevoke cannot be used on $enId: it is the atSign\'s legacy '
-          'PKAM identity, and revoking it is the only way to withdraw the '
-          'legacy credential. ${AtConstants.atPkamPublicKey} is untouched by '
-          'that revoke, so un-revoking would hand the credential back, '
-          'working, to every holder of a copy. Enrol a fresh credential '
-          'instead, or finish retiring this one with enroll:delete, which '
-          'removes ${AtConstants.atPkamPublicKey} with the record');
-    }
-
     // Everything below is read-decide-write across the whole store, so it
-    // runs as this atSign's only in-flight enrollment mutation. The refusal
-    // above is decided from the operation and the id alone, reads nothing and
-    // writes nothing, so it stays outside the section.
+    // runs as this atSign's only in-flight enrollment mutation.
     //
     // The SPAN is the point rather than the write. A revoke reads the target,
     // walks its descendants, asks whether any unexpiring root would survive
@@ -1009,12 +964,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // removed too and its own cascade cannot contain it; the cascade is
       // asked about because the enrollments in it are removed by the same act.
       //
-      // Still skipped for a CRAM connection, which carries no enrollment id
-      // and can always mint a fresh enrollment. A legacy-PKAM connection is no
-      // longer skipped: it now carries the housekeeping enrollment's id, and
-      // the exemption's premise — that such an owner can always mint a fresh
-      // enrollment — is exactly what stops being true, because minting one
-      // requires authenticating and authenticating requires that enrollment.
+      // Skipped for a connection carrying no enrollment id — CRAM, owner or
+      // legacy PKAM — because such a connection can always mint a fresh
+      // enrollment, so no act of its can leave the atSign unable to approve a
+      // replacement. The flat credential such a connection may hold is itself
+      // counted as a surviving root by the liveness question below, so the
+      // exemption and that count agree about what the atSign can fall back
+      // on.
       if (callerId != null) {
         // Cheapest question first: this reads one record per enrollment the
         // act removes, while the liveness question below walks the whole
@@ -1247,31 +1203,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   ) async {
     final enId = enrollParams.enrollmentId!;
 
-    // The housekeeping enrollment is refused outright, and BEFORE the
-    // self-only gate below, because that gate cannot refuse it: the gate asks
-    // whether the connection is authenticated as its target, and a legacy
-    // connection is authenticated as exactly this id. So the one identity
-    // this verb must never be pointed at is the one identity that satisfies
-    // the check — a legacy connection could install an APKAM public key of
-    // its choosing on the record, and be told it succeeded.
-    //
-    // It must never be pointed at it because the record holds NO credential:
-    // legacy PKAM verifies against `at_pkam_publickey` in the keystore, and
-    // an empty `apkamPublicKey` on the record is what makes an APKAM
-    // authentication naming this id fail closed. Writing a key into it
-    // reverses that, turning a legacy identity into an APKAM-reachable one
-    // whose lifecycle nothing governs.
-    if (enId == EnrollmentManager.housekeepingEnrollmentId) {
-      throw AtEnrollmentException(
-          'enroll:update cannot be used on $enId: it is the atSign\'s legacy '
-          'PKAM identity and holds no credential of its own. The legacy '
-          'credential is rotated where it lives, with an update of '
-          '${AtConstants.atPkamPublicKey} over a connection authenticated '
-          'with the credential it replaces, sent as update:json carrying '
-          'signingAlgo and apkamPublicKeySignature — the same proof of '
-          'possession this verb demands of every other credential');
-    }
-
     // Self-only. An explicit exception to `isAuthorized`'s "no enrollmentId
     // means full permissions" default: an owner or legacy-PKAM connection is
     // refused here, not waved through. An owner cannot sign anything with this
@@ -1285,7 +1216,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // instead — "primary (the atSign's legacy credential)" — would be
       // correct for exactly one value and would put a conditional in a
       // refusal path, which a test pinning the message would then pin too.
-      // (Wording owed to the at_client_sdk session, 2026-09-01.)
       throw AtEnrollmentException(
           'enroll:update is self-only: this connection is authenticated as '
           '${connectionMetadata.enrollmentId ?? "the owner"}, not $enId. '
@@ -1455,9 +1385,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// The signable happens to name a server-issued enrollment id, which is
   /// unique to the atSign that issued it, so this document is incidentally
   /// bound to one atSign. Nothing rests on that: the authorisation above is
-  /// what stops a replay, and the sibling rotation of the legacy credential —
-  /// `AbstractUpdateVerbHandler.verifyLegacyCredentialPossession` — uses the
-  /// same framing over the constant `primary` and is safe for the same reason.
+  /// what stops a replay.
   Future<void> _verifyApkamPublicKeyPossession({
     required String enrollmentId,
     required String apkamPublicKey,
@@ -2119,8 +2047,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // Read-decide-write from the first line, so the whole of it is one
     // mutation: the record is read, the caller's authority and the record's
     // state are decided against it, and then it is removed — taking its
-    // per-enrollment data, and for the housekeeping record the legacy PKAM
-    // key, with it.
+    // per-enrollment data with it.
     return enMgr.serialiseMutation(() => _deleteEnrollmentUnderLock(
         enMgr, enrollParams, responseJson, response, atConnection));
   }

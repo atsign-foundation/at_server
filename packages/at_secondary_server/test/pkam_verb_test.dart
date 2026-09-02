@@ -185,10 +185,9 @@ void main() async {
       // A READ path must not write. An authorisation check runs on every verb
       // command, outside the atSign's enrollment-mutation critical section, so
       // a reap here is a store mutation taken by a caller that has decided
-      // nothing while another mutation is in flight — and for the housekeeping
-      // record it is worse than untidy, because removing it fires the
-      // pre-remove hook and takes `at_pkam_publickey` with it. An
-      // authorisation check would retire the atSign's legacy credential.
+      // nothing while another mutation is in flight — and `remove` fires the
+      // pre-remove hook, which moves per-enrollment data across several
+      // awaits.
       verifyNever(
           () => mockKeyStore.remove(any(), skipCommit: any(named: 'skipCommit')));
     });

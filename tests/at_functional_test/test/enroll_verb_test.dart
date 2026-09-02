@@ -281,18 +281,11 @@ void main() {
 
     test('a new app admitted from a legacy connection appears in enroll:list',
         () async {
-      // REWRITTEN. This used to send `enroll:request` on the legacy
-      // connection itself and expect `pending`, which is the mechanism that
-      // has been withdrawn: a legacy connection's own enroll:request is now a
-      // RETROFIT of the housekeeping enrollment — auto-approved, inheriting
-      // that enrollment's grants — so it can no longer be used to admit a
-      // different app.
-      //
-      // The intent survives unchanged: admit a second app from the owner's
-      // connection and see it in the roster. The legacy connection MINTS the
-      // OTP and the new app sends its own request over its own
-      // unauthenticated connection, which is the path that exists for this
-      // and the one the withdrawal points callers at.
+      // Admitting a second app from the owner's connection, and seeing it in
+      // the roster. The legacy connection MINTS the OTP and the new app sends
+      // its own request over its own unauthenticated connection, which is the
+      // path that exists for admitting a different app: an authenticated
+      // connection's own enroll:request enrols ITSELF.
       int randomNumber = Uuid().v4().hashCode;
       await firstAtSignConnection.authenticateConnection(
           authType: AuthType.pkam);

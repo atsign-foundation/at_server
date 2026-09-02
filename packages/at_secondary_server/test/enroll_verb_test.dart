@@ -534,9 +534,8 @@ void main() {
       // it encountered it, taking its per-enrollment data with it. That was a
       // store mutation on the path every verb command and every authorisation
       // check takes, all of it outside the atSign's one enrollment-mutation
-      // critical section; and for the housekeeping enrollment `remove` fires
-      // the pre-remove hook, so a read could retire the legacy PKAM
-      // credential.
+      // critical section, and `remove` fires the pre-remove hook, which moves
+      // per-enrollment data across several awaits.
       //
       // The guarantee that mattered — an expired enrollment and its ancillary
       // keys do go away — is unchanged and is the sibling test above: the
@@ -3217,14 +3216,10 @@ void main() {
 
       test('control: an owner connection may still act on it', () async {
         // Why the guards are gated on caller-vs-target rather than applied
-        // unconditionally. A CRAM or owner connection carries no enrollment
-        // id; if it could not reach such a record, the most anomalous
-        // enrollment on the atSign would be the one nothing could clear up.
-        //
-        // ⚠️ This exemption does NOT extend to a legacy-PKAM connection. It
-        // authenticates as the housekeeping enrollment and carries its id, so
-        // it is refused by the gate like any other enrollment — the caller
-        // here is a null id, which is the CRAM case alone.
+        // unconditionally. A connection carrying no enrollment id — CRAM,
+        // owner or legacy PKAM — is the atSign itself; if it could not reach
+        // such a record, the most anomalous enrollment on the atSign would be
+        // the one nothing could clear up.
         final targetId = await anEmptyTarget(status: EnrollmentStatus.approved);
         await runAs(null, 'enroll:revoke:{"enrollmentId":"$targetId"}');
         expect(response.isError, false, reason: '${response.errorMessage}');
@@ -3309,11 +3304,10 @@ void main() {
       });
 
       test('a connection carrying no enrollment id may delete any', () async {
-        // A CRAM or owner connection. Same exemption `enroll:fetch` makes,
-        // and the same one isAuthorized makes for every other verb: a
-        // connection with no enrollment id is the atSign itself. A
-        // legacy-PKAM connection is not one — it carries the housekeeping
-        // enrollment's id and is authorised by that enrollment's grants.
+        // A CRAM, owner or legacy-PKAM connection. Same exemption
+        // `enroll:fetch` makes, and the same one isAuthorized makes for every
+        // other verb: a connection with no enrollment id is the atSign
+        // itself.
         final targetId = await aTarget({'test_namespace': 'rw'});
 
         await deleteAs(null, targetId);
@@ -4214,12 +4208,10 @@ void main() {
       // SURPRISING one and the one worth pinning; the enrollment-vs-
       // enrollment case above is what anyone would guess.
       //
-      // ⚠️ Only a CRAM connection reaches this state now. Legacy PKAM used to
-      // and no longer does — it carries the housekeeping enrollment's id — so
-      // this branch's population shrank to one, and nothing over the wire
-      // reaches it any more without spending an atSign's one-shot CRAM
-      // secret. Pinned here instead, deliberately: the rule is server-side
-      // and needs no wire to prove.
+      // Reached by a CRAM, owner or legacy-PKAM connection — every
+      // connection carrying no enrollment id. Pinned here rather than over
+      // the wire, deliberately: the rule is server-side and needs no wire to
+      // prove.
       final enId = (await etu.createEnrollments(n: 1)).$1.first;
 
       inboundConnection.metaData.isAuthenticated = true;

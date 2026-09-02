@@ -260,11 +260,9 @@ void main() {
           'update:$alice:phone.wavi$alice 123', connection);
 
       expect(connection.closeCount, 0,
-          reason: 'a CRAM or owner connection stands over no enrollment '
-              'record, so there is no approval state for the gate to read. '
-              'This is NOT the legacy-PKAM case: a legacy connection '
-              'authenticates as the housekeeping enrollment and carries its '
-              'id, so it is checked like any other');
+          reason: 'a connection carrying no enrollment id — CRAM, owner or '
+              'legacy PKAM — stands over no enrollment record, so there is no '
+              'approval state for the gate to read');
       expect(response.isError, false);
     });
   });

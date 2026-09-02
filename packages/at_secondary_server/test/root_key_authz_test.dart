@@ -296,12 +296,12 @@ void main() {
       // spelling that lands on this record cannot slip past the guard — but
       // it has moved with the guard.
       //
-      // It has to be asked over a connection carrying no enrollment id, and
-      // the old fixture (the housekeeping id, root privilege withheld) can no
-      // longer ask it: with no carve-out left, an unfolded comparison misses
-      // and the branch refuses that connection anyway, so both spellings give
-      // the identical outcome and the case pins nothing. A connection with no
-      // id is the one the write ban decides on its own.
+      // It has to be asked over a connection carrying no enrollment id. An
+      // ENROLLED connection can no longer ask it: with no carve-out left, an
+      // unfolded comparison misses and the branch refuses that connection
+      // anyway, so both spellings give the identical outcome and the case
+      // pins nothing. A connection with no id is the one the write ban
+      // decides on its own.
       bindCram();
       await keyValueStore.put(
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');

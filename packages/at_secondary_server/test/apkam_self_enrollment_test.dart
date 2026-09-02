@@ -1400,6 +1400,42 @@ void main() {
               'whoever it is — the bar is not special to the legacy identity');
     });
 
+    test('the FLAT credential counts, with no enrollment record at all',
+        () async {
+      // The flat key is a usable root by every measure this walk applies: a
+      // pkam: carrying no enrollment id is verified against it, the
+      // connection it admits is authorised for everything, it answers to no
+      // approval state, and nothing on a timer takes it away.
+      //
+      // Every other case in this group has an enrollment to point at. This
+      // one deliberately has none — that is the whole shape: the atSign holds
+      // the flat key and nothing else, and the roster walk has nothing to
+      // find.
+      await keyValueStore.put(AtConstants.atPkamPublicKey,
+          AtData()..data = 'a flat credential somebody holds',
+          skipCommit: true);
+      expect(await enMgr.hasUnexpiringRootEnrollment({etu.primaryEnId}),
+          isTrue,
+          reason: 'an atSign whose only credential is the flat keyfile can '
+              'still authenticate and mint a fresh enrollment, so it is not '
+              'stranded');
+    });
+
+    test('...while an EMPTY flat credential does not count', () async {
+      // The control for the case above, differing in the VALUE at that key
+      // and in nothing else. Authentication refuses an empty public key
+      // before it looks at a signature, so an empty value and a missing one
+      // are the same credential — none — and counting one would be the
+      // phantom root this walk refuses, arrived at from outside the roster.
+      await keyValueStore.put(AtConstants.atPkamPublicKey,
+          AtData()..data = '',
+          skipCommit: true);
+      expect(await enMgr.hasUnexpiringRootEnrollment({etu.primaryEnId}),
+          isFalse,
+          reason: 'a zero-length value is not a credential, wherever it is '
+              'stored');
+    });
+
     test('...while the same root WITH a key does', () async {
       // The control, and it differs from the test above in the public key and
       // in nothing else: same id, same grants, same status, same absence of a
@@ -1767,8 +1803,7 @@ void main() {
           throwsA(isA<AtEnrollmentRevokeException>()),
           reason: 'the atSign would be left with no root anything holds a '
               'credential for, which is the stranding this refusal exists '
-              'for — reached through an ordinary enrollment rather than '
-              'through the legacy identity');
+              'for');
       expect(await statusOf(etu.primaryEnId), EnrollmentStatus.approved.name,
           reason: 'and refused before anything was written');
     });
@@ -1784,6 +1819,56 @@ void main() {
       final r = await revoke(etu.primaryEnId, etu.primaryEnId, force: true);
       expect(r.isError, false, reason: '${r.errorMessage}');
       expect(await statusOf(etu.primaryEnId), EnrollmentStatus.revoked.name);
+    });
+
+    test('a FLAT credential licenses the last enrollment root\'s revoke',
+        () async {
+      // THE REPLACEMENT COVER, end to end, and the guarantee this refusal
+      // must not quietly lose. An atSign whose only other credential is the
+      // flat key at at_pkam_publickey is NOT stranded by revoking its last
+      // enrollment root: a pkam: carrying no enrollment id still
+      // authenticates against that key, and the connection it admits carries
+      // no id, so it is authorised for everything and can mint a fresh
+      // enrollment. There are atSigns in the field in exactly this shape.
+      //
+      // It is read live rather than counted from a record. The flat
+      // credential has no enrollment record at all — its existence IS its
+      // state — so a walk over the roster alone answers "nothing survives"
+      // and refuses a revoke that strands nobody.
+      await keyValueStore.put(AtConstants.atPkamPublicKey,
+          AtData()..data = 'a flat credential somebody holds',
+          skipCommit: true);
+
+      final r = await revoke(etu.primaryEnId, etu.primaryEnId, force: true);
+      expect(r.isError, false, reason: '${r.errorMessage}');
+      expect(await statusOf(etu.primaryEnId), EnrollmentStatus.revoked.name,
+          reason: 'the flat credential is a usable root, so this act strands '
+              'nobody');
+    });
+
+    test('…while an EMPTY flat credential does not', () async {
+      // The control, and it differs from the case above in the VALUE at that
+      // key and in nothing else — same act, same store, same caller. Without
+      // it the case above is equally satisfied by the refusal having been
+      // removed altogether.
+      //
+      // Empty is reachable rather than theoretical: the update grammar
+      // demands a non-empty value, but update:json carries the value inside
+      // the document. Authentication refuses an empty public key before it
+      // looks at a signature, so an empty value and a missing one are the
+      // same credential — none.
+      await keyValueStore.put(AtConstants.atPkamPublicKey,
+          AtData()..data = '',
+          skipCommit: true);
+
+      await expectLater(
+          () => revoke(etu.primaryEnId, etu.primaryEnId, force: true),
+          throwsA(isA<AtEnrollmentRevokeException>()),
+          reason: 'a zero-length value is a credential nobody can '
+              'authenticate with, so it is not a root the atSign can fall '
+              'back on');
+      expect(await statusOf(etu.primaryEnId), EnrollmentStatus.approved.name,
+          reason: 'and refused before anything was written');
     });
 
     test('an enrollment about to be cascaded away is not counted as the '
@@ -2230,9 +2315,7 @@ void main() {
     ///
     /// It is also the only answer that reaches the clients a revocation
     /// backstop exists for. `enroll:list` narrows to the caller's OWN record
-    /// unless it carries no enrollment id at all or holds `__manage` — a
-    /// legacy connection sees everything by the second of those, since the
-    /// housekeeping enrollment it authenticates as holds `__manage`. So an
+    /// unless it carries no enrollment id at all or holds `__manage`. So an
     /// ordinary app enrollment asking "has anything holding my namespace been
     /// revoked?" through that verb is told, vacuously and forever, no.
     group('enroll:infons carries the last revocation affecting a namespace',
