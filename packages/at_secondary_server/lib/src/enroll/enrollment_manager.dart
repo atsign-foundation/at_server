@@ -123,18 +123,53 @@ class EnrollmentManager {
     return getEnrollmentByFullKey(buildEnrollmentKey(enId));
   }
 
+  /// An enrollment id in the form the keystore holds it in.
+  ///
+  /// An enrollment id is a key COMPONENT, so the keystore's fold applies to it
+  /// whether or not anything above the keystore folds: `' Abc'`, `'A bc'` and
+  /// `'abc'` all address one enrollment record. Comparisons above the store
+  /// are exact `String ==`, so a handler holding an unfolded spelling asks
+  /// about a string that is not on disk while READING AND WRITING the record
+  /// that is — which makes every identity guard on that path answer "not the
+  /// same enrollment" about the enrollment it is acting on.
+  ///
+  /// [canonicalAtKey] rather than a fold spelled out here: the answer has to
+  /// be the keystore's answer, and two spellings of it can drift with nothing
+  /// going red.
+  ///
+  /// Folding rather than REFUSING a non-canonical spelling. The keystore
+  /// already resolves one to the same record, so folding cannot widen which
+  /// record a caller reaches — it only makes the guards ask about the record
+  /// actually being served. Refusing would be stricter but would break
+  /// deployed clients that send a mixed-case id today, which works.
+  static String canonicalEnrollmentId(String enId) => canonicalAtKey(enId);
+
+  /// [canonicalEnrollmentId] for a value that may be absent, so that an entry
+  /// point reading an optional id from the wire can fold it in one step.
+  static String? canonicalEnrollmentIdOrNull(String? enId) =>
+      enId == null ? null : canonicalEnrollmentId(enId);
+
   /// Constructs the enrollment key based on the provided [enId].
   ///
   /// The key format combines the [enId], a new enrollment key pattern,
   /// and the current AtSign.
   ///
+  /// CANONICAL: the composed key is folded to the form the keystore stores it
+  /// under, so the result is byte-identical to what an enumeration such as
+  /// [getAllEnrollmentKeys] returns for that record. That is what lets a key
+  /// built here be COMPARED against an enumerated one — [excluding] in
+  /// [hasUnexpiringRootEnrollment] does exactly that, and a raw key built from
+  /// a non-canonical id silently matched nothing there, so the last-root
+  /// refusal counted the enrollment the act was removing and let an atSign
+  /// lose its last root.
+  ///
   /// Returns:
   ///   A [String] representing the enrollment key.
   String buildEnrollmentKey(String enId) {
-    return '$enId'
+    return canonicalAtKey('$enId'
         '.${EnrollmentConstants.enrollmentKeyPattern}'
         '.${EnrollmentConstants.enrollManageNamespace}'
-        '$atSign';
+        '$atSign');
   }
 
   /// The enrollment id of the HOUSEKEEPING enrollment — the record that gives
@@ -177,11 +212,11 @@ class EnrollmentManager {
   /// An APKAM authentication takes the public key off the record and refuses
   /// an absent or empty one before any signature is looked at, so there is no
   /// key for such a signature to verify against however the id reaches the
-  /// lookup. The identifier comparison that also refuses it is exact, while
-  /// the keystore folds ids on the way in — it trims, lowercases and strips
-  /// spaces — so a spelling that resolves to this very record can compare
-  /// unequal to the literal id. The empty key does not care how the id was
-  /// spelled.
+  /// lookup. The identifier comparison that also refuses it now sees the same
+  /// spelling the keystore does — ids are folded at the point they arrive, so
+  /// a spelling that RESOLVES to this record also compares equal to the
+  /// literal id and is refused by name. The empty key is what makes that
+  /// belt-and-braces rather than the only defence.
   ///
   /// An existing record is returned exactly as stored, whatever its status.
   /// Re-approving a revoked housekeeping enrollment here would make legacy
@@ -444,6 +479,13 @@ class EnrollmentManager {
     required String to,
   }) async {
     if (enIds.isEmpty) return [];
+    // The comparison below is against the `EnId` segment of a key the
+    // KEYSTORE returned, so it is canonical; an id that is not compares
+    // unequal to its own data and the move silently does nothing. A revoke
+    // that moves nothing leaves the enrollment's per-enrollment keys — its
+    // published `_apsk` among them — sitting in the APPROVED location, which
+    // is what every reader of that data goes by.
+    enIds = enIds.map(canonicalEnrollmentId).toSet();
     switch (to) {
       case EnrollmentConstants.perEnrollmentRevoked:
       case EnrollmentConstants.perEnrollmentDeleted:
@@ -480,25 +522,34 @@ class EnrollmentManager {
     }
   }
 
-  String keyForPEK(String enId) => '$enId'
+  /// Canonical for the same reason [buildEnrollmentKey] is: this key is
+  /// compared against keys an enumeration returned — `keys:` authorises a
+  /// caller for its own encryption keys by name, and the orphan sweep matches
+  /// enumerated candidates against built ones.
+  String keyForPEK(String enId) => canonicalAtKey('$enId'
       '.${AtConstants.defaultEncryptionPrivateKey}'
       '.${EnrollmentConstants.enrollManageNamespace}'
-      '$atSign';
+      '$atSign');
 
-  String keyForSEK(String enId) => '$enId'
+  /// Canonical for the same reason as [keyForPEK].
+  String keyForSEK(String enId) => canonicalAtKey('$enId'
       '.${AtConstants.defaultSelfEncryptionKey}'
       '.${EnrollmentConstants.enrollManageNamespace}'
-      '$atSign';
+      '$atSign');
 
   /// ```
   /// public:${enVal.appName}.${enVal.deviceName}
   ///   .pkam.${EnrollmentConstants.pkamNamespace}
   ///   .__public_keys$currentAtSign
   /// ```
-  String keyForLegacyPK(EnrollDataStoreValue enVal) => 'public:'
+  /// Canonical for the same reason as [keyForPEK], and it matters more here
+  /// because the components are CLIENT-CHOSEN: an app or device name carrying
+  /// a capital or a space would otherwise build a key the keystore does not
+  /// hold under that spelling.
+  String keyForLegacyPK(EnrollDataStoreValue enVal) => canonicalAtKey('public:'
       '${enVal.appName}.${enVal.deviceName}'
       '.pkam.${EnrollmentConstants.pkamNamespace}'
-      '.__public_keys$atSign';
+      '.__public_keys$atSign');
 
   final RegExp ekRegex = RegExp(EnrollmentConstants.regexForEnrollmentKey);
 
@@ -1198,6 +1249,14 @@ class EnrollmentManager {
   /// it. A successor is reached instead through the approver it INHERITS from
   /// its predecessor, which is what stops a retrofit being an escape hatch.
   Future<Set<String>> descendantsOf(String enrollmentId) async {
+    // Canonical, because every id this is compared against comes out of a
+    // keystore key or out of a stored approver link written from one. A
+    // non-canonical target matches nothing and the walk returns EMPTY — which
+    // reads exactly like an enrollment with no descendants, so a cascade that
+    // swept nothing reported success. Measured on a two-deep chain: the
+    // canonical id returned both descendants and the same id with one leading
+    // non-breaking space returned none.
+    enrollmentId = canonicalEnrollmentId(enrollmentId);
     final Set<String> found = {};
     final Map<String, String?> memo = {};
     for (final ek in await getAllEnrollmentKeys()) {

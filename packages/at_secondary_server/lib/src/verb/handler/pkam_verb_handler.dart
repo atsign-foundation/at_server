@@ -32,14 +32,24 @@ class PkamVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams, AtConnection atConnection) async {
     var atConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
-    // Folded to match the keystore, which lowercases every key it is given.
-    // Without this an enrollment id spelled in another case resolves to the
-    // same RECORD while comparing unequal to the id everything downstream
-    // holds — so a revoke would not drop the connection, and the revoked
-    // credential would go on authenticating. Ids are server-issued and
-    // already lowercase; this rejects nothing, it just stops a non-canonical
-    // spelling of one from travelling further than the lookup.
-    var enrollId = verbParams[AtConstants.enrollmentId]?.toLowerCase();
+    // Folded to EXACTLY the keystore's own fold — trimmed, lowercased, spaces
+    // stripped — because that is what decides which record an id addresses.
+    // Without this a non-canonical spelling resolves to the same RECORD while
+    // comparing unequal to the id everything downstream holds, so a revoke
+    // would not drop the connection and the revoked credential would go on
+    // authenticating: the connection's id is what the revoke's connection
+    // drop, the caller-in-cascade refusal and ownership of this enrollment's
+    // own reserved keys are all compared against.
+    //
+    // Lowercasing alone was not enough, and the gap it left is the dangerous
+    // half: case is the spelling a real client sends by accident, while
+    // whitespace is the one an attacker sends on purpose.
+    //
+    // Ids are server-issued uuids and already canonical, so this rejects
+    // nothing that works today; it stops a non-canonical spelling of one from
+    // travelling further than the lookup.
+    var enrollId = EnrollmentManager.canonicalEnrollmentIdOrNull(
+        verbParams[AtConstants.enrollmentId]);
     var sessionID = atConnectionMetadata.sessionID;
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     AuthType pkamAuthType;

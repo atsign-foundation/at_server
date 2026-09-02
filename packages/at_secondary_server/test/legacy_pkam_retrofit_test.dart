@@ -881,8 +881,8 @@ void main() {
       return r;
     }
 
-    test('an APKAM authentication naming it fails for want of a key, not for '
-        'want of a matching name', () async {
+    test('a non-canonical spelling of its id is refused BY NAME, because the '
+        'wire id is folded the way the keystore folds a key', () async {
       await seedRsaLegacyKey();
 
       // The control, and it is drawn from the capability rather than from the
@@ -894,33 +894,36 @@ void main() {
           reason: 'precondition: this keypair IS the atSign\'s live legacy '
               'credential and authenticates with it');
 
-      // ` primary`, deliberately. The refusal that compares the id against
-      // the housekeeping id is EXACT, while the keystore folds a key on the
-      // way in — trim, lowercase, strip spaces — so this spelling walks past
-      // that comparison and still resolves to the housekeeping record.
-      await expectLater(
-          () => pkam('bypass-session', idOnTheWire: ' primary'),
-          throwsA(isA<UnAuthenticatedException>().having((e) => e.message,
-              'message', contains('pkam publickey not found'))),
-          reason: 'the record carries an EMPTY apkamPublicKey, so an APKAM '
-              'authentication naming it has nothing to verify against and is '
-              'refused before any signature is looked at. With the legacy key '
-              'snapshotted onto the record this exact call SUCCEEDS — the '
-              'signature is valid against it — and the connection is APKAM '
-              'authenticated as the atSign\'s legacy identity');
+      // ` primary`, deliberately: the spelling that RESOLVES to the
+      // housekeeping record while not being the literal id. The wire id is
+      // folded to exactly the keystore\'s fold — trim, lowercase, strip
+      // spaces — so the refusal that compares against the housekeeping id
+      // sees the same string the keystore does, and answers about the record
+      // this call actually reaches.
+      final bypass = await pkam('bypass-session', idOnTheWire: ' primary');
+      expect(bypass.isError, isTrue);
+      expect(bypass.errorCode, 'AT0009',
+          reason: 'the fold makes this the SAME id, so it lands on the '
+              'by-name refusal instead of walking past it — which is the '
+              'refusal that says what is wrong. Unfolded, this spelling was '
+              'stopped only by the empty key, two layers further in');
+      expect(bypass.errorMessage, contains('legacy PKAM'));
 
       expect(inboundConnection.metaData.isAuthenticated, isFalse,
           reason: 'and the connection is left unauthenticated');
 
-      // The positive control for the bypass itself. Without this the refusal
-      // above would be satisfied by ` primary` naming nothing at all, which
-      // would make the whole test a statement about an unknown enrollment id.
+      // The positive control for the spelling itself. Without this the
+      // refusal above would be satisfied by ` primary` naming nothing at all,
+      // which would make the whole test a statement about an unknown
+      // enrollment id rather than about the housekeeping record.
       final resolved = await enMgr.getEnrollmentById(' primary');
       expect(resolved.appName, 'legacy',
-          reason: 'the folded spelling really does reach the housekeeping '
-              'record, so the exact-name refusal really was walked past');
+          reason: 'the spelling really does reach the housekeeping record, so '
+              'the by-name refusal really was answering about THAT record');
       expect(resolved.apkamPublicKey, isEmpty,
-          reason: 'and what stopped the authentication was the empty key');
+          reason: 'and the empty key is still the defence that cannot be '
+              'spelled around: it is what would refuse this authentication if '
+              'the id ever reached the verifier');
     });
 
     test('...while the exact spelling is refused by name, before any of that',

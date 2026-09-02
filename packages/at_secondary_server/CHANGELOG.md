@@ -1,4 +1,41 @@
 # 3.16.4
+- fix: an enrollment id is canonicalised to the keystore's own fold wherever
+  it enters the server or is used to build a keystore key, so handler-side
+  identity and stored identity agree by construction. The keystore normalises
+  every key it is given — trimmed, lowercased, spaces stripped — while
+  comparisons above it are exact `String ==`, so a non-canonical spelling
+  read and wrote the right record while comparing unequal to it, and every
+  guard phrased as "is this the enrollment we are acting on?" answered no
+  about the enrollment being acted on.
+
+  ⚠️ The worst of them was the last-root refusal. It excludes the enrollments
+  an act is about to remove BY KEY, and a key built from an unfolded id
+  excluded nothing — so the enrollment being revoked counted as the root that
+  survives its own revocation. Measured on this tree: `enroll:revoke` naming
+  an atSign's only permanent root with a leading U+3000 answered
+  `{"status":"revoked"}` and the record really was revoked, while the
+  identical command spelled canonically was refused. Space, tab and U+00A0
+  never got that far — the write-path key validator refuses them — but
+  U+3000, U+2000 and U+2028 all fold and all pass validation.
+
+  Also fixed by the same fold: a revocation cascade that swept nothing,
+  because the approver walk compares against ids taken from keystore keys and
+  an unfolded target matched no link; per-enrollment data (a published
+  `_apsk` among it) that stayed in the approved location through a revoke;
+  and an enrollment's own reserved keys reading as another enrollment's.
+
+  The fold has ONE definition, `canonicalAtKey`, which the keystore itself
+  now calls — every other copy in the tree, the SQLite backend's included,
+  routes through it, because two spellings of one fold drift with nothing
+  going red.
+
+  ⚠️ Behaviour a deployed client could notice, all of it previously reachable
+  only with a non-canonical id: a self-`enroll:revoke` spelled around is now
+  refused; an `enroll:*` id of nothing but whitespace is now refused as a
+  missing id rather than building a key that names no enrollment; and
+  `enroll:fetch`, `enroll:update` and ownership of an enrollment's own
+  reserved keys now treat a non-canonical spelling as the same enrollment,
+  which is what the keystore has always done with it.
 - fix: the housekeeping enrollment `primary` no longer holds a copy of the
   legacy PKAM credential. It snapshotted `at_pkam_publickey` into its
   `apkamPublicKey` once, at creation, and never refreshed it — so the record
@@ -7,11 +44,14 @@
   the LIVE key and reads nothing off the record, so the copy served no reader.
   The record now carries an EMPTY key, and an APKAM authentication naming
   `primary` fails closed at the verifier's existing emptiness guard whatever
-  the id spelling. That matters because the identifier comparison which also
-  refuses it is exact, while the keystore folds ids on the way in
-  (`trim().toLowerCase().replaceAll(' ','')`): a folded spelling walked past
-  the comparison, resolved to the record, and authenticated against the
-  snapshot — as `primary`, over APKAM, with a key the atSign had rotated out.
+  the id spelling. That mattered because the identifier comparison which also
+  refuses it was exact while the keystore folded ids on the way in, so a
+  non-canonical spelling walked past the comparison, resolved to the record,
+  and authenticated against the snapshot — as `primary`, over APKAM, with a
+  key the atSign had rotated out. Incoming ids are now folded the keystore's
+  own way (see below), so that comparison catches such a spelling by name;
+  the empty key is what makes the refusal belt-and-braces rather than the
+  only thing standing in the way.
 
   ⚠️ `enroll:list` and `enroll:fetch` now report an empty `apkamPubKey` for
   `primary`. That is the honest answer rather than a regression: it is an
@@ -160,12 +200,12 @@
   two or more — and approval is unbounded by design, so that is an ordinary
   shape on any atSign whose administrators admit administrators, not a
   remnant. Closing it needs ancestry that outlives the record.
-- fix: an enrollment id is folded to lower case where `pkam` reads it off the
-  wire. The keystore lowercases every key, so a non-canonical spelling
-  resolved to the same record while comparing unequal to the id held
-  everywhere downstream — a revoke would not drop that connection and the
-  credential kept authenticating. Ids are server-issued and already lower
-  case, so this rejects nothing.
+- fix: an enrollment id is folded where `pkam` reads it off the wire, to
+  EXACTLY the fold the keystore applies to a key — trimmed, lowercased,
+  spaces stripped. A non-canonical spelling resolved to the same record while
+  comparing unequal to the id held everywhere downstream, so a revoke would
+  not drop that connection and the credential kept authenticating. Ids are
+  server-issued and already canonical, so this rejects nothing.
 - fix: a cascade no longer aborts when a descendant has already gone.
   `keyStore.get` throws rather than returning null, so a record reaped between
   the walk and the write took the whole verb with it, leaving the enrollments

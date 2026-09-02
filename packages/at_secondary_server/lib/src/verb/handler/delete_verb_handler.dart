@@ -100,7 +100,11 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       deleteKey = 'cached:$deleteKey';
     }
     assert(deleteKey.isNotEmpty);
-    deleteKey = deleteKey.trim().toLowerCase().replaceAll(' ', '');
+    // The keystore's own fold, not a copy of it: the CRAM-secret comparison
+    // just below and the authorisation check that follows both decide by
+    // string equality against this value, so a fold that drifted from the
+    // store's would answer about a key the store does not hold.
+    deleteKey = canonicalAtKey(deleteKey);
     if (deleteKey == AtConstants.atCramSecret) {
       await keyStore.put(
           AtConstants.atCramSecretDeleted, AtData()..data = 'true');

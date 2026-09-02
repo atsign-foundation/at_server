@@ -112,25 +112,33 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enrollVerbParams = EnrollParams.fromJson(
           jsonDecode(verbParams[AtConstants.enrollParams]!)
               as Map<String, dynamic>);
-      // Folded here, once, for the same reason `pkam` folds the id it reads:
-      // the keystore lowercases every key, so a non-canonical spelling
-      // resolves to the SAME record while comparing unequal to the id held on
-      // the connection. Every id comparison on the revoke path — the
-      // self-revoke refusal, the descendant walk, the caller-in-cascade and
-      // last-root refusals, and the connection drop — is a string comparison
-      // against that folded value, so an unfolded params id makes each of them
-      // silently vacuous while the record is still written revoked.
+      // Folded here, once, for the same reason `pkam` folds the id it reads,
+      // and to EXACTLY the keystore's fold: trimmed, lowercased, spaces
+      // stripped. The keystore normalises every key that way, so a
+      // non-canonical spelling resolves to the SAME record while comparing
+      // unequal to the id held on the connection. Every id comparison on the
+      // revoke path — the self-revoke refusal, the descendant walk, the
+      // caller-in-cascade and last-root refusals, and the connection drop — is
+      // a string comparison against this value, so an unfolded params id makes
+      // each of them silently vacuous while the record is still written
+      // revoked. The last-root refusal is the worst of them: it excludes the
+      // act's own targets by KEY, and a key built from an unfolded id excludes
+      // nothing, so the enrollment being revoked is counted as the root that
+      // survives the revoke.
       //
-      // Ids are server-issued uuids and already lower case, so this rejects
-      // nothing that works today. It does mean a mixed-case spelling now
+      // Ids are server-issued uuids and already canonical, so this rejects
+      // nothing that works today. It does mean a non-canonical spelling now
       // behaves exactly like the canonical one wherever it previously fell
       // through a guard — `enroll:fetch` of one's own enrollment and a
       // self-`enroll:update` included. That is the intended reading of "the
       // same enrollment", and is called out here because a fold that makes
       // previously-refused requests succeed should be a decision rather than
-      // a side effect.
+      // a side effect. It also means an id of nothing but whitespace folds to
+      // empty and is refused by _validateParams below as a missing id, rather
+      // than being carried into a key that names no enrollment.
       enrollVerbParams.enrollmentId =
-          enrollVerbParams.enrollmentId?.toLowerCase();
+          EnrollmentManager.canonicalEnrollmentIdOrNull(
+              enrollVerbParams.enrollmentId);
     }
 
     _validateParams(enrollVerbParams, operation!, atConnection);

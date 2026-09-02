@@ -181,7 +181,20 @@ abstract class AbstractVerbHandler implements VerbHandler {
     if (match == null) {
       return false;
     }
-    return match.namedGroup('EnId') != enrollmentId;
+    // The owning id is read out of an atKey the CALLER supplied, so it is
+    // folded to the keystore's own form before being compared against the
+    // connection's id, which is already in that form. Without the fold the
+    // owner named by the spelling and the owner named by the record the
+    // keystore will actually serve can differ, and the answer is then about
+    // neither: a caller's own key spelled non-canonically reads as foreign.
+    //
+    // This cannot widen access. Equality after folding means the key's
+    // owner-id segment folds to the caller's own id, and folding is exactly
+    // what the keystore does to decide which record the key names — so a key
+    // that passes is a key belonging to the caller.
+    return EnrollmentManager.canonicalEnrollmentId(
+            match.namedGroup('EnId')!) !=
+        enrollmentId;
   }
 
   /// Whether [atKey]'s namespace is the enrollment-manage namespace
@@ -669,9 +682,11 @@ abstract class AbstractVerbHandler implements VerbHandler {
     if (atKey == null) {
       return null;
     }
-    // Matched against the form the keystore writes: HiveKeyStoreHelper
-    // .prepareKey normalises with `trim().toLowerCase().replaceAll(' ', '')`.
-    final String key = atKey.trim().toLowerCase().replaceAll(' ', '');
+    // Matched against the form the keystore writes, using the keystore's own
+    // fold rather than a copy of it — the regexes below decide root-only
+    // access, so a fold that drifted from the store's would test a string the
+    // store does not hold.
+    final String key = canonicalAtKey(atKey);
 
     if (_rootSharedKeyRegex.hasMatch(key)) {
       return true;
