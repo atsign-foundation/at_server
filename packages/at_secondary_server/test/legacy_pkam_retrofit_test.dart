@@ -20,6 +20,8 @@ import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/pkam_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart' show AuthType;
+import 'package:at_utils/at_logger.dart';
+import 'package:logging/logging.dart' as logging;
 import 'package:test/test.dart';
 
 import 'enrollment_test_utils.dart';
@@ -540,6 +542,139 @@ void main() {
       expect(await keyValueStore.exists(approvedKey), isFalse,
           reason: 'and it must no longer resolve at the address a verifier '
               'reads');
+    });
+  });
+
+  // =====================================================================
+  // What an operator is told when the identity is NOT minted.
+  // =====================================================================
+
+  /// The refusal a caller gets is deliberately one message for both causes —
+  /// the caller has not authenticated and the two are not its business — so
+  /// the only place the distinction exists is the manager's log. PkamVerbHandler
+  /// says so in as many words ("The manager logs the distinction, naming what
+  /// it found"), which makes it a claim about this code that ships, and an
+  /// operator arriving at an atSign that refuses its keyfile has nothing else
+  /// to read.
+  group('the manager logs which refusal it took', () {
+    /// Runs [act] with the manager's logger lowered to [level] and returns
+    /// every record it emitted at or above that level.
+    ///
+    /// Lowered on the INSTANCE, not through AtSignLogger.root_level: an
+    /// AtSignLogger takes its level once, at construction, and `enMgr` was
+    /// built by verbTestsSetUp at the suite's 'shout' — which is above both
+    /// levels used here, so without this every assertion below would be about
+    /// a logger that emitted nothing. Records reach the detached logger's own
+    /// stream rather than Logger.root's.
+    Future<List<String>> logsWhile(
+        Future<void> Function() act, String level) async {
+      // Restored from AtSignLogger.root_level, which is what the suite's own
+      // setUp assigns, and NOT from the instance getter: `AtSignLogger.level`
+      // compares a `Level.toString()` ("SHOUT") against the lowercase name it
+      // stored ("shout"), so it answers null for every level a caller ever set
+      // — and `logger.level = null` throws on a detached logger.
+      enMgr.logger.level = level;
+      final threshold = level == 'info'
+          ? logging.Level.INFO
+          : logging.Level.WARNING;
+      final captured = <String>[];
+      final sub = enMgr.logger.logger.onRecord.listen((r) {
+        if (r.level >= threshold) captured.add(r.message);
+      });
+      try {
+        await act();
+      } finally {
+        await sub.cancel();
+        enMgr.logger.level = AtSignLogger.root_level;
+      }
+      return captured;
+    }
+
+    /// The one line that says the identity was not minted. `singleWhere`
+    /// deliberately: an empty capture and two lines disagreeing with each
+    /// other both throw here rather than quietly satisfying a `contains`.
+    String refusalIn(List<String> records) => records.singleWhere(
+        (r) => r.startsWith('Not creating the housekeeping enrollment'),
+        orElse: () => fail('nothing said why the identity was not minted, '
+            'from ${records.length} record(s): $records'));
+
+    test('a populated store: the line names HOW MANY records it found',
+        () async {
+      // The count is the whole of the diagnostic. The rule is about the STORE
+      // rather than about any one record — an enrollment with no connection to
+      // the key at all refuses the mint just the same — so "which enrollment"
+      // is not a question this refusal can answer, and how many there are is.
+      await etu.initPrimaryEnrollment();
+      await enrollmentHolding('a key', appName: 'app-one');
+      await enrollmentHolding('another key', appName: 'app-two');
+      expect(await enMgr.getAllEnrollmentKeys(), hasLength(3),
+          reason: 'precondition: the fixture built exactly three, so the '
+              'literal below is a count taken independently of the message');
+
+      final line = refusalIn(await logsWhile(
+          () => enMgr.ensureHousekeepingEnrollment(), 'warning'));
+
+      expect(line, contains('already holds 3 enrollment record(s)'),
+          reason: 'an operator reading this decides whether the atSign really '
+              'has been enrolled, so a count that disagrees with the roster '
+              'sends them looking for records that are not there');
+      expect(line, contains(AtConstants.atPkamPublicKey),
+          reason: 'and it names the key it is refusing to adopt');
+      expect(line, contains('enroll:request'),
+          reason: 'and the remedy, which is the same either way');
+    });
+
+    test('...at WARNING, because it is the anomalous one', () async {
+      // Level is part of the diagnostic: this is an atSign refusing a
+      // credential somebody is presenting as legacy, which is a thing an
+      // operator should see without turning anything up. Captured at warning
+      // and found there.
+      await etu.initPrimaryEnrollment();
+
+      final atWarning = await logsWhile(
+          () => enMgr.ensureHousekeepingEnrollment(), 'warning');
+
+      expect(refusalIn(atWarning), contains('already holds'));
+    });
+
+    test('a retired credential: a DIFFERENT line, naming the key', () async {
+      // The other refusal, and the two must not read alike — the caller is
+      // told the same thing in both cases, so an operator working out which
+      // one they are in has only these lines to go on. Absent means the
+      // credential was RETIRED: removing the record always takes the key with
+      // it.
+      await keyValueStore.remove(AtConstants.atPkamPublicKey, skipCommit: true);
+
+      final line = refusalIn(await logsWhile(
+          () => enMgr.ensureHousekeepingEnrollment(), 'info'));
+
+      expect(line, contains('is absent or empty'),
+          reason: 'this is the retirement case, and it says so');
+      expect(line, contains(AtConstants.atPkamPublicKey));
+      expect(line, isNot(contains('already holds')),
+          reason: 'the two refusals must not be confusable: an operator told '
+              'the store is populated would go looking for enrollments on an '
+              'atSign whose credential was simply withdrawn');
+    });
+
+    test('CONTROL: a mint that SUCCEEDS says none of it', () async {
+      // Drawn from a property the diagnostic does not touch, and it is what
+      // stops the cases above being satisfied by the manager logging that
+      // sentence on every call. The fixture leaves the key present and the
+      // store empty, which is the one state the identity IS minted in.
+      final records = await logsWhile(() async {
+        expect(await enMgr.ensureHousekeepingEnrollment(), isNotNull,
+            reason: 'precondition: this arrangement really does mint');
+      }, 'info');
+
+      expect(
+          records.where(
+              (r) => r.startsWith('Not creating the housekeeping enrollment')),
+          isEmpty);
+      expect(records.where((r) => r.contains('Creating the housekeeping')),
+          isNotEmpty,
+          reason: 'and the rig really was listening — an empty capture would '
+              'satisfy the absence above for the wrong reason');
     });
   });
 
