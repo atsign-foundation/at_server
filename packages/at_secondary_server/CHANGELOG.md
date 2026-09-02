@@ -1,4 +1,22 @@
 # 3.16.4
+- test: two failures that named neither their mechanism nor their assertion
+  now do.
+
+  The serialisation test that pins the already-created housekeeping read as
+  taking no critical section of its own completes the gate AFTER awaiting the
+  read, so a read that queued behind the held section could never be let
+  through: the failure was the runner's 30-second timeout. Measured by putting
+  the read behind the section — `TimeoutException after 0:00:30.000000` and
+  nothing else, 33 seconds to say it. It now fails in 6 with a reason naming
+  the deadlock and what may take the section.
+
+  `ETU.verifyKeyStoreState` asserted three keys per enrollment with no reason
+  strings, over twenty enrollments and several calls per test, so a failure
+  was a bare pair of booleans that did not say which call, which enrollment or
+  which of the three keys. Each assertion now names the id, the key and the
+  state that key was expected to be in, and the helper refuses an empty corpus
+  rather than reporting every state correct without asserting anything.
+
 - docs/test: the proof of possession on `at_pkam_publickey` says why its
   signable is a constant, and the framing is pinned by a raw literal.
 

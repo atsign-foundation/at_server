@@ -214,24 +214,50 @@ class ETU {
     return m['enrollmentId'];
   }
 
+  /// Asserts, for every id in [allCreated], that its enrollment record and its
+  /// two per-enrollment encryption keys are on disk or gone as
+  /// [deletedOrExpired] and [cleanedUp] say they should be.
+  ///
+  /// Every assertion carries a reason NAMING the id and which of the three
+  /// keys it is about. Without one a caller gets a bare expected-against-actual
+  /// pair of booleans and nothing else — and this helper is called several
+  /// times in a single test, over twenty enrollments, before and after a
+  /// removal, so the bare form does not even say which call failed, let alone
+  /// whether the record or an ancillary key was the one in the wrong state.
   Future<void> verifyKeyStoreState(
       List<String> allCreated, List<String> deletedOrExpired,
       {required bool cleanedUp}) async {
-    // int i = 0;
+    expect(allCreated, isNotEmpty,
+        reason: 'the corpus must be non-empty, or this helper reports every '
+            'state as correct without asserting anything');
     for (final enId in allCreated) {
       bool enDeleted = deletedOrExpired.contains(enId);
       // enrollment should exist unless was deleted
       bool enrollmentShouldExist = !enDeleted;
       // ancillary keys should exist if not deleted, or if deleted but not cleanedUp
       bool ancillaryKeysShouldExist = !enDeleted || (enDeleted && !cleanedUp);
-      // print ('checking ${i++} deleted: $enDeleted cleanedUp: $cleanedUp ancillaryShouldExist: $ancillaryKeysShouldExist');
+      final String state = enDeleted
+          ? 'deleted or expired, with cleanedUp: $cleanedUp'
+          : 'still live';
       await expectLater(
           await keyValueStore.exists(enMgr.buildEnrollmentKey(enId)),
-          enrollmentShouldExist);
+          enrollmentShouldExist,
+          reason: 'the enrollment record for $enId is $state, so it should '
+              '${enrollmentShouldExist ? "be on disk" : "be gone"}');
       await expectLater(await keyValueStore.exists(enMgr.keyForPEK(enId)),
-          ancillaryKeysShouldExist);
+          ancillaryKeysShouldExist,
+          reason: 'the per-enrollment encryption private key for $enId '
+              '(${enMgr.keyForPEK(enId)}) belongs to an enrollment that is '
+              '$state, so it should '
+              '${ancillaryKeysShouldExist ? "be on disk" : "have gone with "
+                  "the record"}');
       await expectLater(await keyValueStore.exists(enMgr.keyForSEK(enId)),
-          ancillaryKeysShouldExist);
+          ancillaryKeysShouldExist,
+          reason: 'the per-enrollment self encryption key for $enId '
+              '(${enMgr.keyForSEK(enId)}) belongs to an enrollment that is '
+              '$state, so it should '
+              '${ancillaryKeysShouldExist ? "be on disk" : "have gone with "
+                  "the record"}');
     }
   }
 

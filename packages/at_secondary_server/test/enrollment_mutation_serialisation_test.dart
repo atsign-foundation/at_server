@@ -855,7 +855,16 @@ void main() {
 
       final (gate, holder) = holdTheSection();
       final sw = Stopwatch()..start();
-      final again = await enMgr.ensureHousekeepingEnrollment();
+      // The gate is completed AFTER this await, so a read that queued behind
+      // the section would never be let through: the failure would be the
+      // runner's 30-second timeout, which names neither this mechanism nor
+      // the assertion below. The deadlock is the mechanism failing, so it
+      // gets a reason of its own.
+      final again = await enMgr.ensureHousekeepingEnrollment().timeout(
+          Duration(seconds: 5),
+          onTimeout: () => fail('the already-created read queued behind the '
+              'held section and never returned: only the CREATE may take the '
+              'section, or a caller that already holds it deadlocks'));
       sw.stop();
       gate.complete();
       await holder;
