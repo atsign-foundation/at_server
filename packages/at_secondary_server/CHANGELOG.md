@@ -46,6 +46,25 @@
   which has already proved possession of the key it is replacing by
   authenticating with it. Every other `privatekey:` key is unchanged and still
   decided by root privilege alone.
+- fix: the last-root refusal now asks whether the ACT removes a fully
+  privileged enrollment, not whether the enrollment the command NAMES is one.
+  A revoke cascades to every enrollment that descends from its target by
+  approval, so a target holding no full privilege of its own could still carry
+  a root away with it — and a guard reading only the target saw nothing to
+  protect. Nothing else on that path noticed either: the caller was neither the
+  target nor a descendant of it, so the self-revoke and descends-from refusals
+  were both quiet, and an atSign lost its last permanent root to a command that
+  reported success. The target is still asked about, because it is removed too
+  and cannot appear in its own cascade. Only enrollments the cascade will
+  actually rewrite count — one already revoked is not taken away again.
+- ⚠️ fix: approving an enrollment that asks for `__manage:rw` now requires the
+  approver to hold `__manage:rw` itself. Every other namespace was compared
+  against the approver's own grant; `__manage` is decided on its own branch
+  ahead of that comparison and was checked only for presence, so a read-only
+  administrator could admit a read-write one — an enrollment able to approve,
+  revoke and delete, including the approver that admitted it. An approver
+  holding `__manage:r` may still admit an enrollment asking for `__manage:r`,
+  and reaching a `__manage` key is unaffected.
 - fix: the retrofit cap's decline now NAMES the remedy. An atSign whose only
   root asks for a bounded key life declines on every authentication and has
   both revoke routes refused, so its legacy credential is un-retirable and

@@ -899,10 +899,11 @@ class EnrollmentManager {
   /// at exactly the moment its last usable root was taken away.
   ///
   /// Full privilege rather than the ability to approve, because approving is
-  /// checked per namespace against what the approver itself holds: an
-  /// enrollment with `__manage` but not `*` can admit new enrollments and can
-  /// never admit one carrying `*`, so it keeps an atSign running without being
-  /// able to give it a root back.
+  /// checked per namespace against what the approver itself holds — `__manage`
+  /// included, so an approver holding `__manage:r` confers no more than
+  /// `__manage:r`. An enrollment with `__manage` but not `*` can admit new
+  /// enrollments and can never admit one carrying `*`, so it keeps an atSign
+  /// running without being able to give it a root back.
   ///
   /// ⚠️ The housekeeping enrollment counts only while `at_pkam_publickey` is
   /// still in the keystore. Alone among enrollments it holds no credential of
@@ -942,6 +943,51 @@ class EnrollmentManager {
       if (record?.metaData?.expiresAt == null) return true;
     }
     return false;
+  }
+
+  /// Which of [enrollmentIds] are fully privileged AND currently approved —
+  /// that is, which of them a revoke of that set would actually take away.
+  ///
+  /// The companion question to [hasUnexpiringRootEnrollment]: that one asks
+  /// what SURVIVES an act, this one asks what the act REMOVES. Both are
+  /// needed, because a refusal built on either alone is wrong. Asking only
+  /// what survives refuses every revoke on an atSign whose last root is
+  /// short-lived, including ones that touch no root at all; asking only what
+  /// is removed refuses a revoke that leaves a perfectly good root behind.
+  ///
+  /// APPROVED is the same condition [revokeAll] applies, so the answer
+  /// describes exactly the records the cascade will rewrite: an enrollment
+  /// already revoked or denied is not taken away again, and a pending one is
+  /// left alone, so neither can be lost by an act that names it.
+  ///
+  /// Read through the keystore rather than [getEnrollmentByFullKey], which
+  /// treats an elapsed ttl as a reason to DELETE the record. A decision about
+  /// whether an act would strand the atSign is the worst possible moment to
+  /// reap enrollments, and the caller has not yet decided to write anything.
+  Future<List<String>> approvedRootEnrollmentsAmong(
+      Iterable<String> enrollmentIds) async {
+    final List<String> roots = [];
+    for (final id in enrollmentIds) {
+      final AtData? record;
+      try {
+        record = await keyStore.get(buildEnrollmentKey(id));
+      } on KeyNotFoundException {
+        continue;
+      }
+      final String? raw = record?.data;
+      if (raw == null) continue;
+      final EnrollDataStoreValue value;
+      try {
+        value = EnrollDataStoreValue.fromJson(jsonDecode(raw));
+      } catch (e) {
+        logger.severe('Could not decode enrollment $id while deciding '
+            'whether an act removes a fully privileged enrollment: $e');
+        continue;
+      }
+      if (value.approval?.state != EnrollmentStatus.approved.name) continue;
+      if (value.isRootEnrollment) roots.add(id);
+    }
+    return roots;
   }
 
   /// The enrollment that APPROVED [id], read straight off the stored record.

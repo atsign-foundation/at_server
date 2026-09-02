@@ -1431,11 +1431,14 @@ void main() {
     }
 
     /// A record written straight to the store, approved BY [approverId].
+    /// [namespaces] defaults to full privilege; pass a narrower set for a
+    /// link that can approve but is not itself a root.
     Future<void> mintApprovedBy(String id, String? approverId,
         {EnrollmentStatus status = EnrollmentStatus.approved,
+        Map<String, String> namespaces = const {'*': 'rw', '__manage': 'rw'},
         Duration? ttl}) async {
       final v = EnrollDataStoreValue('s', 'app-$id', 'device-$id', 'pk')
-        ..namespaces = {'*': 'rw', '__manage': 'rw'}
+        ..namespaces = Map<String, String>.from(namespaces)
         ..approval = EnrollApproval(status.name)
         ..approvedByEnrollmentId = approverId;
       await enMgr.put(
@@ -1686,6 +1689,97 @@ void main() {
           throwsA(isA<AtEnrollmentRevokeException>()),
           reason: 'the question must be asked over what SURVIVES the cascade, '
               'or it reports the atSign safe at the moment it is stranded');
+    });
+
+    /// The atSign's original root, rewritten with a finite life, so that the
+    /// only PERMANENT root in these two tests is the one the cascade reaches.
+    /// It stays approved and fully privileged, so it is still the caller.
+    Future<void> makeTheOriginalRootShortLived() async {
+      await mintUnder(etu.primaryEnId, null, ttl: Duration(minutes: 5));
+    }
+
+    /// [mid] approves but is not itself a root; [root] hangs off it and is.
+    Future<void> aRootBehindANonRootApprover(String mid, String root) async {
+      await mintApprovedBy(mid, null, namespaces: {'__manage': 'rw'});
+      await mintApprovedBy(root, mid);
+    }
+
+    test('a cascade through a NON-root target may not remove the last root',
+        () async {
+      // The command names an enrollment holding no full privilege, so a guard
+      // that asks whether the TARGET is a root sees nothing to protect. The
+      // root sits BEHIND it, and the cascade takes it: the act removes the
+      // atSign's last root while every other refusal on this path stays
+      // quiet, because the caller neither is the target nor descends from it.
+      await makeTheOriginalRootShortLived();
+      await aRootBehindANonRootApprover('mid-approver', 'root-behind-mid');
+
+      expect(
+          (await enMgr.getEnrollmentById('mid-approver')).isRootEnrollment,
+          isFalse,
+          reason: 'precondition: the target is NOT fully privileged, so a '
+              'guard reading only the target has nothing to fire on');
+      expect(
+          (await enMgr.getEnrollmentById('root-behind-mid')).isRootEnrollment,
+          isTrue);
+      expect(
+          await enMgr
+              .hasUnexpiringRootEnrollment({'mid-approver', 'root-behind-mid'}),
+          isFalse,
+          reason: 'precondition: nothing surviving this act is a permanent '
+              'root, so the act really does strand the atSign');
+
+      await expectLater(
+          () => revoke(etu.primaryEnId, 'mid-approver'),
+          throwsA(isA<AtEnrollmentRevokeException>()),
+          reason: 'the question is whether the ACT removes a root, not '
+              'whether the enrollment it names is one');
+      expect(await statusOf('root-behind-mid'), EnrollmentStatus.approved.name,
+          reason: 'refused before anything is written');
+      expect(await statusOf('mid-approver'), EnrollmentStatus.approved.name);
+    });
+
+    test('…and may proceed once a permanent root survives it', () async {
+      // The control, and it has to be here: without it the refusal above is
+      // equally satisfied by "a revoke through a non-root approver is always
+      // refused", which would break every ordinary administrative cascade.
+      // Same caller, same target, same subtree — the only difference is a
+      // permanent root that the act leaves alone.
+      await makeTheOriginalRootShortLived();
+      await aRootBehindANonRootApprover('mid-approver', 'root-behind-mid');
+      await mintUnder('surviving-root', null);
+
+      final r = await revoke(etu.primaryEnId, 'mid-approver');
+      expect(r.isError, false, reason: '${r.errorMessage}');
+      expect(await statusOf('mid-approver'), EnrollmentStatus.revoked.name);
+      expect(await statusOf('root-behind-mid'), EnrollmentStatus.revoked.name,
+          reason: 'the cascade still runs; the guard decides whether the act '
+              'is allowed, not what it does');
+    });
+
+    test('a root already revoked is not something the act removes', () async {
+      // The cascade rewrites only what is currently approved, so a root
+      // revoked before this command is not taken away by it. Counting it
+      // would refuse a revoke on the strength of an enrollment that had
+      // already gone — and the refusal is the only thing standing between an
+      // operator and a subtree they are entitled to clear up.
+      await makeTheOriginalRootShortLived();
+      await mintApprovedBy('mid-approver', null,
+          namespaces: {'__manage': 'rw'});
+      await mintApprovedBy('spent-root', 'mid-approver',
+          status: EnrollmentStatus.revoked);
+
+      expect(await statusOf('spent-root'), EnrollmentStatus.revoked.name,
+          reason: 'precondition: the only root in the cascade is already '
+              'gone, so the act removes no fully privileged enrollment');
+      expect(await enMgr.hasUnexpiringRootEnrollment({}), isFalse,
+          reason: 'precondition: no permanent root exists at all, so the '
+              'liveness half cannot be what allows this — only the question '
+              'of what the act REMOVES can');
+
+      final r = await revoke(etu.primaryEnId, 'mid-approver');
+      expect(r.isError, false, reason: '${r.errorMessage}');
+      expect(await statusOf('mid-approver'), EnrollmentStatus.revoked.name);
     });
 
     test('un-revoking a descendant is refused while its approver is not '

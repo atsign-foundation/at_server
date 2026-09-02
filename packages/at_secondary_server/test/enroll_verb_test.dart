@@ -1662,6 +1662,104 @@ void main() {
               e.message ==
                   'Failed to revoke enrollment id: $enrollmentId. Cannot revoke a pending enrollment. Only approved enrollments can be revoked')));
     });
+
+    /// Stores an approved enrollment holding exactly [namespaces] and returns
+    /// its id.
+    Future<String> storeApprovedEnrollment(
+        Map<String, String> namespaces) async {
+      final String id = Uuid().v4();
+      await keyValueStore.put(
+          '$id.${EnrollmentConstants.enrollmentKeyPattern}'
+          '.${EnrollmentConstants.enrollManageNamespace}$alice',
+          AtData()
+            ..data = jsonEncode(EnrollDataStoreValue(
+                'approver-session', 'buzz', 'my-tablet', 'approver-public-key')
+              ..namespaces = namespaces
+              ..approval = EnrollApproval(EnrollmentStatus.approved.name)
+              ..encryptedAPKAMSymmetricKey = 'dummy_encrypted_symm_key'));
+      return id;
+    }
+
+    /// Stores a PENDING enrollment asking for exactly [namespaces] and
+    /// returns its id.
+    Future<String> storePendingEnrollment(
+        Map<String, String> namespaces) async {
+      final String id = Uuid().v4();
+      await keyValueStore.put(
+          '$id.${EnrollmentConstants.enrollmentKeyPattern}'
+          '.${EnrollmentConstants.enrollManageNamespace}$alice',
+          AtData()
+            ..data = jsonEncode(EnrollDataStoreValue(
+                'target-session', 'wavi', 'my-phone', 'target-public-key')
+              ..namespaces = namespaces
+              ..approval = EnrollApproval(EnrollmentStatus.pending.name)
+              ..encryptedAPKAMSymmetricKey = 'dummy_encrypted_symm_key'));
+      return id;
+    }
+
+    Future<String?> stateOf(String id) async => jsonDecode(
+        (await keyValueStore.get('$id.${EnrollmentConstants.enrollmentKeyPattern}'
+            '.${EnrollmentConstants.enrollManageNamespace}$alice'))!
+            .data!)['approval']['state'];
+
+    Future<void> approveAs(String approverId, String targetId) async {
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session_id';
+      inboundConnection.metadata.enrollmentId = approverId;
+      await enrollVerbHandler.processVerb(
+          Response(),
+          getVerbParam(
+              VerbSyntax.enroll,
+              'enroll:approve:{"enrollmentId":"$targetId",'
+              '"encryptedDefaultEncryptionPrivateKey":"dummy_encrypted_private_key",'
+              '"encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key"}'),
+          inboundConnection);
+    }
+
+    test('an approver holding __manage:r may not approve a request for '
+        '__manage:rw', () async {
+      // __manage is the namespace that decides who may approve at all, so
+      // conferring write on it hands out an authority the approver does not
+      // have — the enrollment admitted this way can approve, revoke and
+      // delete, including its own approver, which could do none of that.
+      final String approverId = await storeApprovedEnrollment({'__manage': 'r'});
+      final String targetId = await storePendingEnrollment({'__manage': 'rw'});
+
+      await expectLater(
+          () => approveAs(approverId, targetId),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Failed to approve enrollment id: $targetId. Client is not'
+                      ' authorized for namespaces in the enrollment request')),
+          reason: 'approving is checked per namespace against what the '
+              'approver itself holds, and __manage is not exempt from that');
+      expect(await stateOf(targetId), EnrollmentStatus.pending.name,
+          reason: 'refused before anything is written');
+    });
+
+    test('…but it may approve a request for __manage:r', () async {
+      // The control. Without it the refusal above is equally satisfied by
+      // "__manage:r may approve nothing", which would leave a read-only
+      // administrator unable to admit its own kind.
+      final String approverId = await storeApprovedEnrollment({'__manage': 'r'});
+      final String targetId = await storePendingEnrollment({'__manage': 'r'});
+
+      await approveAs(approverId, targetId);
+      expect(await stateOf(targetId), EnrollmentStatus.approved.name);
+    });
+
+    test('…and an approver holding __manage:rw may confer __manage:rw',
+        () async {
+      // The second control: the same act, refused above, allowed here, and
+      // the only thing that differs is the approver's own access.
+      final String approverId =
+          await storeApprovedEnrollment({'__manage': 'rw'});
+      final String targetId = await storePendingEnrollment({'__manage': 'rw'});
+
+      await approveAs(approverId, targetId);
+      expect(await stateOf(targetId), EnrollmentStatus.approved.name);
+    });
   });
 
   group('A group of tests related enrollment unrevoke operation', () {
@@ -2579,6 +2677,53 @@ void main() {
       res = await enrollVerbHandler.isAuthorized(inboundConnection.metadata,
           namespace: 'fizz.buzz', enrolledNamespaceAccess: 'rw');
       expect(res, true);
+    });
+
+    test('the __manage grant itself is compared against what the caller holds',
+        () async {
+      // The approve/deny/revoke/unrevoke loop asks this question once per
+      // namespace the target holds, so for a target carrying '__manage':'rw'
+      // this IS the approve check. __manage is decided on its own branch,
+      // ahead of checkEnrollmentNamespaceAccess, so the comparison every other
+      // namespace gets has to be made there too.
+      String key =
+          '123.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice';
+      EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
+          'session-123', 'wavi', 'my-device', 'dummy-pkam-public-key')
+        ..namespaces = {'__manage': 'r'}
+        ..approval = EnrollApproval(EnrollmentStatus.approved.name);
+      await keyValueStore.put(
+          key, AtData()..data = jsonEncode(enrollDataStoreValue.toJson()));
+
+      EnrollVerbHandler enrollVerbHandler =
+          EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
+      inboundConnection.metaData.isAuthenticated = true;
+      castMetadata(inboundConnection).enrollmentId = '123';
+
+      expect(
+          await enrollVerbHandler.isAuthorized(inboundConnection.metadata,
+              namespace: EnrollmentConstants.enrollManageNamespace,
+              enrolledNamespaceAccess: 'rw',
+              operation: 'approve'),
+          false,
+          reason: 'a caller holding __manage:r may not confer __manage:rw');
+
+      expect(
+          await enrollVerbHandler.isAuthorized(inboundConnection.metadata,
+              namespace: EnrollmentConstants.enrollManageNamespace,
+              enrolledNamespaceAccess: 'r',
+              operation: 'approve'),
+          true,
+          reason: 'the control: it may confer exactly what it holds');
+
+      expect(
+          await enrollVerbHandler.isAuthorized(inboundConnection.metadata,
+              namespace: EnrollmentConstants.enrollManageNamespace,
+              operation: 'approve'),
+          true,
+          reason: 'the second control: an empty enrolledNamespaceAccess is a '
+              'caller reaching a __manage key rather than conferring a grant, '
+              'and read access is enough for that');
     });
     tearDown(() async => await verbTestsTearDown());
   });

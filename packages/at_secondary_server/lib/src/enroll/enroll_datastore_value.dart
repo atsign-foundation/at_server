@@ -150,7 +150,8 @@ class EnrollDataStoreValue {
   /// checked per namespace against what the approver itself holds, so an
   /// enrollment with `__manage` but not `*` can admit new enrollments and can
   /// never admit one carrying `*` — it keeps an atSign running but cannot
-  /// restore a root to it.
+  /// restore a root to it. That comparison covers `__manage` itself, so an
+  /// approver holding `__manage:r` confers no more than `__manage:r` either.
   bool get isRootEnrollment =>
       namespaces[EnrollmentConstants.allNamespaces] == 'rw' &&
       namespaces[EnrollmentConstants.enrollManageNamespace] == 'rw';

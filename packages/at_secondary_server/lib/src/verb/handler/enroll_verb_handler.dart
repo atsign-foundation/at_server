@@ -867,15 +867,28 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // it afterwards, with nothing at the time of the revoke to say so. A
       // caller that is itself an unexpiring root answers the question by
       // existing, since it is not in the excluded set. A caller that is NOT
-      // fully privileged is never counted whatever its lifetime — which is
-      // right, and closes a second gap: revoking a root requires authority
-      // over the target's namespaces, and `__manage:r` satisfies that, so a
-      // caller who could not restore a root could previously remove the last
-      // one.
+      // fully privileged is never counted whatever its lifetime, because
+      // restoring a root means APPROVING one, and approving is checked per
+      // namespace against what the approver itself holds: only a root can
+      // admit a root, so a non-root caller surviving the act answers a
+      // different question from the one being asked.
       //
       // Asked over what SURVIVES the cascade, not over what is stored: the
       // descendants are still `approved` while this runs, so counting them
       // would report the atSign safe at the moment it is being stranded.
+      //
+      // Asked of the ACT, not of the target. What strands an atSign is a
+      // fully privileged enrollment being taken away, and the command names
+      // only the top of the subtree it removes — so a target holding no full
+      // privilege of its own may still carry one away in its cascade. A guard
+      // reading `enVal.isRootEnrollment` alone sees nothing to protect in that
+      // shape and lets the atSign's last root go, silently: the caller is not
+      // the target, so the self-revoke and descends-from refusals are both
+      // quiet, and the cascade is exactly where the root goes.
+      //
+      // Both halves are load-bearing. The target is asked about because it is
+      // removed too and its own cascade cannot contain it; the cascade is
+      // asked about because the enrollments in it are removed by the same act.
       //
       // Still skipped for a CRAM connection, which carries no enrollment id
       // and can always mint a fresh enrollment. A legacy-PKAM connection is no
@@ -883,11 +896,21 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // the exemption's premise — that such an owner can always mint a fresh
       // enrollment — is exactly what stops being true, because minting one
       // requires authenticating and authenticating requires that enrollment.
-      if (enVal.isRootEnrollment && callerId != null) {
-        if (!await enMgr.hasUnexpiringRootEnrollment({enId, ...cascadeIds})) {
+      if (callerId != null) {
+        // Cheapest question first: this reads one record per enrollment the
+        // act removes, while the liveness question below walks the whole
+        // keystore. An act that removes no fully privileged enrollment cannot
+        // strand the atSign whatever else is stored.
+        final List<String> rootsRemoved = [
+          if (enVal.isRootEnrollment) enId,
+          ...await enMgr.approvedRootEnrollmentsAmong(cascadeIds),
+        ];
+        if (rootsRemoved.isNotEmpty &&
+            !await enMgr.hasUnexpiringRootEnrollment({enId, ...cascadeIds})) {
           throw AtEnrollmentRevokeException(
-              'Cannot revoke enrollment $enId: it holds full privilege and no '
-              'other fully privileged enrollment on $currentAtSign is '
+              'Cannot revoke enrollment $enId: it would remove the fully '
+              'privileged enrollment(s) ${rootsRemoved.join(', ')} and no '
+              'fully privileged enrollment surviving it on $currentAtSign is '
               'permanent, so the atSign would be left unable to approve a '
               'replacement once the remaining ones expire. Approve another '
               'fully privileged enrollment that does not expire first');

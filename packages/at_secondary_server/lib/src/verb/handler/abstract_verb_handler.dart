@@ -377,10 +377,31 @@ abstract class AbstractVerbHandler implements VerbHandler {
         authorizedNamespace.$1 == EnrollmentConstants.enrollManageNamespace) {
       final bool holdsManageNamespaceExplicitly =
           authorizedNamespace.$1 == EnrollmentConstants.enrollManageNamespace;
+      final String? callerAccess = authorizedNamespace.$2;
+      // A caller may not hand out more __manage than it holds itself.
+      // [enrolledNamespaceAccess] is the access the ACT would confer on this
+      // namespace, and is non-empty only where the caller is being asked to
+      // demonstrate authority over ANOTHER enrollment's grants — approve,
+      // deny, revoke, unrevoke, fetch and delete each walk the target's
+      // namespaces and ask this question once per entry. So '__manage:rw' may
+      // only be conferred by a holder of '__manage:rw'; '__manage:r' confers
+      // no more than '__manage:r'.
+      //
+      // Every other namespace is held to that bar by
+      // checkEnrollmentNamespaceAccess below. __manage returns from here
+      // instead, because the verbs that reach it (otp/enroll/monitor) are not
+      // in that method's read/write verb lists at all — so the comparison has
+      // to be made here or it is not made, and a '__manage:r' administrator
+      // could otherwise admit one able to do what it cannot do itself.
+      //
+      // An empty [enrolledNamespaceAccess] is not a grant: it is a caller
+      // reaching a __manage KEY, for which read access is enough.
+      final bool confersWriteOnManage = enrolledNamespaceAccess == 'rw';
       // ignore: experimental_member_use
       return holdsManageNamespaceExplicitly &&
           (getVerb() is Otp || getVerb() is Enroll || getVerb() is Monitor) &&
-          (authorizedNamespace.$2 == 'r' || authorizedNamespace.$2 == 'rw');
+          (callerAccess == 'rw' ||
+              (callerAccess == 'r' && !confersWriteOnManage));
     }
     return checkEnrollmentNamespaceAccess(authorizedNamespace.$2!,
         enrolledNamespaceAccess: enrolledNamespaceAccess);
