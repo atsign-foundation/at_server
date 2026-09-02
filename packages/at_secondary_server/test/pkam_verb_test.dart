@@ -1,6 +1,9 @@
 import 'dart:collection';
 import 'dart:convert';
 
+import 'dart:typed_data';
+
+import 'package:at_chops/at_chops.dart' show MlDsa65PureDartAlgo;
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
@@ -9,6 +12,7 @@ import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/pkam_verb_handler.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
@@ -231,6 +235,72 @@ void main() async {
       expect(response.errorCode, 'AT0028');
       expect(response.errorMessage,
           'enrollment_id: $enrollmentId is expired or invalid');
+    });
+  });
+
+  group('legacy PKAM: the flat credential', () {
+    setUp(() async => await verbTestsSetUp());
+
+    tearDown(() async => await verbTestsTearDown());
+
+    test('authenticates with NO enrollment id, and survives its own use',
+        () async {
+      // The flat credential — the key at `at_pkam_publickey`, which a
+      // `pkam:` carrying no enrollment id is verified against. There are
+      // atSigns in the field whose only credential is this one, so it has to
+      // go on working, and the connection it leaves behind has to go on
+      // carrying no enrollment id: every gate that exempts an owner is keyed
+      // on the absence of one.
+      //
+      // It must also survive the authentication it performs and still work on
+      // the next connection. A standing guard rather than the test of one
+      // mechanism: this is what would go red first if anything on the
+      // authentication path ever made that read a consuming one.
+      //
+      // ⚠️ Deliberately does NOT re-seed the key between the two
+      // authentications — re-seeding would paper over exactly the deletion
+      // under test.
+      final mlDsa = await MlDsa65PureDartAlgo().generateKeyPair();
+      await keyValueStore.put(AtConstants.atPkamPublicKey,
+          AtData()..data = base64Encode(mlDsa.publicKey),
+          skipCommit: true);
+
+      Future<Response> authenticate(String sessionId) async {
+        const challenge = 'a-per-connection-challenge';
+        await keyValueStore.put(
+            'private:$sessionId$alice', AtData()..data = challenge);
+        final signature = await MlDsa65PureDartAlgo().signBytes(
+            Uint8List.fromList(utf8.encode('$sessionId$alice:$challenge')),
+            secretKey: mlDsa.secretKey);
+        inboundConnection.metaData
+          ..isAuthenticated = false
+          ..enrollmentId = null
+          ..sessionID = sessionId;
+        final r = Response();
+        await PkamVerbHandler(keyValueStore).processVerb(
+          r,
+          getVerbParam(VerbSyntax.pkam,
+              'pkam:signingAlgo:mldsa65:${base64Encode(signature)}'),
+          inboundConnection,
+        );
+        return r;
+      }
+
+      expect((await authenticate('first')).data, 'success',
+          reason: 'a flat keyfile is the only credential some atSigns have');
+      expect(inboundConnection.metaData.enrollmentId, isNull,
+          reason: 'and the connection carries NO enrollment id: the flat key '
+              'stands outside every enrollment record, so there is no id for '
+              'it to carry and every owner exemption is keyed on that');
+      expect(inboundConnection.metaData.authType, AuthType.pkamLegacy);
+      expect(await keyValueStore.exists(AtConstants.atPkamPublicKey), isTrue,
+          reason: 'the credential it authenticated WITH must survive the '
+              'authentication');
+
+      expect((await authenticate('second')).data, 'success',
+          reason: 'and it must still work — a one-shot legacy credential is '
+              'not a credential');
+      expect(inboundConnection.metaData.enrollmentId, isNull);
     });
   });
 }

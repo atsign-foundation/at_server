@@ -1788,9 +1788,8 @@ class EnrollmentManager {
   /// move is made ONCE for the whole set rather than per record.
   ///
   /// [byEnrollmentId] is the enrollment on the connection that issued the
-  /// command, null for a CRAM or owner connection — a legacy-PKAM connection
-  /// authenticates as the housekeeping enrollment, so it records `primary`
-  /// here like any other; [cascadedFrom] is the
+  /// command, null for a CRAM, owner or legacy-PKAM connection, none of which
+  /// carries one; [cascadedFrom] is the
   /// enrollment it NAMED. Both are recorded on every event this writes,
   /// because an enrollment revoked by a cascade was revoked for a reason that
   /// is not visible from its own record.

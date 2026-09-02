@@ -9,11 +9,9 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
-import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/scan_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
-import 'package:at_server_spec/at_server_spec.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
@@ -207,56 +205,6 @@ void main() {
       expect(keys, contains('firstname.wavi$alice'));
       expect(keys, contains('mobile.buzz$alice'));
       expect(keys, isNot(contains('deadbeef.new.enrollments.__manage$alice')));
-    });
-
-    test('a LEGACY connection is filtered here too', () async {
-      // The SECOND filter site. `scan` and `scan:cl` each decide separately,
-      // and both key on the connection carrying an enrollment id rather than
-      // on its auth type — so a legacy connection used to fall through to the
-      // unfiltered owner view at both, simply by having none. It carries the
-      // housekeeping enrollment's id now.
-      //
-      // Pinned separately from the plain `scan` case because this is a
-      // deployment-visible change the CHANGELOG claims for the commit-log
-      // scan as well, and one site being right says nothing about the other.
-      //
-      // ⚠️ Like its `scan` twin, this sets the enrollment id BY HAND, so it
-      // pins the filtering half only. The half that puts `primary` on a legacy
-      // connection is pinned by `legacy authentication creates it and CONNECTS
-      // as it` in legacy_pkam_retrofit_test.dart.
-      await updateHandler.process(
-          'update:firstname.wavi$alice alice', inboundConnection);
-      await keyValueStore.put('deadbeef.new.enrollments.__manage$alice',
-          AtData()..data = '{"appName":"x"}');
-      // The housekeeping enrollment, as the server creates it: fully
-      // privileged, so nothing here rests on a narrow grant.
-      await keyValueStore.put(
-          '${EnrollmentManager.housekeepingEnrollmentId}'
-          '.new.enrollments.__manage$alice',
-          AtData()
-            ..data = jsonEncode({
-              'sessionId': '123',
-              'appName': 'legacy',
-              'deviceName': 'legacy',
-              'apkamPublicKey': 'the-legacy-key',
-              'namespaces': {'*': 'rw', '__manage': 'rw'},
-              'approval': {'state': 'approved'}
-            }));
-
-      inboundConnection.metadata.sessionID = 'dummy_session';
-      inboundConnection.metadata.authType = AuthType.pkamLegacy;
-      inboundConnection.metadata.enrollmentId =
-          EnrollmentManager.housekeepingEnrollmentId;
-
-      final keys =
-          (await scanCl()).cast<Map>().map((e) => e['atKey']).toList();
-      expect(keys, contains('firstname.wavi$alice'),
-          reason: 'the control: it holds `*:rw`, so ordinary keys stay '
-              'visible — without this the assertion below would be satisfied '
-              'by a scan that returned nothing at all');
-      expect(keys, isNot(contains('deadbeef.new.enrollments.__manage$alice')),
-          reason: 'enrollment records drop out, exactly as they do for any '
-              'other enrollment-scoped scan');
     });
 
     test('an enrollment with no namespaces sees nothing', () async {

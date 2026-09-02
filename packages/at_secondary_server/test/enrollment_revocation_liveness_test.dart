@@ -252,48 +252,6 @@ void main() {
               'nothing');
     });
 
-    test('a LEGACY connection is checked like any other', () async {
-      // The control below is about a connection carrying NO id. A legacy
-      // connection is not that: it authenticates as the housekeeping
-      // enrollment and carries `primary`, so it goes through this gate like
-      // every other — which is what makes revoking or deleting that record
-      // close the connections holding it, and what bounds the exposure when
-      // an authentication is answered on a state that has since changed.
-      //
-      // The record is written here rather than minted, so that the id and the
-      // at-rest key are RAW LITERALS: the whole claim is that this connection
-      // is not exempt, and composing the key from the constants the server
-      // composes it from would pin nothing about which record is being read.
-      await keyValueStore.put(
-          'primary.new.enrollments.__manage$alice',
-          AtData()
-            ..data = jsonEncode({
-              'sessionId': '123',
-              'appName': 'primary',
-              'deviceName': 'primary',
-              'namespaces': {'*': 'rw', '__manage': 'rw'},
-              'apkamPublicKey': '',
-              'requestType': 'newEnrollment',
-              'approval': {'state': EnrollmentStatus.revoked.name}
-            }));
-
-      final Response? response = await updateAs('primary');
-
-      expect(connection.closeCount, 1,
-          reason: 'the legacy credential is only as live as its enrollment, '
-              'so a connection holding it must be closed when that record '
-              'leaves approved — an exemption here would leave the one '
-              'credential the revoke was aimed at working until it happened '
-              'to reconnect');
-      expect(response, isNotNull,
-          reason: 'the gate answers with a response; a verb that ran and threw '
-              'its own refusal instead means the gate did not fire');
-      expect(response!.errorCode, 'AT0027',
-          reason: 'and with the code pkam refuses a revoked enrollment with');
-      expect(response.errorMessage,
-          'The enrollment id: primary is revoked. Closing the connection');
-    });
-
     test('CONTROL: a connection carrying no enrollment id is left alone',
         () async {
       connection.metadata.enrollmentId = null;

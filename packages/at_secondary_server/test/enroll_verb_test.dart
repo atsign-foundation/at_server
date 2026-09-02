@@ -3184,37 +3184,6 @@ void main() {
                 'living inside the OTP branch never saw it');
       });
 
-      test('a LEGACY-PKAM connection is NOT exempt, because it now carries '
-          'an enrollment id', () async {
-        // ⚠️ CAPABILITY NARROWED, pinned here so the narrowing is visible
-        // rather than latent. The exemption above is for a connection with NO
-        // enrollment id. A legacy connection used to be one; it authenticates
-        // as the housekeeping enrollment now and carries `primary`, so it
-        // reaches this gate like any other enrollment and is refused by it —
-        // however privileged that enrollment is, because the gate fires
-        // before the loop that would have found its grants sufficient.
-        //
-        // The consequence is the one the exemption exists to prevent, for a
-        // narrower population: on an atSign whose only owner access is the
-        // legacy keyfile, there is no connection that can clear up a record
-        // holding no namespaces.
-        await keyValueStore.put(
-            'primary.new.enrollments.__manage$alice',
-            AtData()
-              ..data = jsonEncode(EnrollDataStoreValue(
-                  'sid', 'primary', 'primary', '')
-                ..namespaces = {'*': 'rw', '__manage': 'rw'}
-                ..approval = EnrollApproval(EnrollmentStatus.approved.name)),
-            skipCommit: true);
-        final targetId = await anEmptyTarget(status: EnrollmentStatus.approved);
-
-        await expectLater(
-            () => runAs('primary', 'enroll:revoke:{"enrollmentId":"$targetId"}'),
-            throwsA(isA<UnAuthorizedException>()),
-            reason: 'the gate is keyed on the caller carrying an enrollment '
-                'id at all, and a legacy connection now carries one');
-      });
-
       test('control: an owner connection may still act on it', () async {
         // Why the guards are gated on caller-vs-target rather than applied
         // unconditionally. A CRAM or owner connection carries no enrollment
@@ -4416,6 +4385,76 @@ void main() {
           enId, EnrollParams()..enrollmentId = enId..apskLegacy = bare);
       expect(r.isError, false);
       expect((await enMgr.getEnrollmentById(enId)).apskLegacy, bare);
+    });
+  });
+
+  group('CRAM auto-approve leaves the flat credential alone', () {
+    final etu = ETU();
+    setUp(() async {
+      await verbTestsSetUp();
+      await etu.init(withPrimaryEnrollment: false);
+      // The flat credential, seeded AFTER etu.init() — so the assertion below
+      // is about a value a CRAM auto-approve found and had to leave alone,
+      // not one that merely happens to be in the store.
+      await keyValueStore.put(AtConstants.atPkamPublicKey,
+          AtData()..data = 'the-flat-pkam-key',
+          skipCommit: true);
+    });
+
+    tearDown(() async {
+      await verbTestsTearDown();
+    });
+
+    test('an auto-approved enrollment does not become the flat credential',
+        () async {
+      // `at_pkam_publickey` is what a `pkam:` carrying NO enrollment id is
+      // verified against. An `enroll:request` mints an APKAM credential,
+      // which always authenticates WITH an id, so a key minted for the second
+      // has no business becoming the first. The CRAM branch used to copy it
+      // there "for old clients", which gave one keypair two identities AND,
+      // being unconditional, destroyed whatever flat credential the atSign
+      // already had — and enroll:request is deliberately repeatable on a CRAM
+      // connection, so every repeat clobbered it again.
+      //
+      // It also pins that CRAM is auto-approved rather than treated as a
+      // self-enrolment: at_auth throws unless a FIRST enrollment comes back
+      // approved, so onboarding breaks for every new user if this branch is
+      // ever reordered behind another.
+      final ep = EnrollParams()
+        ..appName = 'cram-app'
+        ..deviceName = 'cram-device'
+        ..apkamPublicKey = 'a fresh apkam public key';
+      inboundConnection.metaData
+        ..isAuthenticated = true
+        ..authType = AuthType.cram
+        ..sessionID = DateTime.now().millisecondsSinceEpoch.toString();
+      inboundConnection.metadata.enrollmentId = null;
+
+      final r = Response();
+      await etu.evh.processVerb(
+        r,
+        getVerbParam(
+            VerbSyntax.enroll, 'enroll:request:${jsonEncode(ep.toJson())}'),
+        inboundConnection,
+      );
+
+      expect(r.isError, isFalse, reason: '${r.errorMessage}');
+      final m = jsonDecode(r.data!);
+      expect(m['status'], EnrollmentStatus.approved.name,
+          reason: 'CRAM is auto-approved; at_auth throws unless a first '
+              'enrollment comes back approved');
+      final created = await enMgr.getEnrollmentById(m['enrollmentId']);
+      expect(created.parentEnrollmentId, isNull,
+          reason: 'auto-approve MINTS an enrollment; it does not replace one');
+
+      // ⚠️ RAW LITERAL, byte for byte: the whole claim is that this value is
+      // untouched, and composing it from whatever the handler wrote would
+      // assert nothing.
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'the-flat-pkam-key',
+          reason: 'the flat credential is untouched — an enrollment key that '
+              'landed here would authenticate with no enrollment id, giving '
+              'one keypair an identity its own revocation cannot reach');
     });
   });
 }

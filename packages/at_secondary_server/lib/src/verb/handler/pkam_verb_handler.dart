@@ -88,10 +88,10 @@ class PkamVerbHandler extends AbstractVerbHandler {
           apkamResult.signingAlgo ?? ApkamSignatureVerifier.rsa2048Algo;
     } else {
       pkamAuthType = AuthType.pkamLegacy;
-      // ABSENT is a normal state now, not a broken atSign: retiring the
-      // legacy credential removes this key, and that is what retirement IS.
+      // ABSENT is a normal state, not a broken atSign: an atSign onboarded
+      // through `enroll:request` never holds this key at all.
       // `keyStore.get` THROWS for a missing key rather than returning null,
-      // so the emptiness guard below never saw that case and a retired
+      // so the emptiness guard below never saw that case and a missing
       // credential surfaced a keystore exception where an authentication
       // refusal belongs.
       try {
@@ -107,7 +107,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
         // place entirely.
         logger.warning('Legacy PKAM authentication refused: '
             '${AtConstants.atPkamPublicKey} is absent — this atSign has no '
-            'legacy credential, or it has been retired');
+            'flat credential');
         throw UnAuthenticatedException(
             'this atSign has no legacy PKAM credential. An atSign onboarded '
             'through enroll:request has none by design: authenticate with the '
@@ -163,12 +163,6 @@ class PkamVerbHandler extends AbstractVerbHandler {
       // A no-op for every enrollment that replaced nothing, and it never
       // throws: authentication has already succeeded by this point and must
       // not be undone by bookkeeping.
-      // `enrollId` — the id PRESENTED ON THE WIRE — and deliberately not
-      // `connectionEnrollmentId`. They differ for exactly one case: a legacy
-      // authentication presents no id but is GIVEN `primary`. Only a wire id
-      // names a successor, and `primary` replaced nothing, so keying this on
-      // the connection's id would ask the cap to arm a record that can have
-      // no predecessor.
       if (enrollId != null && enrollId.isNotEmpty) {
         final enMgr = AtSecondaryServerImpl.getInstance().enrollmentManager;
         await enMgr.armRetrofitCapOnFirstAuth(enrollId);
@@ -224,71 +218,13 @@ class PkamVerbHandler extends AbstractVerbHandler {
       String? enrollId,
       String atSign,
       Response response) async {
-    // A legacy connection authenticates AS the housekeeping enrollment.
-    // Created here, on the first legacy authentication, rather than at
-    // onboarding: almost every atSign predates the record, and this is the
-    // one moment the server can prove the legacy credential is live.
-    //
-    // BEFORE the connection is marked authenticated, so a store fault fails
-    // the authentication rather than admitting a connection whose enrollment
-    // id names nothing. That is the opposite posture from the cap arming in
-    // [processVerb], deliberately — the cap is bookkeeping about a different
-    // record, this is the identity this connection is about to carry.
-    //
-    // ⚠️ A READ therefore mutates the atSign: the first `enroll:list` over a
-    // legacy connection creates this record. Accepted, because the
-    // alternative is a credential no roster shows and no verb can retire.
-    String? connectionEnrollmentId = enrollId;
-    if (pkamAuthType == AuthType.pkamLegacy) {
-      final housekeeping = await AtSecondaryServerImpl.getInstance()
-          .enrollmentManager
-          .ensureHousekeepingEnrollment();
-      if (housekeeping == null) {
-        // The record is absent and must not be created, so this is NOT a
-        // first authentication. Either the credential was retired — the key
-        // goes with the record, so its absence says so — or the key at
-        // `at_pkam_publickey` appeared on an atSign that already holds
-        // enrollments, AFTER the server came up and adopted whatever legacy
-        // credential the atSign genuinely had. An existing credential is
-        // adopted at startup, from the store the previous run left; a key
-        // that turns up later, on a populated store, is not one this atSign
-        // was onboarded with. Creating the record in either case would hand
-        // a keypair a fresh, unexpiring root identity; in the first it would
-        // undo the retirement every time the record expired.
-        //
-        // The refusal does not say WHICH, because the caller has not
-        // authenticated and the two are not its business. The manager logs
-        // the distinction, naming what it found. It does name the REMEDY,
-        // which is the same either way and is what an operator arriving
-        // here actually needs — an established atSign is reached with an
-        // enrollment id, not with a flat keyfile.
-        atConnectionMetadata.isAuthenticated = false;
-        logger.warning('Refusing legacy PKAM authentication: this atSign has '
-            'no usable legacy credential');
-        throw UnAuthenticatedException(
-            'this atSign has no usable legacy PKAM credential. A legacy '
-            'credential is adopted at server startup, from the keystore the '
-            'previous run left; a key installed at this atSign afterwards is '
-            'not adopted. Authenticate with the enrollment id the keyfile '
-            'carries, as pkam:enrollmentId:<id>:<signature>, or enrol this '
-            'client with enroll:request');
-      }
-
-      // The legacy credential is only as live as its enrollment. Revoking
-      // that record is what makes revoking the legacy keyfile possible at
-      // all — before it there was no verb that could — and an EXPIRED one
-      // is the cap having retired it after a successful retrofit. Either
-      // way the signature was valid and the credential is not.
-      final String? state = housekeeping.approval?.state;
-      if (state != EnrollmentStatus.approved.name) {
-        atConnectionMetadata.isAuthenticated = false;
-        logger.warning('Refusing legacy PKAM authentication: '
-            '${EnrollmentManager.housekeepingEnrollmentId} is $state');
-        throw UnAuthenticatedException(
-            'the legacy credential for this atSign is $state');
-      }
-      connectionEnrollmentId = EnrollmentManager.housekeepingEnrollmentId;
-    } else {
+    // A LEGACY authentication carries no enrollment id, so there is no
+    // record for it to be re-read against and nothing here to decide: it is
+    // admitted on the signature the caller has already verified. The section
+    // is entered on both paths so that admission has one shape, and holding
+    // it for two field assignments costs nothing against how rare enrollment
+    // mutations are next to authentications.
+    if (pkamAuthType != AuthType.pkamLegacy) {
       // Asked again, inside the section, over the record the connection is
       // about to be admitted as. The first ask ran before the signature was
       // verified, because it is where the public key comes from, and
@@ -318,7 +254,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
 
     atConnectionMetadata.isAuthenticated = true;
     atConnectionMetadata.authType = pkamAuthType;
-    atConnectionMetadata.enrollmentId = connectionEnrollmentId;
+    atConnectionMetadata.enrollmentId = enrollId;
     return true;
   }
 
@@ -330,31 +266,6 @@ class PkamVerbHandler extends AbstractVerbHandler {
     EnrollmentStatus? enrollStatus;
     EnrollmentManager enMgr =
         AtSecondaryServerImpl.getInstance().enrollmentManager;
-
-    // The housekeeping enrollment is reachable ONLY by legacy authentication.
-    // It exists to give the legacy keyfile a lifecycle, and a credential
-    // reachable both with and without an enrollment id would have two: the
-    // legacy gates below would be bypassed by naming it, and its retirement
-    // could be sidestepped by the very keyfile it retires.
-    //
-    // ⚠️ It holds NO public key at all: `apkamPublicKey` is stored EMPTY, and
-    // that emptiness is load-bearing rather than an omission. It is what makes
-    // an APKAM authentication naming this enrollment fail closed however the
-    // id is spelled — the keystore folds ids on the way in, so a spelling that
-    // resolves to this record can compare unequal to the literal below, while
-    // the empty key does not care. Writing the legacy public key here would
-    // reverse that and give one keypair two identities. This refusal is the
-    // second guard, not the only one, and it exists to name what the identity
-    // IS rather than letting the attempt die at the emptiness check as though
-    // the record were broken.
-    if (enId == EnrollmentManager.housekeepingEnrollmentId) {
-      apkamResult.response.isError = true;
-      apkamResult.response.errorCode = 'AT0009';
-      apkamResult.response.errorMessage =
-          'enrollment_id: $enId is reachable only by legacy PKAM '
-          'authentication';
-      return apkamResult;
-    }
 
     try {
       enVal = await enMgr.getEnrollmentById(enId);

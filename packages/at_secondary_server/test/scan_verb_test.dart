@@ -9,7 +9,6 @@ import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/executor/default_verb_executor.dart';
 import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
-import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/verb/handler/scan_verb_handler.dart';
 import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -468,70 +467,6 @@ void main() {
       expect(scanResponseList.length, 1);
       expect(
           scanResponseList[0], '$enrollmentId.new.enrollments.__manage$alice');
-    });
-
-    test(
-        'A LEGACY connection no longer sees enrollment keys in scan',
-        () async {
-      // A behaviour change of this branch, and a deployment-visible one.
-      // `scan` filters on the CONNECTION'S ENROLLMENT ID being present, not on
-      // auth type — so a legacy connection used to fall through to the
-      // unfiltered owner view simply by having none. It now carries the
-      // housekeeping enrollment's id, so it is filtered like any other
-      // enrollment, and `__manage` keys drop out of its results.
-      //
-      // Correct rather than merely consequential: `enroll:list` is the
-      // management path for enrollment records, and a legacy connection is an
-      // enrollment now. But a legacy client that scanned for them will stop
-      // finding them, which is why this is pinned rather than left implicit.
-      //
-      // ⚠️ What this does NOT prove. The enrollment id is set BY HAND below,
-      // so reverting the production change that puts it there — the
-      // assignment in the PKAM handler's legacy branch — leaves this green.
-      // That assignment is pinned by `legacy authentication creates it and
-      // CONNECTS as it` in legacy_pkam_retrofit_test.dart; this is the other
-      // half, that carrying the id filters the scan.
-      final otherEnrollmentId = Uuid().v4();
-      inboundConnection.metaData.isAuthenticated = true;
-      inboundConnection.metaData.sessionID = 'dummy_session';
-      inboundConnection.metaData.authType = AuthType.pkamLegacy;
-      inboundConnection.metaData.enrollmentId =
-          EnrollmentManager.housekeepingEnrollmentId;
-
-      // The housekeeping enrollment, exactly as the server creates it.
-      await keyValueStore.put(
-          '${EnrollmentManager.housekeepingEnrollmentId}'
-          '.new.enrollments.__manage$alice',
-          AtData()
-            ..data = jsonEncode({
-              'sessionId': '123',
-              'appName': 'legacy',
-              'deviceName': 'legacy',
-              'namespaces': {'*': 'rw', '__manage': 'rw'},
-              'apkamPublicKey': 'the-legacy-key',
-              'approval': {'state': 'approved'}
-            }));
-      // Another enrollment's record, and an ordinary key.
-      await keyValueStore.put(
-          '$otherEnrollmentId.new.enrollments.__manage$alice',
-          AtData()..data = jsonEncode({'approval': {'state': 'approved'}}));
-      await keyValueStore.put('phone.wavi$alice', AtData()..data = '12345');
-
-      scanVerbHandler = ScanVerbHandler(
-          keyValueStore, mockOutboundClientManager, cacheManager);
-      await scanVerbHandler.process('scan', inboundConnection);
-      final List got = jsonDecode(inboundConnection.lastWrittenData!
-          .split('\n')[0]
-          .replaceAll('data:', ''));
-
-      expect(got, contains('phone.wavi$alice'),
-          reason: 'the control: it holds `*:rw`, so an ordinary key must '
-              'still be visible — otherwise this test would pass on a scan '
-              'that returned nothing at all');
-      expect(got.any((k) => '$k'.contains('__manage')), isFalse,
-          reason: 'including its OWN record: an enrollment-scoped scan '
-              'excludes enrollment keys whatever the grants, and carrying an '
-              'enrollment id is exactly what a legacy connection now does');
     });
 
     test(

@@ -106,12 +106,10 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// Returns true if the enrollment is active; otherwise, returns false.
   Future<(bool, Response)> _verifyIfEnrollmentIsActive(
       Response response, AtConnectionMetaData atConnectionMetadata) async {
-    // A connection with no enrollment id is a CRAM or owner connection, which
-    // stands over no enrollment record, so there is no approval state for this
-    // to read. A LEGACY-PKAM connection is not in that company: it
-    // authenticates as the housekeeping enrollment and carries its id, so it
-    // is checked here like any other — which is what makes revoking or
-    // deleting that record close the connections holding it.
+    // A connection with no enrollment id stands over no enrollment record,
+    // so there is no approval state for this to read. Three connections are
+    // in that company — CRAM, owner, and legacy PKAM, which verifies against
+    // a key that lives outside every record.
     if ((atConnectionMetadata as InboundConnectionMetadata).enrollmentId ==
         null) {
       if (logger.isLoggable('finest')) {
