@@ -654,6 +654,50 @@ void main() {
       expect(await keyValueStore.exists(AtConstants.atPkamPublicKey), isTrue);
     });
 
+    test('reading an EXPIRED one does not retire the legacy credential',
+        () async {
+      // The read that used to write. `getEnrollmentByFullKey` REMOVED a
+      // record whose ttl had elapsed, and for THIS record `remove` fires the
+      // pre-remove hook, which takes `at_pkam_publickey` with it — so reading
+      // the roster, or any authorisation check on any connection, could
+      // retire the atSign's legacy credential as a side effect. Reads are
+      // deliberately outside the enrollment-mutation critical section, so it
+      // was also a store mutation taken while another was in flight.
+      await enMgr.ensureHousekeepingEnrollment();
+      final h = (await storedH())!;
+      await enMgr.put(
+          EnrollmentManager.housekeepingEnrollmentId,
+          AtData()
+            ..data = jsonEncode(h.toJson())
+            ..metaData = (AtMetaData()..ttl = 1),
+          EnrollmentStatus.approved);
+      await Future.delayed(Duration(milliseconds: 5));
+
+      final read = await enMgr
+          .getEnrollmentById(EnrollmentManager.housekeepingEnrollmentId);
+
+      expect(read.approval?.state, EnrollmentStatus.expired.name,
+          reason: 'the read still REPORTS the expiry, which is what every '
+              'caller decides on — not removing it costs them nothing');
+      expect(await keyValueStore.exists(AtConstants.atPkamPublicKey), isTrue,
+          reason: 'reading the record must not retire the credential it '
+              'stands for. Retirement is a deliberate act — enroll:delete, or '
+              'the cap having expired the record — never something a reader '
+              'does on the way past');
+      expect(await storedH(), isNotNull,
+          reason: 'and the record itself is left for the scheduled pass');
+
+      // The control, and it is what stops the assertions above being
+      // satisfied by nothing ever removing this record: the job whose
+      // business it is still retires it, hook and all.
+      await keyValueStore.deleteExpiredKeys();
+      expect(await storedH(), isNull);
+      expect(await keyValueStore.exists(AtConstants.atPkamPublicKey), isFalse,
+          reason: 'the pre-remove hook fires on the scheduled pass exactly as '
+              'it does on an enroll:delete, so the guarantee is kept by the '
+              'job whose business it is');
+    });
+
     test('legacy authentication is refused afterwards', () async {
       // The consequence, end to end: retirement is not a bookkeeping state,
       // it is the credential ceasing to work.

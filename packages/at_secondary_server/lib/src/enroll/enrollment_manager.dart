@@ -70,6 +70,13 @@ class EnrollmentManager {
   /// the whole atSign behind one queue; a reader can still observe a cascade
   /// part-applied, exactly as it could before.
   ///
+  /// That is only safe because a read is read-only, which it once was not:
+  /// [getEnrollmentByFullKey] used to REMOVE a record whose ttl had elapsed,
+  /// so an authorisation check could mutate the store — and for `primary`
+  /// take `at_pkam_publickey` with it — while a mutation of another record
+  /// was in flight. It reports the expiry now and leaves the record to the
+  /// scheduled expired-keys pass.
+  ///
   /// One instance per atSign, built once by `AtSecondaryServerImpl`, so an
   /// instance field is the whole of the contention.
   final Mutex _mutationLock = Mutex();
@@ -149,10 +156,9 @@ class EnrollmentManager {
   /// If the key is not found, a [KeyNotFoundException] is thrown.
   ///
   /// If the retrieved enrollment data is no longer active, the status
-  /// will be set to `expired`.
+  /// will be set to `expired`. The record is NOT removed — see
+  /// [getEnrollmentByFullKey], which this delegates to.
   ///
-  /// If an enrollment has expired then, while the data is returned to the
-  /// caller, we also [remove] the enrollment.
   /// Returns:
   ///   An [EnrollDataStoreValue] containing the enrollment details.
   ///
@@ -316,11 +322,11 @@ class EnrollmentManager {
     // with, indefinitely.
     //
     // The read is deliberately made HERE rather than taken from the caller.
-    // Retirement happens through this method: reading an expired enrollment
-    // removes it, and the pre-remove hook deletes the legacy key in the same
-    // breath — so a key the caller read moments ago, to verify the signature,
-    // may already be gone by the time we get here. Re-reading is what closes
-    // that window rather than widening it.
+    // Removing this record takes the legacy key with it, via the pre-remove
+    // hook, and the server's scheduled expired-keys pass removes an expired
+    // record like any other — so a key the caller read moments ago, to verify
+    // the signature, may already be gone by the time we get here. Re-reading
+    // is what closes that window rather than widening it.
     if (await legacyPkamPublicKey() == null) {
       logger.info('Not creating the housekeeping enrollment: '
           '${AtConstants.atPkamPublicKey} is absent or empty, so there is no '
@@ -679,6 +685,32 @@ class EnrollmentManager {
   /// Fetch an enrollment key from the keystore.
   /// If key is available returns [EnrollDataStoreValue],
   /// else throws [KeyNotFoundException]
+  ///
+  /// READ-ONLY. A record whose ttl has elapsed comes back with its approval
+  /// state reported as `expired`, and is left exactly where it is.
+  ///
+  /// It used to REMOVE such a record, and that write had no business on this
+  /// path. Enrollments are read on every verb command and on every
+  /// authorisation check, all of it deliberately outside the atSign's one
+  /// enrollment-mutation critical section — so the reap was a store mutation
+  /// taken by a reader that had decided nothing, while a mutation of another
+  /// record was in flight. For `primary` it was worse than untidy: `remove`
+  /// fires the pre-remove hook, which takes `at_pkam_publickey` with it, so an
+  /// authorisation check could retire the atSign's legacy credential.
+  ///
+  /// The manager's own readers had already worked around it one at a time —
+  /// [approvedRootEnrollmentsAmong], [_approverIdOf] and the descendant walk
+  /// each read straight through the keystore to avoid reaping while deciding
+  /// whether to REFUSE something. [hasUnexpiringRootEnrollment] did not, so
+  /// the last-root decision — the one place a stranding is being judged —
+  /// reaped as it walked. Fixing the read is what makes that consistent
+  /// without every caller having to know.
+  ///
+  /// Nothing is leaked by not reaping here. The server schedules a periodic
+  /// `deleteExpiredKeys()` pass, which removes expired records through the
+  /// same [AtKeyValueStore.remove] and so fires the same hooks; and the value
+  /// handed back is identical either way, because callers decide on the
+  /// `expired` state rather than on the record's absence.
   Future<EnrollDataStoreValue> getEnrollmentByFullKey(
     String ek,
   ) async {
@@ -700,11 +732,11 @@ class EnrollmentManager {
 
     EnrollDataStoreValue value = EnrollDataStoreValue.fromJson(enrollJson);
     if (!SecondaryUtil.isActiveKey(enrollData)) {
-      // When an expired enrollment is encountered, delete it immediately
-      logger.warning('getEnrollmentByFullKey:'
-          ' Enrollment $ek has expired - removing it');
-      await remove(enId: getIdFromKey(ek));
-
+      // Reported, never repaired. See the doc comment: removing it here is a
+      // write on a path every authorisation check takes.
+      logger.finer('getEnrollmentByFullKey:'
+          ' Enrollment $ek has expired - reporting it expired. The scheduled'
+          ' expired-keys pass is what removes it');
       value.approval = EnrollApproval(EnrollmentStatus.expired.name);
     }
     return value;
@@ -1175,10 +1207,10 @@ class EnrollmentManager {
   /// already revoked or denied is not taken away again, and a pending one is
   /// left alone, so neither can be lost by an act that names it.
   ///
-  /// Read through the keystore rather than [getEnrollmentByFullKey], which
-  /// treats an elapsed ttl as a reason to DELETE the record. A decision about
-  /// whether an act would strand the atSign is the worst possible moment to
-  /// reap enrollments, and the caller has not yet decided to write anything.
+  /// Read straight through the keystore rather than via
+  /// [getEnrollmentByFullKey], which decodes and caches on the way. The
+  /// answer here is a status-and-grants question about a handful of named
+  /// records, so the extra layer buys nothing; both reads are read-only.
   Future<List<String>> approvedRootEnrollmentsAmong(
       Iterable<String> enrollmentIds) async {
     final List<String> roots = [];
@@ -1212,11 +1244,11 @@ class EnrollmentManager {
   /// predecessor rather than naming it, and revocation therefore does not
   /// travel the replacement edge at all.
   ///
-  /// Deliberately NOT via [getEnrollmentByFullKey]: that treats an elapsed ttl
-  /// as a reason to DELETE the record, and a link being walked during a
-  /// revocation is the worst possible moment to reap it. `keyStore.get`
-  /// returns a record whose ttl has elapsed — expiry is a judgement its
-  /// callers apply — which is what lets the walk cross an expired link.
+  /// Deliberately NOT via [getEnrollmentByFullKey], which reports an elapsed
+  /// ttl as `expired` and would make this walk decide what to do about that.
+  /// `keyStore.get` returns a record whose ttl has elapsed — expiry is a
+  /// judgement its callers apply — which is what lets the walk cross an
+  /// expired link.
   ///
   /// ⚠️ Only until the SWEEP runs. The server schedules a periodic
   /// `deleteExpiredKeys()` pass, so an expired enrollment record is removed

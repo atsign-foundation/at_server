@@ -528,8 +528,22 @@ void main() {
     });
 
     test(
-        'Verify that all related keys are cleaned up when expired enrollments are cleaned up while fetching enrollments',
+        'Fetching an expired enrollment REPORTS it expired and removes nothing',
         () async {
+      // BEHAVIOUR CHANGED — fetching used to remove an expired enrollment as
+      // it encountered it, taking its per-enrollment data with it. That was a
+      // store mutation on the path every verb command and every authorisation
+      // check takes, all of it outside the atSign's one enrollment-mutation
+      // critical section; and for the housekeeping enrollment `remove` fires
+      // the pre-remove hook, so a read could retire the legacy PKAM
+      // credential.
+      //
+      // The guarantee that mattered — an expired enrollment and its ancillary
+      // keys do go away — is unchanged and is the sibling test above: the
+      // scheduled expired-keys pass removes them through the same
+      // `AtKeyValueStore.remove`, so the same hooks fire. What is asserted
+      // here is that the READ does not, and that it still tells its caller
+      // the enrollment is expired, which is what every caller decides on.
       int ttl = 100;
       List<String> allEnIds;
       List<String> withTtlEnIds;
@@ -568,13 +582,13 @@ void main() {
       await etu.verifyKeyStoreState(allEnIds, [], cleanedUp: false);
 
       // fetch all enrollments
-      // this should return ALL of them (including expired)
-      // but should also delete the expired ones as it encounters them
+      // this should return ALL of them (including expired) and write nothing
       //
       // Note that we have to supply the list of enrollment ids
       // because otherwise getEnrollmentsAsJson will do a getKeys
       // on the HiveAtKeyValueStore which in turn filters what it finds against
       // the _expiryCache which HiveAtKeyValueStore maintains.
+      final int writesBefore = EnrollmentManager.cacheInvalidations;
       Map m = await enMgr.getEnrollmentsAsJson(
           ekList:
               allEnIds.map((enId) => enMgr.buildEnrollmentKey(enId)).toList());
@@ -589,9 +603,19 @@ void main() {
           expect(withTtlEnIds, contains(enMgr.getIdFromKey(entry.key)));
         }
       }
-      expect(expiredEncountered, withTtlEnIds.length);
+      expect(expiredEncountered, withTtlEnIds.length,
+          reason: 'the read still REPORTS the expiry — that is what callers '
+              'decide on, and it is why not removing costs them nothing');
 
-      // Verify that the keystore state is correct (expired all gone, others remain)
+      expect(EnrollmentManager.cacheInvalidations, writesBefore,
+          reason: 'every enrollment write bumps this counter, and a read of '
+              'five enrollments — two of them expired — must not bump it at '
+              'all');
+      await etu.verifyKeyStoreState(allEnIds, [], cleanedUp: false);
+
+      // And the scheduled pass is what does remove them, ancillary keys and
+      // all: the guarantee is kept, by the job whose business it is.
+      await keyValueStore.deleteExpiredKeys();
       await etu.verifyKeyStoreState(allEnIds, withTtlEnIds, cleanedUp: true);
     });
   });

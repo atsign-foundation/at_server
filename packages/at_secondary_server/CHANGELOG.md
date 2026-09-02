@@ -164,6 +164,25 @@
   `the legacy credential for this atSign has been retired` became `this atSign
   has no usable legacy PKAM credential`, followed by the remedy. Which of the
   two reasons it was is in the server log, not on the wire.
+- fix: reading an enrollment no longer WRITES. `getEnrollmentByFullKey`
+  removed a record whose ttl had elapsed as it read it, and enrollments are
+  read on every verb command and every authorisation check — all of it
+  deliberately outside the atSign's one enrollment-mutation critical section.
+  So a reader that had decided nothing mutated the store while a mutation of
+  another record was in flight, and for `primary` it was worse than untidy:
+  `remove` fires the pre-remove hook, which takes `at_pkam_publickey` with it,
+  so an authorisation check could retire the atSign's legacy credential.
+
+  The read now reports the elapsed ttl as an `expired` approval state and
+  leaves the record alone, which is the value every caller already decided on.
+  Nothing is leaked: the server's scheduled `deleteExpiredKeys()` pass removes
+  expired records through the same `AtKeyValueStore.remove`, so the same hooks
+  fire and the ancillary per-enrollment keys still go.
+
+  ⚠️ `enroll:list` and `enroll:fetch` therefore keep reporting an expired
+  enrollment, with `"status":"expired"`, until that pass runs — where before,
+  the first read made it vanish.
+
 - ⚠️ fix: an enrollment nothing can authenticate as is not counted as a root,
   WHOEVER it is. The credential check was special-cased to `primary`, so an
   ordinary enrollment holding an empty `apkamPublicKey` — approved, fully
