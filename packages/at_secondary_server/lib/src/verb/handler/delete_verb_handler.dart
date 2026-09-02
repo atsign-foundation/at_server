@@ -105,10 +105,6 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     // string equality against this value, so a fold that drifted from the
     // store's would answer about a key the store does not hold.
     deleteKey = canonicalAtKey(deleteKey);
-    if (deleteKey == AtConstants.atCramSecret) {
-      await keyStore.put(
-          AtConstants.atCramSecretDeleted, AtData()..data = 'true');
-    }
 
     InboundConnectionMetadata inboundConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
@@ -121,6 +117,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
           'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'
           ' is not authorized to delete key: $deleteKey');
     }
+    bool cramSecretExisted = false;
     try {
       // if this is not cached (because we should always be allowed to delete
       // cached data from other atSigns)
@@ -140,6 +137,12 @@ class DeleteVerbHandler extends ChangeVerbHandler {
           }
         }
       }
+      // Read immediately before the removal, because removing a key the
+      // store does not hold is not an error here — it succeeds with a
+      // commit id of -1 — and the CRAM tombstone below must record a
+      // deletion that happened rather than a command that was sent.
+      cramSecretExisted = deleteKey == AtConstants.atCramSecret &&
+          await keyStore.exists(deleteKey);
       var result = await keyStore.remove(deleteKey,
           skipCommit: verbParams[WireParams.noCommit] != null,
           deletedAt: deletedAt);
@@ -149,6 +152,34 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       logger.warning('key $deleteKey does not exist in keystore');
       rethrow;
     }
+
+    // The CRAM secret is the registrar's activation credential, and this
+    // marker is what stops it being replanted on a later start (see
+    // [AtSecondaryServerImpl.plantCramSecretIfRequired]). It is written HERE
+    // — after the authorisation check above, and after the removal actually
+    // succeeded — because it records a deletion that happened rather than
+    // one that was merely attempted.
+    //
+    // Written earlier, it was reachable by any connection that got as far as
+    // this handler: an enrollment holding nothing but an ordinary namespace
+    // was refused the delete and still permanently disabled CRAM, on an
+    // atSign that need never have had a secret at all. Once the flat PKAM
+    // credential is retired, CRAM is the last recovery route an atSign has,
+    // so a caller who cannot delete the secret must not be able to close
+    // that route either — nor may a command that deleted nothing.
+    //
+    // Deliberately NOT inside the try above: one guard per operation, so a
+    // failure writing the marker cannot be mistaken for the removal not
+    // having happened. The two are separate durable writes, and a crash
+    // between them leaves the secret gone with no marker — a restart with
+    // `-s` would then replant. That is the safer of the two orderings: the
+    // opposite one loses the secret's replant permanently on a delete that
+    // never completed.
+    if (cramSecretExisted) {
+      await keyStore.put(
+          AtConstants.atCramSecretDeleted, AtData()..data = 'true');
+    }
+
     try {
       if (!deleteKey.startsWith('@')) {
         return;
