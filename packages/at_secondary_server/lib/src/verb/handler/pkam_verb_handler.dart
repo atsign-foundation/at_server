@@ -149,16 +149,22 @@ class PkamVerbHandler extends AbstractVerbHandler {
             .enrollmentManager
             .ensureHousekeepingEnrollment();
         if (housekeeping == null) {
-          // The record is absent AND the legacy key has gone, which together
-          // mean the credential was RETIRED — not that this is a first
-          // authentication. Re-creating it here would hand the retired
-          // keyfile a fresh, unexpiring enrollment and undo the retirement,
-          // every time it expired.
+          // The record is absent and must not be created, so this is NOT a
+          // first authentication. Either the credential was retired — the key
+          // goes with the record, so its absence says so — or the key that is
+          // there belongs to an enrollment and was never a legacy credential
+          // at all. Creating the record in either case would hand a keypair a
+          // fresh, unexpiring root identity; in the first it would undo the
+          // retirement every time the record expired.
+          //
+          // The refusal does not say WHICH, because the caller has not
+          // authenticated and the two are not its business. The manager logs
+          // the distinction, naming what it found.
           atConnectionMetadata.isAuthenticated = false;
-          logger.warning('Refusing legacy PKAM authentication: this atSign\'s '
-              'legacy credential has been retired');
+          logger.warning('Refusing legacy PKAM authentication: this atSign has '
+              'no usable legacy credential');
           throw UnAuthenticatedException(
-              'the legacy credential for this atSign has been retired');
+              'this atSign has no usable legacy PKAM credential');
         }
 
         // The legacy credential is only as live as its enrollment. Revoking
@@ -224,10 +230,18 @@ class PkamVerbHandler extends AbstractVerbHandler {
     // It exists to give the legacy keyfile a lifecycle, and a credential
     // reachable both with and without an enrollment id would have two: the
     // legacy gates below would be bypassed by naming it, and its retirement
-    // could be sidestepped by the very keyfile it retires. It also holds the
-    // LEGACY public key, so an APKAM signature could never verify against it
-    // — this refuses the attempt in terms of what it is rather than letting
-    // it fail as a bad signature.
+    // could be sidestepped by the very keyfile it retires.
+    //
+    // ⚠️ It holds NO public key at all: `apkamPublicKey` is stored EMPTY, and
+    // that emptiness is load-bearing rather than an omission. It is what makes
+    // an APKAM authentication naming this enrollment fail closed however the
+    // id is spelled — the keystore folds ids on the way in, so a spelling that
+    // resolves to this record can compare unequal to the literal below, while
+    // the empty key does not care. Writing the legacy public key here would
+    // reverse that and give one keypair two identities. This refusal is the
+    // second guard, not the only one, and it exists to name what the identity
+    // IS rather than letting the attempt die at the emptiness check as though
+    // the record were broken.
     if (enId == EnrollmentManager.housekeepingEnrollmentId) {
       apkamResult.response.isError = true;
       apkamResult.response.errorCode = 'AT0009';

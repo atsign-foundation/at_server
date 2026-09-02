@@ -118,6 +118,46 @@ void main() {
         AtData()..data = jsonEncode(h.toJson()), status);
   }
 
+  /// A PENDING enrollment whose OWN APKAM credential is [apkamPublicKey].
+  ///
+  /// `ETU.createPendingEnrollment` derives the key from the app and device
+  /// names, and what these tests need to control is precisely that value.
+  Future<String> enrollmentHolding(String apkamPublicKey,
+      {String appName = 'holder', String deviceName = 'device'}) async {
+    final EnrollParams ep = EnrollParams()
+      ..appName = appName
+      ..deviceName = deviceName
+      ..apkamPublicKey = apkamPublicKey
+      ..encryptedAPKAMSymmetricKey = 'encrypted apkam aes key'
+      ..namespaces = {'wavi': 'rw'}
+      ..otp = await etu.getOtp();
+    inboundConnection.metaData
+      ..isAuthenticated = false
+      ..authType = null
+      ..sessionID = DateTime.now().millisecondsSinceEpoch.toString();
+    final r = Response();
+    await etu.evh.processVerb(
+      r,
+      getVerbParam(
+          VerbSyntax.enroll, 'enroll:request:${jsonEncode(ep.toJson())}'),
+      inboundConnection,
+    );
+    expect(r.isError, isFalse, reason: '${r.errorMessage}');
+    final m = jsonDecode(r.data!);
+    expect(m['status'], EnrollmentStatus.pending.name);
+    return m['enrollmentId'] as String;
+  }
+
+  /// Stores a zero-length legacy key. `seedLegacyKey('')` would do the same,
+  /// but naming it is what stops a reader taking it for a typo — the emptiness
+  /// is the whole subject of the tests that call this.
+  Future<void> seedEmptyLegacyKey() async {
+    await keyValueStore.put(AtConstants.atPkamPublicKey, AtData()..data = '',
+        skipCommit: true);
+    expect(await keyValueStore.exists(AtConstants.atPkamPublicKey), isTrue,
+        reason: 'the key IS present: presence is what must stop being the bar');
+  }
+
   group('the housekeeping enrollment', () {
     test('its id is the literal `primary`', () {
       expect(EnrollmentManager.housekeepingEnrollmentId, 'primary',
@@ -245,6 +285,123 @@ void main() {
               'the record would retire nothing');
     });
 
+    test('it is NOT minted from an EMPTY legacy key', () async {
+      // Zero-length is a state the atSign can be found in: `update:json`
+      // carries its value inside the JSON document rather than through the
+      // `update` grammar's non-empty value capture, so an owner connection can
+      // store one. Authentication refuses an empty public key before it looks
+      // at a signature, so a record minted here would stand over a credential
+      // nobody can authenticate with.
+      await seedEmptyLegacyKey();
+
+      expect(await enMgr.ensureHousekeepingEnrollment(), isNull,
+          reason: 'PRESENCE is not the bar. A zero-length value is a '
+              'credential nobody can authenticate with, so it must read '
+              'exactly as the key being gone reads');
+      expect(await storedH(), isNull,
+          reason: 'and nothing was written — an identity for a credential '
+              'that cannot authenticate is the phantom root, minted');
+    });
+
+    test('it is NOT minted from a key that is an enrollment\'s own credential',
+        () async {
+      // `at_pkam_publickey` holding some enrollment's own `apkamPublicKey` is
+      // a COPY of that enrollment's credential rather than a legacy one —
+      // older servers' CRAM auto-approve branch wrote the enrolling app's key
+      // there "for old clients". Minting `primary` from it gives one keypair a
+      // second identity with a lifecycle of its own, which is the
+      // dual-identity bug the record exists to end.
+      final String holder = await enrollmentHolding('a keypair the app holds');
+      await seedLegacyKey('a keypair the app holds');
+
+      expect(await enMgr.ensureHousekeepingEnrollment(), isNull,
+          reason: 'declined, so legacy authentication is refused rather than '
+              'granting enrollment $holder\'s own keypair a second identity');
+      expect(await storedH(), isNull,
+          reason: 'and nothing was written — a null return that created the '
+              'record anyway would grant the identity regardless');
+      expect(await keyValueStore.exists(AtConstants.atPkamPublicKey), isTrue,
+          reason: 'declining is a REFUSAL, not a repair. The server cannot '
+              'tell such a copy from a credential an owner provisioned with a '
+              'keypair it also enrolled, so deleting one would lock an owner '
+              'out instead of tidying up after an app');
+    });
+
+    test('...while a key NO enrollment holds is minted as usual', () async {
+      // The control, and it is what stops the refusal above being satisfied
+      // by creation never happening: the same shape, differing only in the
+      // value the guard reads.
+      await enrollmentHolding('a keypair the app holds');
+      await seedLegacyKey('a keypair no enrollment holds');
+
+      expect(await enMgr.ensureHousekeepingEnrollment(), isNotNull);
+      expect(await storedH(), isNotNull);
+    });
+
+    test('a REVOKED enrollment\'s key refuses the mint too', () async {
+      // The measured consequence, and the reason status is not filtered.
+      // Revoking an app root is exactly the moment its keypair would
+      // otherwise be left authenticating as `primary` — fully privileged,
+      // permanent, and with nothing able to withdraw it, since the record
+      // that would be revoked is the one being minted here.
+      final String holder =
+          await enrollmentHolding('the revoked app\'s keypair');
+      await etu.approveEnrollment(etu.primaryEnId, holder);
+      await etu.revokeEnrollment(etu.primaryEnId, holder);
+      expect((await enMgr.getEnrollmentById(holder)).approval?.state,
+          EnrollmentStatus.revoked.name,
+          reason: 'precondition: the enrollment holding this keypair is gone');
+
+      await seedLegacyKey('the revoked app\'s keypair');
+
+      expect(await enMgr.ensureHousekeepingEnrollment(), isNull,
+          reason: 'a revoked enrollment\'s key is the case that matters most: '
+              'minting `primary` from it would hand the revoked app\'s own '
+              'keypair a fresh, unexpiring root identity, which is the '
+              'revocation being undone by the credential it revoked');
+    });
+
+    test('legacy authentication with such a key is REFUSED', () async {
+      // The consequence end to end, through the verb handler, with a
+      // signature that VERIFIES — so the refusal cannot be read as a bad
+      // signature, and the credential really would have been granted root.
+      final mlDsa = await MlDsa65PureDartAlgo().generateKeyPair();
+      final String key = base64Encode(mlDsa.publicKey);
+      await enrollmentHolding(key);
+      await seedLegacyKey(key);
+
+      const String sessionId = 'vestigial-session';
+      const String challenge = 'a-per-connection-challenge';
+      await keyValueStore.put(
+          'private:$sessionId$alice', AtData()..data = challenge);
+      final signature = await MlDsa65PureDartAlgo().signBytes(
+          Uint8List.fromList(utf8.encode('$sessionId$alice:$challenge')),
+          secretKey: mlDsa.secretKey);
+      inboundConnection.metaData
+        ..isAuthenticated = false
+        ..enrollmentId = null
+        ..sessionID = sessionId;
+
+      await expectLater(
+          PkamVerbHandler(keyValueStore).processVerb(
+            Response(),
+            getVerbParam(VerbSyntax.pkam,
+                'pkam:signingAlgo:mldsa65:${base64Encode(signature)}'),
+            inboundConnection,
+          ),
+          throwsA(isA<UnAuthenticatedException>().having((e) => e.message,
+              'message', contains('no usable legacy PKAM credential'))),
+          reason: 'the signature is GOOD — this keypair really does hold the '
+              'key at at_pkam_publickey — so the only thing between it and a '
+              'permanent root identity is this refusal');
+
+      expect(inboundConnection.metaData.isAuthenticated, isFalse,
+          reason: 'and the connection is left unauthenticated rather than '
+              'authenticated and then thrown out of');
+      expect(await storedH(), isNull,
+          reason: 'no identity was minted for it');
+    });
+
     test('...while the same absence WITH the key present is a bootstrap',
         () async {
       // The control, and it is what stops the guard above being satisfied by
@@ -323,6 +480,85 @@ void main() {
       expect(await keyValueStore.exists(approvedKey), isFalse,
           reason: 'and it must no longer resolve at the address a verifier '
               'reads');
+    });
+  });
+
+  group('enroll:unrevoke may not resurrect the legacy credential', () {
+    test('it is refused on `primary`, and the refusal says why', () async {
+      await enMgr.ensureHousekeepingEnrollment();
+      await setHStatus(EnrollmentStatus.revoked);
+
+      await expectLater(
+          () => etu.unrevokeEnrollment(
+              etu.primaryEnId, EnrollmentManager.housekeepingEnrollmentId),
+          throwsA(isA<AtEnrollmentException>().having(
+              (e) => e.message,
+              'message',
+              allOf(
+                contains('enroll:unrevoke cannot be used on '
+                    '${EnrollmentManager.housekeepingEnrollmentId}'),
+                contains('untouched by that revoke'),
+              ))),
+          reason: 'revoking this record is the atSign\'s only way to withdraw '
+              'the legacy credential, and the credential itself is left in '
+              'the keystore — so the refusal has to name that, not just say '
+              'no');
+
+      expect((await storedH())!.approval?.state, EnrollmentStatus.revoked.name,
+          reason: 'and the record is left exactly as the revoke left it');
+    });
+
+    test('...while an ordinary revoked enrollment un-revokes as before',
+        () async {
+      // The control. Without it the refusal above is satisfied by
+      // `enroll:unrevoke` refusing everything, which would say nothing about
+      // the housekeeping enrollment at all.
+      final String other = await etu.createPendingEnrollment(
+          appName: 'other',
+          deviceName: 'device',
+          namespaces: {'wavi': 'rw'},
+          apkamKeysExpiryDuration: null);
+      await etu.approveEnrollment(etu.primaryEnId, other);
+      await etu.revokeEnrollment(etu.primaryEnId, other);
+
+      await etu.unrevokeEnrollment(etu.primaryEnId, other);
+
+      expect((await enMgr.getEnrollmentById(other)).approval?.state,
+          EnrollmentStatus.approved.name,
+          reason: 'the same request shape against an ordinary enrollment: '
+              'this is the operation the housekeeping enrollment is carved '
+              'out of');
+    });
+
+    test('so a revoked legacy credential cannot be made to work again',
+        () async {
+      // The consequence, end to end, and the reason the carve-out is not
+      // bookkeeping: the revoke leaves `at_pkam_publickey` in place, so
+      // legacy authentication is refused only because the record reads
+      // `revoked`. Flipping the record back is the whole of what an attacker
+      // — or a careless operator — would need.
+      expect((await authenticateLegacy()).data, 'success',
+          reason: 'precondition: it authenticates while approved');
+
+      await setHStatus(EnrollmentStatus.revoked);
+      expect(await keyValueStore.exists(AtConstants.atPkamPublicKey), isTrue,
+          reason: 'precondition: the revoke does NOT remove the credential, '
+              'which is exactly why an un-revoke would restore a working one');
+
+      await expectLater(
+          () => etu.unrevokeEnrollment(
+              etu.primaryEnId, EnrollmentManager.housekeepingEnrollmentId),
+          throwsA(isA<AtEnrollmentException>()),
+          reason: 'the un-revoke has to be refused, or the assertion below '
+              'is about a credential this command already restored');
+
+      await expectLater(
+          () => authenticateLegacy(sessionId: 'after-refused-unrevoke'),
+          throwsA(isA<UnAuthenticatedException>().having((e) => e.message,
+              'message', contains('the legacy credential for this atSign is '
+                  'revoked'))),
+          reason: 'the withdrawal stands. Getting a working credential back '
+              'is a fresh enrollment, not an undo');
     });
   });
 
@@ -864,6 +1100,38 @@ void main() {
           isTrue,
           reason: 'the record never changed — only the credential it stands '
               'for came back');
+    });
+
+    test('an EMPTY at_pkam_publickey is a phantom root just the same',
+        () async {
+      await enMgr.ensureHousekeepingEnrollment();
+
+      expect(await enMgr.hasUnexpiringRootEnrollment({etu.primaryEnId}),
+          isTrue,
+          reason: 'precondition: approved, fully privileged and permanent, so '
+              'it answers the stranding question while its credential lives');
+
+      // PRESENT but zero-length, which is a state `update:json` can write:
+      // its value travels inside the JSON document rather than through the
+      // `update` grammar's non-empty value capture.
+      await seedEmptyLegacyKey();
+
+      expect(await enMgr.hasUnexpiringRootEnrollment({etu.primaryEnId}),
+          isFalse,
+          reason: 'authentication refuses an empty public key before it looks '
+              'at any signature, so the record stands over a credential '
+              'NOBODY can authenticate with — the same phantom root as a '
+              'missing key, reached by a route a presence check waves '
+              'through. Counting it tells the caller the atSign can restore a '
+              'root, and the caller then revokes the last one that works');
+
+      // The control, and it is what stops the guard being satisfied by a walk
+      // that has simply stopped finding anything.
+      await seedLegacyKey();
+      expect(await enMgr.hasUnexpiringRootEnrollment({etu.primaryEnId}),
+          isTrue,
+          reason: 'the record never changed — only the value at the key it '
+              'stands over');
     });
 
     test('...and an ordinary root is unaffected by the legacy key', () async {

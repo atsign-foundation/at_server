@@ -28,12 +28,60 @@
   `update:privatekey:at_pkam_publickey`, over a connection authenticated with
   the credential it replaces.
 - fix: `primary` counts as an unexpiring root only while `at_pkam_publickey` is
-  in the keystore. Alone among enrollments it holds no credential of its own,
-  so a record standing over a key that is gone is a PHANTOM root — approved,
-  fully privileged, permanent and impossible to authenticate as. Counting it
-  answered "this atSign can restore a root" for a record nobody holds a
-  credential for, and the caller then revoked or capped the last root that
-  actually worked.
+  in the keystore AND NON-EMPTY. Alone among enrollments it holds no credential
+  of its own, so a record standing over a key nobody can authenticate with is a
+  PHANTOM root — approved, fully privileged, permanent and impossible to
+  authenticate as. Counting it answered "this atSign can restore a root" for a
+  record nobody holds a credential for, and the caller then revoked or capped
+  the last root that actually worked. Presence alone was the wrong bar because
+  authentication refuses an empty public key before it looks at a signature, so
+  an empty value and a missing one are the same credential — none. Zero-length
+  is reachable rather than theoretical: the `update` grammar demands a
+  non-empty value, but `update:json` carries the value inside the JSON document
+  instead, so an owner connection can store one.
+- ⚠️ fix: `primary` is no longer minted from an `at_pkam_publickey` that is
+  some enrollment's own `apkamPublicKey`. Such a value is a COPY of that
+  enrollment's credential rather than a legacy one — older servers' CRAM
+  auto-approve branch wrote the enrolling app's key there "for old clients" —
+  and granting it a second identity is the dual-identity bug itself: revoking
+  that app root left its own keypair authenticating as `primary`, fully
+  privileged and permanent, with nothing able to withdraw it, since the record
+  a revoke would name is the one the next legacy authentication creates.
+  Legacy authentication is refused instead, and the server logs at warning
+  which enrollments hold the key. Nothing is deleted: the server cannot tell
+  such a copy from a credential an owner provisioned with a keypair it also
+  enrolled, so removing one would lock an owner out rather than tidy up after
+  an app.
+
+  ⚠️ The cost, stated rather than smoothed over: an operator who deliberately
+  provisioned `at_pkam_publickey` with a keypair they ALSO hold as an APKAM
+  enrollment loses legacy authentication on that atSign. `enroll:request`
+  accepts whatever `apkamPublicKey` a client sends, so that shape is
+  reachable, and nothing distinguishes it from the vestigial one. The remedy
+  is to rotate the legacy credential onto a keypair no enrollment holds, with
+  `update:privatekey:at_pkam_publickey <new public key>` over an owner
+  connection. The comparison is made only when the record is MINTED, so an
+  atSign that already has `primary` is unaffected whatever is enrolled
+  afterwards.
+
+  ⚠️ The refusal a legacy client sees when the record is absent and must not
+  be created changed wording, because there are now two reasons for it:
+  `the legacy credential for this atSign has been retired` became `this atSign
+  has no usable legacy PKAM credential`. Which of the two it was is in the
+  server log, not on the wire.
+- ⚠️ fix: `enroll:unrevoke` is refused on `primary`. Revoking that record is
+  how an atSign withdraws its legacy keyfile — nothing else can, because the
+  credential is a flat key the delete verb refuses on grammar and the record
+  holds no copy of it to overwrite. The revoke leaves `at_pkam_publickey`
+  exactly where it was, so the record's revoked state is the only thing
+  standing between that keyfile and full privilege, and an un-revoke handed it
+  back working to every holder of a copy. The guard that stops this everywhere
+  else does not reach it: an un-revoke is refused while the enrollment that
+  ADMITTED the target is not approved, and `primary` carries no approver — the
+  server created it for itself — so that gate was vacuous for the one record
+  whose revocation is a decision about a credential nothing else governs.
+  `enroll:revoke` and `enroll:delete` on `primary` are unchanged; getting a
+  working credential back is a fresh enrollment, not an undo.
 - ⚠️ fix: `update:privatekey:at_pkam_publickey` is no longer writable by any
   root enrollment. It is the one key an enrollment can write that MINTS AN
   IDENTITY rather than serving one: legacy PKAM authenticates against it and
@@ -370,8 +418,10 @@
   ⚠️ An atSign whose legacy credential has been retired refuses legacy
   authentication as an authentication failure naming the remedy, rather than
   surfacing a keystore exception. A retired credential cannot re-create
-  itself: the record's absence means "never existed" only while the legacy key
-  is still present, because removing the record always takes that key too.
+  itself: the record's absence means "never existed" only while a usable
+  legacy key is still there, because removing the record always takes that key
+  too. A usable key is necessary and not sufficient — see the entries above on
+  emptiness and on a key that is some enrollment's own credential.
 
 - feat: the housekeeping enrollment appears in `enroll:list` like any other.
   The roster genuinely contains it, and hiding it would make the verb lie

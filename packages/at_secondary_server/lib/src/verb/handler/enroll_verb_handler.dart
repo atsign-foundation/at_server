@@ -782,6 +782,43 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // Note: The enrollParams.enrollmentId is verified for null check in _validateParams method.
     // Therefore, when control comes here, enrollmentId will not be null.
     final String enId = enrollParams.enrollmentId!;
+
+    // `unrevoke` is refused on the housekeeping enrollment outright, and
+    // before anything is read, because there is no state of the record in
+    // which it would be right.
+    //
+    // Revoking that record is how an atSign withdraws its legacy keyfile —
+    // nothing else can, because the credential is a flat key the delete verb
+    // refuses on grammar and the record holds no copy of it to overwrite. The
+    // key is untouched by the revoke, sitting in the keystore exactly as
+    // before, so the record's revoked state is the ONLY thing standing between
+    // that keyfile and full privilege. Un-revoking hands it back — working,
+    // unexpiring and fully privileged — to everyone holding a copy of a file
+    // that predates enrollments: legacy authentication is refused only because
+    // the record reads `revoked`, so flipping the record is all it takes.
+    //
+    // Every other enrollment's un-revoke is gated by
+    // [_refuseIfApproverNotApproved], which will not make an enrollment active
+    // while the enrollment that ADMITTED it is not. `primary` carries no
+    // approver — the server created it for itself, so no cascade can reach it
+    // — which leaves that gate vacuous for the one record whose revocation is
+    // a decision about a credential nothing else governs.
+    //
+    // `revoke` stays available, and so does `enroll:delete`, which takes the
+    // key with the record and finishes the retirement. Getting a working
+    // credential back is a fresh enrollment, not an undo.
+    if (operation == 'unrevoke' &&
+        enId == EnrollmentManager.housekeepingEnrollmentId) {
+      throw AtEnrollmentException(
+          'enroll:unrevoke cannot be used on $enId: it is the atSign\'s legacy '
+          'PKAM identity, and revoking it is the only way to withdraw the '
+          'legacy credential. ${AtConstants.atPkamPublicKey} is untouched by '
+          'that revoke, so un-revoking would hand the credential back, '
+          'working, to every holder of a copy. Enrol a fresh credential '
+          'instead, or finish retiring this one with enroll:delete, which '
+          'removes ${AtConstants.atPkamPublicKey} with the record');
+    }
+
     EnrollDataStoreValue? enVal;
     EnrollmentStatus? status;
     try {
