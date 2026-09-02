@@ -144,18 +144,24 @@ void main() async {
 
       String enId = Uuid().v4();
       String ek = enMgr.buildEnrollmentKey(enId);
-      when(() => mockKeyStore.remove(ek, skipCommit: true))
-          .thenAnswer((invocation) => Future.value(null));
-      when(() => mockKeyStore.remove(
-            enMgr.keyForPEK(enId),
-            skipCommit: true,
-          )).thenAnswer((invocation) => Future.value(null));
-      when(() => mockKeyStore.remove(
-            enMgr.keyForSEK(enId),
-            skipCommit: true,
-          )).thenAnswer((invocation) => Future.value(null));
-      when(() => mockKeyStore.remove(enMgr.keyForLegacyPK(enValue),
-          skipCommit: true)).thenAnswer((invocation) => Future.value(null));
+
+      // PERMISSIVE, and then verified NEVER CALLED. This test used to stub
+      // four exact removes — the enrollment key, its two encryption keys and
+      // the legacy APKAM public key — because reading an expired enrollment
+      // used to REAP it. Three of those four stubbed the key the production
+      // code was about to build by calling the very builder that builds it,
+      // so they matched whatever that builder produced and could not fail;
+      // and the reap they were written for is gone, so as exact stubs they
+      // matched nothing at all.
+      //
+      // A permissive stub is what makes the assertion below say something. An
+      // unstubbed `remove` on a mock returns null through noSuchMethod and
+      // blows up on the await, so a reap that came back would fail this test
+      // on a TypeError naming neither the reap nor this assertion — red for
+      // the wrong reason. Stubbed, a reap SUCCEEDS silently, and verifyNever
+      // is then the only thing that reports it.
+      when(() => mockKeyStore.remove(any(),
+          skipCommit: any(named: 'skipCommit'))).thenAnswer((_) async => null);
 
       when(() => mockKeyStore.get(ek)).thenAnswer((invocation) => Future.value(
           AtData()
@@ -170,6 +176,16 @@ void main() async {
       expect(apkamResult.response.errorCode, 'AT0028');
       expect(apkamResult.response.errorMessage,
           'enrollment_id: $enId is expired or invalid');
+
+      // A READ path must not write. An authorisation check runs on every verb
+      // command, outside the atSign's enrollment-mutation critical section, so
+      // a reap here is a store mutation taken by a caller that has decided
+      // nothing while another mutation is in flight — and for the housekeeping
+      // record it is worse than untidy, because removing it fires the
+      // pre-remove hook and takes `at_pkam_publickey` with it. An
+      // authorisation check would retire the atSign's legacy credential.
+      verifyNever(
+          () => mockKeyStore.remove(any(), skipCommit: any(named: 'skipCommit')));
     });
   });
 
