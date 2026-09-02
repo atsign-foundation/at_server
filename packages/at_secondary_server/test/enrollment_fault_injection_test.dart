@@ -24,9 +24,18 @@ import 'test_utils.dart';
 /// about rather than exercised. This file injects the faults.
 ///
 /// A mocktail double is used rather than a delegating wrapper: only `get` and
-/// `getKeys` are reached by the code under test, and stubbing exactly those
-/// two keeps the double from silently answering a call nobody meant it to
-/// take.
+/// the two key enumerations are reached by the code under test, and stubbing
+/// exactly those keeps the double from silently answering a call nobody meant
+/// it to take.
+///
+/// ⚠️ BOTH enumerations are stubbed together, by [stubRoster], and that is not
+/// tidiness. A `Mock implements` erases every body, so an enumeration the
+/// double does not stub is answered by `noSuchMethod` with null — which fails
+/// at RUNTIME, inside the code under test, as a type error that reads like a
+/// product bug. Which enumeration a given walk takes is a per-caller decision
+/// (see [EnrollmentManager.getAllEnrollmentKeys]), so a fixture that stubs the
+/// one the walk happens to use today breaks silently the day that caller
+/// changes its mind.
 class _FaultyKeyStore extends Mock
     implements AtKeyValueStore<String, AtData, AtMetaData?> {}
 
@@ -44,7 +53,21 @@ class _StubPool extends Mock implements InboundConnectionPool {
 void main() {
   setUpAll(() async {
     registerFallbackValue(AtData());
+    registerFallbackValue(const KeyPattern());
   });
+
+  /// Makes [store] answer BOTH key enumerations with [keys].
+  ///
+  /// `getKeys` is the visible roster and `scanKeys` the stored one; which of
+  /// them a walk takes is the caller's decision, and a double that answers
+  /// only one returns null through `noSuchMethod` for the other.
+  void stubRoster(_FaultyKeyStore store, List<String> keys) {
+    when(() => store.getKeys(regex: any(named: 'regex')))
+        .thenAnswer((_) async => Stream.fromIterable(keys));
+    when(() => store.scanKeys(any(),
+            includeExpired: any(named: 'includeExpired')))
+        .thenAnswer((_) async => Stream.fromIterable(keys));
+  }
 
   setUp(() async => await verbTestsSetUp());
   tearDown(() async => await verbTestsTearDown());
@@ -129,8 +152,7 @@ void main() {
       final rootKey = enMgr.buildEnrollmentKey(rootId);
       final childKey = enMgr.buildEnrollmentKey(childId);
 
-      when(() => store.getKeys(regex: any(named: 'regex')))
-          .thenAnswer((_) async => Stream.fromIterable([rootKey, childKey]));
+      stubRoster(store, [rootKey, childKey]);
       when(() => store.get(rootKey))
           .thenAnswer((_) async => AtData()..data = recordFor(rootId));
       when(() => store.get(childKey))
@@ -154,8 +176,7 @@ void main() {
       final rootKey = enMgr.buildEnrollmentKey(rootId);
       final childKey = enMgr.buildEnrollmentKey(childId);
 
-      when(() => store.getKeys(regex: any(named: 'regex')))
-          .thenAnswer((_) async => Stream.fromIterable([rootKey, childKey]));
+      stubRoster(store, [rootKey, childKey]);
       when(() => store.get(rootKey))
           .thenAnswer((_) async => AtData()..data = recordFor(rootId));
       when(() => store.get(childKey)).thenAnswer(
@@ -179,8 +200,7 @@ void main() {
       final goneKey = enMgr.buildEnrollmentKey(goneId);
       final liveKey = enMgr.buildEnrollmentKey(liveId);
 
-      when(() => store.getKeys(regex: any(named: 'regex')))
-          .thenAnswer((_) async => Stream.fromIterable([goneKey, liveKey]));
+      stubRoster(store, [goneKey, liveKey]);
       when(() => store.get(goneKey))
           .thenThrow(KeyNotFoundException('$goneKey does not exist'));
       when(() => store.get(liveKey))
@@ -201,8 +221,7 @@ void main() {
       final aKey = enMgr.buildEnrollmentKey(aId);
       final bKey = enMgr.buildEnrollmentKey(bId);
 
-      when(() => store.getKeys(regex: any(named: 'regex')))
-          .thenAnswer((_) async => Stream.fromIterable([aKey, bKey]));
+      stubRoster(store, [aKey, bKey]);
       when(() => store.get(aKey))
           .thenAnswer((_) async => AtData()..data = recordFor(aId));
       when(() => store.get(bKey))

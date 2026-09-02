@@ -607,7 +607,8 @@ void main() {
       await etu.initPrimaryEnrollment();
       await enrollmentHolding('a key', appName: 'app-one');
       await enrollmentHolding('another key', appName: 'app-two');
-      expect(await enMgr.getAllEnrollmentKeys(), hasLength(3),
+      expect(await enMgr.getAllEnrollmentKeys(includeExpired: true),
+          hasLength(3),
           reason: 'precondition: the fixture built exactly three, so the '
               'literal below is a count taken independently of the message');
 
@@ -1563,6 +1564,207 @@ void main() {
           isTrue,
           reason: 'with the housekeeping enrollment excluded outright, the '
               'legacy key\'s absence must decide nothing');
+    });
+  });
+
+  // =====================================================================
+  // Which roster a decision reads.
+  // =====================================================================
+
+  /// Moves [enId]'s record one minute past its expiry and leaves it exactly
+  /// where it is on disk.
+  ///
+  /// This is the state every enrollment passes through: the keystore stops
+  /// ENUMERATING a record the instant its ttl elapses, and the scheduled
+  /// expired-keys pass removes it tens of seconds later. In between, the
+  /// record is on disk, readable by key, and invisible to `getKeys` — so the
+  /// roster a decision reads is a different set from the one the atSign holds.
+  ///
+  /// Asserts that state rather than assuming it, because the whole of every
+  /// arm below is the difference between the two rosters.
+  Future<void> elapseTtlOf(String enId) async {
+    final String ek = enMgr.buildEnrollmentKey(enId);
+    final AtData record = (await keyValueStore.get(ek))!;
+    final EnrollDataStoreValue v =
+        EnrollDataStoreValue.fromJson(jsonDecode(record.data!));
+    await enMgr.put(
+        enId, record, EnrollmentStatus.values.byName(v.approval!.state),
+        assertedTimestamps: AtAssertedTimestamps(
+            expiresAt: DateTime.now().toUtc().subtract(Duration(minutes: 1)),
+            deriveTtl: true));
+
+    expect(await keyValueStore.exists(ek), isTrue,
+        reason: 'STILL ON DISK. If the record were gone this would be a test '
+            'of deletion, and every arm below would prove nothing');
+    expect(await enMgr.getAllEnrollmentKeys(includeExpired: false),
+        isNot(contains(ek)),
+        reason: 'and gone from the VISIBLE roster, which is the one variable');
+  }
+
+  group('the roster a decision reads', () {
+    test('the two rosters disagree about an elapsed record', () async {
+      // The instrument, with both colours in one test: the stored roster is
+      // not simply the visible one under another name, and the visible one is
+      // not simply broken.
+      final String live = await enrollmentHolding('key one', appName: 'live');
+      final String elapsed =
+          await enrollmentHolding('key two', appName: 'elapsed');
+      await elapseTtlOf(elapsed);
+
+      expect(await enMgr.getAllEnrollmentKeys(includeExpired: false),
+          [enMgr.buildEnrollmentKey(live)],
+          reason: 'getKeys skips a record whose ttl has elapsed');
+      expect(
+          await enMgr.getAllEnrollmentKeys(includeExpired: true),
+          unorderedEquals([
+            enMgr.buildEnrollmentKey(live),
+            enMgr.buildEnrollmentKey(elapsed),
+          ]),
+          reason: 'while the atSign holds both, and get() and exists() both '
+              'still answer for the second');
+    });
+
+    test('ARM 1: a LIVE enrollment refuses the housekeeping mint', () async {
+      await enrollmentHolding('a keypair the app holds', appName: 'holder');
+      await seedLegacyKey('a keypair the app holds');
+
+      expect(await enMgr.ensureHousekeepingEnrollment(), isNull,
+          reason: 'this atSign has been enrolled, so the key at '
+              'at_pkam_publickey is not a credential it authenticated with '
+              'before any enrollment existed');
+      expect(await storedH(), isNull,
+          reason: 'and no unexpiring root was minted for the flat key');
+    });
+
+    test('ARM 2: the SAME enrollment, ttl elapsed, refuses it too', () async {
+      // Identical to ARM 1 but for one line. The gate used to read the
+      // VISIBLE roster, so this arm found an empty one and minted `primary`
+      // at `*:rw` + `__manage:rw`, with no approver and no expiry, for
+      // whoever held the flat key — an atSign could be walked into that state
+      // by doing nothing at all except waiting for an enrollment to expire.
+      final String holder =
+          await enrollmentHolding('a keypair the app holds', appName: 'holder');
+      await seedLegacyKey('a keypair the app holds');
+      await elapseTtlOf(holder);
+
+      expect(await enMgr.ensureHousekeepingEnrollment(), isNull,
+          reason: 'the record is still on disk, so this atSign HAS been '
+              'enrolled — a roster that empties by expiry is a roster an '
+              'enrollment holder can empty on a schedule it chose');
+      expect(await storedH(), isNull,
+          reason: 'and no unexpiring root was minted for the flat key');
+    });
+
+    test('an elapsed enrollment keeps its encryption keys until it is reaped',
+        () async {
+      // `removeOrphanedApkamEncryptionKeys` deletes the per-enrollment
+      // encryption keys of enrollments that no longer exist. ORPHANED has to
+      // mean "no record holds it": read off the visible roster, this deleted
+      // the keys of a record that was still on disk, ahead of the expiry
+      // sweep — which removes them itself, through the pre-remove hook, as
+      // part of removing the record.
+      final String holder = await enrollmentHolding('k', appName: 'holder');
+      final String pek = enMgr.keyForPEK(holder);
+      final String sek = enMgr.keyForSEK(holder);
+      await keyValueStore.put(pek, AtData()..data = 'pek', skipCommit: true);
+      await keyValueStore.put(sek, AtData()..data = 'sek', skipCommit: true);
+      await elapseTtlOf(holder);
+
+      expect(await enMgr.removeOrphanedApkamEncryptionKeys(), isEmpty,
+          reason: 'ORPHANED means no record holds it, and a record whose ttl '
+              'has elapsed is still a record that holds it — the expiry sweep '
+              'removes these itself, through the pre-remove hook, as part of '
+              'removing the record');
+      expect(await keyValueStore.exists(pek), isTrue,
+          reason: 'the record that owns it is still on disk');
+      expect(await keyValueStore.exists(sek), isTrue,
+          reason: 'the record that owns them is still there');
+    });
+
+    test('...while a genuinely orphaned pair still goes', () async {
+      // The control, and it is what stops the case above being satisfied by a
+      // sweep that has stopped deleting anything.
+      final String pek = enMgr.keyForPEK('no-such-enrollment');
+      await keyValueStore.put(pek, AtData()..data = 'pek', skipCommit: true);
+
+      expect(await enMgr.removeOrphanedApkamEncryptionKeys(), contains(pek),
+          reason: 'no record has ever held this one, which is what orphaned '
+              'means');
+      expect(await keyValueStore.exists(pek), isFalse,
+          reason: 'and the sweep really does still delete');
+    });
+
+    test('the app/device leak is repaired for an elapsed enrollment too',
+        () async {
+      // `removeLegacyApkamPublicKeys` is the atSign's only repair for the
+      // public key an older server published under the app and device names.
+      // Nothing else ever revisits one: the pre-remove hook does not take it,
+      // so an enrollment skipped here because its ttl had elapsed is reaped
+      // and leaves its names published for the life of the atSign.
+      final String holder =
+          await enrollmentHolding('k', appName: 'leaky', deviceName: 'device');
+      final String leak = enMgr.keyForLegacyPK(
+          await enMgr.getEnrollmentById(holder));
+      await keyValueStore.put(leak, AtData()..data = 'pk', skipCommit: true);
+      await elapseTtlOf(holder);
+
+      expect(await enMgr.removeLegacyApkamPublicKeys(),
+          contains(enMgr.buildEnrollmentKey(holder)),
+          reason: 'the elapsed record is still the only thing that names the '
+              'app and device this key was published under');
+      expect(await keyValueStore.exists(leak), isFalse,
+          reason: 'read off the visible roster this record was never reached, '
+              'and the sweep that removes it takes nothing with it');
+    });
+
+    test('enroll:list reports the VISIBLE roster', () async {
+      // The one caller that takes the visible view, pinned because it is a
+      // WIRE answer: `enroll:list` REPORTS a roster, it decides nothing, and
+      // listing a record the keystore has stopped serving would make the
+      // response depend on how recently the expiry sweep happened to run.
+      await etu.initPrimaryEnrollment();
+      final String live = await enrollmentHolding('k1', appName: 'live-app');
+      final String elapsed =
+          await enrollmentHolding('k2', appName: 'elapsed-app');
+      await elapseTtlOf(elapsed);
+
+      inboundConnection.metaData
+        ..isAuthenticated = true
+        ..enrollmentId = etu.primaryEnId;
+      final Response r = Response();
+      await etu.evh.processVerb(
+          r, getVerbParam(VerbSyntax.enroll, 'enroll:list'), inboundConnection);
+      final Map listed = jsonDecode(r.data!);
+
+      expect(listed.keys, contains(enMgr.buildEnrollmentKey(live)),
+          reason: 'the control: the roster really is populated, so the '
+              'absence below is about the elapsed record and not about a '
+              'response that lists nothing');
+      expect(listed.keys, isNot(contains(enMgr.buildEnrollmentKey(elapsed))),
+          reason: 'a record the keystore has stopped serving is one this '
+              'atSign has finished with — including it would put a row on '
+              'the wire whose presence depends on sweep timing');
+    });
+
+    test('a cascade reaches a descendant whose ttl has elapsed', () async {
+      await etu.initPrimaryEnrollment();
+      final String child = await etu.createPendingEnrollment(
+          appName: 'child',
+          deviceName: 'device',
+          namespaces: {'wavi': 'rw'},
+          apkamKeysExpiryDuration: null);
+      await etu.approveEnrollment(etu.primaryEnId, child);
+
+      expect(await enMgr.descendantsOf(etu.primaryEnId), contains(child),
+          reason: 'precondition: it is a descendant while it is live');
+
+      await elapseTtlOf(child);
+
+      expect(await enMgr.descendantsOf(etu.primaryEnId), contains(child),
+          reason: 'every status is followed — the climb already reads through '
+              'an elapsed record, and the candidate enumeration has to as '
+              'well, or a record still holding its published `_apsk` at the '
+              'approved address sits outside the cascade');
     });
   });
 }

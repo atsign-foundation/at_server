@@ -167,6 +167,46 @@
   `the legacy credential for this atSign has been retired` became `this atSign
   has no usable legacy PKAM credential`, followed by the remedy. Which of the
   two reasons it was is in the server log, not on the wire.
+- ⚠️ fix: every decision that asks what enrollments an atSign HOLDS now reads
+  the STORED roster, expired records included. Only the answers that merely
+  REPORT a roster read the visible one.
+
+  `AtKeyValueStore.getKeys` skips a record whose ttl has elapsed while `get`
+  and `exists` do not, so between a ttl elapsing and the scheduled
+  expired-keys pass removing the record — tens of seconds — the enumerated
+  roster is a smaller set than the atSign holds. Every decision keyed on that
+  enumeration had a window in which it saw an atSign it did not have, and an
+  enrollment's ttl is its APKAM key-expiry posture: the roster empties on a
+  schedule its holder chose.
+
+  Measured on one enrollment, one variable: with the record live, a legacy
+  authentication's mint of `primary` was refused; with the same record's ttl
+  one minute in the past and the record still on disk, it minted — an
+  unexpiring, no-approver root at `*:rw` + `__manage:rw` for whoever held the
+  flat key. Nothing clears that key on the way past, either: the pre-remove
+  hook takes `at_pkam_publickey` only for `primary`.
+
+  `EnrollmentManager.getAllEnrollmentKeys` now takes a REQUIRED
+  `includeExpired`, so every call site states which roster it means:
+
+  * STORED — the housekeeping mint's gate;
+    `removeOrphanedApkamEncryptionKeys`, so ORPHANED means no record
+    holds it rather than no VISIBLE record holds it; `removeLegacyApkamPublicKeys`,
+    which is the only repair for the app/device name an older server
+    published and which nothing else ever revisits; `descendantsOf`, so a
+    revocation cascade follows every status as its contract says;
+    `_adoptApprovalChildren`, the one pass whose omissions are permanent
+    because nothing ever re-parents twice; and `hasUnexpiringRootEnrollment`.
+  * VISIBLE — `enroll:list` and `enroll:listns`, which report a roster and
+    decide nothing. Listing a record the keystore has stopped serving would
+    make the response depend on how recently the sweep happened to run.
+
+  ⚠️ WHAT AN OPERATOR SEES: a startup pass now deletes app/device public
+  keys belonging to enrollments whose ttl had elapsed, which it used to skip
+  and nothing else would ever have removed; and it no longer deletes the
+  encryption keys of an enrollment whose record is still on disk, leaving
+  those to the expiry sweep that removes the record. `enroll:list` and
+  `enroll:listns` are unchanged.
 - ⚠️ fix: rotating `privatekey:at_pkam_publickey` now requires proof that the
   sender holds the private half of the key it is installing — the same
   self-signature `enroll:update` has always demanded of every other

@@ -1424,6 +1424,9 @@ void main() {
     Future<String?> statusOf(String id) async =>
         (await enMgr.getEnrollmentById(id)).approval?.state;
 
+    Future<String?> approverIdOf(String id) async =>
+        (await enMgr.getEnrollmentById(id)).approvedByEnrollmentId;
+
     Future<Response> revoke(String revokerId, String targetId,
         {bool force = false}) async {
       inboundConnection.metaData
@@ -1587,12 +1590,18 @@ void main() {
       await Future.delayed(Duration(milliseconds: 30));
 
       expect(
-          (await enMgr.getAllEnrollmentKeys())
+          (await enMgr.getAllEnrollmentKeys(includeExpired: false))
               .any((k) => k.contains('exp-mid')),
           isFalse,
           reason: 'precondition: the middle link is expired and therefore '
-              'invisible to enumeration — without this the test passes for '
-              'the wrong reason');
+              'invisible to the VISIBLE roster — without this the test passes '
+              'for the wrong reason');
+      expect(
+          (await enMgr.getAllEnrollmentKeys(includeExpired: true))
+              .any((k) => k.contains('exp-mid')),
+          isTrue,
+          reason: 'and it is still on disk rather than reaped, which is what '
+              'makes the two rosters disagree about it at all');
 
       final r = await revoke(etu.primaryEnId, 'exp-root');
       expect(r.isError, false, reason: '${r.errorMessage}');
@@ -1600,6 +1609,44 @@ void main() {
           reason: 'the walk climbs from each live candidate and fetches each '
               'link BY KEY, which returns an expired record, so an expired '
               'enrollment part-way up no longer severs the chain');
+    });
+
+    test('a retrofit cap re-parents a child whose ttl has elapsed', () async {
+      // The re-parenting pass is the one whose omissions are PERMANENT:
+      // nothing ever re-parents twice, so a child it misses names a
+      // predecessor for the rest of its life and sits outside every later
+      // revocation cascade, with no error raised and nothing to retry.
+      //
+      // Read off the roster `getKeys` returns, it missed every child whose
+      // ttl had elapsed — and an elapsed record is not a gone record: it is
+      // on disk, it is readable by key, and the expiry sweep has simply not
+      // reached it yet.
+      await mintApprovedBy('rp-predecessor', etu.primaryEnId);
+      await mintApprovedBy('rp-child', 'rp-predecessor',
+          ttl: Duration(milliseconds: 1));
+      await Future.delayed(Duration(milliseconds: 30));
+
+      final String childKey = enMgr.buildEnrollmentKey('rp-child');
+      expect(await keyValueStore.exists(childKey), isTrue,
+          reason: 'precondition: STILL ON DISK — otherwise this is a test of '
+              'deletion');
+      expect(await enMgr.getAllEnrollmentKeys(includeExpired: false),
+          isNot(contains(childKey)),
+          reason: 'precondition: and invisible to the VISIBLE roster, which '
+              'is the one variable');
+
+      final r = await selfEnroll(
+          predecessorId: 'rp-predecessor',
+          apkamKeysExpiryDuration: Duration(minutes: 1));
+      expect(r.isError, false, reason: '${r.errorMessage}');
+      final String successor = jsonDecode(r.data!)['enrollmentId'] as String;
+
+      await enMgr.armRetrofitCapOnFirstAuth(successor);
+
+      expect(await approverIdOf('rp-child'), successor,
+          reason: 'the successor stands where its predecessor stood, and the '
+              'predecessor is now on a clock — a child left naming it is '
+              'orphaned the moment that clock runs out');
     });
 
     test('capping refuses on a record that is no longer approved', () async {
@@ -2127,7 +2174,10 @@ void main() {
         final ordinary = (await etu.createEnrollments(n: 1)).$1.first;
         await revoke(etu.primaryEnId, ordinary);
 
-        final enrollmentKeys = await enMgr.getAllEnrollmentKeys();
+        // The STORED roster: this backs an ABSENCE claim, so the widest
+        // enumeration is the one that has to come back without the event.
+        final enrollmentKeys =
+            await enMgr.getAllEnrollmentKeys(includeExpired: true);
         expect(enrollmentKeys, contains(enMgr.buildEnrollmentKey(ordinary)),
             reason: 'the positive control: this enumeration really does find '
                 'enrollment records, so the absence below is about the event '

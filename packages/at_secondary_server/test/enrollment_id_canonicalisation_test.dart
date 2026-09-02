@@ -397,7 +397,8 @@ void main() {
       // exclusion is done by KEY, so the builder is where a non-canonical id
       // stops mattering.
       final canonical = enMgr.buildEnrollmentKey(etu.primaryEnId);
-      expect(await enMgr.getAllEnrollmentKeys(), contains(canonical),
+      expect(await enMgr.getAllEnrollmentKeys(includeExpired: false),
+          contains(canonical),
           reason: 'precondition: a canonical id builds a key the enumeration '
               'returns');
 

@@ -363,7 +363,21 @@ class EnrollmentManager {
     // purpose, so removing it would lock an owner out rather than tidy up
     // after an app. The atSign is left exactly as it was, with legacy
     // authentication refused.
-    final List<String> stored = await getAllEnrollmentKeys();
+    //
+    // The STORED roster, expired records included, because this is a question
+    // about the atSign's whole history rather than about what the keystore is
+    // serving this second. The visible roster empties BY EXPIRY: an enrollment
+    // carries its APKAM key-expiry posture as its ttl, so on an atSign whose
+    // only enrollments have elapsed and not yet been reaped the visible roster
+    // reads empty while the records are still on disk. One record, moved from
+    // live to a ttl a minute in the past and left exactly where it was, is the
+    // whole difference between the mint being refused and an unexpiring,
+    // no-approver root being handed to whoever holds the flat key. Nothing
+    // clears that key on the way past, either: the pre-remove hook takes
+    // `at_pkam_publickey` only for `primary`, so reaping any OTHER enrollment
+    // leaves it behind for the next legacy authentication to find.
+    final List<String> stored =
+        await getAllEnrollmentKeys(includeExpired: true);
     if (stored.isNotEmpty) {
       logger.warning('Not creating the housekeeping enrollment: this atSign '
           'already holds ${stored.length} enrollment record(s), so the key at '
@@ -677,9 +691,48 @@ class EnrollmentManager {
     atDataCache.remove(ek);
   }
 
-  Future<List<String>> getAllEnrollmentKeys() async {
-    return (await keyStore.getKeys(regex: EnrollmentConstants.enrollmentsRegex))
-        .toList();
+  /// Every enrollment record key this atSign holds.
+  ///
+  /// [includeExpired] picks between two genuinely different rosters, and it is
+  /// REQUIRED so that each call site states which one it means.
+  ///
+  ///   * `false` — the VISIBLE roster: what [AtKeyValueStore.getKeys] returns,
+  ///     which omits a record whose ttl has elapsed even though the record is
+  ///     still on disk.
+  ///   * `true` — the STORED roster: everything the keystore holds, expiry
+  ///     included. This is what [AtKeyValueStore.get] and
+  ///     [AtKeyValueStore.exists] see, and it is what the atSign actually
+  ///     holds.
+  ///
+  /// The two disagree for tens of seconds at a stretch. Expiry is lazy here:
+  /// a record stops being enumerated the instant its ttl elapses, and is
+  /// removed later by the scheduled expired-keys pass, which re-arms off the
+  /// store's own next expiry and is floored and jittered. Anything deciding
+  /// what the atSign IS — whether it has ever been enrolled, whether a key is
+  /// orphaned, which children a re-parent must reach — must take the stored
+  /// view, because the visible roster is one an enrollment's own key-expiry
+  /// posture empties on a schedule its holder chose. Anything merely
+  /// REPORTING the roster can take the visible one.
+  Future<List<String>> getAllEnrollmentKeys(
+      {required bool includeExpired}) async {
+    if (!includeExpired) {
+      return (await keyStore
+              .getKeys(regex: EnrollmentConstants.enrollmentsRegex))
+          .toList();
+    }
+    // `getKeys` has no include-expired form, so the stored roster comes off
+    // `scanKeys`, which does. An unrestricted [KeyPattern] matches every key
+    // without parsing it, so this is the same whole-store walk `getKeys`
+    // makes, filtered by the same expression rather than by the backend — and
+    // both walks decode their keys identically, so a key enumerated here is
+    // byte-identical to the one the visible roster would have returned.
+    final RegExp re = RegExp(EnrollmentConstants.enrollmentsRegex);
+    final List<String> keys = [];
+    await for (final String key in await keyStore.scanKeys(const KeyPattern(),
+        includeExpired: true)) {
+      if (re.hasMatch(key)) keys.add(key);
+    }
+    return keys;
   }
 
   /// Fetch an enrollment key from the keystore.
@@ -752,7 +805,12 @@ class EnrollmentManager {
   Future<Map<String, Map<String, dynamic>>> getEnrollmentsAsJson(
       {List<String>? ekList, List<EnrollmentStatus>? statuses}) async {
     // set default values for optional arguments - all enrollments, all statuses
-    ekList ??= await getAllEnrollmentKeys();
+    //
+    // The VISIBLE roster: this REPORTS a roster (`enroll:list`), it decides
+    // nothing. A record the keystore has stopped serving is one this atSign has
+    // finished with, and listing it would make the answer depend on how
+    // recently the expiry sweep happened to run.
+    ekList ??= await getAllEnrollmentKeys(includeExpired: false);
 
     Map<String, Map<String, dynamic>> ejList = {};
     for (var ek in ekList) {
@@ -831,7 +889,11 @@ class EnrollmentManager {
   Future<List<Map<String, dynamic>>> getEnrollmentsForNamespace(
       String namespace) async {
     final result = <Map<String, dynamic>>[];
-    for (final ek in await getAllEnrollmentKeys()) {
+    // The VISIBLE roster, and here the two views cannot differ in the ANSWER:
+    // a record the visible roster omits is one [getEnrollmentByFullKey] would
+    // report `expired`, and the approved-only filter below drops it either way.
+    // Visible is the cheaper of two identical answers.
+    for (final ek in await getAllEnrollmentKeys(includeExpired: false)) {
       final EnrollDataStoreValue enVal;
       try {
         enVal = await getEnrollmentByFullKey(ek);
@@ -985,9 +1047,15 @@ class EnrollmentManager {
   }
 
   /// iterate all enrollments, remove key which leaks appName and deviceName
+  ///
+  /// Over the STORED roster, and that is what makes the repair complete.
+  /// Nothing else ever revisits one of these keys: the pre-remove hook does not
+  /// remove it, so an enrollment skipped here because its ttl had elapsed is
+  /// reaped by the expiry sweep and leaves its app and device names published
+  /// for the life of the atSign.
   Future<List<String>> removeLegacyApkamPublicKeys() async {
     final List<String> deletedLegacyKeys = [];
-    final eks = await getAllEnrollmentKeys();
+    final eks = await getAllEnrollmentKeys(includeExpired: true);
     for (final ek in eks) {
       final EnrollDataStoreValue ev = await getEnrollmentByFullKey(ek);
       final lk = keyForLegacyPK(ev);
@@ -1007,7 +1075,12 @@ class EnrollmentManager {
   Future<List<String>> removeOrphanedApkamEncryptionKeys() async {
     final List<String> deletedOrphanedKeys = [];
     final List<String> enIds = [];
-    for (final ek in await getAllEnrollmentKeys()) {
+    // The STORED roster, because ORPHANED means "no record holds it" and a
+    // record whose ttl has elapsed is still a record that holds it. Deciding
+    // from the visible roster deletes an enrollment's encryption keys while its
+    // record is still on disk, ahead of the expiry sweep — which removes them
+    // itself, through the pre-remove hook, as part of removing the record.
+    for (final ek in await getAllEnrollmentKeys(includeExpired: true)) {
       enIds.add(getIdFromKey(ek));
     }
     final List<String> candidates = [];
@@ -1131,7 +1204,13 @@ class EnrollmentManager {
   /// safe at the moment it is being stranded.
   Future<bool> hasUnexpiringRootEnrollment(Set<String> excluding) async {
     final excludedKeys = excluding.map(buildEnrollmentKey).toSet();
-    for (final ek in await getAllEnrollmentKeys()) {
+    // The STORED roster. The two views cannot differ in the answer — a record
+    // the visible roster omits is either not `approved` here or carries the
+    // non-null `expiresAt` this rejects on — but a stranding decision is a
+    // question about what the atSign HOLDS, and answering it from a roster that
+    // thins on a timer is how the same act becomes safe or unsafe according to
+    // when the sweep last ran.
+    for (final ek in await getAllEnrollmentKeys(includeExpired: true)) {
       if (excludedKeys.contains(ek)) continue;
       final EnrollDataStoreValue other;
       try {
@@ -1349,7 +1428,12 @@ class EnrollmentManager {
     enrollmentId = canonicalEnrollmentId(enrollmentId);
     final Set<String> found = {};
     final Map<String, String?> memo = {};
-    for (final ek in await getAllEnrollmentKeys()) {
+    // The STORED roster, so that every status really is followed. The climb
+    // already reads through an elapsed record — [_approverIdOf] fetches by key
+    // — but the CANDIDATE enumeration did not, so an enrollment whose ttl had
+    // elapsed sat outside the cascade while its record, and its published
+    // `_apsk` at the approved address, were still there.
+    for (final ek in await getAllEnrollmentKeys(includeExpired: true)) {
       final String candidate = getIdFromKey(ek);
       if (candidate == enrollmentId) continue;
       // `seen` terminates the climb. The enroll verb cannot build a cycle — an
@@ -1407,7 +1491,13 @@ class EnrollmentManager {
   /// `predecessorCapArmedAt` stamp.
   Future<void> _adoptApprovalChildren(
       String predecessorId, String successorId) async {
-    for (final ek in await getAllEnrollmentKeys()) {
+    // The STORED roster. This is the pass whose omissions are PERMANENT —
+    // nothing ever re-parents twice — so a child missed here names a
+    // predecessor for the rest of its life and sits outside every later
+    // revocation cascade. A record the visible roster omits for a ttb it has
+    // not reached yet is the sharp case: it is not expiring, it is not yet
+    // BORN, and it outlives this pass.
+    for (final ek in await getAllEnrollmentKeys(includeExpired: true)) {
       final String childId = getIdFromKey(ek);
       if (childId == successorId) continue;
       final AtData? record = await keyStore.get(ek);

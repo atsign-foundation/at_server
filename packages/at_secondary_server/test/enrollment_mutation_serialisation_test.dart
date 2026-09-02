@@ -549,8 +549,11 @@ void main() {
     return (gate, enMgr.serialiseMutation(() => gate.future));
   }
 
+  /// The STORED roster's size. Counting the visible one would report an
+  /// atSign empty while records were still on disk, and the counts below are
+  /// asserted as zero.
   Future<int> enrollmentCount() async =>
-      (await enMgr.getAllEnrollmentKeys()).length;
+      (await enMgr.getAllEnrollmentKeys(includeExpired: true)).length;
 
   group('enroll:request', () {
     test('mints no enrollment while another mutation holds the section',
@@ -775,7 +778,7 @@ void main() {
     /// stale entry would make the re-read inside the section answer from
     /// before the empty.
     Future<void> emptyRosterWithLegacyKey() async {
-      for (final ek in await enMgr.getAllEnrollmentKeys()) {
+      for (final ek in await enMgr.getAllEnrollmentKeys(includeExpired: true)) {
         await enMgr.remove(enId: enMgr.getIdFromKey(ek));
       }
       expect(await enrollmentCount(), 0,
