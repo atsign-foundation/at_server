@@ -106,8 +106,12 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// Returns true if the enrollment is active; otherwise, returns false.
   Future<(bool, Response)> _verifyIfEnrollmentIsActive(
       Response response, AtConnectionMetaData atConnectionMetadata) async {
-    // When authenticated with legacy keys, enrollment id is null. APKAM expiry does not
-    // apply to such connections. Therefore, return true.
+    // A connection with no enrollment id is a CRAM or owner connection, which
+    // stands over no enrollment record, so there is no approval state for this
+    // to read. A LEGACY-PKAM connection is not in that company: it
+    // authenticates as the housekeeping enrollment and carries its id, so it
+    // is checked here like any other — which is what makes revoking or
+    // deleting that record close the connections holding it.
     if ((atConnectionMetadata as InboundConnectionMetadata).enrollmentId ==
         null) {
       if (logger.isLoggable('finest')) {
@@ -241,8 +245,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// For update or delete, the connection must have "rw" (read-write) access.
   ///
   /// Returns true if
-  /// - EITHER the connection has no enrollment ID (i.e. it was the first enrolled
-  ///   app)
+  /// - EITHER the connection has no enrollment ID — a CRAM or owner
+  ///   connection, which stands over no enrollment record
   /// - OR the connection has the required read or read-write
   ///   permissions to execute lookup/local-lookup or update/delete operations
   ///   respectively

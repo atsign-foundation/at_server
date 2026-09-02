@@ -3184,12 +3184,47 @@ void main() {
                 'living inside the OTP branch never saw it');
       });
 
+      test('a LEGACY-PKAM connection is NOT exempt, because it now carries '
+          'an enrollment id', () async {
+        // ⚠️ CAPABILITY NARROWED, pinned here so the narrowing is visible
+        // rather than latent. The exemption above is for a connection with NO
+        // enrollment id. A legacy connection used to be one; it authenticates
+        // as the housekeeping enrollment now and carries `primary`, so it
+        // reaches this gate like any other enrollment and is refused by it —
+        // however privileged that enrollment is, because the gate fires
+        // before the loop that would have found its grants sufficient.
+        //
+        // The consequence is the one the exemption exists to prevent, for a
+        // narrower population: on an atSign whose only owner access is the
+        // legacy keyfile, there is no connection that can clear up a record
+        // holding no namespaces.
+        await keyValueStore.put(
+            'primary.new.enrollments.__manage$alice',
+            AtData()
+              ..data = jsonEncode(EnrollDataStoreValue(
+                  'sid', 'primary', 'primary', '')
+                ..namespaces = {'*': 'rw', '__manage': 'rw'}
+                ..approval = EnrollApproval(EnrollmentStatus.approved.name)),
+            skipCommit: true);
+        final targetId = await anEmptyTarget(status: EnrollmentStatus.approved);
+
+        await expectLater(
+            () => runAs('primary', 'enroll:revoke:{"enrollmentId":"$targetId"}'),
+            throwsA(isA<UnAuthorizedException>()),
+            reason: 'the gate is keyed on the caller carrying an enrollment '
+                'id at all, and a legacy connection now carries one');
+      });
+
       test('control: an owner connection may still act on it', () async {
         // Why the guards are gated on caller-vs-target rather than applied
-        // unconditionally. A CRAM or legacy-PKAM connection carries no
-        // enrollment id; if it could not reach such a record, the most
-        // anomalous enrollment on the atSign would be the one nothing could
-        // clear up.
+        // unconditionally. A CRAM or owner connection carries no enrollment
+        // id; if it could not reach such a record, the most anomalous
+        // enrollment on the atSign would be the one nothing could clear up.
+        //
+        // ⚠️ This exemption does NOT extend to a legacy-PKAM connection. It
+        // authenticates as the housekeeping enrollment and carries its id, so
+        // it is refused by the gate like any other enrollment — the caller
+        // here is a null id, which is the CRAM case alone.
         final targetId = await anEmptyTarget(status: EnrollmentStatus.approved);
         await runAs(null, 'enroll:revoke:{"enrollmentId":"$targetId"}');
         expect(response.isError, false, reason: '${response.errorMessage}');
@@ -3274,9 +3309,11 @@ void main() {
       });
 
       test('a connection carrying no enrollment id may delete any', () async {
-        // A CRAM or legacy-PKAM owner. Same exemption `enroll:fetch` makes,
+        // A CRAM or owner connection. Same exemption `enroll:fetch` makes,
         // and the same one isAuthorized makes for every other verb: a
-        // connection with no enrollment id is the atSign itself.
+        // connection with no enrollment id is the atSign itself. A
+        // legacy-PKAM connection is not one — it carries the housekeeping
+        // enrollment's id and is authorised by that enrollment's grants.
         final targetId = await aTarget({'test_namespace': 'rw'});
 
         await deleteAs(null, targetId);

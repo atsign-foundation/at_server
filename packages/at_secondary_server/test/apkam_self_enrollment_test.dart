@@ -2230,9 +2230,11 @@ void main() {
     ///
     /// It is also the only answer that reaches the clients a revocation
     /// backstop exists for. `enroll:list` narrows to the caller's OWN record
-    /// unless the caller is legacy-PKAM or holds `__manage`, so an ordinary
-    /// app enrollment asking "has anything holding my namespace been revoked?"
-    /// through that verb is told, vacuously and forever, no.
+    /// unless it carries no enrollment id at all or holds `__manage` — a
+    /// legacy connection sees everything by the second of those, since the
+    /// housekeeping enrollment it authenticates as holds `__manage`. So an
+    /// ordinary app enrollment asking "has anything holding my namespace been
+    /// revoked?" through that verb is told, vacuously and forever, no.
     group('enroll:infons carries the last revocation affecting a namespace',
         () {
       Future<Map<String, dynamic>> infons(

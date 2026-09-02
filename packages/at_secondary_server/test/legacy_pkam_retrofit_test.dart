@@ -1323,10 +1323,11 @@ void main() {
     test('a rotation carrying NO proof of possession is refused', () async {
       // MEASURED: without this the same request installs a well-formed key
       // whose private half was never persisted, and `primary` goes on being
-      // counted as the atSign's surviving unexpiring root — the bar is a
-      // credential something can authenticate with, and a well-formed orphan
-      // passes it — while nothing can authenticate as it. The last root that
-      // really works then becomes revocable.
+      // counted as the atSign's surviving unexpiring root — the bar is that a
+      // non-empty key is RECORDED, which a well-formed orphan satisfies, and
+      // the server cannot test whether anyone holds its private half. This
+      // demand at the moment of the write is what closes that; without it the
+      // last root that really works becomes revocable.
       await seedRsaLegacyKey();
       expect((await pkam('no-proof-session')).data, 'success',
           reason: 'precondition: the connection is the legacy credential\'s '

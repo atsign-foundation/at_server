@@ -291,12 +291,17 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (callerEnrollmentId != null &&
         callerEnrollmentId.isNotEmpty &&
         callerEnrollmentId != targetEnrollmentId) {
+      // ⚠️ A LEGACY-PKAM connection is NOT exempt. It authenticates as the
+      // housekeeping enrollment and carries its id, so it reaches this gate
+      // like any other enrollment and is refused by it — which is why the
+      // remedy names the connections that carry no enrollment id at all
+      // rather than "an owner".
       if (enrollDataStoreValue.namespaces.isEmpty) {
         throw UnAuthorizedException(
             'Not authorized to fetch enrollment $targetEnrollmentId: it holds'
             ' no namespaces, so no caller can demonstrate authority over it.'
-            ' Fetch it from the enrollment itself, or from an owner (CRAM or'
-            ' legacy-PKAM) connection');
+            ' Fetch it from the enrollment itself, or from a connection'
+            ' carrying no enrollment id (CRAM or owner)');
       }
       for (final MapEntry<String, String> entry
           in enrollDataStoreValue.namespaces.entries) {
@@ -915,10 +920,18 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // A target holding NO namespaces passes the loop below vacuously — zero
     // iterations, no refusal — and the `__manage` requirement lives inside
     // that loop too, so it is not asked either. Gated on caller-vs-target the
-    // way delete is: an owner connection (CRAM or legacy-PKAM) carries no
-    // enrollment id and must still be able to act on such a record, or the
-    // most anomalous enrollment on the atSign becomes the one nothing can
-    // clear up. The self clause keeps a forced self-revoke working.
+    // way delete is: a CRAM or owner connection carries no enrollment id and
+    // must still be able to act on such a record, or the most anomalous
+    // enrollment on the atSign becomes the one nothing can clear up. The self
+    // clause keeps a forced self-revoke working.
+    //
+    // ⚠️ A LEGACY-PKAM connection is NOT exempt. It authenticates as the
+    // housekeeping enrollment and carries its id, so it reaches this gate
+    // like any other enrollment and is refused by it, however privileged that
+    // enrollment is — the gate fires before the loop that would have found
+    // its grants sufficient. On an atSign whose only owner access is the
+    // legacy keyfile there is therefore no connection that can clear up such
+    // a record.
     final String? callerIdForAuthz = inboundConnectionMetadata.enrollmentId;
     if (callerIdForAuthz != null &&
         callerIdForAuthz.isNotEmpty &&
@@ -926,8 +939,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         enVal!.namespaces.isEmpty) {
       throw UnAuthorizedException('Failed to $operation enrollment id: $enId.'
           ' It holds no namespaces, so no caller can demonstrate authority'
-          ' over it. Act on it from an owner (CRAM or legacy-PKAM)'
-          ' connection');
+          ' over it. Act on it from the enrollment itself, or from a'
+          ' connection carrying no enrollment id (CRAM or owner)');
     }
 
     for (MapEntry<String, String> entry in enVal!.namespaces.entries) {
@@ -1706,8 +1719,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       {EnrollParams? enrollVerbParams}) async {
     String? authenticatedEnrollmentId =
         (atConnection.metaData as InboundConnectionMetadata).enrollmentId;
-    // If connection is authenticated via legacy PKAM, then enrollApprovalId is null.
-    // Return all the enrollments.
+    // A connection carrying no enrollment id is a CRAM or owner connection,
+    // which stands over no record to narrow to. Return all the enrollments.
+    //
+    // A LEGACY-PKAM connection is not one of those: it authenticates as the
+    // housekeeping enrollment and carries its id, so it takes the branch
+    // below and sees everything because that enrollment holds `__manage` —
+    // by its grants, like any other caller, rather than by being exempt.
     if (authenticatedEnrollmentId == null ||
         authenticatedEnrollmentId.isEmpty) {
       final enrollmentRequestsMap = await enMgr.getEnrollmentsAsJson(
@@ -2188,15 +2206,20 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // grants verbatim, so this server no longer mints such a record. The
       // gate stays for the ones already on disk.
       //
-      // ⚠️ Every OTHER per-namespace loop still passes such a record
-      // vacuously: approve, deny, revoke and unrevoke share one loop, and
-      // enroll:fetch has its own. This gate is the only one that refuses.
+      // Every path that decides by iterating a target's grants refuses an
+      // empty map before it reaches the loop, for the same reason and in the
+      // same words: this gate, the shared approve/deny/revoke/unrevoke gate,
+      // and `enroll:fetch`'s. The refusal has to live at each of them because
+      // it is the LOOP that passes such a record, and each has its own.
+      // ⚠️ A LEGACY-PKAM connection is NOT exempt, for the reason given on
+      // the shared approve/deny/revoke/unrevoke gate: it carries the
+      // housekeeping enrollment's id and is refused here like any other.
       if (enVal.namespaces.isEmpty) {
         throw UnAuthorizedException(
             'Not authorized to delete enrollment $targetEnrollmentId: it holds'
             ' no namespaces, so no caller can demonstrate authority over it.'
-            ' Delete it from the enrollment itself, or from an owner (CRAM or'
-            ' legacy-PKAM) connection');
+            ' Delete it from the enrollment itself, or from a connection'
+            ' carrying no enrollment id (CRAM or owner)');
       }
       for (final MapEntry<String, String> entry in enVal.namespaces.entries) {
         final bool isAuthorised = await isAuthorized(inboundConnectionMetadata,

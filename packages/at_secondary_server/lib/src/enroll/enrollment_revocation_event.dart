@@ -44,7 +44,9 @@ class EnrollmentRevocationEvent {
   final Map<String, String> namespaces;
 
   /// The enrollment on the connection that issued the command, or null when
-  /// the connection carried no enrollment id — a CRAM or legacy-PKAM owner.
+  /// the connection carried no enrollment id — a CRAM or owner connection. A
+  /// legacy-PKAM connection is not in that company: it authenticates as the
+  /// housekeeping enrollment, so what it revokes records `primary` here.
   final String? byEnrollmentId;
 
   /// The enrollment the command NAMED, when this event is a consequence of

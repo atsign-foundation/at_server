@@ -1,4 +1,38 @@
 # 3.16.4
+- ⚠️ docs: three refusals told an operator to retry over a connection that is
+  refused, and a capability this release narrowed is now stated.
+
+  The empty-namespace gates on `enroll:fetch`, on the shared
+  approve/deny/revoke/unrevoke path and on `enroll:delete` each name their
+  remedy as "an owner (CRAM or legacy-PKAM) connection". A legacy-PKAM
+  connection authenticates as the housekeeping enrollment and carries its id,
+  so it reaches those gates like any other enrollment and is refused by them —
+  the gate fires before the loop that would have found `primary`'s grants
+  sufficient. The remedy therefore named the connection being refused.
+  Measured: over a connection carrying `primary`, all three refuse; over a
+  connection carrying no enrollment id, all three admit.
+
+  ⚠️ The consequence is the one the exemption exists to prevent, for a
+  narrower population: on an atSign whose only owner access is the legacy
+  keyfile, there is no connection that can clear up an enrollment holding no
+  namespaces. The messages now name what actually works, the gates say plainly
+  that a legacy connection is not exempt, and a test pins it so the narrowing
+  is visible rather than latent.
+
+  Swept with it, all falsified by the same change: the doc on
+  `EnrollmentManager.revokeAll`'s `byEnrollmentId`, on
+  `EnrollmentRevocationEvent.byEnrollmentId` and on
+  `EnrollDataStoreValue.approvedByEnrollmentId`, each of which said a
+  legacy-PKAM owner records null; the comment on
+  `AbstractVerbHandler._verifyIfEnrollmentIsActive`, which said a legacy
+  connection carries no enrollment id and is therefore exempt from the
+  liveness gate; the comment on `enroll:list`'s narrowing, which gave "legacy
+  PKAM" as the reason it returns everything rather than `primary` holding
+  `__manage`; the delete gate's claim to be the only one that refuses an empty
+  grant map, when all three now do; and four test comments and reasons saying
+  the same things. A test now pins that a legacy connection IS closed by the
+  liveness gate when the housekeeping enrollment leaves `approved`.
+
 - test: two failures that named neither their mechanism nor their assertion
   now do.
 

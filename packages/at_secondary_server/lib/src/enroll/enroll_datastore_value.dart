@@ -102,9 +102,12 @@ class EnrollDataStoreValue {
   ///
   /// Null on two origins, each deliberately:
   ///
-  /// * an enrollment approved over an OWNER connection (CRAM or legacy-PKAM),
-  ///   which carries no enrollment id — there is no enrollment to revoke, and
-  ///   "revoking the owner" is not a thing;
+  /// * an enrollment approved over a CRAM or owner connection, which carries
+  ///   no enrollment id — there is no enrollment to revoke, and "revoking the
+  ///   owner" is not a thing. A LEGACY-PKAM connection is not in that company:
+  ///   it authenticates as the housekeeping enrollment and carries its id, so
+  ///   what it approves records `primary` as its approver and
+  ///   `enroll:revoke primary` reaches it;
   /// * every enrollment written before this field existed. The edge is
   ///   forward-only and cannot be reconstructed: nothing recorded an approver.
   String? approvedByEnrollmentId;
