@@ -1294,8 +1294,10 @@ void main() {
   group('hasUnexpiringRootEnrollment', () {
     Future<void> mint(String id, Map<String, String> namespaces,
         {Duration? ttl,
-        EnrollmentStatus status = EnrollmentStatus.approved}) async {
-      final v = EnrollDataStoreValue('s', 'app-$id', 'device-$id', 'pk')
+        EnrollmentStatus status = EnrollmentStatus.approved,
+        String apkamPublicKey = 'pk'}) async {
+      final v = EnrollDataStoreValue(
+          's', 'app-$id', 'device-$id', apkamPublicKey)
         ..namespaces = namespaces
         ..approval = EnrollApproval(status.name);
       await enMgr.put(
@@ -1380,6 +1382,34 @@ void main() {
           await enMgr.hasUnexpiringRootEnrollment({etu.primaryEnId}),
           isFalse);
     });
+
+    test('a root holding NO APKAM public key does not count', () async {
+      // BEHAVIOUR CHANGED — an ordinary enrollment used to count on its
+      // grants alone, and the credential bar was special-cased to `primary`.
+      // Fully privileged, approved and permanent describes the GRANT; it says
+      // nothing about whether any keypair can present it. Authentication
+      // refuses an empty public key before it looks at any signature, so this
+      // record is a PHANTOM root: an identity nobody can assume, answering
+      // "this atSign can restore a root" for a caller that is about to remove
+      // the last one that works.
+      await mint('probe-keyless', {'*': 'rw', '__manage': 'rw'},
+          apkamPublicKey: '');
+      expect(await enMgr.hasUnexpiringRootEnrollment({etu.primaryEnId}),
+          isFalse,
+          reason: 'a record nothing can authenticate as is not a root, '
+              'whoever it is — the bar is not special to the legacy identity');
+    });
+
+    test('...while the same root WITH a key does', () async {
+      // The control, and it differs from the test above in the public key and
+      // in nothing else: same id, same grants, same status, same absence of a
+      // ttl. Without it the refusal above is equally satisfied by a walk that
+      // has stopped counting anything.
+      await mint('probe-keyless', {'*': 'rw', '__manage': 'rw'},
+          apkamPublicKey: 'an APKAM public key somebody holds');
+      expect(await enMgr.hasUnexpiringRootEnrollment({etu.primaryEnId}),
+          isTrue);
+    });
   });
 
   /// Revoking an enrollment revokes everything that replaced it, to any depth.
@@ -1417,8 +1447,10 @@ void main() {
     /// currently produce.
     Future<void> mintUnder(String id, String? predecessorId,
         {EnrollmentStatus status = EnrollmentStatus.approved,
-        Duration? ttl}) async {
-      final v = EnrollDataStoreValue('s', 'app-$id', 'device-$id', 'pk')
+        Duration? ttl,
+        String apkamPublicKey = 'pk'}) async {
+      final v = EnrollDataStoreValue(
+          's', 'app-$id', 'device-$id', apkamPublicKey)
         ..namespaces = {'*': 'rw', '__manage': 'rw'}
         ..approval = EnrollApproval(status.name)
         ..parentEnrollmentId = predecessorId;
@@ -1669,6 +1701,39 @@ void main() {
       // "self-revocation is refused", which is a different rule and already
       // has its own.
       await mintUnder('spare-root', null);
+      final r = await revoke(etu.primaryEnId, etu.primaryEnId, force: true);
+      expect(r.isError, false, reason: '${r.errorMessage}');
+      expect(await statusOf(etu.primaryEnId), EnrollmentStatus.revoked.name);
+    });
+
+    test('…but a KEYLESS root does not license it', () async {
+      // The consequence of the bar, end to end. This record is approved,
+      // fully privileged and permanent, so every question asked about its
+      // GRANTS answers yes — and nothing can authenticate as it, because
+      // authentication refuses an empty public key before it looks at a
+      // signature. Counting it hands the caller permission to revoke the last
+      // root that actually works.
+      await mintUnder('keyless-root', null, apkamPublicKey: '');
+
+      await expectLater(
+          () => revoke(etu.primaryEnId, etu.primaryEnId, force: true),
+          throwsA(isA<AtEnrollmentRevokeException>()),
+          reason: 'the atSign would be left with no root anything holds a '
+              'credential for, which is the stranding this refusal exists '
+              'for — reached through an ordinary enrollment rather than '
+              'through the legacy identity');
+      expect(await statusOf(etu.primaryEnId), EnrollmentStatus.approved.name,
+          reason: 'and refused before anything was written');
+    });
+
+    test('…while the same root WITH a key licenses it', () async {
+      // The control for the pair, and the only difference is the public key:
+      // same id, same grants, same status, same absence of a ttl, same
+      // command. Without it the refusal above is satisfied by
+      // "self-revocation is refused", which is a different rule.
+      await mintUnder('keyless-root', null,
+          apkamPublicKey: 'an APKAM public key somebody holds');
+
       final r = await revoke(etu.primaryEnId, etu.primaryEnId, force: true);
       expect(r.isError, false, reason: '${r.errorMessage}');
       expect(await statusOf(etu.primaryEnId), EnrollmentStatus.revoked.name);

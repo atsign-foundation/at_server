@@ -993,10 +993,16 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // fully privileged enrollment being taken away, and the command names
       // only the top of the subtree it removes — so a target holding no full
       // privilege of its own may still carry one away in its cascade. A guard
-      // reading `enVal.isRootEnrollment` alone sees nothing to protect in that
+      // reading the target's grants alone sees nothing to protect in that
       // shape and lets the atSign's last root go, silently: the caller is not
       // the target, so the self-revoke and descends-from refusals are both
       // quiet, and the cascade is exactly where the root goes.
+      //
+      // Both halves ask `EnrollmentManager.isUsableRootEnrollment` rather
+      // than reading the grants, so a record nothing can authenticate as is
+      // not counted as a root taken away — the same bar the survival question
+      // applies, because an act that removes no assumable root cannot strand
+      // an atSign whatever the roster says.
       //
       // Both halves are load-bearing. The target is asked about because it is
       // removed too and its own cascade cannot contain it; the cascade is
@@ -1014,7 +1020,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         // keystore. An act that removes no fully privileged enrollment cannot
         // strand the atSign whatever else is stored.
         final List<String> rootsRemoved = [
-          if (enVal.isRootEnrollment) enId,
+          if (await enMgr.isUsableRootEnrollment(enId, enVal)) enId,
           ...await enMgr.approvedRootEnrollmentsAmong(cascadeIds),
         ];
         if (rootsRemoved.isNotEmpty &&

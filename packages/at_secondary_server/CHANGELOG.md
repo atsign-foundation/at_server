@@ -164,6 +164,29 @@
   `the legacy credential for this atSign has been retired` became `this atSign
   has no usable legacy PKAM credential`, followed by the remedy. Which of the
   two reasons it was is in the server log, not on the wire.
+- ⚠️ fix: an enrollment nothing can authenticate as is not counted as a root,
+  WHOEVER it is. The credential check was special-cased to `primary`, so an
+  ordinary enrollment holding an empty `apkamPublicKey` — approved, fully
+  privileged and permanent — still answered "this atSign can restore a root",
+  and counting it licensed revoking the last root that actually works.
+  Measured on this tree: with one keyless root standing, a forced self-revoke
+  of the atSign's only real root answered `{"status":"revoked"}`; the same
+  record with a public key in it is what the refusal is supposed to allow, and
+  still does.
+
+  Fully privileged, approved and permanent describes the GRANT and says
+  nothing about whether any keypair can present it. The bar is now one
+  predicate applied on both sides of every stranding decision — what an act
+  REMOVES and what SURVIVES it, plus the retrofit cap's decline — so "root"
+  means one thing in all of them. The credential is the record's own
+  `apkamPublicKey` for every enrollment except `primary`, whose credential is
+  the live `at_pkam_publickey`.
+
+  It is NOT the question asked of an already-authenticated connection: a
+  legacy connection is authenticated as `primary`, whose record holds an
+  empty key by construction, and what that connection may do is still decided
+  by its grants.
+
 - ⚠️ fix: `enroll:unrevoke` is refused on `primary`. Revoking that record is
   how an atSign withdraws its legacy keyfile — nothing else can, because the
   credential is a flat key the delete verb refuses on grammar and the record

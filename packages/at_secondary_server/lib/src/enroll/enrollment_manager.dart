@@ -1081,23 +1081,14 @@ class EnrollmentManager {
   /// enrollments and can never admit one carrying `*`, so it keeps an atSign
   /// running without being able to give it a root back.
   ///
-  /// ⚠️ The housekeeping enrollment counts only while `at_pkam_publickey` is
-  /// still in the keystore AND NON-EMPTY. Alone among enrollments it holds no
-  /// credential of its own — it is an identity for the legacy keyfile, and the
-  /// keyfile authenticates against that key — so a record standing over a key
-  /// nobody can authenticate with is a PHANTOM root: fully privileged,
-  /// approved, permanent, and impossible to authenticate as. Counting it
-  /// answers "the atSign can restore a root" with a record nobody holds a
-  /// credential for, which is the same stranding this method exists to refuse,
-  /// arrived at from the other direction. Every other enrollment carries its
-  /// own key in the record, so record and credential cannot come apart for
-  /// them.
-  ///
-  /// PRESENCE is not the bar because it is not the bar anywhere else either:
-  /// authentication refuses an empty public key before it looks at a
-  /// signature, so an empty value and a missing one are the same credential —
-  /// none. See [legacyPkamPublicKey], which is also where the ways an empty
-  /// one gets written are recorded.
+  /// ⚠️ A record nothing can authenticate as is NOT a root, whoever it is.
+  /// Every "is this a root?" question below applies [isUsableRootEnrollment]
+  /// rather than [EnrollDataStoreValue.isRootEnrollment] alone, because a
+  /// fully privileged, approved, permanent record standing over a credential
+  /// that cannot authenticate is a PHANTOM root: counting it answers "the
+  /// atSign can restore a root" with a record nobody holds a credential for,
+  /// which is the same stranding this method exists to refuse, arrived at
+  /// from the other direction.
   ///
   /// [excluding] is a SET rather than a single id because a revoke CASCADES.
   /// The enrollments a cascade is about to revoke are still `approved` in the
@@ -1106,8 +1097,6 @@ class EnrollmentManager {
   /// safe at the moment it is being stranded.
   Future<bool> hasUnexpiringRootEnrollment(Set<String> excluding) async {
     final excludedKeys = excluding.map(buildEnrollmentKey).toSet();
-    final String housekeepingKey =
-        buildEnrollmentKey(housekeepingEnrollmentId);
     for (final ek in await getAllEnrollmentKeys()) {
       if (excludedKeys.contains(ek)) continue;
       final EnrollDataStoreValue other;
@@ -1117,18 +1106,62 @@ class EnrollmentManager {
         continue;
       }
       if (other.approval?.state != EnrollmentStatus.approved.name) continue;
-      if (!other.isRootEnrollment) continue;
-      if (ek == housekeepingKey && await legacyPkamPublicKey() == null) {
-        continue;
-      }
+      if (!await isUsableRootEnrollment(getIdFromKey(ek), other)) continue;
       final AtData? record = await keyStore.get(ek);
       if (record?.metaData?.expiresAt == null) return true;
     }
     return false;
   }
 
-  /// Which of [enrollmentIds] are fully privileged AND currently approved —
-  /// that is, which of them a revoke of that set would actually take away.
+  /// Whether [value] is a root the atSign could actually fall back on: fully
+  /// privileged AND holding a credential something can authenticate with.
+  ///
+  /// The bar every stranding decision applies, on both sides of the question
+  /// — what an act REMOVES and what SURVIVES it — so that "root" means one
+  /// thing in both. A guard that counted a record as a root when asked one
+  /// and not the other is the asymmetry that lets an act be licensed by a
+  /// record the same act is destroying.
+  ///
+  /// ⚠️ A record nothing can authenticate as is not a root, WHOEVER it is.
+  /// Fully privileged, approved and permanent describes the GRANT; it says
+  /// nothing about whether any keypair can present it. A record standing over
+  /// a credential nobody holds answers "this atSign can restore a root" with
+  /// an identity nobody can assume, and the caller then revokes or caps the
+  /// last root that actually works.
+  ///
+  /// The credential is in a different place for the housekeeping enrollment
+  /// than for every other, which is why this is a method rather than a getter
+  /// on the record. `primary` is an IDENTITY for the legacy keyfile and holds
+  /// an empty `apkamPublicKey` by construction, so its credential is the live
+  /// `at_pkam_publickey`; every other enrollment carries its own key in its
+  /// own record.
+  ///
+  /// PRESENCE is not the bar, non-emptiness is, because that is the bar
+  /// authentication itself applies: `PkamVerbHandler` refuses an empty public
+  /// key before it looks at any signature, on the legacy and APKAM branches
+  /// alike, so an empty value and a missing one are the same credential —
+  /// none. Zero-length is reachable rather than theoretical: the `update`
+  /// grammar demands a non-empty value, but `update:json` carries the value
+  /// inside the JSON document, and an enrollment record's `apkamPublicKey` is
+  /// whatever `enroll:request` was sent.
+  ///
+  /// This is NOT the question `isRootPrivilegedConnection` asks. That one
+  /// decides what an already-authenticated connection may do, and a legacy
+  /// connection is authenticated as `primary` — demonstrably assumable, since
+  /// it is being assumed. This one asks whether a record would still be there
+  /// to authenticate as afterwards.
+  Future<bool> isUsableRootEnrollment(
+      String enrollmentId, EnrollDataStoreValue value) async {
+    if (!value.isRootEnrollment) return false;
+    if (canonicalEnrollmentId(enrollmentId) == housekeepingEnrollmentId) {
+      return await legacyPkamPublicKey() != null;
+    }
+    return value.apkamPublicKey.isNotEmpty;
+  }
+
+  /// Which of [enrollmentIds] are usable roots ([isUsableRootEnrollment]) and
+  /// currently approved — that is, which of them a revoke of that set would
+  /// actually take away.
   ///
   /// The companion question to [hasUnexpiringRootEnrollment]: that one asks
   /// what SURVIVES an act, this one asks what the act REMOVES. Both are
@@ -1167,7 +1200,7 @@ class EnrollmentManager {
         continue;
       }
       if (value.approval?.state != EnrollmentStatus.approved.name) continue;
-      if (value.isRootEnrollment) roots.add(id);
+      if (await isUsableRootEnrollment(id, value)) roots.add(id);
     }
     return roots;
   }
@@ -1758,7 +1791,7 @@ class EnrollmentManager {
           // once for a successor that arms.
           final successorExpiry =
               (await keyStore.get(key))?.metaData?.expiresAt;
-          if (predecessor.isRootEnrollment &&
+          if (await isUsableRootEnrollment(predecessorId, predecessor) &&
               !await hasUnexpiringRootEnrollment({predecessorId})) {
             // The REMEDY is named, because a decline is otherwise a dead end
             // the operator cannot see out of. An atSign whose only root asks
