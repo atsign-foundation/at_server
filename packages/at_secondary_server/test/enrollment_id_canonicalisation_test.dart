@@ -412,11 +412,13 @@ void main() {
                 'against an enumerated one, or every set-membership test '
                 'built on it is vacuous');
       }
-      // The per-enrollment key builders carry the same contract.
-      expect(enMgr.keyForPEK('$wsWrite${etu.primaryEnId}'),
-          enMgr.keyForPEK(etu.primaryEnId));
-      expect(enMgr.keyForSEK(etu.primaryEnId.toUpperCase()),
-          enMgr.keyForSEK(etu.primaryEnId));
+      // The per-enrollment key builders carry the same contract, and it is
+      // asserted against the STORE in 'a built key is the key the store
+      // holds' below. It used to be asserted here by comparing keyForPEK and
+      // keyForSEK against THEMSELVES under two spellings, which pins only the
+      // fold's idempotence: both sides move together under any change to
+      // either builder, so the pair stayed equal while naming a record the
+      // keystore does not hold.
     });
 
     test('revoking the last root through a non-canonical spelling is REFUSED',
@@ -662,6 +664,171 @@ void main() {
                 'and the guards above are what has to stop them');
         expect(canonicalAtKey('$ws$id'), id);
       }
+    });
+  });
+
+  // =====================================================================
+  // The key builders, measured against the keys the store holds.
+  // =====================================================================
+
+  /// A built key's whole job is to be COMPARABLE against a key an enumeration
+  /// returned, so a builder asserted against itself pins nothing: both sides
+  /// move together under any change to either, and the pair stays equal while
+  /// naming a record the keystore does not hold.
+  ///
+  /// So each of these is pinned twice. A RAW-LITERAL pin, because the string
+  /// is an at-rest address — records already on disk are reachable only by it,
+  /// and the `keys:` verb hands the encryption-key names to clients — so an
+  /// intended change edits the literal in the same commit and that edit is the
+  /// review. And an enumeration pin, which is what proves the literal is the
+  /// address the store actually used rather than a second guess at it.
+  group('a built key is the key the store holds', () {
+    /// Everything the production write path stored under the PEK regex.
+    Future<List<String>> storedPeks() async =>
+        (await keyValueStore.getKeys(regex: EnrollmentConstants.regexForPEK))
+            .toList();
+
+    Future<List<String>> storedSeks() async =>
+        (await keyValueStore.getKeys(regex: EnrollmentConstants.regexForSEK))
+            .toList();
+
+    /// An approved enrollment whose encryption keys the APPROVE path wrote.
+    /// `primary` is CRAM auto-approved and never carries them, so a test that
+    /// used it would enumerate an empty set and every `contains` below would
+    /// be vacuous.
+    Future<String> approvedWithEncryptionKeys() async {
+      final id = await etu.createPendingEnrollment(
+          appName: 'pek-app',
+          deviceName: 'pek-device',
+          namespaces: {'wavi': 'rw'},
+          apkamKeysExpiryDuration: null);
+      await etu.approveEnrollment(etu.primaryEnId, id);
+      return id;
+    }
+
+    test('keyForPEK and keyForSEK name the records the approve path wrote',
+        () async {
+      final id = await approvedWithEncryptionKeys();
+
+      expect(await storedPeks(), isNotEmpty,
+          reason: 'precondition: the corpus is non-empty, or every '
+              'membership test below reports a clean zero');
+      expect(await storedSeks(), isNotEmpty, reason: 'likewise');
+
+      expect(await storedPeks(), contains(enMgr.keyForPEK(id)),
+          reason: 'the built key has to be BYTE-IDENTICAL to the enumerated '
+              'one: the orphan sweep matches enumerated candidates against '
+              'built ones, and `keys:` authorises a caller for its own '
+              'encryption keys by name');
+      expect(await storedSeks(), contains(enMgr.keyForSEK(id)),
+          reason: 'likewise');
+    });
+
+    test('...and their at-rest form is these exact strings', () {
+      // RAW-LITERAL, not composed from the same constants the builder uses —
+      // a comparison against the constants that define a value pins nothing.
+      // FROZEN: records already on disk are addressable only by this form,
+      // and `keys:` hands these names to clients.
+      const id = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+      expect(enMgr.keyForPEK(id),
+          'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.default_enc_private_key'
+          '.__manage@alice');
+      expect(enMgr.keyForSEK(id),
+          'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.default_self_enc_key'
+          '.__manage@alice');
+    });
+
+    test('a non-canonical id builds the same key for both', () async {
+      // Idempotence of the fold, which is a different claim from the two
+      // above and cannot stand in for either.
+      final id = await approvedWithEncryptionKeys();
+      for (final spelling in [' $id', id.toUpperCase(), '$wsWrite$id']) {
+        expect(enMgr.keyForPEK(spelling), enMgr.keyForPEK(id));
+        expect(enMgr.keyForSEK(spelling), enMgr.keyForSEK(id));
+      }
+    });
+
+    // ---- the legacy APKAM public key ----
+
+    /// The one key builder whose components are CLIENT-CHOSEN: an app and a
+    /// device name arrive from the wire, so a capital in either builds a
+    /// string the keystore does not hold the record under.
+    ///
+    /// A CAPITAL rather than a space, and that is a measurement rather than a
+    /// taste. `HiveAtKeyValueStore.put` lowercases the key and then runs
+    /// `AtKey.getKeyType` on it, BEFORE the canonical fold — so a space
+    /// survives to the validator and the write is refused outright
+    /// (`Key public:my app.my device... is invalid`). No record is reachable
+    /// under a spaced name on this server, which leaves case as the only
+    /// difference a STORED record can carry, and therefore the only half of
+    /// the fold a stored record can measure.
+    ///
+    /// Nothing on this server writes this key any more — an older server's
+    /// CRAM auto-approve branch copied the enrolling app's APKAM public key
+    /// here "for old clients" — so the fixture writes it the way that server
+    /// did: with the names exactly as the client sent them.
+    const String app = 'MyApp';
+    const String device = 'MyDevice';
+
+    EnrollDataStoreValue legacyHolder() => EnrollDataStoreValue(
+        'session', app, device, 'the-apps-own-apkam-key')
+      ..namespaces = {'wavi': 'rw'}
+      ..approval = EnrollApproval(EnrollmentStatus.approved.name);
+
+    /// Writes the key under the RAW spelling, which is what an older server
+    /// handed the keystore, and returns the key as the store enumerates it.
+    Future<String> seedLegacyApkamKey() async {
+      await keyValueStore.put(
+          'public:$app.$device.pkam.__pkams.__public_keys$alice',
+          AtData()..data = 'the-apps-own-apkam-key',
+          skipCommit: true);
+      final stored = await (await keyValueStore.getKeys(
+              regex: '\\.pkam\\.__pkams\\.__public_keys@'))
+          .toList();
+      expect(stored, hasLength(1),
+          reason: 'precondition: exactly one such key is on disk, so the '
+              'assertions below cannot match a neighbour');
+      return stored.single;
+    }
+
+    test('keyForLegacyPK names the record the store holds, not the spelling '
+        'the client sent', () async {
+      final String asStored = await seedLegacyApkamKey();
+
+      expect(asStored,
+          'public:myapp.mydevice.pkam.__pkams.__public_keys@alice',
+          reason: 'RAW-LITERAL and AT-REST: this is what the keystore folded '
+              'the client\'s "MyApp"/"MyDevice" down to, and the only form a '
+              'record written by an older server is addressable under');
+      expect(enMgr.keyForLegacyPK(legacyHolder()), asStored,
+          reason: 'the builder has to produce the ENUMERATED string. It is '
+              'the one builder whose components come from the wire, so a '
+              'capital would otherwise build a key the store does not hold '
+              'under that spelling — and every comparison against an '
+              'enumerated key would then answer about a different string');
+    });
+
+    test('CONTROL: the startup sweep removes it either way', () async {
+      // Deliberately NOT the pin, and saying so is the point. `keyStore.exists`
+      // and `keyStore.remove` fold what they are handed, so the sweep reaches
+      // the record whether or not the builder folded first — measured: with
+      // the fold removed from keyForLegacyPK this case stays green and the
+      // case above goes red. It is here as the control that the fixture is a
+      // real record the sweep really does reach, so the equality above is a
+      // statement about the string rather than about an absent key.
+      await seedLegacyApkamKey();
+      await enMgr.put(
+          'legacy-holder',
+          AtData()..data = jsonEncode(legacyHolder().toJson()),
+          EnrollmentStatus.approved);
+
+      expect(await enMgr.removeLegacyApkamPublicKeys(),
+          contains(enMgr.buildEnrollmentKey('legacy-holder')));
+      expect(
+          await keyValueStore
+              .exists('public:myapp.mydevice.pkam.__pkams.__public_keys@alice'),
+          isFalse,
+          reason: 'the key that leaks the app and device names is gone');
     });
   });
 }
