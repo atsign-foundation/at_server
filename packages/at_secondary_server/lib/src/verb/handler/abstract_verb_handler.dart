@@ -801,4 +801,47 @@ abstract class AbstractVerbHandler implements VerbHandler {
 
     return isOTPValid;
   }
+
+  /// Reads the one-time challenge `from:` stored under [storedSecretId],
+  /// removes it, and returns its value only if the record is still live.
+  ///
+  /// The removal is unconditional and happens whatever the caller goes on to
+  /// decide, so a challenge buys exactly one verification attempt. Leaving it
+  /// in place on a failed attempt would make it a retry oracle: a caller
+  /// could present signature after signature against one challenge until one
+  /// verified, which is the whole property a per-connection challenge exists
+  /// to deny.
+  ///
+  /// Liveness is asked here because no keystore backend applies expiry on
+  /// read — `get` returns a record whose `expiresAt` has passed, and the
+  /// only other enforcement is a background sweep that runs on its own
+  /// schedule. A verifier that does not ask is a verifier for which the ttl
+  /// `from:` stamps does not exist.
+  ///
+  /// Returns null when the challenge is absent, unreadable or expired. A
+  /// caller must treat all three the same way it treats a bad signature, so
+  /// that the wire cannot be used to tell which of them happened.
+  Future<String?> consumeChallenge(String storedSecretId) async {
+    AtData? challenge;
+    try {
+      challenge = await keyStore.get(storedSecretId);
+    } on KeyNotFoundException {
+      return null;
+    } catch (e) {
+      logger.warning('Failed to read challenge $storedSecretId: $e');
+      return null;
+    }
+    try {
+      await keyStore.remove(storedSecretId);
+    } catch (e) {
+      // A challenge that cannot be removed must still not be honoured, so
+      // this is logged rather than thrown and the liveness check below
+      // decides the outcome.
+      logger.warning('Failed to immediately remove $storedSecretId');
+    }
+    if (!SecondaryUtil.isActiveKey(challenge)) {
+      return null;
+    }
+    return challenge?.data;
+  }
 }

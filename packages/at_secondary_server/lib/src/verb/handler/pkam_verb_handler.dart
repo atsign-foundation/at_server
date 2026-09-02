@@ -121,23 +121,31 @@ class PkamVerbHandler extends AbstractVerbHandler {
     }
 
     String storedSecretId = 'private:$sessionID$atSign';
+    // One challenge, one attempt, and only while it is live. The challenge is
+    // spent here whatever the signature turns out to be, so a caller cannot
+    // grind signatures against a single `from:`.
+    final String? storedSecret = await consumeChallenge(storedSecretId);
+    if (storedSecret == null) {
+      // Absent, unreadable or expired. Refused with the same message and the
+      // same exception a bad signature gets: the wire must not distinguish
+      // "your challenge went stale" from "your signature was wrong", or it
+      // becomes an oracle for which session ids are live.
+      atConnectionMetadata.isAuthenticated = false;
+      logger.severe('pkam authentication failed: no live challenge for'
+          ' session $sessionID');
+      throw UnAuthenticatedException('pkam authentication failed');
+    }
     bool isValidSignature = await _validateSignature(
       verbParams,
       sessionID,
       atSign,
       publicKey,
       recordSigningAlgo,
-      storedSecretId,
+      storedSecret,
     );
 
     if (isValidSignature) {
-      // We're good
-      // remove the stored secret
-      try {
-        await keyStore.remove(storedSecretId);
-      } catch (e) {
-        logger.warning('Failed to immediately remove $storedSecretId');
-      }
+      // We're good. The challenge was already spent by consumeChallenge.
 
       // Admitting the connection is a read-decide-write like every other
       // enrollment act — the write is the connection's identity rather than a
@@ -329,15 +337,13 @@ class PkamVerbHandler extends AbstractVerbHandler {
     String atSign,
     String publicKey,
     String? recordSigningAlgo,
-    String storedSecretId,
+    String storedSecret,
   ) async {
     var signature = verbParams[AtConstants.atPkamSignature]!;
     var signingAlgo =
         recordSigningAlgo ?? verbParams[AtConstants.atPkamSigningAlgo];
     var hashingAlgo = verbParams[AtConstants.atPkamHashingAlgo];
     bool isValidSignature = false;
-    var storedSecretData = await keyStore.get(storedSecretId);
-    var storedSecret = storedSecretData?.data;
     if (signature == null || signature.isEmpty) {
       logger.severe('inputSignature is null/empty');
       return false;

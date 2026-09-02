@@ -98,9 +98,13 @@ class PolVerbHandler extends AbstractVerbHandler {
       fromPublicKey = (await (oc.plookUp('signing_publickey$fromAtSign')))
           ?.replaceFirst(_dataPrefix, '');
 
-      // Getting stored secret from this secondary server
+      // Getting stored secret from this secondary server. Spent on read,
+      // whatever the verification below decides: this challenge was handed to
+      // ANOTHER atSign to sign, so a challenge that survived a failed
+      // verification would leave the window in which a captured signature
+      // replays bounded by nothing at all.
       doing = 'fetching stored secret $storedSecretId';
-      message = (await keyStore.get(storedSecretId))?.data;
+      message = await consumeChallenge(storedSecretId);
     } on Exception catch (e) {
       logger.severe('Exception while $doing : $e');
       rethrow;
@@ -122,13 +126,7 @@ class PolVerbHandler extends AbstractVerbHandler {
     if (!isValidChallenge) {
       throw UnAuthenticatedException('Pol Authentication Failed');
     }
-
-    // remove the stored secret
-    try {
-      await keyStore.remove(storedSecretId);
-    } catch (e) {
-      logger.warning('Failed to immediately remove $storedSecretId');
-    }
+    // The challenge was already spent by consumeChallenge.
 
     atConnectionMetadata.isPolAuthenticated = true;
     response.data = 'pol:$fromAtSign@';

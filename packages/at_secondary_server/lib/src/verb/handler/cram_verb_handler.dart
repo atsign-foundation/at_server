@@ -53,7 +53,20 @@ class CramVerbHandler extends AbstractVerbHandler {
 
     //retrieve stored secret using sessionid and atsign
     String storedSecretId = 'private:$sessionID$atSign';
-    String? storedSecret = (await keyStore.get(storedSecretId))?.data;
+    // Spent on read, and only honoured while live, so one `from:` buys one
+    // digest attempt rather than unlimited guesses at the CRAM secret.
+    String? storedSecret = await consumeChallenge(storedSecretId);
+    if (storedSecret == null) {
+      // Absent, unreadable or expired. Refused exactly as a wrong digest is,
+      // so the wire cannot tell the two apart. Refused rather than allowed to
+      // fall through: the digest below would otherwise be computed over the
+      // literal 'null', a value any caller can reproduce from the public
+      // session id.
+      atConnection.metaData.isAuthenticated = false;
+      logger.severe('cram authentication failed: no live challenge for'
+          ' session $sessionID');
+      throw UnAuthenticatedException('Authentication Failed');
+    }
     String expectedDigest = sha512
         .convert(utf8
             .encode('${internalSecret.data}$sessionID$atSign:$storedSecret'))
@@ -72,13 +85,7 @@ class CramVerbHandler extends AbstractVerbHandler {
         logger.severe('Hive error adding to access log:${e.toString()}');
       }
 
-      // remove the stored secret
-      try {
-        await keyStore.remove(storedSecretId);
-      } catch (e) {
-        logger.warning('Failed to immediately remove $storedSecretId');
-      }
-
+      // The challenge was already spent by consumeChallenge.
       response.data = 'success';
     } else {
       atConnection.metaData.isAuthenticated = false;
