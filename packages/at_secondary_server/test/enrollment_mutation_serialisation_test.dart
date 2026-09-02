@@ -5,6 +5,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:test/test.dart';
@@ -20,14 +21,30 @@ import 'test_utils.dart';
 /// check and strand the atSign between them, and a per-record lock cannot see
 /// it, because neither writer touches the other's record.
 ///
-/// Every test here is a pair: the concurrent arrangement, which must leave the
-/// atSign with a root it can restore itself from, and the SERIAL control that
-/// runs the same two acts one after the other. The control is what makes the
-/// pair an instrument. Serialisation is the only thing that can make the
-/// concurrent case behave like the serial one, so a concurrent assertion that
-/// held with the section removed would be measuring nothing — and the control
-/// is drawn from a property the section does not touch, so it stays green when
-/// the section is gone.
+/// Every test here is a pair, and the control is what makes the pair an
+/// instrument. Serialisation is the only thing that can make the concurrent
+/// case behave like the serial one, so a concurrent assertion that held with
+/// the section removed would be measuring nothing — and every control is drawn
+/// from a property the section does not touch, so it stays green when the
+/// section is gone.
+///
+/// The pairs come in two shapes, because the harm comes in two kinds.
+///
+/// RACED, where two acts genuinely compete and the harm is a state neither
+/// order produces: the concurrent arrangement must leave the atSign with a
+/// root it can restore itself from, and the control runs the same two acts one
+/// after the other.
+///
+/// HELD, where the act under test is raced against the section itself: the
+/// section is held, the act is started, and the store is read while it waits.
+/// That is the same claim as a race with the timing taken out — whether a race
+/// lands in the gap between one act's read and its write depends on how many
+/// awaits each side happens to take, which is not a property of the code under
+/// test. Its control is a LATENCY control: the identical act, with nothing
+/// holding the section, must have written inside the same window. Without it a
+/// hold assertion is equally satisfied by an act that never ran and by one
+/// merely slower than the wait, so serialisation working and an inert probe
+/// are indistinguishable.
 void main() {
   verbTestsSetUpLogging();
 
@@ -506,6 +523,340 @@ void main() {
           reason: 'an enrollment that replaced nothing has nothing to arm, so '
               'it must answer while a mutation is in flight rather than queue '
               'behind it');
+    });
+  });
+
+  // =====================================================================
+  // The four sections a race cannot reach, held and looked at.
+  // =====================================================================
+
+  /// How long a HELD case waits before reading the store, and how long its
+  /// latency control gives the same act to finish unobstructed.
+  ///
+  /// Three orders of magnitude more than the handful of keystore reads each of
+  /// these acts makes before it reaches its critical section — which is what
+  /// the latency control measures rather than assumes.
+  const Duration holdWindow = Duration(milliseconds: 100);
+
+  /// Takes the atSign's enrollment-mutation section and holds it until the
+  /// returned completer is completed.
+  ///
+  /// The returned future is the holder: complete the gate and await it, or the
+  /// section is still held when the test ends and every later mutation queues
+  /// behind a completer nobody owns any more.
+  (Completer<void>, Future<void>) holdTheSection() {
+    final gate = Completer<void>();
+    return (gate, enMgr.serialiseMutation(() => gate.future));
+  }
+
+  Future<int> enrollmentCount() async =>
+      (await enMgr.getAllEnrollmentKeys()).length;
+
+  group('enroll:request', () {
+    test('mints no enrollment while another mutation holds the section',
+        () async {
+      // The sharpest of the four. A retrofit reads its predecessor, checks it
+      // is approved, reads its stored deadline and mints a successor carrying
+      // its grants verbatim — so a revoke of that predecessor landing
+      // mid-decision is answered by a fresh, approved credential holding
+      // exactly what the revoke was taking away. The successor is a PEER
+      // rather than a child, so no later cascade reaches it through the
+      // predecessor either.
+      final before = await enrollmentCount();
+
+      final (gate, holder) = holdTheSection();
+      final request = selfEnroll(etu.primaryEnId);
+      await Future<void>.delayed(holdWindow);
+      final duringHold = await enrollmentCount();
+
+      gate.complete();
+      final successor = await request;
+      await holder;
+
+      expect(duringHold, before,
+          reason: 'the whole read-decide-write is one mutation: nothing may '
+              'be minted while another enrollment mutation is in flight, '
+              'because the decision the mint rests on is a question about the '
+              'store that mutation is changing');
+      expect(await enrollmentCount(), before + 1,
+          reason: 'and it lands once the section is free — otherwise this '
+              'would be measuring a request that simply never ran');
+      expect(await stateOf(successor), EnrollmentStatus.approved.name);
+    });
+
+    test('LATENCY CONTROL: unobstructed, the same request mints inside the '
+        'same window', () async {
+      // Identical act, identical window, nothing holding the section. Without
+      // it the case above is equally satisfied by a request that threw, or by
+      // one that simply takes longer than the wait — neither of which is
+      // serialisation, and both of which look exactly like it.
+      final before = await enrollmentCount();
+
+      final request = selfEnroll(etu.primaryEnId);
+      await Future<void>.delayed(holdWindow);
+      final duringWindow = await enrollmentCount();
+      await request;
+
+      expect(duringWindow, before + 1,
+          reason: 'the window is ample for the act, so "nothing minted" above '
+              'is a statement about the lock rather than about latency — and '
+              'this needs no serialisation, so it stays green when the '
+              'critical section is removed');
+    });
+
+    test('SERIAL CONTROL: a revoke landing FIRST refuses the retrofit',
+        () async {
+      // The serial outcome the hazard is stated against: run one after the
+      // other and the request is refused on the state the revoke left. That
+      // refusal is what the section exists to keep reachable, and it needs no
+      // serialisation of its own, so it stays green when the section is gone.
+      final second = await twoRoots();
+      expect(await revoke(second, etu.primaryEnId), isNull,
+          reason: 'precondition: the revoke is allowed, since the other root '
+              'survives it');
+      expect(await stateOf(etu.primaryEnId), EnrollmentStatus.revoked.name,
+          reason: 'precondition: the predecessor really is revoked');
+
+      Object? refusal;
+      try {
+        await selfEnroll(etu.primaryEnId);
+      } catch (e) {
+        refusal = e;
+      }
+      expect(refusal, isA<UnAuthorizedException>(),
+          reason: 'a revoked predecessor may not hand its grants to a fresh, '
+              'approved credential');
+    });
+  });
+
+  group('enroll:update', () {
+    /// `enroll:update` is SELF-ONLY, so the connection has to be
+    /// authenticated as its target. Metadata rather than a key rotation: the
+    /// subject is the section, and a rotation would add a signature
+    /// verification deciding the outcome for another reason entirely.
+    Future<void> updateMetadata(String enId, Map<String, dynamic> md) async {
+      final p = EnrollParams()
+        ..enrollmentId = enId
+        ..metadata = md;
+      final r = Response();
+      await etu.evh.processVerb(
+        r,
+        getVerbParam(
+            VerbSyntax.enroll, 'enroll:update:${jsonEncode(p.toJson())}'),
+        connectionFor(enId),
+      );
+      expect(r.isError, false, reason: '${r.errorMessage}');
+    }
+
+    Future<Map<String, dynamic>?> metadataOf(String id) async =>
+        EnrollDataStoreValue.fromJson(jsonDecode(
+                (await keyValueStore.get(enMgr.buildEnrollmentKey(id)))!.data!))
+            .metadata;
+
+    test('writes nothing while another mutation holds the section', () async {
+      // The record is read at the top, an APKAM signature verification is
+      // awaited in the middle, and the WHOLE record is written back at the
+      // bottom — so anything another mutation wrote to it in between is
+      // reinstated by a snapshot taken before that write. The re-read just
+      // before the write refuses on a changed STATUS and on nothing else;
+      // every other field is carried forward from the stale snapshot.
+      final target = await addUnexpiringRoot('update-target');
+      expect(await metadataOf(target), isNull,
+          reason: 'precondition: nothing has written metadata yet');
+
+      final (gate, holder) = holdTheSection();
+      final update = updateMetadata(target, {'keyPackage': 'kp-1'});
+      await Future<void>.delayed(holdWindow);
+      final duringHold = await metadataOf(target);
+
+      gate.complete();
+      await update;
+      await holder;
+
+      expect(duringHold, isNull,
+          reason: 'the read-decide-write must not start while another '
+              'mutation is changing the record it is about to snapshot');
+      expect(await metadataOf(target), {'keyPackage': 'kp-1'},
+          reason: 'and it lands once the section is free — otherwise this '
+              'would be measuring an update that simply never ran');
+    });
+
+    test('LATENCY CONTROL: unobstructed, the same update writes inside the '
+        'same window', () async {
+      final target = await addUnexpiringRoot('update-target');
+
+      final update = updateMetadata(target, {'keyPackage': 'kp-1'});
+      await Future<void>.delayed(holdWindow);
+      final duringWindow = await metadataOf(target);
+      await update;
+
+      expect(duringWindow, {'keyPackage': 'kp-1'},
+          reason: 'the window is ample for the act, so "nothing written" '
+              'above is a statement about the lock rather than about latency '
+              '— and this needs no serialisation, so it stays green when the '
+              'critical section is removed');
+    });
+  });
+
+  group('enroll:delete', () {
+    /// A revoked enrollment — one of the two states `enroll:delete` accepts.
+    Future<String> deletable() async {
+      final victim = await addUnexpiringRoot('delete-target');
+      expect(await revoke(etu.primaryEnId, victim), isNull,
+          reason: 'precondition: the revoke is allowed while primary stands');
+      return victim;
+    }
+
+    Future<void> deleteEnrollment(String callerId, String targetId) async {
+      final p = EnrollParams()..enrollmentId = targetId;
+      final r = Response();
+      await etu.evh.processVerb(
+        r,
+        getVerbParam(
+            VerbSyntax.enroll, 'enroll:delete:${jsonEncode(p.toJson())}'),
+        connectionFor(callerId),
+      );
+      expect(r.isError, false, reason: '${r.errorMessage}');
+    }
+
+    test('removes nothing while another mutation holds the section', () async {
+      // Delete is the one act that is IRREVERSIBLE, and its write takes other
+      // records with it: the per-enrollment data goes through the pre-remove
+      // hook, and for the housekeeping record the legacy PKAM key goes too. It
+      // also severs an approval link, which puts everything behind that link
+      // permanently out of reach of a later cascade — so a delete that decided
+      // against a store another mutation was rewriting cannot be repaired
+      // afterwards.
+      final victim = await deletable();
+      final key = enMgr.buildEnrollmentKey(victim);
+
+      final (gate, holder) = holdTheSection();
+      final delete = deleteEnrollment(etu.primaryEnId, victim);
+      await Future<void>.delayed(holdWindow);
+      final existedDuringHold = await keyValueStore.exists(key);
+
+      gate.complete();
+      await delete;
+      await holder;
+
+      expect(existedDuringHold, isTrue,
+          reason: 'the record is read, the caller\'s authority and the '
+              'record\'s state are decided against it, and only then is it '
+              'removed — the whole of that is one mutation');
+      expect(await keyValueStore.exists(key), isFalse,
+          reason: 'and it lands once the section is free — otherwise this '
+              'would be measuring a delete that simply never ran');
+    });
+
+    test('LATENCY CONTROL: unobstructed, the same delete removes inside the '
+        'same window', () async {
+      final victim = await deletable();
+      final key = enMgr.buildEnrollmentKey(victim);
+
+      final delete = deleteEnrollment(etu.primaryEnId, victim);
+      await Future<void>.delayed(holdWindow);
+      final existedDuringWindow = await keyValueStore.exists(key);
+      await delete;
+
+      expect(existedDuringWindow, isFalse,
+          reason: 'the window is ample for the act, so "still there" above is '
+              'a statement about the lock rather than about latency — and '
+              'this needs no serialisation, so it stays green when the '
+              'critical section is removed');
+    });
+  });
+
+  group('minting the legacy identity', () {
+    /// The one state the housekeeping enrollment is minted in: a keystore
+    /// holding a usable `at_pkam_publickey` and NO enrollment record at all.
+    ///
+    /// The roster is emptied through [EnrollmentManager.remove] rather than
+    /// through the keystore directly, so the manager's cache goes with it — a
+    /// stale entry would make the re-read inside the section answer from
+    /// before the empty.
+    Future<void> emptyRosterWithLegacyKey() async {
+      for (final ek in await enMgr.getAllEnrollmentKeys()) {
+        await enMgr.remove(enId: enMgr.getIdFromKey(ek));
+      }
+      expect(await enrollmentCount(), 0,
+          reason: 'precondition: the store holds no enrollment, which is the '
+              'only state the identity is minted in');
+      await keyValueStore.put(AtConstants.atPkamPublicKey,
+          AtData()..data = 'the-legacy-pkam-key',
+          skipCommit: true);
+    }
+
+    String hKey() =>
+        enMgr.buildEnrollmentKey(EnrollmentManager.housekeepingEnrollmentId);
+
+    test('mints nothing while another mutation holds the section', () async {
+      // Only the CREATE is serialised — the already-created case is answered
+      // outside it, because that is the case every legacy authentication
+      // takes. The create re-asks BOTH of its questions inside the section,
+      // and another mutation can be changing the answer to either:
+      // `enroll:delete` of this record removes the legacy key in the same
+      // breath, so a decision taken outside would re-create the identity that
+      // delete had just retired, and an enrollment landing meanwhile is what
+      // turns a bootstrap into a key that arrived some other way.
+      await emptyRosterWithLegacyKey();
+
+      final (gate, holder) = holdTheSection();
+      final minting = enMgr.ensureHousekeepingEnrollment();
+      await Future<void>.delayed(holdWindow);
+      final existedDuringHold = await keyValueStore.exists(hKey());
+
+      gate.complete();
+      final minted = await minting;
+      await holder;
+
+      expect(existedDuringHold, isFalse,
+          reason: 'the create re-reads the record, the legacy key and the '
+              'whole roster and then writes an unexpiring, fully privileged '
+              'root with no approver — it must not decide that against a '
+              'store another mutation is in the middle of changing');
+      expect(minted, isNotNull);
+      expect(await keyValueStore.exists(hKey()), isTrue,
+          reason: 'and it lands once the section is free — otherwise this '
+              'would be measuring a mint that simply never ran');
+    });
+
+    test('LATENCY CONTROL: unobstructed, the same mint writes inside the same '
+        'window', () async {
+      await emptyRosterWithLegacyKey();
+
+      final minting = enMgr.ensureHousekeepingEnrollment();
+      await Future<void>.delayed(holdWindow);
+      final existedDuringWindow = await keyValueStore.exists(hKey());
+      await minting;
+
+      expect(existedDuringWindow, isTrue,
+          reason: 'the window is ample for the act, so "nothing minted" above '
+              'is a statement about the lock rather than about latency — and '
+              'this needs no serialisation, so it stays green when the '
+              'critical section is removed');
+    });
+
+    test('the ALREADY-CREATED case answers while the section is held',
+        () async {
+      // The other half of the same decision, deliberately OUTSIDE the
+      // section: this is the case every legacy authentication takes, so
+      // putting it behind the lock would queue authentication behind whatever
+      // enrollment mutation happened to be in flight.
+      await emptyRosterWithLegacyKey();
+      expect(await enMgr.ensureHousekeepingEnrollment(), isNotNull,
+          reason: 'precondition: the record now exists');
+
+      final (gate, holder) = holdTheSection();
+      final sw = Stopwatch()..start();
+      final again = await enMgr.ensureHousekeepingEnrollment();
+      sw.stop();
+      gate.complete();
+      await holder;
+
+      expect(again, isNotNull);
+      expect(sw.elapsedMilliseconds, lessThan(holdWindow.inMilliseconds),
+          reason: 'an atSign that already holds the record must answer while '
+              'a mutation is in flight rather than queue behind it');
     });
   });
 }
