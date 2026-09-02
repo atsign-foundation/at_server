@@ -526,6 +526,41 @@ void main() {
           reason: 'enrollments but NO flat credential: nothing to retire');
     });
 
+    // The two places the server actually runs the sweep. Each is pinned on
+    // its own, because one being right says nothing about the other: the
+    // retirement has no ttl and no other trigger, so a site that stopped
+    // calling the sweep would leave every deadline unwatched with nothing
+    // going red. A test that calls runHousekeepingSweep() directly proves the
+    // sweep works, not that anything runs it.
+    Future<void> aDueRetirement() async {
+      await installFlatCredential();
+      await storeApprovedEnrollment({'*': 'rw', '__manage': 'rw'});
+      await writeDeadline(DateTime.now()
+          .toUtc()
+          .subtract(Duration(minutes: 1))
+          .toIso8601String());
+      expect(await enMgr.legacyPkamPublicKey(), isNotNull,
+          reason: 'precondition: there is a credential to retire');
+    }
+
+    test('the startup path runs the sweep', () async {
+      await aDueRetirement();
+      await AtSecondaryServerImpl.getInstance().prepareStoreForFirstConnection();
+      expect(await enMgr.legacyPkamPublicKey(), isNull,
+          reason: 'a deadline that fell due while the server was down is '
+              'noticed on the way up, by the startup path itself and not by '
+              'a sweep some test called for it');
+    });
+
+    test('the expiry timer\'s callback runs the sweep', () async {
+      await aDueRetirement();
+      await AtSecondaryServerImpl.getInstance().onExpirySweepTimerFired();
+      expect(await enMgr.legacyPkamPublicKey(), isNull,
+          reason: 'what the timer fires is what watches the deadline; a '
+              'callback that only reaped expired keys would leave the flat '
+              'credential in place for ever, with the timer ticking');
+    });
+
     test('the sweep and a revoke in flight together cannot strand the atSign',
         () async {
       // The sweep decides "an unexpiring root survives, so the flat key may

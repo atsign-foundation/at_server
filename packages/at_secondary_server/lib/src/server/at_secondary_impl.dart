@@ -582,16 +582,31 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     sleep += Duration(seconds: Random().nextInt(30));
     logger.finest('Next key expiry sweep in $sleep');
     _keyExpiryTimer = Timer(sleep, () async {
+      // A timer that fires after stop() has torn the store down does nothing.
       if (_persistenceBundle == null) {
         return;
       }
-      try {
-        await runHousekeepingSweep();
-      } on Exception catch (e) {
-        logger.warning('Key expiry sweep failed: $e');
-      }
+      await onExpirySweepTimerFired();
       await _scheduleNextExpirySweep();
     });
+  }
+
+  /// What the expiry timer does when it fires: one housekeeping sweep, with a
+  /// failure logged rather than propagated into the timer.
+  ///
+  /// Split out from the arming and the re-arm so the link from the timer to
+  /// the sweep can be pinned. The Timer itself is driven by nothing a test
+  /// controls, which made its callback the one place the sweep could quietly
+  /// stop being called: the flat credential's retirement has no ttl and no
+  /// other trigger, so a sweep this timer no longer ran would leave every
+  /// deadline unwatched with nothing going red.
+  @visibleForTesting
+  Future<void> onExpirySweepTimerFired() async {
+    try {
+      await runHousekeepingSweep();
+    } on Exception catch (e) {
+      logger.warning('Key expiry sweep failed: $e');
+    }
   }
 
   /// Schedule a periodic compaction tick for [resource]. The tick
