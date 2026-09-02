@@ -105,9 +105,10 @@
   connection could install an APKAM public key of its own choosing on the
   atSign's legacy identity and be answered
   `{"enrollmentId":"primary","status":"approved"}`. The refusal names the
-  remedy: the legacy credential is rotated with
-  `update:privatekey:at_pkam_publickey`, over a connection authenticated with
-  the credential it replaces.
+  remedy: the legacy credential is rotated where it lives, with an update of
+  `privatekey:at_pkam_publickey` over a connection authenticated with the
+  credential it replaces, carrying the same proof of possession this verb
+  demands (see below).
 - fix: `primary` counts as an unexpiring root only while `at_pkam_publickey` is
   in the keystore AND NON-EMPTY. Alone among enrollments it holds no credential
   of its own, so a record standing over a key nobody can authenticate with is a
@@ -164,6 +165,61 @@
   `the legacy credential for this atSign has been retired` became `this atSign
   has no usable legacy PKAM credential`, followed by the remedy. Which of the
   two reasons it was is in the server log, not on the wire.
+- ⚠️ fix: rotating `privatekey:at_pkam_publickey` now requires proof that the
+  sender holds the private half of the key it is installing — the same
+  self-signature `enroll:update` has always demanded of every other
+  credential, in the same framing, verified through the same path `pkam:`
+  uses.
+
+  Without it the legacy credential was the one key on the atSign that could be
+  replaced with no proof of anything. Measured on this tree in three arms
+  differing only in the bytes stored at that key: rotated to a WELL-FORMED key
+  whose private half was never persisted, `primary` went on being counted as
+  the atSign's surviving unexpiring root — the bar is a credential something
+  can authenticate with, and a well-formed orphan passes it — while nothing
+  could authenticate as it, so revoking the last root that really worked was
+  permitted. Stored EMPTY it was not counted and the revoke was refused; left
+  alone it was counted and authentication worked. The server cannot tell an
+  orphan from a live key after the fact, so the demand is made at the write.
+
+  ⚠️ THE CLIENT CONTRACT. The proof travels in an `update:json` document as
+  `apkamPublicKeySignature` alongside `signingAlgo`, spelled exactly as
+  `enroll:update` spells them, over
+  `primary|<new public key>|<signingAlgo>`:
+
+  ```
+  update:json:{"atKey":"privatekey:at_pkam_publickey",
+               "value":"<new public key>","metadata":{...},
+               "signingAlgo":"rsa2048",
+               "apkamPublicKeySignature":"<base64>"}
+  ```
+
+  A client builds it from `UpdateParams.toJson()` and adds the two fields.
+  Nothing is added to the `update` grammar, deliberately: a wire parameter
+  this server read and no published builder could produce would be a fork of
+  the protocol that only looks like an extension. The plain
+  `update:privatekey:at_pkam_publickey <value>` form has no parameter that
+  could carry a signature, so a ROTATION must use the JSON form.
+  `signingAlgo` is required rather than defaulted, because the legacy
+  credential records its algorithm nowhere — a legacy `pkam:` names it on the
+  wire per connection — so there is nothing to fall back on and a wrong guess
+  installs a key that cannot authenticate.
+
+  ⚠️ BOOTSTRAP is exempt and onboarding is untouched: when the atSign holds no
+  `primary` record, nothing stands over the key, an unusable value counts as
+  nothing and mints nothing, and possession is proved later by construction —
+  the record is minted only by a legacy authentication that has already
+  verified a signature against that key. `install_PKAM_Keys` and CRAM
+  onboarding plant the first key in the plain form exactly as before. Every
+  other write is a rotation over a live identity and must prove itself,
+  whoever is asking: an owner or CRAM connection included, since it can strand
+  the atSign the same way.
+
+  ⚠️ WHAT BREAKS: a client that rotates the legacy credential with the plain
+  `update:` form on an atSign that has minted `primary`. In this tree that is
+  `tests/at_functional_test/test/pkam_verb_test.dart`'s ECC round trip, ported
+  in the same commit.
+
 - fix: reading an enrollment no longer WRITES. `getEnrollmentByFullKey`
   removed a record whose ttl had elapsed as it read it, and enrollments are
   read on every verb command and every authorisation check — all of it
@@ -231,6 +287,9 @@
   which has already proved possession of the key it is replacing by
   authenticating with it. Every other `privatekey:` key is unchanged and still
   decided by root privilege alone.
+
+  ⚠️ Being ALLOWED to write it is no longer the whole of the check — see the
+  proof-of-possession entry below.
 - fix: the last-root refusal now asks whether the ACT removes a fully
   privileged enrollment, not whether the enrollment the command NAMES is one.
   A revoke cascades to every enrollment that descends from its target by

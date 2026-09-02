@@ -725,6 +725,11 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// `enroll:update`, which cannot serve this one because the housekeeping
   /// record holds no credential to update.
   ///
+  /// Being allowed to rotate it is not the whole of the check. Possession of
+  /// the OLD key is what this decides; possession of the NEW one is demanded
+  /// separately, by `AbstractUpdateVerbHandler.verifyLegacyCredentialPossession`,
+  /// of every writer including an owner or CRAM connection.
+  ///
   /// Every other root enrollment is refused, and that is the point. An APKAM
   /// root writing this key installs a credential IT holds as the atSign's
   /// legacy credential, and the legacy credential authenticates with no

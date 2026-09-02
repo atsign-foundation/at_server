@@ -138,26 +138,41 @@ void main() {
           reason: 'and the refusal happened before the write');
     });
 
-    test('the legacy enrollment CAN write the PKAM public key', () async {
+    test('the legacy enrollment gets PAST the authorization gate', () async {
       // The carve-out, and the control for the refusal above: without it that
       // refusal would be satisfied by nobody being able to write this key at
       // all, which would leave the legacy credential unrotatable.
       //
       // A legacy connection carries the housekeeping id, and it got there by
       // authenticating with the key it is replacing — so it has already
-      // proved possession of the old credential. That is a credential
+      // proved possession of the OLD credential. That is a credential
       // rotating ITSELF, which is what every other enrollment does through
       // enroll:update; the housekeeping record cannot use that verb because
       // it holds no key to update.
+      //
+      // It is stopped here by a DIFFERENT rule, and the exception type is the
+      // discriminator: possession of the NEW key is demanded separately, and
+      // this plain-form request carries no proof. An UnAuthorizedException
+      // would mean the carve-out had stopped admitting a legacy connection at
+      // all. The rotation itself, signature and all, is pinned end to end in
+      // legacy_pkam_retrofit_test.dart, which has real keypairs to hand.
       await bindLegacy();
       await keyValueStore.put(
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
 
-      await updateVerbHandler.process(
-          'update:${AtConstants.atPkamPublicKey} NEW_KEY', inboundConnection);
+      await expectLater(
+          updateVerbHandler.process(
+              'update:${AtConstants.atPkamPublicKey} NEW_KEY',
+              inboundConnection),
+          throwsA(isA<IllegalArgumentException>().having((e) => e.message,
+              'message', contains('requires proof'))),
+          reason: 'past authorization, stopped by proof of possession — an '
+              'UnAuthorizedException here would mean the carve-out itself had '
+              'stopped working');
 
       final stored = await keyValueStore.get(AtConstants.atPkamPublicKey);
-      expect(stored?.data, 'NEW_KEY');
+      expect(stored?.data, 'ORIGINAL_KEY',
+          reason: 'and the refusal happened before the write');
     });
 
     test('a root enrollment can still write ANOTHER privatekey: key',
@@ -218,11 +233,16 @@ void main() {
       // the keystore applies. Comparing against the spelling as received
       // would refuse the legacy connection its own rotation for a shift key,
       // and the refusal would read as an authorisation bug.
+      //
+      // Same discriminator as above: an IllegalArgumentException means this
+      // spelling reached the possession check, so authorization admitted it.
       await bindLegacy();
-      await updateVerbHandler.process(
-          'update:PRIVATEKEY:AT_PKAM_PUBLICKEY NEW_KEY', inboundConnection);
-      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
-          'NEW_KEY');
+      await expectLater(
+          updateVerbHandler.process(
+              'update:PRIVATEKEY:AT_PKAM_PUBLICKEY NEW_KEY',
+              inboundConnection),
+          throwsA(isA<IllegalArgumentException>().having((e) => e.message,
+              'message', contains('requires proof'))));
     });
 
     // ---- the atSign's own key material ----

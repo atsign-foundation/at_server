@@ -1267,9 +1267,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       throw AtEnrollmentException(
           'enroll:update cannot be used on $enId: it is the atSign\'s legacy '
           'PKAM identity and holds no credential of its own. The legacy '
-          'credential is rotated with '
-          'update:${AtConstants.atPkamPublicKey} <new public key>, over a '
-          'connection authenticated with the credential it replaces');
+          'credential is rotated where it lives, with an update of '
+          '${AtConstants.atPkamPublicKey} over a connection authenticated '
+          'with the credential it replaces, sent as update:json carrying '
+          'signingAlgo and apkamPublicKeySignature — the same proof of '
+          'possession this verb demands of every other credential');
     }
 
     // Self-only. An explicit exception to `isAuthorized`'s "no enrollmentId

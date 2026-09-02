@@ -1045,6 +1045,38 @@ void main() {
       expect(inboundConnection.metaData.isAuthenticated, isFalse);
     });
 
+    /// The `update:json` document that rotates the legacy credential onto
+    /// [pair], carrying the proof of possession the server demands.
+    ///
+    /// The signature is over `primary|<new public key>|<signingAlgo>`, made
+    /// with the NEW private half — byte-identical framing to the one
+    /// `enroll:update` demands of every other credential, which is what makes
+    /// a key that can authenticate installable and a key installed here able
+    /// to authenticate.
+    String rotationCommand(AtPkamKeyPair pair,
+        {String? signature, String signingAlgo = 'rsa2048'}) {
+      final String pub = pair.atPublicKey.publicKey;
+      final input = AtSigningInput(
+          '${EnrollmentManager.housekeepingEnrollmentId}|$pub|$signingAlgo')
+        ..signingAlgoType = SigningAlgoType.rsa2048
+        ..hashingAlgoType = HashingAlgoType.sha256
+        ..signingMode = AtSigningMode.pkam;
+      // Built from UpdateParams, exactly as a client would: `metadata` has to
+      // be a full Metadata document — `Metadata.fromJson` reads `isPublic`
+      // into a non-nullable bool, so an empty object throws before the
+      // handler is reached — and the two proof fields are added to the map it
+      // produces, because UpdateParams does not model them.
+      final document = (UpdateParams()
+            ..atKey = AtConstants.atPkamPublicKey
+            ..value = pub
+            ..metadata = Metadata())
+          .toJson();
+      document['signingAlgo'] = signingAlgo;
+      document['apkamPublicKeySignature'] = signature ??
+          AtChopsImpl(AtChopsKeys.create(null, pair)).sign(input).result;
+      return 'update:json:${jsonEncode(document)}';
+    }
+
     test('a legacy connection rotates the credential through the update verb',
         () async {
       // The remedy the enroll:update refusal names, proved end to end. This
@@ -1058,16 +1090,14 @@ void main() {
           EnrollmentManager.housekeepingEnrollmentId);
 
       final replacement = AtChopsUtil.generateAtPkamKeyPair();
-      await etu.uvh.process(
-          'update:${AtConstants.atPkamPublicKey} '
-          '${replacement.atPublicKey.publicKey}',
-          inboundConnection);
+      await etu.uvh.process(rotationCommand(replacement), inboundConnection);
 
       expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
           replacement.atPublicKey.publicKey,
           reason: 'a connection that authenticated with the old key has '
-              'proved possession of it, so rotating to a new one is the same '
-              'act every other enrollment performs with enroll:update');
+              'proved possession of it, and the request proves possession of '
+              'the new one — the same act every other enrollment performs '
+              'with enroll:update');
 
       legacyPair = replacement;
       expect((await pkam('post-rotation-session')).data, 'success',
@@ -1078,6 +1108,135 @@ void main() {
           reason: 'the record is untouched by the rotation, which is the '
               'whole reason it holds no key: there is no second copy to keep '
               'in step');
+    });
+
+    test('a rotation carrying NO proof of possession is refused', () async {
+      // MEASURED: without this the same request installs a well-formed key
+      // whose private half was never persisted, and `primary` goes on being
+      // counted as the atSign's surviving unexpiring root — the bar is a
+      // credential something can authenticate with, and a well-formed orphan
+      // passes it — while nothing can authenticate as it. The last root that
+      // really works then becomes revocable.
+      await seedRsaLegacyKey();
+      expect((await pkam('no-proof-session')).data, 'success',
+          reason: 'precondition: the connection is the legacy credential\'s '
+              'own holder, so it is entitled to rotate it');
+      final String before =
+          (await keyValueStore.get(AtConstants.atPkamPublicKey))!.data!;
+
+      final orphan = AtChopsUtil.generateAtPkamKeyPair();
+      await expectLater(
+          etu.uvh.process(
+              'update:${AtConstants.atPkamPublicKey} '
+              '${orphan.atPublicKey.publicKey}',
+              inboundConnection),
+          throwsA(isA<IllegalArgumentException>().having((e) => e.message,
+              'message', contains('requires proof'))),
+          reason: 'the plain form has no parameter that could carry a '
+              'signature, so a rotation must use update:json — and the '
+              'refusal says so rather than failing a verification the request '
+              'never attempted');
+
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          before,
+          reason: 'and the credential is untouched, so the refusal is not one '
+              'in name only');
+    });
+
+    test('a rotation whose signature is by the WRONG key is refused',
+        () async {
+      // The other half: a request that carries a signature is not a request
+      // that carries a PROOF. This one is real crypto, correctly framed, made
+      // by a keypair the sender genuinely holds — just not the one it is
+      // asking the atSign to trust.
+      await seedRsaLegacyKey();
+      expect((await pkam('wrong-key-session')).data, 'success');
+      final String before =
+          (await keyValueStore.get(AtConstants.atPkamPublicKey))!.data!;
+
+      final installed = AtChopsUtil.generateAtPkamKeyPair();
+      final other = AtChopsUtil.generateAtPkamKeyPair();
+      final String otherSignature = AtChopsImpl(AtChopsKeys.create(null, other))
+          .sign(AtSigningInput(
+              '${EnrollmentManager.housekeepingEnrollmentId}|'
+              '${installed.atPublicKey.publicKey}|rsa2048')
+            ..signingAlgoType = SigningAlgoType.rsa2048
+            ..hashingAlgoType = HashingAlgoType.sha256
+            ..signingMode = AtSigningMode.pkam)
+          .result;
+
+      await expectLater(
+          etu.uvh.process(
+              rotationCommand(installed, signature: otherSignature),
+              inboundConnection),
+          throwsA(isA<UnAuthorizedException>().having((e) => e.message,
+              'message', contains('does not verify'))),
+          reason: 'the signature must be by the private half of the key being '
+              'INSTALLED — that is the whole of what proof of possession '
+              'means here');
+
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          before);
+    });
+
+    test('the FIRST key needs no proof, because nothing stands over it',
+        () async {
+      // The bootstrap exemption, and the control that stops the refusals
+      // above being satisfied by "this key can no longer be written at all" —
+      // which would break onboarding on every atSign. An owner or CRAM
+      // connection carries no enrollment id, and on an atSign that has never
+      // minted `primary` there is no identity for an unusable value to stand
+      // over: possession is proved later and by construction, because only a
+      // legacy authentication that verified a signature against this key
+      // mints the record.
+      await keyValueStore.remove(AtConstants.atPkamPublicKey, skipCommit: true);
+      expect(await storedH(), isNull,
+          reason: 'precondition: no housekeeping enrollment, so this is a '
+              'bootstrap and not a rotation');
+      inboundConnection.metaData
+        ..isAuthenticated = true
+        ..authType = AuthType.cram
+        ..enrollmentId = null;
+
+      final first = AtChopsUtil.generateAtPkamKeyPair();
+      await etu.uvh.process(
+          'update:${AtConstants.atPkamPublicKey} '
+          '${first.atPublicKey.publicKey}',
+          inboundConnection);
+
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          first.atPublicKey.publicKey,
+          reason: 'onboarding plants the first key over a CRAM connection in '
+              'exactly this shape, and it must keep working');
+    });
+
+    test('...but the SAME connection is refused once the identity exists',
+        () async {
+      // The paired arm, differing from the control above only in whether the
+      // housekeeping record is there. An owner or CRAM connection can strand
+      // the atSign exactly as a legacy one can, so the demand is made of
+      // whoever is writing rather than of a particular authentication type.
+      await seedRsaLegacyKey();
+      expect((await pkam('mint-session')).data, 'success',
+          reason: 'precondition: this is what mints the identity');
+      expect(await storedH(), isNotNull);
+
+      inboundConnection.metaData
+        ..isAuthenticated = true
+        ..authType = AuthType.cram
+        ..enrollmentId = null;
+
+      final replacement = AtChopsUtil.generateAtPkamKeyPair();
+      await expectLater(
+          etu.uvh.process(
+              'update:${AtConstants.atPkamPublicKey} '
+              '${replacement.atPublicKey.publicKey}',
+              inboundConnection),
+          throwsA(isA<IllegalArgumentException>().having((e) => e.message,
+              'message', contains('requires proof'))),
+          reason: 'the exemption is about the atSign\'s state, not about who '
+              'is asking — a CRAM connection installing an orphan over a live '
+              '`primary` strands the atSign the same way');
     });
   });
 
@@ -1141,7 +1300,10 @@ void main() {
           throwsA(isA<AtEnrollmentException>().having(
               (e) => e.message,
               'message',
-              contains('update:${AtConstants.atPkamPublicKey}'))),
+              allOf(
+                contains(AtConstants.atPkamPublicKey),
+                contains('apkamPublicKeySignature'),
+              ))),
           reason: 'without this refusal the request SUCCEEDS and answers '
               '{"enrollmentId":"primary","status":"approved"} — a legacy '
               'connection installing an APKAM key of its choosing on the '
