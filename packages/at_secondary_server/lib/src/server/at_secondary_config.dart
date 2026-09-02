@@ -72,6 +72,13 @@ class AtSecondaryConfig {
   //Notification
   static const bool _autoNotify = true;
 
+  // Whether this server is running as a TEST fixture rather than in
+  // production. FALSE is the safe value and the only one a real deployment
+  // should ever hold: it relaxes rules that exist to protect the atSign, so
+  // an unreadable or absent setting must read as false rather than as
+  // "probably a test rig".
+  static const bool _testingMode = false;
+
   // The time interval(in seconds) to notify latest commitID to monitor connections
   // To disable to the feature, set to -1.
   static const int _statsNotificationJobTimeInterval = 15;
@@ -557,6 +564,37 @@ class AtSecondaryConfig {
       return getConfigFromYaml(['notification', 'autoNotify']);
     } on ElementNotFoundException {
       return _autoNotify;
+    }
+  }
+
+  /// Whether this server is running as a test fixture, from the `testing:
+  /// testingMode:` block or the `testingMode` environment variable.
+  ///
+  /// It gates behaviour that must not be reachable on a real atSign, so every
+  /// path that cannot answer the question — no environment variable, no yaml,
+  /// an unparseable value — answers FALSE. A flag whose absence meant "yes"
+  /// would turn a missing config file into a permanently relaxed server.
+  /// Forces [testingMode] to a value for the duration of a test.
+  ///
+  /// The flag comes from the process environment and the config file, neither
+  /// of which a test can change from inside the process, so a test asserting
+  /// what the flag GATES needs this. Null means "ask the environment and the
+  /// yaml", which is what every non-test run holds.
+  @visibleForTesting
+  static bool? testingModeOverride;
+
+  static bool get testingMode {
+    if (testingModeOverride != null) {
+      return testingModeOverride!;
+    }
+    var result = _getBoolEnvVar('testingMode');
+    if (result != null) {
+      return result;
+    }
+    try {
+      return getConfigFromYaml(['testing', 'testingMode']);
+    } on ElementNotFoundException {
+      return _testingMode;
     }
   }
 
