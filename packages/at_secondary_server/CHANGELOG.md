@@ -1,4 +1,26 @@
 # 3.16.4
+- fix: `scan` re-checks the enrollment's approval state on the wildcard fast
+  path, and a connection whose enrollment has left `approved` is closed.
+
+  An enrollment holding `*` was filtered by a branch that removed `__manage`
+  keys and other enrollments' per-enrollment keys and then returned the rest
+  without ever reading `approval.state`. The per-key branch, which every
+  narrower enrollment takes, asks `isAuthorized` about each key and so refuses
+  a revoked one — so revocation worked for a `wavi:rw` enrollment and did not
+  for a `*:rw` one. A revoked wildcard enrollment went on enumerating the
+  whole keystore for as long as it held the connection open.
+
+  The wider fix is one level up: `pkam` admits an APKAM connection on
+  `approved` and refuses every other state, so an enrollment that has left
+  `approved` is one its connection could not be opened with now, and the
+  connection is closed rather than merely denied. Denial is per-verb, which
+  makes it only ever as complete as the least careful handler — the scan gap
+  above is what that costs. Expiry has always closed the connection; revoked,
+  denied and pending now do too, each reported with the error code `pkam`
+  refuses that state with (AT0027, AT0025, AT0026), so a client cut off
+  mid-session reads the same reason it would have been given had it connected
+  a moment later.
+
 - fix: every enrollment mutation now runs inside ONE store-wide critical
   section, and it covers the whole read-decide-write rather than the write:
   `enroll:request` (past the throttle and the OTP gate), `enroll:approve`,

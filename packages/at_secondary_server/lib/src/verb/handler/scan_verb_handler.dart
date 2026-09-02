@@ -6,6 +6,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/wire_param_names.dart';
+import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -271,10 +272,10 @@ class ScanVerbHandler extends AbstractVerbHandler {
       String currentAtSign) async {
     // NOTE: The atConnectionMetadata.enrollmentId is verified for null check in the caller of this method - getLocalKeys
     // Therefore, added non-null assertation operator.
-    var enrollNamespaces = (await AtSecondaryServerImpl.getInstance()
-            .enrollmentManager
-            .getEnrollmentById(atConnectionMetadata.enrollmentId!))
-        .namespaces;
+    EnrollDataStoreValue enrollment = await AtSecondaryServerImpl.getInstance()
+        .enrollmentManager
+        .getEnrollmentById(atConnectionMetadata.enrollmentId!);
+    var enrollNamespaces = enrollment.namespaces;
 
     // No namespace to filter keys. So, return.
     if (enrollNamespaces.isEmpty) {
@@ -282,11 +283,31 @@ class ScanVerbHandler extends AbstractVerbHandler {
           'For the enrollmentId ${atConnectionMetadata.enrollmentId} no namespaces are enrolled. Returning empty list');
       return [];
     }
+
+    // A namespace grant only means anything while the enrollment is approved.
+    // Once it is revoked, denied or expired it holds no grant at all, so it
+    // sees what a caller holding nothing sees: the public keys, which are
+    // world-readable by definition.
+    //
+    // The per-key branch below reaches this verdict on its own, because
+    // isAuthorized refuses every non-public key whose enrollment has left
+    // `approved`. The '*' branch does not call isAuthorized, so without this
+    // gate a REVOKED '*' enrollment went on enumerating the whole keystore for
+    // as long as it held the connection open.
+    if (enrollment.approval?.state != EnrollmentStatus.approved.name) {
+      logger.warning(
+          'Enrollment ${atConnectionMetadata.enrollmentId} is not approved'
+          ' (${enrollment.approval?.state}); scan returns public keys only');
+      localKeysList.removeWhere((key) => !key.startsWith('public:'));
+      return localKeysList;
+    }
+
     // If the enrollment holds '*', it sees all namespaces EXCEPT the __manage
     // namespace (enrollment records / key material) and any *other* enrollment's
     // per-enrollment reserved namespace (<id>.a|r|d.__e). Public keys stay
     // visible. This mirrors the isAuthorizedSync gate that the per-key branch
-    // below applies for non-'*' enrollments (the '*' fast path skips that loop).
+    // below applies for non-'*' enrollments (the '*' fast path skips that loop,
+    // which is why the approval state is checked above rather than by it).
     if (enrollNamespaces.containsKey(EnrollmentConstants.allNamespaces)) {
       localKeysList.removeWhere((key) =>
           !key.startsWith('public:') &&

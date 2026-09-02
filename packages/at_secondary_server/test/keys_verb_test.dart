@@ -783,9 +783,15 @@ void main() {
       };
       var keyName = '$enrollId.new.enrollments.__manage$alice';
       await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
+      // processVerb, not process: a connection whose enrollment has left
+      // `approved` is closed by AbstractVerbHandler before any verb body runs,
+      // so `process` never reaches this refusal. The refusal is still the
+      // keys verb's own — it answers for the handler however it is entered —
+      // and this exercises the layer that owns it. The connection-level gate
+      // is pinned in enrollment_revocation_liveness_test.dart.
       expect(
-          () async =>
-              await keysVerbHandler.process(keysGetCommand, inboundConnection),
+          () async => await keysVerbHandler.processVerb(Response(),
+              keysVerbHandler.parse(keysGetCommand), inboundConnection),
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
               e.message ==

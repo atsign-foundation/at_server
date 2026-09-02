@@ -88,6 +88,20 @@ abstract class AbstractVerbHandler implements VerbHandler {
     }
   }
 
+  /// The wire error code a connection is closed with when its enrollment is
+  /// no longer [EnrollmentStatus.approved]. These are the codes `pkam`
+  /// refuses an authentication with, so a client cut off mid-session reads
+  /// the same reason it would have been given had it connected a moment
+  /// later. A state with no code of its own — including a record whose
+  /// approval cannot be read at all — reports AT0028, the code for an
+  /// enrollment that cannot serve.
+  static String _closeCodeForState(String? state) {
+    if (state == EnrollmentStatus.denied.name) return 'AT0025';
+    if (state == EnrollmentStatus.pending.name) return 'AT0026';
+    if (state == EnrollmentStatus.revoked.name) return 'AT0027';
+    return 'AT0028';
+  }
+
   /// When authenticated with the APKAM keys, checks if the enrollment is active.
   /// Returns true if the enrollment is active; otherwise, returns false.
   Future<(bool, Response)> _verifyIfEnrollmentIsActive(
@@ -107,16 +121,28 @@ abstract class AbstractVerbHandler implements VerbHandler {
           await AtSecondaryServerImpl.getInstance()
               .enrollmentManager
               .getEnrollmentById(atConnectionMetadata.enrollmentId!);
-      // If the enrollment status is expired, then the enrollment is not active. Return false.
-      if (enrollDataStoreValue.approval?.state ==
-          EnrollmentStatus.expired.name) {
+      // A connection may continue only for as long as its enrollment could
+      // still authenticate. `pkam` admits an APKAM connection on `approved`
+      // and refuses every other state, so an enrollment that has left
+      // `approved` is one this connection could not be opened with now.
+      //
+      // Closed rather than merely denied. Denial is per-verb, so it is only
+      // ever as complete as the least careful handler: a verb that decides
+      // access some way of its own goes on serving a revoked caller for as
+      // long as it holds the socket. Closing here states the rule once, and
+      // an operator who revokes an enrollment gets the effect they asked for
+      // — the same one expiry has always had — rather than one that depends
+      // on which verb the revoked client reaches for next.
+      final String? state = enrollDataStoreValue.approval?.state;
+      if (state != EnrollmentStatus.approved.name) {
+        final String describedState = state ?? 'in an unreadable state';
         logger.severe(
-            'The enrollment id: ${atConnectionMetadata.enrollmentId} is expired. Closing the connection');
+            'The enrollment id: ${atConnectionMetadata.enrollmentId} is $describedState. Closing the connection');
         response
           ..isError = true
-          ..errorCode = 'AT0028'
+          ..errorCode = _closeCodeForState(state)
           ..errorMessage =
-              'The enrollment id: ${(atConnectionMetadata).enrollmentId} is expired. Closing the connection';
+              'The enrollment id: ${(atConnectionMetadata).enrollmentId} is $describedState. Closing the connection';
         return (false, response);
       }
       // The expired enrollments are removed from the keystore. In such cases, KeyNotFoundException is
