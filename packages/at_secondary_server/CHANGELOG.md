@@ -57,14 +57,31 @@
   reported success. The target is still asked about, because it is removed too
   and cannot appear in its own cascade. Only enrollments the cascade will
   actually rewrite count — one already revoked is not taken away again.
-- ⚠️ fix: approving an enrollment that asks for `__manage:rw` now requires the
-  approver to hold `__manage:rw` itself. Every other namespace was compared
-  against the approver's own grant; `__manage` is decided on its own branch
+- ⚠️ fix: acting on an enrollment that holds `__manage:rw` now requires the
+  caller to hold `__manage:rw` itself. Every other namespace was compared
+  against the caller's own grant; `__manage` is decided on its own branch
   ahead of that comparison and was checked only for presence, so a read-only
   administrator could admit a read-write one — an enrollment able to approve,
-  revoke and delete, including the approver that admitted it. An approver
-  holding `__manage:r` may still admit an enrollment asking for `__manage:r`,
-  and reaching a `__manage` key is unaffected.
+  revoke and delete, including the approver that admitted it. The escalation
+  never needed a bare `__manage` grant to work: an approver holding `*:rw`
+  alongside `__manage:r` already covers every data namespace a full root asks
+  for, leaving `__manage` the only entry between it and minting an enrollment
+  strictly more privileged than itself.
+
+  The comparison is made once per namespace the target holds, by every
+  operation naming another enrollment, so it reaches the paths that confer
+  nothing as well. ⚠️ `enroll:fetch` only READS the target, and a
+  `__manage:r` administrator can no longer fetch a `__manage:rw` enrollment's
+  record even where it covers every other namespace that enrollment holds.
+  Deliberate: the bar is authority over the target's grants, and a caller with
+  no claim to approve, revoke or delete an administrator has none to read its
+  record either. This is not what keeps the enrollment's encrypted APKAM
+  symmetric key from a read-only administrator, and should not be mistaken for
+  it — `enroll:list` is unaffected and still returns that field, for every
+  enrollment on the atSign, to any caller holding `__manage` at all.
+
+  An approver holding `__manage:r` may still admit an enrollment asking for
+  `__manage:r`, and reaching a `__manage` key is unaffected.
 - fix: the retrofit cap's decline now NAMES the remedy. An atSign whose only
   root asks for a bounded key life declines on every authentication and has
   both revoke routes refused, so its legacy credential is un-retirable and

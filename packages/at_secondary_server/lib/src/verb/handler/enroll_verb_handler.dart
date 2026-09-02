@@ -268,6 +268,15 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // no-enrollmentId CRAM/owner connection may fetch any). Fetching ANOTHER
     // enrollment requires __manage AND access to EVERY namespace the target
     // holds — the same bar as approve/deny/revoke.
+    //
+    // "EVERY namespace" includes __manage itself, so a '__manage:r'
+    // administrator cannot fetch a '__manage:rw' enrollment even where it
+    // covers every other namespace the target holds. That is a statement
+    // about authority over the target, not about the secrecy of the field:
+    // enroll:list returns the same encryptedAPKAMSymmetricKey for every
+    // enrollment on the atSign to any caller holding __manage at all, 'r'
+    // included. This gate is not what keeps that value from a read-only
+    // administrator, and must not be read as though it were.
     final inboundConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
     final callerEnrollmentId = inboundConnectionMetadata.enrollmentId;

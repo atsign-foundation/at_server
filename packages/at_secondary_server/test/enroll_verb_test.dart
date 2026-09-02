@@ -1760,6 +1760,62 @@ void main() {
       await approveAs(approverId, targetId);
       expect(await stateOf(targetId), EnrollmentStatus.approved.name);
     });
+
+    test(
+        'an approver holding everything BUT __manage:rw may not approve a '
+        'full root', () async {
+      // The climb-back, and the reason the __manage comparison exists. An
+      // approver holding '*':'rw' covers every data namespace a root asks
+      // for, so the per-namespace loop passes on all of them and __manage is
+      // the only entry left to refuse. Were it not compared, this approver
+      // would mint an enrollment strictly more privileged than itself — a
+      // full root, able to revoke the very enrollment that admitted it.
+      //
+      // The tests above pair an approver and a target whose grants are
+      // __manage ALONE. Such a target is not a root, and such an approver
+      // could not cover a root's '*' entry in any case — so the refusal they
+      // pin could as easily have come from the wildcard. This one cannot.
+      final String approverId =
+          await storeApprovedEnrollment({'*': 'rw', '__manage': 'r'});
+      final String targetId =
+          await storePendingEnrollment({'*': 'rw', '__manage': 'rw'});
+
+      await expectLater(
+          () => approveAs(approverId, targetId),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Failed to approve enrollment id: $targetId. Client is not'
+                      ' authorized for namespaces in the enrollment request')),
+          reason: 'an approver that does not hold __manage:rw may not confer '
+              'a full root, however much else it holds');
+      expect(await stateOf(targetId), EnrollmentStatus.pending.name,
+          reason: 'refused before anything is written');
+    });
+
+    test('…but that approver may still admit one at its own level', () async {
+      // The control for the refusal above, differing from it in the target's
+      // __manage access and in nothing else. Without it the refusal is
+      // equally satisfied by an approver forbidden to approve anything at
+      // all, which would make a '*':'rw' + '__manage':'r' administrator
+      // useless rather than merely unable to promote.
+      final String approverId =
+          await storeApprovedEnrollment({'*': 'rw', '__manage': 'r'});
+      final String targetId =
+          await storePendingEnrollment({'*': 'rw', '__manage': 'r'});
+
+      Object? refusal;
+      try {
+        await approveAs(approverId, targetId);
+      } catch (e) {
+        refusal = e;
+      }
+      expect(refusal, isNull,
+          reason: 'an administrator that may approve NOTHING is a blanket '
+              'refusal rather than the narrowing under test');
+      expect(await stateOf(targetId), EnrollmentStatus.approved.name,
+          reason: 'it confers exactly what it holds, on every namespace');
+    });
   });
 
   group('A group of tests related enrollment unrevoke operation', () {
@@ -2328,6 +2384,61 @@ void main() {
       await seedEnrollment('mgr2', {'wavi': 'rw', '__manage': 'rw'});
       await seedEnrollment('target3', {'buzz': 'rw'});
       await expectFetchDenied('mgr2', 'target3');
+    });
+
+    test(
+        'enroll:fetch — __manage:r reading a __manage:rw enrollment is denied',
+        () async {
+      // "EVERY namespace the target holds" counts __manage as a namespace
+      // like any other, and fetch is the one operation reaching that
+      // comparison which confers nothing — it READS. The refusal is
+      // therefore about authority over the target rather than about the
+      // secrecy of what comes back, and it is pinned because a caller
+      // covering every other namespace makes __manage the only entry left to
+      // decide it.
+      await seedEnrollment('readOnlyAdmin', {'*': 'rw', '__manage': 'r'});
+      await seedEnrollment('root1', {'*': 'rw', '__manage': 'rw'});
+
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.enrollmentId = 'readOnlyAdmin';
+      await expectLater(
+          EnrollVerbHandler(keyValueStore, enMgr, notificationManager)
+              .processVerb(
+                  Response(),
+                  getVerbParam(VerbSyntax.enroll,
+                      'enroll:fetch:{"enrollmentId":"root1"}'),
+                  inboundConnection),
+          throwsA(predicate((dynamic e) =>
+              e is UnAuthorizedException &&
+              e.message ==
+                  'Not authorized to fetch enrollment root1: requires __manage'
+                      ' and access to all of its namespaces')),
+          reason: 'a __manage:r administrator has no claim to approve, revoke '
+              'or delete a __manage:rw enrollment, and none to read its '
+              'record either');
+    });
+
+    test('enroll:fetch — …but it may read one holding no more than it does',
+        () async {
+      // The control. Without it the refusal above is equally satisfied by
+      // "__manage:r may fetch nothing but itself", and a correct narrowing
+      // would be indistinguishable from a blanket one.
+      await seedEnrollment('readOnlyAdmin', {'*': 'rw', '__manage': 'r'});
+      await seedEnrollment('peer1', {'*': 'rw', '__manage': 'r'});
+
+      Object? refusal;
+      Map? record;
+      try {
+        record = await fetchAs('readOnlyAdmin', 'peer1');
+      } catch (e) {
+        refusal = e;
+      }
+      expect(refusal, isNull,
+          reason: 'an administrator that may fetch nothing but its own record '
+              'is a blanket refusal rather than the narrowing under test');
+      expect(record!['encryptedAPKAMSymmetricKey'], 'secret-peer1',
+          reason: 'it covers every namespace the target holds, __manage '
+              'included');
     });
 
     tearDown(() async => await verbTestsTearDown());

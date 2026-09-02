@@ -378,14 +378,26 @@ abstract class AbstractVerbHandler implements VerbHandler {
       final bool holdsManageNamespaceExplicitly =
           authorizedNamespace.$1 == EnrollmentConstants.enrollManageNamespace;
       final String? callerAccess = authorizedNamespace.$2;
-      // A caller may not hand out more __manage than it holds itself.
-      // [enrolledNamespaceAccess] is the access the ACT would confer on this
-      // namespace, and is non-empty only where the caller is being asked to
-      // demonstrate authority over ANOTHER enrollment's grants — approve,
-      // deny, revoke, unrevoke, fetch and delete each walk the target's
-      // namespaces and ask this question once per entry. So '__manage:rw' may
-      // only be conferred by a holder of '__manage:rw'; '__manage:r' confers
-      // no more than '__manage:r'.
+      // A caller may not act on a __manage grant stronger than the one it
+      // holds itself. [enrolledNamespaceAccess] is the access the TARGET
+      // holds on this namespace, and is non-empty only where the caller is
+      // being asked to demonstrate authority over ANOTHER enrollment's
+      // grants — approve, deny, revoke, unrevoke, fetch and delete each walk
+      // the target's namespaces and ask this question once per entry. So a
+      // '__manage:rw' entry is reachable only by a holder of '__manage:rw',
+      // and a holder of '__manage:r' reaches only '__manage:r'.
+      //
+      // The bar is authority over the grant, NOT what the act would confer,
+      // and the two part company on the paths that confer nothing. Revoke,
+      // deny and delete take access away; enroll:fetch merely READS the
+      // target — so a '__manage:r' administrator can no longer fetch a
+      // '__manage:rw' enrollment's record. Deliberate: every operation naming
+      // another enrollment asks one question, and a caller with no claim to
+      // approve, revoke or delete an administrator has none to read its
+      // record either. Exempting the read would leave fetch the single
+      // operation whose bar is lower than its siblings', and whatever is
+      // added to those loops next would inherit the exemption with no line of
+      // the diff saying so.
       //
       // Every other namespace is held to that bar by
       // checkEnrollmentNamespaceAccess below. __manage returns from here
@@ -396,12 +408,12 @@ abstract class AbstractVerbHandler implements VerbHandler {
       //
       // An empty [enrolledNamespaceAccess] is not a grant: it is a caller
       // reaching a __manage KEY, for which read access is enough.
-      final bool confersWriteOnManage = enrolledNamespaceAccess == 'rw';
+      final bool targetHoldsWriteOnManage = enrolledNamespaceAccess == 'rw';
       // ignore: experimental_member_use
       return holdsManageNamespaceExplicitly &&
           (getVerb() is Otp || getVerb() is Enroll || getVerb() is Monitor) &&
           (callerAccess == 'rw' ||
-              (callerAccess == 'r' && !confersWriteOnManage));
+              (callerAccess == 'r' && !targetHoldsWriteOnManage));
     }
     return checkEnrollmentNamespaceAccess(authorizedNamespace.$2!,
         enrolledNamespaceAccess: enrolledNamespaceAccess);
