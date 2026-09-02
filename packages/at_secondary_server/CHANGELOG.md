@@ -123,50 +123,77 @@
   is reachable rather than theoretical: the `update` grammar demands a
   non-empty value, but `update:json` carries the value inside the JSON document
   instead, so an owner connection can store one.
-- ⚠️ fix: `primary` is minted ONLY for an atSign whose keystore holds no other
-  enrollment record. A legacy credential is one that authenticated BEFORE any
-  enrollment existed — authenticating with no enrollment id at all is what the
-  legacy flow IS — so a key presented as one on a populated store arrived some
-  other way, and minting an unexpiring, unapprovable root for it is the
-  dual-identity bug this record exists to end.
+- ⚠️ fix: the atSign's EXISTING legacy PKAM credential is adopted as `primary`
+  at SERVER STARTUP, and the lazy first-authentication mint is now strict.
+  ⚠️ Takes effect on the next RESTART of each atServer, once per atSign.
 
-  It replaces a narrower rule that declined only when `at_pkam_publickey`
-  equalled some enrollment's own `apkamPublicKey` — the shape older servers'
-  CRAM auto-approve branch wrote "for old clients". That rule keyed the
-  decision on a record the holder of that key CONTROLS, and was defeated end
-  to end in four wire commands: `enroll:revoke:force` on itself, since the
-  force flag alone lifts the self-revoke refusal; `enroll:delete` on itself,
-  since a caller may always delete its own enrollment and so demonstrates no
-  `__manage`; and then a legacy authentication minted `primary` at `*:rw` +
-  `__manage:rw`, with no approver and no expiry, for the keypair whose
-  enrollment had just gone. `enroll:update` reached the same end without
-  deleting anything — an app rotating its own APKAM key leaves the orphaned
-  keypair at `at_pkam_publickey` with no record holding it. Asking about the
-  STORE is what makes the arrangement expensive rather than merely awkward:
-  the defeat above touched only the attacker's own record, while emptying the
-  roster means destroying every other credential on the atSign first.
+  Either path has to answer the same question: is the keypair at
+  `at_pkam_publickey` this atSign's own legacy credential, or an app's APKAM
+  key left there by an older server's CRAM auto-approve branch, which wrote
+  the enrolling app's key there "for old clients"? At startup it is
+  answerable, because no client has connected and the store is exactly what
+  the previous run left. On a legacy authentication it is not, because the
+  client has already had the run of the atSign and can reshape whatever the
+  gate is about to read — a rule that declined only when `at_pkam_publickey`
+  equalled some enrollment's own `apkamPublicKey` was defeated end to end in
+  three wire commands: `enroll:revoke:force` on itself, since the force flag
+  alone lifts the self-revoke refusal; `enroll:delete` on itself, since a
+  caller may always delete its own enrollment and so demonstrates no
+  `__manage`; and then a legacy authentication over the record's own grave,
+  minting `primary` at `*:rw` + `__manage:rw` with no approver and no expiry.
 
-  Nothing is deleted. The server cannot tell such a key from one an owner
-  provisioned on purpose, so removing it would lock an owner out rather than
-  tidy up after an app; the atSign is left exactly as it was, with legacy
-  authentication refused.
+  So the two paths now ask different questions:
 
-  ⚠️ THE COST, stated rather than smoothed over: an atSign that already holds
-  enrollments can no longer adopt a legacy credential, and if it never minted
-  `primary` its legacy keyfile stops authenticating. That is every atSign
-  onboarded through `enroll:request` (whose CRAM auto-approve writes an
-  enrollment record) and every atSign that has enrolled an app since. There
-  is no remedy that re-admits the keyfile, and the refusal says so: it names
-  the rule and points the caller at the enrollment id its keyfile carries, or
-  at `enroll:request`. The gate is applied only when the record is MINTED, so
-  an atSign that already holds `primary` is unaffected whatever is enrolled
-  afterwards, and its legacy credential keeps working.
+  * STARTUP adoption mints `primary` for an atSign holding a usable
+    `at_pkam_publickey` and no `primary` record, WHATEVER ELSE IT HOLDS —
+    unless that key is some stored enrollment's own `apkamPublicKey`, which
+    is exactly the shape the auto-approve left behind. That refusal is the
+    only one it makes, and the evidence behind it cannot have been arranged.
+    An enrollment record that cannot be read fails CLOSED, since it cannot be
+    shown not to hold the key.
+  * The LAZY mint keeps the strict rule: any enrollment record in the store
+    refuses it. After startup adoption it is reached only by a genuinely fresh
+    atSign, or by a key that appeared at `at_pkam_publickey` while the server
+    was up on an atSign that has been enrolled — which is not a credential
+    the atSign was onboarded with.
+
+  Adoption runs after the pre-remove hook is registered and BEFORE the startup
+  expired-keys sweep, because the sweep destroys the evidence the refusal
+  reads: it removes an elapsed enrollment record while leaving the flat key
+  behind, the hook taking `at_pkam_publickey` only for `primary`.
+
+  ⚠️ WHAT AN OPERATOR SEES: an atSign upgrading to this release gains an
+  approved, fully privileged, unexpiring `primary` enrollment on its first
+  restart, logged at `shout`, and `enroll:list` shows one more row from then
+  on. Its legacy keyfile authenticates as that enrollment. Before this
+  change such an atSign — every atSign that has ever enrolled an app, which
+  includes every atSign onboarded through `enroll:request` — had its valid
+  legacy authentication refused with no route back, since `otp:get` needs an
+  authenticated connection, a self-retrofit may not ask for `*`, and the CRAM
+  secret is gone. Adoption happens once: a later restart neither re-mints it
+  nor restores one that has been revoked or retired.
+
+  ⚠️ What adoption does NOT close: an app that rotated its own APKAM key
+  through `enroll:update` during an EARLIER run leaves the superseded keypair
+  at `at_pkam_publickey` with no record naming it, so no comparison can
+  recognise it. Startup removes the ability to arrange the evidence now; it
+  cannot un-arrange evidence persisted before the process existed. The residue
+  costs such an app permanence rather than access — it already holds an
+  approved APKAM enrollment — and the price of closing it by refusing
+  populated stores is stranding every upgrading atSign.
+
+  Nothing is deleted on a refusal. The server cannot tell a vestigial key from
+  one an owner provisioned on purpose, so removing it would lock an owner out
+  rather than tidy up after an app; the atSign is left exactly as it was, with
+  legacy authentication refused.
 
   ⚠️ The refusal a legacy client sees when the record is absent and must not
-  be created changed wording, because there are now two reasons for it:
-  `the legacy credential for this atSign has been retired` became `this atSign
-  has no usable legacy PKAM credential`, followed by the remedy. Which of the
-  two reasons it was is in the server log, not on the wire.
+  be created reads `this atSign has no usable legacy PKAM credential. A legacy
+  credential is adopted at server startup, from the keystore the previous run
+  left; a key installed at this atSign afterwards is not adopted.`, followed
+  by the remedy. It replaces `the legacy credential for this atSign has been
+  retired`. Which of the two reasons it was is in the server log, not on the
+  wire.
 - ⚠️ fix: every decision that asks what enrollments an atSign HOLDS now reads
   the STORED roster, expired records included. Only the answers that merely
   REPORT a roster read the visible one.
@@ -189,8 +216,8 @@
   `EnrollmentManager.getAllEnrollmentKeys` now takes a REQUIRED
   `includeExpired`, so every call site states which roster it means:
 
-  * STORED — the housekeeping mint's gate;
-    `removeOrphanedApkamEncryptionKeys`, so ORPHANED means no record
+  * STORED — the housekeeping mint's gate and startup adoption's vestigial
+    check; `removeOrphanedApkamEncryptionKeys`, so ORPHANED means no record
     holds it rather than no VISIBLE record holds it; `removeLegacyApkamPublicKeys`,
     which is the only repair for the app/device name an older server
     published and which nothing else ever revisits; `descendantsOf`, so a

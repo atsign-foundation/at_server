@@ -161,13 +161,15 @@ class PkamVerbHandler extends AbstractVerbHandler {
         if (housekeeping == null) {
           // The record is absent and must not be created, so this is NOT a
           // first authentication. Either the credential was retired — the key
-          // goes with the record, so its absence says so — or this atSign
-          // already holds enrollment records, in which case the key at
-          // `at_pkam_publickey` did not authenticate before any enrollment
-          // existed and so is not a legacy credential. Creating the record in
-          // either case would hand a keypair a fresh, unexpiring root
-          // identity; in the first it would undo the retirement every time
-          // the record expired.
+          // goes with the record, so its absence says so — or the key at
+          // `at_pkam_publickey` appeared on an atSign that already holds
+          // enrollments, AFTER the server came up and adopted whatever legacy
+          // credential the atSign genuinely had. An existing credential is
+          // adopted at startup, from the store the previous run left; a key
+          // that turns up later, on a populated store, is not one this atSign
+          // was onboarded with. Creating the record in either case would hand
+          // a keypair a fresh, unexpiring root identity; in the first it would
+          // undo the retirement every time the record expired.
           //
           // The refusal does not say WHICH, because the caller has not
           // authenticated and the two are not its business. The manager logs
@@ -180,10 +182,11 @@ class PkamVerbHandler extends AbstractVerbHandler {
               'no usable legacy credential');
           throw UnAuthenticatedException(
               'this atSign has no usable legacy PKAM credential. A legacy '
-              'credential is adopted only by an atSign that holds no '
-              'enrollments: on any other, authenticate with the enrollment id '
-              'the keyfile carries, as pkam:enrollmentId:<id>:<signature>, or '
-              'enrol this client with enroll:request');
+              'credential is adopted at server startup, from the keystore the '
+              'previous run left; a key installed at this atSign afterwards is '
+              'not adopted. Authenticate with the enrollment id the keyfile '
+              'carries, as pkam:enrollmentId:<id>:<signature>, or enrol this '
+              'client with enroll:request');
         }
 
         // The legacy credential is only as live as its enrollment. Revoking

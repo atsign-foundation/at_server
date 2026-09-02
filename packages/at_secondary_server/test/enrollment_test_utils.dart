@@ -27,12 +27,13 @@ class ETU {
   /// the CRAM-auto-approved enrollment [primaryEnId] names.
   ///
   /// [withPrimaryEnrollment] false leaves the keystore holding NO enrollment
-  /// at all, which some subjects require: the housekeeping enrollment is
-  /// minted only for a credential that authenticated before any enrollment
-  /// existed, so a fixture that enrols first refuses the mint and every
-  /// assertion past it is about the fixture. Such a test calls
-  /// [initPrimaryEnrollment] once it has minted, wherever it needs an
-  /// approver.
+  /// at all, which some subjects require: the LAZY mint of the housekeeping
+  /// enrollment, on a first legacy authentication, is refused by any
+  /// enrollment record in the store, so a fixture that enrols first refuses
+  /// the mint and every assertion past it is about the fixture. Such a test
+  /// calls [initPrimaryEnrollment] once it has minted, wherever it needs an
+  /// approver. Startup adoption is the path that DOES mint on a populated
+  /// store, and a test of that one wants the enrolments there first.
   Future<void> init({bool withPrimaryEnrollment = true}) async {
     evh = EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
     ovh = OtpVerbHandler(keyValueStore);

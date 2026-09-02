@@ -494,15 +494,15 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // CRAM connection, so every repeat clobbered the key again.
       //
       // ⚠️ An atSign onboarded by an older server still holds such a copy,
-      // and nothing removes it automatically. The auto-approve that wrote it
-      // created an enrollment record in the same breath, so on that atSign
-      // the store is not empty of enrollments and a legacy authentication
-      // with the copy is REFUSED rather than minting the housekeeping
-      // enrollment for it — the identity is minted only for a credential
-      // that authenticated before any enrollment existed. Nothing deletes
-      // the copy either: this server cannot distinguish it from a credential
-      // an owner provisioned on purpose, so removing it would lock an owner
-      // out rather than tidy up after an app.
+      // and nothing removes it automatically. What refuses it is that the
+      // auto-approve wrote the SAME key into an enrollment record in the same
+      // breath: the startup adoption of a legacy credential declines a key at
+      // `at_pkam_publickey` that is some stored enrollment's own
+      // `apkamPublicKey`, so no housekeeping enrollment is minted for the copy
+      // and a legacy authentication with it stays refused. Nothing deletes the
+      // copy either: this server cannot distinguish it from a credential an
+      // owner provisioned on purpose, so removing it would lock an owner out
+      // rather than tidy up after an app.
       // Publish the client-composed `_apsk` signing key, if it sent one.
       await _publishApskSigningKey(
           newEnrollmentId, enrollmentValue, currentAtSign);

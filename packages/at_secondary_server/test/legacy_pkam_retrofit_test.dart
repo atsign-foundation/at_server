@@ -56,11 +56,13 @@ void main() {
 
   setUp(() async {
     await verbTestsSetUp();
-    // NO primary enrollment. The housekeeping enrollment is minted only for a
-    // credential that authenticated before any enrollment existed, so a
-    // fixture that enrols first would refuse every mint under test and turn
-    // each of these into a test of the fixture. A test that needs an approver
-    // calls `etu.initPrimaryEnrollment()` once it has minted.
+    // NO primary enrollment. The LAZY mint — on a first legacy
+    // authentication — is refused by any enrollment record in the store, so a
+    // fixture that enrols first would refuse every such mint under test and
+    // turn each of those into a test of the fixture. A test that needs an
+    // approver calls `etu.initPrimaryEnrollment()` once it has minted; the
+    // startup-adoption tests enrol FIRST, because a populated store is
+    // exactly what that path exists for.
     await etu.init(withPrimaryEnrollment: false);
     await seedLegacyKey();
   });
@@ -77,8 +79,15 @@ void main() {
   ///
   /// Returns the handler's [Response]; the caller decides whether success or
   /// refusal is what it expects.
-  Future<Response> authenticateLegacy({String sessionId = 'legacy-session'}) async {
-    final mlDsa = await MlDsa65PureDartAlgo().generateKeyPair();
+  /// [keyPair], when given, is the credential ALREADY at `at_pkam_publickey`:
+  /// the helper re-seeds the same bytes, so the key the atSign holds does not
+  /// change across the call. A test that adopted an identity for a particular
+  /// credential and then wants to authenticate AS that credential needs that;
+  /// everything else takes a fresh pair.
+  Future<Response> authenticateLegacy(
+      {String sessionId = 'legacy-session',
+      ({Uint8List publicKey, Uint8List secretKey})? keyPair}) async {
+    final mlDsa = keyPair ?? await MlDsa65PureDartAlgo().generateKeyPair();
     await seedLegacyKey(base64Encode(mlDsa.publicKey));
 
     const challenge = 'a-per-connection-challenge';
@@ -449,7 +458,15 @@ void main() {
               'message',
               allOf(
                 contains('no usable legacy PKAM credential'),
-                contains('an atSign that holds no enrollments'),
+                // BEHAVIOUR CHANGED — this used to read `a legacy credential
+                // is adopted only by an atSign that holds no enrollments`,
+                // which stopped being the rule when adoption moved to server
+                // startup. A populated atSign DOES adopt its existing
+                // credential; what is refused is a key that turns up at
+                // `at_pkam_publickey` afterwards.
+                contains('adopted at server startup'),
+                contains('a key installed at this atSign afterwards is not '
+                    'adopted'),
               ))),
           reason: 'the signature is GOOD — this keypair really does hold the '
               'key at at_pkam_publickey — so the only thing between it and a '
@@ -1765,6 +1782,343 @@ void main() {
               'an elapsed record, and the candidate enumeration has to as '
               'well, or a record still holding its published `_apsk` at the '
               'approved address sits outside the cascade');
+    });
+  });
+
+  // =====================================================================
+  // Startup adoption: the atSign's EXISTING legacy credential.
+  // =====================================================================
+
+  group('startup adoption of the legacy credential', () {
+    test('UPGRADE: enrollments present, key present, no primary', () async {
+      // The population this exists for, end to end. Every atSign that has
+      // ever enrolled an app is in this state on the day it upgrades:
+      // enrollment records, a working legacy keyfile, and no `primary`.
+      // Refusing it strands the atSign with no route back — `otp:get` needs
+      // an authenticated connection, a self-retrofit may not ask for `*`, and
+      // the CRAM secret is long gone.
+      final mlDsa = await MlDsa65PureDartAlgo().generateKeyPair();
+      await seedLegacyKey(base64Encode(mlDsa.publicKey));
+      await etu.initPrimaryEnrollment();
+      await enrollmentHolding('some app\'s own key', appName: 'an-app');
+      expect(await storedH(), isNull, reason: 'precondition: no primary');
+      expect(await enMgr.getAllEnrollmentKeys(includeExpired: true),
+          hasLength(2),
+          reason: 'precondition: the store is populated, which is exactly '
+              'what the lazy mint refuses');
+
+      final adopted = await enMgr.adoptLegacyCredential();
+
+      expect(adopted, isNotNull, reason: 'the identity is minted at startup');
+      final r = await authenticateLegacy(keyPair: mlDsa);
+      expect(r.data, 'success', reason: '${r.errorMessage}');
+      expect(inboundConnection.metaData.enrollmentId,
+          EnrollmentManager.housekeepingEnrollmentId,
+          reason: 'and the connection carries the identity it was adopted as');
+    });
+
+    test('...and WITHOUT adoption that same atSign is refused', () async {
+      // The control for the case above, and the measurement of what the
+      // ruling actually changes: identical fixture, adoption not run, and the
+      // valid keyfile of an ordinary upgraded atSign cannot authenticate.
+      final mlDsa = await MlDsa65PureDartAlgo().generateKeyPair();
+      await seedLegacyKey(base64Encode(mlDsa.publicKey));
+      await etu.initPrimaryEnrollment();
+      await enrollmentHolding('some app\'s own key', appName: 'an-app');
+
+      await expectLater(
+          () => authenticateLegacy(keyPair: mlDsa),
+          throwsA(isA<UnAuthenticatedException>().having((e) => e.message,
+              'message', contains('no usable legacy PKAM credential'))),
+          reason: 'the signature is GOOD and the keyfile is the atSign\'s '
+              'own; only the missing identity stands between it and its own '
+              'atSign');
+    });
+
+    test('the adopted record is the record the lazy mint would have made',
+        () async {
+      // One shape, whichever path made it. A record carrying which path
+      // minted it would be a difference nothing reads, and every downstream
+      // guard would then have to allow for two.
+      await etu.initPrimaryEnrollment();
+      await enMgr.adoptLegacyCredential();
+
+      final h = (await storedH())!;
+      expect(h.approval?.state, EnrollmentStatus.approved.name,
+          reason: 'it stands for a credential that already works');
+      expect(h.namespaces, {
+        EnrollmentConstants.allNamespaces: 'rw',
+        EnrollmentConstants.enrollManageNamespace: 'rw',
+      }, reason: 'the credential the atSign was onboarded with has always had '
+          'unrestricted access; stating that is the point of the record');
+      expect(h.apkamPublicKey, isEmpty,
+          reason: 'an IDENTITY for the legacy credential, never a copy of it');
+      expect(h.approvedByEnrollmentId, isNull,
+          reason: 'nothing admitted it, so no cascade can reach it');
+      expect((await keyValueStore.get(hKey()))?.metaData?.expiresAt, isNull,
+          reason: 'only the retrofit cap may ever put a clock on it');
+    });
+
+    test('VESTIGIAL: a key that is an enrollment\'s own APKAM key is refused',
+        () async {
+      // The one thing startup still has to decide. Older servers' CRAM
+      // auto-approve branch wrote the enrolling app's APKAM key into
+      // `at_pkam_publickey` "for old clients", and adopting that copy would
+      // give one keypair two identities with separate lifecycles — revoking
+      // the enrollment would leave the same key authenticating over the
+      // legacy path, unexpiring and with no approver.
+      const String appsOwn = 'the enrolling app\'s own APKAM key';
+      final String app = await enrollmentHolding(appsOwn, appName: 'an-app');
+      await seedLegacyKey(appsOwn);
+
+      expect(await enMgr.adoptLegacyCredential(), isNull,
+          reason: 'refused: enrollment $app already holds this keypair');
+      expect(await storedH(), isNull,
+          reason: 'and nothing was written — a null return that minted the '
+              'record anyway would grant the identity regardless');
+      expect(await keyValueStore.exists(AtConstants.atPkamPublicKey), isTrue,
+          reason: 'declining is a REFUSAL, not a repair — this server cannot '
+              'tell such a copy from a credential an owner provisioned with a '
+              'keypair it also enrolled');
+    });
+
+    test('...while a key NO enrollment holds is adopted', () async {
+      // The control, and it is what stops the refusal above being satisfied
+      // by adoption never minting on a populated store. The same store, the
+      // same call, differing only in whether an enrollment holds the key.
+      await enrollmentHolding('the enrolling app\'s own APKAM key',
+          appName: 'an-app');
+      await seedLegacyKey('a key no enrollment holds');
+
+      expect(await enMgr.adoptLegacyCredential(), isNotNull,
+          reason: 'a populated store is NOT what adoption refuses — only a '
+              'key some enrollment already holds is');
+      expect(await storedH(), isNotNull);
+    });
+
+    test('the vestigial check sees an enrollment whose ttl has elapsed',
+        () async {
+      // Fix (2) reaching the decision this ruling rests on. The holder's
+      // record is invisible to `getKeys` and still on disk, which is the
+      // state every enrollment passes through on its way out.
+      const String appsOwn = 'the enrolling app\'s own APKAM key';
+      final String app = await enrollmentHolding(appsOwn, appName: 'an-app');
+      await seedLegacyKey(appsOwn);
+      await elapseTtlOf(app);
+
+      expect(await enMgr.adoptLegacyCredential(), isNull,
+          reason: 'the record still says whose keypair this is');
+      expect(await storedH(), isNull,
+          reason: 'and no unexpiring root was minted for the app\'s keypair');
+    });
+
+    test('THE SLOT: running after the expiry sweep adopts what it refuses',
+        () async {
+      // Why adoption is placed BEFORE `deleteExpiredKeys()` in the server's
+      // start(). One store, one variable — the order of the two calls.
+      //
+      // The sweep DESTROYS the evidence adoption reads: it removes the
+      // elapsed record, and the pre-remove hook takes `at_pkam_publickey`
+      // only for `primary`, so removing any OTHER enrollment leaves the flat
+      // key behind with nothing left to identify it by.
+      Future<void> arrange() async {
+        const String appsOwn = 'the enrolling app\'s own APKAM key';
+        final String app = await enrollmentHolding(appsOwn, appName: 'an-app');
+        await seedLegacyKey(appsOwn);
+        await elapseTtlOf(app);
+      }
+
+      // ARM 1 — the order start() uses.
+      await arrange();
+      expect(await enMgr.adoptLegacyCredential(), isNull,
+          reason: 'the record is still there to be recognised');
+      await keyValueStore.deleteExpiredKeys();
+      expect(await storedH(), isNull);
+
+      // Back to the same starting state for ARM 2. The refusal above wrote
+      // nothing, so only the reaped record and the key need restoring.
+      await keyValueStore.remove(hKey(), skipCommit: true);
+      await arrange();
+
+      // ARM 2 — the two calls the other way round.
+      await keyValueStore.deleteExpiredKeys();
+      expect(await enMgr.getAllEnrollmentKeys(includeExpired: true), isEmpty,
+          reason: 'the sweep took the only record that named this keypair');
+      expect(await enMgr.adoptLegacyCredential(), isNotNull,
+          reason: 'and with it gone the same key is adopted: an unexpiring, '
+              'no-approver root for the app that enrolled. THIS is what the '
+              'slot buys, and it is why adoption may not be moved below the '
+              'sweep');
+    });
+
+    test('THE SLOT, as start() actually runs it', () async {
+      // The test above shows the ORDER matters. This one shows the server
+      // uses the right one, by running the same sequence start() runs —
+      // `AtSecondaryServerImpl.prepareStoreForFirstConnection`, which exists
+      // so that this ordering is a thing something executes rather than three
+      // adjacent statements nobody drives. start() itself goes on to bind a
+      // socket, so no test reaches past it.
+      const String appsOwn = 'the enrolling app\'s own APKAM key';
+      final String app = await enrollmentHolding(appsOwn, appName: 'an-app');
+      await seedLegacyKey(appsOwn);
+      final String live = 'public:_apsk.$app'
+          '.${EnrollmentConstants.perEnrollmentApproved}$alice';
+      final String parked = 'public:_apsk.$app'
+          '.${EnrollmentConstants.perEnrollmentDeleted}$alice';
+      await keyValueStore.put(live, AtData()..data = 'its signing key',
+          skipCommit: true);
+      await elapseTtlOf(app);
+
+      // As start() finds it: the hook is registered by the pass itself.
+      keyValueStore.preRemoveHooks.clear();
+
+      await atServer.prepareStoreForFirstConnection();
+
+      expect(await storedH(), isNull,
+          reason: 'the pass reads the vestigial evidence BEFORE the sweep '
+              'destroys it — reordered, this atSign gets an unexpiring, '
+              'no-approver root for the app that enrolled');
+      expect(
+          await keyValueStore.exists(enMgr.buildEnrollmentKey(app)), isFalse,
+          reason: 'and the sweep really did run: without this the assertion '
+              'above is satisfied by a pass that stopped after adoption');
+      expect(await keyValueStore.exists(parked), isTrue,
+          reason: 'and the hook was registered BEFORE the sweep, so the '
+              'record it removed took its published signing key out of the '
+              'address a verifier reads. Registered after, the sweep removes '
+              'the record and leaves that key resolving at the live address '
+              'for good — nothing walks it again');
+      expect(await keyValueStore.exists(live), isFalse);
+    });
+
+    test('...and that same pass adopts when there is nothing against it',
+        () async {
+      // The control for the slot test: the pass is not simply one that never
+      // adopts. Same call, same sweep, a key no enrollment holds.
+      await etu.initPrimaryEnrollment();
+      await seedLegacyKey('a key no enrollment holds');
+      keyValueStore.preRemoveHooks.clear();
+
+      await atServer.prepareStoreForFirstConnection();
+
+      expect(await storedH(), isNotNull,
+          reason: 'an upgrading atSign gets its identity from this pass');
+    });
+
+    test('an atSign that already has the identity is left alone', () async {
+      await enMgr.ensureHousekeepingEnrollment();
+      final String sessionBefore = (await storedH())!.sessionId;
+      final int writesBefore = EnrollmentManager.cacheInvalidations;
+
+      expect(await enMgr.adoptLegacyCredential(), isNull,
+          reason: 'null means THIS CALL minted nothing, not that the atSign '
+              'has no identity');
+      expect((await storedH())!.sessionId, sessionBefore);
+      expect(EnrollmentManager.cacheInvalidations, writesBefore,
+          reason: 'every enrollment write bumps this counter, and a restart '
+              'must not be a write');
+    });
+
+    test('a REVOKED identity is not restored by restarting', () async {
+      await enMgr.ensureHousekeepingEnrollment();
+      await setHStatus(EnrollmentStatus.revoked);
+
+      expect(await enMgr.adoptLegacyCredential(), isNull,
+          reason: 'the record is PRESENT, whatever its state — adoption is a '
+              'one-time act and must not re-mint over one');
+      expect((await storedH())!.approval?.state, EnrollmentStatus.revoked.name,
+          reason: 'revoking this record is the atSign\'s only way to withdraw '
+              'the legacy credential; a restart that re-minted it would make '
+              'the revocation last until the next deploy');
+    });
+
+    test('a RETIRED credential is not resurrected by restarting', () async {
+      // Removing the record always takes `at_pkam_publickey` with it, so on a
+      // retired atSign the record is absent AND the key is gone. Absence
+      // alone says nothing; the missing key is what says retired.
+      await keyValueStore.remove(AtConstants.atPkamPublicKey, skipCommit: true);
+
+      expect(await enMgr.adoptLegacyCredential(), isNull,
+          reason: 'the missing key is what says RETIRED, and re-minting would '
+              'resurrect a credential the atSign has finished with');
+      expect(await storedH(), isNull);
+    });
+
+    test('an EMPTY at_pkam_publickey is not adopted', () async {
+      // PRESENCE is not the bar. Authentication refuses an empty public key
+      // before it looks at any signature, so a record minted here would stand
+      // over a credential nobody can authenticate with.
+      await seedEmptyLegacyKey();
+
+      expect(await enMgr.adoptLegacyCredential(), isNull,
+          reason: 'PRESENCE is not the bar — a zero-length value is a '
+              'credential nobody can authenticate with');
+      expect(await storedH(), isNull);
+    });
+
+    test('an enrollment record that does not decode fails CLOSED', () async {
+      // An unreadable record cannot be shown NOT to hold this key, and
+      // adopting on the strength of one nobody could parse is how a vestigial
+      // key becomes a permanent root. Declining leaves the atSign exactly
+      // where it was — legacy authentication refused — which is the state it
+      // is in before adoption runs at all.
+      await keyValueStore.put(enMgr.buildEnrollmentKey('unreadable'),
+          AtData()..data = 'not json at all',
+          skipCommit: true);
+
+      expect(await enMgr.adoptLegacyCredential(), isNull,
+          reason: 'an unreadable record cannot be shown NOT to hold this key, '
+              'and adopting on the strength of one nobody could parse is how '
+              'a vestigial key becomes a permanent root');
+      expect(await storedH(), isNull);
+    });
+
+    test('adoption is idempotent across restarts', () async {
+      await etu.initPrimaryEnrollment();
+      expect(await enMgr.adoptLegacyCredential(), isNotNull,
+          reason: 'precondition: the first start adopts');
+      final String sessionBefore = (await storedH())!.sessionId;
+
+      expect(await enMgr.adoptLegacyCredential(), isNull,
+          reason: 'and no later start mints again');
+      expect(await enMgr.adoptLegacyCredential(), isNull);
+
+      expect((await storedH())!.sessionId, sessionBefore,
+          reason: 'the same record, not a fresh one per restart');
+    });
+
+    test('the log names which refusal it took', () async {
+      // The caller of a refused legacy authentication is told one message for
+      // every cause, so the manager's log is the only place the distinction
+      // exists. It is what an operator arriving at an atSign that refuses its
+      // own keyfile has to read.
+      const String appsOwn = 'the enrolling app\'s own APKAM key';
+      await enrollmentHolding(appsOwn, appName: 'an-app');
+      await seedLegacyKey(appsOwn);
+
+      final captured = <String>[];
+      enMgr.logger.level = 'warning';
+      final sub = enMgr.logger.logger.onRecord.listen((r) {
+        if (r.level >= logging.Level.WARNING) captured.add(r.message);
+      });
+      try {
+        await enMgr.adoptLegacyCredential();
+      } finally {
+        await sub.cancel();
+        enMgr.logger.level = AtSignLogger.root_level;
+      }
+
+      final line = captured.singleWhere(
+          (r) => r.startsWith('Not adopting a legacy PKAM credential'),
+          orElse: () => fail('nothing said why: $captured'));
+      expect(line, contains('own APKAM credential'),
+          reason: 'an operator reading this has to be able to tell the '
+              'vestigial refusal from a retired credential, which is the '
+              'other reason adoption declines');
+      expect(line, contains(AtConstants.atPkamPublicKey),
+          reason: 'it names the key it is refusing to adopt');
+      expect(line, contains('enrollment id'),
+          reason: 'and the remedy — that app authenticates with its own id');
     });
   });
 }
