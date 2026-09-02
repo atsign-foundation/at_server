@@ -32,6 +32,12 @@ dependencies:
   encrypt: ^5.0.3
   elliptic: ^0.3.11
 
+dependency_overrides:
+  at_chops:
+    git:
+      url: https://github.com/atsign-foundation/at_libraries.git
+      path: packages/at_chops
+      ref: at_chops_faster_aes
 
 dev_dependencies:
   lints: ^6.0.0
