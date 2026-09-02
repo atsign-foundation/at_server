@@ -123,13 +123,19 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// resource's `compact(false)` stream with an overlap guard.
   final List<Timer> _compactionTimers = [];
 
-  /// One-shot timer driving the key-expiry sweep, rescheduled after
+  /// One-shot timer driving [runHousekeepingSweep], rescheduled after
   /// every sweep from [AtKeyValueStore.nextExpiresAt] — the server
   /// sleeps until the next key actually expires instead of polling
   /// on a fixed cadence. Owned by the secondary (not the
   /// persistence layer): the application picks the schedule, the
   /// keystore exposes [AtKeyValueStore.nextExpiresAt] and
   /// [AtKeyValueStore.deleteExpiredKeys].
+  ///
+  /// The sweep does more than reap expiries, so the sleep CEILING is what
+  /// bounds the rest of it: an atSign holding no key with a ttl at all still
+  /// gets a tick every `expiringRunFreqMins`, which is what lets a deadline
+  /// that is not a ttl — the flat PKAM credential's retirement — be noticed
+  /// on a store where nothing else is expiring.
   Timer? _keyExpiryTimer;
 
   /// Floor for the expiry-sweep sleep — stops a burst of
@@ -503,7 +509,31 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     keyValueStore.preRemoveHooks.add(enrollmentManager.preRemoveHook);
     keyValueStore.postRemoveHooks.add(enrollmentManager.postRemoveHook);
 
+    await runHousekeepingSweep();
+  }
+
+  /// One pass of the periodic store housekeeping: reap expired keys, then ask
+  /// whether the flat PKAM credential's retirement has fallen due.
+  ///
+  /// The two are one pass because they are the same kind of work — deadlines
+  /// the store has reached while nobody was looking — and because the flat
+  /// credential's deadline deliberately is NOT a ttl. A ttl would have the
+  /// store delete the key on its own schedule, and that removal has a
+  /// question to ask first: whether it would leave the atSign with no
+  /// credential it can restore itself with. See
+  /// [EnrollmentManager.retireLegacyCredentialIfDue].
+  ///
+  /// Expiry runs FIRST. The retirement's stranding question is answered from
+  /// the enrollment roster, and an enrollment whose ttl has elapsed is gone
+  /// rather than merely stale — reaping before asking is what stops a record
+  /// on its way out being counted as the survivor that licenses the removal.
+  ///
+  /// A method rather than two statements inside the timer callback so the
+  /// order can be exercised: the callback is armed by a Timer no test drives.
+  @visibleForTesting
+  Future<void> runHousekeepingSweep() async {
     await keyValueStore.deleteExpiredKeys();
+    await enrollmentManager.retireLegacyCredentialIfDue();
   }
 
   /// Computes the next expiry-sweep wake-up from
@@ -549,7 +579,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         return;
       }
       try {
-        await keyValueStore.deleteExpiredKeys();
+        await runHousekeepingSweep();
       } on Exception catch (e) {
         logger.warning('Key expiry sweep failed: $e');
       }

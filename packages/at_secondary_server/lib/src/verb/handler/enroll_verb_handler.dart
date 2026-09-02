@@ -489,18 +489,29 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // CRAM connection, so every repeat clobbered the key again.
       //
       // ⚠️ An atSign onboarded by an older server still holds such a copy,
-      // and nothing removes it automatically: this server cannot distinguish
-      // it from a credential an owner provisioned on purpose, so deleting it
-      // would lock an owner out rather than tidy up after an app. What it
-      // costs that app is permanence rather than access — it already holds an
-      // approved APKAM enrollment, and the copy authenticates as the atSign
-      // itself with no record naming it.
+      // and it is NOT deleted here: this server cannot distinguish it from a
+      // credential an owner provisioned on purpose, so removing it at the
+      // moment an app enrols would lock an owner out rather than tidy up
+      // after an app. What it costs that app is permanence rather than
+      // access — it already holds an approved APKAM enrollment, and the copy
+      // authenticates as the atSign itself with no record naming it.
+      //
+      // It does not stand for ever, though. The mint below starts the flat
+      // credential's migration window, after which the server removes it —
+      // unless by then it is the only credential the atSign could restore
+      // itself with. See [EnrollmentManager.armLegacyCredentialRetirement].
       // Publish the client-composed `_apsk` signing key, if it sent one.
       await _publishApskSigningKey(
           newEnrollmentId, enrollmentValue, currentAtSign);
       AtData enrollData = AtData()..data = jsonEncode(enrollmentValue.toJson());
 
       await enMgr.put(newEnrollmentId, enrollData, EnrollmentStatus.approved);
+      // A CRAM connection is the atSign's owner holding the secret the atSign
+      // was created with, and it has just minted a credential that carries an
+      // enrollment id. If the atSign also holds a FLAT credential — one that
+      // carries none, and that no verb can withdraw — this is the moment its
+      // migration window starts.
+      await enMgr.armLegacyCredentialRetirement();
       return;
     }
 
@@ -1102,6 +1113,17 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
     await enMgr.put(enId, atData, newEnrollmentStatus,
         assertedTimestamps: expiryCarry);
+
+    // An OWNER approving an enrollment starts the flat credential's migration
+    // window. The owner is named by the ABSENCE of an enrollment id on the
+    // connection — the server's own name for "CRAM, or the flat credential
+    // itself", and the same test `isAuthorized` applies before it examines
+    // any key. An approval by an enrolled connection is not this moment: the
+    // atSign already had an enrollment to approve with.
+    if (operation == 'approve' &&
+        (inboundConnectionMetadata.enrollmentId ?? '').isEmpty) {
+      await enMgr.armLegacyCredentialRetirement();
+    }
 
     if (operation == 'unrevoke') {
       await enMgr.recordRevocationEvents([revocationEvent!]);

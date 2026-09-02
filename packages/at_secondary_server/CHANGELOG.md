@@ -342,6 +342,61 @@
   connection. The second sits at the update seam. Every other `privatekey:`
   key is unchanged and still decided by root privilege alone.
 
+- feat: the flat PKAM credential is REMOVED 30 days after an owner connection
+  first mints an enrollment — unless removing it would strand the atSign, in
+  which case the removal declines and asks again on the next sweep.
+
+  A migration aid, not a deadline. `privatekey:at_pkam_publickey` is the
+  credential a legacy `pkam:` is verified against; nothing on the roster names
+  it and no verb withdraws it. Once an owner has minted a credential that CAN
+  be withdrawn, the old one has a window in which the owner's other devices
+  move across, and then it goes.
+
+  The clock ARMS when a connection carrying no enrollment id of its own — CRAM
+  or the flat credential itself — makes an enrollment `approved`, which is the
+  `enroll:request` a CRAM connection auto-approves and the `enroll:approve` an
+  owner sends. It arms ONCE and never re-arms: the deadline is stored as an
+  absolute, so a second arming would push it out by a whole window and an
+  owner who mints an enrollment a month would keep the flat credential for
+  ever. It does not arm at all on an atSign holding no flat credential, which
+  is every atSign onboarded by this server.
+
+  ⚠️ THE DECLINE IS THE POINT. When the deadline elapses the server asks
+  whether the atSign has an approved, fully privileged, unexpiring ENROLLMENT
+  to fall back on — the flat credential itself deliberately not counted, or
+  every removal would license itself — and if it has none, it keeps the key
+  and logs why. An atSign whose enrollments were all revoked or have expired
+  has nothing else to authenticate with, and there is no verb that puts this
+  key back; the clock simply never completing for such an atSign is the
+  correct outcome. The question is re-asked on every subsequent sweep, so the
+  removal happens if and when the atSign acquires a root again.
+
+  The deadline lives at `private:at_pkam_publickey_retire_after@<atSign>`,
+  which is unwritable and undeletable from the wire and never syncs. It is
+  deliberately NOT a ttl on the credential itself: a ttl would have the store
+  delete the key on its own schedule, and this removal has a question to ask
+  first. It is noticed by the server's periodic housekeeping sweep — the one
+  that already reaps expired keys — so it survives a restart and acts on the
+  next tick after a server that was down through the deadline comes back.
+
+  New setting `enrollment.legacyCredentialRetirementHours`, default 720 (30
+  days), also readable from the environment. Deliberately not
+  `apkamSelfEnrollmentGraceHours`, which carries the same default for an
+  unrelated decision: an operator shortening the retrofit grace to a day must
+  not thereby give every atSign on the server one day to migrate. It is absent
+  from `ModifiableConfigs`, so `config:set` cannot shorten it on a live server.
+
+- test: every route to `privatekey:at_pkam_publickey` is pinned, not just the
+  one the write ban was written against. `update:json` is the sharp one — it
+  carries the value inside the document rather than in the command, so it can
+  store a zero-length value where the plain grammar demands a non-empty one,
+  and a zero-length value is exactly the state that stops the key counting as
+  a root the atSign can fall back on. A batch-wrapped update is pinned because
+  "batch re-dispatches to the same handler" is a claim about the dispatch.
+  `update:meta` and `delete` are pinned NEGATIVELY, as raw command literals
+  with a positive control beside each: neither can name the key, and both rest
+  on at_commons patterns this package does not own.
+
 - feat: `AtSecondaryConfig.testingMode` is read by Dart. The flag has been in
   `config.yaml` and in every rig's environment for years, and `config:set`
   documents itself as requiring it, but nothing ever read it. Absence answers

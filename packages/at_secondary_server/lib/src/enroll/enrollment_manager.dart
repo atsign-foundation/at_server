@@ -1052,10 +1052,14 @@ class EnrollmentManager {
     // It is a usable root by every measure this method applies: a `pkam:`
     // carrying no enrollment id is verified against it and the connection it
     // admits is authorised for everything, it is answerable to no approval
-    // state, and it carries no expiry — nothing on a timer takes it away.
-    // There are atSigns in the field whose ONLY credential is this key, and
-    // for them it is the sole answer to "could this atSign approve a
-    // replacement afterwards?".
+    // state, and it carries no expiry. There are atSigns in the field whose
+    // ONLY credential is this key, and for them it is the sole answer to
+    // "could this atSign approve a replacement afterwards?".
+    //
+    // The retirement clock is the ONE thing that takes it away, and it cannot
+    // take it away from such an atSign: before removing the key it asks this
+    // same question of the roster alone, and declines when the answer is no.
+    // See [retireLegacyCredentialIfDue].
     //
     // [excluding] does not reach it: that set names enrollments an act is
     // about to remove, and no enroll: verb can remove this key. It is read
@@ -1064,6 +1068,23 @@ class EnrollmentManager {
     // exactly what authentication itself requires.
     if (await legacyPkamPublicKey() != null) return true;
 
+    return hasUnexpiringRootEnrollmentRecord(excluding);
+  }
+
+  /// The same question as [hasUnexpiringRootEnrollment], asked of the
+  /// enrollment ROSTER alone: the flat credential does not count.
+  ///
+  /// One caller asks it this way, and it is the one act whose subject IS the
+  /// flat credential: the retirement clock. Counting the key there would let
+  /// it license its own removal — "something survives" answered by the very
+  /// thing about to be taken away, which is the same asymmetry [excluding]
+  /// exists to close for a revoke cascade.
+  ///
+  /// Every other caller must ask [hasUnexpiringRootEnrollment] instead. An
+  /// act that leaves the flat credential in place leaves the atSign a way
+  /// back, and refusing it because the ROSTER is empty would refuse revokes
+  /// on precisely the atSigns this whole retrofit exists to serve.
+  Future<bool> hasUnexpiringRootEnrollmentRecord(Set<String> excluding) async {
     final excludedKeys = excluding.map(buildEnrollmentKey).toSet();
     // The STORED roster. The two views cannot differ in the answer — a record
     // the visible roster omits is either not `approved` here or carries the
@@ -1145,6 +1166,183 @@ class EnrollmentManager {
       String enrollmentId, EnrollDataStoreValue value) {
     if (!value.isRootEnrollment) return false;
     return value.apkamPublicKey.isNotEmpty;
+  }
+
+  /// Where the flat credential's retirement DEADLINE is stored.
+  ///
+  /// A key of its own rather than a ttl on the credential itself. A ttl would
+  /// have the store delete the key on its own schedule, and the removal has a
+  /// question to ask first — whether it would strand the atSign — which an
+  /// expiry sweep has no way to ask and no way to answer "no" to.
+  ///
+  /// Unwritable and undeletable from the wire, and measured rather than
+  /// assumed: `AtKey.getKeyType` calls it `privateKey`, which the `update`
+  /// grammar cannot express and which the update seam refuses outright on
+  /// the `update:json` route that CAN express it; `delete` whitelists only
+  /// `privatekey:at_secret`. It never syncs either — the commit log returns
+  /// without writing for every key on the `private:` prefix.
+  ///
+  /// The `privatekey:` prefix the credential itself uses is NOT available:
+  /// the keystore refuses any key it types as `invalidKey`, and every
+  /// `privatekey:` name outside at_commons' fixed reserved list is one.
+  String get legacyCredentialRetirementKey =>
+      'private:at_pkam_publickey_retire_after$atSign';
+
+  /// Starts the flat credential's retirement clock, ONCE.
+  ///
+  /// Called when a connection carrying no enrollment id of its own — the
+  /// atSign's owner, over CRAM or over the flat credential itself — mints an
+  /// approved enrollment. That is the moment the atSign acquires a credential
+  /// that CAN be withdrawn, and it is what the migration window is measured
+  /// from.
+  ///
+  /// It arms once and never re-arms. A deadline is written as an absolute, so
+  /// a second arming would push it out by a whole window — an owner who mints
+  /// an enrollment a month would keep the flat credential for ever, which is
+  /// the opposite of what the clock is for.
+  ///
+  /// It does not arm at all on an atSign holding no flat credential, which is
+  /// every atSign onboarded by this server: there is nothing to retire, and a
+  /// deadline written against an absent key would fire on a credential
+  /// installed later for some entirely different reason.
+  ///
+  /// Best-effort, and deliberately so: a failure here must not fail the
+  /// enrollment the owner asked for. The clock is a migration aid, and an
+  /// atSign that keeps its flat credential a while longer is in the state it
+  /// was already in.
+  Future<void> armLegacyCredentialRetirement() async {
+    try {
+      if (await legacyPkamPublicKey() == null) return;
+      if (await keyStore.exists(legacyCredentialRetirementKey)) return;
+
+      final deadline = DateTime.now().toUtc().add(Duration(
+          hours: AtSecondaryConfig.legacyCredentialRetirementHours));
+      await keyStore.put(legacyCredentialRetirementKey,
+          AtData()..data = deadline.toIso8601String(),
+          skipCommit: true);
+      logger.shout(
+          'This atSign\'s owner has minted an enrollment, so its flat PKAM '
+          'credential (${AtConstants.atPkamPublicKey}) is scheduled for '
+          'removal at $deadline. It authenticates with no enrollment id and '
+          'no verb can withdraw it; enrolled credentials can be revoked. The '
+          'removal will be declined if by then this is the only credential '
+          'the atSign could restore itself with');
+    } catch (e) {
+      logger.warning('Could not arm the flat PKAM credential\'s retirement '
+          'clock: $e');
+    }
+  }
+
+  /// Removes the flat credential if its deadline has passed AND doing so
+  /// would not strand the atSign.
+  ///
+  /// Run from the server's housekeeping sweep, so "the deadline elapsed" is
+  /// noticed within one sweep interval of the fact and survives a restart:
+  /// the deadline is a stored absolute, so a server that was down through it
+  /// acts on the next tick after it comes back.
+  ///
+  /// ⚠️ THE DECLINE IS THE POINT, not an edge case. An atSign whose
+  /// enrollments have all been revoked or have expired has nothing left to
+  /// authenticate with except this key, and removing it on a timer would lock
+  /// its owner out permanently — there is no verb that puts it back. So the
+  /// stranding question is asked at the moment of removal rather than at the
+  /// moment of arming, because the roster changes in between, and the answer
+  /// leaves BOTH the key and the deadline standing: the question is re-asked
+  /// on every subsequent sweep, and the clock completes if and when the
+  /// atSign acquires a root enrollment it can fall back on. A clock that
+  /// never completes for such an atSign is the correct outcome.
+  ///
+  /// The question is asked of the enrollment roster ALONE
+  /// ([hasUnexpiringRootEnrollmentRecord]). Asking the ordinary
+  /// [hasUnexpiringRootEnrollment] would count the flat credential itself —
+  /// the thing being removed — and every removal would license itself.
+  ///
+  /// Arranging the state that DECLINES buys an attacker nothing. It delays a
+  /// removal, and what it preserves is a credential the attacker would have
+  /// to already hold the private half of; it confers no privilege that
+  /// holding the key does not already confer. That is the difference between
+  /// this and a mint gate, where arranging state bought the right to create a
+  /// credential.
+  Future<void> retireLegacyCredentialIfDue() async {
+    final DateTime deadline;
+    try {
+      final AtData? record;
+      try {
+        record = await keyStore.get(legacyCredentialRetirementKey);
+      } on KeyNotFoundException {
+        return; // Never armed.
+      }
+      final String? raw = record?.data;
+      if (raw == null) return;
+      final DateTime? parsed = DateTime.tryParse(raw);
+      if (parsed == null) {
+        logger.severe('The flat PKAM credential\'s retirement deadline reads '
+            '"$raw", which is not a timestamp. Leaving the credential alone: '
+            'a removal that cannot say when it was due is not one to make');
+        return;
+      }
+      deadline = parsed.toUtc();
+    } catch (e) {
+      logger.warning('Could not read the flat PKAM credential\'s retirement '
+          'deadline: $e');
+      return;
+    }
+
+    if (DateTime.now().toUtc().isBefore(deadline)) return;
+
+    // DECIDING is guarded separately from ACTING, and the two removals from
+    // each other. A single guard around all of it would report "could not
+    // retire" for a failure that happened after the credential was already
+    // gone, which is the one thing an operator reading this log must be able
+    // to tell apart.
+    final bool credentialStillThere;
+    final bool anythingSurvivesIt;
+    try {
+      credentialStillThere = await legacyPkamPublicKey() != null;
+      anythingSurvivesIt =
+          credentialStillThere && await hasUnexpiringRootEnrollmentRecord({});
+    } catch (e) {
+      logger.warning('Could not decide whether to retire the flat PKAM '
+          'credential: $e');
+      return;
+    }
+
+    if (credentialStillThere && !anythingSurvivesIt) {
+      logger.warning(
+          'The flat PKAM credential (${AtConstants.atPkamPublicKey}) was due '
+          'for removal at $deadline, but it is the only credential this atSign '
+          'could restore itself with — no approved, fully privileged, '
+          'unexpiring enrollment survives it. Keeping it. Enrol a replacement '
+          'holding "*:rw" and "__manage:rw" and the removal will happen on a '
+          'later sweep');
+      return;
+    }
+
+    if (credentialStillThere) {
+      try {
+        await keyStore.remove(AtConstants.atPkamPublicKey, skipCommit: true);
+      } catch (e) {
+        logger.warning('Could not remove the flat PKAM credential: $e');
+        return;
+      }
+      logger.shout(
+          'Removed this atSign\'s flat PKAM credential '
+          '(${AtConstants.atPkamPublicKey}), which fell due at $deadline. '
+          'Legacy `pkam:` authentication no longer works for it; every '
+          'credential it holds now carries an enrollment id that can be '
+          'revoked');
+    }
+
+    // Whether the credential was removed here or was already gone, the
+    // deadline has nothing left to act on. One left standing would fire on
+    // whatever was written to that key afterwards.
+    try {
+      await keyStore.remove(legacyCredentialRetirementKey, skipCommit: true);
+    } catch (e) {
+      logger.warning('The flat PKAM credential is gone but its retirement '
+          'deadline could not be cleared: $e. The next sweep will find nothing '
+          'to remove and clear it then');
+    }
   }
 
   /// Which of [enrollmentIds] are usable roots ([isUsableRootEnrollment]) and

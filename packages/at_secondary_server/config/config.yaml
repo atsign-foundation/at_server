@@ -224,3 +224,14 @@ enrollment:
   # the expiry its own apkamKeysExpiryInMillis posture already imposes.
   # Default: 720 (30 days)
   apkamSelfEnrollmentGraceHours: 720
+  # How long the atSign's flat PKAM credential (privatekey:at_pkam_publickey)
+  # survives after an owner connection first mints an enrollment. That
+  # credential authenticates with no enrollment id, so nothing on the roster
+  # names it and no verb can withdraw it; an owner who has started minting
+  # enrollments has one that can be withdrawn, and this is how long the old
+  # one keeps working while the owner's other devices move across.
+  # It is a migration aid rather than a deadline: the removal DECLINES if the
+  # flat credential is the only usable root the atSign has left, so an atSign
+  # that revoked its enrollments keeps it rather than being stranded.
+  # Default: 720 (30 days)
+  legacyCredentialRetirementHours: 720
