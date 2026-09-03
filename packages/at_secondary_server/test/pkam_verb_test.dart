@@ -242,23 +242,20 @@ void main() async {
 
     tearDown(() async => await verbTestsTearDown());
 
-    test('authenticates with NO enrollment id, and survives its own use',
-        () async {
+    test('authenticates with NO enrollment id, migrates into primary, and '
+        'keeps working', () async {
       // The flat credential — the key at `at_pkam_publickey`, which a
-      // `pkam:` carrying no enrollment id is verified against. There are
-      // atSigns in the field whose only credential is this one, so it has to
-      // go on working, and the connection it leaves behind has to go on
-      // carrying no enrollment id: every gate that exempts an owner is keyed
-      // on the absence of one.
-      //
-      // It must also survive the authentication it performs and still work on
-      // the next connection. A standing guard rather than the test of one
-      // mechanism: this is what would go red first if anything on the
-      // authentication path ever made that read a consuming one.
+      // `pkam:` carrying no enrollment id used to be verified against. There
+      // are atSigns in the field whose only credential is this one, so it has
+      // to go on working. BEHAVIOUR CHANGED: the first such login migrates
+      // the key into the `primary` enrollment and deletes the flat key, and
+      // the connection carries `primary`; the second login verifies against
+      // the record. What must not change is that the keypair keeps
+      // authenticating.
       //
       // ⚠️ Deliberately does NOT re-seed the key between the two
-      // authentications — re-seeding would paper over exactly the deletion
-      // under test.
+      // authentications — re-seeding would paper over a migration that left
+      // nothing to verify against.
       final mlDsa = await MlDsa65PureDartAlgo().generateKeyPair();
       await keyValueStore.put(AtConstants.atPkamPublicKey,
           AtData()..data = base64Encode(mlDsa.publicKey),
@@ -287,19 +284,20 @@ void main() async {
 
       expect((await authenticate('first')).data, 'success',
           reason: 'a flat keyfile is the only credential some atSigns have');
-      expect(inboundConnection.metaData.enrollmentId, isNull,
-          reason: 'and the connection carries NO enrollment id: the flat key '
-              'stands outside every enrollment record, so there is no id for '
-              'it to carry and every owner exemption is keyed on that');
+      expect(inboundConnection.metaData.enrollmentId,
+          EnrollmentManager.primaryEnrollmentId,
+          reason: 'the connection carries primary: the flat key has become '
+              'a record, so the login is judged as that record from here on');
       expect(inboundConnection.metaData.authType, AuthType.pkamLegacy);
-      expect(await keyValueStore.exists(AtConstants.atPkamPublicKey), isTrue,
-          reason: 'the credential it authenticated WITH must survive the '
-              'authentication');
+      expect(await keyValueStore.exists(AtConstants.atPkamPublicKey), isFalse,
+          reason: 'one credential and one record: the flat key is absorbed '
+              'by the login that proved it');
 
       expect((await authenticate('second')).data, 'success',
-          reason: 'and it must still work — a one-shot legacy credential is '
-              'not a credential');
-      expect(inboundConnection.metaData.enrollmentId, isNull);
+          reason: 'and it must still work — a keypair that stops '
+              'authenticating on migration is not a credential');
+      expect(inboundConnection.metaData.enrollmentId,
+          EnrollmentManager.primaryEnrollmentId);
     });
   });
 }

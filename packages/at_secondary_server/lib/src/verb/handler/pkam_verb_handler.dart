@@ -54,8 +54,9 @@ class PkamVerbHandler extends AbstractVerbHandler {
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     AuthType pkamAuthType;
     String? publicKey;
-    // Legacy PKAM has no enrollment record to be authoritative about, and may
-    // legitimately present ecc_secp256r1, so it goes on using the wire value.
+    // Null lets the wire value decide the algorithm, which is what a legacy
+    // PKAM has always done: the flat key made no claim about itself, and may
+    // legitimately be ecc_secp256r1.
     String? recordSigningAlgo;
 
     // Use APKAM public key for verification if enrollId is passed.
@@ -87,32 +88,52 @@ class PkamVerbHandler extends AbstractVerbHandler {
       recordSigningAlgo =
           apkamResult.signingAlgo ?? ApkamSignatureVerifier.rsa2048Algo;
     } else {
+      // A legacy `pkam:` carries no enrollment id, and authenticates as the
+      // enrollment the flat legacy credential migrates into: `primary`. The
+      // flat key is read first — a key still in the store is one the startup
+      // migration has not yet seen, or that a test fixture installed — and
+      // otherwise `primary`'s recorded key is what the signature is checked
+      // against, under the algorithm the record carries. Which of the two
+      // verified is settled again inside the section, in [_admitUnderLock],
+      // where the flat key is absorbed into `primary` and the connection is
+      // given `primary` to carry.
       pkamAuthType = AuthType.pkamLegacy;
-      // ABSENT is a normal state, not a broken atSign: an atSign onboarded
-      // through `enroll:request` never holds this key at all.
-      // `keyStore.get` THROWS for a missing key rather than returning null,
-      // so the emptiness guard below never saw that case and a missing
-      // credential surfaced a keystore exception where an authentication
-      // refusal belongs.
-      try {
-        publicKey = (await keyStore.get(AtConstants.atPkamPublicKey))?.data;
-      } on KeyNotFoundException {
-        // The message NAMES THE REMEDY, because the population that hits this
-        // is not a broken atSign but a client sending the wrong shape of
-        // authentication. An atSign onboarded through `enroll:request` has no
-        // flat credential at all — it never did, once that path stopped
-        // writing one — so a caller arriving here is almost always one that
-        // holds an enrollment id and did not send it. "No credential" alone
-        // reads as an atSign fault and sends the reader looking in the wrong
-        // place entirely.
-        logger.warning('Legacy PKAM authentication refused: '
-            '${AtConstants.atPkamPublicKey} is absent — this atSign has no '
-            'flat credential');
-        throw UnAuthenticatedException(
-            'this atSign has no legacy PKAM credential. An atSign onboarded '
-            'through enroll:request has none by design: authenticate with the '
-            'enrollment id its keyfile carries, as '
-            'pkam:enrollmentId:<id>:<signature>');
+      final EnrollmentManager enMgr =
+          AtSecondaryServerImpl.getInstance().enrollmentManager;
+      publicKey = await enMgr.legacyPkamPublicKey();
+      if (publicKey == null) {
+        final EnrollDataStoreValue? primary = await enMgr.primaryEnrollment();
+        if (primary == null) {
+          // The message NAMES THE REMEDY, because the population that hits
+          // this is not a broken atSign but a client sending the wrong shape
+          // of authentication. An atSign onboarded through `enroll:request`
+          // has no legacy credential at all — it never did — so a caller
+          // arriving here is almost always one that holds an enrollment id
+          // and did not send it. "No credential" alone reads as an atSign
+          // fault and sends the reader looking in the wrong place entirely.
+          logger.warning('Legacy PKAM authentication refused: this atSign '
+              'holds neither a flat credential nor a '
+              '${EnrollmentManager.primaryEnrollmentId} enrollment');
+          throw UnAuthenticatedException(
+              'this atSign has no legacy PKAM credential. An atSign onboarded '
+              'through enroll:request has none by design: authenticate with '
+              'the enrollment id its keyfile carries, as '
+              'pkam:enrollmentId:<id>:<signature>');
+        }
+        // `primary` is judged exactly as an enrollment named on the wire is:
+        // a revoked primary refuses with AT0027, and the refusal names no
+        // other enrollment.
+        final ApkamVerificationResult primaryResult =
+            await verifyEnrollmentIsActive(
+                EnrollmentManager.primaryEnrollmentId, atSign);
+        if (primaryResult.response.isError) {
+          response.isError = true;
+          response.errorCode = primaryResult.response.errorCode;
+          response.errorMessage = primaryResult.response.errorMessage;
+          return;
+        }
+        publicKey = primaryResult.publicKey;
+        recordSigningAlgo = primaryResult.signingAlgo;
       }
     }
 
@@ -154,11 +175,21 @@ class PkamVerbHandler extends AbstractVerbHandler {
       final bool admitted = await AtSecondaryServerImpl.getInstance()
           .enrollmentManager
           .serialiseMutation(() => _admitUnderLock(
-              atConnectionMetadata, pkamAuthType, enrollId, atSign, response));
+              atConnectionMetadata,
+              pkamAuthType,
+              enrollId,
+              atSign,
+              response,
+              verifiedKey: publicKey!,
+              wireSigningAlgo: verbParams[AtConstants.atPkamSigningAlgo]));
       if (!admitted) {
         return;
       }
       response.data = 'success';
+      // A legacy login carries `primary` from here on, so the arming below
+      // asks about it like any other enrollment; it replaced nothing, so the
+      // ask is a no-op.
+      enrollId = atConnectionMetadata.enrollmentId;
 
       // A retrofit's successor arms the expiry cap on the enrollment it
       // replaced HERE, on its first authentication and never again — this is
@@ -220,19 +251,51 @@ class PkamVerbHandler extends AbstractVerbHandler {
   /// before every command and closes a connection whose enrollment has left
   /// `approved`. What the section adds is that the `success` answer itself is
   /// never given on a state that has already been replaced.
+  ///
+  /// A LEGACY authentication is the read-decide-write in full. The signature
+  /// was verified against the flat key or against `primary`'s recorded key,
+  /// whichever the caller found; here, inside the section, a flat key still
+  /// in the store is absorbed into `primary` — minted from it or rotated onto
+  /// it, and deleted — and the connection is admitted as `primary` only if
+  /// `primary` is approved and holds the key that verified. A second legacy
+  /// login that waited on the section finds no flat key and takes exactly
+  /// that fallback. [verifiedKey] is the key the signature verified against,
+  /// [wireSigningAlgo] what the wire said it was.
   Future<bool> _admitUnderLock(
       InboundConnectionMetadata atConnectionMetadata,
       AuthType pkamAuthType,
       String? enrollId,
       String atSign,
-      Response response) async {
-    // A LEGACY authentication carries no enrollment id, so there is no
-    // record for it to be re-read against and nothing here to decide: it is
-    // admitted on the signature the caller has already verified. The section
-    // is entered on both paths so that admission has one shape, and holding
-    // it for two field assignments costs nothing against how rare enrollment
-    // mutations are next to authentications.
-    if (pkamAuthType != AuthType.pkamLegacy) {
+      Response response,
+      {required String verifiedKey,
+      String? wireSigningAlgo}) async {
+    if (pkamAuthType == AuthType.pkamLegacy) {
+      final EnrollmentManager enMgr =
+          AtSecondaryServerImpl.getInstance().enrollmentManager;
+      await enMgr.absorbFlatKeyIntoPrimary(signingAlgo: wireSigningAlgo);
+      final ApkamVerificationResult primary = await verifyEnrollmentIsActive(
+          EnrollmentManager.primaryEnrollmentId, atSign);
+      if (primary.response.isError) {
+        logger.warning('Refusing legacy PKAM authentication: '
+            '${EnrollmentManager.primaryEnrollmentId} is not serving — '
+            '${primary.response.errorMessage}');
+        response.isError = true;
+        response.errorCode = primary.response.errorCode;
+        response.errorMessage = primary.response.errorMessage;
+        return false;
+      }
+      if (!EnrollmentManager.sameApkamKeyMaterial(verifiedKey, wireSigningAlgo,
+          primary.publicKey!, primary.signingAlgo)) {
+        // The key that verified is not the key primary holds now: another
+        // login rotated primary in between. Refused as a bad signature is,
+        // because against the record as it stands that is what it is.
+        atConnectionMetadata.isAuthenticated = false;
+        logger.severe('pkam authentication failed: the key that verified is '
+            'no longer the key ${EnrollmentManager.primaryEnrollmentId} holds');
+        throw UnAuthenticatedException('pkam authentication failed');
+      }
+      enrollId = EnrollmentManager.primaryEnrollmentId;
+    } else {
       // Asked again, inside the section, over the record the connection is
       // about to be admitted as. The first ask ran before the signature was
       // verified, because it is where the public key comes from, and

@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -79,6 +80,12 @@ class CramVerbHandler extends AbstractVerbHandler {
     if (digestFromClient == expectedDigest) {
       atConnection.metaData.isAuthenticated = true;
       atConnection.metaData.authType = AuthType.cram;
+      // A CRAM connection carries no enrollment id: it holds the secret the
+      // atSign was created with, and stands over no record. An id a previous
+      // `pkam:` put on this same connection must not survive into it, or the
+      // connection would be judged as that enrollment on every command while
+      // being authorised as the owner.
+      (atConnection.metaData as InboundConnectionMetadata).enrollmentId = null;
       try {
         await accessLog.insert(atSign, cram.name());
       } on DataStoreException catch (e) {

@@ -237,6 +237,24 @@ void main() {
       return r;
     }
 
+    test('a successful cram clears an enrollment id a previous pkam left on '
+        'the connection', () async {
+      // A CRAM connection carries no enrollment id: it holds the secret the
+      // atSign was created with and stands over no record. Left in place, an
+      // id from an earlier pkam: would have every later command judged as
+      // that enrollment while the connection was authorised as the owner.
+      final (connection, proof) = await issue('_cram-after-pkam');
+      (connection.metaData as InboundConnectionMetadata).enrollmentId =
+          'left-by-pkam';
+
+      final Response r = await digestAttempt(connection, proof);
+
+      expect(r.data, 'success');
+      expect(
+          (connection.metaData as InboundConnectionMetadata).enrollmentId,
+          isNull);
+    });
+
     test('a WRONG digest spends the challenge, so the right one that follows '
         'is refused', () async {
       final (connection, proof) = await issue('_cram-retry-oracle');

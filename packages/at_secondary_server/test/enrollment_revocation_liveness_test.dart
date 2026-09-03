@@ -5,6 +5,9 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/verb/handler/scan_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
+import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
@@ -250,6 +253,32 @@ void main() {
           reason: 'and the verb must actually run — a fixture whose update '
               'fails anyway would satisfy the close count while measuring '
               'nothing');
+    });
+
+    test('a connection carrying primary is closed when primary leaves '
+        'approved, with no code change', () async {
+      // A legacy login carries `primary`, so it stands over a record like
+      // any enrollment and the same gate reads it.
+      await enMgr.serialiseMutation(() => enMgr.mintPrimary('LEGACY_KEY'));
+      final String ek =
+          enMgr.buildEnrollmentKey(EnrollmentManager.primaryEnrollmentId);
+      final AtData record = (await keyValueStore.get(ek))!;
+      final EnrollDataStoreValue v =
+          EnrollDataStoreValue.fromJson(jsonDecode(record.data!))
+            ..approval = EnrollApproval(EnrollmentStatus.revoked.name);
+      record.data = jsonEncode(v.toJson());
+      await enMgr.put(EnrollmentManager.primaryEnrollmentId, record,
+          EnrollmentStatus.revoked);
+      connection.metadata.authType = AuthType.pkamLegacy;
+
+      final Response? response =
+          await updateAs(EnrollmentManager.primaryEnrollmentId);
+
+      expect(connection.closeCount, 1,
+          reason: 'revoking primary ends the legacy owner\'s sessions, '
+              'which no revoke could do while the flat key stood outside '
+              'every record');
+      expect(response?.errorCode, 'AT0027');
     });
 
     test('CONTROL: a connection carrying no enrollment id is left alone',
