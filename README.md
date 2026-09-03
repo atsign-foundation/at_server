@@ -63,6 +63,16 @@ cross testing.
 the Dockerfiles and dependencies used to build the virtual environment
 base image `ve_base` the virtual environment on that base, and the
 `install_PKAM_Keys` tool that's used to initialise a virtual environment.
+  * [VE setup guide](./tools/build_virtual_environment/README.md) - how to
+  set up and run a virtual environment for local atPlatform testing.
+
+* [build_ephemeral_environment](./tools/build_ephemeral_environment/)
+contains the Dockerfiles and scripts used to build the ephemeral
+environment, a single-container atPlatform instance that generates fresh
+atSigns and CRAM secrets at startup.
+  * [EE setup guide](./tools/build_ephemeral_environment/README.md) - how to
+  set up and run an ephemeral environment for staging, CI, or non-localhost
+  deployments.
 
 * [build_secondary](./tools/build_secondary/) contains the Dockerfiles
 used to build various flavours of secondary server.
