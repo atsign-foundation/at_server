@@ -299,8 +299,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         throw UnAuthorizedException(
             'Not authorized to fetch enrollment $targetEnrollmentId: it holds'
             ' no namespaces, so no caller can demonstrate authority over it.'
-            ' Fetch it from the enrollment itself, or from a connection'
-            ' carrying no enrollment id (CRAM or owner)');
+            ' Fetch it from the enrollment itself, or from a CRAM'
+            ' connection');
       }
       for (final MapEntry<String, String> entry
           in enrollDataStoreValue.namespaces.entries) {
@@ -896,8 +896,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         enVal!.namespaces.isEmpty) {
       throw UnAuthorizedException('Failed to $operation enrollment id: $enId.'
           ' It holds no namespaces, so no caller can demonstrate authority'
-          ' over it. Act on it from the enrollment itself, or from a'
-          ' connection carrying no enrollment id (CRAM or owner)');
+          ' over it. Act on it from the enrollment itself, or from a CRAM'
+          ' connection');
     }
 
     for (MapEntry<String, String> entry in enVal!.namespaces.entries) {
@@ -2230,8 +2230,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         throw UnAuthorizedException(
             'Not authorized to delete enrollment $targetEnrollmentId: it holds'
             ' no namespaces, so no caller can demonstrate authority over it.'
-            ' Delete it from the enrollment itself, or from a connection'
-            ' carrying no enrollment id (CRAM or owner)');
+            ' Delete it from the enrollment itself, or from a CRAM'
+            ' connection');
       }
       for (final MapEntry<String, String> entry in enVal.namespaces.entries) {
         final bool isAuthorised = await isAuthorized(inboundConnectionMetadata,
