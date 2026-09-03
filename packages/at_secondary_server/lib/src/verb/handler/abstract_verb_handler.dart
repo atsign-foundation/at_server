@@ -109,9 +109,9 @@ abstract class AbstractVerbHandler implements VerbHandler {
   Future<(bool, Response)> _verifyIfEnrollmentIsActive(
       Response response, AtConnectionMetaData atConnectionMetadata) async {
     // A connection with no enrollment id stands over no enrollment record,
-    // so there is no approval state for this to read. Three connections are
-    // in that company — CRAM, owner, and legacy PKAM, which verifies against
-    // a key that lives outside every record.
+    // so there is no approval state for this to read. Only CRAM is in that
+    // company: a legacy `pkam:` carries `primary`, so a legacy connection is
+    // closed by this very check when `primary` leaves approved.
     if ((atConnectionMetadata as InboundConnectionMetadata).enrollmentId ==
         null) {
       if (logger.isLoggable('finest')) {
@@ -245,8 +245,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// For update or delete, the connection must have "rw" (read-write) access.
   ///
   /// Returns true if
-  /// - EITHER the connection has no enrollment ID — a CRAM or owner
-  ///   connection, which stands over no enrollment record
+  /// - EITHER the connection has no enrollment ID — a CRAM connection,
+  ///   which stands over no enrollment record
   /// - OR the connection has the required read or read-write
   ///   permissions to execute lookup/local-lookup or update/delete operations
   ///   respectively
@@ -287,16 +287,17 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// `privatekey:at_pkam_publickey`: refused for every connection, whatever
   /// it holds, with the single exception below. Called from [isAuthorized]
   /// ahead of its null-id short circuit, so it decides for a connection
-  /// carrying no enrollment id — CRAM, owner, legacy PKAM — as well as for
-  /// every enrollment. Scoped to the writing verbs, `update` and
+  /// carrying no enrollment id — CRAM — as well as for every enrollment,
+  /// `primary` included. Scoped to the writing verbs, `update` and
   /// `update:meta`, which `update:json` and `batch:` both re-dispatch into.
   ///
-  /// Why no connection may write it: the key is what legacy PKAM
-  /// authenticates against, and a legacy `pkam:` carries no enrollment id, so
-  /// a caller that installs a key it holds mints an identity that no verb can
-  /// withdraw — an enrollment that plants one survives its own revocation. A
-  /// connection carrying no id is authorised for everything else before any
-  /// key is examined, which is exactly why the gate sits ahead of that.
+  /// Why no connection may write it: the key is what a legacy `pkam:` was
+  /// verified against outside every record, and a key found there is absorbed
+  /// into `primary` on the next legacy login, so a caller that installs a key
+  /// it holds rotates the owner's own credential onto it — an enrollment that
+  /// plants one survives its own revocation as the owner. A connection
+  /// carrying no id is authorised for everything else before any key is
+  /// examined, which is exactly why the gate sits ahead of that.
   ///
   /// THE ONE EXCEPTION is a CRAM connection on a server running as a test
   /// fixture, sending a plain `update`: the virtual environment installs a
@@ -813,8 +814,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
         // whenever it likes, carrying no enrollment id — so revoking the
         // enrollment that planted it takes nothing back. Its tombstone is
         // named too: whoever can plant that marker permanently disables CRAM
-        // replanting, which is the atSign's last recovery route once the
-        // flat credential is retired.
+        // replanting, which is the atSign's last recovery route once its
+        // roots are revoked.
         //
         // WRITES only, unlike the PKAM key above. Onboarding deletes the
         // CRAM secret once PKAM is established, and that is a root

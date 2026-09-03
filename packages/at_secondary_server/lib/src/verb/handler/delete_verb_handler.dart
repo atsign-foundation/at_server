@@ -163,8 +163,8 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     // Written earlier, it was reachable by any connection that got as far as
     // this handler: an enrollment holding nothing but an ordinary namespace
     // was refused the delete and still permanently disabled CRAM, on an
-    // atSign that need never have had a secret at all. Once the flat PKAM
-    // credential is retired, CRAM is the last recovery route an atSign has,
+    // atSign that need never have had a secret at all. CRAM is the last
+    // recovery route an atSign has once its roots are revoked,
     // so a caller who cannot delete the secret must not be able to close
     // that route either — nor may a command that deleted nothing.
     //

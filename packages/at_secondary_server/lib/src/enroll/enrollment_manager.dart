@@ -1614,8 +1614,8 @@ class EnrollmentManager {
   ///   behind it whenever its ttl is the shorter, and a revoke arriving after
   ///   the sweep reaches the first live candidate and stops.
   ///
-  ///   ⚠️ Retirement does not mint this, though it is the one thing that
-  ///   would: a retrofit's cap puts a deadline on an approver without asking
+  ///   ⚠️ The retrofit cap does not mint this, though it is the one thing
+  ///   that would: it puts a deadline on an approver without asking
   ///   whether anything sits behind it. Arming that cap moves the approver's
   ///   children onto the successor — see [_adoptApprovalChildren] — so the
   ///   link that expires has nothing behind it to orphan.
@@ -1764,8 +1764,8 @@ class EnrollmentManager {
   /// move is made ONCE for the whole set rather than per record.
   ///
   /// [byEnrollmentId] is the enrollment on the connection that issued the
-  /// command, null for a CRAM, owner or legacy-PKAM connection, none of which
-  /// carries one; [cascadedFrom] is the
+  /// command, null for a CRAM connection, which carries none;
+  /// [cascadedFrom] is the
   /// enrollment it NAMED. Both are recorded on every event this writes,
   /// because an enrollment revoked by a cascade was revoked for a reason that
   /// is not visible from its own record.

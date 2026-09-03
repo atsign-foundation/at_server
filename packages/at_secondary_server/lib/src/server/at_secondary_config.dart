@@ -800,10 +800,9 @@ class AtSecondaryConfig {
   /// the LAST clone upgrades. A laggard stranded past the window recovers via
   /// an ordinary OTP enrollment.
   ///
-  /// The default (30 days) is deliberately generous. Two cases decline to cap
-  /// at all — a predecessor that is not approved, and a fully-privileged one
-  /// whose successor would be gone before the deadline with no other
-  /// fully-privileged enrollment surviving it. See
+  /// The default (30 days) is deliberately generous. Two cases are not
+  /// capped at all — a predecessor that is not approved, and one holding
+  /// `*:rw` and `__manage:rw`, which keeps its life. See
   /// [EnrollmentManager.armRetrofitCapOnFirstAuth].
   static int get apkamSelfEnrollmentGraceHours {
     return _getIntEnvVar('apkamSelfEnrollmentGraceHours') ??

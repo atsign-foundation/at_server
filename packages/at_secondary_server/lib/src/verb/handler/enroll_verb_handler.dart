@@ -867,15 +867,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // A target holding NO namespaces passes the loop below vacuously — zero
     // iterations, no refusal — and the `__manage` requirement lives inside
     // that loop too, so it is not asked either. Gated on caller-vs-target the
-    // way delete is: a CRAM or owner connection carries no enrollment id and
-    // must still be able to act on such a record, or the most anomalous
+    // way delete is: a CRAM connection carries no enrollment id and must
+    // still be able to act on such a record, or the most anomalous
     // enrollment on the atSign becomes the one nothing can clear up. The self
-    // clause keeps a forced self-revoke working.
-    //
-    // A legacy-PKAM connection carries no enrollment id either, so it takes
-    // the exempt branch alongside CRAM and owner — which is what leaves an
-    // atSign whose only owner access is the flat keyfile able to clear up
-    // such a record.
+    // clause keeps a forced self-revoke working. A legacy connection carries
+    // `primary` and is held to the same bar as any root; the remedy the
+    // refusal names is CRAM, or the record itself.
     final String? callerIdForAuthz = inboundConnectionMetadata.enrollmentId;
     if (callerIdForAuthz != null &&
         callerIdForAuthz.isNotEmpty &&
@@ -968,13 +965,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // removed too and its own cascade cannot contain it; the cascade is
       // asked about because the enrollments in it are removed by the same act.
       //
-      // Skipped for a connection carrying no enrollment id — CRAM, owner or
-      // legacy PKAM — because such a connection can always mint a fresh
+      // Skipped for a CRAM connection, because it can always mint a fresh
       // enrollment, so no act of its can leave the atSign unable to approve a
-      // replacement. The flat credential such a connection may hold is itself
-      // counted as a surviving root by the liveness question below, so the
-      // exemption and that count agree about what the atSign can fall back
-      // on.
+      // replacement. A legacy connection carries `primary` and is NOT
+      // skipped: `primary` is a root record, counted by the liveness question
+      // below like any other, and revoking it is an act like any other.
       if (callerId != null) {
         // Cheapest question first: this reads one record per enrollment the
         // act removes, while the liveness question below walks the whole
@@ -1056,8 +1051,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // Record WHO approved, so a later revocation of the approver can take the
     // enrollments it admitted with it. Read off the connection rather than the
     // request: an approver cannot name someone else as the admitting party.
-    // Null over a connection carrying no enrollment id — CRAM, owner or
-    // legacy PKAM — because there is nothing there to revoke later.
+    // Null over a CRAM connection, because there is nothing there to revoke
+    // later. A legacy connection carries `primary`, so what it approves
+    // hangs off `primary` and cascades with it.
     if (operation == 'approve') {
       final String? approverId = inboundConnectionMetadata.enrollmentId;
       enVal.parentEnrollmentId =
@@ -1208,8 +1204,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     final enId = enrollParams.enrollmentId!;
 
     // Self-only. An explicit exception to `isAuthorized`'s "no enrollmentId
-    // means full permissions" default: an owner or legacy-PKAM connection is
-    // refused here, not waved through. An owner cannot sign anything with this
+    // means full permissions" default: a CRAM connection is refused here, not
+    // waved through, and a legacy connection may update only `primary`, the
+    // enrollment it carries. An owner cannot sign anything with this
     // enrollment's APKAM private, so anything it wrote would fail every
     // reader's verification and buys only a denial of service — and self-only
     // is what makes replace semantics safe, because the only party who can
@@ -1638,8 +1635,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       {EnrollParams? enrollVerbParams}) async {
     String? authenticatedEnrollmentId =
         (atConnection.metaData as InboundConnectionMetadata).enrollmentId;
-    // A connection carrying no enrollment id — CRAM, owner or legacy PKAM —
-    // stands over no record to narrow to. Return all the enrollments, and
+    // A connection carrying no enrollment id — CRAM — stands over no record
+    // to narrow to; a legacy connection carries `primary`, which holds
+    // `__manage:rw`, and reaches the same answer through the branch below.
+    // Return all the enrollments, and
     // return them whole: this connection holds the atSign itself rather than
     // a delegated share of it, so there is no secret here it is not already
     // entitled to read straight out of the keystore.

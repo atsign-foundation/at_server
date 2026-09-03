@@ -3310,7 +3310,7 @@ void main() {
       });
 
       test('a connection carrying no enrollment id may delete any', () async {
-        // A CRAM, owner or legacy-PKAM connection. Same exemption
+        // A CRAM connection, the only one carrying no id. Same exemption
         // `enroll:fetch` makes, and the same one isAuthorized makes for every
         // other verb: a connection with no enrollment id is the atSign
         // itself.
@@ -4214,8 +4214,8 @@ void main() {
       // SURPRISING one and the one worth pinning; the enrollment-vs-
       // enrollment case above is what anyone would guess.
       //
-      // Reached by a CRAM, owner or legacy-PKAM connection — every
-      // connection carrying no enrollment id. Pinned here rather than over
+      // Reached by a CRAM connection — the one connection carrying no
+      // enrollment id. Pinned here rather than over
       // the wire, deliberately: the rule is server-side and needs no wire to
       // prove.
       final enId = (await etu.createEnrollments(n: 1)).$1.first;
