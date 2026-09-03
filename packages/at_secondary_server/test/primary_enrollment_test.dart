@@ -327,6 +327,49 @@ void main() {
     });
   });
 
+  group('the testingMode key install', () {
+    test('mints primary from the value, and writes no flat key', () async {
+      await enMgr.installLegacyKeyIntoPrimary('INSTALLED_KEY');
+
+      expect(await flatKeyExists(), isFalse);
+      final EnrollDataStoreValue v = await enMgr.getEnrollmentById(primary);
+      expect(v.apkamPublicKey, 'INSTALLED_KEY');
+      expect(v.isRootEnrollment, isTrue);
+    });
+
+    test('rotates an existing primary onto the value', () async {
+      await enMgr.serialiseMutation(() => enMgr.mintPrimary('FIRST'));
+
+      await enMgr.installLegacyKeyIntoPrimary('SECOND');
+
+      expect((await enMgr.getEnrollmentById(primary)).apkamPublicKey, 'SECOND');
+      expect(await flatKeyExists(), isFalse);
+    });
+
+    test('is subject to key uniqueness: a key another enrollment holds is '
+        'refused, with nothing written', () async {
+      await storeScoped('holder', 'HELD_KEY');
+
+      await expectLater(
+          () => enMgr.installLegacyKeyIntoPrimary('HELD_KEY'),
+          throwsA(isA<IllegalStateException>().having((e) => e.message,
+              'message', contains('already held by another enrollment'))),
+          reason: 'no exemption under testingMode: the fixtures mint a key '
+              'per enrollment');
+      expect(await enMgr.primaryEnrollment(), isNull);
+    });
+
+    test('re-installing the key primary already holds writes nothing',
+        () async {
+      await enMgr.serialiseMutation(() => enMgr.mintPrimary('SAME'));
+      final int writes = EnrollmentManager.cacheInvalidations;
+
+      await enMgr.installLegacyKeyIntoPrimary('SAME');
+
+      expect(EnrollmentManager.cacheInvalidations, writes);
+    });
+  });
+
   group('the startup path runs the migration', () {
     test('prepareStoreForFirstConnection migrates the flat key, ahead of the '
         'retirement clock\'s arming', () async {

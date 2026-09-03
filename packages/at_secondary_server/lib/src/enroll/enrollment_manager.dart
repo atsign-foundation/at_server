@@ -348,6 +348,38 @@ class EnrollmentManager {
         return true;
       });
 
+  /// The one carve-out from the flat credential's write ban, redirected: a
+  /// CRAM connection on a server running as a test fixture asks to install
+  /// [apkamPublicKey] as the atSign's legacy credential, and instead of the
+  /// flat key it mints [primaryEnrollmentId] from it when absent and rotates
+  /// `primary` onto it when present. No flat key is written, so none exists
+  /// on a running server in any mode, and the rigs hold `primary` from key
+  /// install rather than from first login.
+  ///
+  /// Subject to key uniqueness like any `enroll:update`: refused, with
+  /// nothing written, when a stored enrollment other than `primary` holds the
+  /// key. No exemption under `testingMode`; the fixtures mint a key per
+  /// enrollment.
+  Future<void> installLegacyKeyIntoPrimary(String apkamPublicKey) =>
+      serialiseMutation(() async {
+        final (String, EnrollDataStoreValue)? holder =
+            await holderOfApkamPublicKey(apkamPublicKey, null,
+                excluding: primaryEnrollmentId);
+        if (holder != null) {
+          throw IllegalStateException(
+              'The apkamPublicKey is already held by another enrollment on '
+              'this atSign; every enrollment needs a keypair of its own '
+              '(held by enrollment ${holder.$1}, ${holder.$2.approval?.state})');
+        }
+        final EnrollDataStoreValue? primary = await primaryEnrollment();
+        if (primary == null) {
+          await mintPrimary(apkamPublicKey);
+        } else if (!sameApkamKeyMaterial(apkamPublicKey, null,
+            primary.apkamPublicKey, primary.signingAlgo)) {
+          await _rotatePrimary(apkamPublicKey, null, primary);
+        }
+      });
+
   /// What [migrateFlatKeyAtStartup] found and did, for the startup log and
   /// for tests.
   Future<StartupFlatKeyOutcome> migrateFlatKeyAtStartup() =>

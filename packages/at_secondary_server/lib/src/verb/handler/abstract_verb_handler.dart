@@ -299,8 +299,12 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// key is examined, which is exactly why the gate sits ahead of that.
   ///
   /// THE ONE EXCEPTION is a CRAM connection on a server running as a test
-  /// fixture: the virtual environment installs a keypair that way against a
-  /// fresh atSign, so that the packs have something to authenticate with.
+  /// fixture, sending a plain `update`: the virtual environment installs a
+  /// keypair that way against a fresh atSign, so that the packs have
+  /// something to authenticate with. Even then the flat key is not written:
+  /// `UpdateVerbHandler` redirects the value into the `primary` enrollment,
+  /// which is why the exception is for `update` and not for `update:meta`,
+  /// a write with no value to redirect.
   /// [AtSecondaryConfig.testingMode] is false in every shipped configuration,
   /// and false is also what every failure to read the setting answers, so a
   /// server that cannot read its config is not a server that permits this.
@@ -316,11 +320,13 @@ abstract class AbstractVerbHandler implements VerbHandler {
       InboundConnectionMetadata md, String? atKey) {
     if (atKey == null || !isWritingVerb()) return;
     if (canonicalAtKey(atKey) != AtConstants.atPkamPublicKey) return;
-    if (md.authType == AuthType.cram && AtSecondaryConfig.testingMode) {
-      logger.warning('Permitting a write of ${AtConstants.atPkamPublicKey} '
-          'over a CRAM connection because testingMode is on. This installs a '
-          'credential that authenticates with no enrollment id and that no '
-          'verb can withdraw; it must never be reachable on a real atSign');
+    if (md.authType == AuthType.cram &&
+        AtSecondaryConfig.testingMode &&
+        getVerb() is Update) {
+      logger.warning('Admitting a write of ${AtConstants.atPkamPublicKey} '
+          'over a CRAM connection because testingMode is on; the value is '
+          'installed as the ${EnrollmentManager.primaryEnrollmentId} '
+          'enrollment rather than as a flat key');
       return;
     }
     throw UnAuthorizedException(flatCredentialWriteRefusal);

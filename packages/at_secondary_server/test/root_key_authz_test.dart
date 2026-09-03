@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_secondary/src/verb/handler/batch_verb_handler.dart';
@@ -262,10 +263,18 @@ void main() {
           'update:${AtConstants.atPkamPublicKey} NEW_KEY', inboundConnection);
 
       expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'ORIGINAL_KEY',
+          reason: 'admitted, but the flat key itself is never written: the '
+              'value is installed as the primary enrollment instead, so no '
+              'flat key exists on a running server in any mode');
+      expect(
+          (await enMgr.getEnrollmentById(
+                  EnrollmentManager.primaryEnrollmentId))
+              .apkamPublicKey,
           'NEW_KEY',
           reason: 'the virtual environment installs the atSign\'s first PKAM '
               'keypair over CRAM, and the packs have nothing to authenticate '
-              'with if this is refused');
+              'with if this is refused — they authenticate as primary');
     });
 
     test('a root enrollment can still write ANOTHER privatekey: key',
