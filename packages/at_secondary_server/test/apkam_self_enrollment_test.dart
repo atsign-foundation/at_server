@@ -2753,69 +2753,85 @@ void main() {
               'to be re-made rather than frozen');
     });
 
-    test('a successor that dies before the cap deadline does not arm it',
-        () async {
-      // Grants alone do not make a successor a replacement: it has to outlive
-      // what it replaces. Retiring a working credential in favour of a
-      // shorter-lived one is how an atSign ends up with neither — and the
-      // predecessor here is the CRAM root, which nothing else can re-issue.
+    // A fully privileged predecessor keeps its life, whatever the successor's
+    // posture. Key management is its owner's responsibility, and a clock on
+    // the atSign's root is a clock on the atSign's ability to restore itself.
+    // The unexpiring arm is the one that used to cap the root; every other
+    // arm differs from it in the successor's expiry and in nothing else.
+    for (final (label, posture) in const <(String, Duration?)>[
+      ('never', null),
+      ('one minute', Duration(minutes: 1)),
+      ('29 days, just inside the grace', Duration(days: 29)),
+      ('31 days, just past the grace', Duration(days: 31)),
+      ('ten years', Duration(days: 3650)),
+    ]) {
+      test('a ROOT predecessor is not capped by a successor expiring in $label',
+          () async {
+        final rootId = etu.primaryEnId;
+        expect((await enMgr.getEnrollmentById(rootId)).isRootEnrollment, isTrue,
+            reason: 'precondition: the predecessor is fully privileged, which '
+                'is the whole condition');
+
+        final (successorId, successorKey) = await retrofitWithRealKey(rootId,
+            apkamKeysExpiryDuration: posture);
+        await authenticateAs(successorId, successorKey,
+            sessionId: 'root-posture-${posture?.inMinutes ?? 0}');
+
+        expect(
+            (await keyValueStore.get(enMgr.buildEnrollmentKey(rootId)))
+                ?.metaData
+                ?.expiresAt,
+            isNull,
+            reason: 'a root is never put on the retrofit cap');
+        expect(
+            (await enMgr.getEnrollmentById(successorId)).predecessorCapArmedAt,
+            isNotNull,
+            reason: 'settled all the same: the stamp is what stops every later '
+                'authentication re-asking, and what records that the '
+                'root\'s children moved');
+        expect(await enMgr.hasUnexpiringRootEnrollment({}), isTrue,
+            reason: 'the atSign keeps a root it can restore itself from');
+      });
+    }
+
+    test('a ROOT predecessor\'s children move onto its successor on the '
+        'successor\'s first authentication', () async {
+      // The adoption is not tied to the cap. The successor is the same
+      // principal re-keyed and stands where the root stood, so what the root
+      // admitted hangs off the successor from the moment the successor proves
+      // itself — while the root goes on living.
       final rootId = etu.primaryEnId;
-      final (successorId, successorKey) = await retrofitWithRealKey(rootId,
-          apkamKeysExpiryDuration: Duration(minutes: 1));
-
-      final successorData =
-          await keyValueStore.get(enMgr.buildEnrollmentKey(successorId));
-      expect(successorData?.metaData?.expiresAt, isNotNull,
-          reason: 'precondition: the successor really is short-lived, or this '
-              'test measures nothing');
-
-      await authenticateAs(successorId, successorKey, sessionId: 'shortlived-session');
-
-      final rootData =
-          await keyValueStore.get(enMgr.buildEnrollmentKey(rootId));
-      expect(rootData?.metaData?.expiresAt, isNull,
-          reason: 'the root must not acquire a 30-day clock on the word of a '
-              'credential that dies in a minute — at the end of the grace the '
-              'atSign would hold no enrollment able to approve a replacement');
-    });
-
-    test('an UNEXPIRING successor DOES cap the root, which is the whole reason '
-        'the first-enrollment exemption could be retired', () async {
-      // The control for the test above, and the argument for deleting
-      // preserveFirstEnrollmentOnRetrofit: the root is capped like anything
-      // else, and the atSign is not stranded because the successor inherited
-      // __manage verbatim and can approve a replacement.
-      final rootId = etu.primaryEnId;
-      final rootBefore = await enMgr.getEnrollmentById(rootId);
-      expect(rootBefore.namespaces['__manage'], 'rw',
-          reason: 'precondition: the root is the privileged enrollment whose '
-              'capping the retired exemption existed to prevent');
+      final childId = (await etu.createEnrollments(n: 1)).$1.first;
+      expect(await enMgr.descendantsOf(rootId), contains(childId),
+          reason: 'precondition: the fixture\'s enrollments are approved by '
+              'the root');
 
       final (successorId, successorKey) = await retrofitWithRealKey(rootId);
-      await authenticateAs(successorId, successorKey, sessionId: 'root-session');
+      expect(await enMgr.descendantsOf(successorId), isNot(contains(childId)),
+          reason: 'control: storing the successor moves nothing; the '
+              'authentication does');
 
+      await authenticateAs(successorId, successorKey,
+          sessionId: 'root-adoption');
+
+      expect(await enMgr.descendantsOf(successorId), contains(childId),
+          reason: 'what the root admitted now hangs off its successor');
+      expect(await enMgr.descendantsOf(rootId), isNot(contains(childId)));
       expect(
           (await keyValueStore.get(enMgr.buildEnrollmentKey(rootId)))
               ?.metaData
               ?.expiresAt,
-          isNotNull,
-          reason: 'one rule for every enrollment, the CRAM-minted root '
-              'included');
-      final successor = await enMgr.getEnrollmentById(successorId);
-      expect(successor.namespaces['__manage'], 'rw',
-          reason: 'and the atSign keeps an approver: the successor holds '
-              '__manage verbatim, which is what makes capping the root safe');
-      expect(successor.namespaces['*'], 'rw');
+          isNull,
+          reason: 'and the root keeps its life');
     });
 
     test(
         'an ORDINARY predecessor is capped even by a short-lived successor',
         () async {
-      // The guard spares only a ROOT predecessor. An ordinary credential
-      // never held full privilege, so capping it cannot take full privilege
-      // away and the liveness walk is never reached for it — which is what
-      // keeps retirement making progress for a fleet whose APKAM keys all
-      // expire.
+      // Only a ROOT predecessor keeps its life. An ordinary credential never
+      // held full privilege, so capping it cannot take full privilege away —
+      // which is what keeps retirement making progress for a fleet whose
+      // APKAM keys all expire.
       final predecessorId = (await etu.createEnrollments(n: 1)).$1.first;
       final predecessorBefore = await enMgr.getEnrollmentById(predecessorId);
       expect(predecessorBefore.namespaces.containsKey('__manage'), isFalse,
@@ -2839,11 +2855,11 @@ void main() {
     test(
         'an ordinary predecessor is capped even when NOTHING could restore a '
         'root', () async {
-      // Pins the isRootEnrollment conjunct. Without it the guard would ask
-      // "does any unexpiring root survive?" of every predecessor and answer no
-      // here — declining to retire an ordinary credential whose loss strands
-      // nothing. Capping an enrollment that never held full privilege cannot
-      // remove full privilege, so the question does not arise for it.
+      // No stranding question is asked of an ordinary predecessor. Capping
+      // an enrollment that never held full privilege cannot remove full
+      // privilege, so a cap that asked "does any unexpiring root survive?" of
+      // every predecessor would decline to retire a credential whose loss
+      // strands nothing.
       //
       // The ordinary predecessor is minted FIRST: creating an enrollment goes
       // through otp:get, which needs __manage, and the root is the only holder.
@@ -2867,9 +2883,8 @@ void main() {
       expect(
           await enMgr.hasUnexpiringRootEnrollment({predecessorId}),
           isFalse,
-          reason: 'precondition: nothing could restore a root, so the '
-              'isRootEnrollment conjunct is the only thing that can let the '
-              'cap through');
+          reason: 'precondition: nothing could restore a root, so a cap that '
+              'asked the stranding question here would decline');
 
       final (successorId, successorKey) = await retrofitWithRealKey(predecessorId,
           apkamKeysExpiryDuration: Duration(minutes: 1));
@@ -2883,55 +2898,6 @@ void main() {
           reason: 'the migration must still make progress for ordinary '
               'credentials, whatever state the atSign\'s roots are in');
     });
-
-    // The successor's own posture must not enter this decision at all, and it
-    // once did: a deadline-relative short-circuit skipped the liveness walk
-    // whenever the successor outlived the cap. That kept the OLD meaning of
-    // "safe" after the walk was given a stricter one, so the outcome inverted
-    // on the grace boundary — a successor expiring just INSIDE the grace
-    // spared the root, and one expiring past it, or in ten years, capped the
-    // atSign's last unexpiring root and left nothing able to restore it.
-    // Asking for a longer-lived credential switched the protection off.
-    //
-    // The control for all three is the UNEXPIRING successor above, which must
-    // still cap: these arms differ from it in the successor's expiry and in
-    // nothing else.
-    for (final (label, posture) in const [
-      ('29 days, just inside the grace', Duration(days: 29)),
-      ('31 days, just past the grace', Duration(days: 31)),
-      ('ten years', Duration(days: 3650)),
-    ]) {
-      test('a successor expiring in $label does not cap the last unexpiring root',
-          () async {
-        final rootId = etu.primaryEnId;
-        expect((await enMgr.getEnrollmentById(rootId)).isRootEnrollment, isTrue,
-            reason: 'precondition: the predecessor is the root this refusal '
-                'exists to protect');
-
-        final (successorId, successorKey) = await retrofitWithRealKey(rootId,
-            apkamKeysExpiryDuration: posture);
-        final successorData =
-            await keyValueStore.get(enMgr.buildEnrollmentKey(successorId));
-        expect(successorData?.metaData?.expiresAt, isNotNull,
-            reason: 'precondition: the successor really does expire, or this '
-                'arm is the unexpiring control in disguise');
-
-        await authenticateAs(successorId, successorKey,
-            sessionId: 'posture-${posture.inDays}d');
-
-        expect(
-            (await keyValueStore.get(enMgr.buildEnrollmentKey(rootId)))
-                ?.metaData
-                ?.expiresAt,
-            isNull,
-            reason: 'a successor that expires is not an unexpiring root and '
-                'cannot stand in for the one being capped, whatever date its '
-                'expiry falls on');
-        expect(await enMgr.hasUnexpiringRootEnrollment({}), isTrue,
-            reason: 'the atSign is never left without a root it can restore '
-                'itself from');
-      });
-    }
 
     test('a cap that declines LATE takes its stamp back', () async {
       // The stamp goes on before the cap, deliberately — a capped predecessor
@@ -2971,36 +2937,6 @@ void main() {
               'authentication and the predecessor is never capped again');
     });
 
-    test('a declined cap does not re-walk the keystore on every '
-        'authentication', () async {
-      // The last-root decline deliberately records nothing durable, so without
-      // an in-process memo its expensive half — a whole-keystore walk looking
-      // for another fully privileged enrollment — re-ran on every
-      // authentication, forever. The answer that repeats is the expensive one:
-      // the walk returns early on the first surviving root, so only the
-      // "nobody survives" case pays for all of it.
-      await etu.createEnrollments(n: 8); // give the walk something to walk
-      final (successorId, successorKey) = await retrofitWithRealKey(
-          etu.primaryEnId,
-          apkamKeysExpiryDuration: Duration(minutes: 1));
-
-      int reads() =>
-          EnrollmentManager.cacheHits + EnrollmentManager.cacheMisses;
-
-      final before = reads();
-      await authenticateAs(successorId, successorKey, sessionId: 'memo-1');
-      final afterFirst = reads();
-      await authenticateAs(successorId, successorKey, sessionId: 'memo-2');
-      final afterSecond = reads();
-
-      expect(afterFirst - before, greaterThan(5),
-          reason: 'precondition: the first authentication really did walk the '
-              'keystore, or the comparison below is vacuous');
-      expect(afterSecond - afterFirst, lessThan(afterFirst - before),
-          reason: 'the second authentication must not repeat the walk — '
-              'nothing has been written, so the answer cannot have changed');
-    });
-
     test('a declined cap is re-decided on the next authentication', () async {
       // A decline is a judgement about state that can change. Freezing it into
       // the record would make an unrevoke — or simply revoking the wrong
@@ -3036,8 +2972,20 @@ void main() {
           isNotNull);
     });
 
-    test('a predecessor that is already gone is not an error', () async {
-      final predecessorId = (await etu.createEnrollments(n: 1)).$1.first;
+    test('a predecessor that is already gone is not an error, and its '
+        'children still move', () async {
+      final predecessorId = await etu.createPendingEnrollment(
+          appName: 'gone-approver',
+          deviceName: 'device',
+          namespaces: {'__manage': 'rw', 'wavi': 'rw'},
+          apkamKeysExpiryDuration: null);
+      await etu.approveEnrollment(etu.primaryEnId, predecessorId);
+      final childId = await etu.createPendingEnrollment(
+          appName: 'gone-child',
+          deviceName: 'device',
+          namespaces: {'wavi': 'rw'},
+          apkamKeysExpiryDuration: null);
+      await etu.approveEnrollment(predecessorId, childId);
       final r = await selfEnroll(predecessorId: predecessorId);
       final successorId = jsonDecode(r.data!)['enrollmentId'] as String;
 
@@ -3049,66 +2997,9 @@ void main() {
           reason: 'stamped even with nothing to cap, or every later '
               'connection re-walks the lookup for a predecessor that is '
               'never coming back');
-    });
-
-    test('two first-authentications at once do not cap BOTH of the roots',
-        () async {
-      // The decision is read-modify-write across the whole keystore: "would
-      // any unexpiring root survive capping this predecessor?", and then the
-      // cap. Run two at once and both walks finished before either write, so
-      // each saw the other's root still uncapped, each concluded it was safe,
-      // and both were capped — leaving the atSign with no root it could
-      // restore itself from. Two devices reconnecting together is enough.
-      // The read before the write is not what holds this: it narrows the lost
-      // update on the successor's own record and never re-takes the decision.
-      // What holds it is that the walk and the cap are one enrollment-mutation
-      // critical section — see EnrollmentManager.serialiseMutation.
-      //
-      // SHORT-LIVED successors are load-bearing. An unexpiring successor is
-      // itself a root, so capping both predecessors would strand nothing and
-      // the interleaving would not matter.
-      final rootData =
-          await keyValueStore.get(enMgr.buildEnrollmentKey(etu.primaryEnId));
-      final secondRoot =
-          EnrollDataStoreValue.fromJson(jsonDecode(rootData!.data!));
-      const secondRootId = 'a-second-root';
-      await enMgr.put(
-          secondRootId,
-          AtData()..data = jsonEncode(secondRoot.toJson()),
-          EnrollmentStatus.approved);
-
-      Future<DateTime?> expiryOf(String id) async =>
-          (await keyValueStore.get(enMgr.buildEnrollmentKey(id)))
-              ?.metaData
-              ?.expiresAt;
-
-      expect(await expiryOf(etu.primaryEnId), isNull);
-      expect(await expiryOf(secondRootId), isNull);
-      expect(await enMgr.hasUnexpiringRootEnrollment({}), isTrue,
-          reason: 'precondition: the atSign has two unexpiring roots');
-
-      final (firstSuccessor, _) = await retrofitWithRealKey(etu.primaryEnId,
-          appName: 'rf-one', apkamKeysExpiryDuration: Duration(minutes: 1));
-      final (secondSuccessor, _) = await retrofitWithRealKey(secondRootId,
-          appName: 'rf-two', apkamKeysExpiryDuration: Duration(minutes: 1));
-
-      await Future.wait([
-        enMgr.armRetrofitCapOnFirstAuth(firstSuccessor),
-        enMgr.armRetrofitCapOnFirstAuth(secondSuccessor),
-      ]);
-
-      final capped = [
-        await expiryOf(etu.primaryEnId),
-        await expiryOf(secondRootId),
-      ].where((e) => e != null).length;
-
-      expect(capped, 1,
-          reason: 'one root retires and the other is spared: whichever walk '
-              'runs second has to see the first one\'s cap. Both capped is the '
-              'race; neither capped would mean retirement had stopped');
-      expect(await enMgr.hasUnexpiringRootEnrollment({}), isTrue,
-          reason: 'the atSign is never left without a root it can restore '
-              'itself from, whatever the interleaving');
+      expect(await enMgr.descendantsOf(successorId), contains(childId),
+          reason: 'the child was an orphan already, and the successor is what '
+              'it should have been hanging off');
     });
 
     test('capping an approver moves what it admitted onto its successor',
@@ -3120,10 +3011,12 @@ void main() {
       // sits behind it. A month later the chain breaks: a revoke of the root
       // reaches the first live candidate and stops, and the reactivation
       // refusal then permits un-revoking exactly what the cascade had swept.
+      // An approver that is NOT a root, so that it is capped: a root keeps
+      // its life and is covered above.
       final middleId = await etu.createPendingEnrollment(
           appName: 'middle',
           deviceName: 'device',
-          namespaces: {'*': 'rw', '__manage': 'rw'},
+          namespaces: {'__manage': 'rw', 'wavi': 'rw'},
           apkamKeysExpiryDuration: null);
       await etu.approveEnrollment(etu.primaryEnId, middleId);
 

@@ -109,15 +109,17 @@ class EnrollDataStoreValue {
   /// finds a whole sibling set by it when the siblings' parent is null.
   String? retrofitPredecessorEnrollmentId;
 
-  /// When this enrollment settled the retrofit cap on the enrollment it
-  /// replaced — either by arming it, or by finding there was nothing left to
-  /// arm it on. Null while the question is still open.
+  /// When this enrollment settled what it replaced: the predecessor's
+  /// approval children moved onto this one, and the predecessor was put on
+  /// the retrofit cap unless it holds full privilege. Null while the question
+  /// is still open.
   ///
-  /// Not a record of "a cap was written": a predecessor that has already been
-  /// deleted stamps this too, because otherwise every later connection
-  /// re-walks a lookup for something that is never coming back. A cap that is
-  /// DECLINED does not stamp — a decline is a judgement about state that can
-  /// change, so it is re-made rather than frozen.
+  /// Not a record of "a cap was written": a root predecessor keeps its life
+  /// and stamps this, and so does a predecessor that has already been
+  /// deleted, because otherwise every later connection re-walks a lookup for
+  /// something that is never coming back. A predecessor that is not approved
+  /// does not stamp — that is a judgement about state that can change, so it
+  /// is re-made rather than frozen.
   ///
   /// The cap is armed by the successor's FIRST PKAM authentication rather than
   /// at the moment the server stores it. Storing the record proves only that

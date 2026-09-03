@@ -75,65 +75,13 @@ void main() {
   String recordFor(String id,
       {Map<String, String> namespaces = const {'wavi': 'rw'},
       EnrollmentStatus status = EnrollmentStatus.approved,
-      String? predecessor,
       String? approvedBy}) {
     final v = EnrollDataStoreValue('sid', 'app-$id', 'device-$id', 'pk-$id')
       ..namespaces = Map<String, String>.from(namespaces)
       ..approval = EnrollApproval(status.name)
-      ..retrofitPredecessorEnrollmentId = predecessor
       ..parentEnrollmentId = approvedBy;
     return jsonEncode(v.toJson());
   }
-
-  /// The decline memo stops a declined cap re-walking the whole keystore on
-  /// every authentication, and its contract is that any enrollment write
-  /// re-opens the question. The memo is written after the decision's awaits,
-  /// so reading the counter live at that point folds in every write that
-  /// landed DURING the decision — including one the decision never saw. Only
-  /// a store that can write while a read is being served shows the
-  /// difference, which is why this lives here rather than beside the other
-  /// cap tests.
-  group('the decline memo', () {
-    test(
-        'records the generation the decision was READ at, not the one it '
-        'finished at', () async {
-      final store = _FaultyKeyStore();
-      final enMgr = EnrollmentManager(store, alice);
-      final predecessorId = Uuid().v4();
-      final successorId = Uuid().v4();
-      final predecessorKey = enMgr.buildEnrollmentKey(predecessorId);
-      final successorKey = enMgr.buildEnrollmentKey(successorId);
-
-      EnrollmentManager.declinedAtGeneration.remove(successorId);
-
-      when(() => store.get(successorKey)).thenAnswer((_) async => AtData()
-        ..data = recordFor(successorId, predecessor: predecessorId));
-      // Reading the predecessor is one of the decision's awaits. A concurrent
-      // enrollment write landing in that window is precisely what the memo
-      // must not swallow, so the counter is bumped as the read is served.
-      when(() => store.get(predecessorKey)).thenAnswer((_) async {
-        EnrollmentManager.cacheInvalidations++;
-        return AtData()
-          ..data = recordFor(predecessorId, status: EnrollmentStatus.revoked);
-      });
-
-      final int before = EnrollmentManager.cacheInvalidations;
-      await enMgr.armRetrofitCapOnFirstAuth(successorId);
-
-      expect(EnrollmentManager.cacheInvalidations, greaterThan(before),
-          reason: 'control: a write really did land during the decision, so '
-              'the generation it started at and the one it ended at differ '
-              'and this test can tell them apart');
-      expect(EnrollmentManager.declinedAtGeneration[successorId], isNotNull,
-          reason: 'control: the decision really did decline and record a '
-              'memo, rather than leaving before it got there');
-      expect(EnrollmentManager.declinedAtGeneration[successorId],
-          lessThan(EnrollmentManager.cacheInvalidations),
-          reason: 'the memo holds the generation the decision READ at, so a '
-              'write it never saw leaves the question re-openable rather '
-              'than counted as already accounted for');
-    });
-  });
 
   group('a keystore fault mid-walk', () {
     /// `_approverIdOf` catches [KeyNotFoundException] (the record is gone)

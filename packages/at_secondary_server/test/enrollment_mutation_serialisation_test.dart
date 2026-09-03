@@ -204,75 +204,11 @@ void main() {
     });
   });
 
-  group('a retrofit cap arming while an enroll:revoke runs', () {
-    /// A short-lived successor of `primary`, plus a second root so that
-    /// capping `primary` is permitted at the moment it is decided.
-    ///
-    /// SHORT-LIVED is load-bearing: an unexpiring successor is itself a root,
-    /// so capping its predecessor would strand nothing and the interleaving
-    /// would not matter.
-    Future<(String, String)> capArrangement() async {
-      final second = await twoRoots();
-      final successor = await selfEnroll(etu.primaryEnId,
-          apkamKeysExpiryDuration: Duration(minutes: 1));
-      expect(await expiryOf(successor), isNotNull,
-          reason: 'precondition: the successor is NOT itself a permanent root');
-      return (second, successor);
-    }
-
-    test('cannot cap one root while the other is being revoked', () async {
-      final (second, successor) = await capArrangement();
-
-      // The arming asks whether an unexpiring root survives capping `primary`
-      // and finds the second; the revoke asks whether one survives removing
-      // the second and finds `primary`, still uncapped. Both are right about
-      // the store they read and wrong about the store they leave.
-      await Future.wait([
-        enMgr.armRetrofitCapOnFirstAuth(successor),
-        revoke(etu.primaryEnId, second),
-      ]);
-
-      expect(await enMgr.hasUnexpiringRootEnrollment({}), isTrue,
-          reason: 'a cap arming and a revoke are mutations of two DIFFERENT '
-              'records, so nothing scoped to one record can stop them '
-              'stranding the atSign between them');
-    });
-
-    test('SERIAL CONTROL: arming first, the revoke is then refused', () async {
-      final (second, successor) = await capArrangement();
-
-      await enMgr.armRetrofitCapOnFirstAuth(successor);
-      expect(await expiryOf(etu.primaryEnId), isNotNull,
-          reason: 'precondition: the cap really did arm');
-      final refusal = await revoke(etu.primaryEnId, second);
-
-      expect(refusal, isNotNull,
-          reason: 'the revoke now sees a capped predecessor and refuses to '
-              'take the last permanent root — no serialisation needed, so '
-              'this stays green when the critical section is removed');
-      expect(await enMgr.hasUnexpiringRootEnrollment({}), isTrue);
-    });
-
-    test('SERIAL CONTROL: revoking first, the cap then declines', () async {
-      final (second, successor) = await capArrangement();
-
-      expect(await revoke(etu.primaryEnId, second), isNull,
-          reason: 'precondition: the revoke is allowed while primary stands');
-      await enMgr.armRetrofitCapOnFirstAuth(successor);
-
-      expect(await expiryOf(etu.primaryEnId), isNull,
-          reason: 'the arming now finds no other permanent root and spares '
-              'the predecessor — no serialisation needed, so this stays '
-              'green when the critical section is removed');
-      expect(await enMgr.hasUnexpiringRootEnrollment({}), isTrue);
-    });
-  });
-
   group('a revoke and a cap arming writing the same record', () {
-    /// A successor of `primary` that published an `_apsk`, plus a second root
-    /// so the arming gets as far as writing its stamp onto that successor.
-    Future<(String, String)> lostUpdateArrangement() async {
-      final second = await twoRoots();
+    /// A successor of `primary` that published an `_apsk`. `primary` is a
+    /// root and is never capped, and the arming still writes its stamp onto
+    /// the successor, which is the record the revoke writes too.
+    Future<String> lostUpdateArrangement() async {
       final successor = await selfEnroll(etu.primaryEnId,
           apkamKeysExpiryDuration: Duration(minutes: 1),
           apsk: {'signingPublicKey': 'k', 'signingAlgo': 'mldsa65'});
@@ -282,12 +218,12 @@ void main() {
           isTrue,
           reason: 'precondition: the successor published a signing key at the '
               'live address');
-      return (second, successor);
+      return successor;
     }
 
     test('the store cannot end up disagreeing with the answer given',
         () async {
-      final (_, successor) = await lostUpdateArrangement();
+      final successor = await lostUpdateArrangement();
 
       // Both write a WHOLE-RECORD snapshot of the successor: the revoke flips
       // its state, the arming stamps `predecessorCapArmedAt` on it. Whichever
@@ -319,7 +255,7 @@ void main() {
 
     test('SERIAL CONTROL: revoking then arming leaves the record revoked',
         () async {
-      final (_, successor) = await lostUpdateArrangement();
+      final successor = await lostUpdateArrangement();
 
       expect(await revoke(etu.primaryEnId, successor), isNull);
       await enMgr.armRetrofitCapOnFirstAuth(successor);
@@ -337,17 +273,18 @@ void main() {
   });
 
   group('adopting a capped approver\'s children', () {
-    /// A predecessor P that admitted three children, a short-lived successor S
-    /// of P, and a second root so that capping P is permitted. Arming S caps P
-    /// and re-parents every child onto S. Returns P, one child, and S.
+    /// A predecessor P that admitted three children, and a short-lived
+    /// successor S of P. P holds `__manage` without `*`, so it can approve
+    /// and is not a root: a root keeps its life, and this group is about the
+    /// cap and the adoption landing together. Arming S caps P and re-parents
+    /// every child onto S. Returns P, one child, and S.
     Future<(String, String, String)> adoptionArrangement() async {
-      await twoRoots();
       final predecessor = await etu.createPendingEnrollment(
           appName: 'approver',
           deviceName: 'device',
           namespaces: {
-            EnrollmentConstants.allNamespaces: 'rw',
             EnrollmentConstants.enrollManageNamespace: 'rw',
+            'wavi': 'rw',
           },
           apkamKeysExpiryDuration: null);
       await etu.approveEnrollment(etu.primaryEnId, predecessor);

@@ -107,25 +107,6 @@ class EnrollmentManager {
   static int cacheMisses = 0;
   static int cacheInvalidations = 0;
 
-  /// Successors whose cap was DECLINED, against the cache generation at which
-  /// the decision was taken.
-  ///
-  /// A decline deliberately leaves no durable stamp, because it is a judgement
-  /// about state that can change. Without this the expensive half of that
-  /// judgement — a whole-keystore walk looking for another fully privileged
-  /// enrollment — re-ran on every authentication of that successor, forever,
-  /// and the answer that repeats is the expensive one: the walk returns early
-  /// on the first surviving root, so only the "nobody survives" case pays for
-  /// all of it. The triggering posture is ordinary rather than exotic: a
-  /// single-root atSign whose root retrofits asking for a shorter key life.
-  ///
-  /// [cacheInvalidations] is bumped by every enrollment write and by every
-  /// enrollment removal — including the removals that reach the keystore
-  /// without passing through [remove], which [postRemoveHook] catches — so
-  /// any change to any enrollment re-opens the question. In-process only: a
-  /// restart re-decides, which is correct and costs one walk.
-  static final Map<String, int> declinedAtGeneration = {};
-
   final AtSignLogger logger = AtSignLogger('EnrollmentManager');
 
   /// Keep a cache per enrollment key of both the json Map and the
@@ -304,8 +285,8 @@ class EnrollmentManager {
   /// The record write and cache invalidation, without the per-enrollment data
   /// move. Split out so a caller moving data for MANY enrollments can make one
   /// pass and then write each record, rather than paying a whole-keystore walk
-  /// per record. Every write still bumps [cacheInvalidations], which the
-  /// retrofit-cap decline memo keys on.
+  /// per record. Every write still bumps [cacheInvalidations], which is
+  /// what stops a read that a write overtook from repopulating the cache.
   Future<void> _writeEnrollmentRecord(String enId, AtData atData,
       {AtAssertedTimestamps? assertedTimestamps}) async {
     final String ek = buildEnrollmentKey(enId);
@@ -1887,63 +1868,65 @@ class EnrollmentManager {
     return RetrofitCapOutcome.capped;
   }
 
-  /// Arms the retrofit cap on the enrollment [successorEnrollmentId] replaced,
-  /// once, at the first authentication where the conditions below permit it.
+  /// Settles what the enrollment [successorEnrollmentId] replaced, once, at
+  /// the successor's first authentication: the successor is stamped as
+  /// having settled it, the predecessor's approval children move onto the
+  /// successor, and a predecessor that is not fully privileged is put on the
+  /// retrofit cap.
   ///
-  /// Usually that is the successor's very first authentication. When a
-  /// condition declines, nothing is recorded and the question is asked again
-  /// next time, so the arming authentication may be a later one.
+  /// Usually that is the successor's very first authentication. When the
+  /// predecessor is not approved, nothing is recorded and the question is
+  /// asked again next time, so the settling authentication may be a later
+  /// one.
   ///
   /// A no-op for an enrollment that replaced nothing, which is every
   /// enrollment except a retrofit's successor.
   ///
-  /// Armed here rather than where the successor is stored because storing it
-  /// proves only that the SERVER wrote a record. The successor's APKAM private
-  /// half is persisted client-side, so a keyfile write that fails, a read-only
-  /// file, or a process that dies before the flush each leave the successor
-  /// existing on the server and nowhere else — with a clock already started on
-  /// the predecessor, which is by then the only credential that still works.
-  /// An authentication on a connection the successor opened is what proves the
-  /// private half survived and is usable.
+  /// Settled here rather than where the successor is stored because storing
+  /// it proves only that the SERVER wrote a record. The successor's APKAM
+  /// private half is persisted client-side, so a keyfile write that fails, a
+  /// read-only file, or a process that dies before the flush each leave the
+  /// successor existing on the server and nowhere else — with a clock already
+  /// started on the predecessor, which is by then the only credential that
+  /// still works. An authentication on a connection the successor opened is
+  /// what proves the private half survived and is usable.
   ///
-  /// Only the FIRST authentication of any one successor arms. Without that,
-  /// every reconnect would rewrite a full grace period onto the predecessor
-  /// and it would never retire at all.
+  /// Only the FIRST authentication of any one successor settles. Without
+  /// that, every reconnect would rewrite a full grace period onto a capped
+  /// predecessor and it would never retire at all.
   ///
-  /// TWO CONDITIONS STOP THE CAP, and neither stamps the successor: both are
-  /// judgements about state that can change, so they are re-made on the next
+  /// WHICH PREDECESSORS ARE CAPPED. A predecessor holding `*:rw` and
+  /// `__manage:rw` keeps its life: key management is its owner's
+  /// responsibility, and a clock on an atSign's root is a clock on the
+  /// atSign's ability to restore itself. Every other predecessor is capped to
+  /// `min(grace, what its own key-expiry posture leaves it)`. A non-root
+  /// predecessor was created deliberately, by an app with enrollment tooling,
+  /// for one device, so a clock there is safe and useful — and it can never
+  /// be the atSign's last root, so no stranding question is asked of it.
+  ///
+  /// ONE CONDITION STOPS EVERYTHING, and it does not stamp the successor: a
+  /// predecessor that is not approved. It is already retired, and writing it
+  /// back would hand it a fresh ttl it has no business carrying. An unrevoke
+  /// restores an ordinary predecessor, so this must not become permanent; it
+  /// is a judgement about state that can change, re-made on the next
   /// authentication rather than frozen into the record.
   ///
-  /// * **A predecessor that is not approved.** It is already retired, and
-  ///   writing it back would hand it a fresh ttl it has no business carrying.
-  ///   An unrevoke restores an ordinary predecessor, so this must not become
-  ///   permanent.
-  /// * **A predecessor whose retirement would leave the atSign with no
-  ///   unexpiring root.** The predecessor holds full privilege and no OTHER
-  ///   approved root without an expiry would survive it, so capping it leaves
-  ///   nobody able to give the atSign a root back. The successor is not
-  ///   special-cased: it stands in that walk like any other enrollment, and an
-  ///   unexpiring root successor — what a plain retrofit produces — satisfies
-  ///   it, so the cap arms. The successor's own lifetime is never consulted,
-  ///   which is what keeps the grace setting from working backwards.
-  ///
-  /// The decide-and-write half runs under [serialiseMutation], which is what
-  /// makes "no other unexpiring root survives" a safe thing to act on: the
-  /// walk, the stamp, the cap and the adoption of the predecessor's children
-  /// are one critical section, so nothing can remove the root this walk
-  /// counted and nothing can overwrite the records it writes. It is the
+  /// The decide-and-write half runs under [serialiseMutation]. The adoption
+  /// is a read-modify-write of every child record and its lost update is
+  /// permanent — nothing ever re-parents twice — and the stamp is a
+  /// whole-record write of the successor that a concurrent revoke of the
+  /// successor would otherwise overwrite or be overwritten by. It is the
   /// atSign's single enrollment-mutation lock rather than an arming-only one,
-  /// because a concurrent `enroll:revoke` strands the atSign exactly as a
-  /// concurrent arming does and neither touches the other's record.
+  /// because those concurrent writers are the other enrollment verbs.
   ///
   /// The EARLY EXITS are outside it, deliberately. This runs on every APKAM
   /// authentication, after the section that admitted the connection has been
   /// released, and everything except a retrofit's successor leaves at the
-  /// three tests below; taking the section again for them would queue the
+  /// two tests below; taking the section again for them would queue the
   /// authentication a second time, behind whatever mutation started in
-  /// between, to decide nothing. Nothing in them writes, and every one is
-  /// re-made inside the section, so an answer that goes stale between the two
-  /// costs at most an arming deferred to the next authentication.
+  /// between, to decide nothing. Nothing in them writes, and both are re-made
+  /// inside the section, so an answer that goes stale between the two costs
+  /// at most a settling deferred to the next authentication.
   ///
   /// Never throws. This runs after an authentication has already succeeded, and
   /// a predecessor that outlives its window is a slower migration, while an
@@ -1957,13 +1940,8 @@ class EnrollmentManager {
       // Replaced nothing, so there is nothing to cap. This is the exit almost
       // every authentication takes.
       if (cached.retrofitPredecessorEnrollmentId == null) return;
-      // Already armed.
+      // Already settled.
       if (cached.predecessorCapArmedAt != null) return;
-      // Declined already, and nothing has been written since, so the answer
-      // cannot have changed.
-      if (declinedAtGeneration[successorEnrollmentId] == cacheInvalidations) {
-        return;
-      }
     } catch (e) {
       logger.warning('Could not decide whether to arm the retrofit cap for '
           '$successorEnrollmentId: $e');
@@ -1975,26 +1953,15 @@ class EnrollmentManager {
 
   Future<void> _armRetrofitCapOnFirstAuth(String successorEnrollmentId) async {
     try {
-      // The generation the decision is READ at, not the one it finishes at.
-      // Everything below this line awaits, and an enrollment write landing in
-      // that window bumps the counter. Recording the post-bump value would
-      // tell the next authentication that a change the decision never saw is
-      // already accounted for, and the question would not be re-opened.
-      final int decisionGeneration = cacheInvalidations;
-      // Re-asked inside the critical section. The same three tests ran
+      // Re-asked inside the critical section. The same two tests ran
       // outside it so that a plain authentication never takes the lock, and
-      // any of them can have changed while this call waited — another
+      // either can have changed while this call waited — another
       // successor's arming, or a revoke, is exactly what it waited behind.
       final EnrollDataStoreValue cached =
           await getEnrollmentById(successorEnrollmentId);
       final predecessorId = cached.retrofitPredecessorEnrollmentId;
       if (predecessorId == null) return;
       if (cached.predecessorCapArmedAt != null) return;
-      // Declined already, and nothing has been written since, so the answer
-      // cannot have changed.
-      if (declinedAtGeneration[successorEnrollmentId] == decisionGeneration) {
-        return;
-      }
 
       final key = buildEnrollmentKey(successorEnrollmentId);
 
@@ -2006,88 +1973,42 @@ class EnrollmentManager {
             '$predecessorId, which is already gone — nothing to cap');
       }
 
-      bool armPredecessor = false;
-      int? capTtlMillis;
+      // Whether this authentication settles the predecessor — stamps the
+      // successor and moves the predecessor's children — and whether the
+      // predecessor is capped on the way.
+      bool settled = false;
+      bool capPredecessor = false;
       final bool predecessorGone = predecessor == null;
 
-      if (predecessor != null) {
-        if (predecessor.approval?.state != EnrollmentStatus.approved.name) {
-          // Not capped: a predecessor that is denied, revoked or expired is
-          // already retired, and writing it back would give it a fresh ttl it
-          // has no business carrying. Left unstamped deliberately — an
-          // unrevoke restores an ordinary approved predecessor, and a
-          // transient state must not become a permanent exemption.
-          logger.info(
-              'Enrollment $successorEnrollmentId replaced $predecessorId, '
-              'which is ${predecessor.approval?.state} — not capping it');
-          declinedAtGeneration[successorEnrollmentId] = decisionGeneration;
-        } else {
-          final now = DateTime.now().toUtc();
-          final AtData? predecessorRecord =
-              await keyStore.get(buildEnrollmentKey(predecessorId));
-          capTtlMillis = retrofitCapTtlMillis(
-              predecessorRecord?.metaData, predecessor, now);
-          final deadline = now.add(Duration(milliseconds: capTtlMillis));
-
-          // Spared only when capping would leave the atSign unable to restore
-          // itself: the predecessor holds FULL privilege and no OTHER approved
-          // root without an expiry would be left behind. Full privilege rather
-          // than the ability to approve, because approving is checked per
-          // namespace against what the approver holds — a `__manage`-only
-          // enrollment can admit new enrollments and can never admit one
-          // carrying `*`, so it keeps an atSign running without being able to
-          // give it a root back.
-          //
-          // ⛔ The successor gets NO shortcut here, though satisfying this is
-          // the ordinary reason a retrofit's cap arms. It is in the keystore,
-          // approved, and is not the excluded predecessor, so the walk finds
-          // it on the walk's own terms. A separate deadline-relative test used
-          // to short-circuit that walk, and it went on asking whether the
-          // successor outlived the deadline after the walk had been given a
-          // stricter question — so a successor whose posture merely EXCEEDED
-          // the grace skipped the check entirely and the predecessor was
-          // capped with nothing verified. Asking for a LONGER-lived credential
-          // switched the protection off. One question, asked in one place, is
-          // what stops that recurring.
-          //
-          // The cost is a keystore walk per retrofit successor rather than per
-          // decline, bounded by the `predecessorCapArmedAt` stamp: it runs
-          // once for a successor that arms.
-          final successorExpiry =
-              (await keyStore.get(key))?.metaData?.expiresAt;
-          if (isUsableRootEnrollment(predecessorId, predecessor) &&
-              !await hasUnexpiringRootEnrollment({predecessorId})) {
-            // The REMEDY is named, because a decline is otherwise a dead end
-            // the operator cannot see out of. An atSign whose only root asks
-            // for a bounded key life declines here on every authentication,
-            // and the same stranding rule refuses both routes that could
-            // revoke that root — so the predecessor is un-retirable and
-            // nothing anywhere says what would change that. What changes it
-            // is another root that does not expire; once one exists this
-            // decline stops firing on the next authentication, and the
-            // predecessor can then be retired by ordinary means.
-            logger.warning(
-                'Not capping $predecessorId at $deadline on the word of '
-                '$successorEnrollmentId, which expires at $successorExpiry: '
-                '$predecessorId holds full privilege and no other approved '
-                'root without an expiry would be left. The atSign would be '
-                'left unable to restore a root. To retire $predecessorId, '
-                'first approve an enrollment holding rw on both '
-                '${EnrollmentConstants.allNamespaces} and '
-                '${EnrollmentConstants.enrollManageNamespace} with NO key '
-                'expiry, and then revoke or delete $predecessorId');
-            declinedAtGeneration[successorEnrollmentId] = decisionGeneration;
-          } else {
-            armPredecessor = true;
-          }
-        }
+      if (predecessorGone) {
+        // Settled: nothing can bring the predecessor back, and re-walking the
+        // lookup on every future connection buys nothing. Its children are
+        // orphans already, and the successor is what they should have been
+        // hanging off.
+        settled = true;
+      } else if (predecessor.approval?.state != EnrollmentStatus.approved.name) {
+        // Not settled, and not capped: a predecessor that is denied, revoked
+        // or expired is already retired, and writing it back would give it a
+        // fresh ttl it has no business carrying. Left unstamped deliberately —
+        // an unrevoke restores an ordinary approved predecessor, and a
+        // transient state must not become a permanent exemption.
+        logger.info('Enrollment $successorEnrollmentId replaced $predecessorId, '
+            'which is ${predecessor.approval?.state} — not capping it');
+      } else if (predecessor.isRootEnrollment) {
+        // A fully privileged predecessor keeps its life. Its children still
+        // move: the successor is the same principal re-keyed and stands where
+        // the predecessor stood, whatever clock the predecessor is or is not
+        // on.
+        logger.info('Enrollment $successorEnrollmentId replaced $predecessorId, '
+            'which holds full privilege and keeps its life; what it admitted '
+            'now hangs off its successor');
+        settled = true;
+      } else {
+        settled = true;
+        capPredecessor = true;
       }
 
-      // Recorded only when the cap is going to fire, or when the predecessor
-      // is permanently gone. A decline is a judgement about state that can
-      // change — an unrevoke, a longer-lived sibling — so it must be re-made
-      // on the next authentication rather than frozen here.
-      if (!armPredecessor && !predecessorGone) return;
+      if (!settled) return;
 
       // Read immediately before the write. The critical section is what
       // closes the lost update — no other enrollment mutation can be in
@@ -2136,40 +2057,33 @@ class EnrollmentManager {
               ? null
               : AtAssertedTimestamps(expiresAt: storedExpiry));
 
-      // The cap goes LAST, after the stamp. If a write fails between the two,
-      // the successor is recorded as processed and the predecessor simply
-      // keeps the expiry it already had — the migration is slower and nothing
-      // else moves. The other order fails far worse: a capped predecessor with
-      // no stamp is re-capped on every later authentication, each time with a
+      // The cap goes AFTER the stamp. If a write fails between the two, the
+      // successor is recorded as processed and the predecessor simply keeps
+      // the expiry it already had — the migration is slower and nothing else
+      // moves. The other order fails far worse: a capped predecessor with no
+      // stamp is re-capped on every later authentication, each time with a
       // fresh full grace, so it never retires at all.
-      if (armPredecessor && predecessor != null) {
+      if (capPredecessor) {
         final RetrofitCapOutcome outcome =
             await capEnrollmentExpiry(predecessorId);
-        // The stamp goes on BEFORE the cap deliberately — a capped predecessor
-        // with no stamp is re-capped with a fresh full grace on every later
-        // authentication and never retires. But that ordering means a cap
-        // which declines leaves a stamp claiming the question is settled when
-        // it is not, and the stamp is durable while the reason was transient:
-        // the predecessor was approved when the decision was taken and had
-        // been revoked by the time of the write. An un-revoke would then
-        // restore it with no expiry and no successor able to re-arm, forever.
-        //
-        // So the stamp is taken back, and ONLY for that outcome. A predecessor
-        // that is genuinely gone stays stamped: nothing can bring it back, and
-        // re-walking the lookup on every future connection buys nothing.
+        // That ordering means a cap which declines at the write leaves a
+        // stamp claiming the question is settled when it is not, and the
+        // stamp is durable while the reason was transient: the predecessor
+        // was approved when the decision was taken and had been revoked by
+        // the time of the write. An un-revoke would then restore it with no
+        // expiry and no successor able to re-arm, forever. So the stamp is
+        // taken back, and ONLY for that outcome; the predecessor is live, so
+        // its children stay where they are.
         if (outcome == RetrofitCapOutcome.notApproved ||
             outcome == RetrofitCapOutcome.unreadable) {
           await _clearCapStamp(successorEnrollmentId, key);
-          declinedAtGeneration[successorEnrollmentId] = decisionGeneration;
-        } else {
-          // Only once the predecessor really is on its way out. The two
-          // outcomes above leave it live and the stamp is taken back, so its
-          // children stay where they are. `predecessorGone` adopts too: those
-          // children are orphans already, and the successor is what they
-          // should have been hanging off.
-          await _adoptApprovalChildren(predecessorId, successorEnrollmentId);
+          return;
         }
       }
+      // The children move whenever the stamp stands: off a capped
+      // predecessor, off a root that keeps its life, and off one that is
+      // already gone.
+      await _adoptApprovalChildren(predecessorId, successorEnrollmentId);
     } catch (e) {
       logger.warning('Could not arm the retrofit cap for '
           '$successorEnrollmentId: $e');
