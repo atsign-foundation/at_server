@@ -218,6 +218,226 @@ class EnrollmentManager {
         '$atSign');
   }
 
+  /// The id of the enrollment the atSign's flat legacy credential migrates
+  /// into. A literal, so that a client sending no id and a client sending
+  /// this one authenticate as the same record.
+  static const String primaryEnrollmentId = 'primary';
+
+  /// What [primaryEnrollmentId] is recorded as: the app and device names an
+  /// owner sees in the roster for the credential they onboarded with.
+  static const String primaryEnrollmentName = 'legacy';
+
+  /// The enrollment record [primaryEnrollmentId] names, or null when the
+  /// atSign has never held one.
+  Future<EnrollDataStoreValue?> primaryEnrollment() async {
+    try {
+      return await getEnrollmentById(primaryEnrollmentId);
+    } on KeyNotFoundException {
+      return null;
+    }
+  }
+
+  /// Mints [primaryEnrollmentId] from [apkamPublicKey]: approved, `*:rw` and
+  /// `__manage:rw`, no expiry, named [primaryEnrollmentName] as both app and
+  /// device, with no parent and no predecessor. [signingAlgo] is the
+  /// algorithm the key verified under on the wire, or null for a key found in
+  /// the store, which every reader treats as `rsa2048` unless the wire says
+  /// otherwise.
+  ///
+  /// EXEMPT from the key-uniqueness rule, deliberately: this mints from a key
+  /// the connection just proved, or that the store already holds, whatever
+  /// else holds it. Every other holder is logged at shout instead. A duplicate
+  /// this leaves is visible in `enroll:list` and revocable by name; the rule
+  /// stops NEW duplicates, which is where a duplicate can be prevented rather
+  /// than discovered.
+  ///
+  /// Must be called inside [serialiseMutation]; [absorbFlatKeyIntoPrimary]
+  /// and [migrateFlatKeyAtStartup] are the callers and take it.
+  Future<void> mintPrimary(String apkamPublicKey, {String? signingAlgo}) async {
+    await _shoutOtherHoldersOf(apkamPublicKey, signingAlgo);
+    final EnrollDataStoreValue value = EnrollDataStoreValue(
+        primaryEnrollmentName,
+        primaryEnrollmentName,
+        primaryEnrollmentName,
+        apkamPublicKey)
+      ..namespaces = {
+        EnrollmentConstants.allNamespaces: 'rw',
+        EnrollmentConstants.enrollManageNamespace: 'rw',
+      }
+      ..requestType = EnrollRequestType.newEnrollment
+      ..approval = EnrollApproval(EnrollmentStatus.approved.name)
+      ..signingAlgo = signingAlgo;
+    await put(primaryEnrollmentId, AtData()..data = jsonEncode(value.toJson()),
+        EnrollmentStatus.approved);
+    logger.shout('Minted enrollment $primaryEnrollmentId from the atSign\'s '
+        'flat legacy credential; a legacy pkam: now authenticates as it');
+  }
+
+  /// Rotates [primaryEnrollmentId] onto [apkamPublicKey], leaving everything
+  /// else about the record — its status included — as it stands. Same
+  /// exemption and the same logging as [mintPrimary].
+  Future<void> _rotatePrimary(String apkamPublicKey, String? signingAlgo,
+      EnrollDataStoreValue primary) async {
+    await _shoutOtherHoldersOf(apkamPublicKey, signingAlgo);
+    primary
+      ..apkamPublicKey = apkamPublicKey
+      ..signingAlgo = signingAlgo;
+    final EnrollmentStatus status =
+        EnrollmentStatus.values.asNameMap()[primary.approval?.state ?? ''] ??
+            EnrollmentStatus.approved;
+    final String ek = buildEnrollmentKey(primaryEnrollmentId);
+    final AtData record = (await keyStore.get(ek)) ?? AtData();
+    record.data = jsonEncode(primary.toJson());
+    final DateTime? storedExpiry = record.metaData?.expiresAt;
+    await put(primaryEnrollmentId, record, status,
+        assertedTimestamps: storedExpiry == null
+            ? null
+            : AtAssertedTimestamps(expiresAt: storedExpiry));
+    logger.shout('Rotated enrollment $primaryEnrollmentId onto the key the '
+        'atSign\'s flat legacy credential held');
+  }
+
+  Future<void> _shoutOtherHoldersOf(
+      String apkamPublicKey, String? signingAlgo) async {
+    for (final (String id, EnrollDataStoreValue value)
+        in await storedEnrollments()) {
+      if (id == primaryEnrollmentId) continue;
+      if (sameApkamKeyMaterial(
+          apkamPublicKey, signingAlgo, value.apkamPublicKey, value.signingAlgo)) {
+        logger.shout('Enrollment $id (${value.approval?.state}) holds the '
+            'same key as $primaryEnrollmentId; one keypair under two names. '
+            'Revoke or delete whichever should not stand');
+      }
+    }
+  }
+
+  /// Removes the flat legacy credential from the store. Nothing on the wire
+  /// can put it back; see `AbstractVerbHandler.refuseFlatCredentialWrite`.
+  Future<void> _deleteFlatKey() =>
+      keyStore.remove(AtConstants.atPkamPublicKey, skipCommit: true);
+
+  /// The flat legacy credential migrates into [primaryEnrollmentId] on the
+  /// wire: mints `primary` from it when absent, rotates `primary` onto it when
+  /// present with a different key, and deletes the flat key in the same act,
+  /// so there is one credential and one record from that moment on. Returns
+  /// whether there was a flat key to absorb.
+  ///
+  /// Called by a legacy `pkam:` that has just verified against the flat key.
+  /// [signingAlgo] is what the wire said the key was, recorded on `primary`
+  /// so that later logins are judged under the algorithm the key really is.
+  ///
+  /// The deletion follows the mint immediately. A crash between the two
+  /// leaves both, which the next startup resolves through
+  /// [migrateFlatKeyAtStartup]: `primary` is then a root holding the key.
+  ///
+  /// Inside the enrollment-mutation section: a second legacy login waiting on
+  /// it finds no flat key and takes the fallback of verifying against the
+  /// record this one wrote.
+  Future<bool> absorbFlatKeyIntoPrimary({String? signingAlgo}) =>
+      serialiseMutation(() async {
+        final String? flat = await legacyPkamPublicKey();
+        if (flat == null) return false;
+        final EnrollDataStoreValue? primary = await primaryEnrollment();
+        if (primary == null) {
+          await mintPrimary(flat, signingAlgo: signingAlgo);
+        } else if (!sameApkamKeyMaterial(
+            flat, signingAlgo, primary.apkamPublicKey, primary.signingAlgo)) {
+          await _rotatePrimary(flat, signingAlgo, primary);
+        }
+        await _deleteFlatKey();
+        return true;
+      });
+
+  /// What [migrateFlatKeyAtStartup] found and did, for the startup log and
+  /// for tests.
+  Future<StartupFlatKeyOutcome> migrateFlatKeyAtStartup() =>
+      serialiseMutation(_migrateFlatKeyAtStartupUnderLock);
+
+  /// The flat legacy credential at startup, before any client connects, in
+  /// two steps under the enrollment-mutation section.
+  ///
+  /// FIRST, a flat key that is some root's copy is deleted. An older
+  /// server's CRAM auto-approve copied the first root's key beside it; a
+  /// revoked root's copy is the dual-identity case where the app's
+  /// revocation never reached it. Root grants only, because a subordinate
+  /// must not be able to trigger this: an OTP request takes a client-chosen
+  /// key, and only a root can approve a root-granted record. Approved or
+  /// revoked only, because a pending request can name root grants unapproved,
+  /// and only a record that was once approved was ever a root.
+  ///
+  /// The stranding question is asked first. If no approved, fully privileged,
+  /// unexpiring enrollment with a non-empty key would survive the deletion,
+  /// it is skipped and the second step migrates the key instead: that case is
+  /// reachable only where the root's own keypair revoked itself, so
+  /// reinstating it as `primary` hands nobody anything they did not already
+  /// hold, and gives an owner who revoked their only root by mistake a
+  /// visible, revocable name for the keypair they kept using.
+  ///
+  /// SECOND, any remaining flat key is migrated as [absorbFlatKeyIntoPrimary]
+  /// migrates one on the wire, with one difference: a flat key found beside
+  /// an existing `primary` holding a DIFFERENT key is deleted and logged,
+  /// never absorbed. A key lying in the store at startup is not an owner's
+  /// act on the wire.
+  ///
+  /// After this, no flat key exists on a running server.
+  Future<StartupFlatKeyOutcome> _migrateFlatKeyAtStartupUnderLock() async {
+    final String? flat = await legacyPkamPublicKey();
+    if (flat == null) return StartupFlatKeyOutcome.none;
+
+    (String, EnrollDataStoreValue)? rootHolder;
+    for (final (String id, EnrollDataStoreValue value)
+        in await storedEnrollments()) {
+      if (id == primaryEnrollmentId) continue;
+      if (!value.isRootEnrollment) continue;
+      final String? state = value.approval?.state;
+      if (state != EnrollmentStatus.approved.name &&
+          state != EnrollmentStatus.revoked.name) {
+        continue;
+      }
+      if (sameApkamKeyMaterial(
+          flat, value.signingAlgo, value.apkamPublicKey, value.signingAlgo)) {
+        rootHolder = (id, value);
+        break;
+      }
+    }
+    if (rootHolder != null) {
+      final (String id, EnrollDataStoreValue value) = rootHolder;
+      if (await hasUnexpiringRootEnrollmentRecord({})) {
+        await _deleteFlatKey();
+        logger.shout('Deleted the flat legacy credential '
+            '(${AtConstants.atPkamPublicKey}): it was a copy of the key '
+            'enrollment $id (${value.approval?.state}) holds, and that '
+            'enrollment is what a client should authenticate as');
+        return StartupFlatKeyOutcome.deletedAsCopyOfRoot;
+      }
+      logger.shout('The keypair of ${value.approval?.state} enrollment $id '
+          'is reinstated as $primaryEnrollmentId because nothing else '
+          'survives: no other approved, fully privileged enrollment without '
+          'an expiry holds a key');
+    }
+
+    final EnrollDataStoreValue? primary = await primaryEnrollment();
+    if (primary == null) {
+      await mintPrimary(flat);
+      await _deleteFlatKey();
+      return StartupFlatKeyOutcome.migratedIntoPrimary;
+    }
+    await _deleteFlatKey();
+    if (sameApkamKeyMaterial(
+        flat, primary.signingAlgo, primary.apkamPublicKey, primary.signingAlgo)) {
+      logger.info('Deleted the flat legacy credential: $primaryEnrollmentId '
+          'already holds its key, so this was the residue of a migration '
+          'that did not finish');
+      return StartupFlatKeyOutcome.deletedAsResidue;
+    }
+    logger.shout('Deleted a flat legacy credential '
+        '(${AtConstants.atPkamPublicKey}) that held a key '
+        '$primaryEnrollmentId does not: a key lying in the store at startup '
+        'is not an owner\'s act on the wire, and it is not absorbed. '
+        '$primaryEnrollmentId is untouched');
+    return StartupFlatKeyOutcome.deletedAsStray;
+  }
+
   /// The atSign's legacy PKAM credential, or NULL when it holds none that
   /// could authenticate anybody.
   ///
@@ -2186,4 +2406,24 @@ class EnrollmentManager {
           '$successorEnrollmentId: $e');
     }
   }
+}
+
+/// What [EnrollmentManager.migrateFlatKeyAtStartup] found the flat legacy
+/// credential to be, and did about it.
+enum StartupFlatKeyOutcome {
+  /// No flat key was stored.
+  none,
+
+  /// A copy of an approved or revoked root's key, with another unexpiring
+  /// root surviving: deleted.
+  deletedAsCopyOfRoot,
+
+  /// Minted `primary` from it, then deleted it.
+  migratedIntoPrimary,
+
+  /// `primary` already held it — a migration that did not finish: deleted.
+  deletedAsResidue,
+
+  /// `primary` holds a different key: deleted and logged, `primary` untouched.
+  deletedAsStray,
 }
