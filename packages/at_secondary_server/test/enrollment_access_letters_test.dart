@@ -99,7 +99,7 @@ void main() {
                     'appName': 'wavi',
                     'deviceName': 'pixel-${Uuid().v4()}',
                     'namespaces': namespaces,
-                    'apkamPublicKey': 'aPublicKeyValue',
+                    'apkamPublicKey': 'aPublicKeyValue-${Uuid().v4()}',
                     'encryptedAPKAMSymmetricKey': 'anEncryptedKey',
                   })}'),
           inboundConnection);

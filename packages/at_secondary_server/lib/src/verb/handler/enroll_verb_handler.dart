@@ -422,6 +422,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // (appName, deviceName).
       await preventDuplicateEnrollRequest(enrollParams);
     }
+    // Every path that installs key material: the CRAM auto-approve, the
+    // retrofit and the OTP request alike. After the (appName, deviceName)
+    // rule, so a request that breaks both is told about the one it can fix by
+    // renaming; before anything is written, so a refusal persists nothing.
+    await _refuseKeyHeldByAnotherEnrollment(
+        enrollParams.apkamPublicKey!, enrollParams.signingAlgo);
 
     var newEnrollmentId = Uuid().v4();
     var enrollmentKey = enMgr.buildEnrollmentKey(newEnrollmentId);
@@ -715,9 +721,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     enrollmentValue.encryptedAPKAMSymmetricKey =
         enrollParams.encryptedAPKAMSymmetricKey;
     enrollmentValue.approval = EnrollApproval(EnrollmentStatus.pending.name);
-    await _storeNotification(enrollmentKey, enrollParams, currentAtSign);
     responseJson['status'] = 'pending';
+    // Every check before the notification: an approver must not be told
+    // about a request that was refused and never stored.
     _validateRecordSize(enrollmentValue);
+    await _storeNotification(enrollmentKey, enrollParams, currentAtSign);
     AtData enrollData = AtData()
       ..data = jsonEncode(enrollmentValue.toJson())
       // Set TTL to the pending enrollments.
@@ -1282,6 +1290,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         signingAlgo: newSigningAlgo,
         signature: enrollParams.apkamPublicKeySignature,
       );
+      // A rotation installs key material like any request does. The record
+      // re-sending its own current key is not a collision with itself.
+      await _refuseKeyHeldByAnotherEnrollment(
+          enrollParams.apkamPublicKey!, newSigningAlgo,
+          excluding: enId);
       enVal.apkamPublicKey = enrollParams.apkamPublicKey!;
       if (enrollParams.signingAlgo != null) {
         enVal.signingAlgo = enrollParams.signingAlgo;
@@ -1884,42 +1897,55 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  /// Checks whether an enrollment with the same appName and deviceName already exists for the given request.
-  /// If a matching enrollment is found, [AtEnrollmentException] exception is thrown.
-  /// Otherwise, the enrollment request is accepted.
+  /// Refuses a request whose (appName, deviceName) an approved or pending
+  /// enrollment already holds, with [IllegalStateException].
+  ///
+  /// Read off the stored roster rather than the visible one, the same walk
+  /// [_refuseKeyHeldByAnotherEnrollment] makes. An elapsed-but-unswept record
+  /// reports its state as `expired` there, so it holds nothing here either.
   @visibleForTesting
   Future<void> preventDuplicateEnrollRequest(EnrollParams enrollParams) async {
-    // Fetches all the enrollment keys from the keystore.
-    List<dynamic> enrollmentKeys = await (await keyStore.getKeys(
-            regex: EnrollmentConstants.enrollmentsRegex))
-        .toList();
-
-    // Iterate through the existing enrollments and verify that there is no enrollment with the same
-    // appName and deviceName combination, and a status of 'pending' or 'approved'
-    for (String key in enrollmentKeys) {
-      AtData atData = AtData();
-      try {
-        atData = (await keyStore.get(key))!;
-      } on KeyNotFoundException {
-        logger.finest('An enrollment with $key does not exist or expired');
-      }
-      if (atData.data == null) {
-        continue;
-      }
-      EnrollDataStoreValue enrollDataStoreValue =
-          EnrollDataStoreValue.fromJson(jsonDecode(atData.data!));
-
-      if ((enrollParams.appName == enrollDataStoreValue.appName &&
-              enrollParams.deviceName == enrollDataStoreValue.deviceName) &&
-          (enrollDataStoreValue.approval?.state ==
-                  EnrollmentStatus.approved.name ||
-              enrollDataStoreValue.approval?.state ==
-                  EnrollmentStatus.pending.name)) {
-        String enrollmentId = key.substring(0, key.indexOf('.'));
+    for (final (String enrollmentId, EnrollDataStoreValue existing)
+        in await enMgr.storedEnrollments()) {
+      if (enrollParams.appName == existing.appName &&
+          enrollParams.deviceName == existing.deviceName &&
+          (existing.approval?.state == EnrollmentStatus.approved.name ||
+              existing.approval?.state == EnrollmentStatus.pending.name)) {
         throw IllegalStateException(
-            'Another enrollment with id $enrollmentId exists with the app name: ${enrollParams.appName} and device name: ${enrollParams.deviceName} in ${enrollDataStoreValue.approval?.state} state');
+            'Another enrollment with id $enrollmentId exists with the app name: ${enrollParams.appName} and device name: ${enrollParams.deviceName} in ${existing.approval?.state} state');
       }
     }
+  }
+
+  /// Refuses to install [apkamPublicKey] when a stored enrollment, in ANY
+  /// status, already holds that key material — with [IllegalStateException],
+  /// and before anything is written.
+  ///
+  /// One keypair under two names is two identities with separate lifecycles:
+  /// revoking one leaves the key authenticating as the other. So a revoked or
+  /// denied holder blocks re-enrolment with the same keypair until it is
+  /// deleted, and an expired record blocks until the sweep removes it.
+  /// [excluding] is the enrollment re-sending its own current key.
+  ///
+  /// The refusal names the holding enrollment only under `testingMode`, as a
+  /// diagnostic for the rigs: to an unauthenticated requester the roster is
+  /// not its to read, and an authenticated one can list it.
+  Future<void> _refuseKeyHeldByAnotherEnrollment(
+      String apkamPublicKey, String? signingAlgo,
+      {String? excluding}) async {
+    final (String, EnrollDataStoreValue)? holder = await enMgr
+        .holderOfApkamPublicKey(apkamPublicKey, signingAlgo,
+            excluding: excluding);
+    if (holder == null) return;
+    final (String holderId, EnrollDataStoreValue value) = holder;
+    logger.warning('Refusing to install an APKAM public key that enrollment '
+        '$holderId (${value.approval?.state}) already holds');
+    final String named = AtSecondaryConfig.testingMode
+        ? ' (held by enrollment $holderId, ${value.approval?.state})'
+        : '';
+    throw IllegalStateException(
+        'The apkamPublicKey is already held by another enrollment on this '
+        'atSign; every enrollment needs a keypair of its own$named');
   }
 
   /// Throws [IllegalArgumentException] if parameters are not valid.

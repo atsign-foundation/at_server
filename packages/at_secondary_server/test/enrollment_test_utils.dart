@@ -77,11 +77,15 @@ class ETU {
       required Map<String, String> namespaces,
       required Duration? apkamKeysExpiryDuration,
       Map<String, dynamic>? apsk,
-      String? apskLegacy}) async {
+      String? apskLegacy,
+      String? apkamPublicKey,
+      String? signingAlgo}) async {
     final EnrollParams ep = EnrollParams()
       ..appName = appName
       ..deviceName = deviceName
-      ..apkamPublicKey = 'apkam public key $appName $deviceName'
+      ..apkamPublicKey =
+          apkamPublicKey ?? 'apkam public key $appName $deviceName'
+      ..signingAlgo = signingAlgo
       ..encryptedAPKAMSymmetricKey =
           'encrypted apkam aes key $appName $deviceName'
       ..namespaces = namespaces
@@ -148,6 +152,22 @@ class ETU {
     expect(m['enrollmentId'], enIdToRevoke);
   }
 
+  Future<void> denyEnrollment(String denierEnId, String enIdToDeny) async {
+    inboundConnection.metaData.isAuthenticated = true;
+    inboundConnection.metaData.enrollmentId = denierEnId;
+    EnrollParams p = EnrollParams()..enrollmentId = enIdToDeny;
+    final denyResponse = Response();
+    await evh.processVerb(
+      denyResponse,
+      getVerbParam(VerbSyntax.enroll, 'enroll:deny:${jsonEncode(p.toJson())}'),
+      inboundConnection,
+    );
+    expect(denyResponse.isError, false);
+    final m = jsonDecode(denyResponse.data!);
+    expect(m['status'], EnrollmentStatus.denied.name);
+    expect(m['enrollmentId'], enIdToDeny);
+  }
+
   Future<void> unrevokeEnrollment(
       String unRevokerEnId, String enIdToUnRevoke) async {
     inboundConnection.metaData.isAuthenticated = true;
@@ -183,12 +203,16 @@ class ETU {
     expect(m['enrollmentId'], enIdToDelete);
   }
 
+  /// Serial for the keys [createPrimaryEnrollment] mints: a test that
+  /// creates a second CRAM enrollment needs it to carry a key of its own.
+  static int _primaryKeySerial = 0;
+
   Future<String> createPrimaryEnrollment(
       {Map<String, dynamic>? apsk, String? apskLegacy}) async {
     EnrollParams ep = EnrollParams()
       ..appName = 'primary'
       ..deviceName = 'primary'
-      ..apkamPublicKey = 'apkam public key'
+      ..apkamPublicKey = 'apkam public key ${_primaryKeySerial++}'
       ..encryptedAPKAMSymmetricKey = 'encrypted apkam aes key'
       ..apsk = apsk
       ..apskLegacy = apskLegacy

@@ -103,7 +103,7 @@ void main() {
           getVerbParam(
               VerbSyntax.enroll,
               'enroll:request:{"appName":"wavi","deviceName":"pixel",'
-              '"namespaces":{"wavi":"rw"},"apkamPublicKey":"APKAM_KEY"}'),
+              '"namespaces":{"wavi":"rw"},"apkamPublicKey":"APKAM_KEY-${Uuid().v4()}"}'),
           inboundConnection);
       return jsonDecode(response.data!)['enrollmentId'];
     }
@@ -132,7 +132,7 @@ void main() {
           'enroll:request:{"appName":"buzz","deviceName":"pixel",'
           '"namespaces":{"buzz":"rw"},"otp":"$otp",'
           '"encryptedAPKAMSymmetricKey":"SYMKEY",'
-          '"apkamPublicKey":"APKAM_KEY"}');
+          '"apkamPublicKey":"APKAM_KEY-${Uuid().v4()}"}');
       await enrollVerbHandler.processVerb(
           response, requestParams, inboundConnection);
       final String enrollmentId = jsonDecode(response.data!)['enrollmentId'];

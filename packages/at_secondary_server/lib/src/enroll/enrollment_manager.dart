@@ -6,6 +6,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/enroll/enrollment_revocation_event.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/utils/apkam_signature_verifier.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:meta/meta.dart';
@@ -542,6 +543,102 @@ class EnrollmentManager {
       if (re.hasMatch(key)) keys.add(key);
     }
     return keys;
+  }
+
+  /// Every stored enrollment, as its id and decoded value: expired records
+  /// included, each reporting its state as `expired` the way
+  /// [getEnrollmentByFullKey] does. For the questions that have to be asked
+  /// of the WHOLE roster before a write — whether a key is already held,
+  /// whether an (appName, deviceName) is already taken.
+  ///
+  /// A record swept between the listing and the read is skipped, and so is
+  /// one that does not decode, with a log line. A STORE fault is not caught:
+  /// swallowing it would answer "nobody holds this" about a roster that was
+  /// never read, and the write the question guards would go ahead.
+  Future<List<(String, EnrollDataStoreValue)>> storedEnrollments() async {
+    final List<(String, EnrollDataStoreValue)> out = [];
+    for (final String ek in await getAllEnrollmentKeys(includeExpired: true)) {
+      try {
+        out.add((getIdFromKey(ek), await getEnrollmentByFullKey(ek)));
+      } on KeyNotFoundException {
+        continue;
+      } on FormatException catch (e) {
+        logger.severe('Enrollment $ek does not decode and is left out of '
+            'the stored roster: $e');
+      } on TypeError catch (e) {
+        logger.severe('Enrollment $ek does not decode and is left out of '
+            'the stored roster: $e');
+      }
+    }
+    return out;
+  }
+
+  /// The stored enrollment, in ANY status, holding the key material that
+  /// [apkamPublicKey] spells under [signingAlgo]; null when none does.
+  ///
+  /// Every status counts, expired-but-unswept records included: a key
+  /// material installed under two names is two identities with separate
+  /// lifecycles, whatever state the first one is in, and a revoked or denied
+  /// holder blocks re-enrolment with the same keypair until it is deleted.
+  ///
+  /// [excluding] is the enrollment re-sending its own current key, which is
+  /// not a collision with itself. Compared by [sameApkamKeyMaterial].
+  Future<(String, EnrollDataStoreValue)?> holderOfApkamPublicKey(
+      String apkamPublicKey, String? signingAlgo,
+      {String? excluding}) async {
+    final String? excluded =
+        excluding == null ? null : canonicalEnrollmentId(excluding);
+    for (final (String id, EnrollDataStoreValue value)
+        in await storedEnrollments()) {
+      if (id == excluded) continue;
+      if (sameApkamKeyMaterial(
+          apkamPublicKey, signingAlgo, value.apkamPublicKey, value.signingAlgo)) {
+        return (id, value);
+      }
+    }
+    return null;
+  }
+
+  /// The bytes [publicKey] spells under [signingAlgo]: hex, in either case,
+  /// for `ecc_secp256r1`, base64 for every other algorithm. Null when it does
+  /// not decode as that, which a caller compares as text instead.
+  ///
+  /// Decoded rather than compared as strings because one key has several
+  /// spellings: hex decodes case-insensitively, and base64 tolerates
+  /// surrounding whitespace. A uniqueness rule that compared the spelling
+  /// would be defeated by re-casing.
+  static List<int>? apkamKeyMaterial(String publicKey, String? signingAlgo) {
+    final String spelled = publicKey.trim();
+    if (signingAlgo == ApkamSignatureVerifier.eccAlgo) {
+      if (spelled.length.isOdd ||
+          !RegExp(r'^[0-9a-fA-F]+$').hasMatch(spelled)) {
+        return null;
+      }
+      return List<int>.generate(spelled.length ~/ 2,
+          (i) => int.parse(spelled.substring(2 * i, 2 * i + 2), radix: 16));
+    }
+    try {
+      return base64Decode(spelled);
+    } on FormatException {
+      return null;
+    }
+  }
+
+  /// True when the two spellings name the same key material: equal decoded
+  /// bytes where both decode under their own algorithm, and equal trimmed
+  /// text otherwise.
+  static bool sameApkamKeyMaterial(
+      String a, String? algoA, String b, String? algoB) {
+    final List<int>? bytesA = apkamKeyMaterial(a, algoA);
+    final List<int>? bytesB = apkamKeyMaterial(b, algoB);
+    if (bytesA != null && bytesB != null) {
+      if (bytesA.length != bytesB.length) return false;
+      for (int i = 0; i < bytesA.length; i++) {
+        if (bytesA[i] != bytesB[i]) return false;
+      }
+      return true;
+    }
+    return a.trim() == b.trim();
   }
 
   /// Fetch an enrollment key from the keystore.

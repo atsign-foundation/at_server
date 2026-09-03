@@ -361,7 +361,7 @@ void main() {
       Response response = Response();
       HashMap<String, String?> monitorVerbParams = HashMap<String, String?>();
       String enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"rw"},"apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"rw"},"apkamPublicKey":"dummy_apkam_public_key-${Uuid().v4().hashCode}","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
       HashMap<String, String?> enrollmentRequestVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.authType = AuthType.cram;
@@ -441,7 +441,7 @@ void main() {
           ',"appName":"$appName"'
           ',"deviceName":"$deviceName"'
           ',"namespaces":${jsonEncode(namespaces)}'
-          ',"apkamPublicKey":"dummy_apkam_public_key"'
+          ',"apkamPublicKey":"dummy_apkam_public_key-${Uuid().v4().hashCode}"'
           ',"encryptedAPKAMSymmetricKey":"dummy_encrypted_apkam_symmetric_key"'
           '}';
       HashMap<String, String?> enrollmentRequestVerbParams =
@@ -979,7 +979,7 @@ Future<String> setEnrollmentKey(String namespace) async {
   await otpVerbHandler.processVerb(response, totpVerbParams, inboundConnection);
   // Enroll request
   String enrollmentRequest =
-      'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":$namespace,"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
+      'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":$namespace,"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key-${Uuid().v4().hashCode}","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
   HashMap<String, String?> enrollmentRequestVerbParams =
       getVerbParam(VerbSyntax.enroll, enrollmentRequest);
   inboundConnection.metaData.isAuthenticated = false;
