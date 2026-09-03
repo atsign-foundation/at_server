@@ -812,40 +812,6 @@ class AtSecondaryConfig {
         720;
   }
 
-  /// How long the atSign's FLAT PKAM credential survives after an owner
-  /// connection first mints an enrollment.
-  ///
-  /// The flat credential — `privatekey:at_pkam_publickey` — authenticates
-  /// with no enrollment id, so nothing on the roster names it and no verb can
-  /// withdraw it. An owner that has started minting enrollments has a
-  /// credential that CAN be withdrawn, and this is how long the old one keeps
-  /// working while the owner's other devices move across.
-  ///
-  /// A MIGRATION AID, not a deadline: the clock arms once, and the removal it
-  /// schedules DECLINES if the flat credential is the only usable root the
-  /// atSign has left. An atSign that revoked its enrollments keeps its flat
-  /// credential rather than being stranded on a timer, and the clock simply
-  /// never completes for it. See
-  /// [EnrollmentManager.retireLegacyCredentialIfDue].
-  ///
-  /// Deliberately NOT [apkamSelfEnrollmentGraceHours], which defaults to the
-  /// same 30 days. That one is how long a superseded shared keyfile stays
-  /// usable so laggard siblings can still split off it; this one is how long
-  /// a flat credential survives its owner moving to enrollments. An operator
-  /// shortening the retrofit grace to a day must not thereby give every
-  /// atSign on the server one day to migrate.
-  ///
-  /// Reachable from the environment as well as the yaml so that a live pack
-  /// can arm the clock at a couple of hours — or at 0, which retires at the
-  /// first sweep after arming. A 30-day constant is otherwise untestable
-  /// anywhere but a unit test.
-  static int get legacyCredentialRetirementHours {
-    return _getIntEnvVar('legacyCredentialRetirementHours') ??
-        getNullableIntFromYaml(
-            ['enrollment', 'legacyCredentialRetirementHours']) ??
-        720;
-  }
-
   static final int _enrollmentResponseDelayIntervalInSeconds = 55;
 
   static int? _maxEnrollRequestsAllowed;

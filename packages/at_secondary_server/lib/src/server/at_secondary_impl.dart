@@ -131,11 +131,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// keystore exposes [AtKeyValueStore.nextExpiresAt] and
   /// [AtKeyValueStore.deleteExpiredKeys].
   ///
-  /// The sweep does more than reap expiries, so the sleep CEILING is what
-  /// bounds the rest of it: an atSign holding no key with a ttl at all still
-  /// gets a tick every `expiringRunFreqMins`, which is what lets a deadline
-  /// that is not a ttl — the flat PKAM credential's retirement — be noticed
-  /// on a store where nothing else is expiring.
+  /// The sleep CEILING is what bounds the idle re-check: an atSign holding no
+  /// key with a ttl at all still gets a tick every `expiringRunFreqMins`.
   Timer? _keyExpiryTimer;
 
   /// Floor for the expiry-sweep sleep — stops a burst of
@@ -512,46 +509,25 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // The flat legacy credential migrates into the `primary` enrollment
     // before any client connects: a copy of a root's key is deleted, and
     // anything else becomes `primary`. After this no flat key exists on a
-    // running server. Before the arming and the sweep below, both of which
-    // read the flat key and would otherwise act on a credential that is
-    // about to become a record. See
-    // [EnrollmentManager.migrateFlatKeyAtStartup].
+    // running server. Before the sweep, so that an expired root the sweep
+    // is about to reap is not the survivor that licenses deleting a copy of
+    // its key. See [EnrollmentManager.migrateFlatKeyAtStartup].
     final StartupFlatKeyOutcome migrated =
         await enrollmentManager.migrateFlatKeyAtStartup();
     logger.info('Flat legacy credential at startup: ${migrated.name}');
 
-    // An atSign that finished migrating to enrollments before this server
-    // ever ran has a flat credential nothing scheduled for removal. Arm it
-    // here, before any client connects: the clock only ever REMOVES, and the
-    // removal asks the stranding question first, so nothing a client can
-    // arrange gains from the arming — it can only be delayed.
-    await enrollmentManager.armLegacyCredentialRetirementIfAlreadyEnrolled();
-
     await runHousekeepingSweep();
   }
 
-  /// One pass of the periodic store housekeeping: reap expired keys, then ask
-  /// whether the flat PKAM credential's retirement has fallen due.
+  /// One pass of the periodic store housekeeping: reap expired keys.
   ///
-  /// The two are one pass because they are the same kind of work — deadlines
-  /// the store has reached while nobody was looking — and because the flat
-  /// credential's deadline deliberately is NOT a ttl. A ttl would have the
-  /// store delete the key on its own schedule, and that removal has a
-  /// question to ask first: whether it would leave the atSign with no
-  /// credential it can restore itself with. See
-  /// [EnrollmentManager.retireLegacyCredentialIfDue].
-  ///
-  /// Expiry runs FIRST. The retirement's stranding question is answered from
-  /// the enrollment roster, and an enrollment whose ttl has elapsed is gone
-  /// rather than merely stale — reaping before asking is what stops a record
-  /// on its way out being counted as the survivor that licenses the removal.
-  ///
-  /// A method rather than two statements inside the timer callback so the
-  /// order can be exercised: the callback is armed by a Timer no test drives.
+  /// A method of its own rather than a statement inside the timer callback
+  /// so that the two places the server runs it — startup and the expiry
+  /// timer — can each be pinned; the callback is armed by a Timer no test
+  /// drives.
   @visibleForTesting
   Future<void> runHousekeepingSweep() async {
     await keyValueStore.deleteExpiredKeys();
-    await enrollmentManager.retireLegacyCredentialIfDue();
   }
 
   /// Computes the next expiry-sweep wake-up from
@@ -608,9 +584,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// Split out from the arming and the re-arm so the link from the timer to
   /// the sweep can be pinned. The Timer itself is driven by nothing a test
   /// controls, which made its callback the one place the sweep could quietly
-  /// stop being called: the flat credential's retirement has no ttl and no
-  /// other trigger, so a sweep this timer no longer ran would leave every
-  /// deadline unwatched with nothing going red.
+  /// stop being called with nothing going red.
   @visibleForTesting
   Future<void> onExpirySweepTimerFired() async {
     try {

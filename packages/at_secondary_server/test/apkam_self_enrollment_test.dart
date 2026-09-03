@@ -1400,40 +1400,30 @@ void main() {
               'whoever it is — the bar is not special to the legacy identity');
     });
 
-    test('the FLAT credential counts, with no enrollment record at all',
-        () async {
-      // The flat key is a usable root by every measure this walk applies: a
-      // pkam: carrying no enrollment id is verified against it, the
-      // connection it admits is authorised for everything, it answers to no
-      // approval state, and nothing on a timer takes it away.
-      //
-      // Every other case in this group has an enrollment to point at. This
-      // one deliberately has none — that is the whole shape: the atSign holds
-      // the flat key and nothing else, and the roster walk has nothing to
-      // find.
+    test('the FLAT credential does NOT count: it is a record by the time '
+        'anyone asks', () async {
+      // BEHAVIOUR CHANGED. The flat key used to be read live here, because
+      // there were atSigns whose only credential it was. It is migrated into
+      // the `primary` enrollment before any client connects, so the roster
+      // holds everything the atSign can authenticate as, and a key still at
+      // this address is one no login can be verified against.
       await keyValueStore.put(AtConstants.atPkamPublicKey,
           AtData()..data = 'a flat credential somebody holds',
           skipCommit: true);
       expect(await enMgr.hasUnexpiringRootEnrollment({etu.primaryEnId}),
-          isTrue,
-          reason: 'an atSign whose only credential is the flat keyfile can '
-              'still authenticate and mint a fresh enrollment, so it is not '
-              'stranded');
+          isFalse,
+          reason: 'the question is asked of the roster alone');
     });
 
-    test('...while an EMPTY flat credential does not count', () async {
-      // The control for the case above, differing in the VALUE at that key
-      // and in nothing else. Authentication refuses an empty public key
-      // before it looks at a signature, so an empty value and a missing one
-      // are the same credential — none — and counting one would be the
-      // phantom root this walk refuses, arrived at from outside the roster.
-      await keyValueStore.put(AtConstants.atPkamPublicKey,
-          AtData()..data = '',
-          skipCommit: true);
+    test('...while primary, the record it becomes, does', () async {
+      // The control: same atSign, same exclusion, the credential as the
+      // record the startup migration makes of it.
+      await enMgr.serialiseMutation(
+          () => enMgr.mintPrimary('a flat credential somebody holds'));
       expect(await enMgr.hasUnexpiringRootEnrollment({etu.primaryEnId}),
-          isFalse,
-          reason: 'a zero-length value is not a credential, wherever it is '
-              'stored');
+          isTrue,
+          reason: 'an atSign whose owner authenticates as primary can mint a '
+              'fresh enrollment, so it is not stranded');
     });
 
     test('...while the same root WITH a key does', () async {
@@ -1821,52 +1811,33 @@ void main() {
       expect(await statusOf(etu.primaryEnId), EnrollmentStatus.revoked.name);
     });
 
-    test('a FLAT credential licenses the last enrollment root\'s revoke',
-        () async {
-      // THE REPLACEMENT COVER, end to end, and the guarantee this refusal
-      // must not quietly lose. An atSign whose only other credential is the
-      // flat key at at_pkam_publickey is NOT stranded by revoking its last
-      // enrollment root: a pkam: carrying no enrollment id still
-      // authenticates against that key, and the connection it admits carries
-      // no id, so it is authorised for everything and can mint a fresh
-      // enrollment. There are atSigns in the field in exactly this shape.
-      //
-      // It is read live rather than counted from a record. The flat
-      // credential has no enrollment record at all — its existence IS its
-      // state — so a walk over the roster alone answers "nothing survives"
-      // and refuses a revoke that strands nobody.
-      await keyValueStore.put(AtConstants.atPkamPublicKey,
-          AtData()..data = 'a flat credential somebody holds',
-          skipCommit: true);
+    test('primary licenses the last enrollment root\'s revoke', () async {
+      // THE REPLACEMENT COVER, end to end. An atSign whose owner holds the
+      // legacy keypair is NOT stranded by revoking its last app root: the
+      // owner authenticates as `primary`, which is a root record like any
+      // other and is counted like any other.
+      await enMgr.serialiseMutation(
+          () => enMgr.mintPrimary('a flat credential somebody holds'));
 
       final r = await revoke(etu.primaryEnId, etu.primaryEnId, force: true);
       expect(r.isError, false, reason: '${r.errorMessage}');
       expect(await statusOf(etu.primaryEnId), EnrollmentStatus.revoked.name,
-          reason: 'the flat credential is a usable root, so this act strands '
-              'nobody');
+          reason: 'primary is a usable root, so this act strands nobody');
     });
 
-    test('…while an EMPTY flat credential does not', () async {
-      // The control, and it differs from the case above in the VALUE at that
-      // key and in nothing else — same act, same store, same caller. Without
-      // it the case above is equally satisfied by the refusal having been
-      // removed altogether.
-      //
-      // Empty is a state a store can be found in — one written by an older
-      // server, before both spellings of update demanded a non-empty value.
-      // Authentication refuses an empty public key before it looks at a
-      // signature, so an empty value and a missing one are the same
-      // credential — none.
+    test('…while a flat key still at its address does not', () async {
+      // BEHAVIOUR CHANGED: the flat key used to license this on its own. It
+      // is migrated into primary before any client connects, so a key still
+      // at this address counts for nothing — the control that the case above
+      // is satisfied by the record and not by the key.
       await keyValueStore.put(AtConstants.atPkamPublicKey,
-          AtData()..data = '',
+          AtData()..data = 'a flat credential somebody holds',
           skipCommit: true);
 
       await expectLater(
           () => revoke(etu.primaryEnId, etu.primaryEnId, force: true),
           throwsA(isA<AtEnrollmentRevokeException>()),
-          reason: 'a zero-length value is a credential nobody can '
-              'authenticate with, so it is not a root the atSign can fall '
-              'back on');
+          reason: 'the question is asked of the roster alone');
       expect(await statusOf(etu.primaryEnId), EnrollmentStatus.approved.name,
           reason: 'and refused before anything was written');
     });

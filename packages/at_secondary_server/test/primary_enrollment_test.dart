@@ -221,8 +221,65 @@ void main() {
       expect(await flatKeyExists(), isFalse);
       expect((await enMgr.getEnrollmentById(primary)).apkamPublicKey,
           'ROOT_KEY');
-      expect(await enMgr.hasUnexpiringRootEnrollmentRecord({}), isTrue,
+      expect(await enMgr.hasUnexpiringRootEnrollment({}), isTrue,
           reason: 'the atSign is left with a root it can restore itself from');
+    });
+
+    test('a zero-length flat value is not a credential: nothing is minted '
+        'from it, and it is cleared', () async {
+      // Reachable from a store written by an older server, when update:json
+      // carried the value inside a document nothing checked.
+      await installFlatKey('');
+
+      expect(await enMgr.migrateFlatKeyAtStartup(),
+          StartupFlatKeyOutcome.none);
+
+      expect(await enMgr.primaryEnrollment(), isNull,
+          reason: 'a primary holding an empty key would be a phantom root');
+      expect(await flatKeyExists(), isFalse,
+          reason: 'and nothing exists at the key on a running server');
+    });
+
+    test('a scoped enrollment is not a survivor, so a revoked root\'s copy '
+        'is reinstated', () async {
+      // The discriminating half of the stranding question: not "are there
+      // any enrollments" but "is there one the atSign could restore itself
+      // with". A wavi-scoped enrollment cannot approve a replacement root.
+      await storeRoot('revoked-root', 'ROOT_KEY',
+          status: EnrollmentStatus.revoked);
+      await storeScoped('an-app', 'APP_KEY');
+      await installFlatKey('ROOT_KEY');
+
+      expect(await enMgr.migrateFlatKeyAtStartup(),
+          StartupFlatKeyOutcome.migratedIntoPrimary);
+    });
+
+    test('a root with an EMPTY public key is not a survivor either', () async {
+      // A phantom root: approved, fully privileged, and holding a credential
+      // no signature can ever be checked against. Counting it would answer
+      // "the atSign can restore itself" with an identity nobody holds.
+      await storeRoot('revoked-root', 'ROOT_KEY',
+          status: EnrollmentStatus.revoked);
+      await storeRoot('phantom-root', '');
+      await installFlatKey('ROOT_KEY');
+
+      expect(await enMgr.migrateFlatKeyAtStartup(),
+          StartupFlatKeyOutcome.migratedIntoPrimary);
+    });
+
+    test('the flat key is not counted as its own survivor', () async {
+      // The asymmetry that would make the question vacuous. The roster
+      // question is asked of the roster alone: a store holding nothing but
+      // the flat key has no root to fall back on, so the key is migrated
+      // rather than deleted.
+      await installFlatKey('LEGACY_KEY');
+      expect(await enMgr.hasUnexpiringRootEnrollment({}), isFalse,
+          reason: 'the flat key is not a record, and is not counted');
+
+      expect(await enMgr.migrateFlatKeyAtStartup(),
+          StartupFlatKeyOutcome.migratedIntoPrimary);
+      expect(await enMgr.hasUnexpiringRootEnrollment({}), isTrue,
+          reason: 'and primary is');
     });
 
     test('a copy of an expiring root\'s key is not licensed by that root',
@@ -371,11 +428,7 @@ void main() {
   });
 
   group('the startup path runs the migration', () {
-    test('prepareStoreForFirstConnection migrates the flat key, ahead of the '
-        'retirement clock\'s arming', () async {
-      // The clock arms at startup for an atSign holding enrollments beside a
-      // flat key. Run first, the migration leaves it no flat key to arm on:
-      // the credential becomes a record rather than a deadline.
+    test('prepareStoreForFirstConnection migrates the flat key', () async {
       await installFlatKey('LEGACY_KEY');
       await storeScoped('an-app', 'APP_KEY');
 
@@ -385,9 +438,6 @@ void main() {
           reason: 'no flat key exists on a running server');
       expect((await enMgr.getEnrollmentById(primary)).apkamPublicKey,
           'LEGACY_KEY');
-      expect(await keyValueStore.exists(enMgr.legacyCredentialRetirementKey),
-          isFalse,
-          reason: 'the arming that follows found nothing to put on a clock');
     });
 
     test('and deletes a copy of a root\'s key rather than minting from it',
