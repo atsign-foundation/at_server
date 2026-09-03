@@ -83,7 +83,7 @@ void main() {
     final v = EnrollDataStoreValue('s', 'app-$id', 'device-$id', 'pk-$id')
       ..namespaces = Map<String, String>.from(namespaces)
       ..approval = EnrollApproval(status.name)
-      ..approvedByEnrollmentId = approvedBy;
+      ..parentEnrollmentId = approvedBy;
     await enMgr.put(
         id,
         AtData()

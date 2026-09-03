@@ -9,9 +9,10 @@
 // A field added to EnrollDataStoreValue and not added here does not persist,
 // and nothing goes red. enroll_data_store_value_test.dart pins the round trip
 // of SOME optional fields by raw at-rest name — apsk, apskLegacy and
-// predecessorCapArmedAt. The rest, parentEnrollmentId included,
-// are covered only incidentally through the keystore, so adding a field here
-// and pinning it there is the habit that keeps this file honest.
+// predecessorCapArmedAt, parentEnrollmentId and
+// retrofitPredecessorEnrollmentId. The rest are covered only incidentally
+// through the keystore, so adding a field here and pinning it there is the
+// habit that keeps this file honest.
 
 part of 'enroll_datastore_value.dart';
 
@@ -42,7 +43,8 @@ EnrollDataStoreValue _$EnrollDataStoreValueFromJson(
       ..apsk = (json['apsk'] as Map<String, dynamic>?)
       ..apskLegacy = json['apskLegacy'] as String?
       ..parentEnrollmentId = json['parentEnrollmentId'] as String?
-      ..approvedByEnrollmentId = json['approvedByEnrollmentId'] as String?
+      ..retrofitPredecessorEnrollmentId =
+          json['retrofitPredecessorEnrollmentId'] as String?
       ..predecessorCapArmedAt = json['predecessorCapArmedAt'] == null
           ? null
           : DateTime.parse(json['predecessorCapArmedAt'] as String);
@@ -66,8 +68,9 @@ Map<String, dynamic> _$EnrollDataStoreValueToJson(
       if (instance.apskLegacy != null) 'apskLegacy': instance.apskLegacy,
       if (instance.parentEnrollmentId != null)
         'parentEnrollmentId': instance.parentEnrollmentId,
-      if (instance.approvedByEnrollmentId != null)
-        'approvedByEnrollmentId': instance.approvedByEnrollmentId,
+      if (instance.retrofitPredecessorEnrollmentId != null)
+        'retrofitPredecessorEnrollmentId':
+            instance.retrofitPredecessorEnrollmentId,
       if (instance.predecessorCapArmedAt != null)
         'predecessorCapArmedAt': instance.predecessorCapArmedAt!.toIso8601String(),
     };

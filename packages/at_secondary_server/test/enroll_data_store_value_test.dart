@@ -115,31 +115,60 @@ void main() {
           isNull);
     });
 
-    test('approvedByEnrollmentId round-trips under its at-rest name', () {
+    test('parentEnrollmentId round-trips under its at-rest name', () {
       // The edge revocation cascades along. Its writer and reader are the same
       // hand-maintained pair in the .g.dart, so a symmetric rename passes
       // every test reading it through the typed getter while every stored
       // record silently loses its approver — and drops out of the cascade,
       // which is exactly the failure the field exists to prevent.
       final v = EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey')
-        ..approvedByEnrollmentId = 'approver-abc';
+        ..parentEnrollmentId = 'approver-abc';
 
-      expect(v.toJson()['approvedByEnrollmentId'], 'approver-abc',
+      expect(v.toJson()['parentEnrollmentId'], 'approver-abc',
           reason: 'raw literal: the key name is what a record written by an '
               'earlier server is read back through');
       expect(
-          EnrollDataStoreValue.fromJson(v.toJson()).approvedByEnrollmentId,
+          EnrollDataStoreValue.fromJson(v.toJson()).parentEnrollmentId,
           'approver-abc');
 
       final unapproved =
           EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey');
-      expect(unapproved.toJson().containsKey('approvedByEnrollmentId'), false,
+      expect(unapproved.toJson().containsKey('parentEnrollmentId'), false,
           reason: 'omitted rather than written null, so a record from before '
               'this field existed reads back as "nothing here admitted it" '
               'and is simply never cascaded to');
       expect(
           EnrollDataStoreValue.fromJson(unapproved.toJson())
-              .approvedByEnrollmentId,
+              .parentEnrollmentId,
+          isNull);
+    });
+
+    test('retrofitPredecessorEnrollmentId round-trips under its at-rest name',
+        () {
+      // The replacement edge: what a retrofit's successor replaced. The
+      // once-off rule reads it to refuse a second retrofit, and the cap reads
+      // it to know whose expiry to put a clock on. A symmetric rename would
+      // let every stored successor be retrofitted again and cap nothing.
+      final v = EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey')
+        ..retrofitPredecessorEnrollmentId = 'predecessor-abc';
+
+      expect(v.toJson()['retrofitPredecessorEnrollmentId'], 'predecessor-abc',
+          reason: 'raw literal: the key name is what a record written by an '
+              'earlier server is read back through');
+      expect(
+          EnrollDataStoreValue.fromJson(v.toJson())
+              .retrofitPredecessorEnrollmentId,
+          'predecessor-abc');
+
+      final minted =
+          EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey');
+      expect(minted.toJson().containsKey('retrofitPredecessorEnrollmentId'),
+          false,
+          reason: 'omitted rather than written null: an enrollment that '
+              'replaced nothing reads back as one that may still retrofit');
+      expect(
+          EnrollDataStoreValue.fromJson(minted.toJson())
+              .retrofitPredecessorEnrollmentId,
           isNull);
     });
 

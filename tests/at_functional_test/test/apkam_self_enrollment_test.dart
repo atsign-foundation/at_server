@@ -266,7 +266,7 @@ void main() {
           await createApprovedEnrollment(approver, namespaces: {'wavi': 'rw'});
       expect(
           (await enrollmentRecord(owner, predecessorId))
-              .value['approvedByEnrollmentId'],
+              .value['parentEnrollmentId'],
           approverId,
           reason: 'precondition: the predecessor has a REAL approver, which '
               'is what makes inheriting it distinguishable from inheriting '
@@ -275,10 +275,10 @@ void main() {
       String successorId = await selfEnrollId(predecessorId);
 
       final successor = await enrollmentRecord(owner, successorId);
-      expect(successor.value['parentEnrollmentId'], predecessorId,
+      expect(successor.value['retrofitPredecessorEnrollmentId'], predecessorId,
           reason: 'the replacement edge, which the retrofit cap needs — it '
               'does NOT cascade');
-      expect(successor.value['approvedByEnrollmentId'], approverId,
+      expect(successor.value['parentEnrollmentId'], approverId,
           reason: 'a retrofit produces a PEER, so the successor stands where '
               'its predecessor stood: whoever admitted the predecessor '
               'admitted this. Null here would make a retrofit an escape hatch '

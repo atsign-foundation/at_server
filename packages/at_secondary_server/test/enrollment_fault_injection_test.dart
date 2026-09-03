@@ -80,8 +80,8 @@ void main() {
     final v = EnrollDataStoreValue('sid', 'app-$id', 'device-$id', 'pk-$id')
       ..namespaces = Map<String, String>.from(namespaces)
       ..approval = EnrollApproval(status.name)
-      ..parentEnrollmentId = predecessor
-      ..approvedByEnrollmentId = approvedBy;
+      ..retrofitPredecessorEnrollmentId = predecessor
+      ..parentEnrollmentId = approvedBy;
     return jsonEncode(v.toJson());
   }
 

@@ -3104,7 +3104,7 @@ void main() {
     /// asks for exactly this. The omission was an oversight, not a decision.
     ///
     /// Two things now rest on it. `descendantsOf` fetches each
-    /// `approvedByEnrollmentId` link BY KEY, which is what keeps an EXPIRED
+    /// `parentEnrollmentId` link BY KEY, which is what keeps an EXPIRED
     /// link traversable — a DELETED one is gone, so deleting a middle link
     /// puts everything behind it permanently beyond a later cascade. And the
     /// approver-not-approved refusal permits an enrollment whose approver no
@@ -4468,7 +4468,7 @@ void main() {
           reason: 'CRAM is auto-approved; at_auth throws unless a first '
               'enrollment comes back approved');
       final created = await enMgr.getEnrollmentById(m['enrollmentId']);
-      expect(created.parentEnrollmentId, isNull,
+      expect(created.retrofitPredecessorEnrollmentId, isNull,
           reason: 'auto-approve MINTS an enrollment; it does not replace one');
 
       // ⚠️ RAW LITERAL, byte for byte: the whole claim is that this value is

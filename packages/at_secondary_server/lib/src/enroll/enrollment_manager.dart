@@ -1482,7 +1482,7 @@ class EnrollmentManager {
       final String? raw = record?.data;
       if (raw != null) {
         approverId = EnrollDataStoreValue.fromJson(jsonDecode(raw))
-            .approvedByEnrollmentId;
+            .parentEnrollmentId;
       }
     } on KeyNotFoundException {
       // Genuinely absent: this chain ends here and no other.
@@ -1550,8 +1550,8 @@ class EnrollmentManager {
   /// exactly the orphan a cascade exists to remove.
   ///
   /// ⚠️ This follows the APPROVAL edge only. The replacement edge —
-  /// [EnrollDataStoreValue.parentEnrollmentId], what a retrofit replaced — is
-  /// not walked: a retrofit produces a peer, the same principal re-keyed, so
+  /// [EnrollDataStoreValue.retrofitPredecessorEnrollmentId], what a retrofit
+  /// replaced — is not walked: a retrofit produces a peer, the same principal re-keyed, so
   /// revoking a superseded credential must not take the one that superseded
   /// it. A successor is reached instead through the approver it INHERITS from
   /// its predecessor, which is what stops a retrofit being an escape hatch.
@@ -1649,7 +1649,7 @@ class EnrollmentManager {
             'record could not be decoded: $e');
         continue;
       }
-      if (child.approvedByEnrollmentId != predecessorId) continue;
+      if (child.parentEnrollmentId != predecessorId) continue;
 
       final EnrollmentStatus? status =
           EnrollmentStatus.values.asNameMap()[child.approval?.state ?? ''];
@@ -1659,7 +1659,7 @@ class EnrollmentManager {
         continue;
       }
 
-      child.approvedByEnrollmentId = successorId;
+      child.parentEnrollmentId = successorId;
       record.data = jsonEncode(child.toJson());
       // The child's own expiry must not move: a plain write re-derives it from
       // the retained ttl and would restart its clock at this moment.
@@ -1956,7 +1956,7 @@ class EnrollmentManager {
           await getEnrollmentById(successorEnrollmentId);
       // Replaced nothing, so there is nothing to cap. This is the exit almost
       // every authentication takes.
-      if (cached.parentEnrollmentId == null) return;
+      if (cached.retrofitPredecessorEnrollmentId == null) return;
       // Already armed.
       if (cached.predecessorCapArmedAt != null) return;
       // Declined already, and nothing has been written since, so the answer
@@ -1987,7 +1987,7 @@ class EnrollmentManager {
       // successor's arming, or a revoke, is exactly what it waited behind.
       final EnrollDataStoreValue cached =
           await getEnrollmentById(successorEnrollmentId);
-      final predecessorId = cached.parentEnrollmentId;
+      final predecessorId = cached.retrofitPredecessorEnrollmentId;
       if (predecessorId == null) return;
       if (cached.predecessorCapArmedAt != null) return;
       // Declined already, and nothing has been written since, so the answer

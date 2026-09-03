@@ -181,7 +181,7 @@ void main() {
 
     final successor = await enMgr.getEnrollmentById(successorId);
     expect(successor.approval?.state, EnrollmentStatus.approved.name);
-    expect(successor.parentEnrollmentId, predecessorId,
+    expect(successor.retrofitPredecessorEnrollmentId, predecessorId,
         reason: 'the successor records what it replaced, which is what the '
             'retrofit cap reads to know whose expiry to put a clock on. NOT '
             'for revocation: that follows the approver the successor '
@@ -844,12 +844,12 @@ void main() {
           apkamKeysExpiryDuration: null);
       await etu.approveEnrollment(etu.primaryEnId, pendingId);
 
-      expect((await enMgr.getEnrollmentById(pendingId)).approvedByEnrollmentId,
+      expect((await enMgr.getEnrollmentById(pendingId)).parentEnrollmentId,
           etu.primaryEnId,
           reason: 'read off the CONNECTION, so an approver cannot name '
               'somebody else as the admitting party');
       expect(
-          (await enMgr.getEnrollmentById(approverId)).approvedByEnrollmentId,
+          (await enMgr.getEnrollmentById(approverId)).parentEnrollmentId,
           etu.primaryEnId,
           reason: 'control: the fixture\'s own enrollments carry it too, so '
               'the assertion above is not satisfied by a field nothing sets');
@@ -869,9 +869,9 @@ void main() {
       final successorId = jsonDecode(r.data!)['enrollmentId'] as String;
 
       final successor = await enMgr.getEnrollmentById(successorId);
-      expect(successor.approvedByEnrollmentId, etu.primaryEnId,
+      expect(successor.parentEnrollmentId, etu.primaryEnId,
           reason: 'whoever admitted the predecessor admitted this');
-      expect(successor.parentEnrollmentId, predecessorId,
+      expect(successor.retrofitPredecessorEnrollmentId, predecessorId,
           reason: 'control: the replacement edge is still recorded, because '
               'the retrofit cap needs to know what it replaced');
     });
@@ -949,7 +949,7 @@ void main() {
       final v = EnrollDataStoreValue('s', 'app-$id', 'device-$id', 'pk')
         ..namespaces = {'*': 'rw', '__manage': 'rw'}
         ..approval = EnrollApproval(EnrollmentStatus.approved.name)
-        ..parentEnrollmentId = predecessorId;
+        ..retrofitPredecessorEnrollmentId = predecessorId;
       await enMgr.put(
           id,
           AtData()
@@ -1461,7 +1461,7 @@ void main() {
         (await enMgr.getEnrollmentById(id)).approval?.state;
 
     Future<String?> approverIdOf(String id) async =>
-        (await enMgr.getEnrollmentById(id)).approvedByEnrollmentId;
+        (await enMgr.getEnrollmentById(id)).parentEnrollmentId;
 
     Future<Response> revoke(String revokerId, String targetId,
         {bool force = false}) async {
@@ -1492,7 +1492,7 @@ void main() {
           's', 'app-$id', 'device-$id', apkamPublicKey)
         ..namespaces = {'*': 'rw', '__manage': 'rw'}
         ..approval = EnrollApproval(status.name)
-        ..parentEnrollmentId = predecessorId;
+        ..retrofitPredecessorEnrollmentId = predecessorId;
       await enMgr.put(
           id,
           AtData()
@@ -1511,7 +1511,7 @@ void main() {
       final v = EnrollDataStoreValue('s', 'app-$id', 'device-$id', 'pk')
         ..namespaces = Map<String, String>.from(namespaces)
         ..approval = EnrollApproval(status.name)
-        ..approvedByEnrollmentId = approverId;
+        ..parentEnrollmentId = approverId;
       await enMgr.put(
           id,
           AtData()

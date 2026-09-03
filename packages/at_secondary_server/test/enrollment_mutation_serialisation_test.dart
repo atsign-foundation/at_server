@@ -373,7 +373,7 @@ void main() {
     Future<String?> approverOf(String id) async =>
         EnrollDataStoreValue.fromJson(jsonDecode(
                 (await keyValueStore.get(enMgr.buildEnrollmentKey(id)))!.data!))
-            .approvedByEnrollmentId;
+            .parentEnrollmentId;
 
     test('the stamp, the cap and the adoption are all inside the section',
         () async {

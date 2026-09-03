@@ -594,7 +594,7 @@
   namespaces below.
 
   Two things had come to rest on this. `EnrollmentManager.descendantsOf`
-  fetches each `approvedByEnrollmentId` link BY KEY, so deleting a middle link
+  fetches each `parentEnrollmentId` link BY KEY, so deleting a middle link
   puts everything behind it permanently beyond the reach of a later cascade.
   And the approver-not-approved refusal permits an enrollment whose approver no
   longer exists, so deleting that approver is what makes the orphan

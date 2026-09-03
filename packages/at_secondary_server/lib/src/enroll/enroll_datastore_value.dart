@@ -69,46 +69,45 @@ class EnrollDataStoreValue {
   /// other.
   String? apskLegacy;
 
-  /// The enrollment this one REPLACED — its predecessor — or null for every
-  /// other origin.
+  /// The enrollment that APPROVED this one — its parent — or null when
+  /// nothing did.
   ///
-  /// The name is historical and stays: it is on the wire and at rest. A
-  /// retrofit's successor replaces rather than descends from its predecessor,
-  /// carrying exactly the grants the predecessor held.
+  /// Parenthood is the approval edge, and revocation cascades along it to any
+  /// depth: an enrollment holding `__manage` that admits others, and is then
+  /// revoked as compromised, must not leave everything it admitted
+  /// authenticating. [EnrollmentManager.descendantsOf] walks this edge and
+  /// no other.
   ///
-  /// ⚠️ Despite the name this is NOT a parenthood edge and revocation does not
-  /// cascade along it. A retrofit REPLACES: the successor is the same
-  /// principal re-keyed, not a new one derived from it, so revoking the
-  /// superseded form must not take the credential that supersedes it — an
-  /// operator retiring an old key would otherwise kill the device's current
-  /// one. Parenthood is [approvedByEnrollmentId], and that is what
-  /// [EnrollmentManager.descendantsOf] walks.
-  ///
-  /// What this edge is still for: the retrofit cap, which arms on the
-  /// successor's first authentication and needs to know what it replaced.
-  String? parentEnrollmentId;
-
-  /// The enrollment that APPROVED this one, or null when nothing did.
-  ///
-  /// Parenthood, as opposed to the replacement edge above: an approver admits
-  /// a NEW principal, and revocation cascades along this edge to any depth. An
-  /// enrollment holding `__manage` that admits others, and is then revoked as
-  /// compromised, must not leave everything it admitted authenticating.
-  ///
-  /// A retrofit INHERITS its predecessor's value rather than being null or
-  /// naming the predecessor. The successor is a peer — the same principal
-  /// re-keyed — so it stands where its predecessor stood: whoever admitted
-  /// the predecessor admitted this. A null there would make a retrofit an
+  /// Set from the connection on `enroll:approve`, never from the request, so
+  /// an approver cannot name someone else as the admitting party. A retrofit
+  /// COPIES its predecessor's value rather than naming the predecessor: the
+  /// successor is the same principal re-keyed, so it stands where its
+  /// predecessor stood as a SIBLING of what it replaced, and whoever admitted
+  /// the predecessor admitted this. Null there would make a retrofit an
   /// escape hatch from the cascade.
   ///
   /// Null on two origins, each deliberately:
   ///
-  /// * an enrollment approved over a connection carrying no enrollment id —
-  ///   CRAM, owner or legacy PKAM. There is no enrollment to revoke, and
-  ///   "revoking the owner" is not a thing;
+  /// * an enrollment approved over a connection carrying no enrollment id.
+  ///   There is no enrollment to revoke, and "revoking the owner" is not a
+  ///   thing;
   /// * every enrollment written before this field existed. The edge is
   ///   forward-only and cannot be reconstructed: nothing recorded an approver.
-  String? approvedByEnrollmentId;
+  String? parentEnrollmentId;
+
+  /// The enrollment this one REPLACED in a retrofit — its predecessor — or
+  /// null for every other origin.
+  ///
+  /// Not a parenthood edge, and revocation does not cascade along it. A
+  /// retrofit REPLACES: the successor is the same principal re-keyed, not a
+  /// new one derived from it, so revoking the superseded form must not take
+  /// the credential that supersedes it — an operator retiring an old key
+  /// would otherwise kill the device's current one. What this edge is for:
+  /// the once-off rule, which refuses to retrofit a successor again without
+  /// an approver; the retrofit cap, which arms on the successor's first
+  /// authentication and needs to know what it replaced; and tooling, which
+  /// finds a whole sibling set by it when the siblings' parent is null.
+  String? retrofitPredecessorEnrollmentId;
 
   /// When this enrollment settled the retrofit cap on the enrollment it
   /// replaced — either by arming it, or by finding there was nothing left to
@@ -199,9 +198,10 @@ class EnrollDataStoreValue {
         'status': approval?.state,
         'apkamKeysExpiryInMillis': apkamKeysExpiryDuration.inMilliseconds,
         if (signingAlgo != null) 'signingAlgo': signingAlgo,
-        if (parentEnrollmentId != null) 'parentEnrollmentId': parentEnrollmentId,
-        if (approvedByEnrollmentId != null)
-          'approvedByEnrollmentId': approvedByEnrollmentId,
+        if (parentEnrollmentId != null)
+          'parentEnrollmentId': parentEnrollmentId,
+        if (retrofitPredecessorEnrollmentId != null)
+          'retrofitPredecessorEnrollmentId': retrofitPredecessorEnrollmentId,
         if (predecessorCapArmedAt != null)
           'predecessorCapArmedAt': predecessorCapArmedAt!.toIso8601String(),
       };

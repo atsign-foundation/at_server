@@ -565,7 +565,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // enrollment with a one-hour term could renew itself indefinitely — and
       // each adding a record whose loss severs the revocation cascade behind
       // it. A second algorithm change needs an approver again.
-      if (predecessor.parentEnrollmentId != null) {
+      if (predecessor.retrofitPredecessorEnrollmentId != null) {
         throw UnAuthorizedException(
             'Enrollment $predecessorId is itself a replacement, and a '
             'replacement may not be replaced without an approver');
@@ -588,7 +588,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // operator retiring an old key would otherwise kill the device's current
       // one. A successor is reached through the approver it INHERITS, on the
       // line below.
-      enrollmentValue.parentEnrollmentId = predecessorId;
+      enrollmentValue.retrofitPredecessorEnrollmentId = predecessorId;
       // A retrofit produces a PEER of its predecessor, not a child: the same
       // principal re-keyed. So it takes the predecessor's place in the
       // approval graph as well as its grants — whoever admitted the
@@ -596,8 +596,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // escape hatch from the approval cascade: revoking the approver would
       // reach the predecessor and stop, while the successor it had just been
       // replaced by went on authenticating.
-      enrollmentValue.approvedByEnrollmentId =
-          predecessor.approvedByEnrollmentId;
+      enrollmentValue.parentEnrollmentId =
+          predecessor.parentEnrollmentId;
       // The successor inherits the predecessor's key-expiry posture unless
       // the request states its own. Time is a separate axis from grants: the
       // successor carries the predecessor's grants exactly, but it may hold a
@@ -1068,7 +1068,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // legacy PKAM — because there is nothing there to revoke later.
     if (operation == 'approve') {
       final String? approverId = inboundConnectionMetadata.enrollmentId;
-      enVal.approvedByEnrollmentId =
+      enVal.parentEnrollmentId =
           (approverId != null && approverId.isNotEmpty) ? approverId : null;
     }
 
@@ -1171,7 +1171,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// Two things are always allowed, for DIFFERENT reasons — they were once
   /// documented here as one, which credited the second with the first's job.
   ///
-  /// A null [EnrollDataStoreValue.approvedByEnrollmentId] means nothing here
+  /// A null [EnrollDataStoreValue.parentEnrollmentId] means nothing here
   /// admitted it: an enrollment approved over an OWNER connection, or one
   /// written before the field existed. That check alone is what stops the rule
   /// barring every enrollment an owner ever admitted.
@@ -1183,7 +1183,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// documents for a deleted link.
   Future<void> _refuseIfApproverNotApproved(EnrollmentManager enMgr,
       String enId, EnrollDataStoreValue enVal, String operation) async {
-    final String? approverId = enVal.approvedByEnrollmentId;
+    final String? approverId = enVal.parentEnrollmentId;
     if (approverId == null) return;
     final EnrollDataStoreValue approver;
     try {
@@ -2146,7 +2146,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // that asked nothing: `enroll:fetch`, which reads a secret rather than
     // destroying a record, has had this check all along. Two things now rest
     // on it that did not before. `EnrollmentManager.descendantsOf` climbs
-    // `approvedByEnrollmentId` and fetches each link BY KEY, so a delete of a
+    // `parentEnrollmentId` and fetches each link BY KEY, so a delete of a
     // middle link puts everything behind it permanently out of reach of a
     // later cascade. (Expiry severs a chain too, once the scheduled sweep
     // removes the record — see [EnrollmentManager.descendantsOf]. A delete is
