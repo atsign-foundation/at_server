@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:at_demo_data/at_demo_data.dart';
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
+import 'package:at_functional_test/utils/apkam_keys.dart';
 import 'package:at_functional_test/utils/auth_utils.dart';
 import 'package:at_functional_test/utils/encryption_util.dart';
 import 'package:test/test.dart';
@@ -23,7 +24,6 @@ void main() {
   String host = ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignUrl'];
   int port = ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignPort'];
 
-  String apkamPublicKey = apkamPublicKeyMap[atSign]!;
   String encryptedPrivateKey = EncryptionUtil.encryptValue(
       encryptionPrivateKeyMap[atSign]!, apkamSymmetricKeyMap[atSign]!);
   String encryptedSelfKey = EncryptionUtil.encryptValue(
@@ -33,6 +33,13 @@ void main() {
 
   /// Connections opened by a test, closed in tearDown.
   List<OutboundConnectionFactory> open = [];
+
+  /// The keypair each enrollment this file creates was created with, by
+  /// enrollment id: predecessors, successors and approvers alike, each its
+  /// own.
+  Map<String, ApkamKeys> keysOf = {};
+
+  String privateKeyOf(String enrollmentId) => keysOf[enrollmentId]!.privateKey;
 
   Future<OutboundConnectionFactory> newConnection() async {
     OutboundConnectionFactory c = await OutboundConnectionFactory()
@@ -73,10 +80,12 @@ void main() {
     // One enroll:request per connection: the rate limiter is per-connection,
     // and another test file lowers maxRequestsPerTimeFrame server-wide.
     OutboundConnectionFactory requester = await newConnection();
+    ApkamKeys keys = mintApkamKeys();
     String response = await requester.sendRequestToServer(
-        'enroll:request:{"appName":"$appName","deviceName":"$deviceName","namespaces":${jsonEncode(namespaces)},"otp":"$otp","apkamPublicKey":"$apkamPublicKey","encryptedAPKAMSymmetricKey":"$encryptedApkamSymmetricKey"$expiry}');
+        'enroll:request:{"appName":"$appName","deviceName":"$deviceName","namespaces":${jsonEncode(namespaces)},"otp":"$otp","apkamPublicKey":"${keys.publicKey}","encryptedAPKAMSymmetricKey":"$encryptedApkamSymmetricKey"$expiry}');
     String enrollmentId =
         jsonDecode(response.replaceFirst('data:', ''))['enrollmentId'];
+    keysOf[enrollmentId] = keys;
     String approval = await owner.sendRequestToServer(
         'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"$encryptedPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfKey"}');
     expect(jsonDecode(approval.replaceFirst('data:', ''))['status'], 'approved');
@@ -88,6 +97,9 @@ void main() {
   /// [namespaces] is optional, mirroring the wire: a retrofit that omits
   /// it inherits its predecessor's grants, and one that states them must
   /// state exactly them.
+  ///
+  /// The successor is minted a keypair of its own, as a real re-key would
+  /// be, and it is recorded in [keysOf] when the server admits it.
   Future<String> selfEnroll(String predecessorId,
       {Map<String, String>? namespaces,
       String? appName,
@@ -99,10 +111,13 @@ void main() {
     OutboundConnectionFactory predecessor = await newConnection();
     expect(
         (await predecessor.authenticateConnection(
-                authType: AuthType.apkam, enrollmentId: predecessorId))
+                authType: AuthType.apkam,
+                enrollmentId: predecessorId,
+                privateKey: privateKeyOf(predecessorId)))
             .trim(),
         'data:success',
         reason: 'the predecessor must be able to authenticate before it self-enrols');
+    ApkamKeys keys = mintApkamKeys();
     String nsField =
         namespaces == null ? '' : ',"namespaces":${jsonEncode(namespaces)}';
     String expiry = apkamKeysExpiryInMillis == null
@@ -115,9 +130,14 @@ void main() {
     // value; the tests below assert exactly that.
     String apskLegacyField =
         apskLegacy == null ? '' : ',"apskLegacy":${jsonEncode(apskLegacy)}';
-    return (await predecessor.sendRequestToServer(
-            'enroll:request:{"appName":"${appName ?? 'successor-${Uuid().v4().hashCode}'}","deviceName":"${deviceName ?? 'device-${Uuid().v4().hashCode}'}","apkamPublicKey":"$apkamPublicKey"$nsField$expiry$algo$apskField$apskLegacyField}'))
+    String response = (await predecessor.sendRequestToServer(
+            'enroll:request:{"appName":"${appName ?? 'successor-${Uuid().v4().hashCode}'}","deviceName":"${deviceName ?? 'device-${Uuid().v4().hashCode}'}","apkamPublicKey":"${keys.publicKey}"$nsField$expiry$algo$apskField$apskLegacyField}'))
         .trim();
+    if (response.startsWith('data:')) {
+      keysOf[jsonDecode(response.replaceFirst('data:', ''))['enrollmentId']] =
+          keys;
+    }
+    return response;
   }
 
   /// Opens a fresh connection and authenticates it as [enrollmentId], which
@@ -126,7 +146,9 @@ void main() {
     OutboundConnectionFactory conn = await newConnection();
     expect(
         (await conn.authenticateConnection(
-                authType: AuthType.apkam, enrollmentId: enrollmentId))
+                authType: AuthType.apkam,
+                enrollmentId: enrollmentId,
+                privateKey: privateKeyOf(enrollmentId)))
             .trim(),
         'data:success',
         reason: 'the successor must be able to authenticate, or the arming '
@@ -142,7 +164,9 @@ void main() {
     OutboundConnectionFactory c = await newConnection();
     expect(
         (await c.authenticateConnection(
-                authType: AuthType.apkam, enrollmentId: enrollmentId))
+                authType: AuthType.apkam,
+                enrollmentId: enrollmentId,
+                privateKey: privateKeyOf(enrollmentId)))
             .trim(),
         'data:success');
     return c;
@@ -211,7 +235,9 @@ void main() {
       OutboundConnectionFactory successor = await newConnection();
       expect(
           (await successor.authenticateConnection(
-                  authType: AuthType.apkam, enrollmentId: successorId))
+                  authType: AuthType.apkam,
+                  enrollmentId: successorId,
+                  privateKey: privateKeyOf(successorId)))
               .trim(),
           'data:success');
     });
@@ -230,7 +256,9 @@ void main() {
       OutboundConnectionFactory approver = await newConnection();
       expect(
           (await approver.authenticateConnection(
-                  authType: AuthType.apkam, enrollmentId: approverId))
+                  authType: AuthType.apkam,
+                  enrollmentId: approverId,
+                  privateKey: privateKeyOf(approverId)))
               .trim(),
           'data:success');
 
@@ -306,7 +334,7 @@ void main() {
           .trim();
       OutboundConnectionFactory ordinary = await newConnection();
       String response = await ordinary.sendRequestToServer(
-          'enroll:request:{"appName":"$appName","deviceName":"$deviceName","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"$apkamPublicKey","encryptedAPKAMSymmetricKey":"$encryptedApkamSymmetricKey"}');
+          'enroll:request:{"appName":"$appName","deviceName":"$deviceName","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${mintApkamKeys().publicKey}","encryptedAPKAMSymmetricKey":"$encryptedApkamSymmetricKey"}');
       expect(response.trim(), startsWith('error:'),
           reason: 'the ordinary path must still reject duplicate names');
     });
@@ -560,7 +588,9 @@ void main() {
       OutboundConnectionFactory predecessor = await newConnection();
       expect(
           (await predecessor.authenticateConnection(
-                  authType: AuthType.apkam, enrollmentId: predecessorId))
+                  authType: AuthType.apkam,
+                  enrollmentId: predecessorId,
+                  privateKey: privateKeyOf(predecessorId)))
               .trim(),
           'data:success',
           reason: 'a capped credential keeps working until its deadline — a '
@@ -643,7 +673,9 @@ void main() {
       OutboundConnectionFactory predecessor = await newConnection();
       expect(
           (await predecessor.authenticateConnection(
-                  authType: AuthType.apkam, enrollmentId: predecessorId))
+                  authType: AuthType.apkam,
+                  enrollmentId: predecessorId,
+                  privateKey: privateKeyOf(predecessorId)))
               .trim(),
           'data:success');
       String response = await predecessor.sendRequestToServer(
@@ -746,7 +778,9 @@ void main() {
     Future<String> tryAuthenticateAs(String id) async {
       try {
         return (await (await newConnection()).authenticateConnection(
-                authType: AuthType.apkam, enrollmentId: id))
+                authType: AuthType.apkam,
+                enrollmentId: id,
+                privateKey: privateKeyOf(id)))
             .trim();
       } catch (e) {
         return 'threw: $e';
@@ -948,7 +982,9 @@ void main() {
           await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
       expect(
           (await asOther.authenticateConnection(
-                  authType: AuthType.apkam, enrollmentId: other))
+                  authType: AuthType.apkam,
+                  enrollmentId: other,
+                  privateKey: privateKeyOf(other)))
               .trim(),
           'data:success');
       final Map info = jsonDecode(
@@ -974,7 +1010,9 @@ void main() {
       OutboundConnectionFactory asA = await newConnection();
       expect(
           (await asA.authenticateConnection(
-                  authType: AuthType.apkam, enrollmentId: holderA))
+                  authType: AuthType.apkam,
+                  enrollmentId: holderA,
+                  privateKey: privateKeyOf(holderA)))
               .trim(),
           'data:success');
 
@@ -1073,7 +1111,7 @@ void main() {
 
       OutboundConnectionFactory requester = await newConnection();
       String response = await requester.sendRequestToServer(
-          'enroll:request:{"appName":"kp-${Uuid().v4().hashCode}","deviceName":"device-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"$apkamPublicKey","metadata":{"keyPackage":"a-key-package"}}');
+          'enroll:request:{"appName":"kp-${Uuid().v4().hashCode}","deviceName":"device-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${mintApkamKeys().publicKey}","metadata":{"keyPackage":"a-key-package"}}');
       Map decoded = jsonDecode(response.replaceFirst('data:', ''));
       expect(decoded['status'], 'pending');
       expect(decoded['enrollmentId'], isNotEmpty);
@@ -1091,7 +1129,7 @@ void main() {
 
       OutboundConnectionFactory requester = await newConnection();
       String response = await requester.sendRequestToServer(
-          'enroll:request:{"appName":"kp-${Uuid().v4().hashCode}","deviceName":"device-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"$apkamPublicKey"}');
+          'enroll:request:{"appName":"kp-${Uuid().v4().hashCode}","deviceName":"device-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${mintApkamKeys().publicKey}"}');
       expect(
           response.trim(),
           contains(
@@ -1209,7 +1247,7 @@ void main() {
               'from:$atSign:clientConfig:${jsonEncode({'version': '3.0.57'})}'))
           .replaceAll('data:', '');
       String signature = AuthenticationUtils.generatePKAMDigest(
-          apkamPrivateKeyMap[atSign]!, challenge);
+          privateKeyOf(enrollmentId), challenge);
 
       expect(
           (await client.sendRequestToServer(

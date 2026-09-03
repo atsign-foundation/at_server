@@ -1,9 +1,9 @@
 import 'dart:convert';
 
 import 'package:at_demo_data/at_demo_data.dart' as at_demos;
-import 'package:at_demo_data/at_demo_data.dart';
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
+import 'package:at_functional_test/utils/apkam_keys.dart';
 import 'package:at_functional_test/utils/encryption_util.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
@@ -47,8 +47,9 @@ void main() {
   /// the new enrollment id. Returns the enrollment id.
   Future<String> cramEnrollAndApkam() async {
     await firstAtSignConnection.authenticateConnection(authType: AuthType.cram);
+    ApkamKeys keys = mintApkamKeys();
     String enrollRequest =
-        'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}\n';
+        'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${keys.publicKey}"}\n';
     var enrollJsonMap = jsonDecode(
         (await firstAtSignConnection.sendRequestToServer(enrollRequest))
             .replaceAll('data:', ''));
@@ -58,7 +59,9 @@ void main() {
     await firstAtSignConnection.initiateConnectionWithListener(
         firstAtSign, firstAtSignHost, firstAtSignPort);
     await firstAtSignConnection.authenticateConnection(
-        authType: AuthType.apkam, enrollmentId: enrollmentId);
+        authType: AuthType.apkam,
+        enrollmentId: enrollmentId,
+        privateKey: keys.privateKey);
     return enrollmentId;
   }
 
@@ -107,7 +110,7 @@ void main() {
       // Primary CRAM enrollment (has __manage + *:rw) — it will approve.
       await firstAtSignConnection.authenticateConnection(authType: AuthType.cram);
       String primaryEnroll =
-          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}"}\n';
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${mintApkamKeys().publicKey}"}\n';
       var primaryJson = jsonDecode(
           (await firstAtSignConnection.sendRequestToServer(primaryEnroll))
               .replaceAll('data:', ''));
@@ -120,8 +123,9 @@ void main() {
       OutboundConnectionFactory secondConnection =
           await OutboundConnectionFactory().initiateConnectionWithListener(
               firstAtSign, firstAtSignHost, firstAtSignPort);
+      ApkamKeys secondKeys = mintApkamKeys();
       String secondEnroll =
-          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}\n';
+          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otp","apkamPublicKey":"${secondKeys.publicKey}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}\n';
       var secondJson = jsonDecode(
           (await secondConnection.sendRequestToServer(secondEnroll))
               .replaceAll('data:', ''));
@@ -137,7 +141,9 @@ void main() {
       // The second enrollment writes AND reads a self key in its OWN reserved
       // namespace — own-enrollment access is unchanged.
       await secondConnection.authenticateConnection(
-          authType: AuthType.apkam, enrollmentId: secondEnrollmentId);
+          authType: AuthType.apkam,
+          enrollmentId: secondEnrollmentId,
+          privateKey: secondKeys.privateKey);
       String approvedKey =
           '$firstAtSign:secret.$secondEnrollmentId.a.__e$firstAtSign';
       String updateResponse = await secondConnection

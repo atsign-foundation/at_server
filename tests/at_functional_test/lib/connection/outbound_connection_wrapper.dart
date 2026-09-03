@@ -42,15 +42,28 @@ class OutboundConnectionFactory {
         maxWaitMilliSeconds: maxWaitMilliSeconds);
   }
 
+  /// Authenticates this connection.
+  ///
+  /// For [AuthType.apkam], [privateKey] is required: the private half of the
+  /// keypair the enrollment [enrollmentId] was created with, which is the
+  /// `privateKey` of the `ApkamKeys` the test minted for it. No demo key is
+  /// right here, because every enrollment the pack creates carries a keypair
+  /// of its own.
   Future<String> authenticateConnection(
-      {AuthType authType = AuthType.pkam, String enrollmentId = ''}) async {
+      {AuthType authType = AuthType.pkam,
+      String enrollmentId = '',
+      String? privateKey}) async {
     switch (authType) {
       case AuthType.pkam:
         return await _pkamAuthentication(enrollmentId: enrollmentId);
       case AuthType.cram:
         return await _cramAuthentication();
       case AuthType.apkam:
-        return await _apkamAuthentication(enrollmentId);
+        if (privateKey == null) {
+          throw ArgumentError.notNull('privateKey: the private half of the '
+              'keypair enrollment $enrollmentId was created with');
+        }
+        return await _apkamAuthentication(enrollmentId, privateKey);
     }
   }
 
@@ -76,7 +89,8 @@ class OutboundConnectionFactory {
     return pkamResponse;
   }
 
-  Future<String> _apkamAuthentication(String enrollmentId) async {
+  Future<String> _apkamAuthentication(
+      String enrollmentId, String privateKey) async {
     if (enrollmentId.isEmpty) {
       throw UnAuthenticatedException('Enrollment Id cannot be empty');
     }
@@ -84,8 +98,8 @@ class OutboundConnectionFactory {
         'from:$atSign:clientConfig:${jsonEncode({'version': '3.0.57'})}\n');
     String fromResponse = await _outboundMessageListener.read();
     fromResponse = fromResponse.replaceAll('data:', '');
-    String pkamDigest = AuthenticationUtils.generatePKAMDigest(
-        apkamPrivateKeyMap[atSign]!, fromResponse);
+    String pkamDigest =
+        AuthenticationUtils.generatePKAMDigest(privateKey, fromResponse);
     await _outboundConnection
         .write('pkam:enrollmentId:$enrollmentId:$pkamDigest\n');
     String pkamResponse = await _outboundMessageListener.read();

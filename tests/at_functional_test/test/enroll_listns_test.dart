@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:at_demo_data/at_demo_data.dart' as at_demos;
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
+import 'package:at_functional_test/utils/apkam_keys.dart';
 import 'package:at_functional_test/utils/encryption_util.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
@@ -57,7 +58,9 @@ void main() {
 
       // A namespace unique to this run so the assertions are unambiguous.
       final namespace = 'listns${Uuid().v4().hashCode}';
-      final apkamPublicKey = at_demos.apkamPublicKeyMap[firstAtSign]!;
+      // One keypair per enrollment: the one under inspection and the caller.
+      final inspected = mintApkamKeys();
+      final caller = mintApkamKeys();
       final keyPackage = {
         'v': 1,
         'keys': [
@@ -77,7 +80,7 @@ void main() {
             'appName': 'listns-app',
             'deviceName': 'device-${Uuid().v4().hashCode}',
             'namespaces': {namespace: 'rw'},
-            'apkamPublicKey': apkamPublicKey,
+            'apkamPublicKey': inspected.publicKey,
             'signingAlgo': 'mldsa65',
             'metadata': {'keyPackage': keyPackage},
           })}\n';
@@ -104,7 +107,7 @@ void main() {
             'appName': 'listns-caller',
             'deviceName': 'device-${Uuid().v4().hashCode}',
             'namespaces': {namespace: 'rw'},
-            'apkamPublicKey': apkamPublicKey,
+            'apkamPublicKey': caller.publicKey,
           })}\n';
       final callerJson = jsonDecode(
           (await callerConnection.sendRequestToServer(callerRequest))
@@ -117,7 +120,8 @@ void main() {
       expect(
           (await firstAtSignConnection.authenticateConnection(
                   authType: AuthType.apkam,
-                  enrollmentId: callerJson['enrollmentId']))
+                  enrollmentId: callerJson['enrollmentId'],
+                  privateKey: caller.privateKey))
               .trim(),
           'data:success');
 
@@ -132,7 +136,7 @@ void main() {
           reason: 'the enrollment should appear in the listns roster for the '
               'namespace it was granted');
       expect(mine['access'], 'rw');
-      expect(mine['apkamPubKey'], apkamPublicKey);
+      expect(mine['apkamPubKey'], inspected.publicKey);
       expect(mine['metadata'], {'keyPackage': keyPackage});
     });
 
@@ -152,12 +156,13 @@ void main() {
       final secondConnection = await OutboundConnectionFactory()
           .initiateConnectionWithListener(
               firstAtSign, firstAtSignHost, firstAtSignPort);
+      final secondKeys = mintApkamKeys();
       final secondEnrollRequest = 'enroll:request:${jsonEncode({
             'appName': 'buzz',
             'deviceName': 'device-${Uuid().v4().hashCode}',
             'namespaces': {grantedNamespace: 'rw'},
             'otp': otp,
-            'apkamPublicKey': at_demos.apkamPublicKeyMap[firstAtSign],
+            'apkamPublicKey': secondKeys.publicKey,
             'encryptedAPKAMSymmetricKey':
                 apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey'],
           })}\n';
@@ -182,7 +187,9 @@ void main() {
       // APKAM-authenticate as the second enrollment and query a namespace it
       // was NOT granted -> the server refuses.
       await secondConnection.authenticateConnection(
-          authType: AuthType.apkam, enrollmentId: secondEnrollId);
+          authType: AuthType.apkam,
+          enrollmentId: secondEnrollId,
+          privateKey: secondKeys.privateKey);
       final refusal = await secondConnection
           .sendRequestToServer('enroll:listns:$otherNamespace\n');
       expect(refusal, startsWith('error:'),

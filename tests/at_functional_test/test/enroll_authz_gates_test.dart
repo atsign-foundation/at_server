@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:at_demo_data/at_demo_data.dart';
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
+import 'package:at_functional_test/utils/apkam_keys.dart';
 import 'package:at_functional_test/utils/encryption_util.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
@@ -48,12 +49,13 @@ void main() {
       final conn = await OutboundConnectionFactory()
           .initiateConnectionWithListener(
               firstAtSign, firstAtSignHost, firstAtSignPort);
+      final keys = mintApkamKeys();
       final reqBody = jsonEncode({
         'appName': 'app-${Uuid().v4().hashCode}',
         'deviceName': 'device-${Uuid().v4().hashCode}',
         'namespaces': namespaces,
         'otp': otp,
-        'apkamPublicKey': apkamPublicKeyMap[firstAtSign],
+        'apkamPublicKey': keys.publicKey,
         'encryptedAPKAMSymmetricKey':
             apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey'],
       });
@@ -73,7 +75,9 @@ void main() {
           .replaceAll('data:', ''));
       expect(approve['status'], 'approved');
       await conn.authenticateConnection(
-          authType: AuthType.apkam, enrollmentId: enrollmentId);
+          authType: AuthType.apkam,
+          enrollmentId: enrollmentId,
+          privateKey: keys.privateKey);
       return (conn, enrollmentId);
     }
 
@@ -195,7 +199,7 @@ void main() {
         'deviceName': 'd-${Uuid().v4().hashCode}',
         'namespaces': {'buzz': 'rw'},
         'otp': otp,
-        'apkamPublicKey': apkamPublicKeyMap[firstAtSign],
+        'apkamPublicKey': mintApkamKeys().publicKey,
         'encryptedAPKAMSymmetricKey':
             apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey'],
       });

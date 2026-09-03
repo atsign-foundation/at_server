@@ -1,8 +1,8 @@
 import 'dart:convert';
 
-import 'package:at_demo_data/at_demo_data.dart';
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
+import 'package:at_functional_test/utils/apkam_keys.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
@@ -31,6 +31,7 @@ void main() {
   test('info verb with enroll verb changes', () async {
     await firstAtSignConnection.authenticateConnection();
     int random = Uuid().v4().hashCode;
+    ApkamKeys keys = mintApkamKeys();
 
     // The new app is admitted through the OTP path. A legacy connection's own
     // `enroll:request` is a RETROFIT of its own enrollment now — it carries
@@ -44,7 +45,7 @@ void main() {
         await OutboundConnectionFactory().initiateConnectionWithListener(
             firstAtSign, firstAtSignHost, firstAtSignPort);
     String enrollRequest =
-        'enroll:request:{"appName":"wavi-$random","deviceName":"pixel-$random","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"dummy_apkam_$random"}';
+        'enroll:request:{"appName":"wavi-$random","deviceName":"pixel-$random","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${keys.publicKey}","encryptedAPKAMSymmetricKey":"dummy_apkam_$random"}';
     var enrollResponse = await newApp.sendRequestToServer(enrollRequest);
     enrollResponse = enrollResponse.replaceFirst('data:', '');
     var enrollJsonMap = jsonDecode(enrollResponse);
@@ -60,7 +61,9 @@ void main() {
     await firstAtSignConnection.initiateConnectionWithListener(
         firstAtSign, firstAtSignHost, firstAtSignPort);
     await firstAtSignConnection.authenticateConnection(
-        authType: AuthType.apkam, enrollmentId: enrollmentId);
+        authType: AuthType.apkam,
+        enrollmentId: enrollmentId,
+        privateKey: keys.privateKey);
     // check the info verb.. It should return the result
     String infoVerbResponse =
         await firstAtSignConnection.sendRequestToServer('info');
