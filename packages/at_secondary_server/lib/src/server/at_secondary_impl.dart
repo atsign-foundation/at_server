@@ -509,6 +509,17 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     keyValueStore.preRemoveHooks.add(enrollmentManager.preRemoveHook);
     keyValueStore.postRemoveHooks.add(enrollmentManager.postRemoveHook);
 
+    // The flat legacy credential migrates into the `primary` enrollment
+    // before any client connects: a copy of a root's key is deleted, and
+    // anything else becomes `primary`. After this no flat key exists on a
+    // running server. Before the arming and the sweep below, both of which
+    // read the flat key and would otherwise act on a credential that is
+    // about to become a record. See
+    // [EnrollmentManager.migrateFlatKeyAtStartup].
+    final StartupFlatKeyOutcome migrated =
+        await enrollmentManager.migrateFlatKeyAtStartup();
+    logger.info('Flat legacy credential at startup: ${migrated.name}');
+
     // An atSign that finished migrating to enrollments before this server
     // ever ran has a flat credential nothing scheduled for removal. Arm it
     // here, before any client connects: the clock only ever REMOVES, and the

@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/enroll_verb_handler.dart';
@@ -487,14 +488,12 @@ void main() {
     Future<bool> aUsableRootSurvives() =>
         enMgr.hasUnexpiringRootEnrollment({});
 
-    test('startup arms the clock for an atSign that already holds enrollments',
-        () async {
-      // The owner of an atSign onboarded by an older server may have minted
-      // every enrollment they need BEFORE this server ran, so the mint-time
-      // arming never fires for them — and the stale copy of an app's key that
-      // an older server's CRAM auto-approve left at the flat credential stays
-      // a live owner credential for a revoked app, for ever. Holding
-      // enrollments IS having migrated, so startup arms the clock.
+    test('startup migrates the flat key into primary before the clock could '
+        'arm, so nothing is armed', () async {
+      // BEHAVIOUR CHANGED. The startup arming ran for an atSign whose owner
+      // minted enrollments before this server ever ran. The flat key is now
+      // migrated into the `primary` enrollment ahead of it, so by the time
+      // the arming asks there is no flat key to put on a clock.
       await installFlatCredential();
       await storeApprovedEnrollment({'wavi': 'rw'});
       expect(await deadlineRecord(), isNull,
@@ -502,10 +501,15 @@ void main() {
 
       await AtSecondaryServerImpl.getInstance().prepareStoreForFirstConnection();
 
-      expect(await deadlineRecord(), isNotNull,
-          reason: 'an enrollment already exists, so migration has begun and '
-              'the flat credential is on the clock without the owner having '
-              'to mint anything more');
+      expect(await deadlineRecord(), isNull,
+          reason: 'the migration ran first and left no flat key to arm');
+      expect(await enMgr.legacyPkamPublicKey(), isNull);
+      expect(
+          (await enMgr.getEnrollmentById(
+                  EnrollmentManager.primaryEnrollmentId))
+              .apkamPublicKey,
+          'FLAT_PKAM_KEY',
+          reason: 'the credential became a record rather than a deadline');
     });
 
     test('...but a virgin store arms nothing, and neither does an atSign '
@@ -544,12 +548,23 @@ void main() {
     }
 
     test('the startup path runs the sweep', () async {
-      await aDueRetirement();
+      // Pinned on an expired key rather than on a due retirement: the flat
+      // key is migrated before the sweep runs, so a retirement that fell due
+      // finds nothing to retire, and a pin on it would be green whether or
+      // not the sweep ran.
+      await keyValueStore.put('elapsed.wavi$alice', AtData()..data = 'x',
+          assertedTimestamps: AtAssertedTimestamps(
+              expiresAt: DateTime.now().toUtc().subtract(Duration(minutes: 1)),
+              deriveTtl: true));
+      expect(await keyValueStore.exists('elapsed.wavi$alice'), isTrue,
+          reason: 'precondition: elapsed, and still on disk');
+
       await AtSecondaryServerImpl.getInstance().prepareStoreForFirstConnection();
-      expect(await enMgr.legacyPkamPublicKey(), isNull,
-          reason: 'a deadline that fell due while the server was down is '
-              'noticed on the way up, by the startup path itself and not by '
-              'a sweep some test called for it');
+
+      expect(await keyValueStore.exists('elapsed.wavi$alice'), isFalse,
+          reason: 'a key that expired while the server was down is reaped on '
+              'the way up, by the startup path itself and not by a sweep '
+              'some test called for it');
     });
 
     test('the expiry timer\'s callback runs the sweep', () async {

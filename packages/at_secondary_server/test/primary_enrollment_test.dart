@@ -4,6 +4,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
@@ -322,6 +323,38 @@ void main() {
 
     test('nothing stored, nothing done', () async {
       expect(await enMgr.migrateFlatKeyAtStartup(), StartupFlatKeyOutcome.none);
+      expect(await enMgr.primaryEnrollment(), isNull);
+    });
+  });
+
+  group('the startup path runs the migration', () {
+    test('prepareStoreForFirstConnection migrates the flat key, ahead of the '
+        'retirement clock\'s arming', () async {
+      // The clock arms at startup for an atSign holding enrollments beside a
+      // flat key. Run first, the migration leaves it no flat key to arm on:
+      // the credential becomes a record rather than a deadline.
+      await installFlatKey('LEGACY_KEY');
+      await storeScoped('an-app', 'APP_KEY');
+
+      await AtSecondaryServerImpl.getInstance().prepareStoreForFirstConnection();
+
+      expect(await flatKeyExists(), isFalse,
+          reason: 'no flat key exists on a running server');
+      expect((await enMgr.getEnrollmentById(primary)).apkamPublicKey,
+          'LEGACY_KEY');
+      expect(await keyValueStore.exists(enMgr.legacyCredentialRetirementKey),
+          isFalse,
+          reason: 'the arming that follows found nothing to put on a clock');
+    });
+
+    test('and deletes a copy of a root\'s key rather than minting from it',
+        () async {
+      await storeRoot('first-root', 'ROOT_KEY');
+      await installFlatKey('ROOT_KEY');
+
+      await AtSecondaryServerImpl.getInstance().prepareStoreForFirstConnection();
+
+      expect(await flatKeyExists(), isFalse);
       expect(await enMgr.primaryEnrollment(), isNull);
     });
   });
