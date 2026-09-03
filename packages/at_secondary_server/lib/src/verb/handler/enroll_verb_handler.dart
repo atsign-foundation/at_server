@@ -404,19 +404,22 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       Map<dynamic, dynamic> responseJson,
       InboundConnection atConnection) async {
     var enrollNamespaces = enrollParams.namespaces ?? {};
+    final inboundConnectionMetadata =
+        atConnection.metaData as InboundConnectionMetadata;
 
     if (atConnection.metaData.authType == AuthType.cram) {
       // A CRAM-authenticated connection is allowed a 'duplicate' enrollment
       // request. See #2208
       logger.warning('CRAM-authenticated connection - i.e. initial enrollment;'
           ' will replace the existing initial enrollment, if any');
-    } else if (atConnection.metaData.authType == AuthType.apkam) {
+    } else if (carriesEnrollment(inboundConnectionMetadata)) {
       // A self-enrollment keeps its app's own (appName, deviceName): a
       // retrofit is the same app re-enrolling itself, and sibling clones of
       // one keyfile share those names, each needing to coexist with the
       // approved enrollments the others already spawned. Uniqueness of
       // (appName, deviceName) among live enrollments therefore ends on this
-      // branch by design.
+      // branch by design. Keyed on the enrollment the connection carries,
+      // exactly as the retrofit branch below is.
     } else {
       // Every other connection must not duplicate an existing enrollment's
       // (appName, deviceName).
@@ -533,26 +536,20 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     //
     // What retrofit is FOR: splitting a shared keyfile into per-device
     // credentials. Every party to that already holds an enrollment, so the
-    // branch is entered only by a connection carrying one — a legacy
-    // connection has no enrollment to replace and no id to name one with.
+    // branch is entered by a connection CARRYING one, whatever authenticated
+    // it: the enrollment id on the connection names what is being replaced,
+    // and its approval is checked below. A connection carrying none has no
+    // enrollment to replace and no id to name one with.
     //
-    // ⚠️ The auth type is named EXPLICITLY rather than written as
-    // "authenticated and not CRAM". A CRAM connection must never receive
-    // retrofit treatment — at_auth throws unless a first enrollment comes
-    // back `approved`, so onboarding would break for every new user — and
-    // today it never does ONLY because the auto-approve block above returns
-    // before this point. An allow-list says that in the condition; a negation
-    // would leave it resting on statement order, where a reordering breaks
-    // onboarding silently.
-    if (atConnection.metaData.authType == AuthType.apkam) {
-      final inboundConnectionMetadata =
-          atConnection.metaData as InboundConnectionMetadata;
-      final predecessorId = inboundConnectionMetadata.enrollmentId;
-      if (predecessorId == null) {
-        throw UnAuthorizedException(
-            'A self-enrollment needs a resolvable enrollment id on the '
-            'connection');
-      }
+    // ⚠️ Keyed on the id rather than on the auth type, and placed AFTER the
+    // CRAM auto-approve above deliberately: a CRAM connection carries the id
+    // it has just minted, so an id-keyed gate ahead of the auto-approve
+    // would capture that connection's next request as a retrofit. at_auth
+    // throws unless a first enrollment comes back `approved`, so onboarding
+    // would break for every new user. The CRAM branch is therefore tested
+    // FIRST and by auth type, and this one by the enrollment carried.
+    if (carriesEnrollment(inboundConnectionMetadata)) {
+      final String predecessorId = inboundConnectionMetadata.enrollmentId!;
       final EnrollDataStoreValue predecessor;
       try {
         predecessor = await enMgr.getEnrollmentById(predecessorId);
@@ -1897,6 +1894,23 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
   }
 
+  /// Whether [md] carries an enrollment: an authenticated connection holding
+  /// a non-empty enrollment id, which names the record a self-enrollment
+  /// replaces. This, and not the auth type, is what selects the retrofit
+  /// branch of the request path, the (appName, deviceName) skip that goes
+  /// with it, and the mandatory-namespace exemption in `_validateParams`.
+  /// Whether that enrollment is APPROVED is checked by the branch, which
+  /// reads the record.
+  ///
+  /// Authentication is part of it because an id is only ever put on a
+  /// connection by the authentication that admitted it; an id found on an
+  /// unauthenticated connection names nothing the connection proved.
+  @visibleForTesting
+  static bool carriesEnrollment(InboundConnectionMetadata md) {
+    final String? id = md.enrollmentId;
+    return md.isAuthenticated && id != null && id.isNotEmpty;
+  }
+
   /// Refuses a request whose (appName, deviceName) an approved or pending
   /// enrollment already holds, with [IllegalStateException].
   ///
@@ -1993,12 +2007,15 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         // authorisation loops decide by iterating the TARGET's grants and a
         // target holding none passes them with zero iterations.
         //
-        // The exemption is by auth type because that is what decides which
-        // branch of the request path runs. Widening the retrofit branch to
-        // another auth type means widening this exemption in the same commit.
+        // The exemption is keyed exactly as the request path's branches are:
+        // CRAM by auth type, the retrofit by the enrollment the connection
+        // carries. Keying the two differently is how an empty-grant record
+        // gets minted — a connection admitted here and not there lands on
+        // the path that writes the grants the request chose.
         final AuthType? authType = inboundConnection.metaData.authType;
         if (authType != AuthType.cram &&
-            authType != AuthType.apkam &&
+            !carriesEnrollment(
+                inboundConnection.metaData as InboundConnectionMetadata) &&
             (enrollParams.namespaces == null ||
                 enrollParams.namespaces!.isEmpty)) {
           throw IllegalArgumentException(
