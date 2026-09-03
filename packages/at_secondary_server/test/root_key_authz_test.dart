@@ -143,7 +143,8 @@ void main() {
           updateVerbHandler.process(
               'update:${AtConstants.atPkamPublicKey} REPLACEMENT_KEY',
               inboundConnection),
-          throwsA(isA<UnAuthorizedException>()),
+          throwsA(isA<UnAuthorizedException>().having(
+              (e) => e.message, 'message', contains('may not be written'))),
           reason: 'root privilege is not enough for THIS key: an APKAM root '
               'that plants a key it holds gains a legacy identity, and legacy '
               'PKAM carries no enrollment id — so revoking that root leaves '
@@ -164,10 +165,10 @@ void main() {
       // is exactly the shape to avoid, because whoever holds an enrollment
       // spelled that way inherits the atSign's unrevokable credential.
       //
-      // The MESSAGE is the discriminator, not the type: both refusals on this
-      // path throw UnAuthorizedException, and the one that must fire here is
-      // the per-enrollment authorization check. Restoring the carve-out would
-      // carry this past it and into the write ban, whose message is different.
+      // One gate decides this key for every connection, ahead of any
+      // per-enrollment reading, so the message is the ban's whatever id the
+      // connection carries — an id-keyed carve-out would have to be a second
+      // branch in that gate, and there is none.
       await bindPreviouslyCarvedOutId();
       await keyValueStore.put(
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
@@ -176,11 +177,10 @@ void main() {
           updateVerbHandler.process(
               'update:${AtConstants.atPkamPublicKey} NEW_KEY',
               inboundConnection),
-          throwsA(isA<UnAuthorizedException>().having((e) => e.message,
-              'message', contains('is not authorized to update key'))),
-          reason: 'refused by the per-enrollment authorization check, like '
-              'every other enrollment: no id carries a right to write this '
-              'key');
+          throwsA(isA<UnAuthorizedException>().having(
+              (e) => e.message, 'message', contains('may not be written'))),
+          reason: 'refused by the one gate, like every other connection: no '
+              'id carries a right to write this key');
 
       final stored = await keyValueStore.get(AtConstants.atPkamPublicKey);
       expect(stored?.data, 'ORIGINAL_KEY',
@@ -213,6 +213,34 @@ void main() {
       expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
           'ORIGINAL_KEY',
           reason: 'and the refusal happened before the write');
+    });
+
+    test('a legacy connection carrying no id is refused even under '
+        'testingMode', () async {
+      // The exception names CRAM as well as the flag. A legacy-PKAM
+      // connection carries no enrollment id either, and it is exactly the
+      // connection the null-id short circuit would wave through if the gate
+      // sat behind it — so this is the arm that pins the gate's position.
+      AtSecondaryConfig.testingModeOverride = true;
+      addTearDown(() => AtSecondaryConfig.testingModeOverride = null);
+
+      inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.enrollmentId = null;
+      inboundConnection.metadata.authType = AuthType.pkamLegacy;
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+
+      await expectLater(
+          updateVerbHandler.process(
+              'update:${AtConstants.atPkamPublicKey} NEW_KEY',
+              inboundConnection),
+          throwsA(isA<UnAuthorizedException>().having(
+              (e) => e.message, 'message', contains('may not be written'))),
+          reason: 'testingMode carves out CRAM alone: the flag says the '
+              'atSign is disposable, CRAM says the caller holds the secret '
+              'it was created with, and a legacy connection says neither');
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'ORIGINAL_KEY');
     });
 
     test('a CRAM connection under testingMode may write it', () async {

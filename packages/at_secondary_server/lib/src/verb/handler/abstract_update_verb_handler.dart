@@ -109,13 +109,6 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
           apkamUnauthorizedMsg(md.enrollmentId ?? 'primary', atKey));
     }
 
-    // Folded the keystore's own way, so the comparison is against the string
-    // the store would hold rather than against the spelling the wire happened
-    // to use.
-    if (canonicalAtKey(atKey) == AtConstants.atPkamPublicKey) {
-      refuseLegacyCredentialWrite(md);
-    }
-
     var keyType = AtKey.getKeyType(atKey, enforceNameSpace: false);
     switch (keyType) {
       case KeyType.selfKey:
@@ -205,54 +198,6 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
         atData,
         effectiveAssertedTimestamps(updateParams.metadata!,
             existingAtMetaData));
-  }
-
-  /// Refuses EVERY write of `privatekey:at_pkam_publickey` except the one a
-  /// test fixture makes over CRAM.
-  ///
-  /// That key is the credential LEGACY PKAM authenticates against, and a
-  /// legacy authentication carries no enrollment id — so a key written here
-  /// is an identity that nothing on the roster shows and no revocation can
-  /// reach. Every other credential the atSign holds arrives through
-  /// `enroll:request` and is rotated through `enroll:update`, both of which
-  /// leave a record that can be revoked, expired and cascaded from. This one
-  /// leaves nothing, and there is no verb that can take it back: `delete`
-  /// refuses `privatekey:` keys on grammar.
-  ///
-  /// So the refusal is of the CONNECTION rather than of a privilege, and it
-  /// covers the owner as squarely as an app. An enrollment is already refused
-  /// upstream — `AbstractVerbHandler.isAuthorized` decides this key `false`
-  /// whatever the enrollment holds — but a connection carrying no enrollment
-  /// id is authorised for everything before any key is examined, and that is
-  /// the connection this exists for.
-  ///
-  /// THE ONE EXCEPTION is a CRAM connection on a server running as a test
-  /// fixture: the virtual environment installs a keypair that way against a
-  /// fresh atSign, so that the packs have something to authenticate with.
-  /// [AtSecondaryConfig.testingMode] is false in every shipped configuration,
-  /// and false is also what every failure to read the setting answers, so a
-  /// server that cannot read its config is not a server that permits this.
-  /// CRAM is named as well as the flag because the two say different things —
-  /// the flag says this atSign is disposable, CRAM says the caller holds the
-  /// secret the atSign was created with.
-  ///
-  /// [md] carries the connection's auth type. The key itself is folded by the
-  /// caller, which is what makes a spelling the keystore would fold onto this
-  /// record reach this refusal rather than slip past it.
-  void refuseLegacyCredentialWrite(InboundConnectionMetadata md) {
-    if (md.authType == AuthType.cram && AtSecondaryConfig.testingMode) {
-      logger.warning('Permitting a write of ${AtConstants.atPkamPublicKey} '
-          'over a CRAM connection because testingMode is on. This installs a '
-          'credential that authenticates with no enrollment id and that no '
-          'verb can withdraw; it must never be reachable on a real atSign');
-      return;
-    }
-    throw UnAuthorizedException(
-        '${AtConstants.atPkamPublicKey} may not be written. It is the '
-        'credential legacy PKAM authenticates against, it carries no '
-        'enrollment id, and nothing can revoke it once it is installed. '
-        'Enrol a credential with enroll:request and rotate it with '
-        'enroll:update, both of which leave a record that can be withdrawn');
   }
 
   /// Queues the auto-notification for a write that has already succeeded,

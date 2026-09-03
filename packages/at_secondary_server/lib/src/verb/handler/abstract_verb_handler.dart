@@ -7,6 +7,7 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/enroll/enrollment_access.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as handler_util;
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -266,6 +267,9 @@ abstract class AbstractVerbHandler implements VerbHandler {
       String enrolledNamespaceAccess = '',
       String operation = ''}) async {
     final enrollmentId = inboundConnectionMetadata.enrollmentId;
+    // Ahead of the short circuit below, because the connection it exists for
+    // is the one that carries no enrollment id.
+    refuseFlatCredentialWrite(inboundConnectionMetadata, atKey);
     // A connection with no enrollment id has full permissions. Namespace-less
     // keys are decided in isAuthorizedSync, against the resolved enrollment.
     if (enrollmentId == null) {
@@ -278,6 +282,57 @@ abstract class AbstractVerbHandler implements VerbHandler {
         enrolledNamespaceAccess: enrolledNamespaceAccess,
         operation: operation);
   }
+
+  /// The ONE gate on writing the flat legacy credential,
+  /// `privatekey:at_pkam_publickey`: refused for every connection, whatever
+  /// it holds, with the single exception below. Called from [isAuthorized]
+  /// ahead of its null-id short circuit, so it decides for a connection
+  /// carrying no enrollment id — CRAM, owner, legacy PKAM — as well as for
+  /// every enrollment. Scoped to the writing verbs, `update` and
+  /// `update:meta`, which `update:json` and `batch:` both re-dispatch into.
+  ///
+  /// Why no connection may write it: the key is what legacy PKAM
+  /// authenticates against, and a legacy `pkam:` carries no enrollment id, so
+  /// a caller that installs a key it holds mints an identity that no verb can
+  /// withdraw — an enrollment that plants one survives its own revocation. A
+  /// connection carrying no id is authorised for everything else before any
+  /// key is examined, which is exactly why the gate sits ahead of that.
+  ///
+  /// THE ONE EXCEPTION is a CRAM connection on a server running as a test
+  /// fixture: the virtual environment installs a keypair that way against a
+  /// fresh atSign, so that the packs have something to authenticate with.
+  /// [AtSecondaryConfig.testingMode] is false in every shipped configuration,
+  /// and false is also what every failure to read the setting answers, so a
+  /// server that cannot read its config is not a server that permits this.
+  /// CRAM is named as well as the flag because the two say different things —
+  /// the flag says this atSign is disposable, CRAM says the caller holds the
+  /// secret the atSign was created with.
+  ///
+  /// [atKey] is compared as the keystore folds it, so a spelling the keystore
+  /// would fold onto this record reaches the refusal rather than slipping
+  /// past it. Throws [UnAuthorizedException]; returns for any other key, any
+  /// non-writing verb, and the exception.
+  void refuseFlatCredentialWrite(
+      InboundConnectionMetadata md, String? atKey) {
+    if (atKey == null || !isWritingVerb()) return;
+    if (canonicalAtKey(atKey) != AtConstants.atPkamPublicKey) return;
+    if (md.authType == AuthType.cram && AtSecondaryConfig.testingMode) {
+      logger.warning('Permitting a write of ${AtConstants.atPkamPublicKey} '
+          'over a CRAM connection because testingMode is on. This installs a '
+          'credential that authenticates with no enrollment id and that no '
+          'verb can withdraw; it must never be reachable on a real atSign');
+      return;
+    }
+    throw UnAuthorizedException(flatCredentialWriteRefusal);
+  }
+
+  /// What [refuseFlatCredentialWrite] says.
+  static const String flatCredentialWriteRefusal =
+      '${AtConstants.atPkamPublicKey} may not be written. It is the '
+      'credential legacy PKAM authenticates against, it carries no '
+      'enrollment id, and nothing can revoke it once it is installed. '
+      'Enrol a credential with enroll:request and rotate it with '
+      'enroll:update, both of which leave a record that can be withdrawn';
 
   /// Fetches the enrollment record for [enrollmentId] from the
   /// enrollment manager. Returns `null` if the record cannot be
@@ -738,12 +793,13 @@ abstract class AbstractVerbHandler implements VerbHandler {
     final bool isOwnKeyMaterial = _ownKeyMaterialRegex.hasMatch(key);
     if (isOwnKeyMaterial || _rootOnlyWritableKeyRegex.hasMatch(key)) {
       if (isMutatingVerb()) {
-        // NO enrollment may write these, whatever it holds. Every other key
+        // NO enrollment may mutate these, whatever it holds. Every other key
         // in this branch is decided by what the enrollment holds; these are
         // refused outright, because writing one MINTS AN IDENTITY rather
-        // than serving one — see
-        // `AbstractUpdateVerbHandler.refuseLegacyCredentialWrite`, which
-        // refuses the connections that never reach here.
+        // than serving one. A WRITE of the PKAM key never reaches here: it
+        // is decided for every connection by [refuseFlatCredentialWrite],
+        // ahead of the null-id short circuit. What this line still decides
+        // is the other mutating verbs — an enrollment deleting it.
         //
         // The CRAM secret is here for the same reason as the PKAM key, and
         // it was missed when that guard was written. A caller that installs
