@@ -14,6 +14,7 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 
 import 'test_utils.dart';
 
@@ -268,6 +269,7 @@ void main() {
       await verbTestsSetUp();
       inboundConnection.metadata.isAuthenticated =
           true; // owner connection, authenticated
+      inboundConnection.metadata.authType = AuthType.cram;
     });
 
     tearDown(() async {
@@ -313,6 +315,7 @@ void main() {
       // Since the namespace have only read access, setting the
       // enrollmentId to connection after update
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       // Local Lookup a key with wavi namespace
       String llookupCommand = 'llookup:$alice:phone.wavi$alice';
       HashMap<String, String?> llookupVerbParams =
@@ -440,6 +443,7 @@ void main() {
       // Since the namespace have only read access, setting the
       // enrollmentId to connection after update
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       // Local Lookup a key with wavi namespace
       String llookupCommand = 'llookup:$alice:mobile.buzz$alice';
       HashMap<String, String?> llookupVerbParams =
@@ -459,6 +463,7 @@ void main() {
         () async {
       inboundConnection.metadata.isAuthenticated =
           true; // owner connection, authenticated
+      inboundConnection.metadata.authType = AuthType.cram;
       String updateCommand = 'update:$bob:shared_key$alice some shared value';
       HashMap<String, String?> updateVerbParams =
           getVerbParam(VerbSyntax.update, updateCommand);
@@ -488,6 +493,7 @@ void main() {
           true; // owner connection, authenticated
       enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -527,6 +533,7 @@ void main() {
           true; // owner connection, authenticated
       enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -566,6 +573,7 @@ void main() {
       String firstEnrollmentId = Uuid().v4();
       inboundConnection.metadata.isAuthenticated = true;
       inboundConnection.metadata.enrollmentId = firstEnrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       // create an enrollment(should have * access) and update key without namespace
       var firstEnrollmentKey =
           '$firstEnrollmentId.new.enrollments.__manage$alice';
@@ -600,6 +608,7 @@ void main() {
       String secondEnrollmentKey =
           '$secondEnrollmentId.new.enrollments.__manage$alice';
       inboundConnection.metadata.enrollmentId = secondEnrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final secondEnrollJson = {
         'sessionId': '18969',
         'appName': 'wavi_456',
@@ -648,6 +657,7 @@ void main() {
         inboundConnection.metadata.isAuthenticated = true;
         enrollmentId = Uuid().v4();
         inboundConnection.metadata.enrollmentId = enrollmentId;
+        inboundConnection.metadata.authType = AuthType.apkam;
         final enrollJson = {
           'sessionId': '123',
           'appName': 'wavi',
@@ -660,6 +670,7 @@ void main() {
         await keyValueStore.put('$enrollmentId.new.enrollments.__manage$alice',
             AtData()..data = jsonEncode(enrollJson));
         inboundConnection.metadata.enrollmentId = enrollmentId;
+        inboundConnection.metadata.authType = AuthType.apkam;
         String llookupCommand = 'llookup:$alice:dummykey.wavi$alice';
         HashMap<String, String?> localLookupVerbParams =
             getVerbParam(VerbSyntax.llookup, llookupCommand);

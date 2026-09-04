@@ -56,8 +56,10 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
     // Resolve enrollment ONCE per request — sync iterates many candidate
     // entries against a single enrollment context, so the per-entry filter
     // inside the iterate() where: closure can stay synchronous.
-    final EnrollDataStoreValue? enroll =
-        (enrollmentId == null) ? null : await resolveEnrollment(enrollmentId);
+    final bool cram = AbstractVerbHandler.isCramConnection(connectionMetadata);
+    final EnrollDataStoreValue? enroll = (cram || enrollmentId == null)
+        ? null
+        : await resolveEnrollment(enrollmentId);
     final int? latestCommitId = commitLog.lastCommittedSequenceNumber();
 
     bool whereFilter(CommitEntry entry) {
@@ -93,7 +95,7 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       }
 
       // Enrollment authorization (sync seam from 3.5c).
-      if (!isAuthorizedSync(enroll, enrollmentId, atKey: atKey)) {
+      if (!isAuthorizedSync(enroll, enrollmentId, cram: cram, atKey: atKey)) {
         return false;
       }
 

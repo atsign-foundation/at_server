@@ -54,8 +54,7 @@ void main() {
     Future<Map<String, dynamic>> listAs(String? callerId) async {
       inboundConnection.metaData
         ..isAuthenticated = true
-        ..authType =
-            callerId == null ? AuthType.pkamLegacy : AuthType.apkam
+        ..authType = callerId == null ? AuthType.cram : AuthType.apkam
         ..sessionID = Uuid().v4();
       inboundConnection.metadata.enrollmentId = callerId;
       final response = Response();
@@ -111,7 +110,7 @@ void main() {
               'this is the flow the field exists for');
     });
 
-    test('an owner connection carrying no enrollment id gets the whole record',
+    test('a CRAM connection gets the whole record',
         () async {
       // A connection carrying no enrollment id holds the atSign itself
       // rather than a delegated share of it, so there is no secret here it

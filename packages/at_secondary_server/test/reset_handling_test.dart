@@ -55,6 +55,7 @@ void main() {
       await keyValueStore.put(sharedEncryptionKeyName, sharedEncryptionKeyData);
 
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
 
       var nonExistentKeyName = 'no.such.key.some_app@bob';
       when(() =>
@@ -121,6 +122,7 @@ void main() {
           (await keyValueStore.get(cachedBobsPublicKeyName))!;
 
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
 
       var existsKeyName = 'some.key.some_app@bob';
       AtData bobData = createRandomAtData(bob);
@@ -251,6 +253,7 @@ void main() {
       DummyInboundConnection pkamMC = DummyInboundConnection();
       pkamMC.metaData.authType = AuthType.pkamLegacy;
       pkamMC.metaData.isAuthenticated = true;
+      pkamMC.metaData.authType = AuthType.cram;
       pkamMC.metaData.sessionID = 'legacy_pkam_monitor_session';
       await MonitorVerbHandler(keyValueStore, notificationManager)
           .processVerb(Response(), mvp, pkamMC);

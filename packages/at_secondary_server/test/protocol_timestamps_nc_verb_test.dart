@@ -27,6 +27,7 @@ import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 
 import 'test_utils.dart';
 
@@ -62,6 +63,7 @@ void main() {
         keyValueStore, statsNotificationService, notificationManager);
     llookupHandler = LocalLookupVerbHandler(keyValueStore, enMgr);
     inboundConnection.metadata.isAuthenticated = true;
+    inboundConnection.metadata.authType = AuthType.cram;
   });
 
   tearDown(() async {

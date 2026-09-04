@@ -827,6 +827,7 @@ void main() {
         alice,
       );
       atConnection.metaData.isAuthenticated = true;
+      atConnection.metaData.authType = AuthType.cram;
       var updateResponse = Response();
       var updateVerbParams = HashMap<String, String>();
       updateVerbParams.putIfAbsent('atSign', () => alice);
@@ -885,6 +886,7 @@ void main() {
           ':$bob:$atKey$alice $value');
 
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
 
       // 1. do an update and verify via llookup
       UpdateVerbHandler updateHandler = UpdateVerbHandler(
@@ -993,6 +995,7 @@ void main() {
       for (int i = 0; i < concurrency; i++) {
         var c = DummyInboundConnection();
         c.metaData.isAuthenticated = true;
+        c.metaData.authType = AuthType.cram;
         connections.add(c);
         futures.add(updateHandler.process(
             'update:immutable:true:$atKey original data', c));
@@ -1038,6 +1041,7 @@ void main() {
       for (int i = 0; i < concurrency; i++) {
         var c = DummyInboundConnection();
         c.metaData.isAuthenticated = true;
+        c.metaData.authType = AuthType.cram;
         connections.add(c);
         futures.add(updateHandler.process('update:$atKey original data', c));
       }
@@ -1073,6 +1077,7 @@ void main() {
         alice,
       );
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
 
       final atKey = AtKey.fromString('mutable1.wavi$alice');
       await updateHandler.process(
@@ -1097,6 +1102,7 @@ void main() {
         alice,
       );
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
 
       final atKey = AtKey.fromString('mutable1.wavi$alice');
       await updateHandler.process(
@@ -1135,6 +1141,7 @@ void main() {
         alice,
       );
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
 
       final atKey = AtKey.fromString('expiring_lock.wavi$alice');
       // ttl long enough that the control below cannot race it. At ttl:1 the
@@ -1190,6 +1197,7 @@ void main() {
         alice,
       );
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
 
       final atKey = AtKey.fromString('expired_inherits.wavi$alice');
       await updateHandler.process(
@@ -1225,6 +1233,7 @@ void main() {
         alice,
       );
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
 
       final atKey = AtKey.fromString('unborn_lock.wavi$alice');
       await updateHandler.process(
@@ -1253,6 +1262,7 @@ void main() {
         alice,
       );
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       for (int i = 1; i <= 100; i++) {
         var randomMd = createRandomCommonsMetadata();
         randomMd.ccd =
@@ -1280,6 +1290,7 @@ void main() {
         alice,
       );
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
 
       var key = 'update-ttl-zero.tests$alice';
 
@@ -1324,6 +1335,7 @@ void main() {
           ':$bob:$atKey$alice $value');
 
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       // 1. Do an update and verify via llookup
       UpdateVerbHandler updateHandler = UpdateVerbHandler(
         keyValueStore,
@@ -1405,6 +1417,8 @@ void main() {
       var response = Response();
       var verbParams = handler.parse(command);
       var atConnection = InboundConnectionImpl(mockSocket, null);
+      atConnection.metaData.isAuthenticated = true;
+      atConnection.metaData.authType = AuthType.cram;
       await handler.processVerb(response, verbParams, atConnection);
       expect(response.isError, false);
     });
@@ -1418,6 +1432,7 @@ void main() {
           true; // owner connection, authenticated
       enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -1459,6 +1474,7 @@ void main() {
       // test enrollment key not found scenario
       enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       String updateCommand = 'update:$alice:dummykey.wavi$alice dummyValue';
       HashMap<String, String?> updateVerbParams =
           getVerbParam(VerbSyntax.update, updateCommand);
@@ -1493,6 +1509,7 @@ void main() {
             true; // owner connection, authenticated
         enrollmentId = Uuid().v4();
         inboundConnection.metadata.enrollmentId = enrollmentId;
+        inboundConnection.metadata.authType = AuthType.apkam;
         final enrollJson = {
           'sessionId': '123',
           'appName': 'wavi',
@@ -1506,6 +1523,7 @@ void main() {
         await keyValueStore.put(
             keyName, AtData()..data = jsonEncode(enrollJson));
         inboundConnection.metadata.enrollmentId = enrollmentId;
+        inboundConnection.metadata.authType = AuthType.apkam;
 
         String updateCommand = 'update:$alice:dummykey.wavi$alice dummyValue';
         HashMap<String, String?> updateVerbParams =
@@ -1534,6 +1552,7 @@ void main() {
         () async {
       inboundConnection.metadata.isAuthenticated =
           true; // owner connection, authenticated
+      inboundConnection.metadata.authType = AuthType.cram;
       String updateCommand = 'update:$bob:shared_key$alice shared key value';
       HashMap<String, String?> updateVerbParams =
           getVerbParam(VerbSyntax.update, updateCommand);
@@ -1555,6 +1574,7 @@ void main() {
           true; // owner connection, authenticated
       enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -1600,6 +1620,7 @@ void main() {
           true; // owner connection, authenticated
       enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -1636,6 +1657,7 @@ void main() {
           true; // owner connection, authenticated
       enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -1668,6 +1690,7 @@ void main() {
           true; // owner connection, authenticated
       enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -1700,6 +1723,7 @@ void main() {
           true; // owner connection, authenticated
       enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -1736,6 +1760,7 @@ void main() {
           true; // owner connection, authenticated
       enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'buzz',
@@ -1770,6 +1795,7 @@ void main() {
           true; // owner connection, authenticated
       enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'buzz',
@@ -1804,6 +1830,7 @@ void main() {
           true; // owner connection, authenticated
       enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'buzz',
@@ -1844,6 +1871,7 @@ void main() {
           true; // owner connection, authenticated
       enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
           'dummy-session', 'app-name', 'my-device', 'dummy-public-key');
       enrollDataStoreValue.namespaces = {'wavi': 'rw'};

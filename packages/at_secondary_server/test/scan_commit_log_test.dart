@@ -13,6 +13,7 @@ import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/scan_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:test/test.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 
 import 'test_utils.dart';
 
@@ -36,6 +37,7 @@ void main() {
     deleteHandler = DeleteVerbHandler(
         keyValueStore, statsNotificationService, notificationManager);
     inboundConnection.metadata.isAuthenticated = true;
+    inboundConnection.metadata.authType = AuthType.cram;
   });
 
   tearDown(() async {
@@ -174,6 +176,7 @@ void main() {
           await createAndPersistAnEnrollment('wavi', 'pixel', {'wavi': 'r'});
       inboundConnection.metadata.sessionID = 'dummy_session';
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
 
       final keys =
           (await scanCl()).cast<Map>().map((e) => e['atKey']).toList();
@@ -199,6 +202,7 @@ void main() {
           await createAndPersistAnEnrollment('wavi', 'pixel', {'*': 'rw'});
       inboundConnection.metadata.sessionID = 'dummy_session';
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
 
       final keys =
           (await scanCl()).cast<Map>().map((e) => e['atKey']).toList();
@@ -215,6 +219,7 @@ void main() {
           'wavi', 'pixel', <String, String>{});
       inboundConnection.metadata.sessionID = 'dummy_session';
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
 
       expect(await scanCl(), isEmpty);
     });

@@ -115,6 +115,23 @@
   approved BEFORE the upgrade carry no parent and stay outside the cascade;
   ones approved after carry `primary`.
 
+- ⚠️ BREAKING: full access is keyed on being a CRAM connection, never on
+  carrying no enrollment id. `isAuthorized`, `isAuthorizedSync`,
+  `isRootPrivilegedConnection`, `scan`, `sync`, `enroll:list`, `enroll:fetch`
+  and `enroll:delete` all asked "does this connection carry an id?" and
+  admitted everything when it did not; only `cram:` leaves an authenticated
+  connection without one, so the two coincided, and the coincidence was
+  load-bearing. Each now asks `AbstractVerbHandler.isCramConnection`,
+  authenticated AND CRAM, and an authenticated connection carrying no id
+  that is not CRAM is refused rather than admitted. The change a client can
+  see: an unauthenticated connection reaching an authorisation check through
+  a verb that needs no authentication (`notify:all`, `notify:status`) is now
+  refused where the null id admitted it. `isAuthorizedSync` takes a
+  `cram` argument. The CRAM auto-approve on `enroll:request` and the
+  mandatory-namespace exemption are keyed the same way, so a socket whose
+  CRAM authentication was followed by a failed `pkam:` is no longer CRAM
+  for either.
+
 - feat: `enroll:fetch` and `enroll:list` report each enrollment's effective
   expiry as `expiresAt` — ISO-8601 UTC, or null when the record never
   expires — on every projection of `enroll:list` (the whole record, the
@@ -145,7 +162,7 @@
   enrollment on request, which is what `primary` holds, so the install
   grants it nothing it could not already give itself, and no harness that
   provisions an atSign this way needs `testingMode`. The write
-  ban itself is now ONE gate in `isAuthorized`, ahead of its null-id short
+  ban itself is now ONE gate in `isAuthorized`, ahead of its CRAM short
   circuit, so it decides for every connection on every route — `update`,
   `update:json`, `batch:` — and an enrollment refused it is told the ban's
   reason rather than the per-enrollment one. `update:meta` is refused for

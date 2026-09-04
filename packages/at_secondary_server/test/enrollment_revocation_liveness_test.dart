@@ -72,6 +72,7 @@ void main() {
     Future<List<String>> scanAs(String enrollmentId) async {
       final metadata = DummyInboundConnection().metadata
         ..isAuthenticated = true
+        ..authType = AuthType.apkam
         ..sessionID = 'dummy_session'
         ..enrollmentId = enrollmentId;
       return await scanVerbHandler.getLocalKeys(
@@ -145,6 +146,7 @@ void main() {
       );
       connection = CloseRecordingConnection();
       connection.metadata.isAuthenticated = true;
+      connection.metadata.authType = AuthType.cram;
     });
 
     tearDown(() async => await verbTestsTearDown());
@@ -155,6 +157,7 @@ void main() {
     /// refusal rather than the gate's absence.
     Future<Response?> updateAs(String enrollmentId) async {
       connection.metadata.enrollmentId = enrollmentId;
+      connection.metadata.authType = AuthType.apkam;
       try {
         return await updateVerbHandler.processInternal(
             'update:$alice:phone.wavi$alice 123', connection);

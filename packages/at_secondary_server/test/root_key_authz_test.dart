@@ -687,7 +687,9 @@ void main() {
         'shared_key.bob@alice.evil@alice',
         'prefix:privatekey:at_pkam_publickey',
       ]) {
-        expect(updateVerbHandler.isAuthorizedSync(enroll, enrollId, atKey: key),
+        expect(
+            updateVerbHandler.isAuthorizedSync(enroll, enrollId,
+                cram: false, atKey: key),
             isFalse,
             reason: '"$key" only contains an exempt form, it is not one');
       }
@@ -909,7 +911,7 @@ void main() {
       ]) {
         expect(
             () => updateVerbHandler.isAuthorizedSync(enroll, enrollId,
-                atKey: key),
+                cram: false, atKey: key),
             returnsNormally,
             reason: '$key must not throw out of the authorization check');
       }

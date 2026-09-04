@@ -267,8 +267,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     final inboundConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
     final callerEnrollmentId = inboundConnectionMetadata.enrollmentId;
-    if (callerEnrollmentId != null &&
-        callerEnrollmentId.isNotEmpty &&
+    if (!AbstractVerbHandler.isCramConnection(inboundConnectionMetadata) &&
         callerEnrollmentId != targetEnrollmentId) {
       // The remedy names connections carrying no enrollment id rather than
       // "an owner", because that is what this gate is keyed on.
@@ -375,7 +374,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     final inboundConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
 
-    if (atConnection.metaData.authType == AuthType.cram) {
+    if (AbstractVerbHandler.isCramConnection(atConnection.metaData as InboundConnectionMetadata)) {
       // A CRAM-authenticated connection is allowed a duplicate enrollment
       // request.
       logger.warning('CRAM-authenticated connection - i.e. initial enrollment;'
@@ -434,8 +433,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
 
     // Auto-approve a request from a CRAM-authenticated connection.
-    if (atConnection.metaData.authType != null &&
-        atConnection.metaData.authType == AuthType.cram) {
+    if (AbstractVerbHandler.isCramConnection(atConnection.metaData as InboundConnectionMetadata)) {
       enrollNamespaces[EnrollmentConstants.enrollManageNamespace] = 'rw';
       enrollNamespaces[EnrollmentConstants.allNamespaces] = 'rw';
       enrollmentValue.approval = EnrollApproval(EnrollmentStatus.approved.name);
@@ -1462,19 +1460,23 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   Future<String> _fetchEnrollmentRequests(
       EnrollmentManager enMgr, AtConnection atConnection, String currentAtSign,
       {EnrollParams? enrollVerbParams}) async {
-    String? authenticatedEnrollmentId =
-        (atConnection.metaData as InboundConnectionMetadata).enrollmentId;
-    // A connection carrying no enrollment id stands over no record to narrow
-    // to, so it gets every enrollment whole: it holds the atSign itself rather
-    // than a delegated share of it, and there is no secret here it could not
-    // read straight out of the keystore.
-    if (authenticatedEnrollmentId == null ||
-        authenticatedEnrollmentId.isEmpty) {
+    final InboundConnectionMetadata md =
+        atConnection.metaData as InboundConnectionMetadata;
+    String? authenticatedEnrollmentId = md.enrollmentId;
+    // A CRAM connection holds the atSign itself rather than a delegated share
+    // of it, so it gets every enrollment whole: there is no secret here it
+    // could not read straight out of the keystore.
+    if (AbstractVerbHandler.isCramConnection(md)) {
       final enrollmentRequestsMap = await enMgr.getEnrollmentsAsJson(
         redactSecrets: false,
         statuses: enrollVerbParams?.enrollmentStatusFilter,
       );
       return jsonEncode(enrollmentRequestsMap);
+    }
+    if (authenticatedEnrollmentId == null ||
+        authenticatedEnrollmentId.isEmpty) {
+      throw UnAuthenticatedException(
+          'enroll:list requires an enrollment or a CRAM connection');
     }
 
     // An APKAM connection sees every enrollment when its own holds `__manage`,
@@ -1795,10 +1797,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         // branches are: CRAM by auth type, the retrofit by the enrollment the
         // connection carries. Keying the two differently is how an
         // empty-grant record gets minted.
-        final AuthType? authType = inboundConnection.metaData.authType;
-        if (authType != AuthType.cram &&
-            !carriesEnrollment(
-                inboundConnection.metaData as InboundConnectionMetadata) &&
+        final InboundConnectionMetadata md =
+            inboundConnection.metaData as InboundConnectionMetadata;
+        if (!AbstractVerbHandler.isCramConnection(md) &&
+            !carriesEnrollment(md) &&
             (enrollParams.namespaces == null ||
                 enrollParams.namespaces!.isEmpty)) {
           throw IllegalArgumentException(
@@ -1958,8 +1960,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     final inboundConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
     final callerEnrollmentId = inboundConnectionMetadata.enrollmentId;
-    if (callerEnrollmentId != null &&
-        callerEnrollmentId.isNotEmpty &&
+    if (!AbstractVerbHandler.isCramConnection(inboundConnectionMetadata) &&
         callerEnrollmentId != targetEnrollmentId) {
       // A target holding NO namespaces fails closed. The loop below decides by
       // iterating the target's grants, so an empty map passes it vacuously

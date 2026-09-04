@@ -31,6 +31,7 @@ void main() {
     test('A test to verify monitor verb writes all notifications', () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
@@ -67,6 +68,7 @@ void main() {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       verbParams[AtConstants.regex] = 'wavi';
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
@@ -117,6 +119,7 @@ void main() {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       verbParams[AtConstants.regex] = 'wavi';
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
@@ -151,6 +154,7 @@ void main() {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       verbParams[AtConstants.regex] = 'wavi';
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
@@ -200,6 +204,7 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.enrollmentId =
           await setEnrollmentKey(jsonEncode({"wavi": "r"}));
+      inboundConnection.metaData.authType = AuthType.apkam;
 
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(keyValueStore, notificationManager);
@@ -251,6 +256,7 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.enrollmentId =
           await setEnrollmentKey(jsonEncode({"wavi": "r", "buzz": 'rw'}));
+      inboundConnection.metaData.authType = AuthType.apkam;
 
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(keyValueStore, notificationManager);
@@ -312,6 +318,7 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.enrollmentId =
           await setEnrollmentKey(jsonEncode({"wavi": "r", "buzz": "rw"}));
+      inboundConnection.metaData.authType = AuthType.apkam;
 
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(keyValueStore, notificationManager);
@@ -366,6 +373,7 @@ void main() {
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.authType = AuthType.cram;
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       inboundConnection.metaData.sessionID = 'dummy_session_id';
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
@@ -373,6 +381,7 @@ void main() {
           response, enrollmentRequestVerbParams, inboundConnection);
       inboundConnection.metaData.enrollmentId =
           jsonDecode(response.data!)['enrollmentId'];
+      inboundConnection.metaData.authType = AuthType.apkam;
       expect(jsonDecode(response.data!)['status'], 'approved');
 
       MonitorVerbHandler monitorVerbHandler =
@@ -474,6 +483,7 @@ void main() {
       DummyInboundConnection pkamMC = DummyInboundConnection();
       pkamMC.metaData.authType = AuthType.pkamLegacy;
       pkamMC.metaData.isAuthenticated = true;
+      pkamMC.metaData.authType = AuthType.cram;
       pkamMC.metaData.sessionID = 'legacy_pkam_monitor_session';
       await MonitorVerbHandler(keyValueStore, notificationManager)
           .processVerb(Response(), mvp, pkamMC);
@@ -552,6 +562,7 @@ void main() {
       inboundConnection.metadata.isAuthenticated = true;
       var enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       var enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -655,6 +666,7 @@ void main() {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       verbParams[AtConstants.regex] = '[';
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(keyValueStore, notificationManager);
       await expectLater(
@@ -673,6 +685,7 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.enrollmentId =
           await setEnrollmentKey(jsonEncode({"wavi": "r"}));
+      inboundConnection.metaData.authType = AuthType.apkam;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(keyValueStore, notificationManager);
       await expectLater(
@@ -698,6 +711,7 @@ void main() {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       verbParams[AtConstants.monitorSelfNotifications] = 'selfNotifications';
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
@@ -746,6 +760,7 @@ void main() {
         () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
@@ -794,6 +809,7 @@ void main() {
         () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
@@ -860,6 +876,7 @@ void main() {
       HashMap<String, String?> verbParams =
           monitorVerbHandler.parse(monitorCommand);
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
 
@@ -910,6 +927,7 @@ void main() {
       HashMap<String, String?> verbParams =
           monitorVerbHandler.parse(monitorCommand);
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
 
@@ -945,6 +963,7 @@ Future<String> setEnrollmentKey(String namespace) async {
   EnrollVerbHandler enrollVerbHandler =
       EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
   inboundConnection.metaData.isAuthenticated = true;
+  inboundConnection.metaData.authType = AuthType.cram;
   inboundConnection.metaData.sessionID = 'dummy_session';
   HashMap<String, String?> totpVerbParams =
       getVerbParam(VerbSyntax.otp, 'otp:get');
@@ -965,6 +984,7 @@ Future<String> setEnrollmentKey(String namespace) async {
   HashMap<String, String?> approveEnrollmentVerbParams =
       getVerbParam(VerbSyntax.enroll, approveEnrollmentRequest);
   inboundConnection.metaData.isAuthenticated = true;
+  inboundConnection.metaData.authType = AuthType.cram;
   enrollVerbHandler =
       EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
   await enrollVerbHandler.processVerb(

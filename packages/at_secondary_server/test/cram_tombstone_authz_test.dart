@@ -7,6 +7,7 @@ import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 
 import 'test_utils.dart';
 
@@ -38,6 +39,7 @@ void main() {
       inboundConnection.metadata.isAuthenticated = true;
       final enrollId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       await keyValueStore.put(
           '$enrollId.new.enrollments.__manage$alice',
           AtData()
@@ -83,6 +85,7 @@ void main() {
       // No seedSecret(): this atSign never had one.
       inboundConnection.metadata
         ..isAuthenticated = true
+        ..authType = AuthType.cram
         ..enrollmentId = null;
 
       // Removing a key the store does not hold is not an error, so nothing
@@ -107,6 +110,7 @@ void main() {
       // No enrollment id: the owner/CRAM shape.
       inboundConnection.metadata
         ..isAuthenticated = true
+        ..authType = AuthType.cram
         ..enrollmentId = null;
 
       await deleteVerbHandler.processInternal(
@@ -126,6 +130,7 @@ void main() {
       await seedSecret();
       inboundConnection.metadata
         ..isAuthenticated = true
+        ..authType = AuthType.cram
         ..enrollmentId = null;
       await deleteVerbHandler.processInternal(
           'delete:${AtConstants.atCramSecret}', inboundConnection);

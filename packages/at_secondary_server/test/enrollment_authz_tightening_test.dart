@@ -9,6 +9,7 @@ import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 
 import 'test_utils.dart';
 
@@ -53,6 +54,7 @@ void main() {
       inboundConnection.metadata.isAuthenticated = true;
       final enrollId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -107,6 +109,7 @@ void main() {
       inboundConnection.metadata.isAuthenticated = true;
       final enrollId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       await keyValueStore.put(
           '$enrollId.new.enrollments.__manage$alice',
           AtData()
@@ -126,6 +129,7 @@ void main() {
     /// under test.
     Future<void> seedAsOwner(String key) async {
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       inboundConnection.metadata.enrollmentId = null;
       await updateVerbHandler.process('update:$key hello', inboundConnection);
     }

@@ -25,6 +25,7 @@ import 'package:crypton/crypton.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 
 import 'test_utils.dart';
 
@@ -106,7 +107,8 @@ void main() {
       var notifyVerb = NotifyVerbHandler(mockKeyStore, mockNotificationManager);
       var inboundConnection = InboundConnectionImpl(mockSocket, '123');
       inboundConnection.metaData = InboundConnectionMetadata()
-        ..isAuthenticated = true;
+        ..isAuthenticated = true
+        ..authType = AuthType.cram;
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent(AtConstants.forAtSign, () => '@bob');
@@ -175,7 +177,8 @@ void main() {
       var notifyVerb = NotifyVerbHandler(mockKeyStore, mockNotificationManager);
       var inboundConnection = InboundConnectionImpl(mockSocket, '123');
       inboundConnection.metaData = InboundConnectionMetadata()
-        ..isAuthenticated = true;
+        ..isAuthenticated = true
+        ..authType = AuthType.cram;
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttl', () => '-1');
@@ -194,7 +197,8 @@ void main() {
       var notifyVerb = NotifyVerbHandler(mockKeyStore, mockNotificationManager);
       var inboundConnection = InboundConnectionImpl(mockSocket, '123');
       inboundConnection.metaData = InboundConnectionMetadata()
-        ..isAuthenticated = true;
+        ..isAuthenticated = true
+        ..authType = AuthType.cram;
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttb', () => '-1');
@@ -212,7 +216,8 @@ void main() {
       var notifyVerb = NotifyVerbHandler(mockKeyStore, mockNotificationManager);
       var inboundConnection = InboundConnectionImpl(mockSocket, '123');
       inboundConnection.metaData = InboundConnectionMetadata()
-        ..isAuthenticated = true;
+        ..isAuthenticated = true
+        ..authType = AuthType.cram;
       var notifyResponse = Response();
       var notifyVerbParams = HashMap<String, String>();
       notifyVerbParams.putIfAbsent('ttr', () => '-2');
@@ -329,6 +334,7 @@ void main() {
       DummyInboundConnection atConnection = DummyInboundConnection();
       atConnection.metaData.fromAtSign = alice;
       atConnection.metaData.isAuthenticated = true;
+      atConnection.metaData.authType = AuthType.cram;
 
       //Notify Verb
       var notifyVerbHandler =
@@ -361,6 +367,7 @@ void main() {
       DummyInboundConnection atConnection = DummyInboundConnection();
       atConnection.metaData.fromAtSign = alice;
       atConnection.metaData.isAuthenticated = true;
+      atConnection.metaData.authType = AuthType.cram;
 
       //Notify Verb
       var notifyVerbHandler =
@@ -399,6 +406,7 @@ void main() {
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
       atConnection.metaData.isAuthenticated = true;
+      atConnection.metaData.authType = AuthType.cram;
 
       var command = 'notify:update:messagetype:text:@bob:hello';
       var regex = verb.syntax();
@@ -533,6 +541,7 @@ void main() {
 
     test('test to verify notification date time stored for self', () async {
       atConnection.metaData.isAuthenticated = true;
+      atConnection.metaData.authType = AuthType.cram;
       // process first notification
       firstNotificationVerbParams.putIfAbsent('forAtSign', () => alice);
       await notifyVerbHandler.processVerb(
@@ -571,7 +580,9 @@ void main() {
       secondNotificationVerbParams.putIfAbsent('forAtSign', () => alice);
       await notifyVerbHandler.processVerb(
           notifyResponse, secondNotificationVerbParams, atConnection);
-      // fetch second notification
+      // fetch second notification, as the atSign's own CRAM connection
+      atConnection.metaData.isAuthenticated = true;
+      atConnection.metaData.authType = AuthType.cram;
       HashMap<String, String> notifyFetchVerbParams = HashMap();
       notifyFetchVerbParams.putIfAbsent('notificationId', () => 'xyz-123');
       await notifyFetch.processVerb(
@@ -707,6 +718,7 @@ void main() {
       HashMap<String, String?> notifyVerbParams =
           getVerbParam(VerbSyntax.notify, notifyCommand);
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       await notifyVerbHandler.processVerb(
           response, notifyVerbParams, inboundConnection);
       expect(response.isError, false);
@@ -720,6 +732,7 @@ void main() {
       HashMap<String, String?> notifyVerbParams =
           getVerbParam(VerbSyntax.notify, notifyCommand);
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -731,6 +744,7 @@ void main() {
       };
       var enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await keyValueStore.put(
         keyName,
@@ -750,6 +764,7 @@ void main() {
           true; // owner connection, authenticated
       var enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -785,6 +800,7 @@ void main() {
           true; // owner connection, authenticated
       var enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -815,6 +831,7 @@ void main() {
           true; // owner connection, authenticated
       var enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -848,6 +865,7 @@ void main() {
       HashMap<String, String?> notifyAllVerbParams =
           getVerbParam(VerbSyntax.notifyAll, notifyAllCommand);
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -859,6 +877,7 @@ void main() {
       };
       var enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await keyValueStore.put(
         keyName,
@@ -880,6 +899,7 @@ void main() {
       HashMap<String, String?> notifyAllVerbParams =
           getVerbParam(VerbSyntax.notifyAll, notifyAllCommand);
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -891,6 +911,7 @@ void main() {
       };
       var enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await keyValueStore.put(
         keyName,
@@ -915,6 +936,7 @@ void main() {
       HashMap<String, String?> notifyAllVerbParams =
           getVerbParam(VerbSyntax.notifyAll, notifyAllCommand);
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -926,6 +948,7 @@ void main() {
       };
       var enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await keyValueStore.put(
         keyName,
@@ -976,6 +999,7 @@ void main() {
       HashMap<String, String?> notifyVerbParams =
           getVerbParam(VerbSyntax.notify, notifyCommand);
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       await notifyVerbHandler.processVerb(
           response, notifyVerbParams, inboundConnection);
       expect(response.isError, false);
@@ -1008,6 +1032,7 @@ void main() {
       HashMap<String, String?> notifyVerbParams =
           getVerbParam(VerbSyntax.notify, notifyCommand);
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -1019,6 +1044,7 @@ void main() {
       };
       var enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await keyValueStore.put(
         keyName,
@@ -1059,6 +1085,7 @@ void main() {
           true; // owner connection, authenticated
       var enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -1103,6 +1130,7 @@ void main() {
           true; // owner connection, authenticated
       var newEnrollmentId = Uuid().v4();
       newInboundConnection.metadata.enrollmentId = newEnrollmentId;
+      newInboundConnection.metadata.authType = AuthType.apkam;
       final newEnrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -1204,6 +1232,7 @@ void main() {
           true; // owner connection, authenticated
       var enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -1248,6 +1277,7 @@ void main() {
           true; // owner connection, authenticated
       var newEnrollmentId = Uuid().v4();
       newInboundConnection.metadata.enrollmentId = newEnrollmentId;
+      newInboundConnection.metadata.authType = AuthType.apkam;
       final newEnrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -1341,6 +1371,7 @@ void main() {
           true; // owner connection, authenticated
       var enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -1392,6 +1423,7 @@ void main() {
           true; // owner connection, authenticated
       var newEnrollmentId = Uuid().v4();
       newInboundConnection.metadata.enrollmentId = newEnrollmentId;
+      newInboundConnection.metadata.authType = AuthType.apkam;
       final newEnrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -1504,6 +1536,7 @@ void main() {
 
       // execute the notify verb
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       await notifyVerbHandler.processVerb(
           response, notifyVerbParams, inboundConnection);
       expect(response.isError, false);

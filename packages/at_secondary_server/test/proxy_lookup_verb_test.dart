@@ -9,6 +9,7 @@ import 'package:test/test.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_commons/at_commons.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 import 'test_utils.dart';
 
 void main() {
@@ -72,6 +73,7 @@ void main() {
       test('plookup - not in cache and does not exist on remote', () async {
         inboundConnection.metaData.isAuthenticated =
             true; // owner connection, authenticated
+        inboundConnection.metaData.authType = AuthType.cram;
 
         when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
             .thenAnswer((Invocation invocation) async {
@@ -101,6 +103,7 @@ void main() {
 
         inboundConnection.metadata.isAuthenticated =
             true; // owner connection, authenticated
+        inboundConnection.metadata.authType = AuthType.cram;
 
         // The plookup will make an unauthenticated lookup request to the other atServer
         when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
@@ -184,6 +187,7 @@ void main() {
 
         inboundConnection.metadata.isAuthenticated =
             true; // owner connection, authenticated
+        inboundConnection.metadata.authType = AuthType.cram;
 
         await plookupVerbHandler.process(
             'plookup:all:$keyName', inboundConnection);
@@ -217,6 +221,7 @@ void main() {
 
         inboundConnection.metadata.isAuthenticated =
             true; // owner connection, authenticated
+        inboundConnection.metadata.authType = AuthType.cram;
 
         when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
             .thenAnswer((Invocation invocation) async {
@@ -258,6 +263,7 @@ void main() {
 
         inboundConnection.metadata.isAuthenticated =
             true; // owner connection, authenticated
+        inboundConnection.metadata.authType = AuthType.cram;
 
         // Wait for a second so that it's time to refresh
         await Future.delayed(Duration(milliseconds: 1001));
@@ -302,6 +308,7 @@ void main() {
 
         inboundConnection.metadata.isAuthenticated =
             true; // owner connection, authenticated
+        inboundConnection.metadata.authType = AuthType.cram;
 
         await Future.delayed(Duration(
             milliseconds:
@@ -349,6 +356,7 @@ void main() {
 
         inboundConnection.metadata.isAuthenticated =
             true; // owner connection, authenticated
+        inboundConnection.metadata.authType = AuthType.cram;
 
         await Future.delayed(Duration(
             milliseconds:
@@ -373,6 +381,7 @@ void main() {
 
         inboundConnection.metadata.isAuthenticated =
             true; // owner connection, authenticated
+        inboundConnection.metadata.authType = AuthType.cram;
 
         await Future.delayed(Duration(
             milliseconds:

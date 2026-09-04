@@ -124,9 +124,14 @@ class ScanVerbHandler extends AbstractVerbHandler {
     if (atConnectionMetadata.isAuthenticated) {
       localKeysList
           .removeWhere((key) => _isPrivateKeyForAtSign(key, showHiddenKeys));
+      if (AbstractVerbHandler.isCramConnection(atConnectionMetadata)) {
+        return localKeysList;
+      }
       if (atConnectionMetadata.enrollmentId == null ||
           atConnectionMetadata.enrollmentId!.isEmpty) {
-        return localKeysList;
+        // Not CRAM and carrying no enrollment: nothing to filter by, so
+        // nothing is visible.
+        return <String>[];
       }
       return await _filterKeysBasedOnEnrollmentId(
           atConnectionMetadata, localKeysList, currentAtSign);
@@ -189,10 +194,14 @@ class ScanVerbHandler extends AbstractVerbHandler {
       byKey[atKey] = entry;
     }
     List<String> visibleKeys = byKey.keys.toList();
-    if (atConnectionMetadata.enrollmentId != null &&
-        atConnectionMetadata.enrollmentId!.isNotEmpty) {
-      visibleKeys = await _filterKeysBasedOnEnrollmentId(
-          atConnectionMetadata, visibleKeys, currentAtSign);
+    if (!AbstractVerbHandler.isCramConnection(atConnectionMetadata)) {
+      if (atConnectionMetadata.enrollmentId == null ||
+          atConnectionMetadata.enrollmentId!.isEmpty) {
+        visibleKeys = <String>[];
+      } else {
+        visibleKeys = await _filterKeysBasedOnEnrollmentId(
+            atConnectionMetadata, visibleKeys, currentAtSign);
+      }
     }
     final entries = visibleKeys.map((key) => byKey[key]!).toList()
       ..sort((a, b) => a.commitId!.compareTo(b.commitId!));

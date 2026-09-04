@@ -237,13 +237,18 @@ abstract class AbstractVerbHandler implements VerbHandler {
     // Ahead of the short circuit below, because the connection it exists for
     // is the one that carries no enrollment id.
     refuseFlatCredentialWrite(inboundConnectionMetadata, atKey);
-    // A connection with no enrollment id has full permissions. Namespace-less
-    // keys are decided in isAuthorizedSync, against the resolved enrollment.
-    if (enrollmentId == null) {
+    if (isCramConnection(inboundConnectionMetadata)) {
       return true;
+    }
+    // Not CRAM and carrying no enrollment: nothing to judge by, so refused.
+    // Only cram: leaves an authenticated connection without an id, and an
+    // unauthenticated connection reaching a check answers the same way.
+    if (enrollmentId == null) {
+      return false;
     }
     final enroll = await resolveEnrollment(enrollmentId);
     return isAuthorizedSync(enroll, enrollmentId,
+        cram: false,
         atKey: atKey,
         namespace: namespace,
         enrolledNamespaceAccess: enrolledNamespaceAccess,
@@ -281,11 +286,18 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// [atKey] is compared as the keystore folds it, so a spelling that would
   /// fold onto this record cannot slip past. Throws [UnAuthorizedException];
   /// returns for any other key and for any non-writing verb.
+  /// Whether [md] is a CRAM-authenticated connection: the one kind that
+  /// holds the atSign itself rather than an enrollment, and is authorised for
+  /// everything. Authentication is part of it because `authType` outlives
+  /// it: a later failed `pkam:` clears `isAuthenticated` and nothing else.
+  static bool isCramConnection(InboundConnectionMetadata md) =>
+      md.isAuthenticated && md.authType == AuthType.cram;
+
   void refuseFlatCredentialWrite(
       InboundConnectionMetadata md, String? atKey) {
     if (atKey == null || !isWritingVerb()) return;
     if (canonicalAtKey(atKey) != AtConstants.atPkamPublicKey) return;
-    if (md.authType == AuthType.cram && getVerb() is Update) {
+    if (isCramConnection(md) && getVerb() is Update) {
       logger.info('Admitting a write of ${AtConstants.atPkamPublicKey} '
           'over a CRAM connection; the value is installed as the '
           '${EnrollmentManager.primaryEnrollmentId} enrollment rather than '
@@ -325,21 +337,22 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// callers deciding many entries against one enrollment, such as sync's
   /// commit-log walk.
   ///
-  /// A null [enrollmentId] is a connection standing over no enrollment record
-  /// and gets full access; a null [enrollDataStoreValue] is an unresolvable
-  /// record and gets none. A namespace-less [atKey] is decided by
-  /// [_decideRootKey], which may defer to the namespace check; everything
-  /// else is decided by the enrollment's namespace access.
+  /// A CRAM connection ([cram], see [isCramConnection]) gets full access.
+  /// Otherwise a null [enrollmentId] or a null [enrollDataStoreValue] (an
+  /// unresolvable record) gets none. A namespace-less [atKey] is decided by [_decideRootKey],
+  /// which may defer to the namespace check; everything else is decided by
+  /// the enrollment's namespace access.
   bool isAuthorizedSync(
       EnrollDataStoreValue? enrollDataStoreValue, String? enrollmentId,
-      {String? atKey,
+      {required bool cram,
+      String? atKey,
       String? namespace,
       String enrolledNamespaceAccess = '',
       String operation = ''}) {
-    if (enrollmentId == null) {
+    if (cram) {
       return true;
     }
-    if (enrollDataStoreValue == null) {
+    if (enrollmentId == null || enrollDataStoreValue == null) {
       return false;
     }
 
@@ -621,14 +634,17 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// Whether this connection may perform atSign-level privileged operations,
   /// as opposed to the key-level ones [isAuthorized] decides.
   ///
-  /// True for a connection with no enrollment id, or for an approved root
-  /// enrollment. An enrollment's namespace map is only what the client asked
-  /// for, so approval state is part of the check.
+  /// True for a CRAM connection, or for an approved root enrollment. An
+  /// enrollment's namespace map is only what the client asked for, so
+  /// approval state is part of the check.
   Future<bool> isRootPrivilegedConnection(
       InboundConnectionMetadata inboundConnectionMetadata) async {
+    if (isCramConnection(inboundConnectionMetadata)) {
+      return true;
+    }
     final enrollmentId = inboundConnectionMetadata.enrollmentId;
     if (enrollmentId == null) {
-      return true;
+      return false;
     }
     final EnrollDataStoreValue? enroll = await resolveEnrollment(enrollmentId);
     if (enroll == null ||

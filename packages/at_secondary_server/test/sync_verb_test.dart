@@ -12,6 +12,7 @@ import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 
 import 'test_utils.dart';
 
@@ -25,6 +26,7 @@ void main() {
   setUp(() async {
     await verbTestsSetUp();
     inboundConnection.metaData.isAuthenticated = true;
+    inboundConnection.metaData.authType = AuthType.cram;
   });
 
   tearDown(() async {
@@ -130,6 +132,8 @@ void main() {
       verbParams.putIfAbsent('limit', () => '10');
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+      atConnection.metaData.isAuthenticated = true;
+      atConnection.metaData.authType = AuthType.cram;
       await verbHandler.processVerb(response, verbParams, atConnection);
 
       Map syncResponseMap = (jsonDecode(response.data!)).first;
@@ -334,6 +338,8 @@ void main() {
       verbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '0');
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+      atConnection.metaData.isAuthenticated = true;
+      atConnection.metaData.authType = AuthType.cram;
       await verbHandler.processVerb(response, verbParams, atConnection);
 
       var syncResponseList = jsonDecode(response.data!);
@@ -373,6 +379,8 @@ void main() {
       verbParams.putIfAbsent(AtConstants.syncLimit, () => '12');
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+      atConnection.metaData.isAuthenticated = true;
+      atConnection.metaData.authType = AuthType.cram;
       await verbHandler.processVerb(response, verbParams, atConnection);
 
       var syncResponseList = jsonDecode(response.data!);
@@ -411,6 +419,8 @@ void main() {
       verbParams.putIfAbsent(AtConstants.syncLimit, () => '35');
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+      atConnection.metaData.isAuthenticated = true;
+      atConnection.metaData.authType = AuthType.cram;
       await verbHandler.processVerb(response, verbParams, atConnection);
 
       var syncResponseList = jsonDecode(response.data!);
@@ -432,6 +442,7 @@ void main() {
       inboundConnection.metadata.isAuthenticated = true;
       enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
