@@ -299,23 +299,22 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// carrying no id is authorised for everything else before any key is
   /// examined, which is exactly why the gate sits ahead of that.
   ///
-  /// THE ONE EXCEPTION is a CRAM connection on a server running as a test
-  /// fixture, sending a plain `update`: the virtual environment installs a
-  /// keypair that way against a fresh atSign, so that the packs have
-  /// something to authenticate with. Even then the flat key is not written:
-  /// `UpdateVerbHandler` redirects the value into the `primary` enrollment,
-  /// which is why the exception is for `update` and not for `update:meta`,
-  /// a write with no value to redirect.
-  /// [AtSecondaryConfig.testingMode] is false in the shipped `config.yaml`
-  /// and false is also what every failure to read the setting answers, so a
-  /// server that cannot read its config is not a server that permits this.
-  /// The virtual-environment image sets it true for every atServer it runs
-  /// (as the `testingMode` environment variable, in its Dockerfiles), which
-  /// is how every harness that provisions the image through `pkamLoad` gets
-  /// its keys installed.
-  /// CRAM is named as well as the flag because the two say different things —
-  /// the flag says this atSign is disposable, CRAM says the caller holds the
-  /// secret the atSign was created with.
+  /// THE ONE EXCEPTION is a CRAM connection sending a plain `update`: the
+  /// virtual environment installs a keypair that way against a fresh atSign,
+  /// so that the packs have something to authenticate with. Even then the
+  /// flat key is not written: `UpdateVerbHandler` redirects the value into
+  /// the `primary` enrollment, which is why the exception is for `update`
+  /// and not for `update:meta`, a write with no value to redirect.
+  /// CRAM alone decides it, in every mode. The caller holds the secret the
+  /// atSign was created with, and an `enroll:request` on that same
+  /// connection is auto-approved with `*:rw` and `__manage:rw`, which is
+  /// exactly what `primary` holds — so admitting the install grants a CRAM
+  /// holder nothing it could not already give itself. Gating it on
+  /// [AtSecondaryConfig.testingMode] as well protected nothing and made every
+  /// harness that provisions an atSign this way depend on a flag; the one
+  /// that started the server with the shipped configuration could not
+  /// install a single keypair. Key uniqueness still applies: a key another
+  /// stored enrollment holds is refused.
   ///
   /// [atKey] is compared as the keystore folds it, so a spelling the keystore
   /// would fold onto this record reaches the refusal rather than slipping
@@ -325,13 +324,11 @@ abstract class AbstractVerbHandler implements VerbHandler {
       InboundConnectionMetadata md, String? atKey) {
     if (atKey == null || !isWritingVerb()) return;
     if (canonicalAtKey(atKey) != AtConstants.atPkamPublicKey) return;
-    if (md.authType == AuthType.cram &&
-        AtSecondaryConfig.testingMode &&
-        getVerb() is Update) {
-      logger.warning('Admitting a write of ${AtConstants.atPkamPublicKey} '
-          'over a CRAM connection because testingMode is on; the value is '
-          'installed as the ${EnrollmentManager.primaryEnrollmentId} '
-          'enrollment rather than as a flat key');
+    if (md.authType == AuthType.cram && getVerb() is Update) {
+      logger.info('Admitting a write of ${AtConstants.atPkamPublicKey} '
+          'over a CRAM connection; the value is installed as the '
+          '${EnrollmentManager.primaryEnrollmentId} enrollment rather than '
+          'as a flat key');
       return;
     }
     throw UnAuthorizedException(flatCredentialWriteRefusal);

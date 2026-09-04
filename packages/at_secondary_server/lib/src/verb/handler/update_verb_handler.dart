@@ -66,8 +66,8 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
       );
 
       // A write of the flat legacy credential that the gate in isAuthorized
-      // admitted — CRAM under testingMode, the virtual environment installing
-      // an atSign's keypair — installs the value as the `primary` enrollment
+      // admitted — CRAM, in any mode; the virtual environment installing an
+      // atSign's keypair — installs the value as the `primary` enrollment
       // instead. The flat key itself is never written, so none exists on a
       // running server in any mode. Nothing is committed, which is what the
       // flat key's own write answered too.

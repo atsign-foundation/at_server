@@ -125,15 +125,15 @@
   copy of a root's key, which is what stops the key licensing its own
   removal; an empty value at the flat key's address is cleared too.
 
-  Under `testingMode` the one admitted write of the flat key — a CRAM
-  connection's plain `update`, which is how the virtual environment installs
-  an atSign's keypair — installs the value as `primary` instead, minting it
-  or rotating it inside the enrollment-mutation section, subject to key
-  uniqueness like any `enroll:update`, and writes no flat key. The
-  virtual-environment image now runs every atServer with `testingMode` on
-  (`ENV testingMode=true` in its Dockerfiles), because every harness that
-  provisions the image through `pkamLoad` depends on that write, and only
-  this repository's own runners were passing the flag. The write
+  The one admitted write of the flat key — a CRAM connection's plain
+  `update`, which is how the virtual environment installs an atSign's
+  keypair — installs the value as `primary` instead, minting it or rotating
+  it inside the enrollment-mutation section, subject to key uniqueness like
+  any `enroll:update`, and writes no flat key. CRAM alone admits it, in
+  every mode: a CRAM holder is auto-approved a `*:rw` + `__manage:rw`
+  enrollment on request, which is what `primary` holds, so the install
+  grants it nothing it could not already give itself, and no harness that
+  provisions an atSign this way needs `testingMode`. The write
   ban itself is now ONE gate in `isAuthorized`, ahead of its null-id short
   circuit, so it decides for every connection on every route — `update`,
   `update:json`, `batch:` — and an enrollment refused it is told the ban's
@@ -499,9 +499,9 @@
   still be there to authenticate as afterwards.
 
 - ⚠️ BREAKING: NO connection may write `privatekey:at_pkam_publickey`. The one
-  exception is a CRAM connection on a server running with `testingMode` on,
-  which is how a test fixture installs the first keypair against a throwaway
-  atSign.
+  exception is a CRAM connection's plain `update`, in every mode, which is how
+  a test fixture installs the first keypair against a throwaway atSign; even
+  that write lands in the `primary` enrollment, never at the flat key.
 
   It is the one key whose value MINTS AN IDENTITY rather than serving one: a
   `pkam:` carrying no enrollment id authenticates against it, so a key written

@@ -93,6 +93,27 @@ void main() {
       inboundConnection.metadata.authType = AuthType.cram;
     }
 
+    BatchVerbHandler batchHandler() => BatchVerbHandler(
+        keyValueStore,
+        DefaultVerbHandlerManager(
+            keyValueStore,
+            mockOutboundClientManager,
+            cacheManager,
+            statsNotificationService,
+            notificationManager,
+            enMgr,
+            alice,
+            commitLog: atCommitLog,
+            accessLog: atAccessLog));
+
+    /// A legacy-PKAM connection: authenticated, carrying no enrollment id,
+    /// and NOT CRAM — the one null-id caller the write ban refuses.
+    void bindLegacyNoId() {
+      inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.enrollmentId = null;
+      inboundConnection.metadata.authType = AuthType.pkamLegacy;
+    }
+
     // ---- the legacy PKAM public key ----
 
     test('scoped enrollment cannot overwrite the legacy PKAM public key',
@@ -188,71 +209,14 @@ void main() {
           reason: 'and the refusal happened before the write');
     });
 
-    test('a connection carrying NO enrollment id is refused too', () async {
-      // The whole point of the ban, and the case the per-enrollment check
-      // cannot make: `isAuthorizedSync` returns true for a null enrollment id
-      // before any key is examined, so an owner connection never reaches the
-      // decision the cases above exercise. It is stopped by the second gate
-      // instead, and the message says which.
-      //
-      // testingMode is false here — the shipped default, and what every
-      // failure to read the setting answers.
-      bindCram();
-      await keyValueStore.put(
-          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
-
-      await expectLater(
-          updateVerbHandler.process(
-              'update:${AtConstants.atPkamPublicKey} NEW_KEY',
-              inboundConnection),
-          throwsA(isA<UnAuthorizedException>().having(
-              (e) => e.message, 'message', contains('may not be written'))),
-          reason: 'a credential that carries no enrollment id and that no '
-              'verb can withdraw is not installable on a production atSign, '
-              'by an owner or by anybody');
-
-      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
-          'ORIGINAL_KEY',
-          reason: 'and the refusal happened before the write');
-    });
-
-    test('a legacy connection carrying no id is refused even under '
-        'testingMode', () async {
-      // The exception names CRAM as well as the flag. A legacy-PKAM
-      // connection carries no enrollment id either, and it is exactly the
-      // connection the null-id short circuit would wave through if the gate
-      // sat behind it — so this is the arm that pins the gate's position.
-      AtSecondaryConfig.testingModeOverride = true;
-      addTearDown(() => AtSecondaryConfig.testingModeOverride = null);
-
-      inboundConnection.metadata.isAuthenticated = true;
-      inboundConnection.metadata.enrollmentId = null;
-      inboundConnection.metadata.authType = AuthType.pkamLegacy;
-      await keyValueStore.put(
-          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
-
-      await expectLater(
-          updateVerbHandler.process(
-              'update:${AtConstants.atPkamPublicKey} NEW_KEY',
-              inboundConnection),
-          throwsA(isA<UnAuthorizedException>().having(
-              (e) => e.message, 'message', contains('may not be written'))),
-          reason: 'testingMode carves out CRAM alone: the flag says the '
-              'atSign is disposable, CRAM says the caller holds the secret '
-              'it was created with, and a legacy connection says neither');
-      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
-          'ORIGINAL_KEY');
-    });
-
-    test('a CRAM connection under testingMode may write it', () async {
-      // The positive control for the case above, and the reason the exception
-      // exists: the virtual environment installs the first keypair this way
-      // against a throwaway atSign, over CRAM, with a plain unsigned update.
-      //
-      // Its negative control is the case above, which differs from this one in
-      // testingMode and in NOTHING else — same connection shape, same command,
-      // same stored value beforehand.
-      AtSecondaryConfig.testingModeOverride = true;
+    test('a CRAM connection may write it, with testingMode off', () async {
+      // The one admitted write, and it is admitted in EVERY mode: the virtual
+      // environment installs the first keypair this way against a fresh
+      // atSign, over CRAM, with a plain unsigned update, and every harness
+      // that provisions an atSign that way starts the server with the shipped
+      // configuration. The flag is forced off rather than left to the
+      // environment so that the arm pins what its name says.
+      AtSecondaryConfig.testingModeOverride = false;
       addTearDown(() => AtSecondaryConfig.testingModeOverride = null);
 
       bindCram();
@@ -272,10 +236,71 @@ void main() {
                   EnrollmentManager.primaryEnrollmentId))
               .apkamPublicKey,
           'NEW_KEY',
-          reason: 'the virtual environment installs the atSign\'s first PKAM '
-              'keypair over CRAM, and the packs have nothing to authenticate '
-              'with if this is refused — they authenticate as primary');
+          reason: 'a CRAM holder is auto-approved a *:rw + __manage:rw '
+              'enrollment on request, which is what primary holds, so the '
+              'install grants it nothing it could not already give itself; '
+              'and the packs have nothing to authenticate with if this is '
+              'refused — they authenticate as primary');
     });
+
+    test('...and with testingMode on: the flag is not what admits it',
+        () async {
+      // Differs from the case above in the flag and in NOTHING else. Both
+      // arms green is the point: a gate that read the flag would show as the
+      // arm above going red while this one stayed green.
+      AtSecondaryConfig.testingModeOverride = true;
+      addTearDown(() => AtSecondaryConfig.testingModeOverride = null);
+
+      bindCram();
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+
+      await updateVerbHandler.process(
+          'update:${AtConstants.atPkamPublicKey} NEW_KEY', inboundConnection);
+
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'ORIGINAL_KEY');
+      expect(
+          (await enMgr.getEnrollmentById(
+                  EnrollmentManager.primaryEnrollmentId))
+              .apkamPublicKey,
+          'NEW_KEY');
+    });
+
+    for (final bool flag in [false, true]) {
+      test(
+          'a legacy connection carrying no id is refused, with testingMode '
+          '${flag ? 'on' : 'off'}', () async {
+        // The negative control for the CRAM arms, differing from them in the
+        // auth type and in nothing else — same command, same stored value,
+        // same flag. A legacy-PKAM connection carries no enrollment id
+        // either, and it is exactly the connection the null-id short circuit
+        // would wave through if the gate sat behind it — so this is also the
+        // arm that pins the gate's position. CRAM says the caller holds the
+        // secret the atSign was created with; a legacy connection says only
+        // that it holds the credential this write would replace.
+        AtSecondaryConfig.testingModeOverride = flag;
+        addTearDown(() => AtSecondaryConfig.testingModeOverride = null);
+
+        inboundConnection.metadata.isAuthenticated = true;
+        inboundConnection.metadata.enrollmentId = null;
+        inboundConnection.metadata.authType = AuthType.pkamLegacy;
+        await keyValueStore.put(
+            AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+
+        await expectLater(
+            updateVerbHandler.process(
+                'update:${AtConstants.atPkamPublicKey} NEW_KEY',
+                inboundConnection),
+            throwsA(isA<UnAuthorizedException>().having(
+                (e) => e.message, 'message', contains('may not be written'))),
+            reason: 'the carve-out is CRAM alone, and a legacy connection is '
+                'not CRAM whatever the flag says');
+        expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+            'ORIGINAL_KEY',
+            reason: 'and the refusal happened before the write');
+      });
+    }
 
     test('a root enrollment can still write ANOTHER privatekey: key',
         () async {
@@ -335,13 +360,17 @@ void main() {
       // spelling that lands on this record cannot slip past the guard — but
       // it has moved with the guard.
       //
-      // It has to be asked over a connection carrying no enrollment id. An
-      // ENROLLED connection can no longer ask it: with no carve-out left, an
-      // unfolded comparison misses and the branch refuses that connection
-      // anyway, so both spellings give the identical outcome and the case
-      // pins nothing. A connection with no id is the one the write ban
-      // decides on its own.
-      bindCram();
+      // It has to be asked over a connection carrying no enrollment id and
+      // not CRAM. An ENROLLED connection can no longer ask it: with no
+      // carve-out left, an unfolded comparison misses and the branch refuses
+      // that connection anyway, so both spellings give the identical outcome
+      // and the case pins nothing. A CRAM connection cannot ask it either,
+      // because the write is admitted for CRAM whatever the spelling (the
+      // case below pins what the fold does THERE). A legacy connection with
+      // no id is the one caller the write ban decides on its own: an unfolded
+      // comparison would miss, fall through to the null-id short circuit,
+      // and admit the write.
+      bindLegacyNoId();
       await keyValueStore.put(
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
       await expectLater(
@@ -356,6 +385,30 @@ void main() {
       expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
           'ORIGINAL_KEY',
           reason: 'and the refusal happened before the write');
+    });
+
+    test('...and over CRAM a shifted spelling is redirected, not stored',
+        () async {
+      // The fold's other consequence. For CRAM the gate admits the write, so
+      // the fold's job moves to the redirect: a spelling the keystore would
+      // fold onto the flat key must land in `primary` like the canonical one,
+      // never at the flat key under either spelling.
+      bindCram();
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+
+      await updateVerbHandler.process(
+          'update:PRIVATEKEY:AT_PKAM_PUBLICKEY NEW_KEY', inboundConnection);
+
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'ORIGINAL_KEY',
+          reason: 'the flat key is never written, under any spelling');
+      expect(
+          (await enMgr.getEnrollmentById(
+                  EnrollmentManager.primaryEnrollmentId))
+              .apkamPublicKey,
+          'NEW_KEY',
+          reason: 'the redirect compares the key as the keystore folds it');
     });
 
     test('CONTROL: the same grants under an ordinary id are refused', () async {
@@ -398,7 +451,10 @@ void main() {
       // zero-length document is refused as a syntax error BEFORE the ban is
       // consulted — which would make this case green without exercising the
       // ban at all. The zero-length route is asserted separately below.
-      bindCram();
+      //
+      // Over a legacy connection with no id: CRAM is admitted on every
+      // update route, which the case after this one pins.
+      bindLegacyNoId();
       await keyValueStore.put(
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
 
@@ -421,6 +477,33 @@ void main() {
       expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
           'ORIGINAL_KEY',
           reason: 'and the refusal happened before the write');
+    });
+
+    test('update:json over CRAM is redirected into primary too', () async {
+      // The carve-out is keyed on the verb, and update:json re-dispatches
+      // into it, so the json route is admitted for CRAM exactly as the plain
+      // one is — and redirected exactly as the plain one is. A redirect that
+      // covered only the plain form would let the json form plant the flat
+      // key the ban exists to keep off the store.
+      bindCram();
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+      final json = jsonEncode({
+        'atKey': AtConstants.atPkamPublicKey,
+        'value': 'REPLACEMENT_KEY',
+        'metadata': Metadata().toJson(),
+      });
+
+      await updateVerbHandler.process('update:json:$json', inboundConnection);
+
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'ORIGINAL_KEY',
+          reason: 'no flat key is written on the json route either');
+      expect(
+          (await enMgr.getEnrollmentById(
+                  EnrollmentManager.primaryEnrollmentId))
+              .apkamPublicKey,
+          'REPLACEMENT_KEY');
     });
 
     test('a zero-length update:json value is refused before it can be stored',
@@ -475,23 +558,16 @@ void main() {
       // the element's own handler — so the ban is reached by the element
       // landing back at the update seam. Pinned because "the handler covers
       // it" is a claim about the dispatch, not about the handler.
-      bindCram();
+      //
+      // Over a legacy connection with no id, the caller the ban refuses. An
+      // unchanged flat key is NOT enough to prove the refusal: a CRAM caller
+      // leaves it unchanged too, by redirection, which the case after this
+      // one pins. So the arm also asks that nothing was installed.
+      bindLegacyNoId();
       await keyValueStore.put(
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
 
-      final batch = BatchVerbHandler(
-          keyValueStore,
-          DefaultVerbHandlerManager(
-              keyValueStore,
-              mockOutboundClientManager,
-              cacheManager,
-              statsNotificationService,
-              notificationManager,
-              enMgr,
-              alice,
-              commitLog: atCommitLog,
-              accessLog: atAccessLog));
-      final response = await batch.processInternal(
+      final response = await batchHandler().processInternal(
           'batch:[{"id":1,"command":"update:privatekey:at_pkam_publickey '
           'NEW_KEY"}]',
           inboundConnection);
@@ -500,8 +576,38 @@ void main() {
           'ORIGINAL_KEY',
           reason: 'wrapping the command in a batch must not get it past the '
               'refusal — batch re-dispatches to the same handler');
+      expect(await enMgr.primaryEnrollment(), isNull,
+          reason: 'refused, not redirected: nothing was installed anywhere');
       expect(response.data, contains('"id":1'),
           reason: 'and the element is reported, not silently dropped');
+      // batch: reports an element's refusal as its error CODE with the
+      // generic UnAuthorized text, not the ban's own message; the message is
+      // pinned on the plain and json routes above.
+      expect(response.data, contains('AT0009'),
+          reason: 'refused as unauthorised, in the element\'s own response');
+    });
+
+    test('a batch-wrapped update over CRAM is redirected into primary',
+        () async {
+      // The element lands at the same update seam, so CRAM is admitted and
+      // redirected through batch: exactly as it is on the plain route.
+      bindCram();
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+
+      await batchHandler().processInternal(
+          'batch:[{"id":1,"command":"update:privatekey:at_pkam_publickey '
+          'NEW_KEY"}]',
+          inboundConnection);
+
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'ORIGINAL_KEY',
+          reason: 'no flat key is written on the batch route either');
+      expect(
+          (await enMgr.getEnrollmentById(
+                  EnrollmentManager.primaryEnrollmentId))
+              .apkamPublicKey,
+          'NEW_KEY');
     });
 
     test('update:meta cannot name the key at all', () async {

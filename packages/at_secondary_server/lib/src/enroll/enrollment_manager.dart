@@ -349,7 +349,7 @@ class EnrollmentManager {
       });
 
   /// The one carve-out from the flat credential's write ban, redirected: a
-  /// CRAM connection on a server running as a test fixture asks to install
+  /// CRAM connection, in any mode, asks to install
   /// [apkamPublicKey] as the atSign's legacy credential, and instead of the
   /// flat key it mints [primaryEnrollmentId] from it when absent and rotates
   /// `primary` onto it when present. No flat key is written, so none exists
@@ -358,7 +358,7 @@ class EnrollmentManager {
   ///
   /// Subject to key uniqueness like any `enroll:update`: refused, with
   /// nothing written, when a stored enrollment other than `primary` holds the
-  /// key. No exemption under `testingMode`; the fixtures mint a key per
+  /// key. No exemption for a fixture; the fixtures mint a key per
   /// enrollment.
   Future<void> installLegacyKeyIntoPrimary(String apkamPublicKey) =>
       serialiseMutation(() async {

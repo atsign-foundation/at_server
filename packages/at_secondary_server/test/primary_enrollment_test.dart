@@ -384,7 +384,7 @@ void main() {
     });
   });
 
-  group('the testingMode key install', () {
+  group('the CRAM key install', () {
     test('mints primary from the value, and writes no flat key', () async {
       await enMgr.installLegacyKeyIntoPrimary('INSTALLED_KEY');
 
@@ -411,7 +411,7 @@ void main() {
           () => enMgr.installLegacyKeyIntoPrimary('HELD_KEY'),
           throwsA(isA<IllegalStateException>().having((e) => e.message,
               'message', contains('already held by another enrollment'))),
-          reason: 'no exemption under testingMode: the fixtures mint a key '
+          reason: 'no exemption for a fixture: the fixtures mint a key '
               'per enrollment');
       expect(await enMgr.primaryEnrollment(), isNull);
     });
