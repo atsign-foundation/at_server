@@ -10,6 +10,7 @@ import 'package:at_utils/at_logger.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 import 'package:at_server_spec/at_server_spec.dart' show AuthType;
+import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 
 import 'test_utils.dart';
 
@@ -280,6 +281,33 @@ void main() {
           throwsA(isA<UnAuthorizedException>()),
           reason: 'the public: exemption is read-only, and it must be decided '
               'on the folded key, not on the caller\'s capitalisation');
+    });
+
+    // ⚠️ RAW-LITERAL PIN of the reserved-namespace match: the id may start
+    // the key or follow a colon, not only a dot (at_commons 5.17.0).
+    for (final String shape in ['ID.a.__e', '@bob:ID.a.__e']) {
+      test('*:rw enrollment cannot UPDATE the bare spelling $shape', () async {
+        await bindWildcardEnrollment();
+        final String key = '${shape.replaceAll('ID', Uuid().v4())}$alice';
+
+        await expectLater(
+            updateVerbHandler.process('update:$key planted', inboundConnection),
+            throwsA(isA<UnAuthorizedException>()),
+            reason: 'a key whose name IS the reserved namespace, with nothing '
+                'before the id, is still that namespace');
+      });
+    }
+
+    test('a cached copy of a foreign reserved key is foreign too', () {
+      // The plain update grammar cannot name a cached: key, so the match is
+      // pinned directly.
+      expect(
+          AbstractVerbHandler.isForeignPerEnrollmentReservedKey(
+              'cached:@bob:other.r.__e$alice', 'mine',
+              isMutating: true),
+          isTrue,
+          reason: 'the id follows a colon, not a dot, and is still the '
+              'namespace owner');
     });
 
     test('an enrollment CAN update an UPPER-CASE spelling of its OWN a.__e key',
