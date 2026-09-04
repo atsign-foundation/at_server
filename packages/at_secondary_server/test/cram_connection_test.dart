@@ -15,11 +15,7 @@ import 'enrollment_test_utils.dart';
 import 'test_utils.dart';
 
 /// Full access is keyed on being a CRAM connection, never on carrying no
-/// enrollment id. Only `cram:` leaves an authenticated connection without an
-/// id, so the two used to coincide; keying on the id made the coincidence
-/// load-bearing, and any other way of arriving with a null id (an
-/// unauthenticated connection on a verb that needs no authentication, or a
-/// state no writer produces) was admitted for everything. Now it is refused.
+/// enrollment id.
 void main() {
   verbTestsSetUpLogging();
 
@@ -52,7 +48,6 @@ void main() {
   });
 
   setUp(() async {
-    // Something for scan to show a CRAM connection.
     await keyValueStore.put('phone.wavi$alice', AtData()..data = 'x');
   });
 
@@ -92,9 +87,6 @@ void main() {
   });
 
   test('a CRAM connection that has enrolled is still CRAM', () async {
-    // enroll:request on a CRAM connection puts the minted id on the
-    // connection; the socket still holds the atSign's creation secret and is
-    // judged as CRAM, not as the enrollment it minted.
     bind(authenticated: true, authType: AuthType.cram, id: etu.primaryEnId);
 
     expect(await authorised(), isTrue);
@@ -105,8 +97,7 @@ void main() {
   for (final AuthType other in [AuthType.pkamLegacy, AuthType.apkam]) {
     test('authenticated as $other with no enrollment id is refused everywhere',
         () async {
-      // A state no writer produces: pkam: always leaves an id. Refused rather
-      // than admitted, which is the whole point of keying on CRAM.
+      // A state no writer produces, refused rather than admitted.
       bind(authenticated: true, authType: other);
 
       expect(await authorised(), isFalse,
@@ -128,8 +119,6 @@ void main() {
 
   test('a stale CRAM auth type on a connection no longer authenticated is '
       'not CRAM', () async {
-    // authType outlives authentication: a failed later pkam: clears
-    // isAuthenticated and nothing else. Full access must go with it.
     bind(authenticated: false, authType: AuthType.cram);
 
     expect(await authorised(), isFalse);
@@ -140,8 +129,6 @@ void main() {
   });
 
   test('an unauthenticated connection reaching a check is refused', () async {
-    // The notify verbs that need no authentication call isAuthorized with
-    // whatever connection they have; a null id used to admit it.
     bind(authenticated: false);
 
     expect(await authorised(), isFalse);

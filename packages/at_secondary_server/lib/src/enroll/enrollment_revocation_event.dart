@@ -1,7 +1,6 @@
 /// What happened to an enrollment's revocation state.
 enum EnrollmentRevocationEventType {
-  /// The enrollment became revoked, either because an operator named it or
-  /// because a cascade swept it up.
+  /// The enrollment became revoked, by name or by cascade.
   revoked,
 
   /// A revocation was withdrawn: the enrollment went back to approved.
@@ -9,38 +8,24 @@ enum EnrollmentRevocationEventType {
 }
 
 /// One moment an enrollment's revocation state changed.
-///
-/// A record of its OWN rather than a field on the enrollment, so the fact
-/// outlives the enrollment it describes. An enrollment record carries the
-/// APKAM key-expiry posture as its ttl, so a revoked enrollment is reaped and
-/// a stamp living on it would disappear too, making "when was anything
-/// holding this namespace last revoked" go BACKWARDS. That reads to a client
-/// exactly like "nothing has changed since you last asked".
 class EnrollmentRevocationEvent {
   final EnrollmentRevocationEventType type;
 
   /// The enrollment whose state changed.
   final String enrollmentId;
 
-  /// When, by the atServer's own clock. Every event of one command shares one
-  /// moment, a cascade's included: they are one act, and per-write instants
-  /// would invite a reader to order them as separate decisions.
+  /// When, by the atServer's own clock; one command's events share a moment.
   final DateTime at;
 
-  /// The namespace grants [enrollmentId] held at that moment. Copied rather
-  /// than looked up later, because the enrollment record is exactly what may
-  /// be gone by the time anyone reads this.
+  /// The namespace grants [enrollmentId] held at that moment.
   final Map<String, String> namespaces;
 
   /// The enrollment on the connection that issued the command, or null when
   /// the connection carried no enrollment id, a CRAM connection.
   final String? byEnrollmentId;
 
-  /// The enrollment the command NAMED, when this event is a consequence of
-  /// revoking that one rather than of naming this one. Null when
-  /// [enrollmentId] is what the operator asked for. Separate from
-  /// [byEnrollmentId], which answers who did this rather than why this
-  /// enrollment; a cascade is where the two differ.
+  /// The enrollment the command NAMED when this event is a consequence of
+  /// revoking that one; null when [enrollmentId] is what the operator named.
   final String? cascadedFrom;
 
   EnrollmentRevocationEvent({
@@ -53,8 +38,7 @@ class EnrollmentRevocationEvent {
   });
 
   /// Throws [FormatException] on anything it cannot read as an event,
-  /// including an event kind it does not know, so a reader skips it rather
-  /// than defaulting: miscounting here moves a security answer.
+  /// including an event kind it does not know.
   factory EnrollmentRevocationEvent.fromJson(Map<String, dynamic> json) {
     final Object? kind = json['event'];
     final EnrollmentRevocationEventType type;
@@ -85,9 +69,8 @@ class EnrollmentRevocationEvent {
     );
   }
 
-  /// The at-rest shape. These names are a stored format frozen across
-  /// releases, so enroll_revocation_event_test.dart pins every one of them as
-  /// a raw literal; an intended change edits that pin.
+  /// ⚠️ AT-REST PIN: these names are frozen and pinned as raw literals in
+  /// enroll_revocation_event_test.dart.
   Map<String, dynamic> toJson() => <String, dynamic>{
         'event': type.name,
         'enrollmentId': enrollmentId,

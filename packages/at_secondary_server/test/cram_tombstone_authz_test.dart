@@ -12,12 +12,9 @@ import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 import 'test_utils.dart';
 
 /// The `privatekey:at_secret_deleted` marker stops the CRAM secret being
-/// replanted on a later start, so planting it is irreversible:
-/// [AtSecondaryServerImpl.plantCramSecretIfRequired] refuses forever once it
-/// exists, and CRAM is an atSign's last recovery route once its roots are
-/// revoked. These pin the marker to the deletion it records: it is written
-/// only by a caller the authorisation check admitted, and only when a secret
-/// was really there to remove.
+/// replanted on a later start. These pin the marker to the deletion it
+/// records: it is written only by a caller the authorisation check admitted,
+/// and only when a secret was really there to remove.
 void main() {
   AtSignLogger.root_level = 'WARNING';
 
@@ -61,7 +58,6 @@ void main() {
     test('an enrollment refused the delete does NOT plant the marker',
         () async {
       await seedSecret();
-      // Nothing but an ordinary namespace: not root, no __manage, no '*'.
       await bindEnrollment({'wavi': 'rw'});
 
       await expectLater(
@@ -82,15 +78,11 @@ void main() {
     });
 
     test('a delete that finds no secret does NOT plant the marker', () async {
-      // No seedSecret(): this atSign never had one.
       inboundConnection.metadata
         ..isAuthenticated = true
         ..authType = AuthType.cram
         ..enrollmentId = null;
 
-      // Removing a key the store does not hold is not an error, so nothing
-      // about the command's outcome distinguishes this from a real deletion:
-      // the handler has to have looked.
       final response = await deleteVerbHandler.processInternal(
           'delete:${AtConstants.atCramSecret}', inboundConnection);
       expect(response.isError, isFalse,
@@ -107,7 +99,6 @@ void main() {
     test('an owner connection that DOES delete the secret plants the marker',
         () async {
       await seedSecret();
-      // No enrollment id: the owner/CRAM shape.
       inboundConnection.metadata
         ..isAuthenticated = true
         ..authType = AuthType.cram
@@ -125,8 +116,6 @@ void main() {
     });
 
     test('the marker keeps a later start from replanting', () async {
-      // The property the marker exists for, asserted against the startup
-      // guard rather than inferred from the marker's presence.
       await seedSecret();
       inboundConnection.metadata
         ..isAuthenticated = true

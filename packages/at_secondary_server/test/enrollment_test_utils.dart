@@ -24,11 +24,8 @@ class ETU {
   late String primaryEnId;
 
   /// Builds the handlers and, unless [withPrimaryEnrollment] says otherwise,
-  /// the CRAM-auto-approved enrollment [primaryEnId] names.
-  ///
-  /// Pass false for a subject about an atSign that has never enrolled
-  /// anything: it leaves the keystore holding no enrollment at all. Such a
-  /// test calls [initPrimaryEnrollment] wherever it needs an approver.
+  /// the CRAM-auto-approved enrollment [primaryEnId] names. Pass false to
+  /// leave the keystore holding no enrollment at all.
   Future<void> init({bool withPrimaryEnrollment = true}) async {
     evh = EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
     ovh = OtpVerbHandler(keyValueStore);
@@ -64,10 +61,7 @@ class ETU {
   }
 
   /// [apsk] is the client-composed signing-key value and [apskLegacy] the bare
-  /// RSA string a plain-legacy enrollment publishes instead; both null, the
-  /// ordinary case, publishes no `_apsk`. Both are exposed separately rather
-  /// than made exclusive because sending the pair together is refused, and a
-  /// test has to be able to send it.
+  /// RSA string a plain-legacy enrollment publishes instead.
   Future<String> createPendingEnrollment(
       {required String appName,
       required String deviceName,
@@ -200,8 +194,7 @@ class ETU {
     expect(m['enrollmentId'], enIdToDelete);
   }
 
-  /// Serial for the keys [createPrimaryEnrollment] mints: a second CRAM
-  /// enrollment needs a key of its own.
+  /// Serial for the keys [createPrimaryEnrollment] mints.
   static int _primaryKeySerial = 0;
 
   Future<String> createPrimaryEnrollment(
@@ -234,10 +227,7 @@ class ETU {
 
   /// Asserts, for every id in [allCreated], that its enrollment record and its
   /// two per-enrollment encryption keys are on disk or gone as
-  /// [deletedOrExpired] and [cleanedUp] say they should be. Each assertion
-  /// names the id and the key it is about, because one test calls this
-  /// repeatedly over many enrollments and a bare boolean mismatch would not
-  /// say which call or which key failed.
+  /// [deletedOrExpired] and [cleanedUp] say they should be.
   Future<void> verifyKeyStoreState(
       List<String> allCreated, List<String> deletedOrExpired,
       {required bool cleanedUp}) async {
@@ -275,13 +265,10 @@ class ETU {
 
   /// Returns (List of all enrollment IDs, List of IDS of enrollments with ttl)
   Future<(List<String>, List<String>)> createEnrollments({
-    /// number of enrollments to create
     required int n,
 
-    /// every m'th enrollment will have a ttl set
     int m = 1000,
 
-    /// the ttl to set for every m'th enrollment
     int ttl = 50,
   }) async {
     List<String> allEnIds = [];

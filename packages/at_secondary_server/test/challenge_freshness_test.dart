@@ -20,11 +20,7 @@ import 'test_utils.dart';
 
 /// The per-connection challenge `from:` issues is a one-shot, time-bound
 /// credential: a verifier spends it whether or not the proof checks out, and
-/// refuses it once its ttl has passed. Both halves are pinned here at
-/// `consumeChallenge` and at the two handlers a unit test can drive. `pol`
-/// calls the same helper and so has the same two properties, but needs the
-/// outbound server-to-server path, so it is covered at the helper here and
-/// end-to-end in the functional pack.
+/// refuses it once its ttl has passed.
 void main() {
   verbTestsSetUpLogging();
 
@@ -49,8 +45,6 @@ void main() {
       await keyValueStore.put('private:stale$alice',
           AtData()..data = 'the-proof'..metaData = (AtMetaData()..expiresAt = past));
 
-      // Fixture control: without it the refusal below would pass just as
-      // well for a record that was never stored.
       final stored = await keyValueStore.get('private:stale$alice');
       expect(stored, isNotNull, reason: 'the fixture stored something');
       expect(SecondaryUtil.isActiveKey(stored), isFalse,
@@ -124,8 +118,6 @@ void main() {
       final bad = base64Encode(
           Uint8List.fromList(base64Decode(good))..[0] ^= 0xff);
 
-      // The reissue at the end of this test is the positive control: without
-      // it, the refusal asserted here could be a merely bad signature.
       await expectLater(() => attempt(sessionId, bad),
           throwsA(isA<UnAuthenticatedException>()),
           reason: 'a tampered signature is refused');
@@ -156,7 +148,6 @@ void main() {
             ..data = challenge
             ..metaData = (AtMetaData()..expiresAt = past));
 
-      // Fixture control, as above.
       expect(
           SecondaryUtil.isActiveKey(
               await keyValueStore.get('private:$sessionId$alice')),
@@ -227,9 +218,6 @@ void main() {
 
     test('a successful cram clears an enrollment id a previous pkam left on '
         'the connection', () async {
-      // A CRAM connection stands over no enrollment: an id left by an
-      // earlier `pkam:` would have later commands judged as that enrollment
-      // while the connection is authorised as the owner.
       final (connection, proof) = await issue('_cram-after-pkam');
       (connection.metaData as InboundConnectionMetadata).enrollmentId =
           'left-by-pkam';
@@ -263,8 +251,6 @@ void main() {
         () async {
       final (connection, proof) = await issue('_cram-stale');
       final storedSecretId = 'private:_cram-stale$alice';
-      // Fixture control: guessing this id wrong would age nothing and leave
-      // the real challenge live, so the refusal below would mean nothing.
       final issued = await store.get(storedSecretId);
       expect(issued, isNotNull,
           reason: 'from: stored the challenge where this test ages it');

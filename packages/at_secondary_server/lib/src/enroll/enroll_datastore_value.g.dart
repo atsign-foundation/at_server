@@ -1,15 +1,7 @@
-// Originally generated, now MAINTAINED BY HAND. Edit it when you add a field.
-//
-// json_serializable is not a dependency of this package (only json_annotation,
-// so `@JsonSerializable()` compiles) and there is no build.yaml, so nothing
-// can regenerate this. A generator run would rewrite `apkamKeysExpiryInMillis`
-// to a name it derives from the Duration field, breaking the at-rest expiry of
-// every stored enrollment.
-//
-// The names below are an at-rest format. A field added to EnrollDataStoreValue
-// and not added here does not persist, and nothing goes red;
-// enroll_data_store_value_test.dart pins some of them by raw name, so add the
-// field here and pin it there.
+// Originally generated, now MAINTAINED BY HAND: add a field here or it does
+// not persist, and nothing goes red. A generator run would rewrite
+// `apkamKeysExpiryInMillis` and break the at-rest expiry of every stored
+// enrollment.
 
 part of 'enroll_datastore_value.dart';
 

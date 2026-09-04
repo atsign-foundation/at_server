@@ -36,9 +36,8 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
       InboundConnection atConnection) async {
     UpdateParams updateParams = getUpdateParams(verbParams);
 
-    // Lowercased because the keystore folds keys to lowercase, so two
-    // case-variants of one command name the same record and must contend for
-    // the same mutex.
+    // NOTE lowercased, so two case-variants of one command contend for the
+    // same mutex.
     String dataStoreKey = getDataStoreKey(updateParams).toLowerCase();
 
     final mutexRef = updateMutexes.putIfAbsent(dataStoreKey, MutexRef.new);
@@ -58,11 +57,8 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
         atConnection,
       );
 
-      // A write of the flat legacy credential that the gate in isAuthorized
-      // admitted, which is a CRAM connection installing an atSign's first
-      // keypair, is redirected into the `primary` enrollment. The flat key is
-      // never written, so none exists on a running server, and nothing is
-      // committed for it.
+      // NOTE the flat legacy credential is never written; the value is
+      // redirected into the `primary` enrollment.
       if (canonicalAtKey(updatePreProcessResult.atKey) ==
           AtConstants.atPkamPublicKey) {
         await AtSecondaryServerImpl.getInstance()
@@ -72,8 +68,6 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
         return;
       }
 
-      // The :nc flag maps to skipCommit: write no commit entry and purge the
-      // key's existing one, so the response is -1.
       var result = await keyStore.put(
         updatePreProcessResult.atKey,
         updatePreProcessResult.atData,
@@ -82,7 +76,6 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
       );
       response.data = result?.toString();
 
-      // Queued from the STORED record, after the write; see notifyAfterStore.
       await super.notifyAfterStore(verbParams, updateParams,
           updatePreProcessResult);
     } finally {

@@ -268,9 +268,6 @@ void main() {
         expect(await keyValueStore.exists(k), true);
       }
 
-      // enId2's data is UNTOUCHED: still in a.__e, and nothing in r.__e. A
-      // move that ignored its enId argument would take every enrollment's
-      // keys.
       for (final k in keys2) {
         expect(await keyValueStore.exists(k), true);
       }
@@ -281,10 +278,7 @@ void main() {
       }
     });
 
-    // Observe per-enrollment data directly in the keystore: these checks run
-    // against enrollments that get revoked or deleted, so the owning
-    // enrollment can no longer read its own keys, and no other enrollment may
-    // cross-read a per-enrollment reserved namespace.
+    // Observe per-enrollment data directly in the keystore.
     Future<void> verifyKeysExist(List<String> keys, List<String> values) async {
       for (int i = 0; i < keys.length; i++) {
         final atData = await keyValueStore.get(keys[i]);
@@ -303,14 +297,10 @@ void main() {
       String enId =
           (await etu.createEnrollments(n: 1, m: 1, ttl: ttl)).$1.first;
 
-      // The 9 records take about 50ms to create, inside the ttl above.
       var (keys, values) = await etu.createSomePerEnrollmentData(enId);
 
       await verifyKeysExist(keys, values);
 
-      // Wait for expiry, then run the expired-keys job: removing the
-      // enrollment key moves its per-enrollment data a -> d through the
-      // preRemoveHook.
       await Future.delayed(Duration(milliseconds: ttl + 1));
       await keyValueStore.deleteExpiredKeys();
 
@@ -392,8 +382,6 @@ void main() {
 
       await etu.verifyKeyStoreState(allEnIds, deletedEnIds, cleanedUp: false);
 
-      // Delete some of them through the key store without deleting related
-      // keys: the enrollment preRemoveHook has to come off for that.
       keyValueStore.preRemoveHooks.remove(enMgr.preRemoveHook);
       int i = 0;
       for (final enId in allEnIds) {
@@ -442,13 +430,6 @@ void main() {
     test(
         'Fetching an expired enrollment REPORTS it expired and removes nothing',
         () async {
-      // A READ does not mutate the store. Fetching an enrollment runs on the
-      // path every verb command and every authorisation check takes, outside
-      // the atSign's enrollment-mutation critical section, and `remove` fires
-      // the pre-remove hook, which moves per-enrollment data across several
-      // awaits. The read still reports an elapsed enrollment as expired,
-      // which is what every caller decides on, and the scheduled
-      // expired-keys pass is what removes it.
       int ttl = 100;
       List<String> allEnIds;
       List<String> withTtlEnIds;
@@ -480,10 +461,6 @@ void main() {
 
       await etu.verifyKeyStoreState(allEnIds, [], cleanedUp: false);
 
-      // Fetch all enrollments, expired included, and write nothing. The id
-      // list has to be supplied: otherwise getEnrollmentsAsJson does a
-      // getKeys on the HiveAtKeyValueStore, which filters what it finds
-      // against the _expiryCache that store maintains.
       final int writesBefore = EnrollmentManager.cacheInvalidations;
       Map m = await enMgr.getEnrollmentsAsJson(
           redactSecrets: false,
@@ -508,7 +485,6 @@ void main() {
               'all');
       await etu.verifyKeyStoreState(allEnIds, [], cleanedUp: false);
 
-      // And the scheduled pass is what removes them, ancillary keys and all.
       await keyValueStore.deleteExpiredKeys();
       await etu.verifyKeyStoreState(allEnIds, withTtlEnIds, cleanedUp: true);
     });
@@ -562,9 +538,6 @@ void main() {
 
     test('Should not reject CRAM-authenticated initial enrollment as duplicate',
         () async {
-      // The same (appName, deviceName) twice over CRAM is allowed. Each
-      // request carries a keypair of its own, as a real repeat would: key
-      // uniqueness is a separate refusal and is not what is tested here.
       HashMap<String, String?> verbParamsFor(String apkamPublicKey) =>
           getVerbParam(
               VerbSyntax.enroll,
@@ -788,8 +761,6 @@ void main() {
           EnrollDataStoreValue('abcd', 'unit_test_enroll', 'testDevice', 'aPK')
             ..namespaces = {"unit_tst": "rw"}
             ..encryptedAPKAMSymmetricKey = 'anSK';
-      // Distribution: approved = 1 (key 0); pending = 2 (keys 1,2); revoked =
-      // 3 (keys 3,4,5); denied = 4 (keys 6,7,8,9). Used for validation below.
       List<String> approvalStatuses = [
         EnrollmentStatus.approved.name,
         EnrollmentStatus.pending.name,
@@ -925,7 +896,6 @@ void main() {
           response, otpVerbParams, inboundConnection);
     });
 
-    // Key represents the operation and value the expected enrollment status.
     var enrollOperationMap = {
       'approve': 'approved',
       'deny': 'denied',
@@ -1166,7 +1136,6 @@ void main() {
       var approveEnrollmentResponse = jsonDecode(response.data!);
       expect(approveEnrollmentResponse['enrollmentId'], enrollmentId);
       expect(approveEnrollmentResponse['status'], 'approved');
-      // An enrollment approval must produce no commit-log entry.
       final entries =
           await (keyValueStore.commitLog as AtCommitLog).iterate().toList();
       expect(
@@ -1623,10 +1592,6 @@ void main() {
 
     test('an approver holding __manage:r may not approve a request for '
         '__manage:rw', () async {
-      // __manage decides who may approve at all, so conferring write on it
-      // hands out an authority the approver does not have: the enrollment
-      // admitted this way could approve, revoke and delete, including its own
-      // approver.
       final String approverId = await storeApprovedEnrollment({'__manage': 'r'});
       final String targetId = await storePendingEnrollment({'__manage': 'rw'});
 
@@ -1644,9 +1609,7 @@ void main() {
     });
 
     test('…but it may approve a request for __manage:r', () async {
-      // The control. Without it the refusal above is equally satisfied by
-      // "__manage:r may approve nothing", which would leave a read-only
-      // administrator unable to admit its own kind.
+      // The control: a read-only administrator may still admit its own kind.
       final String approverId = await storeApprovedEnrollment({'__manage': 'r'});
       final String targetId = await storePendingEnrollment({'__manage': 'r'});
 
@@ -1656,8 +1619,7 @@ void main() {
 
     test('…and an approver holding __manage:rw may confer __manage:rw',
         () async {
-      // The second control: the same act, refused above and allowed here, and
-      // the only thing that differs is the approver's own access.
+      // The second control: only the approver's own access differs.
       final String approverId =
           await storeApprovedEnrollment({'__manage': 'rw'});
       final String targetId = await storePendingEnrollment({'__manage': 'rw'});
@@ -1669,13 +1631,6 @@ void main() {
     test(
         'an approver holding everything BUT __manage:rw may not approve a '
         'full root', () async {
-      // The climb-back. An approver holding '*':'rw' covers every data
-      // namespace a root asks for, so the per-namespace loop passes on all of
-      // them and __manage is the only entry left to refuse; uncompared, this
-      // approver would mint an enrollment strictly more privileged than
-      // itself. The tests above pair an approver and a target whose grants
-      // are __manage ALONE, so the refusal they pin could as easily have come
-      // from the wildcard. This one cannot.
       final String approverId =
           await storeApprovedEnrollment({'*': 'rw', '__manage': 'r'});
       final String targetId =
@@ -1695,11 +1650,7 @@ void main() {
     });
 
     test('…but that approver may still admit one at its own level', () async {
-      // The control for the refusal above, differing from it in the target's
-      // __manage access and in nothing else. Without it the refusal is
-      // equally satisfied by an approver forbidden to approve anything at
-      // all, which would make a '*':'rw' + '__manage':'r' administrator
-      // useless rather than merely unable to promote.
+      // The control: the target's __manage access is the only difference.
       final String approverId =
           await storeApprovedEnrollment({'*': 'rw', '__manage': 'r'});
       final String targetId =
@@ -1991,14 +1942,11 @@ void main() {
       expect(evh.getEnrollmentResponseDelayInMilliseconds(),
           EnrollVerbHandler.initialDelayInMilliseconds * 8);
 
-      // Sixth invalid request: the delay is incremented, but not past the
-      // maximum value.
       evp = getVerbParam(VerbSyntax.enroll, makeEnrollRequest('123'));
       await swallow(() => evh.processVerb(response, evp, inboundConnection));
       expect(evh.getEnrollmentResponseDelayInMilliseconds(),
           EnrollVerbHandler.initialDelayInMilliseconds * 10);
 
-      // A valid request resets the delay.
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.authType = AuthType.cram;
@@ -2199,8 +2147,8 @@ void main() {
           enrollDataStoreValue.encryptedAPKAMSymmetricKey);
     });
 
-    // enroll:fetch authorisation: self, or __manage plus access to ALL of the
-    // target enrollment's namespaces, the same bar as approve/deny/revoke.
+    // enroll:fetch authorisation: self, or __manage plus access to ALL of
+    // the target enrollment's namespaces.
     Future<void> seedEnrollment(String id, Map<String, String> ns) async {
       await keyValueStore.put(
           '$id.new.enrollments.__manage$alice',
@@ -2278,12 +2226,6 @@ void main() {
     test(
         'enroll:fetch — __manage:r reading a __manage:rw enrollment is denied',
         () async {
-      // "EVERY namespace the target holds" counts __manage like any other
-      // namespace, and fetch is the one operation reaching that comparison
-      // which confers nothing: it READS. The refusal is about authority over
-      // the target rather than the secrecy of what comes back, and a caller
-      // covering every other namespace makes __manage the only entry left to
-      // decide it.
       await seedEnrollment('readOnlyAdmin', {'*': 'rw', '__manage': 'r'});
       await seedEnrollment('root1', {'*': 'rw', '__manage': 'rw'});
 
@@ -2309,9 +2251,7 @@ void main() {
 
     test('enroll:fetch — …but it may read one holding no more than it does',
         () async {
-      // The control. Without it the refusal above is equally satisfied by
-      // "__manage:r may fetch nothing but itself", and a correct narrowing
-      // would be indistinguishable from a blanket one.
+      // The control: a narrowed caller may still fetch what it covers.
       await seedEnrollment('readOnlyAdmin', {'*': 'rw', '__manage': 'r'});
       await seedEnrollment('peer1', {'*': 'rw', '__manage': 'r'});
 
@@ -2440,9 +2380,6 @@ void main() {
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
       await otpVerbHandler.processVerb(
           response, otpVerbParams, inboundConnection);
-      // No encryptedAPKAMSymmetricKey: the approver mints the symmetric key
-      // and encapsulates it to the advertised key package, so the request
-      // carries no RSA-wrapped secret at all.
       String enrollmentRequest =
           'enroll:request:{"appName":"wavi1","deviceName":"mydevice1","namespaces":{"buzz":"r"},"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key-${Uuid().v4().hashCode}","metadata":{"keyPackage":{"v":1,"keys":[]}}}';
       HashMap<String, String?> enrollmentRequestVerbParams =
@@ -2691,11 +2628,6 @@ void main() {
 
     test('the __manage grant itself is compared against what the caller holds',
         () async {
-      // The approve/deny/revoke/unrevoke loop asks this question once per
-      // namespace the target holds, so for a target carrying '__manage':'rw'
-      // this IS the approve check. __manage is decided on its own branch,
-      // ahead of checkEnrollmentNamespaceAccess, so the comparison every
-      // other namespace gets has to be made there too.
       String key =
           '123.${EnrollmentConstants.enrollmentKeyPattern}.${EnrollmentConstants.enrollManageNamespace}$alice';
       EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
@@ -2961,9 +2893,6 @@ void main() {
 
       inboundConnection.metadata.isAuthenticated = true;
       inboundConnection.metadata.authType = AuthType.cram;
-      // Authorised, so the refusal under test is the STATE one. An
-      // unauthorised caller is refused earlier and never learns the state,
-      // which is pinned separately below.
       castMetadata(inboundConnection).enrollmentId =
           await createAndPersistAnEnrollment('deleter', 'device',
               {'test_namespace-2': 'rw', '__manage': 'rw'});
@@ -2983,10 +2912,7 @@ void main() {
     });
 
     /// A target holding NO namespaces passes every per-namespace
-    /// authorisation loop vacuously: zero iterations and no refusal, and the
-    /// `__manage` requirement lives inside those loops, so it is not asked
-    /// either. Three loops decide authority that way: `enroll:fetch`, the
-    /// shared approve/deny/revoke/unrevoke loop, and `enroll:delete`.
+    /// authorisation loop vacuously: zero iterations and no refusal.
     group('an enrollment holding no namespaces', () {
       Future<String> anEmptyTarget(
           {EnrollmentStatus status = EnrollmentStatus.revoked}) async {
@@ -3054,11 +2980,6 @@ void main() {
       });
 
       test('control: an owner connection may still act on it', () async {
-        // Why the guards are gated on caller-vs-target rather than applied
-        // unconditionally. A connection carrying no enrollment id, whether
-        // CRAM, owner or legacy PKAM, is the atSign itself; if it could not
-        // reach such a record, the most anomalous enrollment on the atSign
-        // would be the one nothing could clear up.
         final targetId = await anEmptyTarget(status: EnrollmentStatus.approved);
         await runAs(null, 'enroll:revoke:{"enrollmentId":"$targetId"}');
         expect(response.isError, false, reason: '${response.errorMessage}');
@@ -3067,12 +2988,7 @@ void main() {
 
     /// `enroll:delete` destroys a record irreversibly, so it asks the caller
     /// for authority over the target, exactly as `enroll:fetch` does to READ
-    /// one. Two things rest on that: `descendantsOf` fetches each
-    /// `parentEnrollmentId` link by key, so an expired link stays traversable
-    /// while a DELETED one puts everything behind it beyond a later cascade;
-    /// and the approver-not-approved refusal permits an enrollment whose
-    /// approver no longer exists, so deleting an approver is what makes the
-    /// orphan un-revokable.
+    /// one.
     group('enroll:delete authorisation', () {
       Future<String> aTarget(Map<String, String> namespaces,
           {EnrollmentStatus status = EnrollmentStatus.revoked}) async {
@@ -3110,8 +3026,7 @@ void main() {
             throwsA(isA<UnAuthorizedException>()));
 
         // The control, on the SAME target: a caller that does hold the
-        // namespace succeeds, so the refusal is about the namespace and not
-        // about a target that could never be deleted.
+        // namespace succeeds.
         final insider = await createAndPersistAnEnrollment(
             'insider', 'device', {'test_namespace': 'rw', '__manage': 'rw'});
         await deleteAs(insider, targetId);
@@ -3121,9 +3036,6 @@ void main() {
 
       test('a caller holding the namespace but not __manage is refused',
           () async {
-        // __manage is what separates "may use this namespace" from "may
-        // administer enrollments in it". Without this, any app enrolled for a
-        // namespace could destroy every revoked enrollment that held it.
         final targetId = await aTarget({'test_namespace': 'rw'});
         final appOnly = await createAndPersistAnEnrollment(
             'app-only', 'device', {'test_namespace': 'rw'});
@@ -3133,9 +3045,6 @@ void main() {
       });
 
       test('a caller may always delete its OWN enrollment', () async {
-        // The self-exemption, and it is not decorative: an enrollment tidying
-        // itself up holds no __manage in the ordinary case, so the rule above
-        // would otherwise strand every revoked enrollment on the atSign.
         final selfId = await createAndPersistAnEnrollment(
             'self', 'device', {'test_namespace': 'rw'});
         // Revoked, because only denied and revoked enrollments may be deleted.
@@ -3153,9 +3062,6 @@ void main() {
       });
 
       test('a CRAM connection may delete any', () async {
-        // The same exemption `enroll:fetch` makes, and the same one
-        // isAuthorized makes for every other verb: a CRAM connection is the
-        // atSign itself.
         final targetId = await aTarget({'test_namespace': 'rw'});
 
         await deleteAs(null, targetId);
@@ -3165,31 +3071,20 @@ void main() {
 
       test('a target holding NO namespaces is refused, not passed vacuously',
           () async {
-        // The loop decides by iterating the TARGET's grants, so an empty map
-        // passes it with zero iterations and no refusal, and the __manage
-        // requirement lives inside that loop, so it is not asked either. The
-        // most anomalous record on the atSign would become the one any
-        // enrolled caller could destroy.
         final targetId = await aTarget({});
 
-        // The hazard, first: a caller with one unrelated namespace and NO
-        // __manage. Every refusal this gate makes is decided inside the loop,
-        // so with nothing to iterate this caller would sail through.
         final appOnly = await createAndPersistAnEnrollment(
             'app-only', 'device', {'other_namespace': 'rw'});
         await expectLater(() => deleteAs(appOnly, targetId),
             throwsA(isA<UnAuthorizedException>()));
 
-        // And a ROOT caller, so the rule is about the target rather than the
-        // caller being weak: `*:rw` plus __manage would satisfy the loop for
-        // any namespace there was to check.
         final root = await createAndPersistAnEnrollment(
             'root', 'device', {'*': 'rw', '__manage': 'rw'});
         await expectLater(() => deleteAs(root, targetId),
             throwsA(isA<UnAuthorizedException>()));
 
         // The control: the exemptions still apply, so the record is not
-        // stranded. An owner connection can still remove it.
+        // stranded.
         await deleteAs(null, targetId);
         expect(response.data,
             '{"enrollmentId":"$targetId","status":"deleted"}');
@@ -3197,10 +3092,6 @@ void main() {
 
       test('an unauthorised caller is refused before it learns the state',
           () async {
-        // The target is APPROVED, which is refused on its own terms with a
-        // message naming the status. An unauthorised caller must not get that
-        // message: whether an enrollment it may not touch is approved, denied
-        // or revoked is not its business.
         final targetId = await aTarget({'test_namespace': 'rw'},
             status: EnrollmentStatus.approved);
         final outsider = await createAndPersistAnEnrollment(
@@ -3412,9 +3303,7 @@ void main() {
         'getEnrollmentsForNamespace returns apkamPubKey + metadata, '
         'approved-only, honours suffix/* match', () async {
       final (enIds, _) = await etu.createEnrollments(n: 2);
-      // enIds[0] = app_1 {app_1:rw, test:r}; enIds[1] = app_2 {app_2:rw, test:r}
 
-      // Attach metadata to enIds[0]'s record (models the enroll:request tail).
       final ev0 = await enMgr.getEnrollmentById(enIds[0]);
       ev0.metadata = {
         'keyPackage': {'v': 1, 'keys': []}
@@ -3422,7 +3311,6 @@ void main() {
       await enMgr.put(enIds[0], AtData()..data = jsonEncode(ev0.toJson()),
           EnrollmentStatus.approved);
 
-      // A pending (unapproved) enrollment authorised for 'test': excluded.
       final pending = await etu.createPendingEnrollment(
           appName: 'pend',
           deviceName: 't',
@@ -3431,7 +3319,6 @@ void main() {
 
       final members = await enMgr.getEnrollmentsForNamespace('test');
       final ids = members.map((m) => m['enrollmentId']).toSet();
-      // primary(*:rw) + app_1(test:r) + app_2(test:r) authorised; pending excluded
       expect(ids.contains(enIds[0]), true);
       expect(ids.contains(enIds[1]), true);
       expect(ids.contains(pending), false);
@@ -3454,7 +3341,6 @@ void main() {
         'a caller without access to the namespace', () async {
       final (enIds, _) = await etu.createEnrollments(n: 2);
 
-      // app_1 (test:r) queries 'test' -> allowed
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.enrollmentId = enIds[0];
       inboundConnection.metaData.authType = AuthType.apkam;
@@ -3468,7 +3354,6 @@ void main() {
       final roster = jsonDecode(okResp.data!) as List;
       expect(roster.any((m) => m['apkamPubKey'] != null), true);
 
-      // app_2 (app_2:rw, test:r, NOT app_1) queries 'app_1' -> refused
       inboundConnection.metaData.enrollmentId = enIds[1];
       inboundConnection.metaData.authType = AuthType.apkam;
       await expectLater(
@@ -3483,9 +3368,6 @@ void main() {
     test(
         'the client-composed apsk is published VERBATIM on approval '
         '(CRAM + enroll:approve)', () async {
-      // A shape the server has no code for, deliberately: the value is
-      // opaque, so what comes back must be what went in and nothing the
-      // server could have composed from (apkamPublicKey, signingAlgo).
       final composed = {
         'v': 7,
         'signingAlgo': 'some-algo-this-server-never-heard-of',
@@ -3519,16 +3401,11 @@ void main() {
 
     test('an enrollment that sends no apsk gets no _apsk record at all',
         () async {
-      // The server composes nothing from (apkamPublicKey, signingAlgo): PKAM
-      // verification reads the record, so an unsent signing key is the
-      // enrollee's own to publish, or to go without.
       final (enIds, _) = await etu.createEnrollments(n: 1);
       final apskKey = 'public:_apsk.${enIds[0]}'
           '.${EnrollmentConstants.perEnrollmentApproved}$alice';
       expect(await keyValueStore.exists(apskKey), false);
 
-      // Including on the CRAM path, which is where an atSign's very first
-      // enrollment is auto-approved.
       final primaryApsk = 'public:_apsk.${etu.primaryEnId}'
           '.${EnrollmentConstants.perEnrollmentApproved}$alice';
       expect(await keyValueStore.exists(primaryApsk), false);
@@ -3550,11 +3427,6 @@ void main() {
 
     /// An `enroll:request` params object with everything mandatory filled in
     /// and a fresh OTP, ready for a size arm to load up.
-    ///
-    /// Without `encryptedAPKAMSymmetricKey` the request is refused by
-    /// `_validateParams` as an IllegalArgumentException, the same class the
-    /// size refusal throws, before the size check is reached. Every arm below
-    /// therefore matches on the MESSAGE too.
     Future<EnrollParams> sizedRequest(String appName) async {
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.authType = AuthType.cram;
@@ -3590,10 +3462,6 @@ void main() {
     });
 
     test('an oversized request does not spend the OTP', () async {
-      // What the params pre-filter buys: the size refusal lands before
-      // isPasscodeValid, which deletes the OTP on use. Without it a client
-      // that sent too much would have to go back to the user for a new
-      // passcode to retry.
       final ep = await sizedRequest('otpPreserved')
         ..apsk = {
           'publicKey': 'x' * (EnrollVerbHandler.maxEnrollmentRecordBytes + 1)
@@ -3602,8 +3470,6 @@ void main() {
 
       await expectLater(submitRequest(ep), refusedForSize);
 
-      // The same one-shot OTP still works, which it would not had the
-      // oversized request reached isPasscodeValid.
       await submitRequest(EnrollParams()
         ..appName = 'otpPreserved'
         ..deviceName = 'd2'
@@ -3614,9 +3480,6 @@ void main() {
     });
 
     test('the cap covers metadata, not just apsk', () async {
-      // The cap is on the whole record: metadata carries the enrollment's key
-      // package, the largest blob in play, so a bound on apsk alone would
-      // apply to the one field nobody would use to make a record big.
       final before = (await enMgr.getEnrollmentsAsJson(redactSecrets: false)).length;
       final ep = await sizedRequest('bigMetadata')
         ..metadata = {
@@ -3631,8 +3494,6 @@ void main() {
 
     test('the cap counts the whole record, not each field separately',
         () async {
-      // Neither field is over the cap on its own; together they are. A
-      // per-field bound goes green here.
       final half = EnrollVerbHandler.maxEnrollmentRecordBytes ~/ 2;
       final before = (await enMgr.getEnrollmentsAsJson(redactSecrets: false)).length;
       final ep = await sizedRequest('sumOverCap')
@@ -3652,9 +3513,6 @@ void main() {
 
     test('a record comfortably under the cap is accepted and published',
         () async {
-      // The other arm of the bound: a large but legitimate value goes through
-      // untouched. ~100KB is far more than any real key package and well
-      // inside 500KB.
       final atCap = {'publicKey': 'x' * (100 * 1024)};
 
       final enId = await etu.createPendingEnrollment(
@@ -3671,8 +3529,6 @@ void main() {
 
     test('an approver cannot substitute the apsk it publishes for an enrollee',
         () async {
-      // The publish reads the RECORD, so an approve-time value is ignored:
-      // the signing key an enrollment advertises is the enrollee's alone.
       final enrolleeApsk = {'v': 1, 'publicKey': 'the-enrollees-own-key'};
       final enId = await etu.createPendingEnrollment(
           appName: 'substApp',
@@ -3705,10 +3561,7 @@ void main() {
     test('apskLegacy is published as the BARE string, never JSON-encoded',
         () async {
       // ⚠️ WIRE PIN. Every deployed _apsk consumer base64-decodes the value
-      // as an RSA key, and a JSON string, quotes and all, is not what that
-      // parser reads. So the assertion is on the raw stored bytes and it
-      // rejects the jsonEncode spelling: an `expect(jsonDecode(stored),
-      // bare)` would pass on BOTH.
+      // as an RSA key, so the assertion is on the raw stored bytes.
       const bare = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtestkey';
 
       // The CRAM auto-approve path.
@@ -3735,8 +3588,6 @@ void main() {
       await etu.approveEnrollment(etu.primaryEnId, pendingEnId);
       expect((await keyValueStore.get(pendingKey))!.data!, bare);
 
-      // And it is on the record, so it survives a restart rather than living
-      // only in the published copy.
       final enVal = await enMgr.getEnrollmentById(pendingEnId);
       expect(enVal.apskLegacy, bare);
       expect(enVal.apsk, isNull);
@@ -3744,9 +3595,6 @@ void main() {
 
     test('a request carrying BOTH apsk and apskLegacy is refused, and creates '
         'no enrollment', () async {
-      // Not a precedence question: one record publishes one value, and the
-      // server has no basis for choosing between two the client disagreed
-      // with itself about. Refusing keeps the choice observable.
       final before = (await enMgr.getEnrollmentsAsJson(redactSecrets: false)).length;
 
       await expectLater(
@@ -3758,7 +3606,7 @@ void main() {
               apsk: {'v': 1, 'keys': []},
               apskLegacy: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A'),
           // Matched on the message, not just the type: several unrelated
-          // refusals on this path are also IllegalArgumentException.
+          // refusals on this path are the same exception class.
           throwsA(isA<IllegalArgumentException>().having(
               (e) => e.message, 'message', contains('mutually exclusive'))));
 
@@ -3788,9 +3636,6 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.authType = AuthType.cram;
       final otp = await etu.getOtp();
-      // Built as raw request JSON rather than through EnrollParams: these are
-      // the wire spellings the server reads, and the typed builder would let
-      // a field rename pass unnoticed on both sides.
       final reqJson = {
         'appName': 'metaApp',
         'deviceName': 'd',
@@ -3848,9 +3693,7 @@ void main() {
     });
 
     /// Signs `<enrollmentId>|<apkamPublicKey>|<signingAlgo>` with [keyPair]'s
-    /// private half, the way a client rotating its key must. Real crypto: a
-    /// fake string would make the accept arm pass for the wrong reason and
-    /// the reject arm pass for no reason at all.
+    /// private half, the way a client rotating its key must.
     String popSignature(
         AtPkamKeyPair keyPair, String enId, String pub, String algo) {
       final input = AtSigningInput('$enId|$pub|$algo')
@@ -3874,8 +3717,6 @@ void main() {
     }
 
     test('a valid rotation replaces the key, and an invalid one does not', () async {
-      // Both arms in one test deliberately: the accept arm is the control
-      // proving the reject arm refuses the signature rather than everything.
       final enId = (await etu.createEnrollments(n: 1)).$1.first;
       final newPair = AtChopsUtil.generateAtPkamKeyPair();
       final newPub = newPair.atPublicKey.publicKey;
@@ -3915,23 +3756,12 @@ void main() {
     });
 
     test('a revoke landing during the update is not undone', () async {
-      // The handler reads the enrollment, then awaits an APKAM signature
-      // verification before writing it back with the status it read at the
-      // top. `put` moves an enrollment's per-enrollment data to match the
-      // status it is handed, so writing `approved` back from that snapshot
-      // returns a revoked enrollment's published `_apsk` to the live address
-      // the revocation had just parked it from, and `enroll:update` is
-      // self-only, so the caller IS the enrollment being revoked.
-      //
-      // The window is REPRODUCED rather than raced: the handler's first read
-      // goes through EnrollmentManager's cache, which only a write through
-      // the manager evicts, so revoking straight on the keystore leaves that
-      // snapshot saying approved while the disk says revoked.
+      // NOTE the window is REPRODUCED rather than raced: revoking straight on
+      // the keystore leaves the manager's cached snapshot saying approved.
       final enId = (await etu.createEnrollments(n: 1)).$1.first;
       final newPair = AtChopsUtil.generateAtPkamKeyPair();
       final newPub = newPair.atPublicKey.publicKey;
 
-      // Prime the snapshot the handler will read at the top of the method.
       await etu.evh.enMgr.getEnrollmentById(enId);
 
       final key = etu.evh.enMgr.buildEnrollmentKey(enId);
@@ -3965,10 +3795,6 @@ void main() {
     });
 
     test('an mldsa65 rotation proves possession of the ML-DSA key', () async {
-      // The rsa2048 arms above cannot reach this: at_chops verifies rsa2048
-      // synchronously and mldsa65 asynchronously, so only the ML-DSA path
-      // hands the handler a Future where it reads a bool. Real ML-DSA
-      // material, for the same reason the rsa2048 test uses real keys.
       final enId = (await etu.createEnrollments(n: 1)).$1.first;
       final newKey = await MlDsa65PureDartAlgo().generateKeyPair();
       final wrongKey = await MlDsa65PureDartAlgo().generateKeyPair();
@@ -4031,11 +3857,6 @@ void main() {
 
     test('...and an ID-LESS connection is refused, not waved through',
         () async {
-      // The carve-out. `isAuthorized`'s default is that NO enrollment id
-      // means full permissions, so an owner connection is normally waved
-      // through everything; this refusal is an explicit exception to that
-      // default, which makes the id-less case the surprising one. Reached by
-      // a CRAM connection, the one connection carrying no enrollment id.
       final enId = (await etu.createEnrollments(n: 1)).$1.first;
 
       inboundConnection.metaData.isAuthenticated = true;
@@ -4065,8 +3886,6 @@ void main() {
     });
 
     test('enroll:update cannot change namespaces', () async {
-      // The privilege-escalation guard: self-only plus reachable namespaces
-      // would let an enrollment widen its own grant.
       final enId = (await etu.createEnrollments(n: 1)).$1.first;
       await expectLater(
         sendUpdate(
@@ -4128,9 +3947,6 @@ void main() {
 
     test('an update that moves an enrollment between the two shapes clears the '
         'one it left', () async {
-      // The operation that moves an enrollment across the two shapes: one
-      // that gains a structured key must stop the record claiming the bare
-      // one, or the published value depends on an unstated precedence rule.
       const bare = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A';
       final array = {
         'v': 1,
@@ -4144,7 +3960,6 @@ void main() {
       final enId = (await etu.createEnrollments(n: 1)).$1.first;
       final key = apskKey.replaceFirst('\$id', enId);
 
-      // bare, then array
       expect(
           (await sendUpdate(
                   enId, EnrollParams()..enrollmentId = enId..apskLegacy = bare))
@@ -4164,7 +3979,6 @@ void main() {
       expect(afterArray.apskLegacy, isNull,
           reason: 'the shape it left must not linger on the record');
 
-      // and back again
       expect(
           (await sendUpdate(
                   enId, EnrollParams()..enrollmentId = enId..apskLegacy = bare))
@@ -4185,8 +3999,8 @@ void main() {
               ..enrollmentId = enId
               ..apsk = {'v': 1, 'keys': []}
               ..apskLegacy = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A'),
-        // On the message, not just the type: enroll:update's own "names
-        // nothing to change" refusal is the same exception class.
+        // On the message, not just the type: the same exception class is
+        // reused by other refusals here.
         throwsA(isA<IllegalArgumentException>().having(
             (e) => e.message, 'message', contains('mutually exclusive'))),
       );
@@ -4194,10 +4008,6 @@ void main() {
 
     test('an update is refused when the MERGED record would exceed the cap',
         () async {
-      // Why the record check is the authority and the params pre-filter is
-      // not: metadata merges rather than replaces, so two updates each
-      // comfortably inside the cap can leave a record outside it. Only a
-      // measurement taken after the merge can see that.
       final enId = (await etu.createEnrollments(n: 1)).$1.first;
       final chunk = EnrollVerbHandler.maxEnrollmentRecordBytes ~/ 2;
 
@@ -4222,9 +4032,6 @@ void main() {
     });
 
     test('an update naming ONLY apskLegacy is accepted', () async {
-      // The "names nothing to change" guard lists the fields an update may
-      // reach; a field added to the operation and not to that list is refused
-      // by a check written before it existed.
       final enId = (await etu.createEnrollments(n: 1)).$1.first;
       const bare = 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A';
       final r = await sendUpdate(
@@ -4239,8 +4046,7 @@ void main() {
     setUp(() async {
       await verbTestsSetUp();
       await etu.init(withPrimaryEnrollment: false);
-      // The flat credential, seeded AFTER etu.init(), so the assertion below
-      // is about a value a CRAM auto-approve found and had to leave alone.
+      // NOTE the flat credential is seeded AFTER etu.init().
       await keyValueStore.put(AtConstants.atPkamPublicKey,
           AtData()..data = 'the-flat-pkam-key',
           skipCommit: true);
@@ -4252,17 +4058,6 @@ void main() {
 
     test('an auto-approved enrollment does not become the flat credential',
         () async {
-      // `at_pkam_publickey` is what a `pkam:` carrying NO enrollment id is
-      // verified against. An `enroll:request` mints an APKAM credential,
-      // which always authenticates WITH an id, so a key minted for the second
-      // has no business becoming the first: copying it there would give one
-      // keypair two identities and, being unconditional, destroy whatever
-      // flat credential the atSign held, on every repeat of a request that is
-      // deliberately repeatable on a CRAM connection.
-      //
-      // It also pins that CRAM is auto-approved rather than treated as a
-      // self-enrolment: at_auth throws unless a FIRST enrollment comes back
-      // approved, so reordering this branch behind another breaks onboarding.
       final ep = EnrollParams()
         ..appName = 'cram-app'
         ..deviceName = 'cram-device'
@@ -4291,8 +4086,7 @@ void main() {
           reason: 'auto-approve MINTS an enrollment; it does not replace one');
 
       // ⚠️ RAW LITERAL, byte for byte: the whole claim is that this value is
-      // untouched, and composing it from whatever the handler wrote would
-      // assert nothing.
+      // untouched.
       expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
           'the-flat-pkam-key',
           reason: 'the flat credential is untouched — an enrollment key that '

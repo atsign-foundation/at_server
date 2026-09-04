@@ -17,10 +17,7 @@ class AtSecondaryConfig {
   static const bool _useTLS = true;
   static const bool _clientCertificateRequired = true;
 
-  // Cross-server 'to:' verb. Inbound understanding of 'to:@x' is always on;
-  // this flag gates only outbound emission, and is off until every atServer
-  // implementation understands the verb. OutboundClient falls back to the
-  // legacy lookup when a peer rejects 'to:'.
+  // Gates outbound emission of the cross-server 'to:' verb.
   static const bool _toVerbOutboundEnabled = false;
 
   //Certificate Paths
@@ -39,17 +36,9 @@ class AtSecondaryConfig {
   static const String _notificationStoragePath = 'storage/notificationLog.v1';
   static const int _expiringRunFreqMins = 10;
 
-  // Persistence backend. 'hive' keeps the Hive stores; 'sqlite' opens one
-  // atsign.db per atSign under <storageRoot>/sqlite. A mismatch with the
-  // on-disk marker triggers a migrate-verify-flip at startup, aborting on
-  // failure.
+  // Persistence backend: 'hive', 'sqlite' or 'dual'.
   static const String _persistenceBackend = 'hive';
-  // Storage root for the backend marker (.persistence_backend) and, for the
-  // 'sqlite' and 'dual' backends, the SQLite data. Independent of the Hive
-  // path constants above: the Hive stores live at those paths, not under
-  // here. Relative, so in the container it resolves to /atsign/storage, the
-  // mounted volume; kept equal to the Hive paths' parent so that all state
-  // lands on that one volume.
+  // Storage root for the backend marker and the SQLite data.
   static const String _storageRoot = 'storage';
 
   //Commit Log
@@ -67,13 +56,10 @@ class AtSecondaryConfig {
   //Notification
   static const bool _autoNotify = true;
 
-  // Whether this server is running as a test fixture. False is the safe
-  // value: the flag relaxes rules that protect the atSign, so an absent
-  // setting must read as false rather than as "probably a test rig".
+  // Whether this server is running as a test fixture.
   static const bool _testingMode = false;
 
-  // Interval in seconds at which the latest commitID is notified to monitor
-  // connections. Set to -1 to disable.
+  // Interval in seconds for notifying the latest commitID; -1 disables.
   static const int _statsNotificationJobTimeInterval = 15;
 
   // defines the time after which a notification expires in units of minutes
@@ -144,17 +130,13 @@ class AtSecondaryConfig {
 
   static String? get secondaryServerVersion => _secondaryServerVersion;
 
-  // Most getters here return a default value while their signatures still
-  // allow null, and each repeats the same env-then-yaml-then-default
-  // boilerplate; the logLevel getter shows the terser shape.
   static String get logLevel {
     return _getStringEnvVar('logLevel') ??
         getStringValueFromYaml(['log', 'level']) ??
         _defaultLogLevel;
   }
 
-  /// Reads `useTLS` from env and config, falling back to `useSSL`, which is
-  /// the name deployed configurations may still use.
+  /// Reads `useTLS` from env and config, falling back to the older `useSSL`.
   static bool? get useTLS {
     var result = _getBoolEnvVar('useTLS');
     if (result != null) {
@@ -177,10 +159,7 @@ class AtSecondaryConfig {
     }
   }
 
-  /// Whether a client certificate is required when another atServer connects,
-  /// and whether one is presented when connecting out. Never set it false
-  /// outside a self-contained ephemeral environment or a test.
-  /// Override from env with `clientCertificateRequired=false`.
+  /// Whether a client certificate is required inbound and presented outbound.
   static bool get clientCertificateRequired {
     var result = _getBoolEnvVar('clientCertificateRequired');
     if (result != null) {
@@ -193,12 +172,7 @@ class AtSecondaryConfig {
     }
   }
 
-  /// Gates outbound emission of the cross-server `to:` verb as the first verb
-  /// on outbound peer connections; off by default, so they use the legacy
-  /// `lookup:`/bare-`from:` path. A peer that rejects `to:` falls back to that
-  /// path, so enabling this is safe against atServers that do not understand
-  /// the verb. Override with env `toVerbOutboundEnabled=true` or yaml
-  /// `protocol.toVerbOutboundEnabled`.
+  /// Gates outbound emission of the cross-server `to:` verb.
   static bool get toVerbOutboundEnabled {
     var result = _getBoolEnvVar('toVerbOutboundEnabled');
     if (result != null) {
@@ -327,22 +301,18 @@ class AtSecondaryConfig {
   }
 
   /// Whether the commit-log compactor cron should be scheduled.
-  /// Disable to suppress the periodic prune.
   static bool get enableCommitLogCompactor {
     return _getBoolEnvVar('enableCommitLogCompactor') ??
         _enableCommitLogCompactor;
   }
 
-  /// Whether the access-log compactor cron should be scheduled. No
-  /// effect when [AtPersistenceConfig.enableAccessLog] is `false`.
+  /// Whether the access-log compactor cron should be scheduled.
   static bool get enableAccessLogCompactor {
     return _getBoolEnvVar('enableAccessLogCompactor') ??
         _enableAccessLogCompactor;
   }
 
-  /// Whether the notification-keystore compactor cron should be
-  /// scheduled. No effect when
-  /// [AtPersistenceConfig.enableNotificationKeystore] is `false`.
+  /// Whether the notification-keystore compactor cron should be scheduled.
   static bool get enableNotificationCompactor {
     return _getBoolEnvVar('enableNotificationCompactor') ??
         _enableNotificationCompactor;
@@ -392,8 +362,7 @@ class AtSecondaryConfig {
     }
   }
 
-  /// The active persistence backend, `'hive'` or `'sqlite'`. Override with env
-  /// `persistenceBackend` or yaml `persistence.backend`.
+  /// The active persistence backend, `'hive'` or `'sqlite'`.
   static String get persistenceBackend {
     final result = _getStringEnvVar('persistenceBackend');
     if (result != null) return result;
@@ -404,11 +373,7 @@ class AtSecondaryConfig {
     }
   }
 
-  /// Storage root for the backend marker and, for the `'sqlite'` and
-  /// `'dual'` backends, the SQLite data. Independent of the Hive paths: the
-  /// Hive stores live at [storagePath], [commitLogPath] and the rest, not
-  /// under here. Relative to the container working dir in production.
-  /// Override with env `storageRoot` or yaml `persistence.storageRoot`.
+  /// Storage root for the backend marker and the SQLite data.
   static String get storageRoot {
     final result = _getStringEnvVar('storageRoot');
     if (result != null) return result;
@@ -550,22 +515,13 @@ class AtSecondaryConfig {
     }
   }
 
-  /// Forces [testingMode] to a value for the duration of a test.
-  ///
-  /// The flag comes from the process environment and the config file, neither
-  /// of which a test can change from inside the process, so a test asserting
-  /// what the flag gates needs this. Null means "ask the environment and the
-  /// yaml", which is what every non-test run holds.
+  /// Forces [testingMode] to a value for the duration of a test; null asks the
+  /// environment and the yaml, as every non-test run does.
   @visibleForTesting
   static bool? testingModeOverride;
 
-  /// Whether this server is running as a test fixture, from the `testing:
-  /// testingMode:` block or the `testingMode` environment variable.
-  ///
-  /// It gates behaviour that must not be reachable on a real atSign, so an
-  /// absent environment variable, an absent yaml key and an environment value
-  /// that is not `true` all answer false. A flag whose absence meant "yes"
-  /// would turn a missing config file into a permanently relaxed server.
+  /// Whether this server is running as a test fixture; anything other than
+  /// `true` in env or yaml answers false.
   static bool get testingMode {
     if (testingModeOverride != null) {
       return testingModeOverride!;
@@ -767,20 +723,6 @@ class AtSecondaryConfig {
 
   /// How long a superseded enrollment keeps authenticating after the
   /// enrollment that replaced it first authenticates.
-  ///
-  /// The predecessor is capped rather than removed, so sibling clones of the
-  /// same keyfile can still upgrade until the cap elapses. The clock starts
-  /// when the successor proves it can authenticate, because storing the
-  /// successor proves only that the server wrote a record while the private
-  /// half lives client-side.
-  ///
-  /// The cap written is `min(this, what the predecessor's own key-expiry
-  /// posture leaves it)` and is not folded against a cap already written:
-  /// re-arming has to be able to push a deadline out, or the first sibling's
-  /// upgrade fixes a date every laggard is stranded behind. A laggard past
-  /// the window recovers through an ordinary OTP enrollment. A predecessor
-  /// that is not approved, and one holding `*:rw` and `__manage:rw`, are not
-  /// capped at all. See [EnrollmentManager.armRetrofitCapOnFirstAuth].
   static int get apkamSelfEnrollmentGraceHours {
     return _getIntEnvVar('apkamSelfEnrollmentGraceHours') ??
         getNullableIntFromYaml(
@@ -942,7 +884,6 @@ class AtSecondaryConfig {
         }
       }
     }
-    // If value not found throw exception
     if (value == Null || value == null) {
       throw ElementNotFoundException(
           'Element ${args.toString()} Not Found in yaml');
@@ -965,7 +906,6 @@ class AtSecondaryConfig {
         }
       }
     }
-    // If value not found throw exception
     if (value == Null || value == null) {
       return null;
     } else {

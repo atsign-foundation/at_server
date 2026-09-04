@@ -4,10 +4,7 @@ import 'package:test/test.dart';
 
 import 'test_utils.dart';
 
-/// The two places the server runs the housekeeping sweep, each pinned on its
-/// own: a site that stopped calling the sweep would leave expired keys on
-/// disk with nothing going red, and calling runHousekeepingSweep() directly
-/// would prove the sweep works rather than that anything runs it.
+/// Each of the two places the server runs the housekeeping sweep, pinned.
 void main() {
   verbTestsSetUpLogging();
 

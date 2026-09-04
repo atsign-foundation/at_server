@@ -781,11 +781,8 @@ void main() {
       };
       var keyName = '$enrollId.new.enrollments.__manage$alice';
       await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
-      // processVerb, not process: AbstractVerbHandler closes a connection
-      // whose enrollment has left `approved` before any verb body runs, so
-      // `process` never reaches this refusal, which is the keys verb's own.
-      // The connection-level gate is pinned in
-      // enrollment_revocation_liveness_test.dart.
+      // NOTE processVerb, not process: `process` never reaches this refusal,
+      // which is the keys verb's own.
       expect(
           () async => await keysVerbHandler.processVerb(Response(),
               keysVerbHandler.parse(keysGetCommand), inboundConnection),

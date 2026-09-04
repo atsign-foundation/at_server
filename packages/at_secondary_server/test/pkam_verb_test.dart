@@ -149,10 +149,8 @@ void main() async {
       String enId = Uuid().v4();
       String ek = enMgr.buildEnrollmentKey(enId);
 
-      // Permissive on purpose, so that the verifyNever below is what
-      // reports a removal. An unstubbed `remove` returns null through
-      // noSuchMethod and blows up on the await, failing this test on a
-      // TypeError that names neither the removal nor the assertion.
+      // NOTE permissive on purpose, so the verifyNever below is what reports
+      // a removal.
       when(() => mockKeyStore.remove(any(),
           skipCommit: any(named: 'skipCommit'))).thenAnswer((_) async => null);
 
@@ -170,9 +168,8 @@ void main() async {
       expect(apkamResult.response.errorMessage,
           'enrollment_id: $enId is expired or invalid');
 
-      // A read path must not write: this check runs on every verb command,
-      // outside the enrollment-mutation critical section, so a removal here
-      // would mutate the store while another mutation is in flight.
+      // NOTE a read path must not write: this check runs outside the
+      // enrollment-mutation critical section.
       verifyNever(
           () => mockKeyStore.remove(any(), skipCommit: any(named: 'skipCommit')));
     });
@@ -229,14 +226,7 @@ void main() async {
 
     test('authenticates with NO enrollment id, migrates into primary, and '
         'keeps working', () async {
-      // The flat credential at `at_pkam_publickey` is the only credential
-      // some atSigns in the field hold. The first legacy login migrates it
-      // into the `primary` enrollment and deletes the flat key; the second
-      // verifies against that record.
-      //
-      // ⚠️ The key is deliberately not re-seeded between the two logins:
-      // re-seeding would paper over a migration that left nothing to verify
-      // against.
+      // ⚠️ The key is deliberately not re-seeded between the two logins.
       final mlDsa = await MlDsa65PureDartAlgo().generateKeyPair();
       await keyValueStore.put(AtConstants.atPkamPublicKey,
           AtData()..data = base64Encode(mlDsa.publicKey),

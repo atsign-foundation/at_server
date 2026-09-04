@@ -9,13 +9,7 @@ import 'enrollment_test_utils.dart';
 import 'test_utils.dart';
 
 /// `enroll:fetch` and every `enroll:list` projection report each enrollment's
-/// effective expiry as `expiresAt`: the moment the record stops being served,
-/// set by the key-expiry posture at approval or by the retrofit cap, or null
-/// when nothing set it. The verbs have to carry it because the value lives on
-/// the enrollment record's metadata and that record is a `__manage` key,
-/// which no enrollment may read with a data verb, so without this field no
-/// client can learn when its own credential, or one it administers, stops
-/// authenticating.
+/// effective expiry as `expiresAt`, or null when nothing set it.
 void main() {
   verbTestsSetUpLogging();
 
@@ -34,10 +28,8 @@ void main() {
     await verbTestsTearDown();
   });
 
-  /// ⚠️ WIRE PIN, frozen. Clients parse this field by name with
-  /// `DateTime.parse`, so the name `expiresAt` and the ISO-8601 UTC form
-  /// (fractional seconds, trailing `Z`) are the contract. Change either only
-  /// with every parser, on every side of the protocol, in the same sweep.
+  /// ⚠️ WIRE PIN: frozen; clients parse this field by name with
+  /// `DateTime.parse`.
   final RegExp isoUtc = RegExp(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z$');
 
   Future<Map<String, dynamic>> run(String command,
@@ -57,7 +49,7 @@ void main() {
       run('enroll:fetch:{"enrollmentId":"$id"}', asEnrollment: asEnrollment);
 
   /// An approved enrollment carrying a one-hour posture, and the expiry the
-  /// store actually holds for it.
+  /// store holds for it.
   Future<(String, DateTime)> anExpiringEnrollment(
       {Map<String, String> namespaces = const {'wavi': 'rw'},
       String appName = 'expiring'}) async {

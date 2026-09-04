@@ -55,12 +55,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   var logger = AtSignLogger('AtSecondaryServer');
 
   /// Builds the per-atSign persistence stores during [start] and tears them
-  /// down during [stop]. Public so that tests and alternative deployments can
-  /// replace it before [start] is called.
+  /// down during [stop]. Replaceable before [start] is called.
   AtPersistenceFactory persistenceFactory = HiveAtPersistenceFactory();
 
-  /// The bundle this server is currently running against, set during
-  /// [_initializePersistentInstances] and closed by [stop].
+  /// The bundle this server is currently running against.
   AtPersistenceBundle? _persistenceBundle;
 
   factory AtSecondaryServerImpl.getInstance() {
@@ -71,11 +69,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     logger.shout('executableArguments: ${Platform.executableArguments}');
     logger.shout('DART_VM_OPTIONS: ${Platform.environment['DART_VM_OPTIONS']}');
 
-    // The server is a singleton with a start/stop lifecycle: [start] recreates
-    // all of its state, because things such as the TLS certificates may have
-    // changed, and [stop] clears it. The instance variables below are
-    // initialized here as well as in [start] because unit tests depend on
-    // them without starting the server.
+    // NOTE these are initialized here as well as in [start], because unit
+    // tests depend on them without starting the server.
     final socketConfig = SecureSocketConfig()
       ..decryptPackets = false
       ..pathToCerts = AtSecondaryConfig.trustedCertificateLocation
@@ -114,14 +109,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   final List<Timer> _compactionTimers = [];
 
   /// One-shot timer driving [runHousekeepingSweep], re-armed after every
-  /// sweep from [AtKeyValueStore.nextExpiresAt] so the server sleeps until
-  /// the next key expires rather than polling. The sleep ceiling bounds the
-  /// idle re-check: an atSign holding no key with a ttl still gets a tick
-  /// every `expiringRunFreqMins`.
+  /// sweep so the server sleeps until the next key expires.
   Timer? _keyExpiryTimer;
 
-  /// Floor for the expiry-sweep sleep, so a burst of near-future expiries
-  /// cannot re-run the sweep back to back.
+  /// Floor for the expiry-sweep sleep.
   static const Duration _minExpirySleep = Duration(seconds: 10);
   @visibleForTesting
   AtCertificateValidationJob? certificateReloadJob;
@@ -155,20 +146,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// configuration. Throws [AtServerException] if the server cannot be
   /// started.
   ///
-  /// This runs more than once per process: [AtCertificateValidationJob] calls
-  /// [stop] and then [start] again on this singleton, unattended, when the TLS
-  /// certificates on disk have been replaced. So everything here has to be
-  /// correct on the hundredth call, and process-wide state that outlives
-  /// [stop] must either be safe to pick up as it is or be torn down there.
-  /// Persistence takes the second route; [certificateReloadJob] takes the
-  /// first, and is created only when null so the job driving the restart is
-  /// not replaced underneath itself.
-  ///
-  /// A throw from a restart-time [start] is not awaited by its caller: it
-  /// reaches the bootstrapper's zone error handler, which terminates the
-  /// process with a SUCCESS status. Under `restart: on-failure` that reads as
-  /// a deliberate shutdown and the atServer is not brought back, so anything
-  /// added here that can throw has to be weighed against that.
+  /// Runs more than once per process, as [AtCertificateValidationJob] calls
+  /// [stop] and then [start] again on this singleton to pick up replaced TLS
+  /// certificates.
   @override
   Future<void> start() async {
     pause();
@@ -302,8 +282,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         accessLog: accessLog,
       );
     } else {
-      // A restart needs a new DefaultVerbHandlerManager so that it holds the
-      // current AtKeyValueStore, OutboundClientManager and AtCacheManager.
+      // NOTE a restart needs a new manager, holding the current stores.
       if (verbHandlerManager is DefaultVerbHandlerManager) {
         verbHandlerManager = DefaultVerbHandlerManager(
           keyValueStore,
@@ -319,8 +298,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       }
     }
 
-    // One certificate reload job per process: the same instance is reused
-    // across soft restarts, because it is what drives them.
+    // NOTE one job per process: it is what drives a soft restart.
     if (certificateReloadJob == null) {
       certificateReloadJob = AtCertificateValidationJob(
           this,
@@ -346,8 +324,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         }
       });
     }
-    // The restart this start() is part of has happened, so the file that
-    // triggers one is cleared.
     await certificateReloadJob!.deleteRestartFile();
 
     inboundConnectionManager = InboundConnectionManager(
@@ -385,7 +361,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     if (serverContext!.trainingMode) {
       try {
         logger.warning('Training mode set - stopping server');
-        // Give the server socket a few milliseconds to finish initializing.
         await Future.delayed(Duration(milliseconds: 100));
         await stop();
       } catch (e) {
@@ -410,8 +385,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   ) async {
     logger.finest(
         'Received new frequency for $label compaction: ${newFrequency.inMinutes}m');
-    // Timers are not indexed by label, so all of them are cancelled and the
-    // one being changed is re-scheduled.
+    // NOTE timers are not indexed by label, so all are cancelled and the one
+    // being changed is re-scheduled.
     for (final t in _compactionTimers) {
       t.cancel();
     }
@@ -422,24 +397,14 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// Everything the keystore needs done before a client can connect, in the
   /// order it has to happen.
   ///
-  /// Both remove hooks are registered before the expired-keys sweep. Removing
-  /// an enrollment has to carry its per-enrollment data with it and invalidate
-  /// its cache entry, so an enrollment reaped by a sweep that ran first would
-  /// leave its encryption keys behind and its cache entry live, authorising
-  /// verbs for the life of the process.
-  ///
-  /// A method rather than statements in [start] so the order can be exercised:
-  /// [start] goes on to bind a socket, so no test drives it.
+  /// Both remove hooks are registered before the expired-keys sweep.
   @visibleForTesting
   Future<void> prepareStoreForFirstConnection() async {
     keyValueStore.preRemoveHooks.add(enrollmentManager.preRemoveHook);
     keyValueStore.postRemoveHooks.add(enrollmentManager.postRemoveHook);
 
-    // The flat legacy credential migrates into `primary` before any client
-    // connects, so no flat key exists on a running server. Before the sweep,
-    // so that an expired root the sweep is about to reap is not the survivor
-    // that licenses deleting a copy of its key. See
-    // [EnrollmentManager.migrateFlatKeyAtStartup].
+    // NOTE before the sweep, so an expired root about to be reaped is not the
+    // survivor that licenses deleting a copy of its key.
     final StartupFlatKeyOutcome migrated =
         await enrollmentManager.migrateFlatKeyAtStartup();
     logger.info('Flat legacy credential at startup: ${migrated.name}');
@@ -448,10 +413,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   /// One pass of the periodic store housekeeping: reap expired keys.
-  ///
-  /// A method of its own so that the two places the server runs it, startup
-  /// and the expiry timer, can each be pinned; the timer that arms the
-  /// callback is driven by nothing a test controls.
   @visibleForTesting
   Future<void> runHousekeepingSweep() async {
     await keyValueStore.deleteExpiredKeys();
@@ -460,14 +421,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// Computes the next expiry-sweep wake-up from
   /// [AtKeyValueStore.nextExpiresAt] and arms [_keyExpiryTimer].
   ///
-  /// Sleep is clamped to `[_minExpirySleep, expiringRunFreqMins]`. The
-  /// ceiling is for correctness: `nextExpiresAt()` is a snapshot, so a put
-  /// with a sooner expiry made while the server sleeps would go un-swept
-  /// until the stale wake-up, and the cap bounds that staleness at one poll
-  /// interval. It doubles as the idle re-check when no key has a ttl.
-  ///
-  /// A 0-30s jitter spreads the disk load when co-hosted atSigns have
-  /// expiries clustered at the same wall-clock minute.
+  /// Sleep is clamped to `[_minExpirySleep, expiringRunFreqMins]`, plus a
+  /// 0-30s jitter.
   Future<void> _scheduleNextExpirySweep() async {
     if (_persistenceBundle == null) {
       return;
@@ -491,7 +446,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     sleep += Duration(seconds: Random().nextInt(30));
     logger.finest('Next key expiry sweep in $sleep');
     _keyExpiryTimer = Timer(sleep, () async {
-      // A timer that fires after stop() has torn the store down does nothing.
       if (_persistenceBundle == null) {
         return;
       }
@@ -502,9 +456,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   /// What the expiry timer does when it fires: one housekeeping sweep, with a
   /// failure logged rather than propagated into the timer.
-  ///
-  /// Split out from the arming and the re-arm so the link from the timer to
-  /// the sweep can be pinned; the Timer is driven by nothing a test controls.
   @visibleForTesting
   Future<void> onExpirySweepTimerFired() async {
     try {
@@ -633,10 +584,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// Listens on the secondary server socket and creates an inbound connection
   /// for each client socket. Throws [SocketException] for socket errors.
   void _listen(final serverSocket) {
-    // ALPN: sockets whose selectedProtocol is neither null nor
-    // 'atProtocol/1.0' are handed to a PseudoServerSocket, below.
+    // NOTE sockets whose ALPN selectedProtocol is neither null nor
+    // 'atProtocol/1.0' are handed to the PseudoServerSocket.
     final pseudoServerSocket = PseudoServerSocket(serverSocket);
-    // The HttpServer serves the sockets passed to the pseudoServerSocket.
     HttpServer httpServer = HttpServer.listenOn(pseudoServerSocket);
     final httpReqHandler =
         AtServerHttpRequestHandler(currentAtSign, keyValueStore);
@@ -674,7 +624,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
               .handle(e, atConnection: connection, clientSocket: clientSocket);
         }
       } else {
-        // ALPN: selectedProtocol is neither null nor 'atProtocol/1.0'.
         logger.info('Transferring socket to HttpServer for handling');
         pseudoServerSocket.add(clientSocket);
       }
@@ -782,15 +731,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// Removes all the active connections and stops the secondary server.
   /// Throws [AtServerException] if the server cannot be stopped.
   ///
-  /// This is also half of a restart: [AtCertificateValidationJob] calls it and
-  /// then [start] again on the same singleton, unattended, to pick up replaced
-  /// TLS certificates. So anything acquired in [start] has to be released
-  /// here, or it leaks once per certificate rotation and is still held when
-  /// [start] runs again. Timers, sockets, cron schedules, stream
-  /// subscriptions, pooled connections and persistence all count.
-  ///
-  /// [certificateReloadJob] is the exception, and survives on purpose: it is
-  /// what called this method, and [start] creates one only when it is null.
+  /// Half of a restart, so everything [start] acquires must be released here.
+  /// [certificateReloadJob] is the exception, and survives on purpose.
   @override
   Future<void> stop() async {
     pause();
@@ -841,11 +783,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   /// Plants the CRAM activation secret into [keyValueStore] for first-time
-  /// activation, only when it has not been explicitly deleted, is not already
-  /// present, and a non-empty [sharedSecret] was supplied: a restart started
-  /// without `-s` must not clobber a real secret with a null, and a deleted
-  /// secret must not come back. An empty secret must never be stored, as
-  /// [CramVerbHandler] explains.
+  /// activation, only when it has not been deleted, is not already present,
+  /// and a non-empty [sharedSecret] was supplied.
   @visibleForTesting
   Future<void> plantCramSecretIfRequired(
       AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore,
@@ -874,13 +813,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     final atSign = serverContext!.currentAtSign!;
     final targetBackend = PersistenceBackendManager.configuredBackend;
 
-    // When the on-disk backend marker disagrees with the configured backend,
-    // migrate, verify, then flip, before opening the target. A failure throws
-    // out of start() leaving the source data and marker untouched.
+    // NOTE when the on-disk marker disagrees with the configured backend,
+    // migrate, verify, then flip, before opening the target.
     await PersistenceBackendManager.migrateIfNeeded(atSign, targetBackend);
 
-    // 'hive' uses the injectable persistenceFactory field so that tests can
-    // inject a stand-in; 'sqlite' and 'dual' switch to their own factory.
     if (targetBackend != PersistenceBackendManager.hive) {
       persistenceFactory = PersistenceBackendManager.factoryFor(targetBackend);
     }
@@ -891,8 +827,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     _assertServerCapabilities(bundle);
 
-    // The keystore's commitLog is non-null in a server bundle, asserted
-    // above. Bound to a non-nullable local so callers need no `!`.
     commitLog = bundle.keyValueStore.commitLog!;
     accessLog = bundle.accessLog!;
     notificationKeystore = bundle.notificationKeystore!;
@@ -900,8 +834,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     serverContext!.isKeyStoreInitialized = true;
 
-    // First-time activation only: the secret is never resurrected or
-    // clobbered once onboarding has moved to PKAM or APKAM.
     await plantCramSecretIfRequired(keyValueStore, serverContext!.sharedSecret);
     if (!await keyValueStore.exists(AtConstants.atSigningKeypairGenerated)) {
       var rsaKeypair = RSAKeypair.fromRandom();
@@ -925,10 +857,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   /// Confirms the bundle was initialised with the capabilities a server
-  /// requires: access log and notification keystore. The bundle exposes them
-  /// as nullable for client-shaped consumers that do not need them, so a
-  /// server missing them is a configuration bug rather than a runtime
-  /// condition, and after this check they can be read without `!`.
+  /// requires: access log and notification keystore.
   void _assertServerCapabilities(AtPersistenceBundle bundle) {
     if (bundle.accessLog == null) {
       throw StateError('Server bundle is missing the access log capability. '
@@ -947,9 +876,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   Future<void> removeMalformedKeys() async {
-    // Removes keys starting with "public:cached:" and the configured
-    // malformed-key list. Set shouldRemoveMalformedKeys to false to retain
-    // them at start-up.
     if (AtSecondaryConfig.shouldRemoveMalformedKeys) {
       List<String> malformedKeys = AtSecondaryConfig.malformedKeysList;
       List<String> keys = await (await keyValueStore.getKeys()).toList();

@@ -13,14 +13,11 @@ import 'package:uuid/uuid.dart';
 
 import 'test_utils.dart';
 
-/// The enrollment record [enMgr] serves is cached per enrollment key and the
-/// cache outlives any single verb, so these pin what must happen to it when
-/// the record underneath moves or goes: any removal of the key drops the
-/// entry, and a read whose store fetch was overtaken by a write declines to
-/// fill the cache at all.
+/// The enrollment record [enMgr] serves is cached per enrollment key, so these
+/// pin what must happen to that cache when the record underneath moves or goes.
 
-/// Writes an approved enrollment holding `wavi:rw` straight to the keystore.
-/// Returns its id.
+/// Writes an approved enrollment holding `wavi:rw` to the keystore and returns
+/// its id.
 Future<String> _putApprovedEnrollment() async {
   final String enrollmentId = Uuid().v4();
   await keyValueStore.put(
@@ -40,12 +37,7 @@ Future<String> _putApprovedEnrollment() async {
 }
 
 /// The real keystore, with one difference: a `get` of [gatedKey] reads the
-/// store immediately and then parks until [releaseGate], so it hands back a
-/// value read before whatever happened while it was parked. That is the shape
-/// of the window in `getEnrollmentByFullKey`, which is a few microtasks wide
-/// unforced and so does not reproduce by racing. Anything not overridden here
-/// falls through to mocktail's `noSuchMethod` and fails loudly, so an
-/// unmodelled path cannot pass through quietly.
+/// store immediately and then parks until [releaseGate].
 class GatedKeyStore extends Mock
     implements AtKeyValueStore<String, AtData, AtMetaData?> {
   GatedKeyStore(this.inner);
@@ -116,9 +108,6 @@ void main() {
           reason: 'precondition: the read cached it. Without this the '
               'assertion below would pass on a manager that caches nothing');
 
-      // The path the `delete` verb and the expired-keys sweep take. Going
-      // through EnrollmentManager.remove would prove nothing about the other
-      // ways an enrollment key leaves the keystore.
       await keyValueStore.remove(ek, skipCommit: true);
 
       expect(await keyValueStore.exists(ek), isFalse,
@@ -195,12 +184,9 @@ void main() {
     setUp(() async => await verbTestsSetUp());
     tearDown(() async => await verbTestsTearDown());
 
-    /// Runs a read whose `keyStore.get` is parked mid-flight, lets
-    /// [duringRead] happen while it is parked, then releases it, and returns
-    /// the manager whose cache is the subject. The parked `get` has already
-    /// read the store, so the value it hands back afterwards is the
-    /// pre-[duringRead] one, which is the ordering under test rather than an
-    /// artefact of the gate.
+    /// Runs a read whose `keyStore.get` is parked mid-flight, lets [duringRead]
+    /// happen while it is parked, then releases it, and returns the manager
+    /// whose cache is the subject.
     Future<EnrollmentManager> readAcross(String enrollmentId,
         {required Future<void> Function(EnrollmentManager) duringRead}) async {
       final GatedKeyStore gated = GatedKeyStore(keyValueStore);

@@ -48,8 +48,6 @@ void main() {
     });
 
     /// Binds an approved enrollment with [namespaces] and returns its id.
-    /// [id] names it explicitly, which is what lets a case assert that no
-    /// particular id is special.
     Future<String> bindEnrollment(Map<String, String> namespaces,
         {String? id}) async {
       inboundConnection.metadata.isAuthenticated = true;
@@ -75,9 +73,7 @@ void main() {
         bindEnrollment({'*': 'rw', '__manage': 'rw'}, id: id);
 
     /// A fully privileged enrollment under the literal id `primary`, the id
-    /// a legacy `pkam:` authenticates as. The literal is what pins that this
-    /// id carries no right to write the flat credential; a random uuid would
-    /// not catch an id-keyed exception.
+    /// a legacy `pkam:` authenticates as.
     Future<String> bindPreviouslyCarvedOutId() => bindRoot(id: 'primary');
 
     /// A connection carrying NO enrollment id, authenticated with the CRAM
@@ -109,7 +105,6 @@ void main() {
       inboundConnection.metadata.authType = AuthType.pkamLegacy;
     }
 
-    // ---- the legacy PKAM public key ----
 
     test('scoped enrollment cannot overwrite the legacy PKAM public key',
         () async {
@@ -122,7 +117,6 @@ void main() {
               'update:${AtConstants.atPkamPublicKey} REPLACEMENT_KEY',
               inboundConnection),
           throwsA(isA<UnAuthorizedException>()));
-      // The stored value, not merely that the call threw.
       final stored = await keyValueStore.get(AtConstants.atPkamPublicKey);
       expect(stored?.data, 'ORIGINAL_KEY');
     });
@@ -143,10 +137,6 @@ void main() {
     });
 
     test('a root enrollment CANNOT write the PKAM public key', () async {
-      // The one key in the root-only set that MINTS AN IDENTITY rather than
-      // serving one: legacy PKAM authenticates against it carrying no
-      // enrollment id, so a root that plants a key it holds gains an
-      // identity its own revocation cannot reach.
       await bindRoot();
       await keyValueStore.put(
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
@@ -168,11 +158,6 @@ void main() {
 
     test('the id that once had a carve-out is refused like any other',
         () async {
-      // An id-keyed permission on this key is the shape to avoid: whoever
-      // holds an enrollment spelled that way would inherit the atSign's
-      // unrevokable credential. One gate decides the key for every
-      // connection, ahead of any per-enrollment reading, so the ban's own
-      // message is what comes back whatever id the connection carries.
       await bindPreviouslyCarvedOutId();
       await keyValueStore.put(
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
@@ -192,11 +177,6 @@ void main() {
     });
 
     test('a CRAM connection may write it, with testingMode off', () async {
-      // The one admitted write, and it is admitted in EVERY mode: a fresh
-      // atSign is given its first keypair over CRAM with a plain unsigned
-      // update, against a server running the shipped configuration. The flag
-      // is forced off rather than left to the environment so the arm pins
-      // what its name says.
       AtSecondaryConfig.testingModeOverride = false;
       addTearDown(() => AtSecondaryConfig.testingModeOverride = null);
 
@@ -226,8 +206,7 @@ void main() {
 
     test('...and with testingMode on: the flag is not what admits it',
         () async {
-      // Pairs with the arm above, differing in testingMode and in nothing
-      // else: a gate that read the flag would redden one arm, not both.
+      // Pairs with the arm above, differing in testingMode alone.
       AtSecondaryConfig.testingModeOverride = true;
       addTearDown(() => AtSecondaryConfig.testingModeOverride = null);
 
@@ -251,14 +230,7 @@ void main() {
       test(
           'a legacy connection carrying no id is refused, with testingMode '
           '${flag ? 'on' : 'off'}', () async {
-        // The negative control for the two CRAM arms, differing from them in
-        // the auth type and in nothing else: same command, same stored
-        // value, same flag. A legacy-PKAM connection carries no enrollment
-        // id either, so it is what the null-id short circuit would wave
-        // through if the gate sat behind it, and this arm pins the gate's
-        // position. CRAM says the caller holds the secret the atSign was
-        // created with; legacy says only that it holds the credential this
-        // write would replace.
+        // The negative control: differs from the CRAM arms in auth type alone.
         AtSecondaryConfig.testingModeOverride = flag;
         addTearDown(() => AtSecondaryConfig.testingModeOverride = null);
 
@@ -284,13 +256,8 @@ void main() {
 
     test('a root enrollment can still write ANOTHER privatekey: key',
         () async {
-      // The scope control: `_rootOnlyWritableKeyRegex` covers the whole
-      // `privatekey:` prefix and only at_pkam_publickey is refused outright,
-      // so without this arm the refusal above is indistinguishable from
-      // locking root enrollments out of the entire prefix. The json form
-      // because the plain grammar cannot express a namespace-less
-      // `privatekey:` key with an arbitrary suffix, and it is the form the
-      // non-root refusals use, so the arms differ only in the enrollment.
+      // The scope control: root enrollments are not locked out of the whole
+      // `privatekey:` prefix.
       await bindRoot();
       final params = UpdateParams()
         ..atKey = 'privatekey:self_encryption_key'
@@ -304,13 +271,6 @@ void main() {
 
     test('the PKAM key guard is not case-sensitive, for a ROOT enrollment',
         () async {
-      // A ROOT enrollment is the only fixture that can pin this. The refusal
-      // compares the FOLDED key against `privatekey:at_pkam_publickey`, and
-      // a miss falls through to `isRootEnrollment`, which refuses a scoped
-      // enrollment anyway with the same exception. Only a caller the
-      // fallback would ADMIT can tell a folded comparison from an unfolded
-      // one, and an unfolded one lets a root reach this record by holding
-      // down shift.
       await bindRoot();
       await keyValueStore.put(
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
@@ -326,14 +286,6 @@ void main() {
 
     test('...and neither is the write ban, for a connection with no id',
         () async {
-      // The same fold invariant as the case above, asked of the write ban
-      // rather than of the root branch. It has to be a connection carrying
-      // no enrollment id and not CRAM: an enrolled connection is refused
-      // under either spelling and so pins nothing, and CRAM is admitted
-      // under either spelling (the arm below pins what the fold does
-      // there). For a legacy null-id caller an unfolded comparison would
-      // miss the ban, fall through to the null-id short circuit and admit
-      // the write.
       bindLegacyNoId();
       await keyValueStore.put(
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
@@ -354,9 +306,6 @@ void main() {
     test('...and over CRAM a shifted spelling is redirected, not stored',
         () async {
       // Pairs with the legacy arm above, differing in the auth type alone.
-      // CRAM is admitted, so the fold's job moves to the redirect: a
-      // spelling the keystore folds onto the flat key must land in `primary`
-      // like the canonical one, and never at the flat key.
       bindCram();
       await keyValueStore.put(
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
@@ -376,10 +325,7 @@ void main() {
     });
 
     test('CONTROL: the same grants under an ordinary id are refused', () async {
-      // The scope control for the fold: identical spelling and command under
-      // an ordinary id and ordinary grants. Without it the arms above are
-      // satisfied by the key being unreachable only to null-id connections,
-      // leaving every enrollment able to write it under a shifted spelling.
+      // The scope control: an ordinary enrollment under the same spelling.
       await bindEnrollment({'wavi': 'rw'});
       await keyValueStore.put(
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
@@ -395,27 +341,12 @@ void main() {
           'ORIGINAL_KEY');
     });
 
-    // ---- every route that could name the legacy PKAM credential ----
-    //
-    // The ban sits at one seam, so these pin the claim that every route
-    // reaches it. Three routes are wire grammars this package does not own,
-    // so a loosening elsewhere opens one with nothing here changing, which
-    // is why the commands are raw literals rather than built from constants.
 
     test('update:json reaches the ban', () async {
-      // update:json can NAME this key without the plain grammar's charset
-      // having a say, so the ban rather than the grammar has to refuse it.
-      // The value is non-empty deliberately: a zero-length document is
-      // refused as a syntax error BEFORE the ban is consulted, which would
-      // green this case without exercising the ban, and is asserted
-      // separately below. Legacy null-id, because CRAM is admitted on every
-      // update route; the arm after this one is its CRAM half.
       bindLegacyNoId();
       await keyValueStore.put(
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
 
-      // Metadata.toJson is the shape a real client emits, so this is a
-      // request a client can actually send, not a hand-rolled document.
       final json = jsonEncode({
         'atKey': AtConstants.atPkamPublicKey,
         'value': 'REPLACEMENT_KEY',
@@ -435,11 +366,7 @@ void main() {
     });
 
     test('update:json over CRAM is redirected into primary too', () async {
-      // Pairs with the arm above, differing in the auth type alone. The
-      // exception is keyed on the verb and update:json re-dispatches into
-      // it, so the json route is admitted and redirected as the plain one
-      // is; a redirect covering only the plain form would let the json form
-      // plant the flat key.
+      // Pairs with the arm above, differing in the auth type alone.
       bindCram();
       await keyValueStore.put(
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
@@ -463,9 +390,6 @@ void main() {
 
     test('a zero-length update:json value is refused before it can be stored',
         () async {
-      // A zero-length credential is not harmless: it is what stops the flat
-      // key counting as a root the atSign can fall back on. The value check
-      // refuses it, not the ban, so the two are asserted separately.
       bindCram();
       await keyValueStore.put(
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
@@ -487,9 +411,7 @@ void main() {
 
     test('CONTROL: update:json writes an ordinary key on this connection',
         () async {
-      // Drawn from a key the ban does not touch, so it stays green under any
-      // mutation of the ban. Without it the case above is equally satisfied
-      // by update:json being broken or unroutable on this connection.
+      // The control: drawn from a key the ban does not touch.
       bindCram();
       final json = jsonEncode({
         'atKey': 'privatekey:self_encryption_key',
@@ -506,12 +428,6 @@ void main() {
     });
 
     test('a batch-wrapped update reaches the ban', () async {
-      // batch: writes nothing itself, it re-dispatches each element through
-      // that element's own handler, so the ban is reached only if the
-      // element lands back at the update seam. Legacy null-id, the caller
-      // the ban refuses; an unchanged flat key alone would not prove the
-      // refusal, because the CRAM arm below leaves it unchanged too by
-      // redirecting, so this arm also asks that nothing was installed.
       bindLegacyNoId();
       await keyValueStore.put(
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
@@ -529,18 +445,13 @@ void main() {
           reason: 'refused, not redirected: nothing was installed anywhere');
       expect(response.data, contains('"id":1'),
           reason: 'and the element is reported, not silently dropped');
-      // batch: reports an element's refusal as its error CODE with the
-      // generic UnAuthorized text, not the ban's own message; the message is
-      // pinned on the plain and json routes above.
       expect(response.data, contains('AT0009'),
           reason: 'refused as unauthorised, in the element\'s own response');
     });
 
     test('a batch-wrapped update over CRAM is redirected into primary',
         () async {
-      // Pairs with the arm above, differing in the auth type alone: the
-      // element lands at the same seam, so CRAM is admitted and redirected
-      // through batch: as it is on the plain route.
+      // Pairs with the arm above, differing in the auth type alone.
       bindCram();
       await keyValueStore.put(
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
@@ -561,10 +472,8 @@ void main() {
     });
 
     test('update:meta cannot name the key at all', () async {
-      // A NEGATIVE pin on a grammar this package does not own: update:meta's
-      // atKey class is colon-free, so `privatekey:...` cannot be expressed in
-      // it and the key is unreachable rather than refused. Widening that
-      // class opens the route with nothing here changing, and this goes red.
+      // NOTE update:meta's atKey class is colon-free, so this key is
+      // unreachable rather than refused.
       expect(
           RegExp(VerbSyntax.update_meta).hasMatch(
               'update:meta:privatekey:at_pkam_publickey@alice:ttl:1000'),
@@ -580,9 +489,6 @@ void main() {
     });
 
     test('delete cannot name the key at all', () async {
-      // The other half of "nothing can take it back", and why the write is
-      // banned rather than audited: once installed no verb removes it. The
-      // delete grammar whitelists one privatekey: key, and not this one.
       expect(
           RegExp(VerbSyntax.delete)
               .hasMatch('delete:privatekey:at_pkam_publickey'),
@@ -596,7 +502,6 @@ void main() {
               'key, so the miss above is about which one');
     });
 
-    // ---- the atSign's own key material ----
 
     for (final key in [
       'public:publickey@alice',
@@ -616,8 +521,7 @@ void main() {
       });
 
       test('scoped enrollment CAN still read $key', () async {
-        // Reads stay open: sync force-includes these keys and then ANDs the
-        // result with this authorization check.
+        // NOTE reads stay open: sync force-includes these keys.
         await bindScoped();
         await keyValueStore.put(key, AtData()..data = 'GENUINE');
         await localLookupVerbHandler.process('llookup:$key', inboundConnection);
@@ -634,7 +538,6 @@ void main() {
       });
     }
 
-    // ---- the two shared_key forms stay reachable ----
 
     for (final key in [
       'shared_key.bob@alice',
@@ -657,7 +560,6 @@ void main() {
       });
     }
 
-    // ---- keys that merely contain an allow-listed form ----
 
     for (final key in [
       'x.shared_key.bob@alice',
@@ -674,8 +576,6 @@ void main() {
     }
 
     test('the root-key allowlist is anchored, not a substring match', () async {
-      // Asserted against the predicate rather than a verb handler: some of
-      // these are rejected by verb grammar before authorization is reached.
       final enrollId = await bindScoped();
       final enroll = await enMgr.getEnrollmentById(enrollId);
       for (final key in [
@@ -697,8 +597,6 @@ void main() {
 
     test('a genuinely namespaced shared_key is still namespace-governed',
         () async {
-      // @bob:shared_key.wavi@alice has namespace 'wavi', so it is decided by
-      // the grant rather than by the namespace-less rule.
       await bindScoped();
       await updateVerbHandler.process(
           'update:@bob:shared_key.wavi$alice v', inboundConnection);
@@ -713,7 +611,6 @@ void main() {
 
     test("an enrollment granted the namespace 'null' gets no root access",
         () async {
-      // A key with no namespace must not match a grant named 'null'.
       await bindEnrollment({'null': 'rw'});
       for (final key in ['foo$alice', 'public:foo$alice', '@bob:foo$alice']) {
         await expectLater(
@@ -730,24 +627,15 @@ void main() {
       expect(inboundConnection.lastWrittenData, contains('data:'));
     });
 
-    // ---- matching the key the keystore writes ----
 
-    // WHITESPACE ONLY. HiveKeyStoreHelper.prepareKey normalises with
-    // trim().toLowerCase().replaceAll(' ',''), and only the trim and the
-    // strip are load-bearing for THIS key: `_ownKeyMaterialRegex` is
-    // anchored, so a stray space or tab defeats it and nothing but the fold
-    // puts the key back. Case cannot be isolated, being decided twice over:
-    // the regex is caseSensitive:false, and the fold has already lowercased
-    // the key before the regex sees it, so an uppercase variant is green
-    // whichever of the two is removed.
+    // NOTE whitespace only: case cannot be isolated, being lowercased by the
+    // fold before the caseSensitive:false regex sees it.
     for (final variant in [
       'public:publickey@alice ',
       ' public:publickey@alice',
       'public:publickey@alice\t',
     ]) {
       test('a non-root enrollment is denied ${jsonEncode(variant)}', () async {
-        // A '*:rw' enrollment is not a root enrollment, and every variant
-        // addresses the record it must not reach.
         await bindWildcard();
         await keyValueStore.put(
             'public:publickey$alice', AtData()..data = 'GENUINE');
@@ -765,7 +653,6 @@ void main() {
       });
     }
 
-    // ---- the privatekey: prefix ----
 
     for (final key in [
       'privatekey:at_secret',
@@ -788,11 +675,6 @@ void main() {
     }
 
     test('NO enrollment may WRITE the CRAM secret, root included', () async {
-      // The CRAM secret mints an identity exactly as the PKAM key does: a
-      // caller that installs a secret it knows can authenticate as the owner
-      // carrying NO enrollment id, so revoking the enrollment that planted it
-      // takes nothing back. The json form, because the plain grammar cannot
-      // express this key at all.
       await bindRoot();
       await keyValueStore.put(
           AtConstants.atCramSecret, AtData()..data = 'ORIGINAL_SECRET');
@@ -814,9 +696,6 @@ void main() {
     });
 
     test('NO enrollment may WRITE the CRAM tombstone, root included', () async {
-      // Planting this marker permanently disables CRAM replanting, the
-      // atSign's last recovery route once its roots are revoked. Only
-      // update:json can name the key; the plain and delete grammars cannot.
       await bindRoot();
 
       final json = jsonEncode({
@@ -835,7 +714,6 @@ void main() {
     });
 
     test('a root enrollment can still delete the CRAM secret', () async {
-      // Onboarding removes privatekey:at_secret once PKAM is established.
       await bindRoot();
       await keyValueStore.put(
           'privatekey:at_secret', AtData()..data = 'SECRET');
@@ -843,7 +721,6 @@ void main() {
           'delete:privatekey:at_secret', inboundConnection);
     });
 
-    // ---- cached copies of another atSign's public keys ----
 
     test('a *:rw enrollment can still evict a cached foreign public key',
         () async {
@@ -866,7 +743,6 @@ void main() {
           throwsA(isA<UnAuthorizedException>()));
     });
 
-    // ---- config:block ----
 
     test('scoped enrollment cannot read or modify the blocklist', () async {
       await bindScoped();
@@ -898,8 +774,7 @@ void main() {
     });
 
     test('an unparseable atKey returns rather than throwing', () async {
-      // AtKey.fromString raises Errors as well as Exceptions on these, and the
-      // check runs inside sync's synchronous where: predicate.
+      // NOTE AtKey.fromString raises Errors as well as Exceptions on these.
       final enrollId = await bindScoped();
       final enroll = await enMgr.getEnrollmentById(enrollId);
       for (final key in [

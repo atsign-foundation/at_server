@@ -14,11 +14,7 @@ import 'enrollment_test_utils.dart';
 import 'test_utils.dart';
 
 /// No request may install key material a stored enrollment already holds, in
-/// any status, because one keypair under two enrollment names is two
-/// identities with separate lifecycles: revoking one leaves the key
-/// authenticating as the other. These pin the refusal, with nothing
-/// persisted, on all four installing paths (OTP request, CRAM auto-approve,
-/// retrofit and an `enroll:update` replacing `apkamPublicKey`), and the one
+/// any status. These pin the refusal on all four installing paths, and the one
 /// exception: a record re-sending its own current key.
 void main() {
   verbTestsSetUpLogging();
@@ -48,9 +44,8 @@ void main() {
       'The apkamPublicKey is already held by another enrollment on this '
       'atSign; every enrollment needs a keypair of its own';
 
-  /// Runs [command] through the enroll verb handler on [inboundConnection] as
-  /// it stands, reporting a thrown refusal as the error response the server's
-  /// own dispatch would give it, so every assertion below reads one shape.
+  /// Runs [command] through the enroll verb handler on [inboundConnection],
+  /// reporting a thrown refusal as the error response the server would give.
   Future<Response> send(String command) async {
     final r = Response();
     try {
@@ -63,8 +58,7 @@ void main() {
     return r;
   }
 
-  /// An `enroll:request` over an unauthenticated connection with a fresh OTP,
-  /// returning the raw response.
+  /// An `enroll:request` over an unauthenticated connection with a fresh OTP.
   Future<Response> requestOverOtp(
       {required String appName,
       required String deviceName,
@@ -103,8 +97,7 @@ void main() {
     return send('enroll:request:${jsonEncode(ep.toJson())}');
   }
 
-  /// An `enroll:request` over a connection carrying [predecessorId]: the
-  /// retrofit path.
+  /// An `enroll:request` over a connection carrying [predecessorId].
   Future<Response> retrofit(String predecessorId,
       {required String apkamPublicKey, String appName = 'successor'}) async {
     final EnrollParams ep = EnrollParams()
@@ -119,8 +112,7 @@ void main() {
     return send('enroll:request:${jsonEncode(ep.toJson())}');
   }
 
-  /// An `enroll:update` from [enId] itself, replacing its key with [pair]'s
-  /// public half under a valid proof of possession.
+  /// An `enroll:update` from [enId] itself, replacing its key with [pair]'s.
   Future<Response> rotate(String enId, AtPkamKeyPair pair) async {
     final String publicKey = pair.atPublicKey.publicKey;
     final input = AtSigningInput('$enId|$publicKey|rsa2048')
@@ -185,9 +177,6 @@ void main() {
     });
 
     test('the retrofit, re-sending its predecessor\'s key', () async {
-      // A retrofit is a re-key: the successor is the same principal under a
-      // new keypair, so carrying the predecessor's key would leave one
-      // keypair under two names.
       final String predecessorId = await etu.createPendingEnrollment(
           appName: 'device-app',
           deviceName: 'device',
@@ -204,7 +193,6 @@ void main() {
       expect(await storedCount(), roster);
       expect(EnrollmentManager.cacheInvalidations, writes);
 
-      // The control: the same retrofit with a key nobody holds is admitted.
       final ok = await retrofit(predecessorId,
           apkamPublicKey: 'a fresh key for the successor');
       expect(ok.isError, isFalse, reason: ok.errorMessage);
@@ -304,8 +292,6 @@ void main() {
     test('an expired holder the sweep has not yet removed blocks', () async {
       const String key = 'key held while expired';
       final String id = await holderIn(EnrollmentStatus.approved, key);
-      // Elapse the ttl without removing the record: the state between a ttl
-      // elapsing and the sweep reaping it.
       final String ek = enMgr.buildEnrollmentKey(id);
       final AtData record = (await keyValueStore.get(ek))!;
       await enMgr.put(id, record, EnrollmentStatus.approved,
@@ -324,8 +310,6 @@ void main() {
     });
 
     test('a deleted holder no longer blocks', () async {
-      // The control for the four above: the rule is about what the store
-      // HOLDS, and deletion is the remedy it points at.
       const String key = 'key held until deleted';
       final String id = await holderIn(EnrollmentStatus.denied, key);
       await etu.deleteEnrollment(etu.primaryEnId, id);
@@ -380,7 +364,6 @@ void main() {
     });
 
     test('two different keys do not collide', () async {
-      // The control for the group: the comparison can say no.
       final String a = AtChopsUtil.generateAtPkamKeyPair().atPublicKey.publicKey;
       final String b = AtChopsUtil.generateAtPkamKeyPair().atPublicKey.publicKey;
       final String holderId = await etu.createPendingEnrollment(

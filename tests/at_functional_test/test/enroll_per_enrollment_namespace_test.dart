@@ -8,11 +8,9 @@ import 'package:at_functional_test/utils/encryption_util.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
-/// Functional coverage of the per-enrollment reserved namespace (`<enId>.a.__e`)
-/// over the wire: an enrollment owns a private reserved namespace it (and only it)
-/// can read/write, public keys within it are world-readable, and a state change
-/// (revoke) MOVES that enrollment's data `a.__e -> r.__e` — scoped to the
-/// transitioning enrollment, leaving other enrollments' data untouched.
+/// Functional coverage of the per-enrollment reserved namespace
+/// (`<enId>.a.__e`) over the wire: who may read and write it, and the move to
+/// `r.__e` on revoke.
 void main() {
   OutboundConnectionFactory firstAtSignConnection = OutboundConnectionFactory();
   String firstAtSign =
@@ -43,8 +41,8 @@ void main() {
     await firstAtSignConnection.close();
   });
 
-  /// CRAM-authenticate, enroll (auto-approved), then re-connect and APKAM-auth on
-  /// the new enrollment id. Returns the enrollment id.
+  /// CRAM-authenticate, enroll (auto-approved), then re-connect and APKAM-auth
+  /// on the new enrollment id. Returns the enrollment id.
   Future<String> cramEnrollAndApkam() async {
     await firstAtSignConnection.authenticateConnection(authType: AuthType.cram);
     ApkamKeys keys = mintApkamKeys();
@@ -94,7 +92,6 @@ void main() {
           (!updateResponse.contains('Invalid syntax')) &&
           (!updateResponse.contains('null')));
 
-      // A fresh, unauthenticated connection can read the public key.
       OutboundConnectionFactory unauthConnection =
           await OutboundConnectionFactory().initiateConnectionWithListener(
               firstAtSign, firstAtSignHost, firstAtSignPort);
@@ -107,7 +104,6 @@ void main() {
     test(
         'a *:rw + __manage primary cannot read another enrollment\'s per-enrollment (a.__e) data',
         () async {
-      // Primary CRAM enrollment (has __manage + *:rw) — it will approve.
       await firstAtSignConnection.authenticateConnection(authType: AuthType.cram);
       ApkamKeys primaryKeys = mintApkamKeys();
       String primaryEnroll =
@@ -118,7 +114,6 @@ void main() {
       expect(primaryJson['status'], 'approved');
       String primaryEnrollmentId = primaryJson['enrollmentId'];
 
-      // A second enrollment, requested with an OTP from a second connection.
       String otp = (await firstAtSignConnection.sendRequestToServer('otp:get'))
           .replaceFirst('data:', '')
           .trim();
@@ -134,14 +129,11 @@ void main() {
       expect(secondJson['status'], 'pending');
       String secondEnrollmentId = secondJson['enrollmentId'];
 
-      // Primary approves the second enrollment.
       var approveJson = jsonDecode((await firstAtSignConnection.sendRequestToServer(
               'enroll:approve:{"enrollmentId":"$secondEnrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap["encryptedDefaultEncPrivateKey"]}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap["encryptedSelfEncKey"]}"}'))
           .replaceAll('data:', ''));
       expect(approveJson['status'], 'approved');
 
-      // The second enrollment writes AND reads a self key in its OWN reserved
-      // namespace — own-enrollment access is unchanged.
       await secondConnection.authenticateConnection(
           authType: AuthType.apkam,
           enrollmentId: secondEnrollmentId,
@@ -156,16 +148,11 @@ void main() {
           'data:topsecret');
       await secondConnection.close();
 
-      // The socket that minted the primary is still a CRAM connection, the
-      // atSign itself, and reads anything.
       expect(
           await firstAtSignConnection.sendRequestToServer('llookup:$approvedKey'),
           'data:topsecret',
           reason: 'a CRAM connection is the atSign, whatever it has enrolled');
 
-      // The primary ENROLLMENT holds *:rw + __manage, yet must NOT be able to
-      // read another enrollment's per-enrollment reserved-namespace (a.__e)
-      // data. Authenticated as that enrollment, over APKAM, as a client would.
       await firstAtSignConnection.close();
       await firstAtSignConnection.initiateConnectionWithListener(
           firstAtSign, firstAtSignHost, firstAtSignPort);

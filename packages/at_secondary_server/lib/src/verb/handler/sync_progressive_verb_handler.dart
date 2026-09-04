@@ -53,9 +53,8 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
     final connectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
     final enrollmentId = connectionMetadata.enrollmentId;
-    // Resolve enrollment ONCE per request — sync iterates many candidate
-    // entries against a single enrollment context, so the per-entry filter
-    // inside the iterate() where: closure can stay synchronous.
+    // NOTE resolved once per request, so the per-entry filter below can stay
+    // synchronous.
     final bool cram = AbstractVerbHandler.isCramConnection(connectionMetadata);
     final EnrollDataStoreValue? enroll = (cram || enrollmentId == null)
         ? null
@@ -66,7 +65,6 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       final atKey = entry.atKey;
       if (atKey == null) return false;
 
-      // Invalid key shape — corrupt commit-log entry.
       if (AtKey.getKeyType(atKey, enforceNameSpace: false) ==
           KeyType.invalidKey) {
         logger.warning('sync filter | $atKey is an invalid key. Skipping.');
@@ -75,18 +73,13 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
       try {
         AtKey.fromString(atKey);
       } catch (_) {
-        // AtKey.fromString raises Errors as well as Exceptions on some key
-        // shapes; skip the entry rather than ending the walk.
+        // NOTE AtKey.fromString raises Errors as well as Exceptions on some
+        // key shapes; the entry is skipped rather than ending the walk.
         logger.warning(
             'sync filter | found an invalid key "$atKey" in the commit log. Skipping.');
         return false;
       }
 
-      // skipDeletesUntil is handled at the query level (see the iterate()
-      // call below), so below-watermark DELETE entries never reach this
-      // filter and are never read from the store.
-
-      // Regex / always-include-in-sync filter.
       if (regex != null &&
           regex.isNotEmpty &&
           !RegExp(regex).hasMatch(atKey) &&
@@ -94,17 +87,13 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
         return false;
       }
 
-      // Enrollment authorization (sync seam from 3.5c).
       if (!isAuthorizedSync(enroll, enrollmentId, cram: cram, atKey: atKey)) {
         return false;
       }
 
-      // Note: for non-DELETE entries the keystore-presence check is
-      // applied in the output-flow loop (prepareResponse), where the
-      // keyValueStore.get is the real guard against the TOCTOU window
-      // between filter-time and fetch-time. The keystore's existence
-      // check is async, so it cannot run inside this synchronous
-      // `where` predicate.
+      // NOTE the keystore-presence check happens in prepareResponse; the
+      // keystore's existence check is async and cannot run in this
+      // synchronous predicate.
       return true;
     }
 
@@ -125,24 +114,11 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
   }
 
   /// Drains the filtered [stream] of commit entries into [syncResponse],
-  /// applying output-flow logic only:
+  /// stopping at [syncPageLimit] entries or at
+  /// [desiredMaxSyncResponseLength] bytes.
   ///
-  ///   - For non-DELETE entries, fetch the value from [keyStore]; skip if
-  ///     missing (handles the TOCTOU window between filter-time and
-  ///     fetch-time, where a concurrent delete can null the get).
-  ///   - Stop adding once `syncResponse.length >= syncPageLimit`.
-  ///   - Stop when adding the current entry would exceed
-  ///     [desiredMaxSyncResponseLength], provided at least one entry is
-  ///     already in the response. The first entry is always added even
-  ///     if it exceeds the buffer, so the client has something to
-  ///     advance past.
-  ///
-  /// The stream is unbounded by design — if every entry past `from`
-  /// fails the filter, the loop terminates on stream-end with
-  /// `syncResponse` empty. That returns `[]` to the client, but
-  /// bounded in time (one full scan), not the ad-infinitum loop the
-  /// previous limit-based impl was vulnerable to when filters
-  /// rejected every candidate in a 25-entry window.
+  /// The first entry is always added, even when it exceeds the buffer, so the
+  /// client has something to advance past.
   @visibleForTesting
   Future<void> prepareResponse(
     int desiredMaxSyncResponseLength,
@@ -164,10 +140,8 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
         try {
           atData = await keyStore.get(entry.atKey!);
         } on KeyNotFoundException {
-          // The commit entry outlived the key: an expired key whose commit
-          // entry was not purged, or a concurrent delete between filter-time
-          // and fetch-time. Skip the entry rather than failing the whole
-          // sync request for the client.
+          // NOTE the commit entry can outlive the key, so a missing value is
+          // skipped rather than failing the whole sync request.
           logger.info('${entry.atKey} not found in keystore; skipping entry');
           continue;
         }
@@ -205,22 +179,15 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
     }
     Iterator itr = metaData.toJson().entries.iterator;
     while (itr.moveNext()) {
-      // The value of [AtConstants.sharedWithPublicKeyHash] stores a Map containing
-      // the hash value and the hashing algorithm used for hashing the data.
-      // For example, {"hash":"dummy_value", "hashingAlgo":"sha512"}.
-      // Using toString() will not allow convert this into a Map, which is necessary
-      // for constructing the PublicKeyHash type on the client side.
-      // Therefore, a JSON-encoded string is used here, and on the client side,
-      // "jsonDecode" will be used to retrieve the Map and build the PublicKeyHash instance.
+      // NOTE structured value: JSON-encoded so the client can jsonDecode it
+      // back into a Map, which toString() would not allow.
       if (itr.current.key == AtConstants.sharedWithPublicKeyHash &&
           itr.current.value != null) {
         metaDataMap[itr.current.key] = jsonEncode(itr.current.value);
         continue;
       }
-      // Like pubKeyHash, appMetadata is structured — toString() would
-      // emit a Dart-Map literal the client can't parse. The client's
-      // sync path decodes this with Metadata.decodeAppMetadata, whose
-      // String form is base64(JSON) — so emit exactly that.
+      // NOTE the client decodes this with Metadata.decodeAppMetadata, whose
+      // String form is base64(JSON).
       if (itr.current.key == AtConstants.appMetadata &&
           itr.current.value != null) {
         metaDataMap[itr.current.key] =

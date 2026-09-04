@@ -1,10 +1,6 @@
 // Test setup conventions. Each test file opens persistence against a
 // per-process Hive box keyed by `sha-of-atSign`, so the factory is
-// file-scoped: open it in `setUpAll`, close it in `tearDownAll`. Add
-// `bundle.clear()` in `setUp` when every test wants an empty store;
-// omit it when a `setUp` seeds baseline data the tests rely on.
-// Closing the factory per test forces a box reopen and surfaces Hive
-// lifecycle behaviour that production never hits.
+// file-scoped: open it in `setUpAll`, close it in `tearDownAll`.
 
 import 'dart:async';
 import 'dart:convert';
@@ -80,8 +76,7 @@ class FakeInboundConnection extends Fake implements InboundConnectionImpl {
   final FakeSocket socket;
   final InboundConnectionMetadata metadata;
 
-  /// Every write the server-side code performs on this connection, so a
-  /// test can assert what was, or was not, sent back.
+  /// Every write the server-side code performs on this connection.
   final writes = <String>[];
 
   FakeInboundConnection(this.socket, this.metadata);
@@ -196,11 +191,7 @@ late MockStatsNotificationService statsNotificationService;
 late EnrollmentManager enMgr;
 
 /// The socket callbacks registered by one generation of mocks, meaning
-/// one [verbTestsSetUp] call. Every mock from that call captures its own
-/// holder, so a connection left behind by an earlier test answers into
-/// that test's holder. Without it a stray write, typically a `notify:`
-/// still being retried, reaches whichever test is reading now and fails
-/// it on a request it never made.
+/// one [verbTestsSetUp] call.
 class MockSocketListener {
   late Function(dynamic data) onData;
   late Function() onDone;
@@ -210,8 +201,7 @@ class MockSocketListener {
 MockSocketListener _currentSocketListener = MockSocketListener();
 
 /// The current generation's socket `onData`; test files push mock
-/// responses through it. A getter, so it follows the generation: see
-/// [MockSocketListener].
+/// responses through it.
 Function(dynamic data) get socketOnDataFn => _currentSocketListener.onData;
 
 Function() get socketOnDoneFn => _currentSocketListener.onDone;
@@ -220,9 +210,6 @@ Function(Exception e, StackTrace st) get socketOnErrorFn =>
     _currentSocketListener.onError;
 
 String storageDir = '${Directory.current.path}/unit_test_storage';
-// Bare mocks by default so handler-construction tests that never call
-// `verbTestsSetUp` still have a non-null commit and access log to
-// inject; `verbTestsSetUp` overwrites both with the real instances.
 AtCommitLog atCommitLog = MockAtCommitLog();
 AtAccessLog atAccessLog = MockAtAccessLog();
 
@@ -265,7 +252,6 @@ verbTestsSetUpAll() async {
 
 verbTestsSetUp() async {
   verbTestsSetUpLogging();
-  // The factory owns the per-atSign persistence lifecycle.
   final factory = atServer.persistenceFactory = HiveAtPersistenceFactory();
   final config = HivePersistenceConfig(
     storagePath: storageDir,
@@ -279,11 +265,8 @@ verbTestsSetUp() async {
   atServer.accessLog = atAccessLog = bundle.accessLog!;
   keyValueStore = bundle.keyValueStore;
 
-  // Everything below is built into locals and only then published to the
-  // top-level `late` variables. Each stub closure captures the local, so
-  // one `verbTestsSetUp` call's mocks form a self-consistent generation
-  // and work still in flight from an earlier test keeps talking to the
-  // mocks it started with rather than to the running test's.
+  // NOTE each stub closure captures a local, so one `verbTestsSetUp` call's
+  // mocks form a self-consistent generation.
   final socketListener = _currentSocketListener = MockSocketListener();
 
   final addressFinder = mockSecondaryAddressFinder =
@@ -435,13 +418,9 @@ verbTestsSetUp() async {
 Future<void> verbTestsTearDown() async {
   keyValueStore.preRemoveHooks.clear();
   keyValueStore.postRemoveHooks.clear();
-  // Undelivered notifications are retried until they succeed and the
-  // mock outbound connection never lets one succeed, so the manager must
-  // be closed, as the server's own stop() does, or a sender spins on for
-  // the rest of the file.
+  // NOTE the manager must be closed, as the server's own stop() does, or an
+  // undelivered notification is retried for the rest of the file.
   await notificationManager.close();
-  // Closing the factory closes every bundle it holds: keystore, commit
-  // log, access log and notification keystore.
   await atServer.persistenceFactory.close();
   var isExists = await Directory(storageDir).exists();
   if (isExists) {
@@ -544,7 +523,6 @@ AtMetaData createRandomAtMetaData(String owner,
 }
 
 int createRandomPositiveInt({int maxInclusive = 100000}) {
-  // We'll make it zero 20% of the time
   if (testUtilsRandom.nextInt(5) == 0) {
     return 0;
   }
@@ -553,11 +531,9 @@ int createRandomPositiveInt({int maxInclusive = 100000}) {
 
 int? createRandomNullablePositiveInt(
     {int minInclusive = 100, int maxInclusive = 100000}) {
-  // We'll make it null 50% of the time
   if (testUtilsRandom.nextInt(2) == 0) {
     return null;
   }
-  // We'll make it zero 10% of the time (1/5th of the remaining 50%)
   if (testUtilsRandom.nextInt(5) == 0) {
     return 0;
   }

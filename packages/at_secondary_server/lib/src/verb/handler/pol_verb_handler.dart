@@ -41,8 +41,7 @@ class PolVerbHandler extends AbstractVerbHandler {
     return pol;
   }
 
-  /// Throws an [AtConnectException] if unable to establish connection to
-  /// another secondary.
+  /// Throws an [AtConnectException] if the other atServer cannot be reached.
   @override
   Future<void> processVerb(
       Response response,
@@ -89,10 +88,7 @@ class PolVerbHandler extends AbstractVerbHandler {
       fromPublicKey = (await (oc.plookUp('signing_publickey$fromAtSign')))
           ?.replaceFirst(_dataPrefix, '');
 
-      // Spent on read, whatever the verification below decides: this
-      // challenge was handed to ANOTHER atSign to sign, so one that survived
-      // a failed verification would leave the replay window for a captured
-      // signature bounded by nothing at all.
+      // NOTE spent on read, whatever the verification below decides.
       doing = 'fetching stored secret $storedSecretId';
       message = await consumeChallenge(storedSecretId);
     } on Exception catch (e) {
@@ -114,7 +110,6 @@ class PolVerbHandler extends AbstractVerbHandler {
     if (!isValidChallenge) {
       throw UnAuthenticatedException('Pol Authentication Failed');
     }
-    // The challenge was already spent by consumeChallenge.
 
     atConnectionMetadata.isPolAuthenticated = true;
     response.data = 'pol:$fromAtSign@';

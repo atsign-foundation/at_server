@@ -132,9 +132,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
     response.data = jsonEncode(filteredKeys);
   }
 
-  /// The keys of visibility [keyVisibility] this enrollment may see: the
-  /// `__global` ones, plus the `__manage` ones when [hasManageAccess], plus
-  /// enrollment [enId]'s own encrypted private and self encryption keys.
+  /// The keys of visibility [keyVisibility] enrollment [enId] may see.
   Future<List<String>> _getFilteredKeys(
       String? keyVisibility, bool hasManageAccess, String enId) async {
     final List<String> result = keyVisibility != null &&
@@ -198,11 +196,8 @@ class KeysVerbHandler extends AbstractVerbHandler {
         (await keyStore.remove(keyNameFromParams, skipCommit: true)).toString();
   }
 
-  /// Authorisation gate for the by-name `get` and `delete` branches, mirroring
-  /// [_addKeyIfEnrollmentIdMatches]: a caller may touch only keys tagged with
-  /// its own [enId], plus its own encrypted private and self encryption keys.
-  /// Everything else is refused, another enrollment's keys and reserved server
-  /// secrets such as `privatekey:at_secret` alike.
+  /// Authorisation gate for the by-name `get` and `delete` branches: a caller
+  /// may touch only keys tagged with its own [enId].
   bool _isAuthorizedForKey(String keyName, AtData value, String enId) {
     if (keyName == enMgr.keyForPEK(enId) || keyName == enMgr.keyForSEK(enId)) {
       return true;
@@ -215,13 +210,12 @@ class KeysVerbHandler extends AbstractVerbHandler {
       final decoded = jsonDecode(data);
       return decoded is Map && decoded[AtConstants.enrollmentId] == enId;
     } catch (_) {
-      // Not a keys-verb-managed value, so refuse.
       return false;
     }
   }
 
   /// Adds [key] to [filteredKeys] only when its stored value is tagged with
-  /// [enrollIdFromMetadata], so one enrollment never lists another's keys.
+  /// [enrollIdFromMetadata].
   Future<void> _addKeyIfEnrollmentIdMatches(List<dynamic> filteredKeys,
       String key, String enrollIdFromMetadata) async {
     final value = await keyStore.get(key);
@@ -235,11 +229,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
   }
 
   /// The stored key name for [keyVisibility], or null when it is not one of
-  /// public, private or self:
-  /// - public: `public:<keyname>.__public_keys.<namespace>@<atsign>`
-  /// - private:
-  ///   `private:<appName>.<deviceName>.<keyname>.__private_keys.<namespace>@<atsign>`
-  /// - self: `<appName>.<deviceName>.<keyname>.__self_keys.<namespace>@<atsign>`
+  /// public, private or self.
   String? _getKeyName(HashMap<String, String?> verbParams, String atSign,
       String? keyVisibility) {
     if (keyVisibility == 'public') {

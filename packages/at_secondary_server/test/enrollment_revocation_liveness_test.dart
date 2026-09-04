@@ -14,9 +14,6 @@ import 'package:uuid/uuid.dart';
 import 'test_utils.dart';
 
 /// A connection that records the close it is asked for.
-/// [DummyInboundConnection] closes to nothing and leaves `metadata.isClosed`
-/// alone, so the close itself, as opposed to the error response that
-/// accompanies it, is otherwise unobservable.
 class CloseRecordingConnection extends DummyInboundConnection {
   int closeCount = 0;
 
@@ -64,11 +61,7 @@ void main() {
     tearDown(() async => await verbTestsTearDown());
 
     /// The scan the handler would answer for [enrollmentId], entered at the
-    /// filter rather than through `process`, because a connection whose
-    /// enrollment has left `approved` is closed by AbstractVerbHandler before
-    /// it reaches the filter (the group below pins that). The two gates are
-    /// independent, and this is the one deciding what a wildcard enrollment
-    /// may enumerate.
+    /// filter rather than through `process`.
     Future<List<String>> scanAs(String enrollmentId) async {
       final metadata = DummyInboundConnection().metadata
         ..isAuthenticated = true
@@ -151,10 +144,7 @@ void main() {
 
     tearDown(() async => await verbTestsTearDown());
 
-    /// Null when the verb ran and threw instead of the gate answering. A gate
-    /// that fails to close lets the verb body run and the update handler
-    /// refuse on its own authorisation check, which would report the verb's
-    /// refusal rather than the gate's absence.
+    /// Null when the verb ran and threw instead of the gate answering.
     Future<Response?> updateAs(String enrollmentId) async {
       connection.metadata.enrollmentId = enrollmentId;
       connection.metadata.authType = AuthType.apkam;
@@ -259,8 +249,6 @@ void main() {
 
     test('a connection carrying primary is closed when primary leaves '
         'approved, with no code change', () async {
-      // A legacy login carries `primary`, so it stands over a record like
-      // any enrollment and the same gate reads it.
       await enMgr.serialiseMutation(() => enMgr.mintPrimary('LEGACY_KEY'));
       final String ek =
           enMgr.buildEnrollmentKey(EnrollmentManager.primaryEnrollmentId);

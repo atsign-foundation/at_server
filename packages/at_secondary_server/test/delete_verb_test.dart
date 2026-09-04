@@ -153,13 +153,8 @@ void main() {
               predicate((exception) => exception is UnAuthorizedException)));
     });
 
-    // Deleting the cram-secret-deleted marker would resurrect CRAM, and the
-    // delete verb's atKey regex special-cases only the literal
-    // 'privatekey:at_secret', so the colon-bearing marker cannot be parsed
-    // here at all. This pins one route only: the keys verb is closed by
-    // KeysVerbHandler authorisation, and update:json, the one grammar that
-    // can name a colon-bearing key, by the refusal in _decideRootKey pinned
-    // in root_key_authz_test.
+    // NOTE the delete verb's atKey regex cannot name the colon-bearing
+    // marker at all, so this pins one route only.
     test('verify the cram-secret-deleted marker cannot be deleted', () {
       inboundConnection.metadata.isAuthenticated = true;
       inboundConnection.metadata.authType = AuthType.cram;
@@ -170,8 +165,7 @@ void main() {
               predicate((exception) => exception is InvalidSyntaxException)));
     });
 
-    // A syntax exception, because the delete verb handler expects a key to
-    // carry its atSign and at_pkam_publickey does not.
+    // A syntax exception: the handler expects a key to carry its atSign.
     test('verify deletion of pkam public key throws exception', () {
       inboundConnection.metadata.isAuthenticated = true;
       inboundConnection.metadata.authType = AuthType.cram;

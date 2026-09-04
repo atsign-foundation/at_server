@@ -11,12 +11,9 @@ import 'package:uuid/uuid.dart';
 
 import 'test_utils.dart';
 
-/// `enroll:list` returns every enrollment on the atSign, and each record
-/// carries `encryptedAPKAMSymmetricKey`, the wrapped key an approver uses to
-/// admit an enrollment. These pin which projection each caller gets: the bar
-/// is the caller's own `__manage` letter, matching the audience the server
-/// states for that value elsewhere, since a `__manage:r` caller can never
-/// approve and so can never have a use for the key.
+/// `enroll:list` returns every enrollment on the atSign, each carrying the
+/// wrapped key an approver uses to admit an enrollment. These pin which
+/// projection each caller gets, on the caller's own `__manage` letter.
 void main() {
   AtSignLogger.root_level = 'WARNING';
 
@@ -66,7 +63,6 @@ void main() {
 
     test('a __manage:r administrator gets the roster without the key material',
         () async {
-      // A target worth reading about, and a read-only administrator.
       final targetId = await storeEnrollment({'wavi': 'rw'});
       final callerId = await storeEnrollment({'__manage': 'r'});
 
@@ -82,12 +78,8 @@ void main() {
           reason: 'the credential itself is not roster data');
       expect(target.containsKey('sessionId'), isFalse);
 
-      // Absent, not blanked: a null would be indistinguishable from an
-      // enrollment that never carried one.
       expect(target['encryptedAPKAMSymmetricKey'], isNull);
 
-      // The redaction has to leave an administrator able to do its job, or
-      // it is a denial of service rather than a projection.
       expect(target['appName'], 'wavi');
       expect(target['status'], 'approved');
       expect(target['namespace'], {'wavi': 'rw'});
@@ -112,11 +104,6 @@ void main() {
 
     test('a CRAM connection gets the whole record',
         () async {
-      // A connection carrying no enrollment id holds the atSign itself
-      // rather than a delegated share of it, so there is no secret here it
-      // is not already entitled to read straight out of the keystore. A
-      // legacy connection carries `primary`, which holds `__manage:rw`, and
-      // reaches the same answer through the branch above.
       final targetId = await storeEnrollment({'wavi': 'rw'});
 
       final listed = await listAs(null);
@@ -129,9 +116,6 @@ void main() {
 
     test('a caller without __manage still sees its own record whole',
         () async {
-      // Its own key material, which the client holding the enrollment
-      // already has, so narrowing this would break that client while
-      // protecting nothing.
       await storeEnrollment({'wavi': 'rw'});
       final callerId = await storeEnrollment({'buzz': 'rw'});
 

@@ -41,9 +41,6 @@ class CramVerbHandler extends AbstractVerbHandler {
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     AtData? internalSecret = await keyStore.get('privatekey:at_secret');
 
-    // An empty or absent secret must never authenticate: the expected digest
-    // would then be computed over a constant any caller can reproduce from the
-    // public session id.
     if (internalSecret == null ||
         internalSecret.data == null ||
         internalSecret.data!.isEmpty) {
@@ -52,13 +49,9 @@ class CramVerbHandler extends AbstractVerbHandler {
     }
 
     String storedSecretId = 'private:$sessionID$atSign';
-    // The challenge is spent on read and honoured only while live, so one
-    // `from:` buys one digest attempt rather than unlimited guesses at the
-    // CRAM secret.
+    // NOTE the challenge is spent on read, so one `from:` buys one attempt.
     String? storedSecret = await consumeChallenge(storedSecretId);
     if (storedSecret == null) {
-      // Absent, unreadable or expired, refused exactly as a wrong digest is so
-      // the wire cannot tell them apart.
       atConnection.metaData.isAuthenticated = false;
       logger.severe('cram authentication failed: no live challenge for'
           ' session $sessionID');
@@ -69,14 +62,13 @@ class CramVerbHandler extends AbstractVerbHandler {
             .encode('${internalSecret.data}$sessionID$atSign:$storedSecret'))
         .toString();
 
-    // Jitter the comparison so its duration leaks nothing about the secret.
+    // NOTE the jitter keeps the comparison's duration from leaking the secret.
     await Future.delayed(Duration(microseconds: rand.nextInt(1000)));
     if (digestFromClient == expectedDigest) {
       atConnection.metaData.isAuthenticated = true;
       atConnection.metaData.authType = AuthType.cram;
-      // A CRAM connection stands over no enrollment. An id left by an earlier
-      // `pkam:` on this connection must not survive, or the connection would
-      // be judged as that enrollment while authorised as the owner.
+      // NOTE a CRAM connection stands over no enrollment, so any id left by an
+      // earlier `pkam:` on this connection is cleared.
       (atConnection.metaData as InboundConnectionMetadata).enrollmentId = null;
       try {
         await accessLog.insert(atSign, cram.name());

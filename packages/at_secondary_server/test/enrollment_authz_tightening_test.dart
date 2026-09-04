@@ -14,15 +14,9 @@ import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 import 'test_utils.dart';
 
 /// Pins the limits of an enrollment's authorization, all of which a `*:rw`
-/// grant must not escape. An enrollment cannot reach another enrollment's
-/// per-enrollment reserved namespace (`<otherId>.a|r|d.__e`); a `*:rw`
-/// enrollment not holding `__manage` explicitly cannot reach `__manage`
-/// keys (enrollment records, PEK, SEK) through a generic data verb; and a
-/// `public:` key in a foreign reserved namespace is world-readable but not
-/// world-writable, because the published `public:_apsk.<id>.a.__e@` signing
-/// key is what a verifier resolves, so writing it forges the key ids the
-/// victim is trusted under. Access to an enrollment's OWN per-enrollment
-/// namespace, public or not, is untouched.
+/// grant must not escape: another enrollment's per-enrollment reserved
+/// namespace, `__manage` keys through a generic data verb, and writes to a
+/// `public:` key in a foreign reserved namespace.
 void main() {
   AtSignLogger.root_level = 'WARNING';
 
@@ -48,8 +42,7 @@ void main() {
       await verbTestsTearDown();
     });
 
-    /// Binds an approved `*:rw` enrollment (NO `__manage`) to the connection
-    /// and returns its enrollmentId.
+    /// Binds an approved `*:rw` enrollment (NO `__manage`) and returns its id.
     Future<String> bindWildcardEnrollment() async {
       inboundConnection.metadata.isAuthenticated = true;
       final enrollId = Uuid().v4();
@@ -69,7 +62,6 @@ void main() {
       return enrollId;
     }
 
-    // ---- cross-enrollment per-enrollment (a.__e) data ----
 
     test('*:rw enrollment cannot UPDATE another enrollment\'s a.__e key',
         () async {
@@ -102,7 +94,6 @@ void main() {
           isNot(contains('topsecret')));
     });
 
-    // ---- update:meta is a WRITE, gated per namespace ----
 
     /// Binds an approved enrollment holding exactly [namespaces].
     Future<String> bindEnrollment(Map<String, String> namespaces) async {
@@ -125,8 +116,7 @@ void main() {
       return enrollId;
     }
 
-    /// Writes the key as the OWNER, so the update:meta below is the only act
-    /// under test.
+    /// Writes the key as the OWNER.
     Future<void> seedAsOwner(String key) async {
       inboundConnection.metadata.isAuthenticated = true;
       inboundConnection.metadata.authType = AuthType.cram;
@@ -136,10 +126,8 @@ void main() {
 
     test('an enrollment holding rw on the namespace CAN update:meta',
         () async {
-      // `UpdateMeta` extends `Verb` rather than `Update`, so it has to be
-      // in the write allow-list explicitly or the namespace check refuses
-      // it at every access level. A connection carrying no enrollment id
-      // skips the check, so only enrollments notice.
+      // NOTE `UpdateMeta` extends `Verb` rather than `Update`, so it has to
+      // be in the write allow-list explicitly.
       final key = '@bob:phone.wavi$alice';
       await seedAsOwner(key);
       await bindEnrollment({'wavi': 'rw'});
@@ -154,8 +142,7 @@ void main() {
     });
 
     test('...and one holding only r on it may NOT', () async {
-      // The control: without it the test above is satisfied by
-      // "update:meta is allowed to everyone", the opposite defect.
+      // The control: update:meta is not allowed to everyone.
       final key = '@bob:phone.wavi$alice';
       await seedAsOwner(key);
       await bindEnrollment({'wavi': 'r'});
@@ -193,9 +180,7 @@ void main() {
           reason: 'own per-enrollment namespace access must be unaffected');
     });
 
-    // ---- a PUBLIC key in a foreign per-enrollment namespace ----
-    //
-    // One predicate gates reads, writes and deletes, so the `public:`
+    // NOTE one predicate gates reads, writes and deletes, so the `public:`
     // exemption has to distinguish them: readable, not writable.
 
     test('*:rw enrollment cannot UPDATE another enrollment\'s PUBLIC a.__e key',
@@ -231,9 +216,8 @@ void main() {
 
     test('*:rw enrollment CAN still LLOOKUP a foreign PUBLIC a.__e key',
         () async {
-      // The control, and the half that must not change: the atServer
-      // publishes the signing key for anyone to resolve, and sync reads it
-      // too, so dropping the exemption outright would break reading.
+      // The control: publishing the signing key for anyone to resolve must
+      // keep working.
       await bindWildcardEnrollment();
       final foreignEnId = Uuid().v4();
       final foreignKey = 'public:_apsk.$foreignEnId.a.__e$alice';
@@ -247,8 +231,7 @@ void main() {
     });
 
     test('an enrollment CAN still update its OWN public a.__e key', () async {
-      // The other control: the denial is about FOREIGN keys, so an
-      // enrollment publishing its own signing key must be unaffected.
+      // The other control: an enrollment publishing its OWN signing key.
       final enrollId = await bindWildcardEnrollment();
       final ownKey = 'public:_apsk.$enrollId.a.__e$alice';
 
@@ -257,13 +240,11 @@ void main() {
       expect(inboundConnection.lastWrittenData, contains('data:'));
     });
 
-    // ---- direct __manage access (enrollment record / PEK / SEK) ----
 
     test('*:rw-without-__manage enrollment cannot UPDATE a __manage key',
         () async {
       await bindWildcardEnrollment();
       final foreignEnId = Uuid().v4();
-      // Another enrollment's encrypted default encryption private key.
       final pekKey = '$foreignEnId.default_enc_private_key.__manage$alice';
 
       await expectLater(

@@ -57,10 +57,8 @@ void main() {
     });
 
     test('the two _apsk shapes survive a round trip under their own names', () {
-      // ⚠️ AT-REST PIN, on the raw field names. The serialisation is
-      // hand-maintained (nothing regenerates the .g.dart), and a shape that
-      // does not round-trip is a signing key the enrollment silently stops
-      // publishing after a restart.
+      // ⚠️ AT-REST PIN on the raw field names; the serialisation is
+      // hand-maintained.
       final array = {
         'v': 1,
         'keys': [
@@ -85,11 +83,7 @@ void main() {
     });
 
     test('predecessorCapArmedAt round-trips under its at-rest name', () {
-      // ⚠️ AT-REST PIN. The stamp makes "the cap arms once" decidable across
-      // a restart, and its writer and reader are the same hand-maintained
-      // pair, so a symmetric rename stays green while every stored record
-      // loses its stamp and re-arms, extending its predecessor by a whole
-      // grace period.
+      // ⚠️ AT-REST PIN on the raw field name; frozen for stored records.
       final armedAt = DateTime.utc(2026, 8, 31, 12, 34, 56, 789);
       final v = EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey')
         ..predecessorCapArmedAt = armedAt;
@@ -113,10 +107,7 @@ void main() {
     });
 
     test('parentEnrollmentId round-trips under its at-rest name', () {
-      // ⚠️ AT-REST PIN. This is the edge revocation cascades along, and a
-      // symmetric rename of the hand-maintained writer and reader stays green
-      // while every stored record loses its approver and drops out of the
-      // cascade.
+      // ⚠️ AT-REST PIN on the raw field name; frozen for stored records.
       final v = EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey')
         ..parentEnrollmentId = 'approver-abc';
 
@@ -141,10 +132,7 @@ void main() {
 
     test('retrofitPredecessorEnrollmentId round-trips under its at-rest name',
         () {
-      // ⚠️ AT-REST PIN. The once-off rule reads this to refuse a second
-      // retrofit and the cap reads it to know whose expiry to cap, so a
-      // symmetric rename would let every stored successor be retrofitted
-      // again and cap nothing.
+      // ⚠️ AT-REST PIN on the raw field name; frozen for stored records.
       final v = EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey')
         ..retrofitPredecessorEnrollmentId = 'predecessor-abc';
 
@@ -169,9 +157,8 @@ void main() {
     });
 
     test('a stored record carrying revokedAt still decodes', () {
-      // ⚠️ AT-REST PIN on a field the class does not carry: stored records
-      // hold `revokedAt`, and the hand-maintained decoder must go on ignoring
-      // an unknown key rather than failing on one.
+      // ⚠️ AT-REST PIN on a field the class does not carry: the decoder must
+      // go on ignoring an unknown key rather than failing on one.
       final stored = <String, dynamic>{
         'sessionId': '123',
         'appName': 'testclient',

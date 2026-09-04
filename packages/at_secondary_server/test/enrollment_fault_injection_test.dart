@@ -17,16 +17,7 @@ import 'test_utils.dart';
 
 /// Pins what the enrollment guards owe when the KEYSTORE misbehaves: a
 /// throw on a key the enumeration just returned, or an outright failure
-/// mid-walk. A Hive-backed fixture cannot produce either on demand, so
-/// this file injects them through a mocktail double. Only `get` and the
-/// two key enumerations are stubbed, so any other call the code under
-/// test makes shows up rather than being answered silently.
-///
-/// [stubRoster] stubs BOTH enumerations together. `Mock implements`
-/// erases every body, so an unstubbed enumeration is answered by
-/// `noSuchMethod` with null and fails at runtime inside the code under
-/// test, looking like a product bug; which one a walk takes is a
-/// per-caller decision (see [EnrollmentManager.getAllEnrollmentKeys]).
+/// mid-walk, injected through a mocktail double.
 class _FaultyKeyStore extends Mock
     implements AtKeyValueStore<String, AtData, AtMetaData?> {}
 
@@ -47,8 +38,7 @@ void main() {
     registerFallbackValue(const KeyPattern());
   });
 
-  /// Makes [store] answer BOTH key enumerations with [keys]: `getKeys` is
-  /// the visible roster and `scanKeys` the stored one, and a double that
+  /// Makes [store] answer BOTH key enumerations with [keys]: a double that
   /// answers only one returns null through `noSuchMethod` for the other.
   void stubRoster(_FaultyKeyStore store, List<String> keys) {
     when(() => store.getKeys(regex: any(named: 'regex')))
@@ -74,9 +64,7 @@ void main() {
 
   group('a keystore fault mid-walk', () {
     /// `_approverIdOf` treats a missing or undecodable record as "no
-    /// predecessor" and catches nothing else: a store that FAILED did not
-    /// answer "no", and swallowing the difference makes a revoke report
-    /// success while a successor stays approved and usable.
+    /// predecessor" and catches nothing else.
     test('propagates out of descendantsOf rather than under-cascading',
         () async {
       final store = _FaultyKeyStore();
@@ -101,8 +89,7 @@ void main() {
 
     test('the control: the same walk with a healthy store finds the child',
         () async {
-      // Without this arm the throw above is satisfied by a walk that fails
-      // for some other reason, or that never reaches the child at all.
+      // The control: the walk reaches the child and fails for no other reason.
       final store = _FaultyKeyStore();
       final enMgr = EnrollmentManager(store, alice);
       final rootId = Uuid().v4();
@@ -122,9 +109,7 @@ void main() {
 
   group('a record reaped between the enumeration and the read', () {
     /// `getKeys` and `get` are two calls with a gap in which an enrollment
-    /// can be deleted or expire, and `get` throws rather than returning
-    /// null, so without the guard one vanished record fails the whole
-    /// listing.
+    /// can be deleted or expire.
     test('is skipped, and the rest of the roster is still served', () async {
       final store = _FaultyKeyStore();
       final enMgr = EnrollmentManager(store, alice);
@@ -166,10 +151,7 @@ void main() {
 
   group('the connections a revoke drops', () {
     /// The drop set is what the revoke INTENDED to revoke, not the subset
-    /// this call flipped. They differ exactly when a descendant is already
-    /// revoked, the state a part-way failure leaves for a retry, so using
-    /// the flipped set would drop no connection for the enrollments whose
-    /// connections are still open.
+    /// this call flipped.
     test('is the intended cascade, not the subset this call flipped',
         () async {
       final predecessorId = Uuid().v4();
@@ -180,8 +162,6 @@ void main() {
           enMgr.buildEnrollmentKey(predecessorId),
           AtData()..data = recordFor(predecessorId),
           skipCommit: true);
-      // Already revoked, so revokeAll flips nothing for exactly the
-      // enrollment whose connection is still open.
       await keyValueStore.put(
           enMgr.buildEnrollmentKey(successorId),
           AtData()

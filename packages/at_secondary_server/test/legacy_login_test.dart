@@ -16,12 +16,8 @@ import 'test_utils.dart';
 
 /// A legacy `pkam:`, one carrying no enrollment id, authenticates as
 /// `primary`, the enrollment the flat legacy credential migrates into. The
-/// first such login against a flat key still in the store absorbs it:
-/// `primary` is minted from it or rotated onto it and the flat key deleted,
-/// in one act inside the enrollment-mutation section, and every later login
-/// verifies against `primary`'s recorded key. Sending no id and sending
-/// `primary` behave alike, and a revoked `primary` refuses with AT0027 like
-/// any enrollment.
+/// first such login against a flat key still in the store absorbs it, and
+/// every later login verifies against `primary`'s recorded key.
 void main() {
   verbTestsSetUpLogging();
 
@@ -52,8 +48,7 @@ void main() {
       skipCommit: true);
 
   /// A legacy `pkam:` on a fresh connection, signed with [pair] (the legacy
-  /// keypair by default), naming no enrollment id. A thrown refusal is
-  /// reported as an error response.
+  /// keypair by default), naming no enrollment id.
   Future<Response> legacyLogin(String sessionId, {dynamic pair}) async {
     pair ??= legacyPair;
     const challenge = 'a-per-connection-challenge';
@@ -210,9 +205,6 @@ void main() {
 
     test('a login that absorbs into a revoked primary is refused too',
         () async {
-      // A flat key alongside a revoked `primary` is a shape only a fixture
-      // or a store written by an earlier server produces; either way the
-      // owner's revocation stands.
       await installFlatKey();
       expect((await legacyLogin('first')).data, 'success');
       await setPrimaryStatus(EnrollmentStatus.revoked);

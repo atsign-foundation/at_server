@@ -21,10 +21,7 @@ import 'test_utils.dart';
 
 /// Every place the server treats a connection carrying no enrollment id
 /// specially, stated beside what an enrollment holding `*:rw` and
-/// `__manage:rw` gets from the same verb. Stating the two answers side by
-/// side is what lets a change to who carries an id be checked against both: a
-/// connection that comes to carry a root enrollment must get what a root
-/// gets, and nothing a null id got by accident.
+/// `__manage:rw` gets from the same verb.
 void main() {
   verbTestsSetUpLogging();
 
@@ -52,8 +49,7 @@ void main() {
     inboundConnection.metadata.enrollmentId = null;
   }
 
-  /// The connection as the fixture's root enrollment, which holds `*:rw`
-  /// and `__manage:rw`.
+  /// The connection as the fixture's root enrollment.
   void asRoot() {
     inboundConnection.metaData
       ..isAuthenticated = true
@@ -147,8 +143,6 @@ void main() {
           reason: '* covers every namespace, so the per-entry check the '
               'enrollment does go through admits the same entries');
 
-      // The control: the check is real, because a scoped enrollment is
-      // served less.
       inboundConnection.metadata.enrollmentId = await scoped();
       final narrowed = Response();
       await handler.processVerb(narrowed, params, inboundConnection);
@@ -183,9 +177,7 @@ void main() {
   group('scan', () {
     test('a null id sees the enrollment records; a root enrollment does not',
         () async {
-      // The one carve-out where the two answers differ, deliberately:
-      // `enroll:list` is the management path for enrollment records, and
-      // scan hides them from every enrollment, `*` included.
+      // The one carve-out where the two answers differ, deliberately.
       await keyValueStore.put('public:seen.wavi$alice', AtData()..data = 'x');
       final handler =
           ScanVerbHandler(keyValueStore, mockOutboundClientManager, cacheManager);
@@ -249,7 +241,6 @@ void main() {
           isFalse,
           reason: 'the control: grants decide, not the carrying of an id');
 
-      // A root that has left approved is no longer root-privileged.
       final String rootKey = enMgr.buildEnrollmentKey(etu.primaryEnId);
       final AtData record = (await keyValueStore.get(rootKey))!;
       final EnrollDataStoreValue value =
@@ -266,8 +257,6 @@ void main() {
   group('the refusal that names a remedy', () {
     test('an enrollment refused an act on a record holding no namespaces is '
         'told to use CRAM', () async {
-      // The remedy names the one connection type that is always exempt. A
-      // legacy connection is not named: it is not exempt by being legacy.
       const String emptyId = 'holds-nothing';
       final EnrollDataStoreValue empty =
           EnrollDataStoreValue('s', 'app', 'device', 'pk-empty')
