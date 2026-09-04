@@ -87,6 +87,11 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
         return false;
       }
 
+      // NOTE __manage keys never sync, whatever the connection.
+      if (AbstractVerbHandler.isEnrollManageKey(atKey)) {
+        return false;
+      }
+
       if (!isAuthorizedSync(enroll, enrollmentId, cram: cram, atKey: atKey)) {
         return false;
       }
