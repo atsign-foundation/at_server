@@ -351,20 +351,21 @@ void main() {
 
   group('the CRAM key install', () {
     test('mints primary from the value, and writes no flat key', () async {
-      await enMgr.installLegacyKeyIntoPrimary('INSTALLED_KEY');
+      await enMgr.installLegacyKeyIntoPrimary('INSTALLEDKEY');
 
       expect(await flatKeyExists(), isFalse);
       final EnrollDataStoreValue v = await enMgr.getEnrollmentById(primary);
-      expect(v.apkamPublicKey, 'INSTALLED_KEY');
+      expect(v.apkamPublicKey, 'INSTALLEDKEY');
       expect(v.isRootEnrollment, isTrue);
     });
 
     test('rotates an existing primary onto the value', () async {
       await enMgr.serialiseMutation(() => enMgr.mintPrimary('FIRST'));
 
-      await enMgr.installLegacyKeyIntoPrimary('SECOND');
+      await enMgr.installLegacyKeyIntoPrimary('SECONDKEYAAA');
 
-      expect((await enMgr.getEnrollmentById(primary)).apkamPublicKey, 'SECOND');
+      expect((await enMgr.getEnrollmentById(primary)).apkamPublicKey,
+          'SECONDKEYAAA');
       expect(await flatKeyExists(), isFalse);
     });
 
@@ -378,6 +379,41 @@ void main() {
               'message', contains('already held by another enrollment'))),
           reason: 'no exemption for a fixture: the fixtures mint a key '
               'per enrollment');
+      expect(await enMgr.primaryEnrollment(), isNull);
+    });
+
+    test('a value that is not key material is refused, with nothing written',
+        () async {
+      await expectLater(
+          () => enMgr.installLegacyKeyIntoPrimary('not base64 at all!'),
+          throwsA(isA<IllegalArgumentException>().having((e) => e.message,
+              'message', contains('not an APKAM public key'))),
+          reason: 'junk minted as primary is an approved, unexpiring root '
+              'that the last-root guard counts, so the last real root could '
+              'then be revoked');
+      expect(await enMgr.primaryEnrollment(), isNull,
+          reason: 'the refusal is total: no record is written');
+      expect(await flatKeyExists(), isFalse);
+    });
+
+    test('a value of nothing but a space is refused too', () async {
+      await expectLater(
+          () => enMgr.installLegacyKeyIntoPrimary(' '),
+          throwsA(isA<IllegalArgumentException>()),
+          reason: 'an empty credential is one nobody can authenticate with');
+      expect(await enMgr.primaryEnrollment(), isNull);
+    });
+
+    test('an ECC key another enrollment holds is refused however it is '
+        'cased', () async {
+      await storeRoot('ecc-root', 'deadbeef', signingAlgo: 'ecc_secp256r1');
+
+      await expectLater(
+          () => enMgr.installLegacyKeyIntoPrimary('DEADBEEF'),
+          throwsA(isA<IllegalStateException>().having((e) => e.message,
+              'message', contains('already held by another enrollment'))),
+          reason: 'hex is case-insensitive, so this is the key that root '
+              'holds; installing it would put one keypair under two names');
       expect(await enMgr.primaryEnrollment(), isNull);
     });
 

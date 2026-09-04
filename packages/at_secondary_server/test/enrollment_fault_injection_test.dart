@@ -21,6 +21,81 @@ import 'test_utils.dart';
 class _FaultyKeyStore extends Mock
     implements AtKeyValueStore<String, AtData, AtMetaData?> {}
 
+/// A keystore that reaps nominated keys under a real one, standing in for
+/// the expiry sweep landing between a read and the read that follows it.
+///
+/// Enumerations serve the reaped keys first, so a walk reaches them before
+/// it reaches anything else.
+class _ReapingKeyStore extends Mock
+    implements AtKeyValueStore<String, AtData, AtMetaData?> {
+  _ReapingKeyStore(this._delegate);
+
+  final AtKeyValueStore<String, AtData, AtMetaData?> _delegate;
+
+  /// Keys removed as the enumeration that names them returns.
+  final Set<String> reapOnEnumeration = {};
+
+  /// Keys removed the moment they have been read once.
+  final Set<String> reapOnFirstGet = {};
+
+  Future<List<String>> _reapEnumerated(List<String> keys) async {
+    final List<String> due =
+        keys.where(reapOnEnumeration.contains).toList();
+    for (final String key in due) {
+      reapOnEnumeration.remove(key);
+      await _delegate.remove(key, skipCommit: true);
+    }
+    final Set<String> first = {...due, ...reapOnFirstGet};
+    return [
+      ...keys.where(first.contains),
+      ...keys.where((k) => !first.contains(k)),
+    ];
+  }
+
+  @override
+  Future<AtData?> get(String key) async {
+    final AtData? value = await _delegate.get(key);
+    if (reapOnFirstGet.remove(key)) {
+      await _delegate.remove(key, skipCommit: true);
+    }
+    return value;
+  }
+
+  @override
+  Future<Stream<String>> getKeys({String? regex}) async => Stream.fromIterable(
+      await _reapEnumerated(
+          await (await _delegate.getKeys(regex: regex)).toList()));
+
+  @override
+  Future<Stream<String>> scanKeys(KeyPattern pattern,
+          {bool includeExpired = false,
+          OrderByKey? orderBy,
+          int? limit,
+          int? skip}) async =>
+      Stream.fromIterable(await _reapEnumerated(await (await _delegate
+              .scanKeys(pattern,
+                  includeExpired: includeExpired,
+                  orderBy: orderBy,
+                  limit: limit,
+                  skip: skip))
+          .toList()));
+
+  @override
+  Future<int?> put(String key, AtData value,
+          {bool skipCommit = false,
+          AtAssertedTimestamps? assertedTimestamps}) =>
+      _delegate.put(key, value,
+          skipCommit: skipCommit, assertedTimestamps: assertedTimestamps);
+
+  @override
+  Future<int?> remove(String key,
+          {bool skipCommit = false, DateTime? deletedAt}) =>
+      _delegate.remove(key, skipCommit: skipCommit, deletedAt: deletedAt);
+
+  @override
+  Future<bool> exists(String key) => _delegate.exists(key);
+}
+
 class _MockInboundConnection extends Mock implements InboundConnection {}
 
 class _StubPool extends Mock implements InboundConnectionPool {
@@ -54,13 +129,20 @@ void main() {
   String recordFor(String id,
       {Map<String, String> namespaces = const {'wavi': 'rw'},
       EnrollmentStatus status = EnrollmentStatus.approved,
-      String? approvedBy}) {
+      String? approvedBy,
+      String? replacing}) {
     final v = EnrollDataStoreValue('sid', 'app-$id', 'device-$id', 'pk-$id')
       ..namespaces = Map<String, String>.from(namespaces)
       ..approval = EnrollApproval(status.name)
-      ..parentEnrollmentId = approvedBy;
+      ..parentEnrollmentId = approvedBy
+      ..retrofitPredecessorEnrollmentId = replacing;
     return jsonEncode(v.toJson());
   }
+
+  /// Writes [id]'s record straight to the real store, unexpiring.
+  Future<void> persist(String id, String record) => keyValueStore
+      .put(enMgr.buildEnrollmentKey(id), AtData()..data = record,
+          skipCommit: true);
 
   group('a keystore fault mid-walk', () {
     /// `_approverIdOf` treats a missing or undecodable record as "no
@@ -146,6 +228,71 @@ void main() {
           .thenAnswer((_) async => AtData()..data = recordFor(bId));
 
       expect((await enMgr.getEnrollmentsAsJson(redactSecrets: false)).keys.toSet(), {aKey, bKey});
+    });
+  });
+
+  group('a record reaped between one read and the next', () {
+    /// The expiry sweep does not take the enrollment-mutation section, so it
+    /// can land between two reads of the same key.
+    const Map<String, String> root = {'*': 'rw', '__manage': 'rw'};
+
+    test('is left out of the listing, and the rest is still served',
+        () async {
+      final store = _ReapingKeyStore(keyValueStore);
+      final mgr = EnrollmentManager(store, alice);
+      final goneId = Uuid().v4();
+      final liveId = Uuid().v4();
+      await persist(goneId, recordFor(goneId));
+      await persist(liveId, recordFor(liveId));
+      store.reapOnFirstGet.add(mgr.buildEnrollmentKey(goneId));
+
+      final roster = await mgr.getEnrollmentsAsJson(redactSecrets: false);
+
+      expect(roster.keys, [mgr.buildEnrollmentKey(liveId)],
+          reason: 'the expiry read comes after the record read, so a reap '
+              'between them must skip that entry rather than fail the whole '
+              'listing');
+    });
+
+    test('does not stop the walk for an unexpiring root', () async {
+      final store = _ReapingKeyStore(keyValueStore);
+      final mgr = EnrollmentManager(store, alice);
+      final goneId = Uuid().v4();
+      final liveId = Uuid().v4();
+      await persist(goneId, recordFor(goneId, namespaces: root));
+      await persist(liveId, recordFor(liveId, namespaces: root));
+      store.reapOnFirstGet.add(mgr.buildEnrollmentKey(goneId));
+
+      expect(await mgr.hasUnexpiringRootEnrollment({}), isTrue,
+          reason: 'the reaped root is skipped and the live one is still '
+              'counted; a throw here refuses every revoke while an '
+              'unexpiring root stands');
+    });
+
+    test('does not stop the adoption pass part way through', () async {
+      final store = _ReapingKeyStore(keyValueStore);
+      final mgr = EnrollmentManager(store, alice);
+      final predecessorId = Uuid().v4();
+      final successorId = Uuid().v4();
+      final goneChildId = Uuid().v4();
+      final liveChildId = Uuid().v4();
+      await persist(predecessorId, recordFor(predecessorId, namespaces: root));
+      await persist(
+          successorId,
+          recordFor(successorId,
+              namespaces: root, replacing: predecessorId));
+      await persist(goneChildId,
+          recordFor(goneChildId, approvedBy: predecessorId));
+      await persist(liveChildId,
+          recordFor(liveChildId, approvedBy: predecessorId));
+      store.reapOnEnumeration.add(mgr.buildEnrollmentKey(goneChildId));
+
+      await mgr.armRetrofitCapOnFirstAuth(successorId);
+
+      expect((await mgr.getEnrollmentById(liveChildId)).parentEnrollmentId,
+          successorId,
+          reason: 'the pass runs once and never runs again, so a reaped '
+              'child must not carry off the children behind it');
     });
   });
 

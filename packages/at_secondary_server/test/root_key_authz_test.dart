@@ -114,7 +114,7 @@ void main() {
 
       await expectLater(
           updateVerbHandler.process(
-              'update:${AtConstants.atPkamPublicKey} REPLACEMENT_KEY',
+              'update:${AtConstants.atPkamPublicKey} REPLACEMENTKEY00',
               inboundConnection),
           throwsA(isA<UnAuthorizedException>()));
       final stored = await keyValueStore.get(AtConstants.atPkamPublicKey);
@@ -129,7 +129,7 @@ void main() {
 
       await expectLater(
           updateVerbHandler.process(
-              'update:${AtConstants.atPkamPublicKey} REPLACEMENT_KEY',
+              'update:${AtConstants.atPkamPublicKey} REPLACEMENTKEY00',
               inboundConnection),
           throwsA(isA<UnAuthorizedException>()));
       final stored = await keyValueStore.get(AtConstants.atPkamPublicKey);
@@ -143,7 +143,7 @@ void main() {
 
       await expectLater(
           updateVerbHandler.process(
-              'update:${AtConstants.atPkamPublicKey} REPLACEMENT_KEY',
+              'update:${AtConstants.atPkamPublicKey} REPLACEMENTKEY00',
               inboundConnection),
           throwsA(isA<UnAuthorizedException>().having(
               (e) => e.message, 'message', contains('may not be written'))),
@@ -164,7 +164,7 @@ void main() {
 
       await expectLater(
           updateVerbHandler.process(
-              'update:${AtConstants.atPkamPublicKey} NEW_KEY',
+              'update:${AtConstants.atPkamPublicKey} NEWKEYAA',
               inboundConnection),
           throwsA(isA<UnAuthorizedException>().having(
               (e) => e.message, 'message', contains('may not be written'))),
@@ -185,7 +185,7 @@ void main() {
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
 
       await updateVerbHandler.process(
-          'update:${AtConstants.atPkamPublicKey} NEW_KEY', inboundConnection);
+          'update:${AtConstants.atPkamPublicKey} NEWKEYAA', inboundConnection);
 
       expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
           'ORIGINAL_KEY',
@@ -196,7 +196,7 @@ void main() {
           (await enMgr.getEnrollmentById(
                   EnrollmentManager.primaryEnrollmentId))
               .apkamPublicKey,
-          'NEW_KEY',
+          'NEWKEYAA',
           reason: 'a CRAM holder is auto-approved a *:rw + __manage:rw '
               'enrollment on request, which is what primary holds, so the '
               'install grants it nothing it could not already give itself; '
@@ -215,7 +215,7 @@ void main() {
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
 
       await updateVerbHandler.process(
-          'update:${AtConstants.atPkamPublicKey} NEW_KEY', inboundConnection);
+          'update:${AtConstants.atPkamPublicKey} NEWKEYAA', inboundConnection);
 
       expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
           'ORIGINAL_KEY');
@@ -223,7 +223,7 @@ void main() {
           (await enMgr.getEnrollmentById(
                   EnrollmentManager.primaryEnrollmentId))
               .apkamPublicKey,
-          'NEW_KEY');
+          'NEWKEYAA');
     });
 
     for (final bool flag in [false, true]) {
@@ -242,7 +242,7 @@ void main() {
 
         await expectLater(
             updateVerbHandler.process(
-                'update:${AtConstants.atPkamPublicKey} NEW_KEY',
+                'update:${AtConstants.atPkamPublicKey} NEWKEYAA',
                 inboundConnection),
             throwsA(isA<UnAuthorizedException>().having(
                 (e) => e.message, 'message', contains('may not be written'))),
@@ -276,7 +276,7 @@ void main() {
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
       await expectLater(
           updateVerbHandler.process(
-              'update:PRIVATEKEY:AT_PKAM_PUBLICKEY REPLACEMENT_KEY',
+              'update:PRIVATEKEY:AT_PKAM_PUBLICKEY REPLACEMENTKEY00',
               inboundConnection),
           throwsA(isA<UnAuthorizedException>()),
           reason: 'the same record under another spelling is the same record');
@@ -291,7 +291,7 @@ void main() {
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
       await expectLater(
           updateVerbHandler.process(
-              'update:PRIVATEKEY:AT_PKAM_PUBLICKEY NEW_KEY',
+              'update:PRIVATEKEY:AT_PKAM_PUBLICKEY NEWKEYAA',
               inboundConnection),
           throwsA(isA<UnAuthorizedException>().having(
               (e) => e.message, 'message', contains('may not be written'))),
@@ -311,7 +311,7 @@ void main() {
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
 
       await updateVerbHandler.process(
-          'update:PRIVATEKEY:AT_PKAM_PUBLICKEY NEW_KEY', inboundConnection);
+          'update:PRIVATEKEY:AT_PKAM_PUBLICKEY NEWKEYAA', inboundConnection);
 
       expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
           'ORIGINAL_KEY',
@@ -320,7 +320,7 @@ void main() {
           (await enMgr.getEnrollmentById(
                   EnrollmentManager.primaryEnrollmentId))
               .apkamPublicKey,
-          'NEW_KEY',
+          'NEWKEYAA',
           reason: 'the redirect compares the key as the keystore folds it');
     });
 
@@ -331,7 +331,7 @@ void main() {
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
       await expectLater(
           updateVerbHandler.process(
-              'update:PRIVATEKEY:AT_PKAM_PUBLICKEY NEW_KEY',
+              'update:PRIVATEKEY:AT_PKAM_PUBLICKEY NEWKEYAA',
               inboundConnection),
           throwsA(isA<UnAuthorizedException>()),
           reason: 'NO enrollment may write at_pkam_publickey, whatever it '
@@ -349,7 +349,7 @@ void main() {
 
       final json = jsonEncode({
         'atKey': AtConstants.atPkamPublicKey,
-        'value': 'REPLACEMENT_KEY',
+        'value': 'REPLACEMENTKEY00',
         'metadata': Metadata().toJson(),
       });
       await expectLater(
@@ -372,7 +372,7 @@ void main() {
           AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
       final json = jsonEncode({
         'atKey': AtConstants.atPkamPublicKey,
-        'value': 'REPLACEMENT_KEY',
+        'value': 'REPLACEMENTKEY00',
         'metadata': Metadata().toJson(),
       });
 
@@ -385,7 +385,7 @@ void main() {
           (await enMgr.getEnrollmentById(
                   EnrollmentManager.primaryEnrollmentId))
               .apkamPublicKey,
-          'REPLACEMENT_KEY');
+          'REPLACEMENTKEY00');
     });
 
     test('a zero-length update:json value is refused before it can be stored',
@@ -434,7 +434,7 @@ void main() {
 
       final response = await batchHandler().processInternal(
           'batch:[{"id":1,"command":"update:privatekey:at_pkam_publickey '
-          'NEW_KEY"}]',
+          'NEWKEYAA"}]',
           inboundConnection);
 
       expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
@@ -458,7 +458,7 @@ void main() {
 
       await batchHandler().processInternal(
           'batch:[{"id":1,"command":"update:privatekey:at_pkam_publickey '
-          'NEW_KEY"}]',
+          'NEWKEYAA"}]',
           inboundConnection);
 
       expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
@@ -468,7 +468,7 @@ void main() {
           (await enMgr.getEnrollmentById(
                   EnrollmentManager.primaryEnrollmentId))
               .apkamPublicKey,
-          'NEW_KEY');
+          'NEWKEYAA');
     });
 
     test('update:meta cannot name the key at all', () async {

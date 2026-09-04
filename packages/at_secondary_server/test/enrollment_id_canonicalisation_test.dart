@@ -55,11 +55,13 @@ void main() {
       {Map<String, String> namespaces = const {'*': 'rw', '__manage': 'rw'},
       EnrollmentStatus status = EnrollmentStatus.approved,
       String? approvedBy,
+      String? replacing,
       Duration? ttl}) async {
     final v = EnrollDataStoreValue('s', 'app-$id', 'device-$id', 'pk-$id')
       ..namespaces = Map<String, String>.from(namespaces)
       ..approval = EnrollApproval(status.name)
-      ..parentEnrollmentId = approvedBy;
+      ..parentEnrollmentId = approvedBy
+      ..retrofitPredecessorEnrollmentId = replacing;
     await enMgr.put(
         id,
         AtData()
@@ -399,6 +401,35 @@ void main() {
                 'the same enrollment — measured: unfolded, this returned {} '
                 'and the whole subtree survived the revoke');
       }
+    });
+
+    test('an approver id an older server stored uppercased still names its '
+        'approver', () async {
+      await mint('upper-approver', namespaces: {'*': 'rw', '__manage': 'rw'});
+      await mint('upper-child',
+          namespaces: {'wavi': 'rw'}, approvedBy: 'UPPER-APPROVER');
+
+      expect(await enMgr.descendantsOf('upper-approver'),
+          contains('upper-child'),
+          reason: 'the stored link is folded before it is compared, so a '
+              'record written under an unfolded spelling is still swept by '
+              'the revoke of the enrollment that admitted it');
+    });
+
+    test('...and the adoption pass re-parents it too', () async {
+      await mint('upper-pred', namespaces: {'*': 'rw', '__manage': 'rw'});
+      await mint('upper-succ',
+          namespaces: {'*': 'rw', '__manage': 'rw'},
+          replacing: 'upper-pred');
+      await mint('upper-kid',
+          namespaces: {'wavi': 'rw'}, approvedBy: 'UPPER-PRED');
+
+      await enMgr.armRetrofitCapOnFirstAuth('upper-succ');
+
+      expect((await enMgr.getEnrollmentById('upper-kid')).parentEnrollmentId,
+          'upper-succ',
+          reason: 'the pass runs once, so an unfolded link left behind here '
+              'is orphaned for good');
     });
 
     test('...and still returns nothing for an enrollment that admitted nobody',

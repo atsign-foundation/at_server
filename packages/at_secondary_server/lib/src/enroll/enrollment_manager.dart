@@ -194,9 +194,17 @@ class EnrollmentManager {
   /// flat key.
   ///
   /// Throws [IllegalStateException] when a stored enrollment other than
-  /// `primary` already holds the key.
+  /// `primary` already holds the key, and [IllegalArgumentException] when
+  /// the value is not APKAM key material.
   Future<void> installLegacyKeyIntoPrimary(String apkamPublicKey) =>
       serialiseMutation(() async {
+        if (apkamPublicKey.trim().isEmpty ||
+            apkamKeyMaterial(apkamPublicKey, null) == null) {
+          throw IllegalArgumentException(
+              'The value is not an APKAM public key: it does not decode as '
+              'key material, and $primaryEnrollmentId would stand as an '
+              'approved, unexpiring root nobody can authenticate as');
+        }
         final (String, EnrollDataStoreValue)? holder =
             await holderOfApkamPublicKey(apkamPublicKey, null,
                 excluding: primaryEnrollmentId);
@@ -544,8 +552,10 @@ class EnrollmentManager {
     for (final (String id, EnrollDataStoreValue value)
         in await storedEnrollments()) {
       if (id == excluded) continue;
-      if (sameApkamKeyMaterial(
-          apkamPublicKey, signingAlgo, value.apkamPublicKey, value.signingAlgo)) {
+      // NOTE with no algorithm named, the holder's own is what its stored
+      // spelling decodes under.
+      if (sameApkamKeyMaterial(apkamPublicKey, signingAlgo ?? value.signingAlgo,
+          value.apkamPublicKey, value.signingAlgo)) {
         return (id, value);
       }
     }
@@ -656,7 +666,13 @@ class EnrollmentManager {
               EnrollmentStatus.values.byName(enVal.approval!.state))) {
         final Map<String, dynamic> entry =
             redactSecrets ? enVal.toJsonRoster() : enVal.toJsonExtended();
-        entry['expiresAt'] = expiresAtField(await effectiveExpiryOf(ek));
+        final DateTime? expiry;
+        try {
+          expiry = await effectiveExpiryOf(ek);
+        } on KeyNotFoundException {
+          continue;
+        }
+        entry['expiresAt'] = expiresAtField(expiry);
         ejList[ek] = entry;
       }
     }
@@ -886,7 +902,12 @@ class EnrollmentManager {
       }
       if (other.approval?.state != EnrollmentStatus.approved.name) continue;
       if (!isUsableRootEnrollment(getIdFromKey(ek), other)) continue;
-      final AtData? record = await keyStore.get(ek);
+      final AtData? record;
+      try {
+        record = await keyStore.get(ek);
+      } on KeyNotFoundException {
+        continue;
+      }
       if (record?.metaData?.expiresAt == null) return true;
     }
     return false;
@@ -941,8 +962,9 @@ class EnrollmentManager {
       final AtData? record = await keyStore.get(buildEnrollmentKey(id));
       final String? raw = record?.data;
       if (raw != null) {
-        approverId = EnrollDataStoreValue.fromJson(jsonDecode(raw))
-            .parentEnrollmentId;
+        approverId = canonicalEnrollmentIdOrNull(
+            EnrollDataStoreValue.fromJson(jsonDecode(raw))
+                .parentEnrollmentId);
       }
     } on KeyNotFoundException {
       approverId = null;
@@ -993,7 +1015,12 @@ class EnrollmentManager {
     for (final ek in await getAllEnrollmentKeys(includeExpired: true)) {
       final String childId = getIdFromKey(ek);
       if (childId == successorId) continue;
-      final AtData? record = await keyStore.get(ek);
+      final AtData? record;
+      try {
+        record = await keyStore.get(ek);
+      } on KeyNotFoundException {
+        continue;
+      }
       final String? raw = record?.data;
       if (record == null || raw == null) continue;
       final EnrollDataStoreValue child;
@@ -1004,7 +1031,10 @@ class EnrollmentManager {
             'record could not be decoded: $e');
         continue;
       }
-      if (child.parentEnrollmentId != predecessorId) continue;
+      if (canonicalEnrollmentIdOrNull(child.parentEnrollmentId) !=
+          canonicalEnrollmentIdOrNull(predecessorId)) {
+        continue;
+      }
 
       final EnrollmentStatus? status =
           EnrollmentStatus.values.asNameMap()[child.approval?.state ?? ''];
