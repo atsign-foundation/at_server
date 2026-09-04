@@ -163,10 +163,13 @@ abstract class AbstractVerbHandler implements VerbHandler {
   static bool isForeignPerEnrollmentReservedKey(
       String atKey, String? enrollmentId,
       {bool isMutating = false}) {
-    if (!isMutating && atKey.startsWith('public:')) {
+    // NOTE folded with the keystore's own fold, so the tests below are about
+    // the string the store holds rather than the caller's spelling of it.
+    final String key = canonicalAtKey(atKey);
+    if (!isMutating && key.startsWith('public:')) {
       return false;
     }
-    final match = _perEnrollmentReservedKeyRegex.firstMatch(atKey);
+    final match = _perEnrollmentReservedKeyRegex.firstMatch(key);
     if (match == null) {
       return false;
     }
@@ -181,7 +184,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// (`__manage`), i.e. an enrollment record or its encrypted key material
   /// (PEK/SEK).
   static bool isEnrollManageKey(String atKey) {
-    return atKey.contains('.${EnrollmentConstants.enrollManageNamespace}@');
+    return canonicalAtKey(atKey)
+        .contains('.${EnrollmentConstants.enrollManageNamespace}@');
   }
 
   /// Whether this connection may retrieve, modify or delete data in a
@@ -219,8 +223,9 @@ abstract class AbstractVerbHandler implements VerbHandler {
       md.isAuthenticated && md.authType == AuthType.cram;
 
   /// Refuses a write of `privatekey:at_pkam_publickey` by any connection
-  /// except a CRAM connection sending a plain `update`; throws
-  /// [UnAuthorizedException]. Returns for any other key or non-writing verb.
+  /// except a CRAM connection sending `update`, plain or json; `update:meta`
+  /// is refused. Throws [UnAuthorizedException]. Returns for any other key or
+  /// non-writing verb.
   void refuseFlatCredentialWrite(
       InboundConnectionMetadata md, String? atKey) {
     if (atKey == null || !isWritingVerb()) return;

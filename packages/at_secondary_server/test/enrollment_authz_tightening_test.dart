@@ -230,6 +230,71 @@ void main() {
           reason: 'a published signing key stays world-readable');
     });
 
+    // NOTE the keystore folds a key before storing it, so an upper-case
+    // spelling names the same record as its lower-case form.
+
+    test(
+        '*:rw enrollment cannot UPDATE an UPPER-CASE spelling of another '
+        'enrollment\'s a.__e key', () async {
+      await bindWildcardEnrollment();
+      final foreignEnId = Uuid().v4();
+      final foreignKey = '$alice:secret.$foreignEnId.A.__E$alice';
+
+      await expectLater(
+          updateVerbHandler.process(
+              'update:$foreignKey topsecret', inboundConnection),
+          throwsA(isA<UnAuthorizedException>()),
+          reason: 'the guard must fold the caller\'s key the way the '
+              'keystore does, or an upper-case spelling writes another '
+              'enrollment\'s reserved namespace');
+    });
+
+    test(
+        '*:rw enrollment cannot LLOOKUP an UPPER-CASE spelling of another '
+        'enrollment\'s a.__e key', () async {
+      await bindWildcardEnrollment();
+      final foreignEnId = Uuid().v4();
+      final foreignKey = '$alice:secret.$foreignEnId.A.__E$alice';
+      await keyValueStore.put(foreignKey, AtData()..data = 'topsecret');
+
+      await expectLater(
+          localLookupVerbHandler.process(
+              'llookup:$foreignKey', inboundConnection),
+          throwsA(isA<UnAuthorizedException>()),
+          reason: 'an upper-case spelling resolves to the same stored record, '
+              'so it must not read another enrollment\'s reserved namespace');
+      expect(inboundConnection.lastWrittenData ?? '',
+          isNot(contains('topsecret')));
+    });
+
+    test(
+        '*:rw enrollment cannot UPDATE an UPPER-CASE spelling of another '
+        'enrollment\'s PUBLIC a.__e key', () async {
+      await bindWildcardEnrollment();
+      final foreignEnId = Uuid().v4();
+      final foreignKey = 'PUBLIC:_apsk.$foreignEnId.A.__E$alice';
+
+      await expectLater(
+          updateVerbHandler.process(
+              'update:$foreignKey forged', inboundConnection),
+          throwsA(isA<UnAuthorizedException>()),
+          reason: 'the public: exemption is read-only, and it must be decided '
+              'on the folded key, not on the caller\'s capitalisation');
+    });
+
+    test('an enrollment CAN update an UPPER-CASE spelling of its OWN a.__e key',
+        () async {
+      // The control: folding must not refuse the caller's own namespace.
+      final enrollId = await bindWildcardEnrollment();
+      final ownKey = '$alice:mine.$enrollId.A.__E$alice';
+
+      await updateVerbHandler.process(
+          'update:$ownKey myvalue', inboundConnection);
+      expect(inboundConnection.lastWrittenData, contains('data:'),
+          reason: 'own per-enrollment namespace access must be unaffected by '
+              'the fold');
+    });
+
     test('an enrollment CAN still update its OWN public a.__e key', () async {
       // The other control: an enrollment publishing its OWN signing key.
       final enrollId = await bindWildcardEnrollment();
