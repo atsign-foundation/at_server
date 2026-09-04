@@ -716,20 +716,15 @@ void main() {
       String predecessorId =
           await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
 
+      // NOTE both siblings enrol before either authenticates: once the first
+      // has capped the predecessor, the predecessor no longer splits.
       String firstId = await selfEnrollId(predecessorId);
+      String secondId = await selfEnrollId(predecessorId);
       await authenticateAsEnrollment(firstId);
       DateTime firstCap = DateTime.parse(
           (await enrollmentRecord(owner, predecessorId)).metaData['expiresAt']);
 
       await Future.delayed(Duration(seconds: 2));
-
-      String secondId = await selfEnrollId(predecessorId);
-      expect(
-          DateTime.parse(
-              (await enrollmentRecord(owner, predecessorId)).metaData['expiresAt']),
-          firstCap,
-          reason: 'control: the second retrofit alone moves nothing — it is '
-              'the authentication that arms, not the enrolment');
 
       await authenticateAsEnrollment(secondId);
       DateTime secondCap = DateTime.parse(

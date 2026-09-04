@@ -440,6 +440,15 @@ void main() {
       expect(await enMgr.primaryEnrollment(), isNull);
     });
 
+    test('an ECC public key, which is hex rather than base64, is accepted',
+        () async {
+      final String eccHex = '04' + 'ab' * 64;
+      await enMgr.installLegacyKeyIntoPrimary(eccHex);
+      expect((await enMgr.getEnrollmentById(primary)).apkamPublicKey, eccHex,
+          reason: 'an ecc_secp256r1 key is spelled in hex, and the install '
+              'carries no algorithm, so both spellings must be accepted');
+    });
+
     test('a value that is not key material is refused, with nothing written',
         () async {
       await expectLater(

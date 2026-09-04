@@ -225,7 +225,10 @@ class EnrollmentManager {
   Future<void> installLegacyKeyIntoPrimary(String apkamPublicKey) =>
       serialiseMutation(() async {
         if (apkamPublicKey.trim().isEmpty ||
-            apkamKeyMaterial(apkamPublicKey, null) == null) {
+            (apkamKeyMaterial(apkamPublicKey, null) == null &&
+                apkamKeyMaterial(
+                        apkamPublicKey, ApkamSignatureVerifier.eccAlgo) ==
+                    null)) {
           throw IllegalArgumentException(
               'The value is not an APKAM public key: it does not decode as '
               'key material, and $primaryEnrollmentId would stand as an '
