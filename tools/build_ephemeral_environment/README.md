@@ -1,71 +1,139 @@
-# The Ephemeral Environment (EE)
+# How to set up an ephemeral environment
 
-The EE allows the creation of a full atPlatform instance in a single Docker
-container, that can be used and then taken down after use with no trace.
+The ephemeral environment (EE) creates a full atPlatform instance in a single Docker container that can be spun up and torn down with no trace. Unlike the VE (see [how-to-set-up-ve.md](how-to-set-up-ve.md)), the EE generates atSigns and CRAM secrets at startup rather than shipping pre-provisioned demo keys. This makes it better suited for:
 
-## Building the Docker image
+- Staging and CI pipelines (fresh atSigns per run, no shared state)
+- Non-localhost deployments with your own DNS and TLS certificates
+- Scenarios where you want to control exactly which atSigns exist
 
-To build using Docker use the following command from the root of the
-at_server repo:
+An EE container includes:
 
-```sh
-docker build -t <dockeraccount/imagename> \
-  -f tools/build_ephemeral_environment/ee_base/Dockerfile .
+- An atDirectory (root server)
+- Up to 80 atServers (secondaries), one per atSign
+- A Redis database backing the root server
+- supervisord managing all processes (web UI on port 9001)
+- A bundled `at_activate` binary for onboarding atKeys
+
+## Prerequisites
+
+When setting up locally, add `vip.ve.atsign.zone` to your `/etc/hosts` file so it resolves to localhost:
+
+```
+127.0.0.1 vip.ve.atsign.zone
 ```
 
-## Running the container
+The public DNS record for this hostname points to a private IP (`10.64.64.64`) that is not reachable from most networks.
 
-Run the container using the following command structure:
+## Quick start (recommended)
 
-```sh
-docker run -it -e FIRST_PORT=<start port> -p 64:64 \
-  -p 127.0.0.1:9001:9001 -p <start port>-<end port>:<start port>-<end port> \
-  -d dockeraccount/imagename
+Use docker compose. Copy this into a `docker-compose.yaml`:
+
+```yaml
+services:
+  ephemeral:
+    container_name: ee
+    image: atsigncompany/ephemeral:latest
+    ports:
+      - '127.0.0.1:2500-2599:2500-2599'
+    extra_hosts:
+      - 'vip.ve.atsign.zone:127.0.0.1'
+    environment:
+      - EPHEMERAL_BASE_PORT=2500
+      # - DNS_FQDN=rainbow.example.com  # default: vip.ve.atsign.zone
+    # Uncomment below for custom DNS/TLS or custom atSigns:
+    # volumes:
+    #   - /path/to/certs:/atsign/root/certs
+    #   - /path/to/certs:/atsign/secondary/base/certs
+    #   - /path/to/atsigns-file:/tmp/setup/atsigns
+    #
+    # To route all atServer traffic through a single port (e.g. 443) instead
+    # of exposing a port range, set up the atProxyServer:
+    # https://github.com/atsign-foundation/at_services/tree/trunk/packages/at_secondary_proxy
 ```
 
-This will start the container with default certificates that are provided in
-the repo to `vip.ve.atsign.zone` in the same way as the Virtual Environment
-does. This is useful for testing but in actual use you will have to provide a
-valid certificate files for the atServers (secondaries) and map them to
-`/atsign/secondary/base/certs` using the `-v` option and then map a DNS record
-to the container's IP. To tell the container the Fully Qualified DNS to
-configure the atServers use the `DNS_FQDN` environment variable. In addition,
-the atDirectory (root) needs certificates (which can be the same), and they can
-be mapped via `-v` to `/atsign/root/certs`. The atDirectory/atServers need not
-have the same DNS/cert but will have the same IP, atDirectory being on port 64
-and atServers on contiguous ports from `<start port>`.
-
-Pulling this all together an example command looks like this.
+To start:
 
 ```sh
-docker run -it -e DNS_FQDN="rainbow.crushware.com" \
-  -v /tmp/rainbow/certs:/atsign/root/certs \
-  -v /tmp/rainbow/certs:/atsign/secondary/base/certs \
-  -e FIRST_PORT=2500 -p 64:64 -p 127.0.0.1:9001:9001 \
-  -p 2500-2600:2500-2600 -d atsigncompany/ephemeral 
+docker compose up -d
 ```
 
-The CRAM values will be printed out in the log file of the container, and they
-can be used to create atKeys via at_activate for example.
+To stop:
+
+```sh
+docker compose down
+```
+
+## Port layout
+
+With `EPHEMERAL_BASE_PORT=2500`, services bind to:
+
+| Service | Port | Expose? |
+|---------|------|---------|
+| atDirectory | 2500 (`BASE`) | Yes |
+| atServers | 2501-2580 (`BASE+1` .. `BASE+80`) | Yes |
+| (reserved) | 2581-2598 (`BASE+81` .. `BASE+98`) | No |
+| Redis | 2599 (`BASE+99`) | Optional, localhost only |
+
+All ports in the compose example are bound to `127.0.0.1` to avoid exposing services to the network.
+
+## Activating atSigns
+
+### Getting CRAM secrets
+
+By default, 26 atSigns are created using the NATO phonetic alphabet (@alpha through @zulu). Their CRAM secrets are printed to the container log on startup:
+
+```sh
+docker compose logs ephemeral
+```
+
+The output contains lines like:
+
+```
+alpha		4df10914d207e8d70ec6d21801c4621b2e5f08bc783b8c6b182df34e3ba6c8ca
+bravo		a1b2c3d4e5f6...
+```
+
+The first column is the atSign name (without `@`), the second is the CRAM secret.
+
+If the logs are lost, the secrets are also stored inside the container at `/tmp/CRAM_Keys`:
+
+```sh
+docker exec ee cat /tmp/CRAM_Keys
+```
+
+To extract a single atSign's CRAM secret (e.g. @bravo):
+
+```sh
+docker exec ee grep '^bravo' /tmp/CRAM_Keys | awk '{print $2}'
+```
+
+### Onboarding with at_activate
+
+Use `at_activate` with a CRAM secret to generate .atKeys files:
 
 ```sh
 at_activate onboard -a @bravo \
-  -c 4df10914d207e8d70ec6d21801c4621b2e5f08bc783b8c6b182df34e3ba6c8ca \
-  -r rainbow.crushware.com -v
+  -c <cram-secret-from-logs> \
+  -r vip.ve.atsign.zone -v
 ```
 
-Once the atKeys have been created Atsign applications can be used as normal
-but with the additional argument of the new root server for example:
+If using a non-default root domain:
 
 ```sh
-sshnp --root-domain rainbow.crushware.com -f @alpha -t @bravo -d test -r @zulu
+at_activate onboard -a @bravo \
+  -c <cram-secret-from-logs> \
+  -r rainbow.example.com -v
 ```
 
-By default, 26 atSigns are created using the Phonetic Alphabet from @alpha to
-@zulu. This can be overridden by creating a file listing the atSigns you
-would like and mounting it at /tmp/setup/atsigns.
+Once onboarded, the .atKeys file is written locally and the atSign is PKAM-ready. Use atPlatform apps as normal, passing the root domain if it is not the default:
 
-For example the atsigns file could contain:
+```sh
+sshnp --root-domain rainbow.example.com -f @alpha -t @bravo -d test -r @zulu
+```
+
+## Custom atSigns
+
+To override the default 26 atSigns, create a file listing one atSign name per line (without the `@` prefix):
 
 ```txt
 one
@@ -75,62 +143,92 @@ four
 five
 ```
 
-This would create the five atSigns instead of the defaults, for example:
+Mount it into the container at `/tmp/setup/atsigns`:
 
-```sh
- docker run -it -e DNS_FQDN="rainbow.crushware.com" \
-   -v /tmp/rainbow/certs:/atsign/root/certs \
-   -v /tmp/rainbow/certs:/atsign/secondary/base/certs \
-   -v/tmp/atsigns:/tmp/setup/atsigns \
-   -e FIRST_PORT=2500 -p 64:64 -p 127.0.0.1:9001:9001 \
-   -p 2500-2600:2500-2600 -d atsigncompany/ephemeral 
+```yaml
+volumes:
+  - /path/to/my-atsigns:/tmp/setup/atsigns
 ```
 
-## Monitoring and administration of the running container
+## Custom DNS and TLS
 
-By default, the admin interface is available via:
+For non-localhost deployments, set `DNS_FQDN` and mount your TLS certificates:
 
-[http://localhost:9001/](http://localhost:9001/)
-
-Logs of each process/atSign are visible and can be restarted if required.
-
-A copy of the CRAM values for each atSign can be found inside the container
-in the file `/tmp/CRAM_keys` if the docker logs are lost.
-
-## Running multiple EEs side-by-side (`EPHEMERAL_BASE_PORT` mode)
-
-The container also supports an alternative startup mode in which every
-service it exposes is shifted into a contiguous 100-port range starting
-at a base port you choose. This lets several EEs coexist on one host
-without colliding — useful primarily for testing.
-
-Set `EPHEMERAL_BASE_PORT` to the lowest port you want to claim and the
-container will bind:
-
-| Service     | Port range                                             |
-|-------------|--------------------------------------------------------|
-| atDirectory | `EPHEMERAL_BASE_PORT`                                  |
-| atServers   | `EPHEMERAL_BASE_PORT + 1 .. EPHEMERAL_BASE_PORT + 80`  |
-| (reserved)  | `EPHEMERAL_BASE_PORT + 81 .. EPHEMERAL_BASE_PORT + 98` |
-| Redis       | `EPHEMERAL_BASE_PORT + 99`                             |
-
-When `EPHEMERAL_BASE_PORT` is unset the container behaves exactly as
-described above (atDirectory on 64, Redis on 6379, atServers from
-`FIRST_PORT`). Setting `EPHEMERAL_BASE_PORT` overrides `FIRST_PORT`.
-
-The easiest path is the `runee.sh` helper, which generates a
-per-container docker-compose file and brings the EE up:
-
-```sh
-./tools/build_ephemeral_environment/runee.sh ee-a 2500
-./tools/build_ephemeral_environment/runee.sh ee-b 2600
+```yaml
+environment:
+  - EPHEMERAL_BASE_PORT=2500
+  - DNS_FQDN=rainbow.example.com
+volumes:
+  - /path/to/certs:/atsign/root/certs
+  - /path/to/certs:/atsign/secondary/base/certs
 ```
 
-Both EEs are now running on the same host with no port conflict; ee-a's
-atDirectory is on 2500 and ee-b's is on 2600. Use `at_activate` against
-each one with the corresponding root domain / port.
+The atDirectory and atServers can share the same certificate. The DNS record must resolve to the container's IP.
 
-A sample docker-compose file is also provided at
-`tools/build_ephemeral_environment/docker-compose.yaml`; copy it as a
-starting point if you want to wire the EE into a larger compose stack
-rather than use `runee.sh`.
+## Proxy server
+
+To route all atServer traffic through a single port instead of exposing the full `BASE+1` .. `BASE+80` range, add the `at_proxyserver` container alongside the EE:
+
+```yaml
+services:
+  ephemeral:
+    container_name: ee
+    image: atsigncompany/ephemeral:latest
+    ports:
+      - '127.0.0.1:2500:2500'
+    extra_hosts:
+      - 'vip.ve.atsign.zone:127.0.0.1'
+    environment:
+      - EPHEMERAL_BASE_PORT=2500
+
+  proxy:
+    container_name: ee-proxy
+    image: atsigncompany/at_proxyserver
+    command: >-
+      --proxy-url vip.ve.atsign.zone:443
+      --root-url vip.ve.atsign.zone:2500
+      --bind-port 443
+      --cert-dir /atsign/certs
+    ports:
+      - '443:443'
+    extra_hosts:
+      - 'vip.ve.atsign.zone:127.0.0.1'
+    # volumes:
+    #   - /path/to/certs:/atsign/certs  # mount your own certs for non-localhost
+```
+
+With this setup, clients connect to `vip.ve.atsign.zone:443` and the proxy routes to the correct atServer internally. You only expose two ports: 2500 (atDirectory) and 443 (proxy).
+
+## Running multiple EEs side-by-side
+
+To run multiple EEs on one host, create a separate compose file per instance with a different base port:
+
+```yaml
+name: ee-a
+services:
+  ephemeral:
+    container_name: ee-a
+    image: atsigncompany/ephemeral:latest
+    ports:
+      - '127.0.0.1:2500-2599:2500-2599'
+    extra_hosts:
+      - 'vip.ve.atsign.zone:127.0.0.1'
+    environment:
+      - EPHEMERAL_BASE_PORT=2500
+```
+
+For a second EE, copy the file, change the name, container name, and base port (e.g. 2600), and `docker compose -f <file> up -d`.
+
+ee-a's atDirectory is on port 2500, ee-b's on port 2600. No port collisions.
+
+## Monitoring
+
+Expose port 9001 to access the supervisord web UI at `http://localhost:9001/`. From there you can view logs and restart individual atSign processes.
+
+To expose it, add to the ports list:
+
+```yaml
+ports:
+  - '127.0.0.1:2500-2599:2500-2599'
+  - '127.0.0.1:9001:9001'
+```
