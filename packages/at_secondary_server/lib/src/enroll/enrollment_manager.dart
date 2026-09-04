@@ -129,16 +129,24 @@ class EnrollmentManager {
   }
 
   /// Rotates [primaryEnrollmentId] onto [apkamPublicKey], leaving everything
-  /// else about the record, its status included, as it stands.
+  /// else about the record as it stands, save that [reapprove] lifts a
+  /// revoked primary back to approved.
   Future<void> _rotatePrimary(String apkamPublicKey, String? signingAlgo,
-      EnrollDataStoreValue primary) async {
+      EnrollDataStoreValue primary,
+      {bool reapprove = false}) async {
     await _shoutOtherHoldersOf(apkamPublicKey, signingAlgo);
     primary
       ..apkamPublicKey = apkamPublicKey
       ..signingAlgo = signingAlgo;
-    final EnrollmentStatus status =
+    EnrollmentStatus status =
         EnrollmentStatus.values.asNameMap()[primary.approval?.state ?? ''] ??
             EnrollmentStatus.approved;
+    if (reapprove && status == EnrollmentStatus.revoked) {
+      status = EnrollmentStatus.approved;
+      primary.approval = EnrollApproval(EnrollmentStatus.approved.name);
+      logger.info('Re-approved enrollment $primaryEnrollmentId: the caller '
+          'holds the atSign\'s creation secret');
+    }
     final String ek = buildEnrollmentKey(primaryEnrollmentId);
     final AtData record = (await keyStore.get(ek)) ?? AtData();
     record.data = jsonEncode(primary.toJson());
@@ -189,9 +197,27 @@ class EnrollmentManager {
         return true;
       });
 
+  /// Lifts a revoked [primaryEnrollmentId] back to approved, leaving its key
+  /// material and its stored expiry as they stand.
+  Future<void> _reapprovePrimary(EnrollDataStoreValue primary) async {
+    primary.approval = EnrollApproval(EnrollmentStatus.approved.name);
+    final String ek = buildEnrollmentKey(primaryEnrollmentId);
+    final AtData record = (await keyStore.get(ek)) ?? AtData();
+    record.data = jsonEncode(primary.toJson());
+    final DateTime? storedExpiry = record.metaData?.expiresAt;
+    await put(primaryEnrollmentId, record, EnrollmentStatus.approved,
+        assertedTimestamps: storedExpiry == null
+            ? null
+            : AtAssertedTimestamps(expiresAt: storedExpiry));
+    logger.shout('Re-approved enrollment $primaryEnrollmentId, which already '
+        'holds the key being installed; the caller holds the atSign\'s '
+        'creation secret');
+  }
+
   /// Redirects a CRAM connection's `update` of the atSign's legacy credential
-  /// into [primaryEnrollmentId], minting or rotating `primary` and writing no
-  /// flat key.
+  /// into [primaryEnrollmentId], minting or rotating `primary`, re-approving
+  /// a revoked `primary` whether it rotates or already holds the key, and
+  /// writing no flat key.
   ///
   /// Throws [IllegalStateException] when a stored enrollment other than
   /// `primary` already holds the key, and [IllegalArgumentException] when
@@ -219,7 +245,9 @@ class EnrollmentManager {
           await mintPrimary(apkamPublicKey);
         } else if (!sameApkamKeyMaterial(apkamPublicKey, null,
             primary.apkamPublicKey, primary.signingAlgo)) {
-          await _rotatePrimary(apkamPublicKey, null, primary);
+          await _rotatePrimary(apkamPublicKey, null, primary, reapprove: true);
+        } else if (primary.approval?.state == EnrollmentStatus.revoked.name) {
+          await _reapprovePrimary(primary);
         }
       });
 
@@ -271,14 +299,17 @@ class EnrollmentManager {
             'enrollment is what a client should authenticate as');
         return StartupFlatKeyOutcome.deletedAsCopyOfRoot;
       }
-      logger.shout('The keypair of ${value.approval?.state} enrollment $id '
-          'is reinstated as $primaryEnrollmentId because nothing else '
-          'survives: no other approved, fully privileged enrollment without '
-          'an expiry holds a key');
     }
 
     final EnrollDataStoreValue? primary = await primaryEnrollment();
     if (primary == null) {
+      if (rootHolder != null) {
+        final (String id, EnrollDataStoreValue value) = rootHolder;
+        logger.shout('The keypair of ${value.approval?.state} enrollment $id '
+            'is reinstated as $primaryEnrollmentId because nothing else '
+            'survives: no other approved, fully privileged enrollment '
+            'without an expiry holds a key');
+      }
       await mintPrimary(flat);
       await _deleteFlatKey();
       return StartupFlatKeyOutcome.migratedIntoPrimary;
@@ -295,7 +326,10 @@ class EnrollmentManager {
         '(${AtConstants.atPkamPublicKey}) that held a key '
         '$primaryEnrollmentId does not: a key lying in the store at startup '
         'is not an owner\'s act on the wire, and it is not absorbed. '
-        '$primaryEnrollmentId is untouched');
+        '$primaryEnrollmentId is untouched'
+        '${rootHolder == null ? '' : ', and the keypair of enrollment '
+            '${rootHolder.$1} (${rootHolder.$2.approval?.state}) is not '
+            'reinstated'}');
     return StartupFlatKeyOutcome.deletedAsStray;
   }
 

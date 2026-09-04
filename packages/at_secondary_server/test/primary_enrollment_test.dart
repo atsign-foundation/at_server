@@ -334,6 +334,32 @@ void main() {
           'PRIMARY_KEY');
     });
 
+    test('a stray flat key that a revoked root also holds is deleted without '
+        'the log claiming a reinstatement', () async {
+      // primary expires, so it is not the unexpiring root that would make
+      // the flat key a deletable copy.
+      await storeRoot(primary, 'PRIMARY_KEY', ttl: Duration(days: 1));
+      await storeRoot('revoked-root', 'STRAY_KEY',
+          status: EnrollmentStatus.revoked);
+      await installFlatKey('STRAY_KEY');
+
+      final List<String> shouts = [];
+      final sub = enMgr.logger.logger.onRecord
+          .listen((record) => shouts.add('${record.message}'));
+
+      expect(await enMgr.migrateFlatKeyAtStartup(),
+          StartupFlatKeyOutcome.deletedAsStray);
+      await sub.cancel();
+
+      expect((await enMgr.getEnrollmentById(primary)).apkamPublicKey,
+          'PRIMARY_KEY',
+          reason: 'primary stands, so nothing was reinstated as it');
+      expect(shouts.where((m) => m.contains('is reinstated as')), isEmpty,
+          reason: 'the flat key was deleted and primary left alone; a log '
+              'saying the revoked root was reinstated names an act that did '
+              'not happen');
+    });
+
     test('a root holding the key under another spelling is still its holder',
         () async {
       await storeRoot('ecc-root', 'deadbeef', signingAlgo: 'ecc_secp256r1');
@@ -367,6 +393,38 @@ void main() {
       expect((await enMgr.getEnrollmentById(primary)).apkamPublicKey,
           'SECONDKEYAAA');
       expect(await flatKeyExists(), isFalse);
+    });
+
+    test('a CRAM install re-approves a revoked primary', () async {
+      await storeRoot(primary, 'FIRSTKEYAAAA',
+          status: EnrollmentStatus.revoked);
+
+      await enMgr.installLegacyKeyIntoPrimary('SECONDKEYAAA');
+
+      final EnrollDataStoreValue v = await enMgr.getEnrollmentById(primary);
+      expect(v.apkamPublicKey, 'SECONDKEYAAA');
+      expect(v.approval?.state, EnrollmentStatus.approved.name,
+          reason: 'the caller holds the atSign\'s creation secret, so the '
+              'install reinstates primary as well as rotating its key');
+    });
+
+    test('a CRAM install re-approves a revoked primary that already holds '
+        'the key', () async {
+      await storeRoot(primary, 'KEYAAAAA', status: EnrollmentStatus.revoked);
+
+      await enMgr.installLegacyKeyIntoPrimary('KEYAAAAA');
+
+      final EnrollDataStoreValue v = await enMgr.getEnrollmentById(primary);
+      expect(v.approval?.state, EnrollmentStatus.approved.name,
+          reason: 'the caller holds the atSign\'s creation secret, so the '
+              'install reinstates primary even though there is no key to '
+              'rotate onto');
+      expect(v.apkamPublicKey, 'KEYAAAAA',
+          reason: 'primary already holds the installed key');
+      expect(await enMgr.getAllEnrollmentKeys(includeExpired: true),
+          hasLength(1),
+          reason: 'the install reinstates primary rather than minting a '
+              'second enrollment');
     });
 
     test('is subject to key uniqueness: a key another enrollment holds is '
