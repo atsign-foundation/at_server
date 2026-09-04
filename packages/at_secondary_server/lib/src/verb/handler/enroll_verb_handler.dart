@@ -316,13 +316,19 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       }
     }
 
+    // `expiresAt` is the effective expiry — the posture at approval or the
+    // retrofit cap, whichever set it last — read from the record's metadata,
+    // because a client cannot read that record any other way.
     return jsonEncode({
       'appName': enrollDataStoreValue.appName,
       'deviceName': enrollDataStoreValue.deviceName,
       'namespace': enrollDataStoreValue.namespaces,
       'encryptedAPKAMSymmetricKey':
           enrollDataStoreValue.encryptedAPKAMSymmetricKey,
-      'status': enrollDataStoreValue.approval?.state
+      'status': enrollDataStoreValue.approval?.state,
+      'expiresAt': EnrollmentManager.expiresAtField(
+          await enMgr.effectiveExpiryOf(
+              enMgr.buildEnrollmentKey(targetEnrollmentId))),
     });
   }
 
@@ -1689,7 +1695,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         // The caller's OWN record, whole: it is this enrollment's own key
         // material, which the client that holds the enrollment already has.
         String ek = enMgr.buildEnrollmentKey(authenticatedEnrollmentId);
-        jsonMap[ek] = enrollDataStoreValue.toJsonExtended();
+        jsonMap[ek] = enrollDataStoreValue.toJsonExtended()
+          ..['expiresAt'] = EnrollmentManager.expiresAtField(
+              await enMgr.effectiveExpiryOf(ek));
       }
       return jsonEncode(jsonMap);
     }

@@ -993,6 +993,26 @@ class EnrollmentManager {
   /// it is answering, because the full record carries the wrapped APKAM
   /// symmetric key and a caller that gets it by omission is the defect this
   /// parameter exists to prevent.
+  /// When the record for [enrollmentKey] stops being served, in UTC, or null
+  /// when it never does.
+  ///
+  /// This is the enrollment's EFFECTIVE expiry: whatever set it last — the
+  /// key-expiry posture at approval, the retrofit cap, or nothing. It lives
+  /// on the record's metadata rather than in [EnrollDataStoreValue], so the
+  /// value's own JSON cannot carry it and every projection that reports it
+  /// reads it from here. A client has no other way to learn it: the record
+  /// is a `__manage` key, which no enrollment may read with a data verb.
+  Future<DateTime?> effectiveExpiryOf(String enrollmentKey) async =>
+      (await keyStore.get(enrollmentKey))?.metaData?.expiresAt?.toUtc();
+
+  /// The wire form of [effectiveExpiryOf]: ISO-8601 in UTC, or null.
+  ///
+  /// The key is emitted ALWAYS, null when there is no expiry. An absent key
+  /// and a key a client failed to parse are the same thing to a careless
+  /// reader; an explicit null is an answer.
+  static String? expiresAtField(DateTime? expiry) =>
+      expiry?.toUtc().toIso8601String();
+
   Future<Map<String, Map<String, dynamic>>> getEnrollmentsAsJson(
       {required bool redactSecrets,
       List<String>? ekList,
@@ -1018,8 +1038,12 @@ class EnrollmentManager {
       if (statuses == null ||
           statuses.contains(
               EnrollmentStatus.values.byName(enVal.approval!.state))) {
-        ejList[ek] =
+        final Map<String, dynamic> entry =
             redactSecrets ? enVal.toJsonRoster() : enVal.toJsonExtended();
+        // Both projections carry the effective expiry: it is a fact about
+        // when the enrollment stops authenticating, not key material.
+        entry['expiresAt'] = expiresAtField(await effectiveExpiryOf(ek));
+        ejList[ek] = entry;
       }
     }
     return ejList;

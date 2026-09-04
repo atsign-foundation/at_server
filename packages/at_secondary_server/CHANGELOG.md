@@ -115,6 +115,17 @@
   approved BEFORE the upgrade carry no parent and stay outside the cascade;
   ones approved after carry `primary`.
 
+- feat: `enroll:fetch` and `enroll:list` report each enrollment's effective
+  expiry as `expiresAt` — ISO-8601 UTC, or null when the record never
+  expires — on every projection of `enroll:list` (the whole record, the
+  roster, and an enrollment's own entry). It is the record's own expiry,
+  whatever set it last: the key-expiry posture at approval or the retrofit
+  cap. A client used to read it with `llookup:meta` on the `__manage` record
+  over a connection carrying no enrollment id; that connection now carries
+  `primary`, and no enrollment may read a `__manage` record with a data verb,
+  so without the field no client could learn when a credential stops
+  authenticating.
+
   ⚠️ Rollback is one-way for a client that sends no enrollment id. An older
   server accepts `pkam:enrollmentId:primary:` as an ordinary record, but an
   id-less `pkam:` against it fails, because the flat key is gone.

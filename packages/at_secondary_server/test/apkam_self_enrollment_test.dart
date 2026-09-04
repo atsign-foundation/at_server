@@ -3008,13 +3008,29 @@ void main() {
 
       await enMgr.armRetrofitCapOnFirstAuth(successorId);
 
-      expect(
+      final DateTime? capped =
           (await keyValueStore.get(enMgr.buildEnrollmentKey(middleId)))
               ?.metaData
-              ?.expiresAt,
-          isNotNull,
+              ?.expiresAt;
+      expect(capped, isNotNull,
           reason: 'precondition: the cap really did arm — otherwise nothing '
               'was adopted because nothing was being retired');
+
+      // The cap is the record's expiry, and the record is a `__manage` key
+      // no enrollment may read with a data verb — so enroll:fetch's
+      // `expiresAt` is the one route a client has to the deadline the cap
+      // imposed.
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.enrollmentId = etu.primaryEnId;
+      final fetched = Response();
+      await etu.evh.processVerb(
+          fetched,
+          getVerbParam(VerbSyntax.enroll,
+              'enroll:fetch:{"enrollmentId":"$middleId"}'),
+          inboundConnection);
+      expect(DateTime.parse(jsonDecode(fetched.data!)['expiresAt']),
+          capped!.toUtc(),
+          reason: 'what a client reads through enroll:fetch is the cap itself');
       expect(await enMgr.descendantsOf(successorId), contains(behindId),
           reason: 'the successor stands where its predecessor stood, so what '
               'the predecessor admitted hangs off it now');
