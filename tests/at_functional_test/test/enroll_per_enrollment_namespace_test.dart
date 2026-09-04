@@ -109,12 +109,14 @@ void main() {
         () async {
       // Primary CRAM enrollment (has __manage + *:rw) — it will approve.
       await firstAtSignConnection.authenticateConnection(authType: AuthType.cram);
+      ApkamKeys primaryKeys = mintApkamKeys();
       String primaryEnroll =
-          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${mintApkamKeys().publicKey}"}\n';
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${primaryKeys.publicKey}"}\n';
       var primaryJson = jsonDecode(
           (await firstAtSignConnection.sendRequestToServer(primaryEnroll))
               .replaceAll('data:', ''));
       expect(primaryJson['status'], 'approved');
+      String primaryEnrollmentId = primaryJson['enrollmentId'];
 
       // A second enrollment, requested with an OTP from a second connection.
       String otp = (await firstAtSignConnection.sendRequestToServer('otp:get'))
@@ -154,11 +156,23 @@ void main() {
           'data:topsecret');
       await secondConnection.close();
 
-      // The primary holds *:rw + __manage, yet must NOT be able to read another
-      // enrollment's per-enrollment reserved-namespace (a.__e) data. (The
-      // a -> r/d lifecycle move on revoke/delete is verified by the server unit
-      // tests, which observe the keystore directly; it is intentionally no
-      // longer observable cross-enrollment over the wire.)
+      // The socket that minted the primary is still a CRAM connection, the
+      // atSign itself, and reads anything.
+      expect(
+          await firstAtSignConnection.sendRequestToServer('llookup:$approvedKey'),
+          'data:topsecret',
+          reason: 'a CRAM connection is the atSign, whatever it has enrolled');
+
+      // The primary ENROLLMENT holds *:rw + __manage, yet must NOT be able to
+      // read another enrollment's per-enrollment reserved-namespace (a.__e)
+      // data. Authenticated as that enrollment, over APKAM, as a client would.
+      await firstAtSignConnection.close();
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.apkam,
+          enrollmentId: primaryEnrollmentId,
+          privateKey: primaryKeys.privateKey);
       String crossRead = await firstAtSignConnection
           .sendRequestToServer('llookup:$approvedKey');
       expect(crossRead, isNot(contains('topsecret')),

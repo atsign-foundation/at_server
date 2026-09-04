@@ -126,8 +126,11 @@
   that is not CRAM is refused rather than admitted. The change a client can
   see: an unauthenticated connection reaching an authorisation check through
   a verb that needs no authentication (`notify:all`, `notify:status`) is now
-  refused where the null id admitted it. `isAuthorizedSync` takes a
-  `cram` argument. The CRAM auto-approve on `enroll:request` and the
+  refused where the null id admitted it. A CRAM connection that has
+  enrolled stays CRAM for the life of the socket: it holds the atSign's
+  creation secret, and the enrollment it minted governs later `pkam:`
+  sessions, not this one; previously the socket was narrowed to that
+  enrollment. `isAuthorizedSync` takes a `cram` argument. The CRAM auto-approve on `enroll:request` and the
   mandatory-namespace exemption are keyed the same way, so a socket whose
   CRAM authentication was followed by a failed `pkam:` is no longer CRAM
   for either.
