@@ -8,9 +8,8 @@ import 'package:at_secondary/src/verb/handler/abstract_update_verb_handler.dart'
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 
-// UpdateVerbHandler is used to process update verb
-// update can be used to update the public/private keys
-// Ex: update:public:email@alice alice@atsign.com \n
+/// Handles `update:`, which writes a value and its metadata to the keystore.
+/// Ex: `update:public:email@alice alice@atsign.com`
 class UpdateVerbHandler extends AbstractUpdateVerbHandler {
   static Update update = Update();
 
@@ -21,21 +20,15 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
     super.atSign,
   );
 
-  // Method to verify whether command is accepted or not
-  // Input: command
   @override
   bool accept(String command) =>
       command.startsWith('update:') && !command.startsWith('update:meta');
 
-  // Method to return Instance of verb belongs to this VerbHandler
   @override
   Verb getVerb() {
     return update;
   }
 
-  // Method which will process update Verb
-  // This will process given verb and write response to response object
-  // Input : Response, verbParams, AtConnection
   @override
   Future<void> processVerb(
       Response response,
@@ -43,9 +36,9 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
       InboundConnection atConnection) async {
     UpdateParams updateParams = getUpdateParams(verbParams);
 
-    // Lowercased: the keystore canonicalizes keys to lowercase, so two
-    // case-variants of one command name the same stored record and must
-    // contend for the same mutex.
+    // Lowercased because the keystore folds keys to lowercase, so two
+    // case-variants of one command name the same record and must contend for
+    // the same mutex.
     String dataStoreKey = getDataStoreKey(updateParams).toLowerCase();
 
     final mutexRef = updateMutexes.putIfAbsent(dataStoreKey, MutexRef.new);
@@ -66,11 +59,10 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
       );
 
       // A write of the flat legacy credential that the gate in isAuthorized
-      // admitted — CRAM, in any mode; the virtual environment installing an
-      // atSign's keypair — installs the value as the `primary` enrollment
-      // instead. The flat key itself is never written, so none exists on a
-      // running server in any mode. Nothing is committed, which is what the
-      // flat key's own write answered too.
+      // admitted, which is a CRAM connection installing an atSign's first
+      // keypair, is redirected into the `primary` enrollment. The flat key is
+      // never written, so none exists on a running server, and nothing is
+      // committed for it.
       if (canonicalAtKey(updatePreProcessResult.atKey) ==
           AtConstants.atPkamPublicKey) {
         await AtSecondaryServerImpl.getInstance()
@@ -80,10 +72,8 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
         return;
       }
 
-      // update the key in data store. The :nc flag maps to skipCommit
-      // (write no commit entry AND purge the key's existing one, so the
-      // response is -1); asserted timestamps — the request's own plus the
-      // silent-write expiry carry — are stored faithfully.
+      // The :nc flag maps to skipCommit: write no commit entry and purge the
+      // key's existing one, so the response is -1.
       var result = await keyStore.put(
         updatePreProcessResult.atKey,
         updatePreProcessResult.atData,
@@ -92,8 +82,7 @@ class UpdateVerbHandler extends AbstractUpdateVerbHandler {
       );
       response.data = result?.toString();
 
-      // Queue the auto-notification from the STORED record, after the
-      // write — see notifyAfterStore.
+      // Queued from the STORED record, after the write; see notifyAfterStore.
       await super.notifyAfterStore(verbParams, updateParams,
           updatePreProcessResult);
     } finally {

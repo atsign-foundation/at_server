@@ -77,7 +77,6 @@ void main() async {
     late PkamVerbHandler pkamVerbHandler;
 
     setUp(() {
-      // dummy enroll value
       enrollData = EnrollDataStoreValue(
           'enrollId', 'unit_test', 'test_device', 'dummy_public_key');
       AtSecondaryServerImpl.getInstance().enrollmentManager =
@@ -150,21 +149,10 @@ void main() async {
       String enId = Uuid().v4();
       String ek = enMgr.buildEnrollmentKey(enId);
 
-      // PERMISSIVE, and then verified NEVER CALLED. This test used to stub
-      // four exact removes — the enrollment key, its two encryption keys and
-      // the legacy APKAM public key — because reading an expired enrollment
-      // used to REAP it. Three of those four stubbed the key the production
-      // code was about to build by calling the very builder that builds it,
-      // so they matched whatever that builder produced and could not fail;
-      // and the reap they were written for is gone, so as exact stubs they
-      // matched nothing at all.
-      //
-      // A permissive stub is what makes the assertion below say something. An
-      // unstubbed `remove` on a mock returns null through noSuchMethod and
-      // blows up on the await, so a reap that came back would fail this test
-      // on a TypeError naming neither the reap nor this assertion — red for
-      // the wrong reason. Stubbed, a reap SUCCEEDS silently, and verifyNever
-      // is then the only thing that reports it.
+      // Permissive on purpose, so that the verifyNever below is what
+      // reports a removal. An unstubbed `remove` returns null through
+      // noSuchMethod and blows up on the await, failing this test on a
+      // TypeError that names neither the removal nor the assertion.
       when(() => mockKeyStore.remove(any(),
           skipCommit: any(named: 'skipCommit'))).thenAnswer((_) async => null);
 
@@ -182,12 +170,9 @@ void main() async {
       expect(apkamResult.response.errorMessage,
           'enrollment_id: $enId is expired or invalid');
 
-      // A READ path must not write. An authorisation check runs on every verb
-      // command, outside the atSign's enrollment-mutation critical section, so
-      // a reap here is a store mutation taken by a caller that has decided
-      // nothing while another mutation is in flight — and `remove` fires the
-      // pre-remove hook, which moves per-enrollment data across several
-      // awaits.
+      // A read path must not write: this check runs on every verb command,
+      // outside the enrollment-mutation critical section, so a removal here
+      // would mutate the store while another mutation is in flight.
       verifyNever(
           () => mockKeyStore.remove(any(), skipCommit: any(named: 'skipCommit')));
     });
@@ -244,18 +229,14 @@ void main() async {
 
     test('authenticates with NO enrollment id, migrates into primary, and '
         'keeps working', () async {
-      // The flat credential — the key at `at_pkam_publickey`, which a
-      // `pkam:` carrying no enrollment id used to be verified against. There
-      // are atSigns in the field whose only credential is this one, so it has
-      // to go on working. BEHAVIOUR CHANGED: the first such login migrates
-      // the key into the `primary` enrollment and deletes the flat key, and
-      // the connection carries `primary`; the second login verifies against
-      // the record. What must not change is that the keypair keeps
-      // authenticating.
+      // The flat credential at `at_pkam_publickey` is the only credential
+      // some atSigns in the field hold. The first legacy login migrates it
+      // into the `primary` enrollment and deletes the flat key; the second
+      // verifies against that record.
       //
-      // ⚠️ Deliberately does NOT re-seed the key between the two
-      // authentications — re-seeding would paper over a migration that left
-      // nothing to verify against.
+      // ⚠️ The key is deliberately not re-seeded between the two logins:
+      // re-seeding would paper over a migration that left nothing to verify
+      // against.
       final mlDsa = await MlDsa65PureDartAlgo().generateKeyPair();
       await keyValueStore.put(AtConstants.atPkamPublicKey,
           AtData()..data = base64Encode(mlDsa.publicKey),

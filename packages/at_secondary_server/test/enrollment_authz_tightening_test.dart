@@ -12,21 +12,16 @@ import 'package:uuid/uuid.dart';
 
 import 'test_utils.dart';
 
-/// Locks in the APKAM authorization tightening:
-///   1. An enrollment (even one holding `*:rw`) must NOT reach another
-///      enrollment's per-enrollment reserved namespace (`<otherId>.a|r|d.__e`),
-///      which the `*` wildcard fallback previously granted.
-///   2. A `*:rw` enrollment that does NOT hold `__manage` explicitly must NOT
-///      reach `__manage` keys (enrollment records / PEK / SEK) via any generic
-///      data verb — the `*` fallback previously laundered `__manage` into `*`
-///      and bypassed the `__manage` guard.
-///   3. A `public:` key in another enrollment's reserved namespace is
-///      world-READABLE and is NOT world-writable. The published
-///      `public:_apsk.<id>.a.__e@` signing key is what a verifier resolves, so
-///      whoever can write it controls the algorithms and key ids the victim is
-///      trusted under — forgery, not vandalism.
-/// An enrollment's access to its OWN per-enrollment namespace is unchanged,
-/// public or not.
+/// Pins the limits of an enrollment's authorization, all of which a `*:rw`
+/// grant must not escape. An enrollment cannot reach another enrollment's
+/// per-enrollment reserved namespace (`<otherId>.a|r|d.__e`); a `*:rw`
+/// enrollment not holding `__manage` explicitly cannot reach `__manage`
+/// keys (enrollment records, PEK, SEK) through a generic data verb; and a
+/// `public:` key in a foreign reserved namespace is world-readable but not
+/// world-writable, because the published `public:_apsk.<id>.a.__e@` signing
+/// key is what a verifier resolves, so writing it forges the key ids the
+/// victim is trusted under. Access to an enrollment's OWN per-enrollment
+/// namespace, public or not, is untouched.
 void main() {
   AtSignLogger.root_level = 'WARNING';
 
@@ -72,7 +67,7 @@ void main() {
       return enrollId;
     }
 
-    // ---- Q1: cross-enrollment per-enrollment (a.__e) data ----
+    // ---- cross-enrollment per-enrollment (a.__e) data ----
 
     test('*:rw enrollment cannot UPDATE another enrollment\'s a.__e key',
         () async {
@@ -105,7 +100,7 @@ void main() {
           isNot(contains('topsecret')));
     });
 
-    // ---- update:meta is a WRITE, and was refused to every enrollment ----
+    // ---- update:meta is a WRITE, gated per namespace ----
 
     /// Binds an approved enrollment holding exactly [namespaces].
     Future<String> bindEnrollment(Map<String, String> namespaces) async {
@@ -137,12 +132,10 @@ void main() {
 
     test('an enrollment holding rw on the namespace CAN update:meta',
         () async {
-      // Issue #2691. `UpdateMeta` extends `Verb` rather than `Update` and was
-      // in neither the read nor the write allow-list, so the namespace check
-      // returned false for EVERY access level — `*:rw` included — and the
-      // verb was refused to every enrollment. It went unnoticed because a
-      // connection carrying no enrollment id skipped the check altogether,
-      // which was every legacy and CRAM connection.
+      // `UpdateMeta` extends `Verb` rather than `Update`, so it has to be
+      // in the write allow-list explicitly or the namespace check refuses
+      // it at every access level. A connection carrying no enrollment id
+      // skips the check, so only enrollments notice.
       final key = '@bob:phone.wavi$alice';
       await seedAsOwner(key);
       await bindEnrollment({'wavi': 'rw'});
@@ -157,9 +150,8 @@ void main() {
     });
 
     test('...and one holding only r on it may NOT', () async {
-      // The control. Without it the test above would be satisfied by
-      // "update:meta is allowed to everyone", which is the opposite defect
-      // and just as wrong.
+      // The control: without it the test above is satisfied by
+      // "update:meta is allowed to everyone", the opposite defect.
       final key = '@bob:phone.wavi$alice';
       await seedAsOwner(key);
       await bindEnrollment({'wavi': 'r'});
@@ -197,11 +189,10 @@ void main() {
           reason: 'own per-enrollment namespace access must be unaffected');
     });
 
-    // ---- Q1b: a PUBLIC key in a foreign per-enrollment namespace ----
+    // ---- a PUBLIC key in a foreign per-enrollment namespace ----
     //
-    // The only cross-enrollment denial short-circuited on the `public:` prefix
-    // for EVERY verb, and its own comment justified that on read grounds. The
-    // same predicate gated writes and deletes.
+    // One predicate gates reads, writes and deletes, so the `public:`
+    // exemption has to distinguish them: readable, not writable.
 
     test('*:rw enrollment cannot UPDATE another enrollment\'s PUBLIC a.__e key',
         () async {
@@ -236,10 +227,9 @@ void main() {
 
     test('*:rw enrollment CAN still LLOOKUP a foreign PUBLIC a.__e key',
         () async {
-      // The control, and the half that must NOT change. The exemption exists
-      // because the atServer publishes the signing key on the enrollee's
-      // behalf for anyone to resolve; sync depends on it too. A fix that
-      // simply removed the exemption would break reading.
+      // The control, and the half that must not change: the atServer
+      // publishes the signing key for anyone to resolve, and sync reads it
+      // too, so dropping the exemption outright would break reading.
       await bindWildcardEnrollment();
       final foreignEnId = Uuid().v4();
       final foreignKey = 'public:_apsk.$foreignEnId.a.__e$alice';
@@ -253,9 +243,8 @@ void main() {
     });
 
     test('an enrollment CAN still update its OWN public a.__e key', () async {
-      // The other control: the narrowing is about FOREIGN keys. An enrollment
-      // publishing its own signing key must be unaffected, and a live
-      // functional test depends on exactly this.
+      // The other control: the denial is about FOREIGN keys, so an
+      // enrollment publishing its own signing key must be unaffected.
       final enrollId = await bindWildcardEnrollment();
       final ownKey = 'public:_apsk.$enrollId.a.__e$alice';
 
@@ -264,13 +253,13 @@ void main() {
       expect(inboundConnection.lastWrittenData, contains('data:'));
     });
 
-    // ---- Q2: direct __manage access (enrollment record / PEK / SEK) ----
+    // ---- direct __manage access (enrollment record / PEK / SEK) ----
 
     test('*:rw-without-__manage enrollment cannot UPDATE a __manage key',
         () async {
       await bindWildcardEnrollment();
       final foreignEnId = Uuid().v4();
-      // The encrypted default-encryption-private-key (PEK) of another enrollment.
+      // Another enrollment's encrypted default encryption private key.
       final pekKey = '$foreignEnId.default_enc_private_key.__manage$alice';
 
       await expectLater(

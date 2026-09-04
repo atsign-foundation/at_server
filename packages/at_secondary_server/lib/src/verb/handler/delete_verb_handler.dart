@@ -27,8 +27,9 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     this.notificationManager,
   );
 
-  //setter to set autoNotify value from dynamic server config "config:set".
-  //only works when testingMode is set to true
+  // Sets autoNotify from `config:set`, which the server subscribes to at
+  // startup. `config:set` needs a connection authorised for the __config
+  // namespace; it is not gated on the server's testing mode.
   static setAutoNotify(bool newState) {
     _autoNotify = newState;
   }
@@ -63,32 +64,26 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     if (verbParams[AtConstants.atSign] != null) {
       atSign = AtUtils.fixAtSign(verbParams[AtConstants.atSign]!);
     }
-    // :dAt — the caller-asserted deletion time. Recorded as the DELETE
-    // commit entry's opTime, and carried to the sharedWith atServer on the
-    // auto-notification (as :uAt: — the notify grammar has no dAt group)
-    // so the receiver's cached-key delete records the origin deletion
-    // time. With :nc there is no commit entry, so it has nothing to stamp
-    // locally. The verb grammar pins the value to ISO 8601 UTC.
+    // :dAt is the caller-asserted deletion time, pinned by the verb grammar
+    // to ISO 8601 UTC. It becomes the DELETE commit entry's opTime and
+    // travels to the sharedWith atServer on the auto-notification, so the
+    // receiver's cached-key delete records the origin deletion time. With :nc
+    // there is no commit entry for it to stamp.
     DateTime? deletedAt;
     if (verbParams[WireParams.deletedAt] != null) {
       deletedAt = DateTime.parse(verbParams[WireParams.deletedAt]!);
     }
     var deleteKey = verbParams[AtConstants.atKey];
-    // If key is cram secret do not append atsign.
+    // The CRAM secret's key carries no atSign.
     if (verbParams[AtConstants.atKey] != AtConstants.atCramSecret) {
       deleteKey = '$deleteKey$atSign';
     }
-    // fetch protected keys listed in config.yaml
     protectedKeys ??= _getProtectedKeys(atSign);
-    // check to see if a key is protected. Cannot delete key if it's protected
     if (_isProtectedKey(deleteKey!, isCached: verbParams['isCached'])) {
       throw UnAuthorizedException(
           'Cannot delete protected key: \'$deleteKey\'');
     }
-    // Sets Response bean to the response bean in ChangeVerbHandler
     await super.processVerb(response, verbParams, atConnection);
-    // var keyNamespace = verbParams[AtConstants.atKey]!
-    //     .substring(deleteKey.lastIndexOf('.') + 1);
     if (verbParams[AtConstants.forAtSign] != null) {
       deleteKey =
           '${AtUtils.fixAtSign(verbParams[AtConstants.forAtSign]!)}:$deleteKey';
@@ -101,9 +96,9 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     }
     assert(deleteKey.isNotEmpty);
     // The keystore's own fold, not a copy of it: the CRAM-secret comparison
-    // just below and the authorisation check that follows both decide by
-    // string equality against this value, so a fold that drifted from the
-    // store's would answer about a key the store does not hold.
+    // below and the authorisation check both decide by string equality
+    // against this value, so a fold that drifted from the store's would
+    // answer about a key the store does not hold.
     deleteKey = canonicalAtKey(deleteKey);
 
     InboundConnectionMetadata inboundConnectionMetadata =
@@ -119,16 +114,12 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     }
     bool cramSecretExisted = false;
     try {
-      // if this is not cached (because we should always be allowed to delete
-      // cached data from other atSigns)
-      // and the data exists
-      // then check if the data is immutable
-      // and if so, prevent deletion unless the "force" flag was set
+      // An immutable record needs the force flag. Cached data is exempt:
+      // deleting another atSign's cached copy is always allowed.
       if (verbParams['isCached'] != 'true') {
         if (await keyStore.exists(deleteKey)) {
           AtData atData = (await keyStore.get(deleteKey))!;
           if (atData.metaData?.immutable == true) {
-            // immutable records need the force flag in order to be deleted
             bool force = verbParams[AtConstants.force] == AtConstants.force;
             if (!force) {
               throw IllegalStateException(
@@ -137,10 +128,9 @@ class DeleteVerbHandler extends ChangeVerbHandler {
           }
         }
       }
-      // Read immediately before the removal, because removing a key the
-      // store does not hold is not an error here — it succeeds with a
-      // commit id of -1 — and the CRAM tombstone below must record a
-      // deletion that happened rather than a command that was sent.
+      // Read immediately before the removal, because removing a key the store
+      // does not hold is not an error here, and the CRAM tombstone below must
+      // record a deletion that happened rather than one that was commanded.
       cramSecretExisted = deleteKey == AtConstants.atCramSecret &&
           await keyStore.exists(deleteKey);
       var result = await keyStore.remove(deleteKey,
@@ -154,27 +144,19 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     }
 
     // The CRAM secret is the registrar's activation credential, and this
-    // marker is what stops it being replanted on a later start (see
-    // [AtSecondaryServerImpl.plantCramSecretIfRequired]). It is written HERE
-    // — after the authorisation check above, and after the removal actually
-    // succeeded — because it records a deletion that happened rather than
-    // one that was merely attempted.
-    //
-    // Written earlier, it was reachable by any connection that got as far as
-    // this handler: an enrollment holding nothing but an ordinary namespace
-    // was refused the delete and still permanently disabled CRAM, on an
-    // atSign that need never have had a secret at all. CRAM is the last
-    // recovery route an atSign has once its roots are revoked,
-    // so a caller who cannot delete the secret must not be able to close
-    // that route either — nor may a command that deleted nothing.
+    // marker stops it being replanted on a later start (see
+    // [AtSecondaryServerImpl.plantCramSecretIfRequired]). Written HERE,
+    // after the authorisation check and after the removal actually succeeded,
+    // because CRAM is an atSign's last recovery route once its roots are
+    // revoked: a caller that cannot delete the secret must not be able to
+    // close that route, and neither may a command that deleted nothing.
     //
     // Deliberately NOT inside the try above: one guard per operation, so a
     // failure writing the marker cannot be mistaken for the removal not
-    // having happened. The two are separate durable writes, and a crash
-    // between them leaves the secret gone with no marker — a restart with
-    // `-s` would then replant. That is the safer of the two orderings: the
-    // opposite one loses the secret's replant permanently on a delete that
-    // never completed.
+    // having happened. A crash between the two durable writes leaves the
+    // secret gone with no marker, and a restart with `-s` replants. That is
+    // the safer ordering; the opposite one bars replanting after a delete
+    // that never completed.
     if (cramSecretExisted) {
       await keyStore.put(
           AtConstants.atCramSecretDeleted, AtData()..data = 'true');
@@ -194,7 +176,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
         atSign = AtUtils.fixAtSign(atSign!);
       }
 
-      // send notification to other secondary if [AtSecondaryConfig.autoNotify] is true
+      // Auto-notify the sharedWith atSign, unless autoNotify is off.
       if (_autoNotify && (forAtSign != atSign)) {
         try {
           await _notify(
@@ -221,12 +203,11 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       return;
     }
     key = '$forAtSign:$key$atSign';
-    // A client-asserted :dAt travels as the metadata's updatedAt, emitted
-    // on the wire as :uAt: (the notify grammar has no dAt group — a
-    // deletion is the record's last update). Without an assertion, no
-    // metadata is attached at all, keeping an ordinary delete
-    // notification's wire shape exactly what it always was — a receiver
-    // built before the timestamp syntax existed still parses it.
+    // A client-asserted :dAt travels as the metadata's updatedAt, emitted on
+    // the wire as :uAt: (the notify grammar has no dAt group, and a deletion
+    // is the record's last update). Without an assertion no metadata is
+    // attached at all, so an ordinary delete notification keeps the wire
+    // shape a receiver predating the timestamp syntax can parse.
     var atNotification = (AtNotificationBuilder()
           ..type = NotificationType.sent
           ..fromAtSign = atSign
@@ -245,10 +226,8 @@ class DeleteVerbHandler extends ChangeVerbHandler {
   Set<String> _getProtectedKeys(String? atsign) {
     atsign ??= AtSecondaryServerImpl.getInstance().currentAtSign;
     Set<String> protectedKeys = {};
-    // fetch all protected private keys from config yaml
+    // config.yaml spells these as 'signing_publickey<@atsign>'.
     for (var key in AtSecondaryConfig.protectedKeys) {
-      // protected keys are stored as 'signing_publickey<@atsign>'
-      // replace <@atsign> with actual atsign during runtime
       protectedKeys.add(key.replaceFirst('<@atsign>', atsign));
     }
     return protectedKeys;

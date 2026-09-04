@@ -41,10 +41,9 @@ class CramVerbHandler extends AbstractVerbHandler {
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     AtData? internalSecret = await keyStore.get('privatekey:at_secret');
 
-    // If there is no secret in keystore - or it is null/empty - then return
-    // error. An empty/null secret must never authenticate: the expected digest
-    // would be computed over a known constant (e.g. the literal 'null'), which
-    // any caller could reproduce from the public session id and proof.
+    // An empty or absent secret must never authenticate: the expected digest
+    // would then be computed over a constant any caller can reproduce from the
+    // public session id.
     if (internalSecret == null ||
         internalSecret.data == null ||
         internalSecret.data!.isEmpty) {
@@ -52,17 +51,14 @@ class CramVerbHandler extends AbstractVerbHandler {
       throw UnAuthenticatedException('Authentication Failed');
     }
 
-    //retrieve stored secret using sessionid and atsign
     String storedSecretId = 'private:$sessionID$atSign';
-    // Spent on read, and only honoured while live, so one `from:` buys one
-    // digest attempt rather than unlimited guesses at the CRAM secret.
+    // The challenge is spent on read and honoured only while live, so one
+    // `from:` buys one digest attempt rather than unlimited guesses at the
+    // CRAM secret.
     String? storedSecret = await consumeChallenge(storedSecretId);
     if (storedSecret == null) {
-      // Absent, unreadable or expired. Refused exactly as a wrong digest is,
-      // so the wire cannot tell the two apart. Refused rather than allowed to
-      // fall through: the digest below would otherwise be computed over the
-      // literal 'null', a value any caller can reproduce from the public
-      // session id.
+      // Absent, unreadable or expired, refused exactly as a wrong digest is so
+      // the wire cannot tell them apart.
       atConnection.metaData.isAuthenticated = false;
       logger.severe('cram authentication failed: no live challenge for'
           ' session $sessionID');
@@ -73,18 +69,14 @@ class CramVerbHandler extends AbstractVerbHandler {
             .encode('${internalSecret.data}$sessionID$atSign:$storedSecret'))
         .toString();
 
-    // add a bit of jitter so it's impossible to do any timing-based attacks
-    // to determine the cram secret
+    // Jitter the comparison so its duration leaks nothing about the secret.
     await Future.delayed(Duration(microseconds: rand.nextInt(1000)));
-    // Verify that the expected digest == cram digest from client
     if (digestFromClient == expectedDigest) {
       atConnection.metaData.isAuthenticated = true;
       atConnection.metaData.authType = AuthType.cram;
-      // A CRAM connection carries no enrollment id: it holds the secret the
-      // atSign was created with, and stands over no record. An id a previous
-      // `pkam:` put on this same connection must not survive into it, or the
-      // connection would be judged as that enrollment on every command while
-      // being authorised as the owner.
+      // A CRAM connection stands over no enrollment. An id left by an earlier
+      // `pkam:` on this connection must not survive, or the connection would
+      // be judged as that enrollment while authorised as the owner.
       (atConnection.metaData as InboundConnectionMetadata).enrollmentId = null;
       try {
         await accessLog.insert(atSign, cram.name());
@@ -92,7 +84,6 @@ class CramVerbHandler extends AbstractVerbHandler {
         logger.severe('Hive error adding to access log:${e.toString()}');
       }
 
-      // The challenge was already spent by consumeChallenge.
       response.data = 'success';
     } else {
       atConnection.metaData.isAuthenticated = false;

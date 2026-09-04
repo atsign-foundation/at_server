@@ -18,21 +18,13 @@ import 'package:test/test.dart';
 
 import 'test_utils.dart';
 
-/// The per-connection challenge `from:` issues is a ONE-SHOT, TIME-BOUND
-/// credential, and these pin both halves of that at the two places a unit test
-/// can drive the full handshake.
-///
-/// Neither half used to hold. The challenge was removed only on the success
-/// path, so a caller could present signature after signature against a single
-/// `from:` until one verified; and no verifier asked whether the record was
-/// still live, so the 60-second ttl `from:` stamps was enforced by nothing but
-/// a background sweep running on its own schedule — a challenge hours past its
-/// `expiresAt` still authenticated.
-///
-/// `pol` shares the same shared helper and therefore the same two properties.
-/// Its handler cannot be driven from a unit test (it needs the outbound
-/// server-to-server path), so it is pinned here at the helper and end-to-end
-/// in the functional pack.
+/// The per-connection challenge `from:` issues is a one-shot, time-bound
+/// credential: a verifier spends it whether or not the proof checks out, and
+/// refuses it once its ttl has passed. Both halves are pinned here at
+/// `consumeChallenge` and at the two handlers a unit test can drive. `pol`
+/// calls the same helper and so has the same two properties, but needs the
+/// outbound server-to-server path, so it is covered at the helper here and
+/// end-to-end in the functional pack.
 void main() {
   verbTestsSetUpLogging();
 
@@ -57,8 +49,8 @@ void main() {
       await keyValueStore.put('private:stale$alice',
           AtData()..data = 'the-proof'..metaData = (AtMetaData()..expiresAt = past));
 
-      // Fixture control: the record must actually BE expired, or the
-      // assertion below would pass for a record that simply is not there.
+      // Fixture control: without it the refusal below would pass just as
+      // well for a record that was never stored.
       final stored = await keyValueStore.get('private:stale$alice');
       expect(stored, isNotNull, reason: 'the fixture stored something');
       expect(SecondaryUtil.isActiveKey(stored), isFalse,
@@ -132,9 +124,8 @@ void main() {
       final bad = base64Encode(
           Uint8List.fromList(base64Decode(good))..[0] ^= 0xff);
 
-      // Positive control: the good signature is genuinely good — proven
-      // below by the fact that it authenticates once the challenge is
-      // reissued. Without it, the refusal we assert could be a bad signature.
+      // The reissue at the end of this test is the positive control: without
+      // it, the refusal asserted here could be a merely bad signature.
       await expectLater(() => attempt(sessionId, bad),
           throwsA(isA<UnAuthenticatedException>()),
           reason: 'a tampered signature is refused');
@@ -147,7 +138,6 @@ void main() {
               'challenge that survived its own failed use would be a retry '
               'oracle bounded only by the ttl');
 
-      // The positive control fires: reissue and the same signature works.
       await issue(sessionId, challenge);
       expect((await attempt(sessionId, good)).data, 'success',
           reason: 'the signature refused above was correct all along; what '
@@ -179,8 +169,6 @@ void main() {
           reason: 'the 60-second bound from: stamps has to be enforced by the '
               'verifier; nothing else reads it in time');
 
-      // Positive control: the same signature over a LIVE challenge works, so
-      // what refused above was the expiry and not the signature.
       await keyValueStore.put(
           'private:$sessionId$alice',
           AtData()
@@ -239,10 +227,9 @@ void main() {
 
     test('a successful cram clears an enrollment id a previous pkam left on '
         'the connection', () async {
-      // A CRAM connection carries no enrollment id: it holds the secret the
-      // atSign was created with and stands over no record. Left in place, an
-      // id from an earlier pkam: would have every later command judged as
-      // that enrollment while the connection was authorised as the owner.
+      // A CRAM connection stands over no enrollment: an id left by an
+      // earlier `pkam:` would have later commands judged as that enrollment
+      // while the connection is authorised as the owner.
       final (connection, proof) = await issue('_cram-after-pkam');
       (connection.metaData as InboundConnectionMetadata).enrollmentId =
           'left-by-pkam';
@@ -276,14 +263,12 @@ void main() {
         () async {
       final (connection, proof) = await issue('_cram-stale');
       final storedSecretId = 'private:_cram-stale$alice';
-      // Fixture control: this is the record `from:` actually wrote. Guessing
-      // the id wrong would age nothing, leave the real challenge live, and
-      // make the refusal below mean something else entirely.
+      // Fixture control: guessing this id wrong would age nothing and leave
+      // the real challenge live, so the refusal below would mean nothing.
       final issued = await store.get(storedSecretId);
       expect(issued, isNotNull,
           reason: 'from: stored the challenge where this test ages it');
 
-      // Age it, keeping its value byte-for-byte.
       final past = DateTime.now().toUtc().subtract(Duration(hours: 2));
       await store.put(
           storedSecretId,
@@ -297,7 +282,6 @@ void main() {
           throwsA(isA<UnAuthenticatedException>()),
           reason: 'the ttl has to bite on the CRAM path too');
 
-      // Positive control: the identical digest over a LIVE challenge works.
       await store.put(
           storedSecretId,
           AtData()

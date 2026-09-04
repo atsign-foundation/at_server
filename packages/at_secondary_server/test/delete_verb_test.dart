@@ -149,17 +149,13 @@ void main() {
               predicate((exception) => exception is UnAuthorizedException)));
     });
 
-    // The cram-secret-deleted marker keeps CRAM permanently disabled after
-    // onboarding. The delete verb's atKey regex only special-cases the literal
-    // 'privatekey:at_secret'; the marker contains a colon and is not that
-    // literal, so it cannot be parsed - and therefore cannot be deleted via the
-    // delete verb to resurrect CRAM.
-    //
-    // This pins ONE route. The others are closed elsewhere and each has its
-    // own coverage: the keys verb by KeysVerbHandler authorization, and
-    // update:json - the one grammar that CAN name a colon-bearing key - by
-    // the outright refusal in _decideRootKey, pinned in root_key_authz_test.
-    // Read together they are the property; read alone this one is not.
+    // Deleting the cram-secret-deleted marker would resurrect CRAM, and the
+    // delete verb's atKey regex special-cases only the literal
+    // 'privatekey:at_secret', so the colon-bearing marker cannot be parsed
+    // here at all. This pins one route only: the keys verb is closed by
+    // KeysVerbHandler authorisation, and update:json, the one grammar that
+    // can name a colon-bearing key, by the refusal in _decideRootKey pinned
+    // in root_key_authz_test.
     test('verify the cram-secret-deleted marker cannot be deleted', () {
       inboundConnection.metadata.isAuthenticated = true;
       var command = 'delete:${AtConstants.atCramSecretDeleted}';
@@ -169,8 +165,8 @@ void main() {
               predicate((exception) => exception is InvalidSyntaxException)));
     });
 
-    // the following test throws a syntax exception since delete verb handler
-    // expects a key to contain its atsign; but at_pkam_publickey does not
+    // A syntax exception, because the delete verb handler expects a key to
+    // carry its atSign and at_pkam_publickey does not.
     test('verify deletion of pkam public key throws exception', () {
       inboundConnection.metadata.isAuthenticated = true;
       var command = 'delete:${AtConstants.atPkamPublicKey}';
@@ -185,8 +181,6 @@ void main() {
       var command = 'delete:cached:${AtConstants.atEncryptionPublicKey}$alice';
       Response response =
           await handler.processInternal(command, inboundConnection);
-      // expected response.data is an integer
-      // parsing data without exception should indicate that response is an int
       expect(int.parse(response.data!).runtimeType, int);
       expect(response.isError, false);
     });
@@ -355,7 +349,6 @@ void main() {
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
-      // Delete a key with wavi namespace
       String deleteCommand = 'delete:$alice:phone.wavi$alice';
       HashMap<String, String?> deleteVerbParams =
           getVerbParam(VerbSyntax.delete, deleteCommand);
@@ -367,7 +360,6 @@ void main() {
       await deleteVerbHandler.processVerb(
           response, deleteVerbParams, inboundConnection);
       expect(response.data, isNotNull);
-      // Delete a key with buzz namespace
       deleteCommand = 'delete:$alice:phone.buzz$alice';
       deleteVerbParams = getVerbParam(VerbSyntax.delete, deleteCommand);
       deleteVerbHandler = DeleteVerbHandler(
@@ -653,7 +645,6 @@ void main() {
             ..data = jsonEncode(enrollDataStoreValue.toJson())
             ..metaData = (AtMetaData()..ttl = 1));
 
-      // wait for the enrollment to expire
       await Future.delayed(Duration(milliseconds: 1));
       String deleteCommand = 'delete:$alice:phone.wavi$alice';
 

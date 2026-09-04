@@ -132,9 +132,9 @@ class KeysVerbHandler extends AbstractVerbHandler {
     response.data = jsonEncode(filteredKeys);
   }
 
-  /// If current enrollment has __manage access then return both __global and __manage keys with visibility [keyVisibility]
-  /// Otherwise return only __global keys with visibility [keyVisibility]
-  /// Also return the encrypted default encryption private key and encrypted self encryption key for enrollmentId [enId]
+  /// The keys of visibility [keyVisibility] this enrollment may see: the
+  /// `__global` ones, plus the `__manage` ones when [hasManageAccess], plus
+  /// enrollment [enId]'s own encrypted private and self encryption keys.
   Future<List<String>> _getFilteredKeys(
       String? keyVisibility, bool hasManageAccess, String enId) async {
     final List<String> result = keyVisibility != null &&
@@ -198,14 +198,11 @@ class KeysVerbHandler extends AbstractVerbHandler {
         (await keyStore.remove(keyNameFromParams, skipCommit: true)).toString();
   }
 
-  /// Authorization gate for the by-name `get`/`delete` branches.
-  ///
-  /// Mirrors the filtered-list branch ([_addKeyIfEnrollmentIdMatches]): a
-  /// caller may only touch keys tagged with its own [enId], plus its own
-  /// default-encryption-private-key and self-encryption-key. Any other key —
-  /// including keys belonging to another enrollment and reserved server
-  /// secrets such as `privatekey:at_secret` (which are not keys-verb-managed
-  /// JSON values) — is refused.
+  /// Authorisation gate for the by-name `get` and `delete` branches, mirroring
+  /// [_addKeyIfEnrollmentIdMatches]: a caller may touch only keys tagged with
+  /// its own [enId], plus its own encrypted private and self encryption keys.
+  /// Everything else is refused, another enrollment's keys and reserved server
+  /// secrets such as `privatekey:at_secret` alike.
   bool _isAuthorizedForKey(String keyName, AtData value, String enId) {
     if (keyName == enMgr.keyForPEK(enId) || keyName == enMgr.keyForSEK(enId)) {
       return true;
@@ -218,14 +215,13 @@ class KeysVerbHandler extends AbstractVerbHandler {
       final decoded = jsonDecode(data);
       return decoded is Map && decoded[AtConstants.enrollmentId] == enId;
     } catch (_) {
-      // Not a keys-verb-managed value (e.g. a raw server secret) -> refuse.
+      // Not a keys-verb-managed value, so refuse.
       return false;
     }
   }
 
-  /// List only keys from current enrollment. Do not list keys from another enrollment.
-  /// Get the valueJson from keystore for [key].
-  /// If the enrollment in valueJson matches [enrollIdFromMetadata], then add [key] to [filteredKeys]
+  /// Adds [key] to [filteredKeys] only when its stored value is tagged with
+  /// [enrollIdFromMetadata], so one enrollment never lists another's keys.
   Future<void> _addKeyIfEnrollmentIdMatches(List<dynamic> filteredKeys,
       String key, String enrollIdFromMetadata) async {
     final value = await keyStore.get(key);
@@ -238,11 +234,12 @@ class KeysVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  /// Key structure varies based on visibility. Construct and return the key name based on [keyVisibility]
-  /// Key name for public visibility - `'public:<keyname>.__public_keys.<namespace>@<atsign>'`
-  /// Key name for private visibility - `'private:<appName>.<deviceName>.<keyname>.__private_keys.<namespace>@<atsign>'`
-  /// Key name for self visibility  - `'<appName>.<deviceName>.<keyname>.__self_keys.<namespace>@<atsign>'`
-  /// returns null, if [keyVisibility] is not public|private|self
+  /// The stored key name for [keyVisibility], or null when it is not one of
+  /// public, private or self:
+  /// - public: `public:<keyname>.__public_keys.<namespace>@<atsign>`
+  /// - private:
+  ///   `private:<appName>.<deviceName>.<keyname>.__private_keys.<namespace>@<atsign>`
+  /// - self: `<appName>.<deviceName>.<keyname>.__self_keys.<namespace>@<atsign>`
   String? _getKeyName(HashMap<String, String?> verbParams, String atSign,
       String? keyVisibility) {
     if (keyVisibility == 'public') {

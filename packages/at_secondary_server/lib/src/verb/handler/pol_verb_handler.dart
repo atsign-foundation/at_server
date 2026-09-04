@@ -14,8 +14,8 @@ import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypton/crypton.dart';
 
-// PolVerbHandler class is used to process Pol verb
-// ex: pol\n
+/// Handles `pol`, which proves the atSign named by an earlier `from:` signed
+/// this connection's challenge.
 class PolVerbHandler extends AbstractVerbHandler {
   static Pol pol = Pol();
   static final RegExp _dataPrefix = RegExp('^data:');
@@ -28,8 +28,6 @@ class PolVerbHandler extends AbstractVerbHandler {
   PolVerbHandler(super.keyStore, this.outboundClientManager, this.cacheManager,
       {required this.accessLog});
 
-  // Method to verify whether command is accepted or not
-  // Input: command
   @override
   bool accept(String command) => command == getName(VerbEnum.pol);
 
@@ -38,16 +36,13 @@ class PolVerbHandler extends AbstractVerbHandler {
     return HashMap();
   }
 
-  // Method to return Instance of verb belongs to this VerbHandler
   @override
   Verb getVerb() {
     return pol;
   }
 
-  // Method which will process pol Verb
-  // This will process given verb and write response to response object
-  // Input : Response, verbParams, AtConnection
-  /// Throws an [AtConnectException] if unable to establish connection to another secondary
+  /// Throws an [AtConnectException] if unable to establish connection to
+  /// another secondary.
   @override
   Future<void> processVerb(
       Response response,
@@ -58,7 +53,6 @@ class PolVerbHandler extends AbstractVerbHandler {
     var fromAtSign = atConnectionMetadata.fromAtSign;
     var sessionID = atConnectionMetadata.sessionID;
 
-    // Check if from: verb is executed
     if (atConnectionMetadata.from != true) {
       throw InvalidRequestException('You must execute a '
           '\'from:\' command before you may run the pol command');
@@ -84,8 +78,6 @@ class PolVerbHandler extends AbstractVerbHandler {
 
     String doing = '';
     try {
-      // construct the key that needs to be looked up
-      // fetch the challenge from the other secondary
       doing = 'fetching signed challenge from $fromAtSign';
       signedChallenge = (await (oc.lookUp(
         '$sessionID$fromAtSign',
@@ -93,16 +85,14 @@ class PolVerbHandler extends AbstractVerbHandler {
       )))
           ?.replaceFirst(_dataPrefix, '');
 
-      // look for the public key on the other secondary
       doing = 'fetching signing_publickey$fromAtSign';
       fromPublicKey = (await (oc.plookUp('signing_publickey$fromAtSign')))
           ?.replaceFirst(_dataPrefix, '');
 
-      // Getting stored secret from this secondary server. Spent on read,
-      // whatever the verification below decides: this challenge was handed to
-      // ANOTHER atSign to sign, so a challenge that survived a failed
-      // verification would leave the window in which a captured signature
-      // replays bounded by nothing at all.
+      // Spent on read, whatever the verification below decides: this
+      // challenge was handed to ANOTHER atSign to sign, so one that survived
+      // a failed verification would leave the replay window for a captured
+      // signature bounded by nothing at all.
       doing = 'fetching stored secret $storedSecretId';
       message = await consumeChallenge(storedSecretId);
     } on Exception catch (e) {
@@ -118,8 +108,6 @@ class PolVerbHandler extends AbstractVerbHandler {
       throw AtException('Unable to verify signature');
     }
 
-    // pass the result from _fetchSecret() to validateChallenge()
-    // validateChallenge() requires the params fetched through _fetchSecret()
     bool isValidChallenge = RSAPublicKey.fromString(fromPublicKey)
         .verifySHA256Signature(
             utf8.encode(message), base64Decode(signedChallenge));

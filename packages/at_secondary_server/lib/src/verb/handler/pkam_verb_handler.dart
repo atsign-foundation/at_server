@@ -32,35 +32,22 @@ class PkamVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams, AtConnection atConnection) async {
     var atConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
-    // Folded to EXACTLY the keystore's own fold — trimmed, lowercased, spaces
-    // stripped — because that is what decides which record an id addresses.
-    // Without this a non-canonical spelling resolves to the same RECORD while
-    // comparing unequal to the id everything downstream holds, so a revoke
-    // would not drop the connection and the revoked credential would go on
-    // authenticating: the connection's id is what the revoke's connection
-    // drop, the caller-in-cascade refusal and ownership of this enrollment's
-    // own reserved keys are all compared against.
-    //
-    // Lowercasing alone was not enough, and the gap it left is the dangerous
-    // half: case is the spelling a real client sends by accident, while
-    // whitespace is the one an attacker sends on purpose.
-    //
-    // Ids are server-issued uuids and already canonical, so this rejects
-    // nothing that works today; it stops a non-canonical spelling of one from
-    // travelling further than the lookup.
+    // Folded to exactly the keystore's own fold, because the id the connection
+    // carries is what a revoke's connection drop, the caller-in-cascade
+    // refusal and reserved-key ownership are compared against. An unfolded
+    // spelling would reach the same record while comparing unequal to all of
+    // them, so a revoked credential would go on authenticating.
     var enrollId = EnrollmentManager.canonicalEnrollmentIdOrNull(
         verbParams[AtConstants.enrollmentId]);
     var sessionID = atConnectionMetadata.sessionID;
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     AuthType pkamAuthType;
     String? publicKey;
-    // Null lets the wire value decide the algorithm, which is what a legacy
-    // PKAM has always done: the flat key made no claim about itself, and may
+    // Null lets the wire value decide the algorithm, which is what the flat
+    // legacy credential needs: it makes no claim about itself and may
     // legitimately be ecc_secp256r1.
     String? recordSigningAlgo;
 
-    // Use APKAM public key for verification if enrollId is passed.
-    // Otherwise use legacy pkam public key.
     if (enrollId != null && enrollId.isNotEmpty) {
       pkamAuthType = AuthType.apkam;
       ApkamVerificationResult apkamResult =
@@ -72,31 +59,21 @@ class PkamVerbHandler extends AbstractVerbHandler {
         return;
       }
       publicKey = apkamResult.publicKey;
-      // Record-authoritative: an APKAM keypair's algorithm is a property of
-      // the enrollment it was registered under, not something the client
-      // restates on each connect. Hardening rather than a fix — the signature
-      // is checked against the stored public key either way, so a client that
-      // misstates the algorithm only fails its own verification — but it
-      // closes off cross-algorithm confusion, where one key blob parses under
-      // more than one algorithm. A legacy enrollment predating the field has
-      // none recorded, so it keeps the existing default EXPLICITLY here: a
-      // null must not fall through to the wire claim in _validateSignature,
-      // or the claim picks the verify routine for exactly the enrollments
-      // that predate the field (an RSA record verified as ML-DSA fails a
-      // legitimate legacy client; the wire fallback exists for legacy
-      // no-enrollment PKAM, which may present ecc_secp256r1).
+      // The enrollment's own algorithm wins over the wire claim, closing off
+      // cross-algorithm confusion where one key blob parses under more than
+      // one algorithm. An enrollment with none recorded defaults to RSA
+      // EXPLICITLY here: a null would otherwise fall through to the wire
+      // claim in [_validateSignature], letting the client pick the verify
+      // routine for exactly those enrollments.
       recordSigningAlgo =
           apkamResult.signingAlgo ?? ApkamSignatureVerifier.rsa2048Algo;
     } else {
-      // A legacy `pkam:` carries no enrollment id, and authenticates as the
-      // enrollment the flat legacy credential migrates into: `primary`. The
-      // flat key is read first — a key still in the store is one the startup
-      // migration has not yet seen, or that a test fixture installed — and
-      // otherwise `primary`'s recorded key is what the signature is checked
-      // against, under the algorithm the record carries. Which of the two
-      // verified is settled again inside the section, in [_admitUnderLock],
-      // where the flat key is absorbed into `primary` and the connection is
-      // given `primary` to carry.
+      // A legacy `pkam:` carries no enrollment id and authenticates as
+      // `primary`, the enrollment the flat legacy credential migrates into.
+      // A flat key still in the store is one the startup migration has not
+      // seen, and is verified against; otherwise `primary`'s recorded key is,
+      // under the algorithm the record carries. [_admitUnderLock] settles
+      // which of the two verified.
       pkamAuthType = AuthType.pkamLegacy;
       final EnrollmentManager enMgr =
           AtSecondaryServerImpl.getInstance().enrollmentManager;
@@ -104,13 +81,10 @@ class PkamVerbHandler extends AbstractVerbHandler {
       if (publicKey == null) {
         final EnrollDataStoreValue? primary = await enMgr.primaryEnrollment();
         if (primary == null) {
-          // The message NAMES THE REMEDY, because the population that hits
-          // this is not a broken atSign but a client sending the wrong shape
-          // of authentication. An atSign onboarded through `enroll:request`
-          // has no legacy credential at all — it never did — so a caller
-          // arriving here is almost always one that holds an enrollment id
-          // and did not send it. "No credential" alone reads as an atSign
-          // fault and sends the reader looking in the wrong place entirely.
+          // The message names the remedy: an atSign onboarded through
+          // `enroll:request` has no legacy credential by design, so a caller
+          // arriving here almost always holds an enrollment id and did not
+          // send it. "No credential" alone reads as an atSign fault.
           logger.warning('Legacy PKAM authentication refused: this atSign '
               'holds neither a flat credential nor a '
               '${EnrollmentManager.primaryEnrollmentId} enrollment');
@@ -120,9 +94,8 @@ class PkamVerbHandler extends AbstractVerbHandler {
               'the enrollment id its keyfile carries, as '
               'pkam:enrollmentId:<id>:<signature>');
         }
-        // `primary` is judged exactly as an enrollment named on the wire is:
-        // a revoked primary refuses with AT0027, and the refusal names no
-        // other enrollment.
+        // `primary` is judged exactly as an enrollment named on the wire is,
+        // so a revoked primary refuses with AT0027.
         final ApkamVerificationResult primaryResult =
             await verifyEnrollmentIsActive(
                 EnrollmentManager.primaryEnrollmentId, atSign);
@@ -142,15 +115,14 @@ class PkamVerbHandler extends AbstractVerbHandler {
     }
 
     String storedSecretId = 'private:$sessionID$atSign';
-    // One challenge, one attempt, and only while it is live. The challenge is
-    // spent here whatever the signature turns out to be, so a caller cannot
-    // grind signatures against a single `from:`.
+    // One challenge, one attempt, and only while it is live. It is spent here
+    // whatever the signature turns out to be, so a caller cannot grind
+    // signatures against a single `from:`.
     final String? storedSecret = await consumeChallenge(storedSecretId);
     if (storedSecret == null) {
-      // Absent, unreadable or expired. Refused with the same message and the
-      // same exception a bad signature gets: the wire must not distinguish
-      // "your challenge went stale" from "your signature was wrong", or it
-      // becomes an oracle for which session ids are live.
+      // Absent, unreadable or expired, refused with the message and exception
+      // a bad signature gets: the wire must not distinguish a stale challenge
+      // from a wrong signature, or it becomes an oracle for live session ids.
       atConnectionMetadata.isAuthenticated = false;
       logger.severe('pkam authentication failed: no live challenge for'
           ' session $sessionID');
@@ -166,12 +138,9 @@ class PkamVerbHandler extends AbstractVerbHandler {
     );
 
     if (isValidSignature) {
-      // We're good. The challenge was already spent by consumeChallenge.
-
       // Admitting the connection is a read-decide-write like every other
-      // enrollment act — the write is the connection's identity rather than a
-      // record — so it runs inside the atSign's one enrollment-mutation
-      // critical section. See [_admitUnderLock].
+      // enrollment act, so it runs inside the atSign's one
+      // enrollment-mutation section. See [_admitUnderLock].
       final bool admitted = await AtSecondaryServerImpl.getInstance()
           .enrollmentManager
           .serialiseMutation(() => _admitUnderLock(
@@ -187,27 +156,22 @@ class PkamVerbHandler extends AbstractVerbHandler {
       }
       response.data = 'success';
       // A legacy login carries `primary` from here on, so the arming below
-      // asks about it like any other enrollment; it replaced nothing, so the
-      // ask is a no-op.
+      // asks about it like any other enrollment and finds nothing to do.
       enrollId = atConnectionMetadata.enrollmentId;
 
-      // A retrofit's successor arms the expiry cap on the enrollment it
-      // replaced HERE, on its first authentication and never again — this is
-      // the moment that proves the successor's APKAM private half survived the
-      // client-side keyfile write and can actually be used. Arming it where
-      // the successor is stored would start a clock on the predecessor, the
-      // only credential that still works, on the strength of a record only the
-      // server had written.
-      //
-      // A no-op for every enrollment that replaced nothing, and it never
-      // throws: authentication has already succeeded by this point and must
-      // not be undone by bookkeeping.
+      // A retrofit's successor caps the enrollment it replaced here, on its
+      // first authentication: this is the moment that proves the successor's
+      // APKAM private half survived the client-side keyfile write and can be
+      // used. Arming it where the successor is stored would start a clock on
+      // the predecessor, the only credential that still works, on the
+      // strength of a record only the server had written. A no-op for
+      // anything that replaced nothing, and it never throws: authentication
+      // has already succeeded and must not be undone by bookkeeping.
       if (enrollId != null && enrollId.isNotEmpty) {
         final enMgr = AtSecondaryServerImpl.getInstance().enrollmentManager;
         await enMgr.armRetrofitCapOnFirstAuth(enrollId);
       }
     } else {
-      // Nope
       atConnectionMetadata.isAuthenticated = false;
       logger.severe('pkam authentication failed');
       throw UnAuthenticatedException('pkam authentication failed');
@@ -215,52 +179,33 @@ class PkamVerbHandler extends AbstractVerbHandler {
   }
 
   /// The last read of the enrollment state this connection's identity rests
-  /// on, and the marking that acts on it, as ONE enrollment-mutation critical
-  /// section. Returns whether the connection was admitted; a refusal that has
-  /// a wire error code of its own is written into [response] instead of being
-  /// thrown, exactly as the same refusal is before the signature is checked.
+  /// on, and the marking that acts on it, as one enrollment-mutation critical
+  /// section. Returns whether the connection was admitted; a refusal with a
+  /// wire error code of its own is written into [response] rather than thrown,
+  /// as the same refusal is before the signature is checked.
   ///
-  /// The decision is a read-decide-write like every other enrollment act —
-  /// what it writes is the connection's identity rather than a record — so it
-  /// belongs in the same section for the same reason. Taken outside it, an
-  /// `enroll:revoke` landing between the read and the marking is answered
-  /// `success`: the revoke sweeps open connections by the enrollment id each
-  /// one CARRIES, and a connection still being authenticated has not been
-  /// given one, so the sweep passes over it and the marking then happens on a
-  /// state the revoke has already replaced.
+  /// Read and marking must not be split. An `enroll:revoke` landing between
+  /// them is answered `success`, because the revoke sweeps open connections by
+  /// the id each one carries and a connection still being authenticated has
+  /// none yet. Serialised, only the coherent orders remain: a revoke taking
+  /// the section first is seen by the read here and the authentication is
+  /// refused; one taking it second finds a connection carrying the id and
+  /// closes it. It is the store-wide section because `enroll:delete` and an
+  /// elapsed ttl stop an enrollment serving while sweeping no connections at
+  /// all.
   ///
-  /// Serialising it leaves only the two orders that are coherent. A revoke
-  /// that takes the section first is seen by the read here, and the
-  /// authentication is refused; one that takes it second finds a connection
-  /// already carrying the id, and closes it.
+  /// It does not stand in for the per-command check:
+  /// `AbstractVerbHandler.processInternal` re-reads the enrollment before
+  /// every command and closes a connection whose enrollment has left
+  /// `approved`. What the section adds is that `success` is never answered on
+  /// a state already replaced.
   ///
-  /// It is the store-wide section rather than an understanding with the
-  /// revoke path because revocation is not the only way an enrollment stops
-  /// serving: `enroll:delete` and an elapsed ttl sweep no connections at all,
-  /// and only a read taken inside the section is ordered against them.
-  ///
-  /// The cost is that an authentication waits for an enrollment mutation in
-  /// flight. That is the right trade — the answer it is about to give is
-  /// exactly what that mutation decides — and it is bounded by how long a
-  /// mutation takes, on a store where mutations are rare next to
-  /// authentications.
-  ///
-  /// This does not stand in for the per-command check. A credential revoked
-  /// after a connection is admitted is caught by
-  /// `AbstractVerbHandler.processInternal`, which re-reads the enrollment
-  /// before every command and closes a connection whose enrollment has left
-  /// `approved`. What the section adds is that the `success` answer itself is
-  /// never given on a state that has already been replaced.
-  ///
-  /// A LEGACY authentication is the read-decide-write in full. The signature
-  /// was verified against the flat key or against `primary`'s recorded key,
-  /// whichever the caller found; here, inside the section, a flat key still
-  /// in the store is absorbed into `primary` — minted from it or rotated onto
-  /// it, and deleted — and the connection is admitted as `primary` only if
-  /// `primary` is approved and holds the key that verified. A second legacy
-  /// login that waited on the section finds no flat key and takes exactly
-  /// that fallback. [verifiedKey] is the key the signature verified against,
-  /// [wireSigningAlgo] what the wire said it was.
+  /// A legacy authentication is the read-decide-write in full: a flat key
+  /// still in the store is absorbed into `primary` here, and the connection is
+  /// admitted as `primary` only if `primary` is approved and holds the key
+  /// that verified. A second legacy login that waited on the section finds no
+  /// flat key and takes that fallback. [verifiedKey] is the key the signature
+  /// verified against, [wireSigningAlgo] what the wire said it was.
   Future<bool> _admitUnderLock(
       InboundConnectionMetadata atConnectionMetadata,
       AuthType pkamAuthType,
@@ -286,9 +231,9 @@ class PkamVerbHandler extends AbstractVerbHandler {
       }
       if (!EnrollmentManager.sameApkamKeyMaterial(verifiedKey, wireSigningAlgo,
           primary.publicKey!, primary.signingAlgo)) {
-        // The key that verified is not the key primary holds now: another
-        // login rotated primary in between. Refused as a bad signature is,
-        // because against the record as it stands that is what it is.
+        // Another login rotated `primary` in between, so the key that
+        // verified is not the key it holds now. Against the record as it
+        // stands that is a bad signature, and is refused as one.
         atConnectionMetadata.isAuthenticated = false;
         logger.severe('pkam authentication failed: the key that verified is '
             'no longer the key ${EnrollmentManager.primaryEnrollmentId} holds');
@@ -296,20 +241,13 @@ class PkamVerbHandler extends AbstractVerbHandler {
       }
       enrollId = EnrollmentManager.primaryEnrollmentId;
     } else {
-      // Asked again, inside the section, over the record the connection is
-      // about to be admitted as. The first ask ran before the signature was
-      // verified, because it is where the public key comes from, and
-      // verifying a signature is the longest step on this path — so the state
-      // it read is the state from before all of it.
-      //
-      // The refusal is the FIRST ask's refusal, code for code: the two are
-      // one check made at two moments, and a client must not be able to tell
-      // which of them refused it from the answer it gets back.
-      //
-      // `isAuthenticated` is deliberately left alone here, exactly as the
-      // first ask leaves it. A failed re-authentication over a connection
-      // that is already authenticated as something else does not end that
-      // session; only a bad signature does.
+      // Asked again inside the section: the first ask ran before the
+      // signature was verified, which is the longest step on this path, so it
+      // read the state from before all of it. The refusal is the first ask's
+      // refusal code for code, so a client cannot tell which of the two
+      // refused it. `isAuthenticated` is left alone, as the first ask leaves
+      // it: a failed re-authentication does not end a session already
+      // authenticated as something else; only a bad signature does.
       final ApkamVerificationResult recheck =
           await verifyEnrollmentIsActive(enrollId!, atSign);
       if (recheck.response.isError) {
@@ -389,11 +327,11 @@ class PkamVerbHandler extends AbstractVerbHandler {
     return response;
   }
 
-  /// [recordSigningAlgo] is the algorithm recorded on the enrollment, when
-  /// this connection authenticates as one. It wins over whatever the wire
-  /// says, so the client stops choosing how its own signature is interpreted.
-  /// Null for legacy PKAM — there is no record — in which case the wire value
-  /// still decides, as it always has.
+  /// [recordSigningAlgo] is the algorithm recorded on the enrollment being
+  /// authenticated as, and wins over whatever the wire says so that the client
+  /// does not choose how its own signature is interpreted. It is null only
+  /// when a legacy `pkam:` verifies against the flat credential, which has no
+  /// record; the wire value then decides.
   Future<bool> _validateSignature(
     var verbParams,
     var sessionId,

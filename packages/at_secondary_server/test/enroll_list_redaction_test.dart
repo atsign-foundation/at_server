@@ -11,18 +11,12 @@ import 'package:uuid/uuid.dart';
 
 import 'test_utils.dart';
 
-/// `enroll:list` returns every enrollment on the atSign, and the record it
-/// returns carries `encryptedAPKAMSymmetricKey` — the wrapped key an approver
-/// uses to admit an enrollment.
-///
-/// The gate used to be `namespaces.containsKey('__manage')` and nothing else,
-/// so a caller holding `__manage:r` — which can never approve anything — was
-/// handed the key material for every enrollment on the atSign. enroll:fetch
-/// refused that same caller the same field for a single enrollment.
-///
-/// The bar is now the caller's own `__manage` LETTER, which is the audience
-/// the server already states for this value elsewhere: the pending-enrollment
-/// notification goes to clients holding `__manage` at `rw`.
+/// `enroll:list` returns every enrollment on the atSign, and each record
+/// carries `encryptedAPKAMSymmetricKey`, the wrapped key an approver uses to
+/// admit an enrollment. These pin which projection each caller gets: the bar
+/// is the caller's own `__manage` letter, matching the audience the server
+/// states for that value elsewhere, since a `__manage:r` caller can never
+/// approve and so can never have a use for the key.
 void main() {
   AtSignLogger.root_level = 'WARNING';
 
@@ -89,13 +83,12 @@ void main() {
           reason: 'the credential itself is not roster data');
       expect(target.containsKey('sessionId'), isFalse);
 
-      // ABSENT, not blanked: a null would be indistinguishable from an
+      // Absent, not blanked: a null would be indistinguishable from an
       // enrollment that never carried one.
       expect(target['encryptedAPKAMSymmetricKey'], isNull);
 
-      // And it is still a usable roster — the redaction has to leave an
-      // administrator able to do its job, or it is a denial of service
-      // rather than a projection.
+      // The redaction has to leave an administrator able to do its job, or
+      // it is a denial of service rather than a projection.
       expect(target['appName'], 'wavi');
       expect(target['status'], 'approved');
       expect(target['namespace'], {'wavi': 'rw'});
@@ -103,8 +96,8 @@ void main() {
     });
 
     test('a __manage:rw administrator still gets the key material', () async {
-      // The control, and the reason the assertion above is about the LETTER
-      // rather than about redaction being unconditional.
+      // The control: it is the letter that decides, not redaction being
+      // unconditional.
       final targetId = await storeEnrollment({'wavi': 'rw'});
       final callerId = await storeEnrollment({'__manage': 'rw'});
 
@@ -120,9 +113,11 @@ void main() {
 
     test('an owner connection carrying no enrollment id gets the whole record',
         () async {
-      // CRAM, owner and legacy PKAM hold the atSign itself rather than a
-      // delegated share of it, so there is no secret here they are not
-      // already entitled to read straight out of the keystore.
+      // A connection carrying no enrollment id holds the atSign itself
+      // rather than a delegated share of it, so there is no secret here it
+      // is not already entitled to read straight out of the keystore. A
+      // legacy connection carries `primary`, which holds `__manage:rw`, and
+      // reaches the same answer through the branch above.
       final targetId = await storeEnrollment({'wavi': 'rw'});
 
       final listed = await listAs(null);
@@ -136,8 +131,8 @@ void main() {
     test('a caller without __manage still sees its own record whole',
         () async {
       // Its own key material, which the client holding the enrollment
-      // already has — narrowing this would break the caller's own client
-      // while protecting nothing.
+      // already has, so narrowing this would break that client while
+      // protecting nothing.
       await storeEnrollment({'wavi': 'rw'});
       final callerId = await storeEnrollment({'buzz': 'rw'});
 

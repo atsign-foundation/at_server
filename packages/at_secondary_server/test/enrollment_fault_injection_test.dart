@@ -15,27 +15,18 @@ import 'package:uuid/uuid.dart';
 
 import 'test_utils.dart';
 
-/// Faults the store can hand back, and what each guard owes.
+/// Pins what the enrollment guards owe when the KEYSTORE misbehaves: a
+/// throw on a key the enumeration just returned, or an outright failure
+/// mid-walk. A Hive-backed fixture cannot produce either on demand, so
+/// this file injects them through a mocktail double. Only `get` and the
+/// two key enumerations are stubbed, so any other call the code under
+/// test makes shows up rather than being answered silently.
 ///
-/// Three fixes on this branch had no test, all for the same reason: each
-/// guards against something only the KEYSTORE can do — throw on a key the
-/// enumeration just returned, or fail outright mid-walk. A Hive-backed
-/// fixture cannot produce either on demand, so the guards shipped reasoned
-/// about rather than exercised. This file injects the faults.
-///
-/// A mocktail double is used rather than a delegating wrapper: only `get` and
-/// the two key enumerations are reached by the code under test, and stubbing
-/// exactly those keeps the double from silently answering a call nobody meant
-/// it to take.
-///
-/// ⚠️ BOTH enumerations are stubbed together, by [stubRoster], and that is not
-/// tidiness. A `Mock implements` erases every body, so an enumeration the
-/// double does not stub is answered by `noSuchMethod` with null — which fails
-/// at RUNTIME, inside the code under test, as a type error that reads like a
-/// product bug. Which enumeration a given walk takes is a per-caller decision
-/// (see [EnrollmentManager.getAllEnrollmentKeys]), so a fixture that stubs the
-/// one the walk happens to use today breaks silently the day that caller
-/// changes its mind.
+/// [stubRoster] stubs BOTH enumerations together. `Mock implements`
+/// erases every body, so an unstubbed enumeration is answered by
+/// `noSuchMethod` with null and fails at runtime inside the code under
+/// test, looking like a product bug; which one a walk takes is a
+/// per-caller decision (see [EnrollmentManager.getAllEnrollmentKeys]).
 class _FaultyKeyStore extends Mock
     implements AtKeyValueStore<String, AtData, AtMetaData?> {}
 
@@ -56,11 +47,9 @@ void main() {
     registerFallbackValue(const KeyPattern());
   });
 
-  /// Makes [store] answer BOTH key enumerations with [keys].
-  ///
-  /// `getKeys` is the visible roster and `scanKeys` the stored one; which of
-  /// them a walk takes is the caller's decision, and a double that answers
-  /// only one returns null through `noSuchMethod` for the other.
+  /// Makes [store] answer BOTH key enumerations with [keys]: `getKeys` is
+  /// the visible roster and `scanKeys` the stored one, and a double that
+  /// answers only one returns null through `noSuchMethod` for the other.
   void stubRoster(_FaultyKeyStore store, List<String> keys) {
     when(() => store.getKeys(regex: any(named: 'regex')))
         .thenAnswer((_) async => Stream.fromIterable(keys));
@@ -84,13 +73,10 @@ void main() {
   }
 
   group('a keystore fault mid-walk', () {
-    /// `_approverIdOf` catches [KeyNotFoundException] (the record is gone)
-    /// and [FormatException] (it does not decode) and treats both as "no
-    /// predecessor". It deliberately catches nothing else: a store that
-    /// FAILS is not a store that answered "no", and swallowing the
-    /// difference would make a revoke silently under-cascade — reporting
-    /// success while leaving a successor of the revoked enrollment approved
-    /// and usable.
+    /// `_approverIdOf` treats a missing or undecodable record as "no
+    /// predecessor" and catches nothing else: a store that FAILED did not
+    /// answer "no", and swallowing the difference makes a revoke report
+    /// success while a successor stays approved and usable.
     test('propagates out of descendantsOf rather than under-cascading',
         () async {
       final store = _FaultyKeyStore();
@@ -115,8 +101,8 @@ void main() {
 
     test('the control: the same walk with a healthy store finds the child',
         () async {
-      // Without this the assertion above is satisfied by a walk that throws
-      // for some other reason, or by one that never reaches the child at all.
+      // Without this arm the throw above is satisfied by a walk that fails
+      // for some other reason, or that never reaches the child at all.
       final store = _FaultyKeyStore();
       final enMgr = EnrollmentManager(store, alice);
       final rootId = Uuid().v4();
@@ -135,11 +121,10 @@ void main() {
   });
 
   group('a record reaped between the enumeration and the read', () {
-    /// `getKeys` and `get` are two calls with a gap between them, and an
-    /// enrollment can be deleted or expire inside it. `get` THROWS rather
-    /// than returning null, so without the guard one vanishing record takes
-    /// the whole roster with it — `enroll:list` fails for every enrollment
-    /// because one is gone.
+    /// `getKeys` and `get` are two calls with a gap in which an enrollment
+    /// can be deleted or expire, and `get` throws rather than returning
+    /// null, so without the guard one vanished record fails the whole
+    /// listing.
     test('is skipped, and the rest of the roster is still served', () async {
       final store = _FaultyKeyStore();
       final enMgr = EnrollmentManager(store, alice);
@@ -181,11 +166,10 @@ void main() {
 
   group('the connections a revoke drops', () {
     /// The drop set is what the revoke INTENDED to revoke, not the subset
-    /// this call actually flipped. The two differ exactly when a descendant
-    /// is already revoked in the store — which is the state a part-way
-    /// failure leaves behind, and therefore the state a retry runs against.
-    /// Sending the flipped set means the retry drops nothing for precisely
-    /// the enrollments whose connections are still open.
+    /// this call flipped. They differ exactly when a descendant is already
+    /// revoked, the state a part-way failure leaves for a retry, so using
+    /// the flipped set would drop no connection for the enrollments whose
+    /// connections are still open.
     test('is the intended cascade, not the subset this call flipped',
         () async {
       final predecessorId = Uuid().v4();
@@ -196,8 +180,8 @@ void main() {
           enMgr.buildEnrollmentKey(predecessorId),
           AtData()..data = recordFor(predecessorId),
           skipCommit: true);
-      // ALREADY revoked, so revokeAll skips it and the flipped set is empty
-      // for exactly the enrollment whose connection is still open.
+      // Already revoked, so revokeAll flips nothing for exactly the
+      // enrollment whose connection is still open.
       await keyValueStore.put(
           enMgr.buildEnrollmentKey(successorId),
           AtData()

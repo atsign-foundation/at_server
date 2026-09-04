@@ -26,11 +26,9 @@ class ETU {
   /// Builds the handlers and, unless [withPrimaryEnrollment] says otherwise,
   /// the CRAM-auto-approved enrollment [primaryEnId] names.
   ///
-  /// [withPrimaryEnrollment] false leaves the keystore holding NO enrollment
-  /// at all, which a subject about an atSign that has never enrolled anything
-  /// requires — the enrollment this otherwise creates is exactly what such a
-  /// test is asserting the absence of. Such a test calls
-  /// [initPrimaryEnrollment] later, wherever it needs an approver.
+  /// Pass false for a subject about an atSign that has never enrolled
+  /// anything: it leaves the keystore holding no enrollment at all. Such a
+  /// test calls [initPrimaryEnrollment] wherever it needs an approver.
   Future<void> init({bool withPrimaryEnrollment = true}) async {
     evh = EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
     ovh = OtpVerbHandler(keyValueStore);
@@ -66,11 +64,10 @@ class ETU {
   }
 
   /// [apsk] is the client-composed signing-key value and [apskLegacy] the bare
-  /// RSA string a plain-legacy enrollment publishes instead. Leaving both null
-  /// is the ordinary case and means no `_apsk` is published for this
-  /// enrollment. Sending both is what a client is refused for, so the pair is
-  /// exposed here rather than made exclusive — a test has to be able to send
-  /// the refused combination.
+  /// RSA string a plain-legacy enrollment publishes instead; both null, the
+  /// ordinary case, publishes no `_apsk`. Both are exposed separately rather
+  /// than made exclusive because sending the pair together is refused, and a
+  /// test has to be able to send it.
   Future<String> createPendingEnrollment(
       {required String appName,
       required String deviceName,
@@ -203,8 +200,8 @@ class ETU {
     expect(m['enrollmentId'], enIdToDelete);
   }
 
-  /// Serial for the keys [createPrimaryEnrollment] mints: a test that
-  /// creates a second CRAM enrollment needs it to carry a key of its own.
+  /// Serial for the keys [createPrimaryEnrollment] mints: a second CRAM
+  /// enrollment needs a key of its own.
   static int _primaryKeySerial = 0;
 
   Future<String> createPrimaryEnrollment(
@@ -237,14 +234,10 @@ class ETU {
 
   /// Asserts, for every id in [allCreated], that its enrollment record and its
   /// two per-enrollment encryption keys are on disk or gone as
-  /// [deletedOrExpired] and [cleanedUp] say they should be.
-  ///
-  /// Every assertion carries a reason NAMING the id and which of the three
-  /// keys it is about. Without one a caller gets a bare expected-against-actual
-  /// pair of booleans and nothing else — and this helper is called several
-  /// times in a single test, over twenty enrollments, before and after a
-  /// removal, so the bare form does not even say which call failed, let alone
-  /// whether the record or an ancillary key was the one in the wrong state.
+  /// [deletedOrExpired] and [cleanedUp] say they should be. Each assertion
+  /// names the id and the key it is about, because one test calls this
+  /// repeatedly over many enrollments and a bare boolean mismatch would not
+  /// say which call or which key failed.
   Future<void> verifyKeyStoreState(
       List<String> allCreated, List<String> deletedOrExpired,
       {required bool cleanedUp}) async {
@@ -253,9 +246,7 @@ class ETU {
             'state as correct without asserting anything');
     for (final enId in allCreated) {
       bool enDeleted = deletedOrExpired.contains(enId);
-      // enrollment should exist unless was deleted
       bool enrollmentShouldExist = !enDeleted;
-      // ancillary keys should exist if not deleted, or if deleted but not cleanedUp
       bool ancillaryKeysShouldExist = !enDeleted || (enDeleted && !cleanedUp);
       final String state = enDeleted
           ? 'deleted or expired, with cleanedUp: $cleanedUp'
@@ -288,13 +279,13 @@ class ETU {
     required int n,
 
     /// every m'th enrollment will have a ttl set
-    /// the ttl to set for every m'th enrollment
     int m = 1000,
+
+    /// the ttl to set for every m'th enrollment
     int ttl = 50,
   }) async {
     List<String> allEnIds = [];
     List<String> withTtlEnIds = [];
-    // Create and approve some enrollments
     for (int i = 0; i < n; i++) {
       final bool withTtl = (i + 1) % m == 0;
       final enId = await createPendingEnrollment(
@@ -327,7 +318,6 @@ class ETU {
       Response r;
       String key;
       String value;
-      // public key
       r = Response();
       key = 'public:public_foo_$i.my_app'
           '.${AbstractVerbHandler.enrollmentReservedNamespace(enId)}'
@@ -341,7 +331,6 @@ class ETU {
       keys.add(key);
       values.add(value);
 
-      // self key
       r = Response();
       key = '$alice:self_foo_$i.my_app'
           '.${AbstractVerbHandler.enrollmentReservedNamespace(enId)}'
@@ -355,7 +344,6 @@ class ETU {
       keys.add(key);
       values.add(value);
 
-      // shared key
       r = Response();
       key = '$bob:shared_foo_$i.my_app'
           '.${AbstractVerbHandler.enrollmentReservedNamespace(enId)}'

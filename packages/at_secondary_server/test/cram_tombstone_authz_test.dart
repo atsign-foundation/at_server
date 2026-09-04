@@ -10,20 +10,13 @@ import 'package:uuid/uuid.dart';
 
 import 'test_utils.dart';
 
-/// The `privatekey:at_secret_deleted` marker is what stops the CRAM secret
-/// being replanted on a later start, so planting it is an irreversible act:
+/// The `privatekey:at_secret_deleted` marker stops the CRAM secret being
+/// replanted on a later start, so planting it is irreversible:
 /// [AtSecondaryServerImpl.plantCramSecretIfRequired] refuses forever once it
-/// exists. Once the flat PKAM credential is retired, CRAM is the last
-/// recovery route an atSign has, which makes "who can plant this marker, and
-/// when" an authorisation question rather than bookkeeping.
-///
-/// The marker used to be written at the top of the delete handler, before the
-/// authorisation check and before the removal was attempted. Any connection
-/// that reached the handler at all could therefore plant it — and did so even
-/// when its delete was refused, and even on an atSign that had no CRAM secret
-/// to delete.
-///
-/// These pin the marker to the deletion it is supposed to record.
+/// exists, and CRAM is an atSign's last recovery route once its roots are
+/// revoked. These pin the marker to the deletion it records: it is written
+/// only by a caller the authorisation check admitted, and only when a secret
+/// was really there to remove.
 void main() {
   AtSignLogger.root_level = 'WARNING';
 
@@ -92,9 +85,9 @@ void main() {
         ..isAuthenticated = true
         ..enrollmentId = null;
 
-      // Removing a key the store does not hold is not an error: it returns a
-      // commit id of -1. So nothing about the command's OUTCOME distinguishes
-      // this from a real deletion — the handler has to have looked.
+      // Removing a key the store does not hold is not an error, so nothing
+      // about the command's outcome distinguishes this from a real deletion:
+      // the handler has to have looked.
       final response = await deleteVerbHandler.processInternal(
           'delete:${AtConstants.atCramSecret}', inboundConnection);
       expect(response.isError, isFalse,
@@ -128,8 +121,8 @@ void main() {
     });
 
     test('the marker keeps a later start from replanting', () async {
-      // The property the marker exists for, asserted end to end against the
-      // startup guard rather than inferred from the marker's presence.
+      // The property the marker exists for, asserted against the startup
+      // guard rather than inferred from the marker's presence.
       await seedSecret();
       inboundConnection.metadata
         ..isAuthenticated = true

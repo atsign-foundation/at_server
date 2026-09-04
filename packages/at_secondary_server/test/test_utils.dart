@@ -1,28 +1,10 @@
-// =====================================================================
-// Test setup conventions
-// =====================================================================
-//
-// Each test file in this package opens persistence stores against a
-// per-process Hive box keyed by `sha-of-atSign`. Two patterns work:
-//
-// 1. **File-scoped factory + per-test isolation via `bundle.clear()`.**
-//    Best when tests overlap on stored data and want a clean slate
-//    between cases. Open the factory once in `setUpAll`, call
-//    `bundle.clear()` in `setUp`, close the factory in `tearDownAll`.
-//    Cheap (no box reopen per test), but requires every test to
-//    expect an empty store.
-//
-// 2. **File-scoped factory + cross-test data leak.**
-//    Best when a setUp seeds shared baseline data and the tests
-//    assume it's still there. Same factory shape, no per-test
-//    clear.
-//
-// Avoid `tearDown` (per-test) factory close — it forces a box
-// reopen on every test and surfaces Hive lifecycle bugs that aren't
-// representative of production behaviour. Stick to `tearDownAll`
-// (per-file) for the close.
-//
-// =====================================================================
+// Test setup conventions. Each test file opens persistence against a
+// per-process Hive box keyed by `sha-of-atSign`, so the factory is
+// file-scoped: open it in `setUpAll`, close it in `tearDownAll`. Add
+// `bundle.clear()` in `setUp` when every test wants an empty store;
+// omit it when a `setUp` seeds baseline data the tests rely on.
+// Closing the factory per test forces a box reopen and surfaces Hive
+// lifecycle behaviour that production never hits.
 
 import 'dart:async';
 import 'dart:convert';
@@ -98,10 +80,8 @@ class FakeInboundConnection extends Fake implements InboundConnectionImpl {
   final FakeSocket socket;
   final InboundConnectionMetadata metadata;
 
-  /// Records every write the server-side code performs on this
-  /// connection. Tests can inspect this to assert that the connection
-  /// was (or wasn't) written to — e.g. that no `error:…\n@` frame was
-  /// sent on a path that should have succeeded.
+  /// Every write the server-side code performs on this connection, so a
+  /// test can assert what was, or was not, sent back.
   final writes = <String>[];
 
   FakeInboundConnection(this.socket, this.metadata);
@@ -188,7 +168,6 @@ class FakeSocket extends Fake implements Socket {
 
 class MockStreamSubscription<T> extends Mock implements StreamSubscription<T> {}
 
-// String alice = '@alice🛠';
 Atsign alice = '@alice'.toAtsign();
 Atsign bob = '@bob'.toAtsign();
 var bobHost = "domain.testing.bob.bob.bob";
@@ -216,15 +195,12 @@ late NotificationManager notificationManager;
 late MockStatsNotificationService statsNotificationService;
 late EnrollmentManager enMgr;
 
-/// The socket callbacks registered by one *generation* of mocks — i.e.
-/// by one [verbTestsSetUp] call.
-///
-/// Every mock built in a given [verbTestsSetUp] captures that call's
-/// holder, so a connection left behind by an earlier test can only ever
-/// answer into its own (by then unread) holder. Without that, a stray
-/// write — most often a `notify:` still being retried by an earlier
-/// test's [PerAtSignNotifSender] — reaches whichever test is reading
-/// now, and that test fails on a request it never made (issue #2747).
+/// The socket callbacks registered by one generation of mocks, meaning
+/// one [verbTestsSetUp] call. Every mock from that call captures its own
+/// holder, so a connection left behind by an earlier test answers into
+/// that test's holder. Without it a stray write, typically a `notify:`
+/// still being retried, reaches whichever test is reading now and fails
+/// it on a request it never made.
 class MockSocketListener {
   late Function(dynamic data) onData;
   late Function() onDone;
@@ -233,9 +209,9 @@ class MockSocketListener {
 
 MockSocketListener _currentSocketListener = MockSocketListener();
 
-/// The current generation's socket `onData`. Test files push mock
-/// responses through this; see [MockSocketListener] for why it is a
-/// getter rather than a variable.
+/// The current generation's socket `onData`; test files push mock
+/// responses through it. A getter, so it follows the generation: see
+/// [MockSocketListener].
 Function(dynamic data) get socketOnDataFn => _currentSocketListener.onData;
 
 Function() get socketOnDoneFn => _currentSocketListener.onDone;
@@ -244,16 +220,14 @@ Function(Exception e, StackTrace st) get socketOnErrorFn =>
     _currentSocketListener.onError;
 
 String storageDir = '${Directory.current.path}/unit_test_storage';
-// Default to bare mocks so handler-construction tests that never run
-// `verbTestsSetUp` (e.g. accept()/syntax tests on a mock keystore)
-// still have a non-null commit/access log to inject. `verbTestsSetUp`
-// overwrites both with the real bundle-backed instances.
+// Bare mocks by default so handler-construction tests that never call
+// `verbTestsSetUp` still have a non-null commit and access log to
+// inject; `verbTestsSetUp` overwrites both with the real instances.
 AtCommitLog atCommitLog = MockAtCommitLog();
 AtAccessLog atAccessLog = MockAtAccessLog();
 
-/// Creates and persists a new approved enrollment
-/// NB: Does not go through enroll verb handler, so
-/// no other enrollment stuff is happening
+/// Creates and persists an approved enrollment record directly, so none
+/// of the enroll verb handler's other side effects happen.
 Future<String> createAndPersistAnEnrollment(
   String app,
   String device,
@@ -291,9 +265,7 @@ verbTestsSetUpAll() async {
 
 verbTestsSetUp() async {
   verbTestsSetUpLogging();
-  // Wire up persistence through the factory. The factory owns the
-  // per-atSign lifecycle; the legacy `*.getInstance()` singletons
-  // have been removed.
+  // The factory owns the per-atSign persistence lifecycle.
   final factory = atServer.persistenceFactory = HiveAtPersistenceFactory();
   final config = HivePersistenceConfig(
     storagePath: storageDir,
@@ -307,12 +279,11 @@ verbTestsSetUp() async {
   atServer.accessLog = atAccessLog = bundle.accessLog!;
   keyValueStore = bundle.keyValueStore;
 
-  // Everything below is built into locals first and only then published
-  // to the top-level `late` variables. Every stub closure captures the
-  // local, so the mocks of one `verbTestsSetUp` call form a
-  // self-consistent generation: work still in flight from an earlier
-  // test keeps talking to the mocks it started with instead of reaching
-  // into whichever test is running now (issue #2747).
+  // Everything below is built into locals and only then published to the
+  // top-level `late` variables. Each stub closure captures the local, so
+  // one `verbTestsSetUp` call's mocks form a self-consistent generation
+  // and work still in flight from an earlier test keeps talking to the
+  // mocks it started with rather than to the running test's.
   final socketListener = _currentSocketListener = MockSocketListener();
 
   final addressFinder = mockSecondaryAddressFinder =
@@ -333,9 +304,6 @@ verbTestsSetUp() async {
   registerFallbackValue(inboundConnection);
   atServer.inboundConnectionManager =
       InboundConnectionManager(serverAtSign: alice, poolSize: 5);
-  // final inboundPool = InboundConnectionPool.getInstance();
-  // inboundPool.init(5);
-  // inboundPool.add(inboundConnection);
 
   final clientWithHandshake = outboundClientWithHandshake = OutboundClient(
     inboundConnection,
@@ -467,14 +435,13 @@ verbTestsSetUp() async {
 Future<void> verbTestsTearDown() async {
   keyValueStore.preRemoveHooks.clear();
   keyValueStore.postRemoveHooks.clear();
-  // Undelivered notifications are retried until they succeed, and the
-  // mock outbound connection never lets one succeed. Closing the
-  // manager — as the server's own stop() does — stops those senders
-  // rather than leaving one spinning per test for the rest of the file.
+  // Undelivered notifications are retried until they succeed and the
+  // mock outbound connection never lets one succeed, so the manager must
+  // be closed, as the server's own stop() does, or a sender spins on for
+  // the rest of the file.
   await notificationManager.close();
-  // factory.close() cascades to commit log, access log, notification
-  // keystore and the Hive persistence manager, and clears the legacy
-  // singletons' caches.
+  // Closing the factory closes every bundle it holds: keystore, commit
+  // log, access log and notification keystore.
   await atServer.persistenceFactory.close();
   var isExists = await Directory(storageDir).exists();
   if (isExists) {

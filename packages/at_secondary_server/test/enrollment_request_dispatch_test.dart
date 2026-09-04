@@ -12,21 +12,16 @@ import 'enrollment_test_utils.dart';
 import 'test_utils.dart';
 
 /// Which branch of `enroll:request` a connection takes, and what selects it.
-///
-/// The CRAM auto-approve is selected by AUTH TYPE and tested first: a CRAM
-/// connection carries the id it has just minted, so anything keyed on the id
-/// ahead of it would capture that connection's next request. The retrofit
-/// branch, the (appName, deviceName) skip that goes with it and the
-/// mandatory-namespace exemption are selected by the ENROLLMENT THE
-/// CONNECTION CARRIES, whatever authenticated it. Keying those three on the
-/// auth type instead is how an empty-grant record gets minted: a connection
-/// admitted by the exemption and not by the retrofit branch lands on the
-/// path that writes the grants the request chose, which are none.
-///
-/// Every shape here is one the server produces today or will: an APKAM
-/// connection carrying its enrollment, a CRAM connection, a connection
-/// carrying no enrollment, and a legacy-PKAM connection carrying an
-/// enrollment — the shape a migrated flat credential authenticates as.
+/// The CRAM auto-approve is selected by auth type and tested first, because a
+/// CRAM connection carries the id it has just minted and anything keyed on
+/// the id ahead of it would capture that connection's next request. The
+/// retrofit branch, the (appName, deviceName) skip and the
+/// mandatory-namespace exemption are instead selected by the enrollment the
+/// connection carries, whatever authenticated it: keying those on the auth
+/// type mints empty-grant records, because a connection admitted by the
+/// exemption but not by the retrofit branch lands on the path that writes
+/// the grants the request chose, which are none. All four connection shapes
+/// the server produces are covered.
 void main() {
   verbTestsSetUpLogging();
 
@@ -151,10 +146,10 @@ void main() {
     test('a legacy-PKAM connection carrying an enrollment takes the retrofit '
         'too: the branch is keyed on the enrollment, not the auth type',
         () async {
-      // The shape a migrated flat credential authenticates as. Nothing
-      // produces it yet; when something does, this is the path it must take
-      // — and a request naming no namespaces must inherit rather than land
-      // an empty-grant record on the standard path.
+      // The shape a migrated flat credential authenticates as: a legacy
+      // `pkam:` carries the `primary` enrollment. A request naming no
+      // namespaces must inherit from it rather than land an empty-grant
+      // record on the standard path.
       final String predecessor = await approved({'wavi': 'rw', 'buzz': 'r'});
 
       final r = await request(

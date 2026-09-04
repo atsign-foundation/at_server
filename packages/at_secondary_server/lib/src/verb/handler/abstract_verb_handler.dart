@@ -60,10 +60,9 @@ abstract class AbstractVerbHandler implements VerbHandler {
     if (getVerb().requiresAuth() && !atConnectionMetadata.isAuthenticated) {
       throw UnAuthenticatedException('Command cannot be executed without auth');
     }
-    // This check verifies whether the enrollment is active on the already APKAM authenticated existing connection
-    // and terminates if the enrollment is expired.
-    // At this stage, the enrollmentId is not set to the InboundConnectionMetadata for the new connections.
-    // This will not terminate an un-authenticated connection when attempting to execute a PKAM verb with an expired enrollmentId.
+    // Closes an already-authenticated connection whose enrollment has left
+    // approved. A new connection carries no enrollmentId yet, so this does not
+    // terminate an unauthenticated one running a PKAM verb.
     (bool, Response) isEnrollmentActive =
         await _verifyIfEnrollmentIsActive(response, atConnectionMetadata);
     if (isEnrollmentActive.$1 == false) {
@@ -71,11 +70,9 @@ abstract class AbstractVerbHandler implements VerbHandler {
       return isEnrollmentActive.$2;
     }
     try {
-      // Parse the command
       var verbParams = parse(command);
       // TODO This is not ideal. Would be better to make it so that processVerb takes command as an argument also.
       verbParams[paramFullCommandAsReceived] = command;
-      // Syntax is valid. Process the verb now.
       await processVerb(response, verbParams, atConnection);
       if (this is SyncProgressiveVerbHandler) {
         final verbHandler = this as SyncProgressiveVerbHandler;
@@ -91,12 +88,12 @@ abstract class AbstractVerbHandler implements VerbHandler {
   }
 
   /// The wire error code a connection is closed with when its enrollment is
-  /// no longer [EnrollmentStatus.approved]. These are the codes `pkam`
-  /// refuses an authentication with, so a client cut off mid-session reads
-  /// the same reason it would have been given had it connected a moment
-  /// later. A state with no code of its own — including a record whose
-  /// approval cannot be read at all — reports AT0028, the code for an
-  /// enrollment that cannot serve.
+  /// no longer [EnrollmentStatus.approved].
+  ///
+  /// These are the codes `pkam` refuses an authentication with, so a client
+  /// cut off mid-session reads the reason a fresh connection would be given.
+  /// A state with no code of its own, an unreadable approval included,
+  /// reports AT0028.
   static String _closeCodeForState(String? state) {
     if (state == EnrollmentStatus.denied.name) return 'AT0025';
     if (state == EnrollmentStatus.pending.name) return 'AT0026';
@@ -108,10 +105,10 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// Returns true if the enrollment is active; otherwise, returns false.
   Future<(bool, Response)> _verifyIfEnrollmentIsActive(
       Response response, AtConnectionMetaData atConnectionMetadata) async {
-    // A connection with no enrollment id stands over no enrollment record,
-    // so there is no approval state for this to read. Only CRAM is in that
-    // company: a legacy `pkam:` carries `primary`, so a legacy connection is
-    // closed by this very check when `primary` leaves approved.
+    // A connection with no enrollment id stands over no enrollment record, so
+    // there is no approval state to read. Only CRAM is in that company: a
+    // legacy `pkam:` carries `primary`, so this check closes a legacy
+    // connection too once `primary` leaves approved.
     if ((atConnectionMetadata as InboundConnectionMetadata).enrollmentId ==
         null) {
       if (logger.isLoggable('finest')) {
@@ -126,17 +123,13 @@ abstract class AbstractVerbHandler implements VerbHandler {
               .enrollmentManager
               .getEnrollmentById(atConnectionMetadata.enrollmentId!);
       // A connection may continue only for as long as its enrollment could
-      // still authenticate. `pkam` admits an APKAM connection on `approved`
-      // and refuses every other state, so an enrollment that has left
-      // `approved` is one this connection could not be opened with now.
+      // still authenticate: `pkam` admits an APKAM connection on `approved`
+      // and refuses every other state.
       //
-      // Closed rather than merely denied. Denial is per-verb, so it is only
-      // ever as complete as the least careful handler: a verb that decides
-      // access some way of its own goes on serving a revoked caller for as
-      // long as it holds the socket. Closing here states the rule once, and
-      // an operator who revokes an enrollment gets the effect they asked for
-      // — the same one expiry has always had — rather than one that depends
-      // on which verb the revoked client reaches for next.
+      // Closed rather than merely denied, because per-verb denial is only as
+      // complete as the least careful handler. A verb deciding access its own
+      // way would go on serving a revoked caller for as long as it held the
+      // socket; closing states the rule once.
       final String? state = enrollDataStoreValue.approval?.state;
       if (state != EnrollmentStatus.approved.name) {
         final String describedState = state ?? 'in an unreadable state';
@@ -149,8 +142,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
               'The enrollment id: ${(atConnectionMetadata).enrollmentId} is $describedState. Closing the connection';
         return (false, response);
       }
-      // The expired enrollments are removed from the keystore. In such cases, KeyNotFoundException is
-      // thrown. Return false.
+      // An expired enrollment is removed from the keystore, so it surfaces
+      // here as KeyNotFoundException.
     } on KeyNotFoundException {
       logger.severe(
           'The enrollment id: ${atConnectionMetadata.enrollmentId} is expired. Closing the connection');
@@ -168,14 +161,11 @@ abstract class AbstractVerbHandler implements VerbHandler {
     return (true, response);
   }
 
-  /// Return the instance of the current verb
-  ///@return instance of [Verb]
+  /// The [Verb] this handler serves.
   Verb getVerb();
 
-  /// Process the given command using verbParam and requesting atConnection. Sets the data in response.
-  ///@param response - response of the command
-  ///@param verbParams - contains key-value mapping of groups names from verb syntax
-  ///@param atConnection - Requesting connection
+  /// Processes [verbParams], the groups parsed out of the command, on behalf
+  /// of [atConnection], and sets the result in [response].
   Future<void> processVerb(Response response,
       HashMap<String, String?> verbParams, InboundConnection atConnection);
 
@@ -184,23 +174,20 @@ abstract class AbstractVerbHandler implements VerbHandler {
   }
 
   /// Matches a per-enrollment reserved-namespace key (`<EnId>.a|r|d.__e@…`),
-  /// capturing the owning enrollment id in the `EnId` group. Compiled once.
+  /// capturing the owning enrollment id in the `EnId` group.
   static final RegExp _perEnrollmentReservedKeyRegex =
       RegExp(EnrollmentConstants.regexForPerEnrollmentNamespaces);
 
   /// Whether [atKey] lives in a per-enrollment reserved namespace
-  /// (`<id>.a|r|d.__e`) owned by an enrollment *other than* [enrollmentId].
+  /// (`<id>.a|r|d.__e`) owned by an enrollment other than [enrollmentId].
   ///
-  /// A public key is exempt for READS only — `public:_apsk.<id>.a.__e@` is the
-  /// APKAM signing key, and it is world-readable by design. It is NOT exempt
-  /// for writes or deletes, which is what [isMutating] distinguishes: being
-  /// readable by everyone is not a reason to be writable by anyone. A caller
-  /// holding `*` and no `__manage` would otherwise reach another enrollment's
-  /// published signing key — the namespace resolves to one nothing in its map
-  /// matches, the wildcard fallback supplies `rw`, and the `__manage` guard
-  /// is skipped because the namespace is not `__manage`. Whoever can write
-  /// that record controls both the algorithm set and the key ids a verifier
-  /// trusts, so it is forgery rather than vandalism.
+  /// A `public:` key is exempt for READS only, which is what [isMutating]
+  /// distinguishes. `public:_apsk.<id>.a.__e@` is the APKAM signing key and
+  /// is world-readable by design, but whoever can WRITE it chooses the
+  /// algorithms and key ids a verifier trusts, so that is forgery rather than
+  /// vandalism. Without the mutating case a caller holding `*` and no
+  /// `__manage` would reach another enrollment's signing key through the
+  /// wildcard fallback below.
   static bool isForeignPerEnrollmentReservedKey(
       String atKey, String? enrollmentId,
       {bool isMutating = false}) {
@@ -211,56 +198,36 @@ abstract class AbstractVerbHandler implements VerbHandler {
     if (match == null) {
       return false;
     }
-    // The owning id is read out of an atKey the CALLER supplied, so it is
-    // folded to the keystore's own form before being compared against the
-    // connection's id, which is already in that form. Without the fold the
-    // owner named by the spelling and the owner named by the record the
-    // keystore will actually serve can differ, and the answer is then about
-    // neither: a caller's own key spelled non-canonically reads as foreign.
-    //
-    // This cannot widen access. Equality after folding means the key's
-    // owner-id segment folds to the caller's own id, and folding is exactly
-    // what the keystore does to decide which record the key names — so a key
-    // that passes is a key belonging to the caller.
+    // The owning id comes out of a CALLER-supplied atKey, so it is folded to
+    // the keystore's own form before comparison with the connection's id,
+    // which is already in that form. Unfolded, the owner named by the
+    // spelling and the owner of the record the keystore would serve can
+    // differ, and a caller's own key spelled non-canonically reads as
+    // foreign. Folding cannot widen access: it is how the keystore decides
+    // which record a key names, so a key that compares equal is the caller's.
     return EnrollmentManager.canonicalEnrollmentId(
             match.namedGroup('EnId')!) !=
         enrollmentId;
   }
 
   /// Whether [atKey]'s namespace is the enrollment-manage namespace
-  /// (`__manage`) — i.e. an enrollment record or its encrypted key material
+  /// (`__manage`), i.e. an enrollment record or its encrypted key material
   /// (PEK/SEK).
   static bool isEnrollManageKey(String atKey) {
     return atKey.contains('.${EnrollmentConstants.enrollManageNamespace}@');
   }
 
-  /// Verifies whether the current connection has permission to
-  /// modify, delete, or retrieve the data in a given namespace.
+  /// Whether this connection may retrieve, modify or delete data in a
+  /// namespace: "r" or "rw" for a lookup or local lookup, "rw" for an update
+  /// or delete.
   ///
-  /// The connection's enrollment should be in an approved state.
+  /// True for a connection with no enrollment id, which stands over no
+  /// enrollment record, and for an approved enrollment holding enough access
+  /// on the namespace. False when the enrollment record is absent or not
+  /// approved, when it holds nothing or too little for the operation, and
+  /// when the key carries no namespace and the enrollment has no `*`.
   ///
-  /// To execute a data retrieval (lookup or local lookup), the connection
-  /// must have "r" or "rw" (read / read-write) access for the namespace.
-  ///
-  /// For update or delete, the connection must have "rw" (read-write) access.
-  ///
-  /// Returns true if
-  /// - EITHER the connection has no enrollment ID — a CRAM connection,
-  ///   which stands over no enrollment record
-  /// - OR the connection has the required read or read-write
-  ///   permissions to execute lookup/local-lookup or update/delete operations
-  ///   respectively
-  ///
-  /// The connection will be deemed not to have permission if any of the
-  /// following are true:
-  ///  - the enrollment key is not present in the keystore.
-  ///  - the enrollment is not in "approved" state
-  ///  - the connection has no permissions for this namespace
-  ///  - the connection has insufficient permission for this namespace
-  ///    (for example, has "r" but needs "rw" for a delete operation)
-  ///  - If enrollment is a part of "global" or "manage" namespace
-  ///  - the connection does not have access to * namespace and key has no namespace
-  /// Use [namespace] if passed, otherwise retrieve namespace from [atKey]. Return false if no [namespace] or [atKey] is set.
+  /// Uses [namespace] when passed, otherwise the namespace of [atKey].
   Future<bool> isAuthorized(InboundConnectionMetadata inboundConnectionMetadata,
       {String? atKey,
       String? namespace,
@@ -285,41 +252,35 @@ abstract class AbstractVerbHandler implements VerbHandler {
 
   /// The ONE gate on writing the flat legacy credential,
   /// `privatekey:at_pkam_publickey`: refused for every connection, whatever
-  /// it holds, with the single exception below. Called from [isAuthorized]
-  /// ahead of its null-id short circuit, so it decides for a connection
-  /// carrying no enrollment id — CRAM — as well as for every enrollment,
-  /// `primary` included. Scoped to the writing verbs, `update` and
-  /// `update:meta`, which `update:json` and `batch:` both re-dispatch into.
+  /// it holds, with the single exception below.
   ///
-  /// Why no connection may write it: the key is what a legacy `pkam:` was
-  /// verified against outside every record, and a key found there is absorbed
-  /// into `primary` on the next legacy login, so a caller that installs a key
-  /// it holds rotates the owner's own credential onto it — an enrollment that
-  /// plants one survives its own revocation as the owner. A connection
-  /// carrying no id is authorised for everything else before any key is
-  /// examined, which is exactly why the gate sits ahead of that.
+  /// Called from [isAuthorized] ahead of its null-id short circuit, because a
+  /// connection carrying no enrollment id is authorised for everything else
+  /// before any key is examined. So this decides for CRAM as well as for
+  /// every enrollment, `primary` included. Scoped to the writing verbs,
+  /// `update` and `update:meta`, which `update:json` and `batch:` both
+  /// re-dispatch into.
   ///
-  /// THE ONE EXCEPTION is a CRAM connection sending a plain `update`: the
-  /// virtual environment installs a keypair that way against a fresh atSign,
-  /// so that the packs have something to authenticate with. Even then the
-  /// flat key is not written: `UpdateVerbHandler` redirects the value into
-  /// the `primary` enrollment, which is why the exception is for `update`
-  /// and not for `update:meta`, a write with no value to redirect.
-  /// CRAM alone decides it, in every mode. The caller holds the secret the
-  /// atSign was created with, and an `enroll:request` on that same
-  /// connection is auto-approved with `*:rw` and `__manage:rw`, which is
-  /// exactly what `primary` holds — so admitting the install grants a CRAM
-  /// holder nothing it could not already give itself. Gating it on
-  /// [AtSecondaryConfig.testingMode] as well protected nothing and made every
-  /// harness that provisions an atSign this way depend on a flag; the one
-  /// that started the server with the shipped configuration could not
-  /// install a single keypair. Key uniqueness still applies: a key another
-  /// stored enrollment holds is refused.
+  /// No connection may write it because a legacy `pkam:` is verified against
+  /// it outside every enrollment record, and a key found there is absorbed
+  /// into `primary` on the next legacy login. A caller that installs a key it
+  /// holds therefore rotates the owner's own credential onto itself, and
+  /// survives its own revocation as the owner.
   ///
-  /// [atKey] is compared as the keystore folds it, so a spelling the keystore
-  /// would fold onto this record reaches the refusal rather than slipping
-  /// past it. Throws [UnAuthorizedException]; returns for any other key, any
-  /// non-writing verb, and the exception.
+  /// THE ONE EXCEPTION is a CRAM connection sending a plain `update`, which
+  /// is how a fresh atSign is given its first keypair. Even then no flat key
+  /// is written: `UpdateVerbHandler` redirects the value into the `primary`
+  /// enrollment, which is why `update:meta`, a write with no value to
+  /// redirect, is not exempt. CRAM alone decides it, in every mode, with no
+  /// part played by [AtSecondaryConfig.testingMode]: the caller holds the
+  /// secret the atSign was created with, and an `enroll:request` on that
+  /// connection is auto-approved with `*:rw` and `__manage:rw`, exactly what
+  /// `primary` holds, so admitting the install grants nothing the caller
+  /// could not already give itself. Key uniqueness still applies.
+  ///
+  /// [atKey] is compared as the keystore folds it, so a spelling that would
+  /// fold onto this record cannot slip past. Throws [UnAuthorizedException];
+  /// returns for any other key and for any non-writing verb.
   void refuseFlatCredentialWrite(
       InboundConnectionMetadata md, String? atKey) {
     if (atKey == null || !isWritingVerb()) return;
@@ -342,14 +303,12 @@ abstract class AbstractVerbHandler implements VerbHandler {
       'Enrol a credential with enroll:request and rotate it with '
       'enroll:update, both of which leave a record that can be withdrawn';
 
-  /// Fetches the enrollment record for [enrollmentId] from the
-  /// enrollment manager. Returns `null` if the record cannot be
-  /// found ([KeyNotFoundException]); callers treat that as
-  /// "deny all".
+  /// The enrollment record for [enrollmentId], or `null` when it cannot be
+  /// found; callers treat `null` as "deny all".
   ///
-  /// Companion to [isAuthorizedSync] — callers that need to authorize
-  /// many entries against a single enrollment context resolve once via
-  /// this method, then call [isAuthorizedSync] in a sync inner loop.
+  /// Companion to [isAuthorizedSync]: a caller deciding many entries against
+  /// one enrollment resolves once here, then calls [isAuthorizedSync] in a
+  /// synchronous inner loop.
   Future<EnrollDataStoreValue?> resolveEnrollment(String enrollmentId) async {
     try {
       return await AtSecondaryServerImpl.getInstance()
@@ -361,19 +320,16 @@ abstract class AbstractVerbHandler implements VerbHandler {
     }
   }
 
-  /// Synchronous per-entry authorization check against a pre-fetched
-  /// [enrollDataStoreValue]. Hot-path companion to [isAuthorized] for
-  /// callers that decide many entries against a single enrollment
-  /// context (e.g. sync's commit-log walk) — resolve once via
-  /// [_resolveEnrollment], then call this for each candidate atKey.
+  /// Synchronous per-entry authorisation against an enrollment already
+  /// fetched by [resolveEnrollment]. Hot-path companion to [isAuthorized] for
+  /// callers deciding many entries against one enrollment, such as sync's
+  /// commit-log walk.
   ///
-  /// Input states:
-  ///   - [enrollmentId] is null → legacy PKAM, full access → true
-  ///   - [enrollDataStoreValue] is null → enrollment record unresolvable
-  ///     ([KeyNotFoundException] from [_resolveEnrollment]) → false
-  ///   - [atKey] is a root key (no grantable namespace) → decided by
-  ///     [_decideRootKey], which may defer to the namespace check
-  ///   - otherwise → namespace-access decision based on the enrollment
+  /// A null [enrollmentId] is a connection standing over no enrollment record
+  /// and gets full access; a null [enrollDataStoreValue] is an unresolvable
+  /// record and gets none. A namespace-less [atKey] is decided by
+  /// [_decideRootKey], which may defer to the namespace check; everything
+  /// else is decided by the enrollment's namespace access.
   bool isAuthorizedSync(
       EnrollDataStoreValue? enrollDataStoreValue, String? enrollmentId,
       {String? atKey,
@@ -394,12 +350,10 @@ abstract class AbstractVerbHandler implements VerbHandler {
     }
 
     // A per-enrollment reserved namespace (<id>.a|r|d.__e) is private to the
-    // enrollment that owns it. Deny any *other* enrollment — including one with
-    // '*:rw', which would otherwise reach it via the wildcard fallback below.
-    // (Public keys are exempt for READS only; see
-    // isForeignPerEnrollmentReservedKey.) A connection with no enrollmentId
-    // already short-circuited to `true` above, so this does not alter
-    // owner/legacy access.
+    // enrollment that owns it, so any OTHER enrollment is denied, including
+    // one holding '*:rw' that would otherwise reach it via the wildcard
+    // fallback below. Public keys are exempt for reads only; see
+    // isForeignPerEnrollmentReservedKey.
     if (atKey != null &&
         isForeignPerEnrollmentReservedKey(atKey, enrollmentId,
             isMutating: isMutatingVerb())) {
@@ -413,11 +367,9 @@ abstract class AbstractVerbHandler implements VerbHandler {
       return rootKeyVerdict;
     }
 
-    // If namespace is null or empty, fetch namespace from AtKey.
-    //
-    // AtKey.fromString throws on some key shapes that occur in the keystore and
-    // the commit log, raising Errors as well as Exceptions, so catch
-    // everything. An unresolved namespace is decided by the '*' fallback below.
+    // AtKey.fromString throws on some key shapes that occur in the keystore
+    // and the commit log, raising Errors as well as Exceptions, so catch
+    // everything. An unresolved namespace falls to the '*' check below.
     String keyWithNamespace = '';
     if ((namespace == null || namespace.isEmpty) && atKey != null) {
       try {
@@ -432,39 +384,25 @@ abstract class AbstractVerbHandler implements VerbHandler {
       }
     }
 
-    // All enrollments should have access to read from the __atserver
-    // namespace but not to write to it.
-    // This namespace is reserved for the atServer to store data which
-    // should be available for read by all clients. The initial driver for
-    // creating this reserved namespace was that we needed a place to
-    // store information about "another atSign's public key changed" events.
-    //
-    // Unit tests to assert this are in scan_verb_test.dart
+    // The __atserver namespace holds data the atServer publishes for every
+    // client to read, such as "another atSign's public key changed" events,
+    // so every enrollment reads it and none writes it.
     if (!enrollDataStoreValue.namespaces
         .containsKey(AtConstants.atServerReservedNamespace)) {
       enrollDataStoreValue.namespaces[AtConstants.atServerReservedNamespace] =
           'r';
     }
 
-    // All enrollments have rw access to a namespace unique to their enrollment.
-    // Other enrollments have NO access to it, except to public data — a '*:rw'
-    // enrollment used to reach it via the wildcard fallback, but that
-    // cross-enrollment reach is now denied above (see the foreign per-enrollment
-    // check). Own-enrollment access is granted by the line below.
-    //
-    // Unit tests to assert this are in update_verb_test.dart and
-    // enrollment_authz_tightening_test.dart
+    // Every enrollment has rw on the namespace unique to itself. No other
+    // enrollment reaches it except for public data, which the foreign
+    // per-enrollment check above enforces.
     enrollDataStoreValue.namespaces[enrollmentReservedNamespace(enrollmentId)] =
         'rw';
 
-    // Checks for namespace authorisation
-    // In the authorizedNamespace, the first parameter represents the namespace and second parameter represents the
-    // access of the namespace.
+    // $1 is the matched namespace, $2 the access held on it.
     (String, String?) authorizedNamespace = _checkForNamespaceAuthorization(
         enrollDataStoreValue, namespace, keyWithNamespace);
 
-    // "authorizedNamespace.$1" represents the namespace and "authorizedNamespace.$2" represents
-    // the access of the namespace.
     if (authorizedNamespace.$1.isEmpty ||
         (authorizedNamespace.$2 == null || authorizedNamespace.$2!.isEmpty)) {
       return false;
@@ -472,43 +410,29 @@ abstract class AbstractVerbHandler implements VerbHandler {
 
     // The __manage namespace holds enrollment records and per-enrollment
     // encrypted key material (PEK/SEK). It is reachable only by an enrollment
-    // that holds __manage *explicitly*, and then only via otp/enroll/monitor —
-    // never a generic data verb (update/delete/lookup/…). An enrollment that
-    // reaches a __manage key through the '*' wildcard fallback (i.e. without an
-    // explicit __manage grant) is denied outright, so '*:rw' cannot launder
-    // __manage into '*' and bypass this guard.
+    // holding __manage EXPLICITLY, and then only via otp/enroll/monitor,
+    // never a generic data verb. An enrollment that reached a __manage key
+    // through the '*' wildcard fallback is denied outright, so '*:rw' cannot
+    // launder __manage into '*' and bypass this guard.
     if (namespace == EnrollmentConstants.enrollManageNamespace ||
         authorizedNamespace.$1 == EnrollmentConstants.enrollManageNamespace) {
       final bool holdsManageNamespaceExplicitly =
           authorizedNamespace.$1 == EnrollmentConstants.enrollManageNamespace;
       final String? callerAccess = authorizedNamespace.$2;
-      // A caller may not act on a __manage grant stronger than the one it
-      // holds itself. [enrolledNamespaceAccess] is the access the TARGET
-      // holds on this namespace, and is non-empty only where the caller is
-      // being asked to demonstrate authority over ANOTHER enrollment's
-      // grants — approve, deny, revoke, unrevoke, fetch and delete each walk
-      // the target's namespaces and ask this question once per entry. So a
-      // '__manage:rw' entry is reachable only by a holder of '__manage:rw',
-      // and a holder of '__manage:r' reaches only '__manage:r'.
+      // A caller may not act on a __manage grant stronger than its own.
+      // [enrolledNamespaceAccess] is the access the TARGET holds here, and is
+      // non-empty only where the caller must demonstrate authority over
+      // ANOTHER enrollment's grants: approve, deny, revoke, unrevoke, fetch
+      // and delete each walk the target's namespaces and ask this once per
+      // entry. So '__manage:rw' is reachable only by a holder of
+      // '__manage:rw', and a holder of '__manage:r' reaches only
+      // '__manage:r', reads included, since a caller with no claim to
+      // revoke or delete an administrator has none to read its record
+      // either.
       //
-      // The bar is authority over the grant, NOT what the act would confer,
-      // and the two part company on the paths that confer nothing. Revoke,
-      // deny and delete take access away; enroll:fetch merely READS the
-      // target — so a '__manage:r' administrator can no longer fetch a
-      // '__manage:rw' enrollment's record. Deliberate: every operation naming
-      // another enrollment asks one question, and a caller with no claim to
-      // approve, revoke or delete an administrator has none to read its
-      // record either. Exempting the read would leave fetch the single
-      // operation whose bar is lower than its siblings', and whatever is
-      // added to those loops next would inherit the exemption with no line of
-      // the diff saying so.
-      //
-      // Every other namespace is held to that bar by
-      // checkEnrollmentNamespaceAccess below. __manage returns from here
-      // instead, because the verbs that reach it (otp/enroll/monitor) are not
-      // in that method's read/write verb lists at all — so the comparison has
-      // to be made here or it is not made, and a '__manage:r' administrator
-      // could otherwise admit one able to do what it cannot do itself.
+      // The comparison has to happen here rather than in
+      // checkEnrollmentNamespaceAccess below, because the verbs that reach
+      // __manage are absent from that method's verb lists entirely.
       //
       // An empty [enrolledNamespaceAccess] is not a grant: it is a caller
       // reaching a __manage KEY, for which read access is enough.
@@ -525,30 +449,15 @@ abstract class AbstractVerbHandler implements VerbHandler {
         enrolledNamespaceAccess: enrolledNamespaceAccess);
   }
 
-  /// Verifies if the provided `namespace` has super set access based on the
-  /// namespaces defined in `enrollDataStoreValue`.
+  /// The enrolled namespace covering [namespace], and the access held on it.
   ///
-  /// This function checks if the given `namespace` is a subset or exact match
-  /// of any namespace in the `enrollDataStoreValue`. If so, it returns the
-  /// matched namespace and its access level. If `enrollDataStoreValue`
-  /// contains a wildcard (`*`), it grants access to all namespaces.
+  /// A namespace matches an enrolled one it is a suffix-segment of, so
+  /// "data.orders.myapp" matches an enrolled "orders.myapp". Failing that, a
+  /// `*` in the enrollment matches anything.
   ///
-  /// Example:
-  /// - Given approving app does not have access to '*' namespace.
-  ///   - If enrolling `namespace` is "orders.myapp" and approving app namespace is "orders.myapp", then ("orders.myapp", "rw") is returned.
-  ///   - If enrolling `namespace` is "data.orders.myapp" and approving app namespace is "orders.myapp", then ("orders.myapp", "rw")  is returned.
-  ///   - If enrolling `namespace` is "data.myapp" and approving app namespace is "orders.myapp", then and empty string, null are returned,
-  ///     representing no matching authorised namespace found (Since enrollment does not have access to '*' namespace).
-  ///
-  /// - Given approving app does not have access to '*' namespace.
-  ///   - If enrolling `namespace` is "data.myapp" and approving app namespace is "orders.myapp", then ("*", "rw") is returned.
-  ///
-  /// - Parameters:
-  ///   - enrollDataStoreValue: The `EnrollDataStoreValue` containing namespaces and their access levels.
-  ///   - namespace: The namespace to be verified.
-  ///
-  /// - Returns: A tuple containing the authorised namespace and its access level.
-  ///   If no matching namespace is found, it returns an empty string and `null` for access.
+  /// Returns an empty string and `null` when nothing matches: with an
+  /// enrollment holding only "orders.myapp", "data.myapp" is unauthorised,
+  /// while the same enrollment holding `*` as well answers ("*", "rw").
   (String, String?) _checkForNamespaceAuthorization(
       EnrollDataStoreValue enrollDataStoreValue,
       String? namespace,
@@ -566,10 +475,9 @@ abstract class AbstractVerbHandler implements VerbHandler {
       }
     }
 
-    /// If the namespace contains a period ('.'), AtKey(key).namespace will return only the last segment of the namespace.
-    /// For example, if the namespace is 'foo.bar', AtKey(key).namespace will return 'bar'. In such cases, authorisedNamespace
-    /// cannot be cannot be fetched due to incomplete namespace.
-    /// Currently, to authorize such keys, use the full key along with the namespace to perform the authorization check.
+    // AtKey.namespace returns only the LAST segment of a dotted namespace
+    // ('bar' for 'foo.bar'), which cannot be matched against an enrolled
+    // multi-segment namespace. Matching the whole key instead recovers it.
     // keyWithNamespace is empty when the key carries no namespace.
     if (keyWithNamespace != null &&
         keyWithNamespace.isNotEmpty &&
@@ -581,7 +489,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
         }
       }
     }
-    // If enrolledDataStore value contains *, it means at is authorised for all namespaces
+    // '*' authorises every namespace.
     if (authorisedNamespace.isEmpty &&
         enrollDataStoreValue.namespaces
             .containsKey(EnrollmentConstants.allNamespaces)) {
@@ -593,15 +501,13 @@ abstract class AbstractVerbHandler implements VerbHandler {
 
   bool _applyEnrollmentValidations(EnrollDataStoreValue enrollDataStoreValue,
       String operation, String? atKey, String? namespace) {
-    // Only approved enrollmentId is authorised to perform operations. Return false for enrollments
-    // which are not approved.
+    // Only an approved enrollment may act.
     if (enrollDataStoreValue.approval?.state !=
         EnrollmentStatus.approved.name) {
       return false;
     }
-    // Only the enrollmentId with access to "__manage" namespace can approve, deny, revoke
-    // an enrollment request. If enrollmentId does not have access to "__manage" access, then
-    // cannot perform enrollment operations.
+    // Approving, denying and revoking an enrollment request all need
+    // "__manage".
     if (operation.isNotEmpty &&
         enrollDataStoreValue.namespaces
                 .containsKey(EnrollmentConstants.enrollManageNamespace) ==
@@ -651,18 +557,10 @@ abstract class AbstractVerbHandler implements VerbHandler {
 
   bool _isWriteAllowed(Verb verb, String access) {
     return (verb is Update ||
-            // `update:meta` is a metadata WRITE — ttl, ttb, ccd — so it is
-            // gated exactly like `update`: allowed on `rw` over the key's
-            // namespace, refused otherwise. It was in neither list, and
-            // `UpdateMeta` extends `Verb` rather than `Update`, so
-            // checkEnrollmentNamespaceAccess returned false for every access
-            // level including `*:rw` and the verb was refused to every
-            // enrollment. Issue #2691.
-            //
-            // It went unnoticed because a connection carrying no enrollment
-            // id skipped the check entirely, and that was every legacy and
-            // CRAM connection — so the paths that exercise `update:meta` most
-            // never reached this.
+            // `update:meta` writes metadata (ttl, ttb, ccd), so it is gated
+            // exactly like `update`. Listed explicitly because `UpdateMeta`
+            // extends `Verb` rather than `Update`, so the line above does
+            // not match it.
             verb is UpdateMeta ||
             verb is Delete ||
             verb is Config ||
@@ -675,21 +573,16 @@ abstract class AbstractVerbHandler implements VerbHandler {
   }
 
   /// An atSign body, without the leading '@'. Reuses at_commons' own charset
-  /// (word characters, '-', '_' and emoji; 1..55) rather than a hand-rolled
-  /// `[\w\-_]{1,55}`, so emoji atSigns stay in lockstep with AtKey parsing.
-  /// Contains no named groups, so it is safe to interpolate more than once.
+  /// (word characters, '-', '_' and emoji; 1..55) so emoji atSigns stay in
+  /// lockstep with AtKey parsing. Contains no named groups, so it is safe to
+  /// interpolate more than once.
   static const String _atSignBody = Regexes.ownershipFragmentWithoutAtPrefix;
 
   /// Namespace-less keys that any approved enrollment may read and write: the
   /// two encryption shared-key forms a client writes the first time it shares
   /// with another atSign.
   ///
-  /// Anchored at both ends, so it matches the whole key rather than a
-  /// substring of it.
-  ///
-  /// Neither atSign is compared against this server's own: the receiving side
-  /// reads `@<me>:shared_key@<them>`, which LookupVerbHandler synthesises for
-  /// an inbound `lookup:shared_key@<them>`.
+  /// Anchored at both ends, so it matches a whole key rather than a substring.
   static final RegExp _rootSharedKeyRegex = RegExp(
       '^(?:@$_atSignBody:shared_key|shared_key\\.$_atSignBody)@$_atSignBody\$',
       caseSensitive: false);
@@ -700,7 +593,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
   ///
   /// Reads stay open because sync force-includes these keys
   /// (`alwaysIncludeInSync` in utils/regex_util.dart admits any namespace-less
-  /// `public:` key) and then ANDs the result with this check.
+  /// `public:` key) and ANDs the result with this check.
   static final RegExp _ownKeyMaterialRegex = RegExp(
       '^(?:public:(?:publickey|signing_publickey)@$_atSignBody'
       '|@$_atSignBody:signing_privatekey@$_atSignBody)\$',
@@ -708,9 +601,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
 
   /// Cached copies of another atSign's public key material. Readable by any
   /// approved enrollment; writes are decided by the namespace check rather
-  /// than by a root enrollment, since the data is public at its origin and the
-  /// cached copy is local. DeleteVerbHandler treats cached keys the same way
-  /// in exempting them from `protectedKeys`.
+  /// than by a root enrollment, since the data is public at its origin and
+  /// the cached copy is local.
   static final RegExp _cachedKeyMaterialRegex = RegExp(
       '^cached:public:(?:publickey|signing_publickey)@$_atSignBody\$',
       caseSensitive: false);
@@ -718,21 +610,20 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// Namespace-less keys writable only by a root enrollment. Reads are decided
   /// by the namespace check, so sync membership is unaffected.
   ///
-  /// The whole `privatekey:` prefix is covered. Its members hold the server's
-  /// own credentials and internal state, and are written by the server rather
-  /// than by an enrollment.
+  /// The whole `privatekey:` prefix is covered: its members hold the server's
+  /// own credentials and internal state, and the server writes them.
   static final RegExp _rootOnlyWritableKeyRegex = RegExp(
       '^(?:privatekey:[^\\s]+'
       '|private:blocklist@$_atSignBody'
       '|configkey)\$',
       caseSensitive: false);
 
-  /// Whether this connection may perform atSign-level privileged operations
-  /// (as opposed to key-level ones, which [isAuthorized] decides).
+  /// Whether this connection may perform atSign-level privileged operations,
+  /// as opposed to the key-level ones [isAuthorized] decides.
   ///
   /// True for a connection with no enrollment id, or for an approved root
-  /// enrollment. An enrollment's namespace map is what the requesting client
-  /// asked for, so approval state is part of the check.
+  /// enrollment. An enrollment's namespace map is only what the client asked
+  /// for, so approval state is part of the check.
   Future<bool> isRootPrivilegedConnection(
       InboundConnectionMetadata inboundConnectionMetadata) async {
     final enrollmentId = inboundConnectionMetadata.enrollmentId;
@@ -749,11 +640,10 @@ abstract class AbstractVerbHandler implements VerbHandler {
 
   /// Whether the verb being handled mutates a key.
   ///
-  /// Not derived from [_isWriteAllowed]: Config, Monitor and SyncFrom appear in
-  /// both that list and [_isReadAllowed], which would classify sync as a write.
-  ///
-  /// [UpdateMeta] is listed explicitly because it `extends Verb` rather than
-  /// Update, so `getVerb() is Update` does not match it.
+  /// Not derived from [_isWriteAllowed]: Config, Monitor and SyncFrom appear
+  /// in both that list and [_isReadAllowed], which would classify sync as a
+  /// write. [UpdateMeta] is listed explicitly because it extends `Verb`
+  /// rather than `Update`.
   bool isMutatingVerb() {
     final Verb verb = getVerb();
     return verb is Update ||
@@ -768,10 +658,9 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// distinct from [isMutatingVerb], which also covers removal.
   ///
   /// The distinction matters for the keys that mint an identity: installing a
-  /// chosen value at one of them hands the caller a credential, while
-  /// removing what is there does not — and removing some of them is a
-  /// legitimate act (onboarding deletes the CRAM secret once PKAM is
-  /// established).
+  /// chosen value at one hands the caller a credential, while removing what
+  /// is there does not, and removing some of them is legitimate (onboarding
+  /// deletes the CRAM secret once PKAM is established).
   bool isWritingVerb() {
     final Verb verb = getVerb();
     return verb is Update || verb is UpdateMeta;
@@ -785,7 +674,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
       return null;
     }
     // Matched against the form the keystore writes, using the keystore's own
-    // fold rather than a copy of it — the regexes below decide root-only
+    // fold rather than a copy of it: the regexes below decide root-only
     // access, so a fold that drifted from the store's would test a string the
     // store does not hold.
     final String key = canonicalAtKey(atKey);
@@ -793,37 +682,30 @@ abstract class AbstractVerbHandler implements VerbHandler {
     if (_rootSharedKeyRegex.hasMatch(key)) {
       return true;
     }
-    // Cached copies of another atSign's public keys: readable by any
-    // enrollment; writes are decided by the namespace check.
+    // Cached public keys: readable by any enrollment, written per namespace.
     if (_cachedKeyMaterialRegex.hasMatch(key)) {
       return isMutatingVerb() ? null : true;
     }
     final bool isOwnKeyMaterial = _ownKeyMaterialRegex.hasMatch(key);
     if (isOwnKeyMaterial || _rootOnlyWritableKeyRegex.hasMatch(key)) {
       if (isMutatingVerb()) {
-        // NO enrollment may mutate these, whatever it holds. Every other key
-        // in this branch is decided by what the enrollment holds; these are
-        // refused outright, because writing one MINTS AN IDENTITY rather
-        // than serving one. A WRITE of the PKAM key never reaches here: it
-        // is decided for every connection by [refuseFlatCredentialWrite],
-        // ahead of the null-id short circuit. What this line still decides
-        // is the other mutating verbs — an enrollment deleting it.
+        // NO enrollment may mutate these two, whatever it holds, because
+        // writing one MINTS AN IDENTITY rather than serving one. Every other
+        // key in this branch is decided by what the enrollment holds.
         //
-        // The CRAM secret is here for the same reason as the PKAM key, and
-        // it was missed when that guard was written. A caller that installs
-        // a CRAM secret it knows can authenticate as the atSign's owner
-        // whenever it likes, carrying no enrollment id — so revoking the
-        // enrollment that planted it takes nothing back. Its tombstone is
-        // named too: whoever can plant that marker permanently disables CRAM
-        // replanting, which is the atSign's last recovery route once its
-        // roots are revoked.
+        // A WRITE of the PKAM key never reaches here: it is decided for
+        // every connection by [refuseFlatCredentialWrite], ahead of the
+        // null-id short circuit. What this line still decides for it is
+        // deletion by an enrollment.
         //
-        // WRITES only, unlike the PKAM key above. Onboarding deletes the
-        // CRAM secret once PKAM is established, and that is a root
-        // enrollment's job to do — the hazard is installing a chosen value,
-        // not removing the one that is there. Deleting it is answered for
-        // separately, by DeleteVerbHandler, which records the tombstone only
-        // after an authorised delete that actually removed something.
+        // Installing a CRAM secret, or its tombstone, is refused for the
+        // same reason: a caller that plants a secret it knows can
+        // authenticate as the owner carrying no enrollment id, so revoking
+        // the enrollment that planted it takes nothing back, and a caller
+        // that plants the tombstone permanently disables CRAM replanting,
+        // the atSign's last recovery route once its roots are revoked.
+        // WRITES only, though: onboarding deletes the CRAM secret once PKAM
+        // is established, and that is a root enrollment's job.
         if (isWritingVerb() &&
             (key == AtConstants.atCramSecret ||
                 key == AtConstants.atCramSecretDeleted)) {
@@ -840,32 +722,23 @@ abstract class AbstractVerbHandler implements VerbHandler {
     return null;
   }
 
-  /// This function checks the validity of a provided OTP.
-  /// It returns true if the OTP is valid; otherwise, it returns false.
-  /// If the OTP is not found in the keystore, it also returns false.
-  ///
-  /// Additionally, this function removes the OTP from the keystore to prevent
-  /// its reuse.
+  /// Whether [passcode] is a live SPP or OTP. A valid OTP is removed from the
+  /// keystore so it cannot be reused; an SPP is not.
   Future<bool> isPasscodeValid(String? passcode) async {
     if (passcode == null) {
       return false;
     }
-    // 1. Check if user has configured an SPP(Semi-Permanent Pass-code).
-    // If SPP key is available, check if the otp sent is a valid pass code.
-    // If yes, return true, else check it is a valid OTP.
     String passcodeKey = OtpVerbHandler.passcodeKey(passcode, isSpp: true);
     if (!await keyStore.exists(passcodeKey)) {
-      // if new SPPKey does not exist in keystore, check for SPP data against legacy SPP key
-      // New SPP key has __otp namespace, legacy key does NOT have any namespace
+      // The namespaced SPP key is absent, so fall back to the namespace-less
+      // form an older client stored.
       passcodeKey =
           'private:spp${AtSecondaryServerImpl.getInstance().currentAtSign}';
     }
     try {
       AtData? sppAtData = await keyStore.get(passcodeKey);
-      // SPP has a special key so we have to check the value that was stored
-      // (which is the actual SPP)
-      // By comparison, OTPs are stored with the key being ${OTP}.__otp@alice
-      // i.e. the OTP is part of the key, and the stored data is irrelevant
+      // An SPP is stored as the VALUE under a fixed key, whereas an OTP is
+      // part of its own key and its stored data is irrelevant.
       if (sppAtData?.data?.toLowerCase() == passcode.toLowerCase()) {
         if (SecondaryUtil.isActiveKey(sppAtData)) {
           return true;
@@ -878,11 +751,9 @@ abstract class AbstractVerbHandler implements VerbHandler {
       logger.finest('No SPP found in KeyStore. Validating as OTP');
     }
 
-    // 2. If not a valid SPP, then check against OTP keys
     String otpKey = OtpVerbHandler.passcodeKey(passcode, isSpp: false);
     if (!await keyStore.exists(otpKey)) {
-      // if new OTPKey does not exist in keystore, check for OTP data against legacy OTPKey
-      // New OTP key has __otp namespace, legacy key does not have namespace
+      // As above: fall back to the namespace-less form.
       otpKey =
           'private:${passcode.toLowerCase()}${AtSecondaryServerImpl.getInstance().currentAtSign}';
     }
@@ -895,9 +766,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
     }
 
     bool isOTPValid = SecondaryUtil.isActiveKey(otpAtData);
-    // Remove the OTP after it is used.
-    // NOTE: SPP code should NOT be deleted. only OTPs should be
-    // deleted after use.
+    // An OTP is spent on use; an SPP is not, and never reaches here.
     await keyStore.remove(otpKey);
 
     return isOTPValid;
@@ -906,22 +775,18 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// Reads the one-time challenge `from:` stored under [storedSecretId],
   /// removes it, and returns its value only if the record is still live.
   ///
-  /// The removal is unconditional and happens whatever the caller goes on to
-  /// decide, so a challenge buys exactly one verification attempt. Leaving it
-  /// in place on a failed attempt would make it a retry oracle: a caller
-  /// could present signature after signature against one challenge until one
-  /// verified, which is the whole property a per-connection challenge exists
-  /// to deny.
+  /// The removal is unconditional, whatever the caller goes on to decide, so
+  /// a challenge buys exactly one verification attempt. Left in place on a
+  /// failure it would be a retry oracle, letting a caller try signature after
+  /// signature against one challenge.
   ///
   /// Liveness is asked here because no keystore backend applies expiry on
-  /// read — `get` returns a record whose `expiresAt` has passed, and the
-  /// only other enforcement is a background sweep that runs on its own
-  /// schedule. A verifier that does not ask is a verifier for which the ttl
-  /// `from:` stamps does not exist.
+  /// read: `get` returns a record whose `expiresAt` has passed, and the only
+  /// other enforcement is a background sweep on its own schedule.
   ///
   /// Returns null when the challenge is absent, unreadable or expired. A
-  /// caller must treat all three the same way it treats a bad signature, so
-  /// that the wire cannot be used to tell which of them happened.
+  /// caller must treat all three as it treats a bad signature, so the wire
+  /// cannot be used to tell them apart.
   Future<String?> consumeChallenge(String storedSecretId) async {
     AtData? challenge;
     try {
@@ -935,9 +800,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
     try {
       await keyStore.remove(storedSecretId);
     } catch (e) {
-      // A challenge that cannot be removed must still not be honoured, so
-      // this is logged rather than thrown and the liveness check below
-      // decides the outcome.
+      // A challenge that cannot be removed must still not be honoured, so the
+      // liveness check below decides the outcome rather than a throw here.
       logger.warning('Failed to immediately remove $storedSecretId');
     }
     if (!SecondaryUtil.isActiveKey(challenge)) {

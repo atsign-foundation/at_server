@@ -13,10 +13,10 @@ import 'package:uuid/uuid.dart';
 
 import 'test_utils.dart';
 
-/// A connection that records the close it is asked for. [DummyInboundConnection]
-/// closes to nothing and leaves `metadata.isClosed` alone, so the close itself
-/// — as opposed to the error response that accompanies it — is otherwise
-/// unobservable.
+/// A connection that records the close it is asked for.
+/// [DummyInboundConnection] closes to nothing and leaves `metadata.isClosed`
+/// alone, so the close itself, as opposed to the error response that
+/// accompanies it, is otherwise unobservable.
 class CloseRecordingConnection extends DummyInboundConnection {
   int closeCount = 0;
 
@@ -64,11 +64,11 @@ void main() {
     tearDown(() async => await verbTestsTearDown());
 
     /// The scan the handler would answer for [enrollmentId], entered at the
-    /// filter rather than through `process` — a connection whose enrollment
-    /// has left `approved` never reaches the filter through `process`, because
-    /// AbstractVerbHandler closes it first (pinned in the group below). The
-    /// two gates are independent, and this is the one that decides what a
-    /// wildcard enrollment may enumerate.
+    /// filter rather than through `process`, because a connection whose
+    /// enrollment has left `approved` is closed by AbstractVerbHandler before
+    /// it reaches the filter (the group below pins that). The two gates are
+    /// independent, and this is the one deciding what a wildcard enrollment
+    /// may enumerate.
     Future<List<String>> scanAs(String enrollmentId) async {
       final metadata = DummyInboundConnection().metadata
         ..isAuthenticated = true
@@ -150,10 +150,9 @@ void main() {
     tearDown(() async => await verbTestsTearDown());
 
     /// Null when the verb ran and threw instead of the gate answering. A gate
-    /// that fails to close lets the verb body run, and the update handler
-    /// refuses on its own authorisation check — so without swallowing that
-    /// the assertions below would never be reached, and the failure would
-    /// report the verb's refusal rather than the gate's absence.
+    /// that fails to close lets the verb body run and the update handler
+    /// refuse on its own authorisation check, which would report the verb's
+    /// refusal rather than the gate's absence.
     Future<Response?> updateAs(String enrollmentId) async {
       connection.metadata.enrollmentId = enrollmentId;
       try {

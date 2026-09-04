@@ -22,21 +22,17 @@ import 'package:test/test.dart';
 import 'enrollment_test_utils.dart';
 import 'test_utils.dart';
 
-/// An enrollment id addresses a RECORD, and the keystore decides which one.
-///
-/// Every key handed to the keystore is folded before it is stored or looked
-/// up — trimmed, lowercased, spaces stripped — so `' abc'`, `'A b c'` and
-/// `'abc'` are three spellings of ONE enrollment. Comparisons above the
-/// keystore are exact `String ==`, and that mismatch is what these tests are
-/// about: an unfolded spelling reaches the right record while comparing
-/// unequal to it, so every guard phrased as "is this the enrollment we are
-/// acting on?" answers no about the enrollment being acted on, and the act
-/// goes ahead with the guard silent.
-///
-/// Two things close it, and both are pinned here: the wire folds an incoming
-/// id to exactly the keystore's fold, and the key builders return the key in
-/// exactly the form the keystore holds it in, so a key built from an id can
-/// be compared against a key an enumeration returned.
+/// Pins that an enrollment id names the record the KEYSTORE resolves it to.
+/// Every key is folded before it is stored or read, trimmed, lowercased and
+/// with spaces stripped, so `' abc'`, `'A b c'` and `'abc'` are three
+/// spellings of one enrollment, while comparisons above the keystore are
+/// exact `String ==`. An unfolded spelling therefore reaches the right record
+/// while comparing unequal to it, and every guard phrased as "is this the
+/// enrollment we are acting on?" answers no about the enrollment being acted
+/// on. Two things close that, and both are pinned here: the wire folds an
+/// incoming id to exactly the keystore's fold, and the key builders return
+/// keys in exactly the form the keystore holds them, so a built key is
+/// comparable against an enumerated one.
 void main() {
   verbTestsSetUpLogging();
 
@@ -55,26 +51,20 @@ void main() {
     await verbTestsTearDown();
   });
 
-  /// U+3000 IDEOGRAPHIC SPACE — the adversarial spelling used throughout,
-  /// and the choice is a measurement rather than a taste.
-  ///
-  /// `AtKey.getKeyType` runs on the WRITE path and refuses a key carrying a
-  /// space, a tab or a non-breaking space, so those spellings fail at the
-  /// first write and never reach the guards. It ACCEPTS U+3000, U+2028 and
-  /// U+2000, each of which `String.trim()` strips exactly as it strips a
-  /// space — so these are the spellings that resolve to another record's key
-  /// AND survive to be written. A test using a non-breaking space here would
-  /// pass for the wrong reason: refused by the key validator, not by the
-  /// guard under test.
+  /// U+3000 IDEOGRAPHIC SPACE, the adversarial spelling used throughout.
+  /// `AtKey.getKeyType` runs on the WRITE path and refuses a space, a tab or
+  /// a no-break space, so those never reach a guard; it accepts U+3000, which
+  /// `String.trim()` strips like a space. A no-break space here would pass
+  /// for the wrong reason, refused by the validator rather than the guard.
   const String wsWrite = '\u{3000}';
 
-  /// U+00A0 NO-BREAK SPACE — refused by the write-path key validator, so it
-  /// is used only where the path under test is a READ or a comparison.
+  /// U+00A0 NO-BREAK SPACE, refused by the write-path key validator, so it is
+  /// used only where the path under test is a read or a comparison.
   const String wsRead = '\u{00A0}';
 
-  /// Writes an approved enrollment straight to the store under [id], which is
-  /// always canonical here — the non-canonical spellings are what the TESTS
-  /// send, never what the fixture stores.
+  /// Writes an enrollment straight to the store under [id], always canonical:
+  /// the non-canonical spellings are what the TESTS send, never what is
+  /// stored.
   Future<void> mint(String id,
       {Map<String, String> namespaces = const {'*': 'rw', '__manage': 'rw'},
       EnrollmentStatus status = EnrollmentStatus.approved,
@@ -106,26 +96,20 @@ void main() {
     return r;
   }
 
-  /// The status ON DISK, never through [EnrollmentManager]'s cache — the
-  /// cache is keyed by the key the WRITER built, so a write made under a
-  /// non-canonical spelling used to leave the canonical entry standing and a
-  /// cached read reported the pre-write value.
+  /// The status ON DISK, never through [EnrollmentManager]'s cache: the cache
+  /// is keyed by the key the writer built, so a cached read cannot tell a
+  /// write that landed on the record from one that missed it.
   Future<String> storedStatusOf(String id) async {
     final rec = await keyValueStore.get(enMgr.buildEnrollmentKey(id));
     if (rec?.data == null) return 'ABSENT';
     return (jsonDecode(rec!.data!)['approval']?['state']).toString();
   }
 
-  // =====================================================================
-  // The fold itself, measured against the store rather than restated.
-  // =====================================================================
+  // ---- the fold itself, measured against the store ----
 
-  /// [canonicalAtKey] is the keystore's OWN fold, not a second copy of it.
-  ///
-  /// Every guard below rests on the two agreeing, and two spellings of one
-  /// rule can drift with nothing going red — a non-canonical key still
-  /// resolves, so a divergence shows up only as a guard quietly answering
-  /// about the wrong string.
+  /// [canonicalAtKey] is the keystore's OWN fold, not a second copy. Every
+  /// guard below rests on the two agreeing, and two spellings of one rule can
+  /// drift with nothing going red, since a non-canonical key still resolves.
   group('the fold above the keystore is the keystore\'s fold', () {
     const canonicalKey = 'canon-subject.canon.test@alice';
 
@@ -156,19 +140,16 @@ void main() {
 
     test('a spelling that folds DIFFERENTLY reaches a different record',
         () async {
-      // The negative control, and it is not drawn from the property under
-      // test: a fold that collapsed everything would satisfy every case
-      // above while making the guards below meaningless. An INTERIOR
-      // no-break space is not stripped — only a leading or trailing one is.
+      // The negative control: a fold that collapsed everything would satisfy
+      // every case above. An INTERIOR no-break space is not stripped, only a
+      // leading or trailing one.
       const other = 'canon-${wsRead}subject.canon.test@alice';
       expect(await keyValueStore.exists(other), isFalse);
       expect(canonicalAtKey(other), isNot(canonicalKey));
     });
   });
 
-  // =====================================================================
-  // Entry point 1: the id presented on a `pkam:` command.
-  // =====================================================================
+  // ---- entry point 1: the id presented on a `pkam:` command ----
 
   group('the pkam entry point folds the id it is given', () {
     Future<Response> pkam(String idOnTheWire, String sessionId,
@@ -223,10 +204,9 @@ void main() {
             ..hashingAlgoType = HashingAlgoType.sha256
             ..signingMode = AtSigningMode.pkam;
 
-      // The control, and it is drawn from the capability rather than from the
-      // property under test: the canonical spelling authenticates, so a
-      // failure below is about the SPELLING and not about a fixture whose
-      // signature the server will not take.
+      // The control, drawn from the capability rather than the property under
+      // test: the canonical spelling authenticates, so a failure below is
+      // about the spelling, not about a signature the server will not take.
       expect((await pkam(id, 'control-session', inputFor, chops)).data,
           'success',
           reason: 'precondition: this keypair authenticates as this '
@@ -258,22 +238,19 @@ void main() {
     });
 
     test('no id at all stays distinguishable from an empty one', () async {
-      // A legacy pkam presents no enrollment id, and the handler branches on
+      // A legacy pkam presents no enrollment id and the handler branches on
       // exactly that, so folding must not turn null into ''.
       expect(EnrollmentManager.canonicalEnrollmentIdOrNull(null), isNull);
       expect(EnrollmentManager.canonicalEnrollmentIdOrNull('   '), isEmpty);
     });
   });
 
-  // =====================================================================
-  // Entry point 2: the id inside an `enroll:*` params document.
-  // =====================================================================
+  // ---- entry point 2: the id inside an `enroll:*` params document ----
 
   group('the enroll entry point folds the id it is given', () {
     test('a self-revoke cannot be spelled around', () async {
-      // BEHAVIOUR CHANGE. Unfolded, this compared unequal to the id on the
-      // connection, so the refusal did not fire — and the same unfolded id
-      // then swept none of the enrollment's subtree.
+      // Unfolded, this compares unequal to the id on the connection, so the
+      // refusal does not fire and the same id sweeps none of the subtree.
       await expectLater(
           () => enroll(
               'enroll:revoke:'
@@ -292,8 +269,7 @@ void main() {
     });
 
     test('...while revoking a DIFFERENT enrollment still works', () async {
-      // The control, drawn from the capability rather than from the property
-      // under test: without it the refusal above would be satisfied by
+      // The control: without it the refusal above is satisfied by
       // `enroll:revoke` refusing everything.
       final other = (await etu.createEnrollments(n: 1)).$1.first;
       final r = await enroll(
@@ -309,8 +285,8 @@ void main() {
 
     test('an id of nothing but whitespace is refused as a missing id',
         () async {
-      // BEHAVIOUR CHANGE, and a tightening: unfolded, `'   '` was not empty,
-      // passed validation, and was carried into a key naming no enrollment.
+      // Unfolded, `'   '` is not empty, passes validation and is carried into
+      // a key naming no enrollment.
       await expectLater(
           () => enroll('enroll:revoke:${jsonEncode({'enrollmentId': '   '})}',
               callerId: etu.primaryEnId),
@@ -319,24 +295,16 @@ void main() {
     });
   });
 
-  // =====================================================================
-  // THE CRITICAL: the last-root refusal counts what the act removes.
-  // =====================================================================
-
-  /// `hasUnexpiringRootEnrollment` asks what would SURVIVE an act, so it takes
-  /// the ids the act is about to remove and excludes them — by building each
-  /// one's key and matching it against the keys an enumeration returns. A key
-  /// built from an unfolded id matches nothing, so the enrollment being
-  /// revoked is counted as the root that survives its own revocation.
-  ///
-  /// MEASURED on this tree before the fix, with the ideographic-space
-  /// spelling and an outside caller: the refusal did not fire, `enroll:revoke`
-  /// answered `{"status":"revoked"}`, and the atSign's last permanent root was
-  /// `revoked` on disk. The identical command spelled canonically was refused.
+  /// `hasUnexpiringRootEnrollment` asks what would SURVIVE an act, so it
+  /// excludes the ids the act is about to remove by building each one's key
+  /// and matching it against the keys an enumeration returns. A key built
+  /// from an unfolded id matches nothing, so the enrollment being revoked is
+  /// counted as the root that survives its own revocation and the atSign is
+  /// stranded while the verb reports success.
   group('the last-root refusal counts what the act removes', () {
     /// A fully privileged caller that is NOT a descendant of the CRAM root,
-    /// so the descends-from-target refusal cannot be what answers, and one
-    /// that EXPIRES, so it cannot itself satisfy the liveness walk.
+    /// so the descends-from-target refusal cannot be what answers, and that
+    /// EXPIRES, so it cannot itself satisfy the liveness walk.
     Future<String> outsideCaller() async {
       await mint('outside-caller', ttl: Duration(hours: 1));
       return 'outside-caller';
@@ -379,10 +347,9 @@ void main() {
     });
 
     test('...and a genuinely different id is still counted', () async {
-      // The control, and it is NOT drawn from the property under test: a
-      // second permanent root exists, so a `true` here can only come from the
-      // walk finding it. Without this, the case above would be satisfied by
-      // `hasUnexpiringRootEnrollment` returning false for everything.
+      // The control: a second permanent root exists, so a `true` here can
+      // only come from the walk finding it. Without it the case above is
+      // satisfied by the walk returning false for everything.
       await mint('a-second-root');
       expect(
           await enMgr
@@ -393,9 +360,8 @@ void main() {
 
     test('the enrollment key built from an id is the key the store holds',
         () async {
-      // The mechanism the case above rests on, asserted directly: the
-      // exclusion is done by KEY, so the builder is where a non-canonical id
-      // stops mattering.
+      // The mechanism the case above rests on: the exclusion is done by KEY,
+      // so the builder is where a non-canonical id stops mattering.
       final canonical = enMgr.buildEnrollmentKey(etu.primaryEnId);
       expect(await enMgr.getAllEnrollmentKeys(includeExpired: false),
           contains(canonical),
@@ -407,13 +373,11 @@ void main() {
         etu.primaryEnId.toUpperCase(),
         '$wsWrite${etu.primaryEnId}',
         '$wsRead${etu.primaryEnId}',
-        // TRAILING, and that is the half a leading spelling cannot reach.
-        // Composition puts whatever trails the id in the MIDDLE of the key,
-        // past the reach of the fold's trim, and the space-strip catches a
-        // plain space and nothing else — so a key built by folding only the
-        // COMPOSED string keeps a trailing tab, no-break space or ideographic
-        // space and names no record at all. Every spelling above is leading,
-        // and leading is still leading after composition.
+        // TRAILING, the half a leading spelling cannot reach: composition
+        // puts whatever trails the id in the MIDDLE of the key, past the
+        // trim, and the space-strip catches a plain space and nothing else,
+        // so folding only the COMPOSED string leaves the key naming no
+        // record.
         '${etu.primaryEnId} ',
         '${etu.primaryEnId}\t',
         '${etu.primaryEnId}$wsWrite',
@@ -424,12 +388,11 @@ void main() {
                 'against an enumerated one, or every set-membership test '
                 'built on it is vacuous');
       }
-      // The per-enrollment key builders carry the same contract, and it is
-      // asserted against the STORE in 'a built key is the key the store
-      // holds' below. It used to be asserted here by comparing keyForPEK and
-      // keyForSEK against THEMSELVES under two spellings, which pins only the
-      // fold's idempotence: both sides move together under any change to
-      // either builder, so the pair stayed equal while naming a record the
+      // The per-enrollment key builders carry the same contract, asserted
+      // against the STORE in 'a built key is the key the store holds' below.
+      // Comparing a builder against ITSELF under two spellings would pin only
+      // the fold's idempotence: both sides move together under any change to
+      // the builder, so the pair stays equal while naming a record the
       // keystore does not hold.
     });
 
@@ -447,12 +410,9 @@ void main() {
     });
 
     test('...and the last root is STILL THERE afterwards', () async {
-      // A separate case, not a second assertion, and the split is the point:
-      // `expect` throws on failure, so a refusal assertion that fails takes
-      // the on-disk one with it — and the on-disk one is the whole harm.
-      // Before the fold this command answered {"status":"revoked"} and the
-      // record really was revoked; the atSign lost its last root and was
-      // told the verb had succeeded.
+      // A separate case, not a second assertion: `expect` throws on failure,
+      // so a failing refusal assertion would take the on-disk one with it,
+      // and the on-disk state is the whole harm.
       final caller = await outsideCaller();
       final outcome = await revokeLastRootAs(caller);
       expect(outcome.$2, EnrollmentStatus.approved.name,
@@ -462,10 +422,9 @@ void main() {
 
     test('...while the same command is allowed once another permanent root '
         'exists', () async {
-      // The control for the refusal: identical command, identical spelling,
-      // identical caller — the only difference is that the act no longer
-      // strands the atSign. Without it the case above would be satisfied by
-      // the revoke being refused for any reason at all.
+      // The control for the refusal: identical command, spelling and caller,
+      // differing only in that the act does not strand the atSign. Without it
+      // the case above is satisfied by a revoke refused for any reason.
       final caller = await outsideCaller();
       await mint('a-second-root');
       final r = await enroll(
@@ -478,19 +437,12 @@ void main() {
     });
   });
 
-  // =====================================================================
-  // The measured escape: a subtree kept through a revocation.
-  // =====================================================================
-
   /// A cascade walks the approval edge upward from every stored enrollment,
   /// comparing each link against the id being revoked. The links come out of
-  /// the keystore and are folded; the id being revoked came off the wire. An
-  /// unfolded one matches no link and the walk returns EMPTY — which is
-  /// indistinguishable from an enrollment that admitted nobody, so the
-  /// cascade reported success having swept nothing.
-  ///
-  /// MEASURED before the fix: `descendantsOf` returned `{child}` for the
-  /// canonical id and `{}` for the same id with a leading no-break space.
+  /// the keystore folded, the id came off the wire, and an unfolded one
+  /// matches no link. The walk then returns EMPTY, which is indistinguishable
+  /// from an enrollment that admitted nobody, so the cascade reports success
+  /// having swept nothing.
   group('the revocation cascade cannot be spelled around', () {
     test('descendantsOf finds the subtree through a folding space', () async {
       await mint('child-of-root',
@@ -514,7 +466,7 @@ void main() {
     test('...and still returns nothing for an enrollment that admitted nobody',
         () async {
       // The control separating "the walk found the subtree" from "the walk
-      // returns everything": an empty answer must still be reachable.
+      // returns everything": an empty answer must stay reachable.
       await mint('admits-nobody', namespaces: {'wavi': 'rw'});
       expect(await enMgr.descendantsOf('$wsRead admits-nobody'), isEmpty);
     });
@@ -543,13 +495,11 @@ void main() {
 
     test('the per-enrollment move matches a folded id against folded keys',
         () async {
-      // movePerEnrollmentDataFor is reached from `put` and from the cascade,
-      // and both hand it ids that are canonical by the time they get there —
-      // so its own fold is only reachable directly. Exercised here because a
-      // fold nothing reaches is a fold nobody can tell is broken: the keys it
-      // matches come out of the keystore and are folded, so an unfolded id
-      // moves nothing and reports an empty list, which reads exactly like an
-      // enrollment that had no per-enrollment data.
+      // Called directly: `put` and the cascade both hand
+      // movePerEnrollmentDataFor ids that are already canonical, so its own
+      // fold is reachable no other way. It matches folded keys out of the
+      // keystore, so an unfolded id moves nothing and reports an empty list,
+      // which reads exactly like an enrollment with no per-enrollment data.
       await mint('move-subject', namespaces: {'wavi': 'rw'});
       await keyValueStore.put('public:_apsk.move-subject.a.__e@alice',
           AtData()..data = 'signing-key');
@@ -578,10 +528,9 @@ void main() {
 
     test('per-enrollment data moves out of the approved location too',
         () async {
-      // The other half of a revoke, and the one nothing else here would
-      // notice: the move matches the `EnId` segment of keys the KEYSTORE
-      // returned, so an unfolded id moves nothing and the enrollment's
-      // published signing key stays where every reader looks for a live one.
+      // The move matches the id segment of keys the KEYSTORE returned, so an
+      // unfolded id moves nothing and the revoked enrollment's published
+      // signing key stays where every reader looks for a live one.
       await mint('apsk-holder',
           namespaces: {'wavi': 'rw'}, approvedBy: etu.primaryEnId);
       await keyValueStore.put('public:_apsk.apsk-holder.a.__e@alice',
@@ -603,9 +552,7 @@ void main() {
     });
   });
 
-  // =====================================================================
-  // A caller's own reserved-namespace keys.
-  // =====================================================================
+  // ---- a caller's own reserved-namespace keys ----
 
   group('per-enrollment reserved keys are owned by the folded id', () {
     test('a caller\'s own key is not foreign however it is spelled', () {
@@ -629,7 +576,7 @@ void main() {
     });
 
     test('...and another enrollment\'s key still is', () {
-      // The control. A fold that made everything its own would satisfy the
+      // The control: a fold that made everything its own would satisfy the
       // case above and hand every caller every other caller's signing key.
       expect(
           AbstractVerbHandler.isForeignPerEnrollmentReservedKey(
@@ -639,18 +586,11 @@ void main() {
     });
   });
 
-  // =====================================================================
-  // The write-path key validator, pinned because the reasoning above
-  // depends on which spellings it lets through.
-  // =====================================================================
-
   /// Which whitespace `AtKey.getKeyType` accepts decides which non-canonical
-  /// spellings can reach a WRITE at all, and therefore which of the guards
-  /// above are the only thing standing between a spelling and the record it
-  /// resolves to. That is a fact about at_commons, not about this package, so
-  /// it is pinned rather than assumed: if it changes, the reasoning in these
-  /// tests has to be re-read, and a silent change would leave several of them
-  /// passing for a reason that had stopped being true.
+  /// spellings reach a WRITE at all, and so which of the guards above are the
+  /// only thing between a spelling and the record it resolves to. That is a
+  /// fact about another package, pinned rather than assumed: if it changes,
+  /// several cases above pass for a reason that has stopped being true.
   group('which folding whitespace survives the write-path key validator', () {
     const id = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 
@@ -679,21 +619,13 @@ void main() {
     });
   });
 
-  // =====================================================================
-  // The key builders, measured against the keys the store holds.
-  // =====================================================================
-
-  /// A built key's whole job is to be COMPARABLE against a key an enumeration
-  /// returned, so a builder asserted against itself pins nothing: both sides
-  /// move together under any change to either, and the pair stays equal while
-  /// naming a record the keystore does not hold.
-  ///
-  /// So each of these is pinned twice. A RAW-LITERAL pin, because the string
-  /// is an at-rest address — records already on disk are reachable only by it,
-  /// and the `keys:` verb hands the encryption-key names to clients — so an
-  /// intended change edits the literal in the same commit and that edit is the
-  /// review. And an enumeration pin, which is what proves the literal is the
-  /// address the store actually used rather than a second guess at it.
+  /// A built key's job is to be COMPARABLE against a key an enumeration
+  /// returned, so each is pinned twice. ⚠️ A RAW-LITERAL pin, because the
+  /// string is an at-rest address: records on disk are reachable only by it
+  /// and the `keys:` verb hands the encryption-key names to clients, so an
+  /// intended change edits the literal in the same commit and that edit is
+  /// the review. And an enumeration pin, which is what proves the literal is
+  /// the address the store used rather than a second guess at it.
   group('a built key is the key the store holds', () {
     /// Everything the production write path stored under the PEK regex.
     Future<List<String>> storedPeks() async =>
@@ -705,9 +637,8 @@ void main() {
             .toList();
 
     /// An approved enrollment whose encryption keys the APPROVE path wrote.
-    /// `primary` is CRAM auto-approved and never carries them, so a test that
-    /// used it would enumerate an empty set and every `contains` below would
-    /// be vacuous.
+    /// `primary` is CRAM auto-approved and never carries them, so using it
+    /// would enumerate an empty set and every `contains` below be vacuous.
     Future<String> approvedWithEncryptionKeys() async {
       final id = await etu.createPendingEnrollment(
           appName: 'pek-app',
@@ -737,10 +668,10 @@ void main() {
     });
 
     test('...and their at-rest form is these exact strings', () {
-      // RAW-LITERAL, not composed from the same constants the builder uses —
-      // a comparison against the constants that define a value pins nothing.
-      // FROZEN: records already on disk are addressable only by this form,
-      // and `keys:` hands these names to clients.
+      // ⚠️ RAW-LITERAL, not composed from the constants the builder uses: a
+      // comparison against the constants that define a value pins nothing.
+      // FROZEN, because records on disk are addressable only by this form and
+      // `keys:` hands these names to clients.
       const id = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
       expect(enMgr.keyForPEK(id),
           'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.default_enc_private_key'
@@ -751,8 +682,8 @@ void main() {
     });
 
     test('a non-canonical id builds the same key for both', () async {
-      // Idempotence of the fold, which is a different claim from the two
-      // above and cannot stand in for either.
+      // Idempotence of the fold, a different claim from the two above and no
+      // substitute for either.
       final id = await approvedWithEncryptionKeys();
       for (final spelling in [
         ' $id',
@@ -760,8 +691,7 @@ void main() {
         '$wsWrite$id',
         // Trailing, for the reason given in 'the enrollment key built from an
         // id is the key the store holds': folding only the composed string
-        // leaves trailing whitespace that is not a plain space stranded in the
-        // middle of the key.
+        // strands trailing whitespace in the middle of the key.
         '$id\t',
         '$id$wsWrite',
         '$id$wsRead',
@@ -777,23 +707,19 @@ void main() {
 
     // ---- the legacy APKAM public key ----
 
-    /// The one key builder whose components are CLIENT-CHOSEN: an app and a
-    /// device name arrive from the wire, so a capital in either builds a
+    /// The one key builder whose components are CLIENT-CHOSEN: the app and
+    /// device names arrive from the wire, so a capital in either builds a
     /// string the keystore does not hold the record under.
     ///
-    /// A CAPITAL rather than a space, and that is a measurement rather than a
-    /// taste. `HiveAtKeyValueStore.put` lowercases the key and then runs
-    /// `AtKey.getKeyType` on it, BEFORE the canonical fold — so a space
-    /// survives to the validator and the write is refused outright
-    /// (`Key public:my app.my device... is invalid`). No record is reachable
-    /// under a spaced name on this server, which leaves case as the only
-    /// difference a STORED record can carry, and therefore the only half of
-    /// the fold a stored record can measure.
+    /// A CAPITAL rather than a space, because `HiveAtKeyValueStore.put`
+    /// lowercases the key and then runs `AtKey.getKeyType` on it before the
+    /// canonical fold, so a spaced name is refused at the write and no record
+    /// is reachable under one. Case is the only difference a STORED record
+    /// can carry, and so the only half of the fold it can measure.
     ///
-    /// Nothing on this server writes this key any more — an older server's
-    /// CRAM auto-approve branch copied the enrolling app's APKAM public key
-    /// here "for old clients" — so the fixture writes it the way that server
-    /// did: with the names exactly as the client sent them.
+    /// Nothing on this server writes this key; the fixture writes it as a
+    /// server that copied the enrolling app's APKAM public key here did, with
+    /// the names exactly as the client sent them.
     const String app = 'MyApp';
     const String device = 'MyDevice';
 
@@ -802,8 +728,8 @@ void main() {
       ..namespaces = {'wavi': 'rw'}
       ..approval = EnrollApproval(EnrollmentStatus.approved.name);
 
-    /// Writes the key under the RAW spelling, which is what an older server
-    /// handed the keystore, and returns the key as the store enumerates it.
+    /// Writes the key under the RAW spelling a server that wrote it handed
+    /// the keystore, and returns the key as the store enumerates it.
     Future<String> seedLegacyApkamKey() async {
       await keyValueStore.put(
           'public:$app.$device.pkam.__pkams.__public_keys$alice',
@@ -836,13 +762,12 @@ void main() {
     });
 
     test('CONTROL: the startup sweep removes it either way', () async {
-      // Deliberately NOT the pin, and saying so is the point. `keyStore.exists`
-      // and `keyStore.remove` fold what they are handed, so the sweep reaches
-      // the record whether or not the builder folded first — measured: with
-      // the fold removed from keyForLegacyPK this case stays green and the
-      // case above goes red. It is here as the control that the fixture is a
-      // real record the sweep really does reach, so the equality above is a
-      // statement about the string rather than about an absent key.
+      // Deliberately NOT the pin: `keyStore.exists` and `keyStore.remove`
+      // fold what they are handed, so the sweep reaches the record whether or
+      // not the builder folded first. Removing the fold from keyForLegacyPK
+      // reddens the case above and leaves this one green. It is the control
+      // that the fixture is a real record the sweep reaches, so the equality
+      // above is about the string rather than about an absent key.
       await seedLegacyApkamKey();
       await enMgr.put(
           'legacy-holder',

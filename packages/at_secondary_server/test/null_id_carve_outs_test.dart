@@ -21,14 +21,10 @@ import 'test_utils.dart';
 
 /// Every place the server treats a connection carrying no enrollment id
 /// specially, stated beside what an enrollment holding `*:rw` and
-/// `__manage:rw` gets from the same verb.
-///
-/// A connection carrying no id is today CRAM, owner and legacy PKAM, and
-/// each of these carve-outs was written for that whole company. Stating the
-/// two answers side by side is what lets a later change to who carries an id
-/// be checked against both: a connection that comes to carry a root
-/// enrollment must get what a root gets, and nothing a null id got by
-/// accident.
+/// `__manage:rw` gets from the same verb. Stating the two answers side by
+/// side is what lets a change to who carries an id be checked against both: a
+/// connection that comes to carry a root enrollment must get what a root
+/// gets, and nothing a null id got by accident.
 void main() {
   verbTestsSetUpLogging();
 
@@ -187,9 +183,9 @@ void main() {
   group('scan', () {
     test('a null id sees the enrollment records; a root enrollment does not',
         () async {
-      // The one carve-out where the two answers DIFFER, and the difference is
-      // deliberate: `enroll:list` is the management path for enrollment
-      // records, and scan hides them from every enrollment, `*` included.
+      // The one carve-out where the two answers differ, deliberately:
+      // `enroll:list` is the management path for enrollment records, and
+      // scan hides them from every enrollment, `*` included.
       await keyValueStore.put('public:seen.wavi$alice', AtData()..data = 'x');
       final handler =
           ScanVerbHandler(keyValueStore, mockOutboundClientManager, cacheManager);

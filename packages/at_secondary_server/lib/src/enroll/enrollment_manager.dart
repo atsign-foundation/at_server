@@ -13,78 +13,52 @@ import 'package:meta/meta.dart';
 import 'package:mutex/mutex.dart';
 import 'package:uuid/uuid.dart';
 
-/// Manages enrollment data in the secondary server.
-///
-/// This class provides methods to retrieve and store enrollment data
-/// associated with a given enrollment ID. It interacts with the
-/// AtKeyValueStore to persist and retrieve enrollment information.
-/// What [EnrollmentManager.capEnrollmentExpiry] did, which its caller needs in
-/// order to decide whether the successor's "I have settled this" stamp is
-/// honest. A stamp left standing over a cap that did not happen is permanent:
-/// it short-circuits every later authentication, so the predecessor would keep
-/// an uncapped credential forever.
+/// What [EnrollmentManager.capEnrollmentExpiry] did. Its caller needs this to
+/// decide whether the successor's "I have settled this" stamp is honest: a
+/// stamp left standing over a cap that did not happen is permanent, and the
+/// predecessor would then keep an uncapped credential forever.
 enum RetrofitCapOutcome {
   /// The expiry was written.
   capped,
 
-  /// The predecessor's record is gone. Nothing to cap and nothing can bring
-  /// it back, so the successor's stamp stands.
+  /// The predecessor's record is gone, so the successor's stamp stands.
   predecessorGone,
 
   /// The predecessor was approved when the decision was made and is not now.
-  /// Transient by nature — an un-revoke restores it — so the stamp must NOT
-  /// stand.
+  /// Transient, so the stamp must NOT stand.
   notApproved,
 
-  /// The record could not be read or decoded. Treated like [notApproved]: it
-  /// says nothing durable about the predecessor.
+  /// The record could not be read or decoded. Treated like [notApproved].
   unreadable,
 }
 
+/// An atSign's enrollment records: reading and writing them, and the
+/// questions that have to be asked of the whole roster before a write.
 class EnrollmentManager {
   final AtKeyValueStore<String, AtData, AtMetaData?> keyStore;
   final String atSign;
 
   /// The atSign's ONE enrollment-mutation critical section.
   ///
-  /// Store-wide rather than per record, and that is the whole of why a single
-  /// lock is the right shape. Every enrollment mutation is read-decide-write
-  /// over a keystore with no compare-and-set, and the decision each write
-  /// rests on is a question about the WHOLE store — "would any unexpiring
-  /// root survive this act?" above all. Two mutations of two DIFFERENT
-  /// records therefore each pass an individually correct check and strand the
-  /// atSign between them: two concurrent `enroll:revoke` commands each counted
-  /// the root the other was about to remove and left zero unexpiring roots,
-  /// and a retrofit cap arming alongside a revoke did the same. A per-record
-  /// lock cannot see any of that, because neither writer touches the other's
-  /// record.
+  /// Store-wide rather than per record, because every enrollment mutation is
+  /// a read-decide-write over a keystore with no compare-and-set and the
+  /// decision rests on a question about the WHOLE roster ("would any
+  /// unexpiring root survive this act?"). Two mutations of two DIFFERENT
+  /// records each pass an individually correct check and strand the atSign
+  /// between them, which a per-record lock cannot see. It closes the plain
+  /// lost update too: whole-record snapshots, so whichever wrote second would
+  /// reinstate what the other had just left.
   ///
-  /// It closes the plain lost update as well, which a per-record lock WOULD
-  /// have closed: a revoke and a cap arming each write a whole-record
-  /// snapshot, so whichever wrote second reinstated what the other had just
-  /// left — the verb answering `revoked` over a record the store held
-  /// `approved`, with that credential's published `_apsk` back at the live
-  /// address.
-  ///
-  /// READS are deliberately outside it. Enrollments are read on every verb
-  /// command and on every authorisation check, so serialising reads would put
-  /// the whole atSign behind one queue; a reader can still observe a cascade
-  /// part-applied, exactly as it could before.
-  ///
-  /// That is only safe because a read is read-only, which it once was not:
-  /// [getEnrollmentByFullKey] used to REMOVE a record whose ttl had elapsed,
-  /// so an authorisation check could mutate the store while a mutation of
-  /// another record was in flight. It reports the expiry now and leaves the
-  /// record to the scheduled expired-keys pass.
-  ///
-  /// One instance per atSign, built once by `AtSecondaryServerImpl`, so an
-  /// instance field is the whole of the contention.
+  /// READS are deliberately outside it: they happen on every verb command and
+  /// every authorisation check, so serialising them would put the whole
+  /// atSign behind one queue. A reader can observe a cascade part-applied,
+  /// and that is only safe while a read stays read-only.
   final Mutex _mutationLock = Mutex();
 
   /// Marks the zone a [serialiseMutation] action runs in, so a mutation
   /// reached from INSIDE another one can be told from a genuinely concurrent
-  /// one. Zone values propagate across every await in the action, which is
-  /// what makes the distinction hold for asynchronous code.
+  /// one. Zone values propagate across every await, which is what makes the
+  /// distinction hold for asynchronous code.
   static const Object _inMutationZoneKey = #atEnrollmentMutation;
 
   /// Runs [action] as this atSign's only in-flight enrollment mutation.
@@ -92,12 +66,11 @@ class EnrollmentManager {
   /// Wrap the whole read-decide-write, never just the write. The write is not
   /// what races; the decision the write rests on is.
   ///
-  /// RE-ENTRANT, and [Mutex.protect] is not: a nested `protect` never
-  /// completes, so getting the nesting wrong costs a permanent hang on the
+  /// RE-ENTRANT, which [Mutex.protect] is not: a nested `protect` never
+  /// completes, so a nesting mistake costs a permanent hang on the
   /// authentication path rather than a wrong answer. An action reached from
-  /// inside another one is already in the critical section and runs straight
-  /// through. A genuinely concurrent caller arrives in a different zone and
-  /// waits.
+  /// inside another one runs straight through; a genuinely concurrent caller
+  /// arrives in a different zone and waits.
   Future<T> serialiseMutation<T>(Future<T> Function() action) {
     if (Zone.current[_inMutationZoneKey] == true) return action();
     return _mutationLock.protect(
@@ -110,71 +83,42 @@ class EnrollmentManager {
 
   final AtSignLogger logger = AtSignLogger('EnrollmentManager');
 
-  /// Keep a cache per enrollment key of both the json Map and the
-  /// AtData as stored. We need to cache the AtData because we can only check
-  /// the 'isActiveKey' with the AtData, but we also don't want to take the
-  /// jsonDecode hit every time we fetch. And we cache the json Map rather than
-  /// an EnrollDataStoreValue because the EnrollDataStoreValue is mutable and
-  /// we don't want its state changing and thus polluting the cache.
+  /// Per enrollment key, the AtData as stored and its decoded json Map. The
+  /// AtData is what `isActiveKey` can be checked against; the Map saves a
+  /// jsonDecode per read. The Map rather than an EnrollDataStoreValue because
+  /// that value is mutable, and a caller mutating one would pollute the cache.
   ///
-  /// Cache is used by [getEnrollmentByFullKey]. It is invalidated by [put],
-  /// and by [postRemoveHook] for every removal of an enrollment key however
-  /// that removal was reached — [remove], the `delete` verb, or the scheduled
-  /// expired-keys sweep. [getEnrollmentByFullKey] additionally declines to
-  /// populate it at all when an enrollment changed while its store read was
-  /// in flight, because the value it holds is then the one from before that
-  /// change.
-  ///
-  /// Context:<p/>
-  /// Enrollments are fetched on every new verb command received, and on every
-  /// check for a connection's authorization to read or write a particular key.
-  /// Modifications to enrollments are infrequent - extremely infrequent in
-  /// comparison to the number of times they are fetched.
+  /// Read by [getEnrollmentByFullKey]; invalidated by every enrollment write
+  /// and by [postRemoveHook] for every removal of an enrollment key, however
+  /// that removal was reached ([remove], the `delete` verb, or the scheduled
+  /// expired-keys sweep). Enrollments are read on every verb command and every
+  /// authorisation check and written very rarely, which is why there is a
+  /// cache here at all.
   final Map<String, (AtData, Map<String, dynamic>)> atDataCache = {};
 
-  /// Creates an instance of [EnrollmentManager].
-  ///
-  /// The [keyStore] is required to interact with the persistence layer.
   EnrollmentManager(this.keyStore, this.atSign);
 
-  /// Retrieves the enrollment data for a given [enId].
+  /// The enrollment [enId] names. Throws [KeyNotFoundException] when there is
+  /// no such record.
   ///
-  /// This method constructs an enrollment key, fetches the corresponding
-  /// data from the key store, and returns it as an [EnrollDataStoreValue].
-  /// If the key is not found, a [KeyNotFoundException] is thrown.
-  ///
-  /// If the retrieved enrollment data is no longer active, the status
-  /// will be set to `expired`. The record is NOT removed — see
-  /// [getEnrollmentByFullKey], which this delegates to.
-  ///
-  /// Returns:
-  ///   An [EnrollDataStoreValue] containing the enrollment details.
-  ///
-  /// Throws:
-  ///   [KeyNotFoundException] if the enrollment key does not exist or has expired.
+  /// A record whose ttl has elapsed is reported with status `expired` and is
+  /// left where it is; see [getEnrollmentByFullKey].
   Future<EnrollDataStoreValue> getEnrollmentById(String enId) async {
     return getEnrollmentByFullKey(buildEnrollmentKey(enId));
   }
 
   /// An enrollment id in the form the keystore holds it in.
   ///
-  /// An enrollment id is a key COMPONENT, so the keystore's fold applies to it
-  /// whether or not anything above the keystore folds: `' Abc'`, `'A bc'` and
-  /// `'abc'` all address one enrollment record. Comparisons above the store
-  /// are exact `String ==`, so a handler holding an unfolded spelling asks
-  /// about a string that is not on disk while READING AND WRITING the record
-  /// that is — which makes every identity guard on that path answer "not the
-  /// same enrollment" about the enrollment it is acting on.
+  /// An id is a key COMPONENT, so the keystore's fold applies to it whether
+  /// or not anything above the keystore folds: `' Abc'`, `'A bc'` and `'abc'`
+  /// all address one record. Comparisons above the store are exact
+  /// `String ==`, so a handler holding an unfolded spelling would ask about a
+  /// string that is not on disk while reading and writing the record that is.
   ///
-  /// [canonicalAtKey] rather than a fold spelled out here: the answer has to
-  /// be the keystore's answer, and two spellings of it can drift with nothing
-  /// going red.
-  ///
-  /// Folding rather than REFUSING a non-canonical spelling. The keystore
-  /// already resolves one to the same record, so folding cannot widen which
-  /// record a caller reaches — it only makes the guards ask about the record
-  /// actually being served. Refusing would be stricter but would break
-  /// deployed clients that send a mixed-case id today, which works.
+  /// Via [canonicalAtKey], so the answer is the keystore's own. Folding
+  /// rather than refusing a non-canonical spelling cannot widen which record
+  /// a caller reaches, since the keystore already resolves one to the same
+  /// record.
   static String canonicalEnrollmentId(String enId) => canonicalAtKey(enId);
 
   /// [canonicalEnrollmentId] for a value that may be absent, so that an entry
@@ -182,35 +126,18 @@ class EnrollmentManager {
   static String? canonicalEnrollmentIdOrNull(String? enId) =>
       enId == null ? null : canonicalEnrollmentId(enId);
 
-  /// Constructs the enrollment key based on the provided [enId].
+  /// The keystore key for enrollment [enId].
   ///
-  /// The key format combines the [enId], a new enrollment key pattern,
-  /// and the current AtSign.
+  /// CANONICAL: byte-identical to what an enumeration such as
+  /// [getAllEnrollmentKeys] returns for that record, which is what lets a key
+  /// built here be COMPARED against an enumerated one. [excluding] in
+  /// [hasUnexpiringRootEnrollment] does exactly that, and a key matching
+  /// nothing there makes the last-root refusal count the enrollment the act
+  /// is removing.
   ///
-  /// CANONICAL: the result is byte-identical to what an enumeration such as
-  /// [getAllEnrollmentKeys] returns for that record. That is what lets a key
-  /// built here be COMPARED against an enumerated one — [excluding] in
-  /// [hasUnexpiringRootEnrollment] does exactly that, and a raw key built from
-  /// a non-canonical id silently matched nothing there, so the last-root
-  /// refusal counted the enrollment the act was removing and let an atSign
-  /// lose its last root.
-  ///
-  /// The id is folded BEFORE it is composed as well as after, and the gap
-  /// between the two is narrow enough to be worth naming. Composition moves
+  /// The id is folded BEFORE composition as well as after: composition moves
   /// whatever TRAILS the id into the middle of the key, where the fold's trim
-  /// can no longer reach it; the space-strip catches a plain space and nothing
-  /// else. So a trailing tab, no-break space or ideographic space survives
-  /// composition and builds a key naming no record at all, while
-  /// [canonicalEnrollmentId] would have folded it away. Leading whitespace is
-  /// still leading after composition, so it was never the half that got
-  /// through.
-  ///
-  /// Folding here rather than demanding a folded id means a caller gets the
-  /// record its id addresses whether or not it folded first — which is the
-  /// same posture [canonicalEnrollmentId] takes, and for the same reason.
-  ///
-  /// Returns:
-  ///   A [String] representing the enrollment key.
+  /// can no longer reach it and only a plain space is stripped.
   String buildEnrollmentKey(String enId) {
     return canonicalAtKey('${canonicalEnrollmentId(enId)}'
         '.${EnrollmentConstants.enrollmentKeyPattern}'
@@ -244,15 +171,11 @@ class EnrollmentManager {
   /// the store, which every reader treats as `rsa2048` unless the wire says
   /// otherwise.
   ///
-  /// EXEMPT from the key-uniqueness rule, deliberately: this mints from a key
-  /// the connection just proved, or that the store already holds, whatever
-  /// else holds it. Every other holder is logged at shout instead. A duplicate
-  /// this leaves is visible in `enroll:list` and revocable by name; the rule
-  /// stops NEW duplicates, which is where a duplicate can be prevented rather
-  /// than discovered.
+  /// EXEMPT from the key-uniqueness rule: this mints from a key the
+  /// connection just proved, or that the store already holds, whatever else
+  /// holds it. Every other holder is logged at shout instead.
   ///
-  /// Must be called inside [serialiseMutation]; [absorbFlatKeyIntoPrimary]
-  /// and [migrateFlatKeyAtStartup] are the callers and take it.
+  /// Must be called inside [serialiseMutation].
   Future<void> mintPrimary(String apkamPublicKey, {String? signingAlgo}) async {
     await _shoutOtherHoldersOf(apkamPublicKey, signingAlgo);
     final EnrollDataStoreValue value = EnrollDataStoreValue(
@@ -274,7 +197,7 @@ class EnrollmentManager {
   }
 
   /// Rotates [primaryEnrollmentId] onto [apkamPublicKey], leaving everything
-  /// else about the record — its status included — as it stands. Same
+  /// else about the record, its status included, as it stands. Same
   /// exemption and the same logging as [mintPrimary].
   Future<void> _rotatePrimary(String apkamPublicKey, String? signingAlgo,
       EnrollDataStoreValue primary) async {
@@ -316,7 +239,7 @@ class EnrollmentManager {
   Future<void> _deleteFlatKey() =>
       keyStore.remove(AtConstants.atPkamPublicKey, skipCommit: true);
 
-  /// The flat legacy credential migrates into [primaryEnrollmentId] on the
+  /// Migrates the flat legacy credential into [primaryEnrollmentId] on the
   /// wire: mints `primary` from it when absent, rotates `primary` onto it when
   /// present with a different key, and deletes the flat key in the same act,
   /// so there is one credential and one record from that moment on. Returns
@@ -324,15 +247,12 @@ class EnrollmentManager {
   ///
   /// Called by a legacy `pkam:` that has just verified against the flat key.
   /// [signingAlgo] is what the wire said the key was, recorded on `primary`
-  /// so that later logins are judged under the algorithm the key really is.
-  ///
-  /// The deletion follows the mint immediately. A crash between the two
-  /// leaves both, which the next startup resolves through
-  /// [migrateFlatKeyAtStartup]: `primary` is then a root holding the key.
+  /// so later logins are judged under the algorithm the key really is. A
+  /// crash between the mint and the deletion leaves both, which
+  /// [migrateFlatKeyAtStartup] resolves at the next startup.
   ///
   /// Inside the enrollment-mutation section: a second legacy login waiting on
-  /// it finds no flat key and takes the fallback of verifying against the
-  /// record this one wrote.
+  /// it finds no flat key and verifies against the record this one wrote.
   Future<bool> absorbFlatKeyIntoPrimary({String? signingAlgo}) =>
       serialiseMutation(() async {
         final String? flat = await legacyPkamPublicKey();
@@ -349,17 +269,16 @@ class EnrollmentManager {
       });
 
   /// The one carve-out from the flat credential's write ban, redirected: a
-  /// CRAM connection, in any mode, asks to install
-  /// [apkamPublicKey] as the atSign's legacy credential, and instead of the
-  /// flat key it mints [primaryEnrollmentId] from it when absent and rotates
-  /// `primary` onto it when present. No flat key is written, so none exists
-  /// on a running server in any mode, and the rigs hold `primary` from key
-  /// install rather than from first login.
+  /// CRAM connection's `update` of the atSign's legacy credential mints
+  /// [primaryEnrollmentId] from [apkamPublicKey] when `primary` is absent and
+  /// rotates `primary` onto it when it is present. No flat key is written, so
+  /// none exists on a running server. See
+  /// `AbstractVerbHandler.refuseFlatCredentialWrite`, which admits exactly
+  /// that one write.
   ///
   /// Subject to key uniqueness like any `enroll:update`: refused, with
   /// nothing written, when a stored enrollment other than `primary` holds the
-  /// key. No exemption for a fixture; the fixtures mint a key per
-  /// enrollment.
+  /// key.
   Future<void> installLegacyKeyIntoPrimary(String apkamPublicKey) =>
       serialiseMutation(() async {
         final (String, EnrollDataStoreValue)? holder =
@@ -380,43 +299,34 @@ class EnrollmentManager {
         }
       });
 
-  /// What [migrateFlatKeyAtStartup] found and did, for the startup log and
-  /// for tests.
+  /// Migrates the flat legacy credential at startup, before any client
+  /// connects, and reports what it found and did.
   Future<StartupFlatKeyOutcome> migrateFlatKeyAtStartup() =>
       serialiseMutation(_migrateFlatKeyAtStartupUnderLock);
 
-  /// The flat legacy credential at startup, before any client connects, in
-  /// two steps under the enrollment-mutation section.
+  /// The startup migration, in two steps inside the enrollment-mutation
+  /// section.
   ///
-  /// FIRST, a flat key that is some root's copy is deleted. An older
-  /// server's CRAM auto-approve copied the first root's key beside it; a
-  /// revoked root's copy is the dual-identity case where the app's
-  /// revocation never reached it. Root grants only, because a subordinate
-  /// must not be able to trigger this: an OTP request takes a client-chosen
-  /// key, and only a root can approve a root-granted record. Approved or
-  /// revoked only, because a pending request can name root grants unapproved,
-  /// and only a record that was once approved was ever a root.
-  ///
-  /// The stranding question is asked first. If no approved, fully privileged,
-  /// unexpiring enrollment with a non-empty key would survive the deletion,
-  /// it is skipped and the second step migrates the key instead: that case is
-  /// reachable only where the root's own keypair revoked itself, so
-  /// reinstating it as `primary` hands nobody anything they did not already
-  /// hold, and gives an owner who revoked their only root by mistake a
-  /// visible, revocable name for the keypair they kept using.
+  /// FIRST, a flat key that is some root's copy is deleted, but only if the
+  /// stranding question says an approved, fully privileged, unexpiring
+  /// enrollment with a non-empty key survives the deletion; otherwise the key
+  /// is migrated instead, a case reachable only where the root's own keypair
+  /// revoked itself. Root grants only, because a subordinate must not be able
+  /// to trigger this: an OTP request takes a client-chosen key, and only a
+  /// root can approve a root-granted record. Approved or revoked only,
+  /// because only a record that was once approved was ever a root.
   ///
   /// SECOND, any remaining flat key is migrated as [absorbFlatKeyIntoPrimary]
-  /// migrates one on the wire, with one difference: a flat key found beside
-  /// an existing `primary` holding a DIFFERENT key is deleted and logged,
-  /// never absorbed. A key lying in the store at startup is not an owner's
-  /// act on the wire.
+  /// migrates one, except that a flat key found beside an existing `primary`
+  /// holding a DIFFERENT key is deleted and logged rather than absorbed: a
+  /// key lying in the store at startup is not an owner's act on the wire.
   ///
   /// After this, no flat key exists on a running server.
   Future<StartupFlatKeyOutcome> _migrateFlatKeyAtStartupUnderLock() async {
     final String? flat = await legacyPkamPublicKey();
     if (flat == null) {
-      // A zero-length value is not a credential, and it is not left behind
-      // either: nothing must exist at this key on a running server.
+      // A zero-length value is not a credential, and nothing must exist at
+      // this key on a running server.
       if (await keyStore.exists(AtConstants.atPkamPublicKey)) {
         await _deleteFlatKey();
         logger.info('Deleted an empty ${AtConstants.atPkamPublicKey}: a '
@@ -479,24 +389,15 @@ class EnrollmentManager {
     return StartupFlatKeyOutcome.deletedAsStray;
   }
 
-  /// The atSign's legacy PKAM credential, or NULL when it holds none that
-  /// could authenticate anybody.
+  /// The atSign's flat legacy PKAM credential, or NULL when it holds none
+  /// that could authenticate anybody.
   ///
-  /// PRESENT is not the bar, NON-EMPTY is. The server refuses an empty public
-  /// key before it looks at any signature — `PkamVerbHandler`'s
-  /// `publicKey.isEmpty` guard, which covers the legacy and APKAM branches
-  /// alike — so a zero-length value is a credential nobody can authenticate
-  /// with, and every caller here must read it exactly as it reads the key
-  /// being gone: an empty value is not a credential, so a legacy login must
-  /// not verify against it and the startup migration must not mint
-  /// `primary` from it.
-  ///
-  /// Zero-length is a state the atSign can be found in even though no route
-  /// on this server writes one any more: both spellings of `update` now
-  /// demand a non-empty value, but a store written by an older server, when
-  /// `update:json` carried the value inside a JSON document nothing checked,
-  /// can still hold one. The guard is kept because a credential read as
-  /// present-but-empty is the one mistake that strands an atSign.
+  /// PRESENT is not the bar, NON-EMPTY is. `PkamVerbHandler` refuses an empty
+  /// public key before it looks at any signature, on the legacy and APKAM
+  /// branches alike, so a zero-length value is a credential nobody can
+  /// authenticate with and every caller here must read it exactly as it reads
+  /// the key being gone. A store written by an older server can hold one even
+  /// though no route here writes one.
   ///
   /// `keyStore.get` THROWS for a missing key rather than returning null, so
   /// absence has to be caught here rather than tested for.
@@ -511,20 +412,15 @@ class EnrollmentManager {
     return (value == null || value.isEmpty) ? null : value;
   }
 
-  /// Stores the enrollment data associated with the given [enId].
+  /// Stores [atData] as enrollment [enId], first moving the enrollment's
+  /// per-enrollment data to match [newStatus]. `skipCommit`, so enrollment
+  /// records are not synced to clients.
   ///
-  /// This method constructs an enrollment key and saves the provided [AtData]
-  /// to the key store. The skipCommit is set to true, to prevent the enrollment
-  /// data being synced to the client(s).
-  ///
-  /// Parameters:
-  ///   - [enId]: The ID associated with the enrollment.
-  ///   - [atData]: The [AtData] object to be stored.
-  ///   - [assertedTimestamps]: timestamps the store must keep faithfully
-  ///     rather than rederive. A read-modify-write of an enrollment record
-  ///     asserts the stored `expiresAt` back, or the builder recomputes it
-  ///     from the retained ttl and restarts the record's expiry clock at the
-  ///     moment of the write.
+  /// [assertedTimestamps] are timestamps the store must keep faithfully
+  /// rather than rederive. A read-modify-write of an enrollment record must
+  /// assert the stored `expiresAt` back, or the metadata builder recomputes
+  /// it from the retained ttl and restarts the record's expiry clock at the
+  /// moment of the write.
   Future<void> put(String enId, AtData atData, EnrollmentStatus newStatus,
       {AtAssertedTimestamps? assertedTimestamps}) async {
     switch (newStatus) {
@@ -547,8 +443,8 @@ class EnrollmentManager {
   /// The record write and cache invalidation, without the per-enrollment data
   /// move. Split out so a caller moving data for MANY enrollments can make one
   /// pass and then write each record, rather than paying a whole-keystore walk
-  /// per record. Every write still bumps [cacheInvalidations], which is
-  /// what stops a read that a write overtook from repopulating the cache.
+  /// per record. Every write bumps [cacheInvalidations], which is what stops
+  /// a read that a write overtook from repopulating the cache.
   Future<void> _writeEnrollmentRecord(String enId, AtData atData,
       {AtAssertedTimestamps? assertedTimestamps}) async {
     final String ek = buildEnrollmentKey(enId);
@@ -561,14 +457,12 @@ class EnrollmentManager {
   RegExp reForPerEnrollmentNamespaces =
       RegExp(EnrollmentConstants.regexForPerEnrollmentNamespaces);
 
-  /// Moves everything in `<enId>.[ard].__e` to the required place
-  /// Returns list of all the keys which were moved
+  /// Moves everything in `<enId>.[ard].__e` to [to], and returns the keys
+  /// that were moved.
   ///
-  /// Scoped to [enId]: only the per-enrollment keys belonging to that enrollment
-  /// are moved. The `regexForPerEnrollmentNamespaces` match exposes the owning
-  /// enrollment id via its `EnId` named group; keys whose `EnId` differs from
-  /// [enId] are left untouched, so a state change on one enrollment never
-  /// disturbs another enrollment's per-enrollment data.
+  /// Scoped to [enId] by the `EnId` named group of
+  /// `regexForPerEnrollmentNamespaces`, so a state change on one enrollment
+  /// never disturbs another enrollment's per-enrollment data.
   @visibleForTesting
   Future<List<String>> movePerEnrollmentData(
     String enId, {
@@ -578,12 +472,11 @@ class EnrollmentManager {
 
   /// [movePerEnrollmentData] for several enrollments in ONE pass.
   ///
-  /// The pass is the cost: `getKeys` walks every key in the atSign's keystore,
-  /// so doing it once per enrollment made a cascade quadratic in the thing an
-  /// attacker can inflate — a revoke of K descendants cost K+2 whole-store
-  /// scans, and self-enrollment mints descendants without approval. Batching
-  /// is sound because the regex already exposes the owning enrollment id, so
-  /// one walk can serve any number of them.
+  /// The pass is the cost: `getKeys` walks every key in the atSign's
+  /// keystore, so one pass per enrollment makes a cascade quadratic in a
+  /// quantity an attacker can inflate, a revoke of K descendants costing K+2
+  /// whole-store scans. The regex exposes the owning enrollment id, so one
+  /// walk can serve any number of them.
   @visibleForTesting
   Future<List<String>> movePerEnrollmentDataFor(
     Set<String> enIds, {
@@ -591,11 +484,10 @@ class EnrollmentManager {
   }) async {
     if (enIds.isEmpty) return [];
     // The comparison below is against the `EnId` segment of a key the
-    // KEYSTORE returned, so it is canonical; an id that is not compares
-    // unequal to its own data and the move silently does nothing. A revoke
-    // that moves nothing leaves the enrollment's per-enrollment keys — its
-    // published `_apsk` among them — sitting in the APPROVED location, which
-    // is what every reader of that data goes by.
+    // KEYSTORE returned, so it is canonical. An id that is not compares
+    // unequal to its own data and the move silently does nothing, leaving a
+    // revoked enrollment's per-enrollment keys, its published `_apsk` among
+    // them, at the APPROVED location every reader of that data goes by.
     enIds = enIds.map(canonicalEnrollmentId).toSet();
     switch (to) {
       case EnrollmentConstants.perEnrollmentRevoked:
@@ -606,7 +498,6 @@ class EnrollmentManager {
             RegExp(EnrollmentConstants.regexForPerEnrollmentNamespaces);
         await for (final String fromKey in await keyStore.getKeys(
             regex: EnrollmentConstants.regexForPerEnrollmentNamespaces)) {
-          // Scope the move to this enrollment: skip keys owned by any other enrollment.
           final RegExpMatch? match = perEnrollmentRegex.firstMatch(fromKey);
           if (match == null || !enIds.contains(match.namedGroup('EnId'))) {
             continue;
@@ -633,18 +524,18 @@ class EnrollmentManager {
     }
   }
 
-  /// Canonical for the same reason [buildEnrollmentKey] is, and the id is
-  /// folded first for the same reason: this key is compared against keys an
-  /// enumeration returned — `keys:` authorises a caller for its own encryption
-  /// keys by name, and the orphan sweep matches enumerated candidates against
-  /// built ones.
+  /// The keystore key holding enrollment [enId]'s encryption private key.
+  ///
+  /// Canonical for the same reason [buildEnrollmentKey] is: `keys:` decides
+  /// whether a caller may touch a named key by comparing it against this.
   String keyForPEK(String enId) =>
       canonicalAtKey('${canonicalEnrollmentId(enId)}'
           '.${AtConstants.defaultEncryptionPrivateKey}'
           '.${EnrollmentConstants.enrollManageNamespace}'
           '$atSign');
 
-  /// Canonical for the same reason as [keyForPEK].
+  /// [keyForPEK]'s counterpart for the self-encryption key, canonical for the
+  /// same reason.
   String keyForSEK(String enId) =>
       canonicalAtKey('${canonicalEnrollmentId(enId)}'
           '.${AtConstants.defaultSelfEncryptionKey}'
@@ -679,23 +570,19 @@ class EnrollmentManager {
   /// Called after *any* key in the keystore is removed. Drops the cached
   /// enrollment, if that is what went.
   ///
-  /// AFTER rather than in [preRemoveHook], and that is the whole of why it is
-  /// a second hook: the pre-hook runs while the record is still on disk and
-  /// does several awaits of its own, so anything invalidated there is
-  /// reinstated by any read arriving before the delete lands. There is
-  /// nothing left to read back by the time this runs.
+  /// AFTER rather than in [preRemoveHook]: the pre-hook runs while the record
+  /// is still on disk and awaits several times, so anything invalidated there
+  /// is reinstated by a read arriving before the delete lands.
   ///
   /// A hook rather than a line in [remove], because [remove] is not the only
-  /// way an enrollment key leaves the keystore — `delete` from an owner
-  /// connection and the scheduled expired-keys sweep both go straight to
-  /// [AtKeyValueStore.remove]. Those paths left the record cached, so it went
-  /// on being served as approved for the life of the process, and went on
-  /// authorising every verb its grants covered, with nothing on disk to say
-  /// so.
+  /// way an enrollment key leaves the keystore: the `delete` verb and the
+  /// expired-keys sweep go straight to [AtKeyValueStore.remove], and a record
+  /// left cached goes on authorising every verb its grants cover with nothing
+  /// on disk to say so.
   ///
   /// The key is canonicalised because the cache is keyed by
-  /// [buildEnrollmentKey], which is, while a keystore hands its hooks the key
-  /// as the caller spelled it apart from case.
+  /// [buildEnrollmentKey], while a keystore hands its hooks the key as the
+  /// caller spelled it apart from case.
   Future<void> postRemoveHook(String key, {required bool skipCommit}) async {
     final String ek = canonicalAtKey(key);
     if (!ekRegex.hasMatch(ek)) {
@@ -717,7 +604,6 @@ class EnrollmentManager {
 
     String enId = getIdFromKey(ek);
 
-    // Delete private encryption key if it's there
     final pekKey = keyForPEK(enId);
     if (await keyStore.exists(pekKey)) {
       logger.info('_preRemove: Removing $pekKey');
@@ -726,7 +612,6 @@ class EnrollmentManager {
       logger.info('_preRemove: $pekKey has already been removed');
     }
 
-    // Delete self encryption key if it's there
     final sekKey = keyForSEK(enId);
     if (await keyStore.exists(sekKey)) {
       logger.info('_preRemove: Removing $sekKey');
@@ -739,15 +624,12 @@ class EnrollmentManager {
         to: EnrollmentConstants.perEnrollmentDeleted);
   }
 
-  /// Deletes the enrollment key from the keystore.
+  /// Deletes enrollment [enId]'s record, with `skipCommit` so the deletion is
+  /// not written to the commit log and not synced to clients.
   ///
-  /// This method generates an enrollment key using the provided enrollmentId and
-  /// removes the enrollment key from the keystore. The skipCommit parameter is
-  /// set to true to prevent this deletion from being logged in the commit log,
-  /// ensuring it is not synced to the clients.
-  ///
-  /// Parameters:
-  ///  - [enId]: The ID associated with the enrollment.
+  /// The pre- and post-remove hooks must be active: they are what keep the
+  /// rest of the enrollment's data, and the cache, consistent with the
+  /// removal.
   Future<void> remove({required String enId}) async {
     if (!keyStore.preRemoveHooks.contains(preRemoveHook) ||
         !keyStore.postRemoveHooks.contains(postRemoveHook)) {
@@ -756,9 +638,9 @@ class EnrollmentManager {
     }
     String ek = buildEnrollmentKey(enId);
 
-    // The cache is invalidated by [postRemoveHook], which the guard above
-    // insists on, rather than by a line here: this method is one removal path
-    // among several and the invariant belongs where every path passes.
+    // Cache invalidation is [postRemoveHook]'s, which the guard above insists
+    // on: this is one removal path among several, and the invariant belongs
+    // where every path passes.
     await keyStore.remove(ek, skipCommit: true);
   }
 
@@ -767,23 +649,19 @@ class EnrollmentManager {
   /// [includeExpired] picks between two genuinely different rosters, and it is
   /// REQUIRED so that each call site states which one it means.
   ///
-  ///   * `false` — the VISIBLE roster: what [AtKeyValueStore.getKeys] returns,
+  ///   * `false`: the VISIBLE roster, what [AtKeyValueStore.getKeys] returns,
   ///     which omits a record whose ttl has elapsed even though the record is
   ///     still on disk.
-  ///   * `true` — the STORED roster: everything the keystore holds, expiry
+  ///   * `true`: the STORED roster, everything the keystore holds, expiry
   ///     included. This is what [AtKeyValueStore.get] and
   ///     [AtKeyValueStore.exists] see, and it is what the atSign actually
   ///     holds.
   ///
-  /// The two disagree for tens of seconds at a stretch. Expiry is lazy here:
-  /// a record stops being enumerated the instant its ttl elapses, and is
-  /// removed later by the scheduled expired-keys pass, which re-arms off the
-  /// store's own next expiry and is floored and jittered. Anything deciding
-  /// what the atSign IS — whether it has ever been enrolled, whether a key is
-  /// orphaned, which children a re-parent must reach — must take the stored
-  /// view, because the visible roster is one an enrollment's own key-expiry
-  /// posture empties on a schedule its holder chose. Anything merely
-  /// REPORTING the roster can take the visible one.
+  /// Expiry is lazy, so the two disagree until the expired-keys sweep runs.
+  /// Anything deciding what the atSign IS must take the stored view, because
+  /// the visible roster is one an enrollment's own key-expiry posture empties
+  /// on a schedule its holder chose. Anything merely REPORTING a roster can
+  /// take the visible one.
   Future<List<String>> getAllEnrollmentKeys(
       {required bool includeExpired}) async {
     if (!includeExpired) {
@@ -792,11 +670,9 @@ class EnrollmentManager {
           .toList();
     }
     // `getKeys` has no include-expired form, so the stored roster comes off
-    // `scanKeys`, which does. An unrestricted [KeyPattern] matches every key
-    // without parsing it, so this is the same whole-store walk `getKeys`
-    // makes, filtered by the same expression rather than by the backend — and
-    // both walks decode their keys identically, so a key enumerated here is
-    // byte-identical to the one the visible roster would have returned.
+    // `scanKeys`, which does. An unrestricted [KeyPattern] matches every key,
+    // and both walks decode their keys identically, so a key enumerated here
+    // is byte-identical to the one the visible roster would have returned.
     final RegExp re = RegExp(EnrollmentConstants.enrollmentsRegex);
     final List<String> keys = [];
     await for (final String key in await keyStore.scanKeys(const KeyPattern(),
@@ -806,11 +682,10 @@ class EnrollmentManager {
     return keys;
   }
 
-  /// Every stored enrollment, as its id and decoded value: expired records
-  /// included, each reporting its state as `expired` the way
-  /// [getEnrollmentByFullKey] does. For the questions that have to be asked
-  /// of the WHOLE roster before a write — whether a key is already held,
-  /// whether an (appName, deviceName) is already taken.
+  /// Every stored enrollment as its id and decoded value, expired records
+  /// included and each reporting its state as `expired`. For the questions
+  /// that have to be asked of the WHOLE roster before a write: whether a key
+  /// is already held, whether an (appName, deviceName) is taken.
   ///
   /// A record swept between the listing and the read is skipped, and so is
   /// one that does not decode, with a log line. A STORE fault is not caught:
@@ -837,10 +712,10 @@ class EnrollmentManager {
   /// The stored enrollment, in ANY status, holding the key material that
   /// [apkamPublicKey] spells under [signingAlgo]; null when none does.
   ///
-  /// Every status counts, expired-but-unswept records included: a key
-  /// material installed under two names is two identities with separate
-  /// lifecycles, whatever state the first one is in, and a revoked or denied
-  /// holder blocks re-enrolment with the same keypair until it is deleted.
+  /// Every status counts, expired-but-unswept records included: one key
+  /// installed under two names is two identities with separate lifecycles,
+  /// whatever state the first one is in, so a revoked or denied holder blocks
+  /// re-enrolment with the same keypair until it is deleted.
   ///
   /// [excluding] is the enrollment re-sending its own current key, which is
   /// not a collision with itself. Compared by [sameApkamKeyMaterial].
@@ -864,10 +739,10 @@ class EnrollmentManager {
   /// for `ecc_secp256r1`, base64 for every other algorithm. Null when it does
   /// not decode as that, which a caller compares as text instead.
   ///
-  /// Decoded rather than compared as strings because one key has several
-  /// spellings: hex decodes case-insensitively, and base64 tolerates
-  /// surrounding whitespace. A uniqueness rule that compared the spelling
-  /// would be defeated by re-casing.
+  /// Decoded rather than compared as text because one key has several
+  /// spellings: hex decodes case-insensitively and base64 tolerates
+  /// surrounding whitespace, so a uniqueness rule comparing spellings would
+  /// be defeated by re-casing.
   static List<int>? apkamKeyMaterial(String publicKey, String? signingAlgo) {
     final String spelled = publicKey.trim();
     if (signingAlgo == ApkamSignatureVerifier.eccAlgo) {
@@ -902,65 +777,36 @@ class EnrollmentManager {
     return a.trim() == b.trim();
   }
 
-  /// Fetch an enrollment key from the keystore.
-  /// If key is available returns [EnrollDataStoreValue],
-  /// else throws [KeyNotFoundException]
+  /// The enrollment stored at [ek]. Throws [KeyNotFoundException] when there
+  /// is none.
   ///
-  /// READ-ONLY. A record whose ttl has elapsed comes back with its approval
-  /// state reported as `expired`, and is left exactly where it is.
-  ///
-  /// It used to REMOVE such a record, and that write had no business on this
-  /// path. Enrollments are read on every verb command and on every
-  /// authorisation check, all of it deliberately outside the atSign's one
-  /// enrollment-mutation critical section — so the reap was a store mutation
-  /// taken by a reader that had decided nothing, while a mutation of another
-  /// record was in flight. `remove` also fires the pre-remove hook, which
-  /// does several awaits of per-enrollment data movement — work an
-  /// authorisation check taken on every verb command has no business running.
-  ///
-  /// The manager's own readers had already worked around it one at a time —
-  /// [approvedRootEnrollmentsAmong], [_approverIdOf] and the descendant walk
-  /// each read straight through the keystore to avoid reaping while deciding
-  /// whether to REFUSE something. [hasUnexpiringRootEnrollment] did not, so
-  /// the last-root decision — the one place a stranding is being judged —
-  /// reaped as it walked. Fixing the read is what makes that consistent
-  /// without every caller having to know.
-  ///
-  /// Nothing is leaked by not reaping here. The server sweeps expired keys on
-  /// a timer it re-arms from the store's own next expiry — floored at ten
-  /// seconds and jittered by up to thirty, so a record is removed within tens
-  /// of seconds of expiring — and that pass removes them through the same
-  /// [AtKeyValueStore.remove], so the same hooks fire. The value handed back
-  /// is identical either way, because callers decide on the `expired` state
-  /// rather than on the record's absence.
+  /// READ-ONLY. A record whose ttl has elapsed comes back reported `expired`
+  /// and is left exactly where it is. This path is taken by every verb
+  /// command and every authorisation check, deliberately outside the
+  /// enrollment-mutation critical section, so reaping here would be a store
+  /// mutation by a reader that decided nothing, taken while a mutation of
+  /// another record was in flight, and it would run the pre-remove hook's
+  /// per-enrollment data movement on the authorisation path. The scheduled
+  /// expired-keys sweep removes such records instead, through the same
+  /// [AtKeyValueStore.remove], so the same hooks fire.
   Future<EnrollDataStoreValue> getEnrollmentByFullKey(
     String ek,
   ) async {
     AtData enrollData;
     Map<String, dynamic> enrollJson;
 
-    // Check the cache
     if (atDataCache.containsKey(ek)) {
-      // it's in the cache
       cacheHits++;
       (enrollData, enrollJson) = atDataCache[ek]!;
     } else {
-      // not in cache - fetch from keystore, and populate the cache
       cacheMisses++;
-      // The generation the value is read AT. The store read below is an
-      // await, so an enrollment write can land while it is in flight — and
-      // the value it hands back is then the one from BEFORE that write.
-      // Caching it unconditionally reinstates the superseded record after the
-      // writer has already invalidated it, and nothing invalidates it again:
-      // the entry outlives the process's memory of the write. Measured as a
-      // PKAM that succeeded for an enrollment the store said was revoked.
-      //
-      // The counter is bumped by every enrollment write and every enrollment
-      // removal, so this is deliberately coarse — a write to some OTHER
-      // enrollment costs this read its cache fill, which the next read pays
-      // again. That is the whole cost, and it buys the invariant with no new
-      // state: enrollments are written extremely rarely compared to how often
-      // they are read, which is why there is a cache here at all.
+      // The generation the value is read AT. The store read below awaits, so
+      // an enrollment write can land while it is in flight, and the value it
+      // hands back is then the one from BEFORE that write; caching that
+      // unconditionally reinstates a superseded record that nothing
+      // invalidates again. Deliberately coarse: any enrollment write costs
+      // this read its cache fill, which is cheap because enrollments are
+      // written far more rarely than they are read.
       final int generationAtRead = cacheInvalidations;
       enrollData = (await keyStore.get(ek))!;
       enrollJson = jsonDecode(enrollData.data!);
@@ -971,8 +817,6 @@ class EnrollmentManager {
 
     EnrollDataStoreValue value = EnrollDataStoreValue.fromJson(enrollJson);
     if (!SecondaryUtil.isActiveKey(enrollData)) {
-      // Reported, never repaired. See the doc comment: removing it here is a
-      // write on a path every authorisation check takes.
       logger.finer('getEnrollmentByFullKey:'
           ' Enrollment $ek has expired - reporting it expired. The scheduled'
           ' expired-keys pass is what removes it');
@@ -981,27 +825,15 @@ class EnrollmentManager {
     return value;
   }
 
-  /// Fetch enrollments whose keys are in the [ekList], and filter them to
-  /// enrollments whose status is in the [statuses] list.
-  ///
-  /// When [ekList] is null, fetch and filter all enrollments.
-  /// When [statuses] is null, do not filter by status.
-  ///
-  /// [redactSecrets] selects the roster projection
-  /// ([EnrollDataStoreValue.toJsonRoster]) instead of the full record. It is
-  /// REQUIRED rather than defaulted: every caller has to state which audience
-  /// it is answering, because the full record carries the wrapped APKAM
-  /// symmetric key and a caller that gets it by omission is the defect this
-  /// parameter exists to prevent.
   /// When the record for [enrollmentKey] stops being served, in UTC, or null
   /// when it never does.
   ///
-  /// This is the enrollment's EFFECTIVE expiry: whatever set it last — the
-  /// key-expiry posture at approval, the retrofit cap, or nothing. It lives
-  /// on the record's metadata rather than in [EnrollDataStoreValue], so the
-  /// value's own JSON cannot carry it and every projection that reports it
-  /// reads it from here. A client has no other way to learn it: the record
-  /// is a `__manage` key, which no enrollment may read with a data verb.
+  /// The enrollment's EFFECTIVE expiry, whatever set it last: the key-expiry
+  /// posture at approval, the retrofit cap, or nothing. It lives on the
+  /// record's metadata rather than in [EnrollDataStoreValue], so every
+  /// projection that reports it reads it from here. A client has no other way
+  /// to learn it: the record is a `__manage` key, which no enrollment may
+  /// read with a data verb.
   Future<DateTime?> effectiveExpiryOf(String enrollmentKey) async =>
       (await keyStore.get(enrollmentKey))?.metaData?.expiresAt?.toUtc();
 
@@ -1013,16 +845,22 @@ class EnrollmentManager {
   static String? expiresAtField(DateTime? expiry) =>
       expiry?.toUtc().toIso8601String();
 
+  /// The enrollments whose keys are in [ekList], filtered to those whose
+  /// status is in [statuses]. All enrollments when [ekList] is null, all
+  /// statuses when [statuses] is null. Every entry carries `expiresAt`.
+  ///
+  /// [redactSecrets] selects the roster projection
+  /// ([EnrollDataStoreValue.toJsonRoster]) instead of the full record. It is
+  /// REQUIRED rather than defaulted: the full record carries the wrapped
+  /// APKAM symmetric key, so every caller has to state which audience it is
+  /// answering.
   Future<Map<String, Map<String, dynamic>>> getEnrollmentsAsJson(
       {required bool redactSecrets,
       List<String>? ekList,
       List<EnrollmentStatus>? statuses}) async {
-    // set default values for optional arguments - all enrollments, all statuses
-    //
     // The VISIBLE roster: this REPORTS a roster (`enroll:list`), it decides
-    // nothing. A record the keystore has stopped serving is one this atSign has
-    // finished with, and listing it would make the answer depend on how
-    // recently the expiry sweep happened to run.
+    // nothing, and listing a record the keystore has stopped serving would
+    // make the answer depend on how recently the expiry sweep ran.
     ekList ??= await getAllEnrollmentKeys(includeExpired: false);
 
     Map<String, Map<String, dynamic>> ejList = {};
@@ -1031,7 +869,7 @@ class EnrollmentManager {
       try {
         enVal = await getEnrollmentByFullKey(ek);
       } on KeyNotFoundException {
-        // Deleted between the enumeration and this read. One enrollment
+        // Deleted between the enumeration and this read; one enrollment
         // vanishing must not fail the whole roster.
         continue;
       }
@@ -1040,8 +878,8 @@ class EnrollmentManager {
               EnrollmentStatus.values.byName(enVal.approval!.state))) {
         final Map<String, dynamic> entry =
             redactSecrets ? enVal.toJsonRoster() : enVal.toJsonExtended();
-        // Both projections carry the effective expiry: it is a fact about
-        // when the enrollment stops authenticating, not key material.
+        // Both projections carry the effective expiry: it says when the
+        // enrollment stops authenticating and is not key material.
         entry['expiresAt'] = expiresAtField(await effectiveExpiryOf(ek));
         ejList[ek] = entry;
       }
@@ -1049,46 +887,27 @@ class EnrollmentManager {
     return ejList;
   }
 
-  /// Returns all approved enrollments that have access to [namespace], as a
-  /// flat list of maps suitable for JSON encoding in the `enroll:listns`
-  /// response (1:1:1 — one entry per enrollment, no nested `apkam[]`). Each
-  /// entry has shape:
-  ///
-  /// ```
-  /// {"enrollmentId": id, "access": "r"|"rw", "apkamPubKey": pubKey,
-  ///  "metadata": map|null}
-  /// ```
-  ///
-  /// `metadata.keyPackage` (a singular, APKAM-signed key package) is the
-  /// substrate's encapsulation target; the server stores/returns `metadata`
-  /// opaquely.
-  ///
-  /// The namespace match mirrors the atServer's own suffix rule:
-  ///   - `*` authorises every namespace
-  ///   - an exact match (e.g. `wavi` authorises `wavi`)
-  ///   - a namespace suffix match (e.g. `wavi` authorises `data.wavi`)
   /// The access [enVal] holds over [namespace], or null if it holds none.
   ///
   /// A `*` grant covers every namespace, and a grant on a parent segment
-  /// covers its children — the same rule the verb handler gates the caller on,
-  /// so a caller admitted to a roster is always ON that roster.
+  /// covers its children (`wavi` covers `data.wavi`). That is the same rule
+  /// the verb handler gates the caller on, so a caller admitted to a roster
+  /// is always ON that roster.
   String? accessForNamespace(EnrollDataStoreValue enVal, String namespace) =>
       accessInNamespaces(enVal.namespaces, namespace);
 
   /// [accessForNamespace] over a bare grants map.
   ///
   /// Separate because a revocation event carries the grants the enrollment
-  /// held rather than the enrollment, the record having very possibly been
-  /// reaped since — so the same rule has to be askable without one.
+  /// held rather than the enrollment itself, the record having very possibly
+  /// been reaped since, so the same rule has to be askable without one.
   String? accessInNamespaces(Map<String, String> namespaces, String namespace) {
-    // An EXPLICIT grant wins, and the wildcard is only a fallback — which is
-    // the atServer's own rule: it walks the enrolled namespaces for a suffix
-    // match and reaches for `*` only when none matched. Testing `*` inside the
-    // loop instead returns whichever entry happens to come first in the stored
-    // map, and that map is insertion-ordered off `jsonDecode`, so an
-    // enrollment holding both `*` and a narrower grant at different access
-    // letters would report a letter the server itself would not act on —
-    // whenever `*` happened to be stored first.
+    // An EXPLICIT grant wins and the wildcard is only a fallback, which is
+    // the atServer's own rule. Testing `*` inside the loop returns whichever
+    // entry comes first in the stored map, and that map is insertion-ordered
+    // off `jsonDecode`, so an enrollment holding both `*` and a narrower
+    // grant at different access letters would report a letter the server
+    // itself would not act on.
     for (final entry in namespaces.entries) {
       final ns = entry.key;
       if (ns == EnrollmentConstants.allNamespaces) continue;
@@ -1099,7 +918,15 @@ class EnrollmentManager {
     return namespaces[EnrollmentConstants.allNamespaces];
   }
 
-  /// The approved enrollments holding [namespace].
+  /// The approved enrollments holding [namespace], as the flat list of maps
+  /// the `enroll:listns` response carries: one entry per enrollment, shaped
+  ///
+  /// ```
+  /// {"enrollmentId": id, "access": "r"|"rw", "apkamPubKey": pubKey,
+  ///  "metadata": map|null}
+  /// ```
+  ///
+  /// `metadata` is stored and returned opaquely.
   ///
   /// Approved only, which is what makes revocation bind a HOLDER: a revoked
   /// enrollment leaves every roster at once, on every client, including ones
@@ -1107,10 +934,9 @@ class EnrollmentManager {
   Future<List<Map<String, dynamic>>> getEnrollmentsForNamespace(
       String namespace) async {
     final result = <Map<String, dynamic>>[];
-    // The VISIBLE roster, and here the two views cannot differ in the ANSWER:
-    // a record the visible roster omits is one [getEnrollmentByFullKey] would
-    // report `expired`, and the approved-only filter below drops it either way.
-    // Visible is the cheaper of two identical answers.
+    // The VISIBLE roster. The two views cannot differ in the ANSWER: a record
+    // the visible roster omits is one [getEnrollmentByFullKey] would report
+    // `expired`, which the approved-only filter below drops either way.
     for (final ek in await getAllEnrollmentKeys(includeExpired: false)) {
       final EnrollDataStoreValue enVal;
       try {
@@ -1135,29 +961,16 @@ class EnrollmentManager {
   /// The most recent moment any enrollment holding [namespace] was REVOKED, or
   /// null if none has been.
   ///
-  /// Deliberately not folded into [getEnrollmentsForNamespace]: this is a fact
-  /// about the namespace, not about any member of its roster, and a roster is
-  /// a list of members with nowhere to put one. It answers `enroll:infons`,
-  /// which exists so that the answer has a shape it fits.
+  /// Answers `enroll:infons`. Derived from the revocation EVENTS rather than
+  /// from the enrollments, which is what makes the answer survive: an
+  /// enrollment record carries the APKAM key-expiry posture as its ttl, so
+  /// reading the roster would let this answer vanish on a timetable chosen by
+  /// whoever set that posture.
   ///
-  /// Revoked enrollments count whatever put them there. A cascade revokes a
-  /// successor holding its predecessor's namespaces exactly, so a revocation
-  /// reaches this answer through a descendant as readily as through the
-  /// enrollment an operator named.
-  ///
-  /// Derived from the revocation EVENTS rather than from the enrollments,
-  /// which is what makes the answer survive. An enrollment record carries the
-  /// APKAM key-expiry posture as its ttl, so a revoked enrollment is reaped on
-  /// the schedule its credential was issued under; reading the roster would
-  /// therefore let this answer go backwards, or vanish, on a timetable chosen
-  /// by whoever set that posture.
-  ///
-  /// An un-revoke WITHDRAWS a revocation here, exactly as clearing the old
-  /// per-enrollment stamp did: the counter-event is what the log records, and
-  /// this reads the net. So the value can move backwards when an un-revoke
-  /// lands — a client comparing it must ask whether it CHANGED, not whether it
-  /// grew. The events themselves are never rewritten, so the history an audit
-  /// wants is still there; it is only this derived answer that nets out.
+  /// An un-revoke WITHDRAWS a revocation here, because this reads the net of
+  /// the events, so the value can move BACKWARDS: a client comparing it must
+  /// ask whether it changed, not whether it grew. The events themselves are
+  /// never rewritten.
   Future<DateTime?> lastRevocationForNamespace(String namespace) async {
     // Per enrollment, not globally: an un-revoke withdraws its own
     // enrollment's revocation and says nothing about anyone else's.
@@ -1180,13 +993,12 @@ class EnrollmentManager {
     DateTime? latest;
     for (final entry in lastRevoke.entries) {
       final DateTime? withdrawn = lastUnrevoke[entry.key];
-      // A TIE counts as withdrawn. An un-revoke can only follow a revoke, so
+      // A TIE counts as withdrawn: an un-revoke can only follow a revoke, so
       // two events on one enrollment sharing a millisecond can only be a
       // revocation and the withdrawal of it.
       if (withdrawn != null && !withdrawn.isBefore(entry.value.at)) continue;
       // Matched against the grants the enrollment held AT THE REVOCATION,
-      // which is the only surviving record of which namespaces it took with
-      // it.
+      // the only surviving record of which namespaces it took with it.
       if (accessInNamespaces(entry.value.namespaces, namespace) == null) {
         continue;
       }
@@ -1199,11 +1011,11 @@ class EnrollmentManager {
   /// The at-rest key pattern for a revocation-history record.
   ///
   /// Deliberately NOT built on [EnrollmentConstants.enrollmentKeyPattern]:
-  /// [EnrollmentConstants.enrollmentsRegex] is an UNANCHORED substring, so any
-  /// key carrying `.new.enrollments.__manage@` anywhere in it is enumerated by
-  /// [getAllEnrollmentKeys] and handed to a decoder expecting an
-  /// [EnrollDataStoreValue]. It stays inside `__manage` so that scan hides it
-  /// under the rule that already hides enrollment records.
+  /// [EnrollmentConstants.enrollmentsRegex] is an UNANCHORED substring, so a
+  /// key carrying `.new.enrollments.__manage@` anywhere in it would be
+  /// enumerated by [getAllEnrollmentKeys] and handed to a decoder expecting
+  /// an [EnrollDataStoreValue]. It stays inside `__manage` so that scan hides
+  /// it under the rule that already hides enrollment records.
   static const String revocationEventKeyPattern = 'revocation.events';
 
   static const String revocationEventsRegex =
@@ -1218,13 +1030,12 @@ class EnrollmentManager {
   ///
   /// One record each, keyed by a fresh id: the history is append-only, and
   /// nothing here reads or rewrites what is already stored. `skipCommit` for
-  /// the same reason enrollment records use it — this is the atServer's own
+  /// the same reason enrollment records use it: this is the atServer's own
   /// bookkeeping and has no business in a client's sync stream.
   ///
-  /// No ttl. That is the point of the log, and it is also unbounded growth:
-  /// one record per revocation, kept for the life of the atSign, and a cascade
-  /// writes one per enrollment it takes. Small records — a few hundred bytes —
-  /// but nothing prunes them, and no retention policy has been decided.
+  /// No ttl, which is the point of the log and is also unbounded growth. One
+  /// small record per revocation, kept for the life of the atSign, and a
+  /// cascade writes one per enrollment it takes; nothing prunes them.
   Future<void> recordRevocationEvents(
       List<EnrollmentRevocationEvent> events) async {
     for (final EnrollmentRevocationEvent event in events) {
@@ -1237,9 +1048,8 @@ class EnrollmentManager {
   /// Every revocation event the atSign holds, in no particular order.
   ///
   /// A record that cannot be read is LOGGED AND SKIPPED rather than thrown
-  /// past the caller: the alternative is one malformed record making
-  /// `enroll:infons` permanently unanswerable, and a skip is visible in the
-  /// logs while a thrown decode error stops the verb for every namespace.
+  /// past the caller: one malformed record would otherwise make
+  /// `enroll:infons` permanently unanswerable for every namespace.
   Future<List<EnrollmentRevocationEvent>> revocationEvents() async {
     final List<EnrollmentRevocationEvent> events = [];
     await for (final String key
@@ -1264,13 +1074,14 @@ class EnrollmentManager {
     return events;
   }
 
-  /// iterate all enrollments, remove key which leaks appName and deviceName
+  /// Removes the public key that leaks each enrollment's appName and
+  /// deviceName.
   ///
-  /// Over the STORED roster, and that is what makes the repair complete.
-  /// Nothing else ever revisits one of these keys: the pre-remove hook does not
-  /// remove it, so an enrollment skipped here because its ttl had elapsed is
-  /// reaped by the expiry sweep and leaves its app and device names published
-  /// for the life of the atSign.
+  /// Over the STORED roster, which is what makes the repair complete. Nothing
+  /// else revisits one of these keys: the pre-remove hook does not remove it,
+  /// so an enrollment skipped here because its ttl had elapsed is reaped by
+  /// the expiry sweep and leaves its app and device names published for the
+  /// life of the atSign.
   Future<List<String>> removeLegacyApkamPublicKeys() async {
     final List<String> deletedLegacyKeys = [];
     final eks = await getAllEnrollmentKeys(includeExpired: true);
@@ -1286,18 +1097,17 @@ class EnrollmentManager {
     return deletedLegacyKeys;
   }
 
-  /// Called upon server startup. Removes encryption keys of enrollments which
-  /// no longer exist (expired or otherwise). Previously these encryption keys
-  /// were stored without a ttl even if there was a valid ttl, therefore they
-  /// would never be harvested.
+  /// Removes the encryption keys of enrollments that no longer exist. Called
+  /// at server startup, because these keys carry no ttl of their own and so
+  /// are never harvested by the expiry sweep.
   Future<List<String>> removeOrphanedApkamEncryptionKeys() async {
     final List<String> deletedOrphanedKeys = [];
     final List<String> enIds = [];
     // The STORED roster, because ORPHANED means "no record holds it" and a
     // record whose ttl has elapsed is still a record that holds it. Deciding
-    // from the visible roster deletes an enrollment's encryption keys while its
-    // record is still on disk, ahead of the expiry sweep — which removes them
-    // itself, through the pre-remove hook, as part of removing the record.
+    // from the visible roster would delete an enrollment's encryption keys
+    // while its record is still on disk, ahead of the expiry sweep, which
+    // removes them itself through the pre-remove hook.
     for (final ek in await getAllEnrollmentKeys(includeExpired: true)) {
       enIds.add(getIdFromKey(ek));
     }
@@ -1328,24 +1138,12 @@ class EnrollmentManager {
   /// `min(grace, what the enrollment's own key-expiry posture leaves it)`.
   ///
   /// The posture's deadline is the LATER of `createdAt + posture` and the
-  /// record's stored `expiresAt`, and neither alone is right.
-  ///
-  /// `createdAt + posture` is short by the whole approval latency:
-  /// `enroll:approve` starts the posture's clock at APPROVAL, writing
-  /// `expiresAt = approvedAt + posture`, while `createdAt` stays at the moment
-  /// the request was made. For a record retrofitted between the two it goes
-  /// negative, and the floor below turns that into a 1ms cap — a predecessor
-  /// with hours of legitimate life killed instantly, and every sibling clone
-  /// still to upgrade locked out of the migration.
-  ///
-  /// `expiresAt` alone is worse in the other direction: after a first sibling
-  /// caps the predecessor, `expiresAt` IS that cap, so folding against it
-  /// would make every later re-arm shrink rather than extend, and the laggard
-  /// the re-arm exists for could never be reached.
-  ///
-  /// Taking the later of the two is safe because a cap only ever shortens:
-  /// both candidates are therefore at or below `approvedAt + posture`, so the
-  /// result never grants more life than the posture allows.
+  /// record's stored `expiresAt`. `createdAt + posture` alone is short by the
+  /// whole approval latency, since `enroll:approve` starts the posture's
+  /// clock at APPROVAL; `expiresAt` alone is wrong the other way, because
+  /// once a first sibling has capped the predecessor `expiresAt` IS that cap,
+  /// and every later re-arm would shrink rather than extend. Taking the later
+  /// is safe: both candidates are at or below `approvedAt + posture`.
   ///
   /// A ttl of zero is the keystore's "never expires", and a spent record must
   /// not become immortal, so the result is floored at one millisecond.
@@ -1357,13 +1155,11 @@ class EnrollmentManager {
             .inMilliseconds;
     final ownMs = enrollment.apkamKeysExpiryDuration.inMilliseconds;
     final stored = recordMetaData?.expiresAt?.toUtc();
-    // A record with no stored expiry never expires, whatever posture its VALUE
-    // carries. The CRAM path writes exactly that — the root record is written
-    // with no metadata at all while its value may state a posture — so folding
-    // against a posture the record never had would compute a deadline in the
-    // past for any root older than its stated posture, and the floor below
-    // would turn that into a 1ms cap: the root dead instantly and every
-    // sibling clone locked out of the migration.
+    // A record with no stored expiry never expires, whatever posture its
+    // VALUE carries, and the CRAM path writes exactly that. Folding against a
+    // posture the record never had would compute a deadline in the past for
+    // any root older than its stated posture, which the floor below turns
+    // into a 1ms cap: the root dead instantly.
     if (ownMs > 0 && stored != null) {
       final fromCreation = (recordMetaData?.createdAt ?? now)
           .toUtc()
@@ -1377,67 +1173,35 @@ class EnrollmentManager {
   }
 
   /// Whether any enrollment outside [excluding] is an APPROVED root that will
-  /// NOT expire — `rw` on both `*` and `__manage`, and no expiry at all.
+  /// NOT expire: `rw` on both `*` and `__manage`, and no expiry at all.
   ///
-  /// The precise question behind sparing a predecessor, and behind refusing a
-  /// self-revocation: not "is this the atSign's first enrollment", nor "does
-  /// the successor outlive it", but whether the act about to be performed
-  /// leaves the atSign able to restore a root INDEFINITELY.
+  /// The stranding question: whether the act about to be performed leaves the
+  /// atSign able to restore a root INDEFINITELY. Any expiry disqualifies a
+  /// candidate, however distant, because an atSign that can restore a root
+  /// only until some date loses that afterwards with nothing at the time of
+  /// the act to say so.
   ///
-  /// A candidate with any expiry does not count, however distant (gkc,
-  /// 2026-09-01). It was previously enough to outlive a deadline computed from
-  /// the caller's own record, and that only defers the stranding: the atSign
-  /// keeps the ability to restore a root until that date and loses it
-  /// afterwards, with nothing at the time of the revoke to say so. Comparing
-  /// one record's expiry against another's also made the answer depend on who
-  /// was asking, so the same atSign was safe or stranded according to which
-  /// credential ran the verb.
+  /// ⚠️ [excluding] is a SET because a revoke CASCADES, and the records a
+  /// cascade is about to take are still `approved` on disk while this runs:
+  /// counting one that is leaving reports the atSign safe at the moment its
+  /// last usable root is taken away.
   ///
-  /// ⚠️ APPROVED is load-bearing, not incidental. Any approved, permanent,
-  /// fully privileged record can be REVOKED, and this walk runs while the
-  /// records a cascade is about to take are still `approved` on disk — so
-  /// counting one that is leaving reports the atSign safe at exactly the
-  /// moment its last usable root is taken away.
+  /// Roots are counted by [isUsableRootEnrollment], so a fully privileged
+  /// record with an empty public key does not count. Full privilege rather
+  /// than the ability to approve, because approving is checked per namespace
+  /// against what the approver holds, so an enrollment with `__manage` but
+  /// not `*` can never admit one carrying `*`.
   ///
-  /// Full privilege rather than the ability to approve, because approving is
-  /// checked per namespace against what the approver itself holds — `__manage`
-  /// included, so an approver holding `__manage:r` confers no more than
-  /// `__manage:r`. An enrollment with `__manage` but not `*` can admit new
-  /// enrollments and can never admit one carrying `*`, so it keeps an atSign
-  /// running without being able to give it a root back.
-  ///
-  /// ⚠️ A record with NO CREDENTIAL RECORDED for it is not a root, whoever it
-  /// is. Every "is this a root?" question below applies
-  /// [isUsableRootEnrollment] rather than [EnrollDataStoreValue.isRootEnrollment]
-  /// alone, because a fully privileged, approved, permanent record with an
-  /// empty public key is a PHANTOM root: counting it answers "the atSign can
-  /// restore a root" with an identity no signature can ever be checked
-  /// against, which is the same stranding this method exists to refuse,
-  /// arrived at from the other direction. What that bar does and does not
-  /// establish is set out on [isUsableRootEnrollment].
-  ///
-  /// [excluding] is a SET rather than a single id because a revoke CASCADES.
-  /// The enrollments a cascade is about to revoke are still `approved` in the
-  /// keystore while this runs, so asking the question without them would count
-  /// the very enrollments the act is about to remove — and report the atSign
-  /// safe at the moment it is being stranded.
-  ///
-  /// Asked of the enrollment ROSTER, and of nothing else. The flat legacy
-  /// credential used to count here, read live from its key, because there
-  /// were atSigns whose only credential it was; it is migrated into the
-  /// `primary` enrollment before any client connects, so after startup the
-  /// roster holds everything the atSign can authenticate as. The one act
-  /// whose subject is the flat key itself — that startup migration — asks
-  /// this same question of the roster before deleting a copy of a root's
-  /// key, which is what stops the key licensing its own removal.
+  /// Asked of the enrollment ROSTER and of nothing else. The flat legacy
+  /// credential is migrated into the `primary` enrollment before any client
+  /// connects, so the roster holds everything the atSign can authenticate
+  /// as.
   Future<bool> hasUnexpiringRootEnrollment(Set<String> excluding) async {
     final excludedKeys = excluding.map(buildEnrollmentKey).toSet();
-    // The STORED roster. The two views cannot differ in the answer — a record
-    // the visible roster omits is either not `approved` here or carries the
-    // non-null `expiresAt` this rejects on — but a stranding decision is a
-    // question about what the atSign HOLDS, and answering it from a roster that
-    // thins on a timer is how the same act becomes safe or unsafe according to
-    // when the sweep last ran.
+    // The STORED roster. A stranding decision is a question about what the
+    // atSign HOLDS, and answering it from a roster that thins on a timer is
+    // how the same act becomes safe or unsafe according to when the sweep
+    // last ran.
     for (final ek in await getAllEnrollmentKeys(includeExpired: true)) {
       if (excludedKeys.contains(ek)) continue;
       final EnrollDataStoreValue other;
@@ -1454,58 +1218,29 @@ class EnrollmentManager {
     return false;
   }
 
-  /// Whether [value] is a root the atSign could fall back on: fully privileged
-  /// AND with a non-empty public key recorded for it.
+  /// Whether [value] is a root the atSign could fall back on: fully
+  /// privileged AND with a non-empty public key recorded for it.
   ///
-  /// THAT IS THE WHOLE BAR, and it is exactly the bar authentication itself
-  /// applies before it looks at a signature: `PkamVerbHandler` refuses an
-  /// empty public key on the legacy and APKAM branches alike, so an empty
-  /// value and a missing one are the same credential — none. Zero-length is
-  /// reachable rather than theoretical, and the route that reaches it is
-  /// `enroll:request`: an enrollment record's `apkamPublicKey` is whatever
-  /// the request was sent, and no update-path validation stands between a
-  /// request and the record it writes.
+  /// THAT IS THE WHOLE BAR, and it is the bar authentication applies before
+  /// it looks at a signature: `PkamVerbHandler` refuses an empty public key
+  /// on the legacy and APKAM branches alike, so an empty value and a missing
+  /// one are the same credential, none. `enroll:request` writes whatever
+  /// `apkamPublicKey` it was sent, so zero-length is reachable.
   ///
-  /// It is applied on both sides of every stranding decision — what an act
-  /// REMOVES and what SURVIVES it — so that "root" means one thing in both. A
-  /// guard that counted a record as a root when asked one and not the other is
-  /// the asymmetry that lets an act be licensed by a record the same act is
-  /// destroying.
+  /// Applied on both sides of every stranding decision, what an act REMOVES
+  /// and what SURVIVES it, so that "root" means one thing in both.
   ///
-  /// ⚠️ WHAT IT DOES NOT ESTABLISH is that anybody holds the private half. The
-  /// server never sees a private key, so a key whose holder has lost it, or
-  /// which was never held by anyone, is indistinguishable here from a live
-  /// one. This method cannot close that and must not be read as though it
-  /// does; "usable" means a signature could be CHECKED against this record,
-  /// not that one could be produced for it.
+  /// ⚠️ It does NOT establish that anybody holds the private half: "usable"
+  /// means a signature could be CHECKED against this record, not that one
+  /// could be produced for it. Possession is demanded where the key is
+  /// WRITTEN, by `enroll:update`, which refuses a new `apkamPublicKey`
+  /// without a signature by the private half being installed;
+  /// `enroll:request` demands no such proof, so possession of an approved but
+  /// never used enrollment's key is proved only at its first `pkam:`.
   ///
-  /// Possession is established where the key is WRITTEN instead, which is the
-  /// one moment the server can demand a proof: `enroll:update` refuses a new
-  /// `apkamPublicKey` without a signature by the private half of the key
-  /// being installed.
-  ///
-  /// What that leaves uncovered, stated so nobody has to rediscover it:
-  /// `enroll:request` installs an `apkamPublicKey` with no proof at all, so an
-  /// enrollment approved but never yet authenticated with can pass this bar
-  /// holding a key nobody holds. Its possession is proved on its first `pkam:`
-  /// and not before.
-  ///
-  /// MEASURED, in three arms differing only in the bytes stored at a root's
-  /// public key: a well-formed key whose private half was never persisted
-  /// left that root counted as the atSign's surviving unexpiring root — the
-  /// bar is a credential something can authenticate with, and a well-formed
-  /// orphan passes it — while nothing could authenticate as it, so revoking
-  /// the last root that really worked was permitted. Stored EMPTY it was not
-  /// counted and the revoke was refused; left alone it was counted and
-  /// authentication worked. The server cannot tell an orphan from a live key
-  /// after the fact, which is why the demand is made at the write.
-  ///
-  /// [enrollmentId] identifies the record for the caller's own reporting; the
-  /// verdict is a property of [value] alone.
-  ///
-  /// This is NOT the question `isRootPrivilegedConnection` asks. That one
-  /// decides what an already-authenticated connection may do. This one asks
-  /// whether a record would still be there to authenticate as afterwards.
+  /// [enrollmentId] is for the caller's reporting; the verdict is a property
+  /// of [value] alone. This is NOT the question `isRootPrivilegedConnection`
+  /// asks: that one decides what an already-authenticated connection may do.
   bool isUsableRootEnrollment(
       String enrollmentId, EnrollDataStoreValue value) {
     if (!value.isRootEnrollment) return false;
@@ -1513,25 +1248,18 @@ class EnrollmentManager {
   }
 
   /// Which of [enrollmentIds] are usable roots ([isUsableRootEnrollment]) and
-  /// currently approved — that is, which of them a revoke of that set would
+  /// currently approved, that is, which of them a revoke of that set would
   /// actually take away.
   ///
-  /// The companion question to [hasUnexpiringRootEnrollment]: that one asks
-  /// what SURVIVES an act, this one asks what the act REMOVES. Both are
-  /// needed, because a refusal built on either alone is wrong. Asking only
-  /// what survives refuses every revoke on an atSign whose last root is
-  /// short-lived, including ones that touch no root at all; asking only what
-  /// is removed refuses a revoke that leaves a perfectly good root behind.
+  /// The companion to [hasUnexpiringRootEnrollment]: that one asks what
+  /// SURVIVES an act, this one what the act REMOVES, and a refusal built on
+  /// either alone is wrong. Asking only what survives refuses every revoke on
+  /// an atSign whose last root is short-lived, even ones touching no root;
+  /// asking only what is removed refuses a revoke that leaves a good root
+  /// behind.
   ///
   /// APPROVED is the same condition [revokeAll] applies, so the answer
-  /// describes exactly the records the cascade will rewrite: an enrollment
-  /// already revoked or denied is not taken away again, and a pending one is
-  /// left alone, so neither can be lost by an act that names it.
-  ///
-  /// Read straight through the keystore rather than via
-  /// [getEnrollmentByFullKey], which decodes and caches on the way. The
-  /// answer here is a status-and-grants question about a handful of named
-  /// records, so the extra layer buys nothing; both reads are read-only.
+  /// describes exactly the records the cascade will rewrite.
   Future<List<String>> approvedRootEnrollmentsAmong(
       Iterable<String> enrollmentIds) async {
     final List<String> roots = [];
@@ -1560,22 +1288,16 @@ class EnrollmentManager {
 
   /// The enrollment that APPROVED [id], read straight off the stored record.
   ///
-  /// Not the enrollment [id] replaced. A retrofit produces a PEER — the same
-  /// principal re-keyed — so its successor inherits this value from its
-  /// predecessor rather than naming it, and revocation therefore does not
-  /// travel the replacement edge at all.
+  /// Not the enrollment [id] replaced. A retrofit produces a PEER, the same
+  /// principal re-keyed, so its successor inherits this value from its
+  /// predecessor rather than naming it, and revocation does not travel the
+  /// replacement edge at all.
   ///
-  /// Deliberately NOT via [getEnrollmentByFullKey], which reports an elapsed
-  /// ttl as `expired` and would make this walk decide what to do about that.
-  /// `keyStore.get` returns a record whose ttl has elapsed — expiry is a
-  /// judgement its callers apply — which is what lets the walk cross an
-  /// expired link.
-  ///
-  /// ⚠️ Only until the SWEEP runs. The server schedules a periodic
-  /// `deleteExpiredKeys()` pass, so an expired enrollment record is removed
-  /// within tens of seconds of expiring and this read then throws like any
-  /// other absent key. Crossing an expired link is therefore a window, not a
-  /// property. See [descendantsOf].
+  /// Deliberately NOT via [getEnrollmentByFullKey]: `keyStore.get` returns a
+  /// record whose ttl has elapsed, which is what lets the walk cross an
+  /// expired link. ⚠️ Only until the expired-keys sweep runs, after which
+  /// this read throws like any other absent key, so crossing an expired link
+  /// is a window rather than a property. See [descendantsOf].
   Future<String?> _approverIdOf(String id, Map<String, String?> memo) async {
     if (memo.containsKey(id)) return memo[id];
     String? approverId;
@@ -1597,10 +1319,9 @@ class EnrollmentManager {
     }
     // A STORE fault is deliberately NOT caught. Swallowing it would end the
     // chain silently, drop every enrollment behind this link out of the
-    // cascade, and let the verb report success on a partial revocation — and
+    // cascade and let the verb report success on a partial revocation, and
     // the memo would then serve that answer to every other candidate whose
-    // chain runs through this id. Before this walk existed the same fault
-    // aborted the revoke and wrote nothing; failing closed keeps that.
+    // chain runs through this id.
     memo[id] = approverId;
     return approverId;
   }
@@ -1609,77 +1330,45 @@ class EnrollmentManager {
   /// upward, to any depth. Never contains [enrollmentId].
   ///
   /// Walked UPWARD from each candidate rather than downward from the target,
-  /// and the difference is load-bearing. A downward walk has to ENUMERATE the
+  /// and every status is followed. A downward walk has to ENUMERATE the
   /// intermediate links to learn their edges, and key enumeration hides
-  /// records whose ttl has elapsed — so an expired enrollment part-way down an
-  /// approval chain took its edge with it and every enrollment behind it
-  /// survived the cascade.
+  /// records whose ttl has elapsed, so an expired enrollment part-way down a
+  /// chain would take its edge with it and everything behind it would survive
+  /// the cascade. Upward, only the candidates are enumerated and each link is
+  /// fetched by key, which returns expired records.
   ///
-  /// Depth here is not a legacy shape to be tolerated: an enrollment holding
-  /// `__manage` may admit another that holds `__manage` too, so approval
-  /// chains are arbitrarily deep and arbitrarily wide by design, and this
-  /// server mints them in the ordinary course of admitting administrators.
+  /// ⚠️ A SEVERED link still orphans everything behind it, because nothing
+  /// records ancestry beyond an enrollment's immediate approver: a revoke
+  /// reaches the first live candidate and stops. `enroll:delete` on a middle
+  /// link severs one, and so does the expired-keys sweep removing a middle
+  /// link whose ttl is shorter than those behind it. Closing that needs
+  /// ancestry that outlives the record, which this does not have.
   ///
-  /// Upward, only the CANDIDATES need enumerating — and a candidate a cascade
-  /// could revoke is by definition a live one — while each link in the chain
-  /// is fetched by key, which returns expired records.
-  ///
-  /// ⚠️ A SEVERED link orphans everything behind it, because nothing records
-  /// an enrollment's ancestry beyond its immediate approver. Two things sever
-  /// one, and the second is not an edge case:
-  ///
-  /// * `enroll:delete` on a middle link.
-  /// * the scheduled expiry sweep. Fetching by key crosses a link whose ttl
-  ///   has elapsed, but the server also runs a periodic `deleteExpiredKeys()`
-  ///   pass, so that window closes within tens of seconds and the record is
-  ///   then gone for good. This needs a MIDDLE link, so it reaches a chain of
-  ///   two or more — which, approval being unbounded, is an ordinary shape
-  ///   rather than a remnant. A middle link expires before the enrollments
-  ///   behind it whenever its ttl is the shorter, and a revoke arriving after
-  ///   the sweep reaches the first live candidate and stops.
-  ///
-  ///   ⚠️ The retrofit cap does not mint this, though it is the one thing
-  ///   that would: it puts a deadline on an approver without asking
-  ///   whether anything sits behind it. Arming that cap moves the approver's
-  ///   children onto the successor — see [_adoptApprovalChildren] — so the
-  ///   link that expires has nothing behind it to orphan.
-  ///
-  /// Closing that needs ancestry that outlives the record, which this does not
-  /// have.
-  ///
-  /// Every status is followed. A revoked or expired enrollment part-way down
-  /// an approval chain must not hide the enrollment behind it, which is
-  /// exactly the orphan a cascade exists to remove.
-  ///
-  /// ⚠️ This follows the APPROVAL edge only. The replacement edge —
-  /// [EnrollDataStoreValue.retrofitPredecessorEnrollmentId], what a retrofit
-  /// replaced — is not walked: a retrofit produces a peer, the same principal re-keyed, so
-  /// revoking a superseded credential must not take the one that superseded
-  /// it. A successor is reached instead through the approver it INHERITS from
-  /// its predecessor, which is what stops a retrofit being an escape hatch.
+  /// ⚠️ The APPROVAL edge only. The replacement edge
+  /// ([EnrollDataStoreValue.retrofitPredecessorEnrollmentId]) is not walked:
+  /// a retrofit produces a peer, so revoking a superseded credential must not
+  /// take the one that superseded it. A successor is reached through the
+  /// approver it INHERITS from its predecessor, which is what stops a
+  /// retrofit being an escape hatch.
   Future<Set<String>> descendantsOf(String enrollmentId) async {
     // Canonical, because every id this is compared against comes out of a
     // keystore key or out of a stored approver link written from one. A
-    // non-canonical target matches nothing and the walk returns EMPTY — which
+    // non-canonical target matches nothing and the walk returns EMPTY, which
     // reads exactly like an enrollment with no descendants, so a cascade that
-    // swept nothing reported success. Measured on a two-deep chain: the
-    // canonical id returned both descendants and the same id with one leading
-    // non-breaking space returned none.
+    // swept nothing would report success.
     enrollmentId = canonicalEnrollmentId(enrollmentId);
     final Set<String> found = {};
     final Map<String, String?> memo = {};
     // The STORED roster, so that every status really is followed. The climb
-    // already reads through an elapsed record — [_approverIdOf] fetches by key
-    // — but the CANDIDATE enumeration did not, so an enrollment whose ttl had
-    // elapsed sat outside the cascade while its record, and its published
+    // reads through an elapsed record because [_approverIdOf] fetches by key;
+    // a visible-roster enumeration here would leave an enrollment whose ttl
+    // had elapsed outside the cascade while its record, and its published
     // `_apsk` at the approved address, were still there.
     for (final ek in await getAllEnrollmentKeys(includeExpired: true)) {
       final String candidate = getIdFromKey(ek);
       if (candidate == enrollmentId) continue;
-      // `seen` terminates the climb. The enroll verb cannot build a cycle — an
-      // approver is an already-approved enrollment and the one it admits is
-      // minted with a fresh id — but a walk over stored data should not have
-      // to rely on that to terminate.
+      // `seen` terminates the climb. The enroll verb cannot build a cycle,
+      // but a walk over stored data should not rely on that to terminate.
       final Set<String> seen = {candidate};
       String? current = await _approverIdOf(candidate, memo);
       while (current != null && seen.add(current)) {
@@ -1695,48 +1384,27 @@ class EnrollmentManager {
 
   /// Moves every enrollment [predecessorId] approved onto [successorId].
   ///
-  /// Nothing records ancestry beyond an enrollment's immediate approver, so a
-  /// severed link orphans everything behind it: a later revoke of the chain
-  /// above reaches the first live candidate and stops, and the reactivation
-  /// refusal then permits un-revoking exactly what a cascade had swept.
-  /// [descendantsOf] documents that, for `enroll:delete` and for the expiry
-  /// sweep. A retrofit's cap would ADD a third way in and make it routine —
-  /// it puts a thirty-day deadline on an approver without asking whether
-  /// anything sits behind it, so an ordinary retrofit of an administrator
-  /// would sever the chain a month later.
-  ///
-  /// The successor is where those enrollments belong. It is the same principal
-  /// re-keyed and stands where its predecessor stood: it already INHERITS the
-  /// predecessor's approver, and this is that same substitution seen from the
-  /// other side. It also stops retiring a superseded credential taking down
-  /// everything that credential ever admitted, which is the hazard that put
-  /// the cascade on the approval edge to begin with.
-  ///
-  /// Never moves the successor onto itself. The successor inherits its
-  /// predecessor's approver rather than naming the predecessor, so it is not
-  /// among these children — but a self-approving record would be a cycle in
-  /// stored data, and that is not worth leaving to an invariant elsewhere.
+  /// The cap puts a deadline on the predecessor, and nothing records ancestry
+  /// beyond an enrollment's immediate approver, so without this the capped
+  /// approver's expiry would sever the chain and orphan everything behind it
+  /// (see [descendantsOf]). The successor is where those enrollments belong:
+  /// it is the same principal re-keyed and already INHERITS the predecessor's
+  /// approver. It is never moved onto itself, which would be a cycle in
+  /// stored data.
   ///
   /// Runs INSIDE [serialiseMutation]; its caller holds the section. Every
-  /// child here is a read-modify-write of a whole record, and this is the one
-  /// place where losing that update is PERMANENT and silent: nothing ever
-  /// re-parents again, so a child left naming a predecessor on its way out
-  /// sits outside the revocation cascade for the rest of its life.
-  ///
-  /// The WHOLE loop is in the section rather than a re-read per child. A
-  /// re-read would narrow the window and not close it — `put` walks the
-  /// keystore before writing — and the loop is not on the authentication fast
-  /// path: an authentication with nothing to arm never enters the section at
-  /// all, and this runs once per successor that actually caps, behind the
-  /// `predecessorCapArmedAt` stamp.
+  /// child is a read-modify-write of a whole record, and losing that update
+  /// is PERMANENT and silent because nothing ever re-parents twice. The WHOLE
+  /// loop is in the section rather than a re-read per child, which would
+  /// narrow the window without closing it.
   Future<void> _adoptApprovalChildren(
       String predecessorId, String successorId) async {
-    // The STORED roster. This is the pass whose omissions are PERMANENT —
-    // nothing ever re-parents twice — so a child missed here names a
-    // predecessor for the rest of its life and sits outside every later
-    // revocation cascade. A record the visible roster omits for a ttb it has
-    // not reached yet is the sharp case: it is not expiring, it is not yet
-    // BORN, and it outlives this pass.
+    // The STORED roster. This pass's omissions are PERMANENT, because nothing
+    // ever re-parents twice, so a child missed here names a predecessor for
+    // the rest of its life and sits outside every later revocation cascade.
+    // The sharp case is a record the visible roster omits for a ttb it has
+    // not reached: it is not expiring, it is not yet BORN, and it outlives
+    // this pass.
     for (final ek in await getAllEnrollmentKeys(includeExpired: true)) {
       final String childId = getIdFromKey(ek);
       if (childId == successorId) continue;
@@ -1763,8 +1431,8 @@ class EnrollmentManager {
 
       child.parentEnrollmentId = successorId;
       record.data = jsonEncode(child.toJson());
-      // The child's own expiry must not move: a plain write re-derives it from
-      // the retained ttl and would restart its clock at this moment.
+      // The child's own expiry must not move: a plain write re-derives it
+      // from the retained ttl and would restart its clock at this moment.
       final DateTime? storedExpiry = record.metaData?.expiresAt;
       await put(childId, record, status,
           assertedTimestamps: storedExpiry == null
@@ -1779,27 +1447,20 @@ class EnrollmentManager {
   /// the ids it actually revoked.
   ///
   /// Anything not currently approved is skipped rather than rewritten: a
-  /// denied or already-revoked enrollment is not made "more revoked" by
-  /// writing it again, and a pending one is deliberately left alone. A pending
-  /// successor of a revoked predecessor is stopped at `enroll:approve`
-  /// instead, because it has no credential to strip until it is approved.
-  ///
+  /// pending enrollment has no credential to strip until it is approved, and
+  /// a denied or revoked one is not made "more revoked" by writing it again.
   /// Each write asserts the stored expiry back, and the per-enrollment data
-  /// move is made ONCE for the whole set rather than per record.
+  /// move is made ONCE for the whole set.
   ///
   /// [byEnrollmentId] is the enrollment on the connection that issued the
-  /// command, null for a CRAM connection, which carries none;
-  /// [cascadedFrom] is the
-  /// enrollment it NAMED. Both are recorded on every event this writes,
-  /// because an enrollment revoked by a cascade was revoked for a reason that
-  /// is not visible from its own record.
+  /// command, null for a CRAM connection, which carries none; [cascadedFrom]
+  /// is the enrollment it NAMED. Both go on every event, because an
+  /// enrollment revoked by a cascade was revoked for a reason not visible
+  /// from its own record.
   ///
-  /// [at] is the moment of the COMMAND, passed in rather than taken here so
-  /// that the enrollment an operator named and every enrollment the cascade
-  /// took carry one timestamp. They are revoked by a single act; stamping each
-  /// with the instant its own write happened would invite a reader to order
-  /// them against one another as though they were separate decisions, and the
-  /// order they would then read is an artefact of the retry-safe write order.
+  /// [at] is the moment of the COMMAND, passed in so that every enrollment
+  /// the one act revoked carries one timestamp; per-write stamps would invite
+  /// a reader to order them as separate decisions.
   Future<List<String>> revokeAll(Iterable<String> enrollmentIds,
       {required String? byEnrollmentId,
       required String cascadedFrom,
@@ -1809,16 +1470,16 @@ class EnrollmentManager {
     // outlives the record they are stored on.
     final Map<String, Map<String, String>> grantsHeld = {};
     // Prepared first, written second, so the per-enrollment data move can be
-    // made ONCE for the whole cascade. Going through `put` per descendant cost
-    // a whole-keystore walk each — K+2 scans for a cascade of K, on a path
-    // whose K is inflatable by minting successors, which needs no approval.
+    // made ONCE for the whole cascade. `put` per descendant costs a
+    // whole-keystore walk each, K+2 scans for a cascade of K, on a path whose
+    // K is inflatable by minting successors.
     final Map<String, AtData> pending = {};
     for (final id in enrollmentIds) {
       final ek = buildEnrollmentKey(id);
-      // `get` THROWS on an absent key rather than returning null, so this is
-      // not belt-and-braces: without it a descendant deleted or reaped between
-      // the walk and this loop aborts the whole verb, leaving the enrollments
-      // already revoked with their connections still open.
+      // `get` THROWS on an absent key rather than returning null, so without
+      // this a descendant deleted or reaped between the walk and this loop
+      // aborts the whole verb, leaving the enrollments already revoked with
+      // their connections still open.
       final AtData? atData;
       try {
         atData = await keyStore.get(ek);
@@ -1844,12 +1505,10 @@ class EnrollmentManager {
     }
     if (revoked.isEmpty) return revoked;
 
-    // The history goes in BEFORE the records change, and the asymmetry is
-    // deliberate: a crash between the two leaves an event describing a
-    // revocation that did not land, which moves `lastRevokedAt` early and
-    // costs a client a refetch. The other order loses the fact entirely, and
-    // an under-stated revocation tells a client nothing changed when
-    // something did.
+    // The history goes in BEFORE the records change: a crash between the two
+    // then leaves an event describing a revocation that did not land, which
+    // costs a client a refetch, whereas the other order loses the fact
+    // entirely and tells a client nothing changed when something did.
     await recordRevocationEvents([
       for (final String id in revoked)
         EnrollmentRevocationEvent(
@@ -1862,18 +1521,18 @@ class EnrollmentManager {
         )
     ]);
 
-    // One pass for every enrollment the cascade takes, then the records. `put`
-    // would repeat the pass per record; the move is the expensive half and it
-    // is identical work for all of them.
+    // One pass for every enrollment the cascade takes, then the records.
+    // `put` would repeat the pass per record, and the move is the expensive
+    // half.
     await movePerEnrollmentDataFor(revoked.toSet(),
         to: EnrollmentConstants.perEnrollmentRevoked);
     for (final id in revoked) {
       final AtData atData = pending[id]!;
       // The stored expiry is asserted back on each write. A revoke says
       // nothing about expiry, and the metadata builder re-derives
-      // `expiresAt = now + ttl` from the retained ttl on any write that does
-      // not assert it — so a cascade would otherwise hand every enrollment it
-      // revoked a fresh full lifetime, and restart any retrofit cap on them.
+      // `expiresAt = now + ttl` on any write that does not assert it, so a
+      // cascade would otherwise hand every enrollment it revoked a fresh full
+      // lifetime and restart any retrofit cap on them.
       final storedExpiry = atData.metaData?.expiresAt;
       await _writeEnrollmentRecord(id, atData,
           assertedTimestamps: storedExpiry == null
@@ -1885,12 +1544,11 @@ class EnrollmentManager {
 
   /// Takes back a `predecessorCapArmedAt` stamp whose cap did not happen.
   ///
-  /// Read immediately before the write for the same reason the stamp itself
+  /// Read immediately before the write, for the same reason the stamp itself
   /// is: everything in between awaits, and a snapshot from before all of it
   /// would revert a change made since. Called from inside
   /// [serialiseMutation], so no other enrollment mutation can be that change.
-  /// Best-effort — if it fails the successor stays stamped, which is the
-  /// pre-existing behaviour and no worse than not trying.
+  /// Best-effort: if it fails the successor stays stamped.
   Future<void> _clearCapStamp(String successorEnrollmentId, String key) async {
     try {
       final AtData? atData = await keyStore.get(key);
@@ -1921,24 +1579,17 @@ class EnrollmentManager {
   /// Caps [enrollmentId] to expire [retrofitCapTtlMillis] from this moment,
   /// leaving the record in place.
   ///
-  /// Re-applied every time a successor ARMS — which is its first
-  /// authentication, not its enrolment; a successor that never authenticates
-  /// caps nothing. Computed fresh from the predecessor's own posture rather
-  /// than folded into a previously written cap: sibling clones of one keyfile
-  /// upgrade whenever each device next runs, so the cap must RE-ARM with each
-  /// successor, and a deadline fixed by the first sibling's upgrade would
-  /// strand every laggard whose next run falls outside that first window.
+  /// Re-applied every time a successor ARMS, and computed fresh from the
+  /// predecessor's own posture rather than folded into a previously written
+  /// cap: sibling clones of one keyfile upgrade whenever each device next
+  /// runs, so a deadline fixed by the first sibling's upgrade would strand
+  /// every laggard whose next run falls outside that window.
   ///
-  /// A written ttl anchors at the write (`expiresAt = now + ttl` in the
-  /// metadata builder), so the ttl is written as-is — offsetting it by the
-  /// record's age would extend the cap by the enrollment's whole lifetime.
-  ///
-  /// The ttl is computed HERE, against the record this method just read,
-  /// rather than taken from the caller. A ttl is a distance from the instant
-  /// it was computed at and the store re-anchors it at the instant of the
-  /// write, so a value computed before the caller's keystore walk is stamped
-  /// as the deadline it checked PLUS however long that walk took. Recomputing
-  /// lands on the checked deadline instead of drifting past it.
+  /// The ttl is written as-is, because the store anchors it at the write
+  /// (`expiresAt = now + ttl`), and it is computed HERE against the record
+  /// just read rather than taken from the caller, whose value would be
+  /// stamped as the deadline it checked PLUS however long its keystore walk
+  /// took.
   Future<RetrofitCapOutcome> capEnrollmentExpiry(String enrollmentId) async {
     final key = buildEnrollmentKey(enrollmentId);
     final AtData? atData;
@@ -1949,13 +1600,12 @@ class EnrollmentManager {
     }
     if (atData == null) return RetrofitCapOutcome.predecessorGone;
 
-    // The status comes off the record JUST READ, never off [enrollment].
-    // `put` moves an enrollment's per-enrollment data to match the status it
-    // is handed, so a status from an older snapshot is not a cosmetic
-    // mismatch: the caller reads the predecessor, then awaits a keystore walk
-    // and a write of the successor before arriving here, and a revoke landing
-    // in that window would be UNDONE — the data moved back to the approved
-    // location, republishing the `_apsk` a revocation had just parked.
+    // The status comes off the record JUST READ, never off a caller's
+    // snapshot. `put` moves an enrollment's per-enrollment data to match the
+    // status it is handed, so a stale status is not a cosmetic mismatch: a
+    // revoke landing while the caller walked the keystore would be UNDONE,
+    // the data moved back to the approved location, republishing the `_apsk`
+    // a revocation had just parked.
     final String? raw = atData.data;
     if (raw == null) return RetrofitCapOutcome.unreadable;
     final EnrollDataStoreValue fresh;
@@ -1974,8 +1624,8 @@ class EnrollmentManager {
     }
     // Re-tested on the fresh read for the same reason. A predecessor that was
     // approved when the decision was made and is not approved now must not be
-    // written back at all: capping is only ever meant to SHORTEN the life of a
-    // working credential.
+    // written back at all: capping only ever SHORTENS the life of a working
+    // credential.
     if (current != EnrollmentStatus.approved) {
       logger.info(
           'Not capping $enrollmentId: it is ${current.name} as of this write, '
@@ -1989,79 +1639,48 @@ class EnrollmentManager {
     return RetrofitCapOutcome.capped;
   }
 
-  /// Settles what the enrollment [successorEnrollmentId] replaced, once, at
-  /// the successor's first authentication: the successor is stamped as
-  /// having settled it, the predecessor's approval children move onto the
-  /// successor, and a predecessor that is not fully privileged is put on the
-  /// retrofit cap.
+  /// Settles what the enrollment [successorEnrollmentId] replaced, ONCE, at
+  /// the successor's first authentication: the successor is stamped as having
+  /// settled it, the predecessor's approval children move onto the successor,
+  /// and a predecessor that is not fully privileged is capped. A no-op for an
+  /// enrollment that replaced nothing, which is every enrollment except a
+  /// retrofit's successor.
   ///
-  /// Usually that is the successor's very first authentication. When the
-  /// predecessor is not approved, nothing is recorded and the question is
-  /// asked again next time, so the settling authentication may be a later
-  /// one.
+  /// Settled at an authentication rather than where the successor is stored,
+  /// because storing it proves only that the SERVER wrote a record: the
+  /// successor's APKAM private half is persisted client-side, and a keyfile
+  /// write that fails leaves the successor existing nowhere else while a
+  /// clock runs on the predecessor, by then the only credential that works.
+  /// Only the FIRST authentication settles, or every reconnect would rewrite
+  /// a full grace period and the predecessor would never retire.
   ///
-  /// A no-op for an enrollment that replaced nothing, which is every
-  /// enrollment except a retrofit's successor.
+  /// WHICH PREDECESSORS ARE CAPPED. One holding `*:rw` and `__manage:rw`
+  /// keeps its life, because a clock on an atSign's root is a clock on its
+  /// ability to restore itself. Every other predecessor is capped to
+  /// `min(grace, what its own key-expiry posture leaves it)` and can never be
+  /// the last root, so no stranding question is asked of it. A predecessor
+  /// that is NOT APPROVED stops everything and leaves the successor
+  /// unstamped: it is already retired, writing it back would hand it a fresh
+  /// ttl, and an un-revoke can restore it, so the question is re-asked at the
+  /// next authentication rather than frozen into the record.
   ///
-  /// Settled here rather than where the successor is stored because storing
-  /// it proves only that the SERVER wrote a record. The successor's APKAM
-  /// private half is persisted client-side, so a keyfile write that fails, a
-  /// read-only file, or a process that dies before the flush each leave the
-  /// successor existing on the server and nowhere else — with a clock already
-  /// started on the predecessor, which is by then the only credential that
-  /// still works. An authentication on a connection the successor opened is
-  /// what proves the private half survived and is usable.
+  /// The decide-and-write half runs under [serialiseMutation]: the adoption's
+  /// lost update would be permanent, and the stamp is a whole-record write a
+  /// concurrent revoke would overwrite. The EARLY EXITS are outside it
+  /// deliberately, since this runs on every APKAM authentication and
+  /// everything but a retrofit's successor leaves at them; neither test
+  /// writes, and both are re-made inside the section.
   ///
-  /// Only the FIRST authentication of any one successor settles. Without
-  /// that, every reconnect would rewrite a full grace period onto a capped
-  /// predecessor and it would never retire at all.
-  ///
-  /// WHICH PREDECESSORS ARE CAPPED. A predecessor holding `*:rw` and
-  /// `__manage:rw` keeps its life: key management is its owner's
-  /// responsibility, and a clock on an atSign's root is a clock on the
-  /// atSign's ability to restore itself. Every other predecessor is capped to
-  /// `min(grace, what its own key-expiry posture leaves it)`. A non-root
-  /// predecessor was created deliberately, by an app with enrollment tooling,
-  /// for one device, so a clock there is safe and useful — and it can never
-  /// be the atSign's last root, so no stranding question is asked of it.
-  ///
-  /// ONE CONDITION STOPS EVERYTHING, and it does not stamp the successor: a
-  /// predecessor that is not approved. It is already retired, and writing it
-  /// back would hand it a fresh ttl it has no business carrying. An unrevoke
-  /// restores an ordinary predecessor, so this must not become permanent; it
-  /// is a judgement about state that can change, re-made on the next
-  /// authentication rather than frozen into the record.
-  ///
-  /// The decide-and-write half runs under [serialiseMutation]. The adoption
-  /// is a read-modify-write of every child record and its lost update is
-  /// permanent — nothing ever re-parents twice — and the stamp is a
-  /// whole-record write of the successor that a concurrent revoke of the
-  /// successor would otherwise overwrite or be overwritten by. It is the
-  /// atSign's single enrollment-mutation lock rather than an arming-only one,
-  /// because those concurrent writers are the other enrollment verbs.
-  ///
-  /// The EARLY EXITS are outside it, deliberately. This runs on every APKAM
-  /// authentication, after the section that admitted the connection has been
-  /// released, and everything except a retrofit's successor leaves at the
-  /// two tests below; taking the section again for them would queue the
-  /// authentication a second time, behind whatever mutation started in
-  /// between, to decide nothing. Nothing in them writes, and both are re-made
-  /// inside the section, so an answer that goes stale between the two costs
-  /// at most a settling deferred to the next authentication.
-  ///
-  /// Never throws. This runs after an authentication has already succeeded, and
-  /// a predecessor that outlives its window is a slower migration, while an
-  /// authentication refused because bookkeeping failed is an outage.
+  /// Never throws: an authentication has already succeeded by this point, and
+  /// refusing one because bookkeeping failed would be an outage.
   Future<void> armRetrofitCapOnFirstAuth(String successorEnrollmentId) async {
     try {
       // Through the cached read: the PKAM path has just read this same
-      // enrollment, so it is warm.
+      // enrollment, so it is warm. Replaced nothing, or already settled: the
+      // exit almost every authentication takes.
       final EnrollDataStoreValue cached =
           await getEnrollmentById(successorEnrollmentId);
-      // Replaced nothing, so there is nothing to cap. This is the exit almost
-      // every authentication takes.
       if (cached.retrofitPredecessorEnrollmentId == null) return;
-      // Already settled.
       if (cached.predecessorCapArmedAt != null) return;
     } catch (e) {
       logger.warning('Could not decide whether to arm the retrofit cap for '
@@ -2074,10 +1693,10 @@ class EnrollmentManager {
 
   Future<void> _armRetrofitCapOnFirstAuth(String successorEnrollmentId) async {
     try {
-      // Re-asked inside the critical section. The same two tests ran
-      // outside it so that a plain authentication never takes the lock, and
-      // either can have changed while this call waited — another
-      // successor's arming, or a revoke, is exactly what it waited behind.
+      // Re-asked inside the critical section. The same two tests ran outside
+      // it so that a plain authentication never takes the lock, and either
+      // can have changed while this call waited: another successor's arming,
+      // or a revoke, is exactly what it waited behind.
       final EnrollDataStoreValue cached =
           await getEnrollmentById(successorEnrollmentId);
       final predecessorId = cached.retrofitPredecessorEnrollmentId;
@@ -2094,32 +1713,29 @@ class EnrollmentManager {
             '$predecessorId, which is already gone — nothing to cap');
       }
 
-      // Whether this authentication settles the predecessor — stamps the
-      // successor and moves the predecessor's children — and whether the
+      // Whether this authentication settles the predecessor (stamps the
+      // successor and moves the predecessor's children), and whether the
       // predecessor is capped on the way.
       bool settled = false;
       bool capPredecessor = false;
       final bool predecessorGone = predecessor == null;
 
       if (predecessorGone) {
-        // Settled: nothing can bring the predecessor back, and re-walking the
-        // lookup on every future connection buys nothing. Its children are
-        // orphans already, and the successor is what they should have been
-        // hanging off.
+        // Nothing can bring the predecessor back. Its children are orphans
+        // already, and the successor is what they should hang off.
         settled = true;
       } else if (predecessor.approval?.state != EnrollmentStatus.approved.name) {
-        // Not settled, and not capped: a predecessor that is denied, revoked
-        // or expired is already retired, and writing it back would give it a
-        // fresh ttl it has no business carrying. Left unstamped deliberately —
-        // an unrevoke restores an ordinary approved predecessor, and a
-        // transient state must not become a permanent exemption.
+        // Not settled and not capped: a denied, revoked or expired
+        // predecessor is already retired, and writing it back would give it a
+        // fresh ttl. Left unstamped deliberately, because an un-revoke
+        // restores it and a transient state must not become a permanent
+        // exemption.
         logger.info('Enrollment $successorEnrollmentId replaced $predecessorId, '
             'which is ${predecessor.approval?.state} — not capping it');
       } else if (predecessor.isRootEnrollment) {
         // A fully privileged predecessor keeps its life. Its children still
         // move: the successor is the same principal re-keyed and stands where
-        // the predecessor stood, whatever clock the predecessor is or is not
-        // on.
+        // the predecessor stood, whatever clock it is or is not on.
         logger.info('Enrollment $successorEnrollmentId replaced $predecessorId, '
             'which holds full privilege and keeps its life; what it admitted '
             'now hangs off its successor');
@@ -2131,40 +1747,36 @@ class EnrollmentManager {
 
       if (!settled) return;
 
-      // Read immediately before the write. The critical section is what
-      // closes the lost update — no other enrollment mutation can be in
-      // flight, and the keystore has no compare-and-set to close it with —
-      // and this read is what makes the record written here the one the
-      // section is working from rather than a snapshot taken before the
-      // predecessor lookup and the keystore walk above.
+      // Read immediately before the write, so the record written here is the
+      // one the section is working from rather than a snapshot taken before
+      // the predecessor lookup and the keystore walk above. The critical
+      // section is what closes the lost update; the keystore has no
+      // compare-and-set to close it with.
       final AtData? atData = await keyStore.get(key);
       final String? raw = atData?.data;
       if (atData == null || raw == null) return;
       final successor = EnrollDataStoreValue.fromJson(jsonDecode(raw));
-      // Load-bearing, not belt-and-braces: `put` invalidates the cache only
-      // after its own await, so a concurrent READER — which the critical
-      // section does not serialise — can repopulate it with a pre-write
-      // value. This uncached re-test is what actually makes "first" hold;
-      // the cached checks at the entry point are only a fast path.
+      // `put` invalidates the cache only after its own await, so a concurrent
+      // READER, which the critical section does not serialise, can repopulate
+      // it with a pre-write value. This uncached re-test is what makes
+      // "first" hold; the cached checks at the entry point are a fast path.
       if (successor.predecessorCapArmedAt != null) return;
 
       successor.predecessorCapArmedAt = DateTime.now().toUtc();
       atData.data = jsonEncode(successor.toJson());
       // The successor's OWN expiry must not move. A plain write re-derives
       // `expiresAt` from the retained ttl and would restart its clock at this
-      // moment, silently extending the credential by however long it waited to
-      // authenticate; carrying the stored absolute forward as an assertion
-      // suppresses that derivation. A null `expiresAt` is a record that never
-      // expires, and asserting nothing leaves it that way.
+      // moment, extending the credential by however long it waited to
+      // authenticate; asserting the stored absolute suppresses that. A null
+      // `expiresAt` is a record that never expires, and asserting nothing
+      // leaves it that way.
       final storedExpiry = atData.metaData?.expiresAt;
-      // The record's OWN status, never a default. `put` moves an enrollment's
-      // per-enrollment data to match the status it is handed, so defaulting to
-      // `approved` here would relocate the data of a record whose state we
-      // could not read — the same relocation `capEnrollmentExpiry` passes the
-      // record's own status to avoid. An unparseable status cannot reach a
-      // successful PKAM (the handler resolves the same enum on the way in), so
-      // this is unreachable; if it ever fires, refusing to write is the only
-      // safe move.
+      // The record's OWN status, never a default. `put` moves an
+      // enrollment's per-enrollment data to match the status it is handed, so
+      // defaulting to `approved` would relocate the data of a record whose
+      // state could not be read. An unparseable status cannot reach a
+      // successful PKAM, so refusing to write is the only safe move if it
+      // ever fires.
       final EnrollmentStatus? successorStatus =
           EnrollmentStatus.values.asNameMap()[successor.approval?.state ?? ''];
       if (successorStatus == null) {
@@ -2178,23 +1790,21 @@ class EnrollmentManager {
               ? null
               : AtAssertedTimestamps(expiresAt: storedExpiry));
 
-      // The cap goes AFTER the stamp. If a write fails between the two, the
-      // successor is recorded as processed and the predecessor simply keeps
-      // the expiry it already had — the migration is slower and nothing else
-      // moves. The other order fails far worse: a capped predecessor with no
-      // stamp is re-capped on every later authentication, each time with a
-      // fresh full grace, so it never retires at all.
+      // The cap goes AFTER the stamp. A write failing between the two leaves
+      // the successor recorded as processed and the predecessor keeping the
+      // expiry it had, which only slows the migration. The other order fails
+      // far worse: a capped predecessor with no stamp is re-capped with a
+      // fresh full grace on every later authentication, so it never retires.
       if (capPredecessor) {
         final RetrofitCapOutcome outcome =
             await capEnrollmentExpiry(predecessorId);
-        // That ordering means a cap which declines at the write leaves a
-        // stamp claiming the question is settled when it is not, and the
-        // stamp is durable while the reason was transient: the predecessor
-        // was approved when the decision was taken and had been revoked by
-        // the time of the write. An un-revoke would then restore it with no
-        // expiry and no successor able to re-arm, forever. So the stamp is
-        // taken back, and ONLY for that outcome; the predecessor is live, so
-        // its children stay where they are.
+        // That ordering means a cap declining at the write leaves a durable
+        // stamp claiming the question is settled when the reason it was not
+        // was transient: the predecessor was approved when the decision was
+        // taken and revoked by the time of the write, so an un-revoke would
+        // restore it with no expiry and no successor able to re-arm, forever.
+        // The stamp is taken back ONLY for that outcome, and the predecessor
+        // is live, so its children stay where they are.
         if (outcome == RetrofitCapOutcome.notApproved ||
             outcome == RetrofitCapOutcome.unreadable) {
           await _clearCapStamp(successorEnrollmentId, key);
@@ -2202,8 +1812,8 @@ class EnrollmentManager {
         }
       }
       // The children move whenever the stamp stands: off a capped
-      // predecessor, off a root that keeps its life, and off one that is
-      // already gone.
+      // predecessor, off a root that keeps its life, and off one already
+      // gone.
       await _adoptApprovalChildren(predecessorId, successorEnrollmentId);
     } catch (e) {
       logger.warning('Could not arm the retrofit cap for '
@@ -2225,7 +1835,7 @@ enum StartupFlatKeyOutcome {
   /// Minted `primary` from it, then deleted it.
   migratedIntoPrimary,
 
-  /// `primary` already held it — a migration that did not finish: deleted.
+  /// `primary` already held it, a migration that did not finish: deleted.
   deletedAsResidue,
 
   /// `primary` holds a different key: deleted and logged, `primary` untouched.

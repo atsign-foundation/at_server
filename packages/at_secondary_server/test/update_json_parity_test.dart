@@ -9,22 +9,18 @@ import 'package:test/test.dart';
 
 import 'test_utils.dart';
 
-/// `update:json` is not a second spelling of `update:` — it is the same
-/// keystore behind a different door, and the plain door's validation lived in
-/// two places the json door reached neither of: the wire grammar (which pins
-/// the atKey to a colon-free token, the value to one non-empty line, and the
-/// asserted timestamps to UTC) and the tail of `getUpdateParams`.
+/// Pins `update:json` and plain `update:` to one verdict. They are the same
+/// keystore behind two doors, and the plain door's validation sits in two
+/// places the json door does not pass through: the wire grammar, which pins
+/// the atKey to a colon-free token, the value to one non-empty line and the
+/// asserted timestamps to UTC, and the tail of `getUpdateParams`.
 ///
-/// So `update:json` was an unvalidated write API onto the atSign's keystore
-/// for everything EXCEPT the key's name. The name is a separate question: the
-/// json route is meant to reach keys the plain grammar cannot express, and
-/// which of those a caller may write is decided by authorisation — pinned in
-/// root_key_authz_test.dart, not here.
+/// The key's NAME is deliberately excluded: the json route exists to reach
+/// keys the plain grammar cannot express, and which of those a caller may
+/// write is an authorisation question, pinned in root_key_authz_test.dart.
 ///
-/// This is a DIFFERENTIAL: each case runs the same shape through both forms
-/// of the verb and asserts they agree. A one-armed test here would pass while
-/// the two doors drifted, which is exactly how they drifted in the first
-/// place.
+/// Every case is a DIFFERENTIAL, running one shape through both forms; a
+/// one-armed test here would stay green while the two doors drifted apart.
 void main() {
   AtSignLogger.root_level = 'WARNING';
 
@@ -64,12 +60,10 @@ void main() {
       }
     }
 
-    /// A well-formed metadata map with [extra] folded in.
-    ///
-    /// commons' `Metadata.fromJson` assigns isBinary/isEncrypted/isPublic
-    /// into non-nullable bools, so EVERY update:json document a real client
-    /// sends carries all three. Omitting them tests the decoder, not the
-    /// validator, which is a different case (asserted separately below).
+    /// A well-formed metadata map with [extra] folded in. `Metadata.fromJson`
+    /// assigns isBinary/isEncrypted/isPublic into non-nullable bools, so every
+    /// document a real client sends carries all three; omitting them exercises
+    /// the decoder rather than the validator, asserted separately below.
     Map<String, dynamic> md([Map<String, dynamic> extra = const {}]) => {
           'isBinary': false,
           'isEncrypted': false,
@@ -80,8 +74,8 @@ void main() {
     /// Each case: a description, the plain command, the json document, and
     /// the verdict BOTH must reach.
     final cases = <(String, String, Map<String, dynamic>, String)>[
-      // ---- the controls. Without these, a validator that refused
-      // everything would pass every row below.
+      // ---- the controls: without them a validator that refused everything
+      // would satisfy every REFUSED row below.
       (
         'an ordinary key',
         'update:phone@alice 1234',
@@ -101,22 +95,19 @@ void main() {
         'ACCEPTED',
       ),
       (
-        // The one key the grammar special-cases, so the VE can install the
-        // first PKAM key over a CRAM connection. The charset fix must not
-        // catch it.
+        // The one atKey the update grammar special-cases, so a CRAM
+        // connection can install the atSign's first PKAM key. The charset
+        // rules must not catch it.
         'the literal the grammar special-cases',
         'update:privatekey:at_pkam_publickey KEYVALUE',
         {'atKey': 'privatekey:at_pkam_publickey', 'value': 'KEYVALUE', 'metadata': md()},
         'ACCEPTED',
       ),
 
-      // ---- the divergences.
-      //
-      // The atKey CHARSET is deliberately not among them: update:json is the
-      // route that exists to name keys the plain grammar cannot express (a
-      // namespace-less `privatekey:` key with an arbitrary suffix), and that
-      // wider surface is answered for by authorisation, not by syntax. See
-      // root_key_authz_test.dart, which is where those keys are pinned.
+      // ---- the refusals. The atKey CHARSET is deliberately not among them:
+      // update:json exists to name keys the plain grammar cannot express, a
+      // namespace-less `privatekey:` key among them, and that wider surface
+      // is answered for by authorisation. See root_key_authz_test.dart.
       (
         'an empty value',
         'update:emptyval@alice ',
@@ -167,9 +158,9 @@ void main() {
 
     test('a non-String value is refused as a bad request, not a server fault',
         () {
-      // These used to escape as raw Dart TypeErrors and reach the client as
-      // InternalServerError, so a caller could not tell its own malformed
-      // document from a server bug.
+      // A raw Dart TypeError would reach the client as InternalServerError,
+      // leaving a caller unable to tell its own malformed document from a
+      // server fault.
       for (final bad in [42, true, null, <String, String>{}]) {
         expect(
             () => jsonVerdict({'atKey': 'k', 'value': bad, 'sharedBy': '@alice', 'metadata': md()}),
@@ -181,9 +172,9 @@ void main() {
     });
 
     test('a metadata map missing the non-nullable bools is a bad request', () {
-      // commons Metadata.fromJson assigns isBinary/isEncrypted/isPublic into
-      // non-nullable bools, so `"metadata":{}` threw a TypeError from two
-      // packages away.
+      // Metadata.fromJson assigns isBinary/isEncrypted/isPublic into
+      // non-nullable bools, so `"metadata":{}` raises a TypeError two
+      // packages away, which must still surface as a bad request.
       expect(
           () => jsonVerdict({
                 'atKey': 'k',
@@ -198,7 +189,7 @@ void main() {
     test('a non-UTC asserted timestamp is refused', () {
       // The grammar pins :cAt/:uAt/:eAt/:aAt to ISO-8601 with a trailing Z.
       // These are ordered against the commit log and compared with other
-      // atSigns'; a local one silently shifts by the server's offset.
+      // atSigns', so a local time silently shifts by the server's offset.
       expect(
           jsonVerdict({
             'atKey': 'k',
@@ -248,9 +239,8 @@ void main() {
 
     test('sharedBy and sharedWith are normalised the way the plain path does',
         () {
-      // fixAtSign lowercases and prepends the '@'. Without it the identity
-      // check below compared the wrong string, and 'Alice' reached the
-      // keystore verbatim.
+      // fixAtSign lowercases and prepends the '@', which is what lets the
+      // sharedBy-is-me check compare the right string.
       final params = handler.getUpdateParams(HashMap<String, String?>.from(
           getVerbParam(
               VerbSyntax.update,

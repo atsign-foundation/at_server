@@ -9,13 +9,11 @@ import 'package:test/test.dart';
 
 import 'test_utils.dart';
 
-/// The flat legacy credential migrates into the `primary` enrollment.
-///
-/// `privatekey:at_pkam_publickey` is what a `pkam:` carrying no enrollment id
-/// used to be verified against, and nothing on the roster named it. It now
-/// becomes a real enrollment: minted from the flat key's value with the flat
-/// key deleted in the same act, so there is one credential and one record.
-/// Nothing copies the key.
+/// Pins the migration of the flat legacy credential
+/// `privatekey:at_pkam_publickey`, which no enrollment record named, into the
+/// `primary` enrollment: primary is minted from the flat key's value and the
+/// flat key is deleted in the same act, so one credential has one record and
+/// nothing holds a copy.
 void main() {
   verbTestsSetUpLogging();
 
@@ -93,8 +91,9 @@ void main() {
 
     test('the at-rest key is the literal primary, folded like any id',
         () async {
-      // Raw-literal pin: a client sending `pkam:enrollmentId:primary:` and
-      // one sending no id must land on the same record.
+      // ⚠️ At-rest pin: a client sending `pkam:enrollmentId:primary:` and one
+      // sending no id must land on this one record, so the id is folded like
+      // any other. Changing the literal orphans every stored primary.
       await enMgr.serialiseMutation(() => enMgr.mintPrimary('k'));
       expect(await keyValueStore.exists('primary.new.enrollments.__manage$alice'),
           isTrue);
@@ -141,9 +140,8 @@ void main() {
     });
 
     test('rotating leaves a revoked primary revoked', () async {
-      // The record's status is not the absorb's to change: a legacy login
-      // that absorbed into a revoked primary is refused by the status
-      // check that follows, exactly as a login naming a revoked id is.
+      // The status is not the absorb's to change: the status check that
+      // follows refuses the login, as it would one naming a revoked id.
       await storeRoot(primary, 'OLD_KEY', status: EnrollmentStatus.revoked);
       await installFlatKey('NEW_FLAT_KEY');
 
@@ -162,8 +160,7 @@ void main() {
     test('is exempt from key uniqueness: another holder does not block it',
         () async {
       // The migration mints from a key the connection just proved, whatever
-      // else holds it; the duplicate is visible in the roster and revocable
-      // by name.
+      // else holds it; the duplicate is on the roster and revocable by name.
       await storeScoped('holder', 'SHARED_KEY');
       await installFlatKey('SHARED_KEY');
 
@@ -178,7 +175,7 @@ void main() {
   group('the flat key at startup', () {
     test('a copy of an approved root\'s key is deleted, and primary is not '
         'minted', () async {
-      // What an older server's CRAM auto-approve left beside the first root.
+      // The shape a CRAM auto-approve leaves: a copy beside the first root.
       await storeRoot('first-root', 'ROOT_KEY');
       await installFlatKey('ROOT_KEY');
 
@@ -208,9 +205,8 @@ void main() {
     test('a copy of a revoked root\'s key is REINSTATED as primary when '
         'nothing else survives', () async {
       // Reachable only where the root's own keypair revoked itself. Deleting
-      // the key would strand the atSign; minting primary from it hands
-      // nobody anything they did not hold and gives the owner a visible,
-      // revocable name for the keypair they kept using.
+      // the key would strand the atSign, while minting primary from it hands
+      // nobody anything they did not already hold.
       await storeRoot('revoked-root', 'ROOT_KEY',
           status: EnrollmentStatus.revoked);
       await installFlatKey('ROOT_KEY');
@@ -227,8 +223,7 @@ void main() {
 
     test('a zero-length flat value is not a credential: nothing is minted '
         'from it, and it is cleared', () async {
-      // Reachable from a store written by an older server, when update:json
-      // carried the value inside a document nothing checked.
+      // The shape a store written by an older server can hold.
       await installFlatKey('');
 
       expect(await enMgr.migrateFlatKeyAtStartup(),
@@ -242,9 +237,9 @@ void main() {
 
     test('a scoped enrollment is not a survivor, so a revoked root\'s copy '
         'is reinstated', () async {
-      // The discriminating half of the stranding question: not "are there
-      // any enrollments" but "is there one the atSign could restore itself
-      // with". A wavi-scoped enrollment cannot approve a replacement root.
+      // The stranding question is not "are there any enrollments" but "is
+      // there one that could approve a replacement root", which a
+      // wavi-scoped enrollment cannot.
       await storeRoot('revoked-root', 'ROOT_KEY',
           status: EnrollmentStatus.revoked);
       await storeScoped('an-app', 'APP_KEY');
@@ -255,9 +250,9 @@ void main() {
     });
 
     test('a root with an EMPTY public key is not a survivor either', () async {
-      // A phantom root: approved, fully privileged, and holding a credential
-      // no signature can ever be checked against. Counting it would answer
-      // "the atSign can restore itself" with an identity nobody holds.
+      // A phantom root: approved and fully privileged, but holding a
+      // credential no signature can be checked against, so counting it
+      // answers the stranding question with an identity nobody holds.
       await storeRoot('revoked-root', 'ROOT_KEY',
           status: EnrollmentStatus.revoked);
       await storeRoot('phantom-root', '');
@@ -268,10 +263,9 @@ void main() {
     });
 
     test('the flat key is not counted as its own survivor', () async {
-      // The asymmetry that would make the question vacuous. The roster
-      // question is asked of the roster alone: a store holding nothing but
-      // the flat key has no root to fall back on, so the key is migrated
-      // rather than deleted.
+      // The stranding question is asked of the roster alone, or it would be
+      // vacuous: a store holding only the flat key has no root to fall back
+      // on, so the key migrates rather than being deleted.
       await installFlatKey('LEGACY_KEY');
       expect(await enMgr.hasUnexpiringRootEnrollment({}), isFalse,
           reason: 'the flat key is not a record, and is not counted');
@@ -284,8 +278,8 @@ void main() {
 
     test('a copy of an expiring root\'s key is not licensed by that root',
         () async {
-      // The survivor has to be permanent. A root with a finite life defers
-      // the stranding rather than answering it.
+      // A survivor has to be permanent: a root with a finite life defers the
+      // stranding rather than answering it.
       await storeRoot('expiring-root', 'ROOT_KEY', ttl: Duration(hours: 1));
       await installFlatKey('ROOT_KEY');
 
@@ -311,8 +305,8 @@ void main() {
 
     test('a pending root-granted request holding the key does not count',
         () async {
-      // An OTP request takes a client-chosen key and can name root grants
-      // unapproved; only a record that was once approved was ever a root.
+      // An OTP request carries a client-chosen key and can name root grants
+      // while unapproved, so a subordinate could otherwise force the delete.
       final v = EnrollDataStoreValue('s', 'app', 'device', 'CHOSEN_KEY')
         ..namespaces = {'*': 'rw', '__manage': 'rw'}
         ..approval = EnrollApproval(EnrollmentStatus.pending.name);
@@ -356,7 +350,7 @@ void main() {
     test('a stray flat key beside a primary holding a different key is '
         'deleted, and primary is untouched', () async {
       // A key lying in the store at startup is not an owner's act on the
-      // wire, so it is never absorbed.
+      // wire, so it is never absorbed into a primary that holds another.
       await enMgr.serialiseMutation(() => enMgr.mintPrimary('PRIMARY_KEY'));
       await installFlatKey('STRAY_KEY');
 
@@ -370,7 +364,7 @@ void main() {
 
     test('a root holding the key under another spelling is still its holder',
         () async {
-      // Compared on key material: an ECC key re-cased is the same key.
+      // Keys are compared as material, so a re-cased ECC key is the same key.
       await storeRoot('ecc-root', 'deadbeef', signingAlgo: 'ecc_secp256r1');
       await installFlatKey('DEADBEEF');
 

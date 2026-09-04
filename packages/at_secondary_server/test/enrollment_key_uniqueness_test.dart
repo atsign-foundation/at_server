@@ -13,16 +13,13 @@ import 'package:test/test.dart';
 import 'enrollment_test_utils.dart';
 import 'test_utils.dart';
 
-/// A key installed by any request must not be held by any stored enrollment.
-///
-/// One keypair under two enrollment names is two identities with separate
-/// lifecycles: revoking one leaves the same key authenticating as the other.
-/// So every request that installs key material — the OTP request, the CRAM
-/// auto-approve, the retrofit, and an `enroll:update` that replaces
-/// `apkamPublicKey` — is refused, with nothing persisted, when a stored
-/// enrollment in ANY status already holds that key. The one exception is a
-/// record re-sending its own current key, which is not a collision with
-/// itself.
+/// No request may install key material a stored enrollment already holds, in
+/// any status, because one keypair under two enrollment names is two
+/// identities with separate lifecycles: revoking one leaves the key
+/// authenticating as the other. These pin the refusal, with nothing
+/// persisted, on all four installing paths (OTP request, CRAM auto-approve,
+/// retrofit and an `enroll:update` replacing `apkamPublicKey`), and the one
+/// exception: a record re-sending its own current key.
 void main() {
   verbTestsSetUpLogging();
 
@@ -51,10 +48,9 @@ void main() {
       'The apkamPublicKey is already held by another enrollment on this '
       'atSign; every enrollment needs a keypair of its own';
 
-  /// Runs [command] through the enroll verb handler on [inboundConnection]
-  /// as it stands, and reports a refusal the handler THROWS as an error
-  /// response — the shape the server's own dispatch gives it — so every
-  /// assertion below reads one thing.
+  /// Runs [command] through the enroll verb handler on [inboundConnection] as
+  /// it stands, reporting a thrown refusal as the error response the server's
+  /// own dispatch would give it, so every assertion below reads one shape.
   Future<Response> send(String command) async {
     final r = Response();
     try {
@@ -190,7 +186,7 @@ void main() {
 
     test('the retrofit, re-sending its predecessor\'s key', () async {
       // A retrofit is a re-key: the successor is the same principal under a
-      // NEW keypair. One that carries its predecessor's key would leave one
+      // new keypair, so carrying the predecessor's key would leave one
       // keypair under two names.
       final String predecessorId = await etu.createPendingEnrollment(
           appName: 'device-app',

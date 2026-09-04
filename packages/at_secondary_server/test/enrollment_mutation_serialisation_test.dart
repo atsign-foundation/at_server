@@ -13,37 +13,27 @@ import 'package:uuid/uuid.dart';
 import 'enrollment_test_utils.dart';
 import 'test_utils.dart';
 
-/// Enrollment mutations are read-decide-write over a keystore with no
-/// compare-and-set, and the decisions they rest on are questions about the
-/// WHOLE store — "would any unexpiring root survive this act?" above all. Two
-/// mutations in flight at once therefore each pass an individually correct
-/// check and strand the atSign between them, and a per-record lock cannot see
-/// it, because neither writer touches the other's record.
+/// Pins that enrollment mutations run one at a time. Each is a
+/// read-decide-write over a keystore with no compare-and-set, and the
+/// decisions rest on questions about the WHOLE store, "would any unexpiring
+/// root survive this act?" above all, so two in flight at once each pass an
+/// individually correct check and strand the atSign between them. A
+/// per-record lock cannot see it, because neither writer touches the other's
+/// record.
 ///
-/// Every test here is a pair, and the control is what makes the pair an
-/// instrument. Serialisation is the only thing that can make the concurrent
-/// case behave like the serial one, so a concurrent assertion that held with
-/// the section removed would be measuring nothing — and every control is drawn
-/// from a property the section does not touch, so it stays green when the
-/// section is gone.
+/// Every test is a pair, in one of two shapes. RACED runs two competing acts
+/// together and asserts a state neither order produces cannot happen; its
+/// control runs the same two acts one after the other. HELD holds the section,
+/// starts the act and reads the store while it waits, which is the race with
+/// the timing taken out, since whether a race lands in the gap between a read
+/// and its write depends on how many awaits each side happens to take. Its
+/// control is a LATENCY control: the identical act, unobstructed, must write
+/// inside the same window, or a hold assertion is equally satisfied by an act
+/// that never ran.
 ///
-/// The pairs come in two shapes, because the harm comes in two kinds.
-///
-/// RACED, where two acts genuinely compete and the harm is a state neither
-/// order produces: the concurrent arrangement must leave the atSign with a
-/// root it can restore itself from, and the control runs the same two acts one
-/// after the other.
-///
-/// HELD, where the act under test is raced against the section itself: the
-/// section is held, the act is started, and the store is read while it waits.
-/// That is the same claim as a race with the timing taken out — whether a race
-/// lands in the gap between one act's read and its write depends on how many
-/// awaits each side happens to take, which is not a property of the code under
-/// test. Its control is a LATENCY control: the identical act, with nothing
-/// holding the section, must have written inside the same window. Without it a
-/// hold assertion is equally satisfied by an act that never ran and by one
-/// merely slower than the wait, so serialisation working and an inert probe
-/// are indistinguishable.
+/// Every control is drawn from a property the section does not touch, so it
+/// stays green when the section is removed and only the concurrent arm
+/// reddens.
 void main() {
   verbTestsSetUpLogging();
 
@@ -62,11 +52,10 @@ void main() {
     await verbTestsTearDown();
   });
 
-  /// A connection of its OWN, authenticated as [enrollmentId].
-  ///
-  /// Never the shared `inboundConnection`: two concurrent commands would
-  /// otherwise take turns overwriting one another's enrollment id on it, and
-  /// the harness — not the server — would decide who each command ran as.
+  /// A connection of its OWN, authenticated as [enrollmentId]. Never the
+  /// shared `inboundConnection`: two concurrent commands would take turns
+  /// overwriting one another's enrollment id on it, so the harness rather
+  /// than the server would decide who each command ran as.
   DummyInboundConnection connectionFor(String enrollmentId) {
     final c = DummyInboundConnection();
     c.metadata
@@ -78,12 +67,10 @@ void main() {
   }
 
   /// An approved, fully privileged, never-expiring enrollment written straight
-  /// to the store, admitted by nobody.
-  ///
-  /// No approver, deliberately: an enrollment that descends from another is
-  /// refused a revoke of its own ancestor by the descends-from rule, which
-  /// would refuse one arm of the symmetric arrangement below for a reason
-  /// that has nothing to do with concurrency.
+  /// to the store, admitted by nobody. No approver deliberately: the
+  /// descends-from rule refuses an enrollment a revoke of its own ancestor,
+  /// which would refuse one arm of the symmetric arrangement below for a
+  /// reason having nothing to do with concurrency.
   Future<String> addUnexpiringRoot(String id) async {
     final value = EnrollDataStoreValue(
         Uuid().v4(), 'app-$id', 'device-$id', 'apkam-public-key-$id')
@@ -167,11 +154,10 @@ void main() {
     test('cannot both count the root the other is about to remove', () async {
       final second = await twoRoots();
 
-      // Each names the other. Run one after the other, the second is refused
-      // because the first has already gone; run them together and each walk
-      // finishes before either write, so each sees the other still approved
-      // and unexpiring, each concludes the atSign is safe, and the atSign is
-      // left with no root at all.
+      // Each names the other. Serially the second is refused because the
+      // first has gone; together, each walk finishes before either write, so
+      // each sees the other still approved and unexpiring and concludes the
+      // atSign is safe, leaving it with no root at all.
       final outcomes = await Future.wait([
         revoke(etu.primaryEnId, second),
         revoke(second, etu.primaryEnId),
@@ -205,9 +191,9 @@ void main() {
   });
 
   group('a revoke and a cap arming writing the same record', () {
-    /// A successor of `primary` that published an `_apsk`. `primary` is a
-    /// root and is never capped, and the arming still writes its stamp onto
-    /// the successor, which is the record the revoke writes too.
+    /// A successor of `primary` that published an `_apsk`. `primary` is a root
+    /// and is never capped, but the arming still stamps the successor, which
+    /// is the record the revoke writes too.
     Future<String> lostUpdateArrangement() async {
       final successor = await selfEnroll(etu.primaryEnId,
           apkamKeysExpiryDuration: Duration(minutes: 1),
@@ -226,10 +212,10 @@ void main() {
       final successor = await lostUpdateArrangement();
 
       // Both write a WHOLE-RECORD snapshot of the successor: the revoke flips
-      // its state, the arming stamps `predecessorCapArmedAt` on it. Whichever
-      // wrote second reinstated everything the other had changed — the verb
-      // answering `revoked` over a record the store held `approved`, with the
-      // credential's published `_apsk` back at the live address.
+      // its state, the arming stamps `predecessorCapArmedAt`. Whichever wrote
+      // second would reinstate what the other changed, leaving the verb
+      // answering `revoked` over a record the store holds `approved`, with
+      // the credential's `_apsk` back at the live address.
       final outcomes = await Future.wait([
         revoke(etu.primaryEnId, successor),
         enMgr.armRetrofitCapOnFirstAuth(successor).then((_) => null),
@@ -274,10 +260,10 @@ void main() {
 
   group('adopting a capped approver\'s children', () {
     /// A predecessor P that admitted three children, and a short-lived
-    /// successor S of P. P holds `__manage` without `*`, so it can approve
-    /// and is not a root: a root keeps its life, and this group is about the
-    /// cap and the adoption landing together. Arming S caps P and re-parents
-    /// every child onto S. Returns P, one child, and S.
+    /// successor S of P. P holds `__manage` without `*`, so it can approve and
+    /// is not a root, because a root is never capped and this group is about
+    /// the cap and the adoption landing together. Arming S caps P and
+    /// re-parents every child onto S. Returns P, one child, and S.
     Future<(String, String, String)> adoptionArrangement() async {
       final predecessor = await etu.createPendingEnrollment(
           appName: 'approver',
@@ -314,19 +300,15 @@ void main() {
 
     test('the stamp, the cap and the adoption are all inside the section',
         () async {
-      // Observed by HOLDING the section rather than by racing something
-      // against it: whether a race lands in the gap between the adoption's
-      // read of a child and its write of that child depends on how many
-      // awaits each side happens to take, which is not a property of the
-      // code under test. Holding the section and looking is the same claim
-      // with the timing taken out — measured against a hold of 100ms, which
-      // is three orders of magnitude more than the reads the arming makes
-      // before it queues.
+      // Observed by HOLDING the section rather than by racing against it, for
+      // the reason given at the head of the file, over a 100ms hold: three
+      // orders of magnitude more than the reads the arming makes before it
+      // queues.
       //
-      // The adoption is the half that matters most. Its lost update is
-      // PERMANENT and silent: nothing ever re-parents again, so a child left
-      // naming a predecessor on its way out is outside every later revocation
-      // cascade for the rest of its life, with no error raised and no retry.
+      // The adoption is the half that matters most: its lost update is
+      // permanent and silent, since nothing re-parents again, so a child left
+      // naming a predecessor on its way out sits outside every later
+      // revocation cascade for the rest of its life.
       final (predecessor, child, successor) = await adoptionArrangement();
 
       final gate = Completer<void>();
@@ -382,11 +364,10 @@ void main() {
   group('the critical section itself', () {
     test('is re-entrant, so a mutation reached from inside another one runs',
         () async {
-      // `Mutex.protect` is not re-entrant — a nested `protect` never
-      // completes — so without this a mutation reached from inside another
-      // one would hang the connection that started it rather than answer
-      // wrongly. Zone values are what tell "already inside" from "another
-      // caller waiting".
+      // `Mutex.protect` is not re-entrant: a nested `protect` never
+      // completes, so a nesting mistake hangs the connection that started it
+      // rather than answering wrongly. A zone value is what tells "already
+      // inside" from "another caller waiting".
       final order = <String>[];
       await enMgr.serialiseMutation(() async {
         order.add('outer');
@@ -420,10 +401,10 @@ void main() {
     });
 
     test('is released by a REFUSED verb, not just a successful one', () async {
-      // Every refusal on these paths is a throw out of the middle of the
-      // critical section, and a lock left held by one would wedge every later
-      // enrollment mutation on the atSign — a worse failure than the race the
-      // section exists to stop, and one no other test would notice.
+      // Every refusal on these paths throws out of the middle of the section,
+      // and a lock left held would wedge every later enrollment mutation on
+      // the atSign: a worse failure than the race the section exists to stop,
+      // and one no other test would notice.
       final second = await twoRoots();
       expect(await revoke(etu.primaryEnId, second), isNull);
       expect(await revoke(second, etu.primaryEnId), isNotNull,
@@ -440,13 +421,11 @@ void main() {
 
     test('the cap arming takes no section when there is nothing to arm',
         () async {
-      // The early exits in armRetrofitCapOnFirstAuth are outside the section
-      // deliberately: it runs on EVERY APKAM authentication, after the
-      // section that admitted the connection has been released, and
-      // everything except a retrofit's successor leaves at the first three
-      // tests. Taking the section again for them would queue the
-      // authentication a second time, behind whatever mutation started in
-      // between, to decide nothing.
+      // The early exits in armRetrofitCapOnFirstAuth sit outside the section
+      // deliberately: it runs on EVERY APKAM authentication, and everything
+      // except a retrofit's successor leaves at the first two checks. Taking
+      // the section for them would queue the authentication behind whatever
+      // mutation started in between, to decide nothing.
       final plain = await addUnexpiringRoot('replaced-nothing');
 
       final held = enMgr.serialiseMutation(() async {
@@ -464,45 +443,37 @@ void main() {
     });
   });
 
-  // =====================================================================
-  // The four sections a race cannot reach, held and looked at.
-  // =====================================================================
+  // ---- the sections a race cannot reach, held and looked at ----
 
   /// How long a HELD case waits before reading the store, and how long its
-  /// latency control gives the same act to finish unobstructed.
-  ///
-  /// Three orders of magnitude more than the handful of keystore reads each of
-  /// these acts makes before it reaches its critical section — which is what
-  /// the latency control measures rather than assumes.
+  /// latency control gives the same act unobstructed. Three orders of
+  /// magnitude more than the keystore reads each act makes before it reaches
+  /// the section, which the latency control measures rather than assumes.
   const Duration holdWindow = Duration(milliseconds: 100);
 
   /// Takes the atSign's enrollment-mutation section and holds it until the
-  /// returned completer is completed.
-  ///
-  /// The returned future is the holder: complete the gate and await it, or the
-  /// section is still held when the test ends and every later mutation queues
-  /// behind a completer nobody owns any more.
+  /// returned completer completes. The returned future is the holder:
+  /// complete the gate and await it, or the section is still held when the
+  /// test ends and every later mutation queues behind an ownerless completer.
   (Completer<void>, Future<void>) holdTheSection() {
     final gate = Completer<void>();
     return (gate, enMgr.serialiseMutation(() => gate.future));
   }
 
-  /// The STORED roster's size. Counting the visible one would report an
-  /// atSign empty while records were still on disk, and the counts below are
-  /// asserted as zero.
+  /// The STORED roster's size. The visible roster would report an atSign
+  /// empty while records were still on disk.
   Future<int> enrollmentCount() async =>
       (await enMgr.getAllEnrollmentKeys(includeExpired: true)).length;
 
   group('enroll:request', () {
     test('mints no enrollment while another mutation holds the section',
         () async {
-      // The sharpest of the four. A retrofit reads its predecessor, checks it
-      // is approved, reads its stored deadline and mints a successor carrying
-      // its grants verbatim — so a revoke of that predecessor landing
-      // mid-decision is answered by a fresh, approved credential holding
-      // exactly what the revoke was taking away. The successor is a PEER
-      // rather than a child, so no later cascade reaches it through the
-      // predecessor either.
+      // A retrofit reads its predecessor, checks it is approved, reads its
+      // stored deadline and mints a successor carrying its grants verbatim,
+      // so a revoke landing mid-decision is answered by a fresh, approved
+      // credential holding exactly what the revoke was taking away. The
+      // successor is a PEER rather than a child, so no later cascade reaches
+      // it through the predecessor either.
       final before = await enrollmentCount();
 
       final (gate, holder) = holdTheSection();
@@ -527,10 +498,9 @@ void main() {
 
     test('LATENCY CONTROL: unobstructed, the same request mints inside the '
         'same window', () async {
-      // Identical act, identical window, nothing holding the section. Without
-      // it the case above is equally satisfied by a request that threw, or by
-      // one that simply takes longer than the wait — neither of which is
-      // serialisation, and both of which look exactly like it.
+      // Identical act and window, nothing holding the section. Without it the
+      // case above is equally satisfied by a request that threw or one merely
+      // slower than the wait, neither of which is serialisation.
       final before = await enrollmentCount();
 
       final request = selfEnroll(etu.primaryEnId);
@@ -547,10 +517,10 @@ void main() {
 
     test('SERIAL CONTROL: a revoke landing FIRST refuses the retrofit',
         () async {
-      // The serial outcome the hazard is stated against: run one after the
-      // other and the request is refused on the state the revoke left. That
-      // refusal is what the section exists to keep reachable, and it needs no
-      // serialisation of its own, so it stays green when the section is gone.
+      // The serial outcome the hazard is stated against: run in order, the
+      // request is refused on the state the revoke left. That refusal is what
+      // the section exists to keep reachable, and needs no serialisation of
+      // its own.
       final second = await twoRoots();
       expect(await revoke(second, etu.primaryEnId), isNull,
           reason: 'precondition: the revoke is allowed, since the other root '
@@ -572,9 +542,9 @@ void main() {
 
   group('enroll:update', () {
     /// `enroll:update` is SELF-ONLY, so the connection has to be
-    /// authenticated as its target. Metadata rather than a key rotation: the
-    /// subject is the section, and a rotation would add a signature
-    /// verification deciding the outcome for another reason entirely.
+    /// authenticated as its target. Metadata rather than a key rotation,
+    /// which would add a signature verification deciding the outcome for
+    /// another reason.
     Future<void> updateMetadata(String enId, Map<String, dynamic> md) async {
       final p = EnrollParams()
         ..enrollmentId = enId
@@ -595,12 +565,11 @@ void main() {
             .metadata;
 
     test('writes nothing while another mutation holds the section', () async {
-      // The record is read at the top, an APKAM signature verification is
-      // awaited in the middle, and the WHOLE record is written back at the
-      // bottom — so anything another mutation wrote to it in between is
-      // reinstated by a snapshot taken before that write. The re-read just
-      // before the write refuses on a changed STATUS and on nothing else;
-      // every other field is carried forward from the stale snapshot.
+      // The record is read at the top, a signature verification is awaited in
+      // the middle and the WHOLE record is written back at the bottom, so
+      // anything another mutation wrote in between is reinstated from a stale
+      // snapshot. The re-read before the write refuses on a changed STATUS
+      // and nothing else; every other field comes from the snapshot.
       final target = await addUnexpiringRoot('update-target');
       expect(await metadataOf(target), isNull,
           reason: 'precondition: nothing has written metadata yet');
@@ -640,7 +609,7 @@ void main() {
   });
 
   group('enroll:delete', () {
-    /// A revoked enrollment — one of the two states `enroll:delete` accepts.
+    /// A revoked enrollment, one of the two states `enroll:delete` accepts.
     Future<String> deletable() async {
       final victim = await addUnexpiringRoot('delete-target');
       expect(await revoke(etu.primaryEnId, victim), isNull,
@@ -661,12 +630,11 @@ void main() {
     }
 
     test('removes nothing while another mutation holds the section', () async {
-      // Delete is the one act that is IRREVERSIBLE, and its write takes other
-      // records with it: the per-enrollment data goes through the pre-remove
-      // hook. It also severs an approval link, which puts everything behind that link
-      // permanently out of reach of a later cascade — so a delete that decided
-      // against a store another mutation was rewriting cannot be repaired
-      // afterwards.
+      // Delete is the one IRREVERSIBLE act, and its write takes other records
+      // with it through the pre-remove hook. It also severs an approval link,
+      // putting everything behind that link permanently out of reach of a
+      // later cascade, so a delete decided against a store another mutation
+      // was rewriting cannot be repaired afterwards.
       final victim = await deletable();
       final key = enMgr.buildEnrollmentKey(victim);
 

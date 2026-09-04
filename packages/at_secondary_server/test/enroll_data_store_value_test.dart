@@ -57,12 +57,10 @@ void main() {
     });
 
     test('the two _apsk shapes survive a round trip under their own names', () {
-      // The record is what survives a restart, so a shape that does not
-      // round-trip is a signing key the enrollment silently stops publishing
-      // the next time the server comes up. Asserted on the RAW wire names
-      // because the serialisation is hand-maintained here — there is no
-      // json_serializable dev dependency to regenerate it, so a typo in
-      // enroll_datastore_value.g.dart has nothing else to catch it.
+      // ⚠️ AT-REST PIN, on the raw field names. The serialisation is
+      // hand-maintained (nothing regenerates the .g.dart), and a shape that
+      // does not round-trip is a signing key the enrollment silently stops
+      // publishing after a restart.
       final array = {
         'v': 1,
         'keys': [
@@ -87,11 +85,10 @@ void main() {
     });
 
     test('predecessorCapArmedAt round-trips under its at-rest name', () {
-      // The stamp that makes "the cap arms once" decidable across a restart.
-      // Its writer and reader are the same hand-maintained pair in the .g.dart,
-      // so a symmetric rename passes every test that reads it through the
-      // typed getter while every already-stored record silently loses its
-      // stamp — and re-arms once more, extending its predecessor by a whole
+      // ⚠️ AT-REST PIN. The stamp makes "the cap arms once" decidable across
+      // a restart, and its writer and reader are the same hand-maintained
+      // pair, so a symmetric rename stays green while every stored record
+      // loses its stamp and re-arms, extending its predecessor by a whole
       // grace period.
       final armedAt = DateTime.utc(2026, 8, 31, 12, 34, 56, 789);
       final v = EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey')
@@ -116,11 +113,10 @@ void main() {
     });
 
     test('parentEnrollmentId round-trips under its at-rest name', () {
-      // The edge revocation cascades along. Its writer and reader are the same
-      // hand-maintained pair in the .g.dart, so a symmetric rename passes
-      // every test reading it through the typed getter while every stored
-      // record silently loses its approver — and drops out of the cascade,
-      // which is exactly the failure the field exists to prevent.
+      // ⚠️ AT-REST PIN. This is the edge revocation cascades along, and a
+      // symmetric rename of the hand-maintained writer and reader stays green
+      // while every stored record loses its approver and drops out of the
+      // cascade.
       final v = EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey')
         ..parentEnrollmentId = 'approver-abc';
 
@@ -145,10 +141,10 @@ void main() {
 
     test('retrofitPredecessorEnrollmentId round-trips under its at-rest name',
         () {
-      // The replacement edge: what a retrofit's successor replaced. The
-      // once-off rule reads it to refuse a second retrofit, and the cap reads
-      // it to know whose expiry to put a clock on. A symmetric rename would
-      // let every stored successor be retrofitted again and cap nothing.
+      // ⚠️ AT-REST PIN. The once-off rule reads this to refuse a second
+      // retrofit and the cap reads it to know whose expiry to cap, so a
+      // symmetric rename would let every stored successor be retrofitted
+      // again and cap nothing.
       final v = EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey')
         ..retrofitPredecessorEnrollmentId = 'predecessor-abc';
 
@@ -173,11 +169,9 @@ void main() {
     });
 
     test('a stored record carrying revokedAt still decodes', () {
-      // Records written before the revocation history existed carry a
-      // `revokedAt` the class no longer has. `fromJson` reads named keys, so
-      // an unknown one is ignored — but that is a property of the
-      // hand-maintained decoder rather than of a generator, and the whole
-      // reason this file exists is that nothing regenerates it.
+      // ⚠️ AT-REST PIN on a field the class does not carry: stored records
+      // hold `revokedAt`, and the hand-maintained decoder must go on ignoring
+      // an unknown key rather than failing on one.
       final stored = <String, dynamic>{
         'sessionId': '123',
         'appName': 'testclient',

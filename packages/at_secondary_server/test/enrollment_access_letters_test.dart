@@ -13,18 +13,11 @@ import 'package:uuid/uuid.dart';
 import 'test_utils.dart';
 
 /// The access level on an enrollment grant is client-supplied JSON, stored
-/// verbatim and then read by every authorisation decision on the atSign.
-///
-/// It used to be compared exactly — `access == 'rw'` — at ten sites, while
-/// one site (the retrofit escalation check) read it as a set of letters. The
-/// two disagreed about the same string in the same request, and the
-/// disagreement was not symmetric: exact comparison fails CLOSED for the
-/// powers a grant confers, and fails OPEN for every question of the form "is
-/// this enrollment powerful enough that I need authority over it".
-///
-/// Both halves are pinned here: the letters are refused at intake so no new
-/// record can hold a spelling the server does not act on, and the records
-/// already on disk are read as letter sets so every site answers alike.
+/// verbatim and read by every authorisation decision on the atSign, so a
+/// spelling one reader treats differently from another gives one request two
+/// answers. These pin both rules that stop that: a spelling the server does
+/// not act on is refused at intake, and a stored grant is read as a set of
+/// letters everywhere.
 void main() {
   AtSignLogger.root_level = 'WARNING';
 
@@ -35,9 +28,8 @@ void main() {
       expect(EnrollmentAccess.allowsRead('rw'), isTrue);
       expect(EnrollmentAccess.allowsWrite('rw'), isTrue);
 
-      // The spelling that made the ten exact sites disagree with the one
-      // letter-set site. Whatever else is decided about it, every reader has
-      // to reach the SAME answer, which is the defect being closed.
+      // The spelling an exact comparison and a letter-set read disagree
+      // about. Every reader has to reach the same answer for it.
       expect(EnrollmentAccess.allowsRead('wr'), isTrue,
           reason: 'the escalation check already read wr as {r,w}; the other '
               'sites read it as neither, which is how one request got two '
@@ -47,7 +39,7 @@ void main() {
 
     test('an absent or empty grant confers nothing', () {
       // Load-bearing: an empty access level is how a caller reaching a
-      // __manage KEY is spelled, and it must not read as a grant.
+      // __manage key is spelled, and it must not read as a grant.
       expect(EnrollmentAccess.allowsRead(''), isFalse);
       expect(EnrollmentAccess.allowsWrite(''), isFalse);
       expect(EnrollmentAccess.allowsRead(null), isFalse);
@@ -55,9 +47,9 @@ void main() {
     });
 
     test('canonicalise accepts exactly the two wire spellings', () {
-      // A RAW-LITERAL pin: these two strings are a wire vocabulary that
-      // clients and every atServer implementation spell out, so an intended
-      // change edits this assertion.
+      // ⚠️ RAW-LITERAL PIN: these two spellings are a wire vocabulary every
+      // atServer implementation and its clients spell out, so an intended
+      // change edits this assertion and sweeps those.
       expect(EnrollmentAccess.canonicalise('r'), 'r');
       expect(EnrollmentAccess.canonicalise('rw'), 'rw');
 
@@ -85,7 +77,7 @@ void main() {
       inboundConnection.metaData
         ..isAuthenticated = true
         // A legacy connection: authenticated, carrying no enrollment id, and
-        // NOT the self-enrollment path — so a well-formed request on it
+        // NOT the self-enrollment path, so a well-formed request on it
         // succeeds and the positive control below means something.
         ..authType = AuthType.pkamLegacy
         ..sessionID = Uuid().v4();
@@ -138,10 +130,10 @@ void main() {
           ..namespaces = namespaces;
 
     test('a root spelled "wr" counts as a root', () {
-      // The fail-OPEN half, and the one that can strand an atSign. This feeds
-      // isUsableRootEnrollment and the guard that refuses to revoke an
-      // atSign's last root: reading it as "not a root" made that guard count
-      // zero roots and permit the revoke that leaves nobody able to enroll.
+      // This feeds isUsableRootEnrollment and the guard that refuses to
+      // revoke an atSign's last root, so reading the record as "not a root"
+      // lets that guard count zero roots and permit the revoke that leaves
+      // nobody able to enroll.
       expect(valueWith({'*': 'wr', '__manage': 'wr'}).isRootEnrollment, isTrue,
           reason: 'the last-root stranding guard has to see this record as '
               'the root its author meant it to be');
