@@ -2928,10 +2928,11 @@ void main() {
         return id;
       }
 
-      Future<void> runAs(String? callerId, String command) async {
+      Future<void> runAs(String? callerId, String command,
+          {AuthType authType = AuthType.apkam}) async {
         inboundConnection.metadata.isAuthenticated = true;
         castMetadata(inboundConnection).enrollmentId = callerId;
-        castMetadata(inboundConnection).authType = AuthType.apkam;
+        castMetadata(inboundConnection).authType = authType;
         final h = EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
         await h.processVerb(response, h.parse(command), inboundConnection);
       }
@@ -2979,10 +2980,36 @@ void main() {
                 'caller can ever demonstrate authority over');
       });
 
-      test('control: an owner connection may still act on it', () async {
+      test('control: a CRAM connection may still act on it', () async {
         final targetId = await anEmptyTarget(status: EnrollmentStatus.approved);
-        await runAs(null, 'enroll:revoke:{"enrollmentId":"$targetId"}');
+        await runAs(null, 'enroll:revoke:{"enrollmentId":"$targetId"}',
+            authType: AuthType.cram);
         expect(response.isError, false, reason: '${response.errorMessage}');
+      });
+
+      test('is not revocable by a legacy connection carrying primary',
+          () async {
+        final targetId = await anEmptyTarget(status: EnrollmentStatus.approved);
+        await expectLater(
+            () => runAs(EnrollmentManager.primaryEnrollmentId,
+                'enroll:revoke:{"enrollmentId":"$targetId"}',
+                authType: AuthType.pkamLegacy),
+            throwsA(isA<UnAuthorizedException>()),
+            reason: 'a legacy connection authenticates as an enrollment like '
+                'any other, so it is not the CRAM connection the exemption is '
+                'for and it cannot demonstrate authority over a target '
+                'holding no namespaces');
+      });
+
+      test('is not revocable by an APKAM connection naming no enrollment',
+          () async {
+        final targetId = await anEmptyTarget(status: EnrollmentStatus.approved);
+        await expectLater(
+            () => runAs(null, 'enroll:revoke:{"enrollmentId":"$targetId"}'),
+            throwsA(isA<UnAuthorizedException>()),
+            reason: 'the exemption is for a CRAM connection, so it must be '
+                'keyed on the auth type rather than inferred from a missing '
+                'enrollment id');
       });
     });
 

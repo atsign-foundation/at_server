@@ -619,8 +619,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     // NOTE a target holding NO namespaces passes the loop below vacuously,
     // so it is refused here; the self and CRAM clauses stay open.
     final String? callerIdForAuthz = inboundConnectionMetadata.enrollmentId;
-    if (callerIdForAuthz != null &&
-        callerIdForAuthz.isNotEmpty &&
+    if (!AbstractVerbHandler.isCramConnection(inboundConnectionMetadata) &&
         callerIdForAuthz != enId &&
         enVal!.namespaces.isEmpty) {
       throw UnAuthorizedException('Failed to $operation enrollment id: $enId.'
