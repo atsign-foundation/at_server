@@ -1,4 +1,19 @@
 # 3.16.4
+- ⚠️ BREAKING at rest: `parentEnrollmentId` means something else than it did
+  in released c3.16.x, and no migration can tell the two apart. Released
+  c3.16.x wrote the field on ONE path — a self-enrolment — and wrote the
+  SPAWNING enrollment into it. This build reads it as the APPROVER: a record
+  carrying it is cascaded to when the enrollment it names is revoked, and it
+  is never capped as a retrofit predecessor. A record written by c3.16.x is
+  therefore read as approved by the enrollment that spawned it, and nothing
+  in the record distinguishes it from one this build wrote. No released
+  client self-enrols, so the population that can hold such a record is
+  operators who drove the verb by hand.
+
+  Every enrollment record this build writes now carries `recordVersion` 1;
+  a record written before the field reads back as version 0. Nothing reads
+  it yet — it exists so the next change to the at-rest shape can migrate by
+  version rather than by guesswork. Owed on every atServer implementation.
 - ⚠️ BREAKING: `update:json` is held to the same bar as the plain `update`
   grammar. It was not a second spelling of the verb — it was the same keystore
   behind a different door, and the plain door's validation lived in two places
@@ -69,6 +84,14 @@
 
   WRITES only: onboarding deletes the CRAM secret once PKAM is established,
   and that stays a root enrollment's job.
+- ⚠️ BREAKING: a namespace-less `shared_key` is writable only by an
+  enrollment holding write access on at least one namespace; every approved
+  enrollment still READS one, but a read-only enrollment can no longer
+  update or delete `shared_key.<peer>@<atSign>` or
+  `@<peer>:shared_key@<atSign>`. A client creates the shared key for a
+  peer on its first read involving that peer if none exists, so a read-only
+  enrollment's first read against a peer nothing has been shared with now
+  fails at that write instead of returning nothing.
 - fix: the CRAM-secret tombstone records a deletion that happened. It was
   written at the top of the delete handler, before the authorisation check and
   before the removal was attempted, so any connection reaching the handler
@@ -133,9 +156,10 @@
   enrollment. `isAuthorizedSync` takes a `cram` argument. The CRAM auto-approve on `enroll:request` and the
   mandatory-namespace exemption are keyed the same way, so a socket whose
   CRAM authentication was followed by a failed `pkam:` is no longer CRAM
-  for either. `__manage` keys no longer sync to a legacy client either: that
-  connection carries `primary`, and `sync:from` is not one of the verbs a
-  `__manage` grant admits.
+  for either. `__manage` keys never sync to any client over any connection,
+  CRAM included, which the `sync:from` filter now states outright: it drops
+  every `__manage` entry ahead of the authorisation check. On trunk they
+  were kept out only by never entering the commit log.
 
 - feat: `enroll:fetch` and `enroll:list` report each enrollment's effective
   expiry as `expiresAt` — ISO-8601 UTC, or null when the record never
@@ -162,7 +186,9 @@
   plain or json, which is how the virtual environment installs an atSign's
   keypair — installs the value as `primary` instead, minting it or rotating
   it inside the enrollment-mutation section, subject to key uniqueness like
-  any `enroll:update`, and writes no flat key. CRAM alone admits it, in
+  any `enroll:update`, and writes no flat key; a revoked `primary` it
+  rotates is re-approved, the caller holding the atSign's creation secret.
+  CRAM alone admits it, in
   every mode: a CRAM holder is auto-approved a `*:rw` + `__manage:rw`
   enrollment on request, which is what `primary` holds, so the install
   grants it nothing it could not already give itself, and no harness that
@@ -236,8 +262,9 @@
   a retrofit, so a successor is a SIBLING of what it replaced. The
   replacement edge is read by the once-off rule, by the retrofit cap and by
   tooling looking for a whole sibling set; `enroll:list` exposes both.
-  Re-meaning the stored key is free: the previous meaning existed only on
-  canary tags, no canary atServer ever ran a retrofit, and neither
+  Re-meaning the stored key is not free — released c3.16.x wrote it on a
+  self-enrolment, as the spawning enrollment (see the at-rest entry at the
+  top of this release) — but it is unread outside the atServer: neither
   at_commons nor at_client_sdk reads any of the three fields.
 
 - refactor: the request path selects the retrofit branch, the
@@ -1002,7 +1029,11 @@
   before: the request branch checked that the connection was APKAM-
   authenticated, that the named enrollment existed and was approved, and that
   grants did not escalate, but never asked whether that enrollment had itself
-  replaced something.
+  replaced something. A non-root predecessor is refused for a second split
+  once its first successor has authenticated and capped it, since the clock
+  that cap started is what a later sibling would inherit; a sibling clone of
+  the keyfile enrols over an OTP instead, and a root, never being capped,
+  stays splittable.
 
   What made repetition costly is the key-expiry clock: each link restarts it,
   so an enrollment with a one-hour term could retrofit itself every
@@ -1048,6 +1079,11 @@
   ⚠️ The refusal message changes from 'At least one namespace must be specified
   for new client enroll:request' to 'At least one namespace must be specified
   for enroll:request', since it is no longer specific to a new client.
+- fix: the two remaining routes that could still land an enrollment holding no
+  namespaces are closed: a retrofit whose predecessor holds none is refused
+  rather than inheriting an empty grant map, and `enroll:approve` refuses such
+  a record outright rather than activating it from the self or CRAM connection
+  the authority gate exempts.
 - fix: an `enroll:update` landing concurrently with a revoke no longer undoes
   it. The handler read the enrollment, checked it was approved, then awaited an
   APKAM signature verification and a metadata read before writing the record
