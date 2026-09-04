@@ -177,5 +177,33 @@ void main() {
               'on the enrollment would disagree with it the moment an '
               'un-revoke landed');
     });
+
+    test('every record written carries recordVersion 1, and one written '
+        'before the field reads as version 0', () {
+      // ⚠️ AT-REST PIN on the raw field name and value: a later change to
+      // the at-rest shape migrates by this number.
+      final v = EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey');
+
+      expect(v.toJson()['recordVersion'], 1,
+          reason: 'raw literal: a record this build writes is version 1, '
+              'always present rather than omitted');
+      expect(v.toJsonExtended()['recordVersion'], 1);
+      expect(v.toJsonRoster()['recordVersion'], 1,
+          reason: 'an administrator reading the roster sees the shape the '
+              'record is stored in');
+      expect(EnrollDataStoreValue.fromJson(v.toJson()).recordVersion, 1);
+
+      final stored = <String, dynamic>{
+        'sessionId': '123',
+        'appName': 'testclient',
+        'deviceName': 'iphone',
+        'apkamPublicKey': 'mykey',
+        'namespaces': {'wavi': 'rw'},
+        'apkamKeysExpiryInMillis': 0,
+      };
+      expect(EnrollDataStoreValue.fromJson(stored).recordVersion, 0,
+          reason: 'a record written before the field existed is version 0, '
+              'which is what a migration keys on');
+    });
   });
 }

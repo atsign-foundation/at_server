@@ -17,6 +17,7 @@ EnrollDataStoreValue _$EnrollDataStoreValueFromJson(
       json['deviceName'] as String,
       json['apkamPublicKey'] as String,
     )
+      ..recordVersion = json['recordVersion'] as int? ?? 0
       ..namespaces = Map<String, String>.from(json['namespaces'] as Map)
       ..requestType =
           $enumDecodeNullable(_$EnrollRequestTypeEnumMap, json['requestType'])
@@ -41,6 +42,7 @@ EnrollDataStoreValue _$EnrollDataStoreValueFromJson(
 Map<String, dynamic> _$EnrollDataStoreValueToJson(
         EnrollDataStoreValue instance) =>
     <String, dynamic>{
+      'recordVersion': instance.recordVersion,
       'sessionId': instance.sessionId,
       'appName': instance.appName,
       'deviceName': instance.deviceName,

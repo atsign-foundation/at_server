@@ -69,6 +69,10 @@ class EnrollDataStoreValue {
   /// write, and re-armed by each sibling replacing the same predecessor.
   DateTime? predecessorCapArmedAt;
 
+  /// The at-rest shape of this record: 1 for every record this build writes,
+  /// 0 for one written before the field existed.
+  int recordVersion = 1;
+
   EnrollDataStoreValue(
       this.sessionId, this.appName, this.deviceName, this.apkamPublicKey);
 
@@ -101,6 +105,7 @@ class EnrollDataStoreValue {
   /// blanked, so a new field on the record is absent from this view until
   /// somebody adds it deliberately.
   Map<String, dynamic> toJsonRoster() => <String, dynamic>{
+        'recordVersion': recordVersion,
         'appName': appName,
         'deviceName': deviceName,
         'namespaces': namespaces,
