@@ -129,7 +129,11 @@
   connection's plain `update`, which is how the virtual environment installs
   an atSign's keypair — installs the value as `primary` instead, minting it
   or rotating it inside the enrollment-mutation section, subject to key
-  uniqueness like any `enroll:update`, and writes no flat key. The write
+  uniqueness like any `enroll:update`, and writes no flat key. The
+  virtual-environment image now runs every atServer with `testingMode` on
+  (`ENV testingMode=true` in its Dockerfiles), because every harness that
+  provisions the image through `pkamLoad` depends on that write, and only
+  this repository's own runners were passing the flag. The write
   ban itself is now ONE gate in `isAuthorized`, ahead of its null-id short
   circuit, so it decides for every connection on every route — `update`,
   `update:json`, `batch:` — and an enrollment refused it is told the ban's

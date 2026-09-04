@@ -306,9 +306,13 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// `UpdateVerbHandler` redirects the value into the `primary` enrollment,
   /// which is why the exception is for `update` and not for `update:meta`,
   /// a write with no value to redirect.
-  /// [AtSecondaryConfig.testingMode] is false in every shipped configuration,
+  /// [AtSecondaryConfig.testingMode] is false in the shipped `config.yaml`
   /// and false is also what every failure to read the setting answers, so a
   /// server that cannot read its config is not a server that permits this.
+  /// The virtual-environment image sets it true for every atServer it runs
+  /// (as the `testingMode` environment variable, in its Dockerfiles), which
+  /// is how every harness that provisions the image through `pkamLoad` gets
+  /// its keys installed.
   /// CRAM is named as well as the flag because the two say different things —
   /// the flag says this atSign is disposable, CRAM says the caller holds the
   /// secret the atSign was created with.
