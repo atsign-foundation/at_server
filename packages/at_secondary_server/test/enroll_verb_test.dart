@@ -3011,6 +3011,55 @@ void main() {
                 'keyed on the auth type rather than inferred from a missing '
                 'enrollment id');
       });
+
+      /// Every stored enrollment id against the state its record holds.
+      Future<Map<String, String?>> storedRoster() async {
+        return {
+          for (final (id, v) in await enMgr.storedEnrollments())
+            id: v.approval?.state
+        };
+      }
+
+      test('is not approvable, even from a CRAM connection', () async {
+        final targetId = await anEmptyTarget(status: EnrollmentStatus.pending);
+        final before = await storedRoster();
+        await expectLater(
+            () => runAs(
+                null,
+                'enroll:approve:{"enrollmentId":"$targetId",'
+                    '"encryptedDefaultEncryptionPrivateKey":"dummy_private",'
+                    '"encryptedDefaultSelfEncryptionKey":"dummy_self"}',
+                authType: AuthType.cram),
+            throwsA(isA<IllegalArgumentException>().having((e) => e.message,
+                'message', contains('It holds no namespaces'))),
+            reason: 'the CRAM exemption keeps such a record actionable, so '
+                'approve must refuse on its own or that route would activate '
+                'an enrollment granting nothing');
+        expect(await storedRoster(), before,
+            reason: 'the refusal is decided before the write, so the target '
+                'is still pending and nothing else was stored');
+      });
+
+      test('cannot be the predecessor of a self-enrollment', () async {
+        final predecessorId =
+            await anEmptyTarget(status: EnrollmentStatus.approved);
+        inboundConnection.metaData.sessionID = Uuid().v4();
+        final before = await storedRoster();
+        await expectLater(
+            () => runAs(
+                predecessorId,
+                'enroll:request:{"appName":"retrofit-app",'
+                    '"deviceName":"retrofit-device",'
+                    '"apkamPublicKey":"dummy_apkam_key-${Uuid().v4()}"}'),
+            throwsA(isA<UnAuthorizedException>().having((e) => e.message,
+                'message', contains('holds no namespaces'))),
+            reason: 'a self-enrollment carries exactly the grants of the '
+                'enrollment it replaces, so an empty predecessor would mint '
+                'an empty successor with no approver in the way');
+        expect(await storedRoster(), before,
+            reason: 'the refusal is decided before the write, so no successor '
+                'enrollment was stored');
+      });
     });
 
     /// `enroll:delete` destroys a record irreversibly, so it asks the caller

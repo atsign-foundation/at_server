@@ -402,11 +402,25 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         throw UnAuthorizedException(
             'Predecessor enrollment $predecessorId is not approved');
       }
+      if (predecessor.namespaces.isEmpty) {
+        throw UnAuthorizedException(
+            'Predecessor enrollment $predecessorId holds no namespaces, and a '
+            'replacement carries exactly the grants of the enrollment it '
+            'replaces, so it would hold none either');
+      }
       // A retrofit is a ONCE-OFF: one no-approver migration per device.
       if (predecessor.retrofitPredecessorEnrollmentId != null) {
         throw UnAuthorizedException(
             'Enrollment $predecessorId is itself a replacement, and a '
             'replacement may not be replaced without an approver');
+      }
+      if (!predecessor.isRootEnrollment &&
+          await _retrofitCapAlreadyArmed(enMgr, predecessorId)) {
+        throw UnAuthorizedException(
+            'Enrollment $predecessorId has already been replaced, and its '
+            'replacement has authenticated; a second split is not allowed '
+            'once the first successor has authenticated. A sibling clone of '
+            'this keyfile enrols over an OTP');
       }
       // Escalation first, so a request naming MORE keeps its own diagnosis.
       verifyNoEscalation(predecessor.namespaces, enrollNamespaces);
@@ -614,6 +628,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     } on IllegalStateException catch (e) {
       throw IllegalStateException(
           'Failed to $operation enrollment id: $enId. ${e.message}');
+    }
+    if (operation == 'approve' && enVal!.namespaces.isEmpty) {
+      throw IllegalArgumentException(
+          'Failed to approve enrollment id: $enId. It holds no namespaces, '
+          'and an approved enrollment granting nothing must not exist');
     }
 
     // NOTE a target holding NO namespaces passes the loop below vacuously,
@@ -1314,6 +1333,24 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   static bool carriesEnrollment(InboundConnectionMetadata md) {
     final String? id = md.enrollmentId;
     return md.isAuthenticated && id != null && id.isNotEmpty;
+  }
+
+  /// Whether a retrofit of [predecessorId] has already capped it: a stored
+  /// enrollment naming it as the one it replaced, whose cap is armed.
+  Future<bool> _retrofitCapAlreadyArmed(
+      EnrollmentManager enMgr, String predecessorId) async {
+    final String canonical =
+        EnrollmentManager.canonicalEnrollmentId(predecessorId);
+    for (final (_, EnrollDataStoreValue existing)
+        in await enMgr.storedEnrollments()) {
+      if (existing.predecessorCapArmedAt == null) continue;
+      if (EnrollmentManager.canonicalEnrollmentIdOrNull(
+              existing.retrofitPredecessorEnrollmentId) ==
+          canonical) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /// Refuses a request whose (appName, deviceName) an approved or pending

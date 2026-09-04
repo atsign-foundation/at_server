@@ -298,6 +298,10 @@ void main() {
     final predecessorId = (await etu.createEnrollments(n: 1)).$1.first;
     final (firstId, firstKey) = await retrofitWithRealKey(predecessorId,
         appName: 'sib1', deviceName: 'sib1-device');
+    // NOTE both siblings enrol before either authenticates: once the first
+    // has capped the predecessor, the predecessor no longer splits.
+    final (secondId, secondKey) = await retrofitWithRealKey(predecessorId,
+        appName: 'sib2', deviceName: 'sib2-device');
     await authenticateAs(firstId, firstKey, sessionId: 'sib1-session');
 
     final key = enMgr.buildEnrollmentKey(predecessorId);
@@ -305,8 +309,6 @@ void main() {
     aged!.metaData!.ttl = 60000;
     await enMgr.put(predecessorId, aged, EnrollmentStatus.approved);
 
-    final (secondId, secondKey) = await retrofitWithRealKey(predecessorId,
-        appName: 'sib2', deviceName: 'sib2-device');
     await authenticateAs(secondId, secondKey, sessionId: 'sib2-session');
 
     final graceMillis =
@@ -932,9 +934,55 @@ void main() {
             appName: 'sibling-app-$i',
             deviceName: 'sibling-dev-$i');
         expect(r.isError, false,
-            reason: 'sibling $i must still be able to retrofit the root: '
+            reason: 'sibling $i must still be able to retrofit the root, no '
+                'successor having authenticated and capped it yet: '
                 '${r.errorMessage}');
       }
+    });
+
+    test('a predecessor its first successor has capped is not split again',
+        () async {
+      final predecessorId = (await etu.createEnrollments(n: 1)).$1.first;
+      final (firstId, firstKey) = await retrofitWithRealKey(predecessorId,
+          appName: 'capped-app', deviceName: 'capped-dev');
+      await authenticateAs(firstId, firstKey, sessionId: 'capped-session');
+      expect((await enMgr.getEnrollmentById(firstId)).predecessorCapArmedAt,
+          isNotNull,
+          reason: 'precondition: the first successor has authenticated, and '
+              'the cap it armed is what the refusal reads');
+
+      await expectLater(
+          () => selfEnroll(
+              predecessorId: predecessorId,
+              appName: 'capped-app-2',
+              deviceName: 'capped-dev-2'),
+          throwsA(isA<UnAuthorizedException>().having((e) => e.message,
+              'message', contains('a second split is not allowed'))),
+          reason: 'the predecessor is on a clock nothing takes it off, so a '
+              'successor minted now inherits a life measured in hours; a '
+              'sibling clone of the keyfile enrols over an OTP instead');
+    });
+
+    test('a ROOT predecessor is split again after its first successor '
+        'authenticates', () async {
+      final rootId = etu.primaryEnId;
+      final (firstId, firstKey) = await retrofitWithRealKey(rootId,
+          appName: 'root-split-app', deviceName: 'root-split-dev');
+      await authenticateAs(firstId, firstKey,
+          sessionId: 'root-split-session');
+      expect((await enMgr.getEnrollmentById(firstId)).predecessorCapArmedAt,
+          isNotNull,
+          reason: 'precondition: the successor has authenticated and settled '
+              'what it replaced');
+
+      final r = await selfEnroll(
+          predecessorId: rootId,
+          appName: 'root-split-app-2',
+          deviceName: 'root-split-dev-2');
+
+      expect(r.isError, false,
+          reason: 'a root is never capped, so it keeps its life and stays '
+              'splittable: ${r.errorMessage}');
     });
   });
 
