@@ -562,6 +562,69 @@ void main() {
 
 
     for (final key in [
+      'shared_key.bob@alice',
+      '@bob:shared_key@alice',
+    ]) {
+      test('a read-only enrollment CAN read $key', () async {
+        await bindEnrollment({'wavi': 'r'});
+        await keyValueStore.put(key, AtData()..data = 'encryptedvalue');
+        await localLookupVerbHandler.process('llookup:$key', inboundConnection);
+        expect(inboundConnection.lastWrittenData, contains('encryptedvalue'),
+            reason: 'reads of $key stay open to every approved enrollment');
+      });
+
+      test('a read-only enrollment cannot update $key', () async {
+        await bindEnrollment({'wavi': 'r'});
+        await keyValueStore.put(key, AtData()..data = 'GENUINE');
+        await expectLater(
+            updateVerbHandler.process('update:$key FORGED', inboundConnection),
+            throwsA(isA<UnAuthorizedException>()),
+            reason: 'an enrollment holding no write access anywhere must not '
+                'overwrite $key');
+        final stored = await keyValueStore.get(key);
+        expect(stored?.data, 'GENUINE',
+            reason: 'the refused update must leave $key untouched');
+      });
+
+      test('a read-only enrollment cannot delete $key', () async {
+        await bindEnrollment({'wavi': 'r'});
+        await keyValueStore.put(key, AtData()..data = 'GENUINE');
+        await expectLater(
+            deleteVerbHandler.process('delete:$key', inboundConnection),
+            throwsA(isA<UnAuthorizedException>()),
+            reason: 'an enrollment holding no write access anywhere must not '
+                'delete $key');
+        expect(await keyValueStore.exists(key), isTrue,
+            reason: 'the refused delete must leave $key in the keystore');
+      });
+
+      test('a wavi:rw enrollment CAN update and delete $key', () async {
+        await bindScoped();
+        await keyValueStore.put(key, AtData()..data = 'GENUINE');
+        await updateVerbHandler.process(
+            'update:$key ROTATED', inboundConnection);
+        expect((await keyValueStore.get(key))?.data, 'ROTATED',
+            reason: 'write access on any namespace admits a write of $key');
+        await deleteVerbHandler.process('delete:$key', inboundConnection);
+        expect(await keyValueStore.exists(key), isFalse,
+            reason: 'write access on any namespace admits a delete of $key');
+      });
+
+      test('a *:rw enrollment CAN update and delete $key', () async {
+        await bindWildcard();
+        await keyValueStore.put(key, AtData()..data = 'GENUINE');
+        await updateVerbHandler.process(
+            'update:$key ROTATED', inboundConnection);
+        expect((await keyValueStore.get(key))?.data, 'ROTATED',
+            reason: 'a wildcard grant admits a write of $key');
+        await deleteVerbHandler.process('delete:$key', inboundConnection);
+        expect(await keyValueStore.exists(key), isFalse,
+            reason: 'a wildcard grant admits a delete of $key');
+      });
+    }
+
+
+    for (final key in [
       'x.shared_key.bob@alice',
       'evilshared_key.zz@alice',
       '@charlie:secret.shared_key.evil@alice',

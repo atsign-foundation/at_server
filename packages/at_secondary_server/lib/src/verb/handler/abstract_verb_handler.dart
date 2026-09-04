@@ -465,9 +465,9 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// is safe to interpolate more than once.
   static const String _atSignBody = Regexes.ownershipFragmentWithoutAtPrefix;
 
-  /// Namespace-less keys that any approved enrollment may read and write: the
-  /// two encryption shared-key forms a client writes the first time it shares
-  /// with another atSign.
+  /// The two encryption shared-key forms a client writes the first time it
+  /// shares with another atSign: readable by any approved enrollment, and
+  /// writable by one holding write access on at least one namespace.
   static final RegExp _rootSharedKeyRegex = RegExp(
       '^(?:@$_atSignBody:shared_key|shared_key\\.$_atSignBody)@$_atSignBody\$',
       caseSensitive: false);
@@ -545,6 +545,10 @@ abstract class AbstractVerbHandler implements VerbHandler {
     final String key = canonicalAtKey(atKey);
 
     if (_rootSharedKeyRegex.hasMatch(key)) {
+      if (isMutatingVerb()) {
+        return enrollDataStoreValue.namespaces.values
+            .any(EnrollmentAccess.allowsWrite);
+      }
       return true;
     }
     if (_cachedKeyMaterialRegex.hasMatch(key)) {
