@@ -53,6 +53,28 @@ void main() async {
               'block, which is what the rigs and the shipped config.yaml set');
     });
 
+    test('Config: testingMode reads a quoted "true" as on', () async {
+      final YamlMap? saved = AtSecondaryConfig.configYamlMap;
+      addTearDown(() => AtSecondaryConfig.configYamlMap = saved);
+      AtSecondaryConfig.configYamlMap =
+          loadYaml('testing:\n  testingMode: "true"') as YamlMap;
+      expect(AtSecondaryConfig.testingMode, isTrue,
+          reason: 'a quoted setting is what an operator writes and what an '
+              'environment-substituted config.yaml produces, so it must be '
+              'read rather than thrown on');
+    });
+
+    test('Config: testingMode reads a yaml `yes` as off', () async {
+      final YamlMap? saved = AtSecondaryConfig.configYamlMap;
+      addTearDown(() => AtSecondaryConfig.configYamlMap = saved);
+      AtSecondaryConfig.configYamlMap =
+          loadYaml('testing:\n  testingMode: yes') as YamlMap;
+      expect(AtSecondaryConfig.testingMode, isFalse,
+          reason: 'anything that is not `true` leaves the protections on, and '
+              'a server that cannot read its setting must not throw on every '
+              'call that asks');
+    });
+
     test(
         'Config: check new AtSignLoggers have level set correctly, via setting AtSignLogger.root_level from a string config setting',
         () async {

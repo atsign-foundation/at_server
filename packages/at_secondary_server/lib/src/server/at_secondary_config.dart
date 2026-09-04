@@ -520,8 +520,9 @@ class AtSecondaryConfig {
   @visibleForTesting
   static bool? testingModeOverride;
 
-  /// Whether this server is running as a test fixture; anything other than
-  /// `true` in env or yaml answers false.
+  /// Whether this server is running as a test fixture; only a bool `true` or
+  /// the string `true` in env or yaml answers true, and anything else,
+  /// including an unparseable setting, answers false.
   static bool get testingMode {
     if (testingModeOverride != null) {
       return testingModeOverride!;
@@ -530,11 +531,16 @@ class AtSecondaryConfig {
     if (result != null) {
       return result;
     }
+    final dynamic configured;
     try {
-      return getConfigFromYaml(['testing', 'testingMode']);
+      configured = getConfigFromYaml(['testing', 'testingMode']);
     } on ElementNotFoundException {
       return _testingMode;
     }
+    if (configured is bool) {
+      return configured;
+    }
+    return configured is String && configured.trim().toLowerCase() == 'true';
   }
 
   static String get trustedCertificateLocation {

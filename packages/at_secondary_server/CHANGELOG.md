@@ -133,7 +133,9 @@
   enrollment. `isAuthorizedSync` takes a `cram` argument. The CRAM auto-approve on `enroll:request` and the
   mandatory-namespace exemption are keyed the same way, so a socket whose
   CRAM authentication was followed by a failed `pkam:` is no longer CRAM
-  for either.
+  for either. `__manage` keys no longer sync to a legacy client either: that
+  connection carries `primary`, and `sync:from` is not one of the verbs a
+  `__manage` grant admits.
 
 - feat: `enroll:fetch` and `enroll:list` report each enrollment's effective
   expiry as `expiresAt` — ISO-8601 UTC, or null when the record never
@@ -156,8 +158,8 @@
   copy of a root's key, which is what stops the key licensing its own
   removal; an empty value at the flat key's address is cleared too.
 
-  The one admitted write of the flat key — a CRAM connection's plain
-  `update`, which is how the virtual environment installs an atSign's
+  The one admitted write of the flat key — a CRAM connection's `update`,
+  plain or json, which is how the virtual environment installs an atSign's
   keypair — installs the value as `primary` instead, minting it or rotating
   it inside the enrollment-mutation section, subject to key uniqueness like
   any `enroll:update`, and writes no flat key. CRAM alone admits it, in
@@ -530,8 +532,9 @@
   still be there to authenticate as afterwards.
 
 - ⚠️ BREAKING: NO connection may write `privatekey:at_pkam_publickey`. The one
-  exception is a CRAM connection's plain `update`, in every mode, which is how
-  a test fixture installs the first keypair against a throwaway atSign; even
+  exception is a CRAM connection's `update`, plain or json, in every mode,
+  which is how a test fixture installs the first keypair against a throwaway
+  atSign; even
   that write lands in the `primary` enrollment, never at the flat key.
 
   It is the one key whose value MINTS AN IDENTITY rather than serving one: a
@@ -602,8 +605,8 @@
   no claim to approve, revoke or delete an administrator has none to read its
   record either. This is not what keeps the enrollment's encrypted APKAM
   symmetric key from a read-only administrator, and should not be mistaken for
-  it — `enroll:list` is unaffected and still returns that field, for every
-  enrollment on the atSign, to any caller holding `__manage` at all.
+  it — `enroll:list` is unaffected, and a caller holding `__manage:r` gets the
+  roster, which carries no key material at all.
 
   An approver holding `__manage:r` may still admit an enrollment asking for
   `__manage:r`, and reaching a `__manage` key is unaffected.
@@ -793,9 +796,11 @@
 
   ⚠️ Forward-only. The approver is recorded from this release, so every
   enrollment already on disk carries none and can never be cascaded to —
-  nothing recorded who approved it. Enrollments approved over an OWNER
-  connection (CRAM or legacy-PKAM) carry none either, deliberately: there is
-  no enrollment there to revoke.
+  nothing recorded who approved it. Enrollments approved over a CRAM
+  connection carry none either, deliberately: a CRAM connection stands over no
+  record, so there is no enrollment there to revoke. One approved over a
+  legacy `pkam:` connection carries `primary`, which is the record that
+  connection stands over, and a revoke of `primary` reaches it.
 
   A revoke response now carries `cascadedEnrollmentIds` — the ids the cascade
   took — and only when the cascade took something, so an ordinary revoke

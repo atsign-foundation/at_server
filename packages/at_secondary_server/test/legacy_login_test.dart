@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:at_chops/at_chops.dart' show MlDsa65PureDartAlgo;
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
@@ -48,16 +50,19 @@ void main() {
       skipCommit: true);
 
   /// A legacy `pkam:` on a fresh connection, signed with [pair] (the legacy
-  /// keypair by default), naming no enrollment id.
-  Future<Response> legacyLogin(String sessionId, {dynamic pair}) async {
+  /// keypair by default), naming no enrollment id. [connection] defaults to
+  /// the shared one.
+  Future<Response> legacyLogin(String sessionId,
+      {dynamic pair, DummyInboundConnection? connection}) async {
     pair ??= legacyPair;
+    final DummyInboundConnection conn = connection ?? inboundConnection;
     const challenge = 'a-per-connection-challenge';
     await keyValueStore.put(
         'private:$sessionId$alice', AtData()..data = challenge);
     final signature = await MlDsa65PureDartAlgo().signBytes(
         Uint8List.fromList(utf8.encode('$sessionId$alice:$challenge')),
         secretKey: pair.secretKey);
-    inboundConnection.metaData
+    conn.metaData
       ..isAuthenticated = false
       ..authType = null
       ..enrollmentId = null
@@ -68,7 +73,7 @@ void main() {
         r,
         getVerbParam(VerbSyntax.pkam,
             'pkam:signingAlgo:mldsa65:${base64Encode(signature)}'),
-        inboundConnection,
+        conn,
       );
     } on AtException catch (e) {
       r.isError = true;
@@ -170,15 +175,41 @@ void main() {
 
     test('two concurrent first logins mint primary once', () async {
       await installFlatKey();
+      final one = DummyInboundConnection();
+      final two = DummyInboundConnection();
 
-      final results = await Future.wait([
-        legacyLogin('race-one'),
-        legacyLogin('race-two'),
-      ]);
+      final gate = Completer<void>();
+      final holder = enMgr.serialiseMutation(() => gate.future);
+      final logins = [
+        legacyLogin('race-one', connection: one),
+        legacyLogin('race-two', connection: two),
+      ];
+      await Future<void>.delayed(Duration(milliseconds: 100));
 
+      final mintedDuringHold = await enMgr.primaryEnrollment();
+      final flatKeyDuringHold =
+          await keyValueStore.exists(AtConstants.atPkamPublicKey);
+
+      gate.complete();
+      final results = await Future.wait(logins);
+      await holder;
+
+      expect(mintedDuringHold, isNull,
+          reason: 'both logins verified their signature outside the section '
+              'and must be parked at the admission, which is the '
+              'read-decide-write that mints primary');
+      expect(flatKeyDuringHold, isTrue,
+          reason: 'and neither absorbed the flat key while the section was '
+              'held');
       expect(results.map((r) => r.data), ['success', 'success'],
           reason: 'the login that waited on the section finds no flat key '
               'and verifies against the record the other wrote');
+      expect(one.metaData.enrollmentId, primary,
+          reason: 'both connections are admitted as primary, not just the '
+              'login that happened to mint the record');
+      expect(two.metaData.enrollmentId, primary,
+          reason: 'both connections are admitted as primary, not just the '
+              'login that happened to mint the record');
       expect(await keyValueStore.exists(AtConstants.atPkamPublicKey), isFalse);
       expect((await enMgr.getEnrollmentById(primary)).apkamPublicKey,
           legacyPublicKey);

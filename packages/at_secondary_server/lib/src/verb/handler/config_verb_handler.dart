@@ -21,11 +21,13 @@ import 'package:at_commons/at_commons.dart';
 ///   config:block:show //shows blocklist
 /// ```
 /// 2. config:set:name=value to change config parameters while server is running.
-/// `config:set` requires the server to be in testing mode
+/// `config:set` requires the connection to be authorised for the `__config`
+/// namespace
 /// 3. config:reset:name to reset config parameters back to defaults while server is running.
-/// `config:reset` requires the server to be in testing mode
+/// `config:reset` requires the connection to be authorised for the `__config`
+/// namespace
 /// 4. config:print:name to return the current values for the various configurable parameters.
-/// `config:print` requires the server to be in testing mode
+/// `config:print` is answered on any connection that reaches this handler
 ///
 class ConfigVerbHandler extends AbstractVerbHandler {
   static Config config = Config();
@@ -63,7 +65,8 @@ class ConfigVerbHandler extends AbstractVerbHandler {
       // config:block governs who may connect to this atSign, which is an
       // atSign-level privilege rather than a namespace-scoped one, so it
       // requires a root enrollment: read-write on '*' and on '__manage'.
-      // Connections with no enrollment id are unaffected.
+      // A CRAM connection holds that privilege; a connection carrying no
+      // enrollment id at all is refused.
       final metadata = atConnection.metaData as InboundConnectionMetadata;
       if (!await isRootPrivilegedConnection(metadata)) {
         throw UnAuthorizedException(

@@ -144,10 +144,10 @@ class OtpVerbHandler extends AbstractVerbHandler {
     return result;
   }
 
-  /// Whether the connection holds access to the `__manage` namespace — required
-  /// for enrollment-management operations (issuing an OTP via `otp:get`, storing
-  /// a semi-permanent passcode via `otp:put`). A connection with no enrollmentId
-  /// (CRAM / owner) is authorized, preserving the initial-enrollment bootstrap.
+  /// Whether the connection holds access to the `__manage` namespace, which
+  /// `otp:get` and `otp:put` require: a CRAM connection always does, any
+  /// other connection is judged on the enrollment it carries, and a
+  /// connection carrying none is refused.
   Future<bool> _hasManageNamespaceAccess(
       InboundConnectionMetadata atConnectionMetadata) async {
     return super.isAuthorized(atConnectionMetadata,

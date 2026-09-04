@@ -2602,6 +2602,59 @@ void main() {
           reason: 'revoking the root still reaches it, because the link the '
               'walk climbs through is the successor and the successor is live');
     });
+
+    test('re-parenting a child leaves the child own expiry where it was',
+        () async {
+      final middleId = await etu.createPendingEnrollment(
+          appName: 'middle-keeps-child-expiry',
+          deviceName: 'device',
+          namespaces: {'__manage': 'rw', 'wavi': 'rw'},
+          apkamKeysExpiryDuration: null);
+      await etu.approveEnrollment(etu.primaryEnId, middleId);
+
+      final childId = await etu.createPendingEnrollment(
+          appName: 'child-with-an-hour',
+          deviceName: 'device',
+          namespaces: {'wavi': 'rw'},
+          apkamKeysExpiryDuration: Duration(hours: 1));
+      await etu.approveEnrollment(middleId, childId);
+
+      final String childKey = enMgr.buildEnrollmentKey(childId);
+      // NOTE the stored expiry is pulled in ahead of the hour its retained ttl
+      // would re-derive, which is what a cap on the child leaves behind.
+      final DateTime shortened =
+          DateTime.now().toUtc().add(Duration(minutes: 5));
+      await enMgr.put(
+          childId, (await keyValueStore.get(childKey))!,
+          EnrollmentStatus.approved,
+          assertedTimestamps: AtAssertedTimestamps(expiresAt: shortened));
+      final DateTime? before =
+          (await keyValueStore.get(childKey))?.metaData?.expiresAt;
+      expect(before, isNotNull,
+          reason: 'precondition: the child carries a bounded expiry for the '
+              're-parenting to move');
+      expect(before!.isBefore(DateTime.now().toUtc().add(Duration(minutes: 30))),
+          isTrue,
+          reason: 'precondition: the stored expiry sits well inside the hour '
+              'the retained ttl would re-derive');
+
+      final r = await selfEnroll(
+          predecessorId: middleId,
+          appName: 'middle-keeps-child-expiry',
+          deviceName: 'device');
+      expect(r.isError, false, reason: '${r.errorMessage}');
+      final successorId = jsonDecode(r.data!)['enrollmentId'] as String;
+
+      await enMgr.armRetrofitCapOnFirstAuth(successorId);
+
+      expect(await enMgr.descendantsOf(successorId), contains(childId),
+          reason: 'precondition: the child really was re-parented, so the '
+              'write under test happened');
+      expect((await keyValueStore.get(childKey))?.metaData?.expiresAt, before,
+          reason: 're-parenting rewrote the child record and let its expiry '
+              'be re-derived, so a child with an hour left gained or lost '
+              'time it was never granted');
+    });
   });
   // The stored roster versus the visible one. `getKeys` filters out records
   // whose ttl has elapsed but which the sweep has not yet removed; `get` and

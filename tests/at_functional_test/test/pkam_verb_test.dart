@@ -31,11 +31,10 @@ void main() {
   ///
   /// The plain `update` form, because the server no longer asks a writer to
   /// prove anything about the value: it refuses the write outright unless the
-  /// connection is CRAM-authenticated AND the server is running with
-  /// testingMode on, which the virtual environment this pack talks to is.
-  /// That is the only way this key can be written at all — it is the
-  /// credential legacy PKAM authenticates against, it carries no enrollment
-  /// id, and nothing can withdraw it once it is installed.
+  /// connection is CRAM-authenticated, in every mode. That is the only way
+  /// this key can be written at all — it is the credential legacy PKAM
+  /// authenticates against, it carries no enrollment id, and nothing can
+  /// withdraw it once it is installed.
   String rotationCommand(String publicKey) =>
       'update:${AtConstants.atPkamPublicKey} $publicKey';
 
@@ -91,10 +90,10 @@ void main() {
     eccAlgo.privateKey = eccPrivateKey;
 
     // CRAM, not PKAM. Installing this key is refused to every connection
-    // except a CRAM one on a server running with testingMode on, so the
-    // rotation this test needs cannot be made over the PKAM connection that
-    // used to make it — authenticating with the key being replaced no longer
-    // buys the right to replace it.
+    // except a CRAM one, in every mode, so the rotation this test needs
+    // cannot be made over the PKAM connection that used to make it —
+    // authenticating with the key being replaced no longer buys the right to
+    // replace it.
     await authenticateWithCram();
 
     final String eccPublicKey = eccPrivateKey.publicKey.toString();

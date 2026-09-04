@@ -179,7 +179,10 @@ void main() {
       return successor;
     }
 
-    test('the store cannot end up disagreeing with the answer given',
+    // NOTE this arm stays green with the critical section removed: nothing in
+    // a test can park the arming between its read and its write, so what it
+    // pins is the outcome, not the serialisation.
+    test('run together, the store holds the revoke the verb answered',
         () async {
       final successor = await lostUpdateArrangement();
 
