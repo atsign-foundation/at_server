@@ -227,7 +227,8 @@ class SimpleOutboundSocketConnection extends SimpleOutboundConnection {
     response = response.replaceAll('data:', '');
     String pkamDigest = await generatePKAMDigest(atSign, response);
 
-    await writeCommand('pkam:$pkamDigest', log: false);
+    await writeCommand(pkamCommand(pkamDigest, await enrollmentIdOf(atSign)),
+        log: false);
     response = await read(timeoutMillis: 5000);
     print('pkam verb response $response');
     assert(response.contains('data:success'));
@@ -303,7 +304,8 @@ class SimpleOutboundWebsocketConnection extends SimpleOutboundConnection {
     response = response.replaceAll('data:', '');
     String pkamDigest = await generatePKAMDigest(atSign, response);
 
-    await writeCommand('pkam:$pkamDigest', log: false);
+    await writeCommand(pkamCommand(pkamDigest, await enrollmentIdOf(atSign)),
+        log: false);
     response = await read(timeoutMillis: 5000);
     print('pkam verb response $response');
     assert(response.contains('data:success'));

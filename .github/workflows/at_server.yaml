@@ -487,12 +487,6 @@ jobs:
         working-directory: ${{ env.e2etest-working-directory }}
         run: dart pub get
 
-      - name: Cloning at_tools
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: atsign-foundation/at_tools
-          path: at_tools
-          ref: trunk
 
       - name: Fetch Cram Keys
         id: cram_keys
@@ -603,13 +597,6 @@ jobs:
           tar -xvf sshnp-linux-x64.tgz sshnp/at_activate
           sshnp/at_activate -a @$AT_SIGN_1 -c $CRAM_KEY_1 -r root.atsign.wtf
           sshnp/at_activate -a @$AT_SIGN_2 -c $CRAM_KEY_2 -r root.atsign.wtf
-
-      - name: Generate the at_demo_data.dart
-        run: |
-          cd at_tools/packages/at_dump_atKeys/
-          dart pub get
-          dart bin/generate_at_demo_data.dart -d /home/runner/.atsign/keys/ -p pkam   
-          cp at_demo_data.dart ../../../${{ env.e2etest-working-directory }}/test
 
       - name: End-to-end test
         working-directory: ${{ env.e2etest-working-directory }}
