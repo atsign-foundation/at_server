@@ -179,7 +179,7 @@ void main() {
             'here and nowhere else, and starting a clock on the predecessor — '
             'by then the only credential that still works — on the strength '
             'of a record only this server has seen is exactly the hazard');
-    expect(successor.predecessorCapArmedAt, isNull,
+    expect(successor.predecessorSettledAt, isNull,
         reason: 'and the successor records that it has armed nothing yet');
   });
 
@@ -946,7 +946,7 @@ void main() {
       final (firstId, firstKey) = await retrofitWithRealKey(predecessorId,
           appName: 'capped-app', deviceName: 'capped-dev');
       await authenticateAs(firstId, firstKey, sessionId: 'capped-session');
-      expect((await enMgr.getEnrollmentById(firstId)).predecessorCapArmedAt,
+      expect((await enMgr.getEnrollmentById(firstId)).predecessorSettledAt,
           isNotNull,
           reason: 'precondition: the first successor has authenticated, and '
               'the cap it armed is what the refusal reads');
@@ -970,7 +970,7 @@ void main() {
           appName: 'root-split-app', deviceName: 'root-split-dev');
       await authenticateAs(firstId, firstKey,
           sessionId: 'root-split-session');
-      expect((await enMgr.getEnrollmentById(firstId)).predecessorCapArmedAt,
+      expect((await enMgr.getEnrollmentById(firstId)).predecessorSettledAt,
           isNotNull,
           reason: 'precondition: the successor has authenticated and settled '
               'what it replaced');
@@ -2284,7 +2284,7 @@ void main() {
           reason: 'the arming is wired into the production PKAM path rather '
               'than merely implemented on EnrollmentManager — a mechanism '
               'nothing calls is not delivered');
-      expect((await enMgr.getEnrollmentById(successorId)).predecessorCapArmedAt,
+      expect((await enMgr.getEnrollmentById(successorId)).predecessorSettledAt,
           isNotNull,
           reason: 'and the successor records that it armed');
     });
@@ -2299,7 +2299,7 @@ void main() {
       expect((await keyValueStore.get(k))?.metaData?.expiresAt, isNotNull,
           reason: 'control: the first authentication did arm it');
       final armedAt =
-          (await enMgr.getEnrollmentById(successorId)).predecessorCapArmedAt;
+          (await enMgr.getEnrollmentById(successorId)).predecessorSettledAt;
 
       final aged = await keyValueStore.get(k);
       aged!.metaData!.ttl = 60000;
@@ -2312,7 +2312,7 @@ void main() {
           reason: 'a successor authenticates on every reconnect. Arming on '
               'each one would rewrite a full grace period onto the '
               'predecessor forever and it would never retire at all');
-      expect((await enMgr.getEnrollmentById(successorId)).predecessorCapArmedAt,
+      expect((await enMgr.getEnrollmentById(successorId)).predecessorSettledAt,
           armedAt,
           reason: 'the stamp records the FIRST arming and does not move');
     });
@@ -2377,7 +2377,7 @@ void main() {
               ?.state,
           EnrollmentStatus.revoked.name,
           reason: 'and it stays revoked');
-      expect((await enMgr.getEnrollmentById(successorId)).predecessorCapArmedAt,
+      expect((await enMgr.getEnrollmentById(successorId)).predecessorSettledAt,
           isNull,
           reason: 'and nothing is recorded as armed, because nothing was: an '
               'unrevoke restores an ordinary predecessor and the decision has '
@@ -2412,7 +2412,7 @@ void main() {
             isNull,
             reason: 'a root is never put on the retrofit cap');
         expect(
-            (await enMgr.getEnrollmentById(successorId)).predecessorCapArmedAt,
+            (await enMgr.getEnrollmentById(successorId)).predecessorSettledAt,
             isNotNull,
             reason: 'settled all the same: the stamp is what stops every later '
                 'authentication re-asking, and what records that the '
@@ -2526,7 +2526,7 @@ void main() {
       await authenticateAs(successorId, successorKey,
           sessionId: 'late-decline');
 
-      expect((await enMgr.getEnrollmentById(successorId)).predecessorCapArmedAt,
+      expect((await enMgr.getEnrollmentById(successorId)).predecessorSettledAt,
           isNull,
           reason: 'the cap did not happen, so the stamp saying it did must not '
               'stand — otherwise the early exit short-circuits every later '
@@ -2545,7 +2545,7 @@ void main() {
       await enMgr.put(predecessorId, atData, EnrollmentStatus.revoked);
 
       await authenticateAs(successorId, successorKey, sessionId: 'declined-1');
-      expect((await enMgr.getEnrollmentById(successorId)).predecessorCapArmedAt,
+      expect((await enMgr.getEnrollmentById(successorId)).predecessorSettledAt,
           isNull,
           reason: 'nothing was armed, so nothing is recorded as armed — the '
               'successor must ask again rather than carry a stale verdict');
@@ -2560,7 +2560,7 @@ void main() {
       expect((await keyValueStore.get(key))?.metaData?.expiresAt, isNotNull,
           reason: 'and once the condition clears it arms, rather than staying '
               'exempt for the life of the atSign');
-      expect((await enMgr.getEnrollmentById(successorId)).predecessorCapArmedAt,
+      expect((await enMgr.getEnrollmentById(successorId)).predecessorSettledAt,
           isNotNull);
     });
 
@@ -2584,7 +2584,7 @@ void main() {
       await enMgr.remove(enId: predecessorId);
       await enMgr.armRetrofitCapOnFirstAuth(successorId);
 
-      expect((await enMgr.getEnrollmentById(successorId)).predecessorCapArmedAt,
+      expect((await enMgr.getEnrollmentById(successorId)).predecessorSettledAt,
           isNotNull,
           reason: 'stamped even with nothing to cap, or every later '
               'connection re-walks the lookup for a predecessor that is '

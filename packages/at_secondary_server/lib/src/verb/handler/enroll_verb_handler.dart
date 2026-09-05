@@ -1343,7 +1343,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         EnrollmentManager.canonicalEnrollmentId(predecessorId);
     for (final (_, EnrollDataStoreValue existing)
         in await enMgr.storedEnrollments()) {
-      if (existing.predecessorCapArmedAt == null) continue;
+      if (existing.predecessorSettledAt == null) continue;
       if (EnrollmentManager.canonicalEnrollmentIdOrNull(
               existing.retrofitPredecessorEnrollmentId) ==
           canonical) {

@@ -1131,10 +1131,12 @@
   a stale snapshot. The keystore has no compare-and-set, so on its own this
   narrowed the window rather than closing it; the enrollment-mutation critical
   section described above is what closes it.
-- `enroll:list` responses carry a new `predecessorCapArmedAt` field on an
-  enrollment that has retired the one it replaced: the UTC instant it did so.
-  Absent on every other enrollment, and on any record written before this
-  release.
+- `enroll:list` responses carry a new `predecessorSettledAt` field on an
+  enrollment that has settled the one it replaced: the UTC instant it did
+  so. Absent on every other enrollment, and on any record written before
+  this release. A record stamped by a pre-release build of this version
+  under the name `predecessorCapArmedAt` reads back as settled and is
+  written back under the current name.
 - `apkamSelfEnrollmentGraceHours` is now documented in `config.yaml` with its
   720-hour default. It was already read from there and from the environment;
   it governs every enrollment now that the first-enrollment exemption is gone,

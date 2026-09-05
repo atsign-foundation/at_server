@@ -1165,7 +1165,7 @@ class EnrollmentManager {
     return revoked;
   }
 
-  /// Takes back a `predecessorCapArmedAt` stamp whose cap did not happen,
+  /// Takes back a `predecessorSettledAt` stamp whose cap did not happen,
   /// best-effort and inside [serialiseMutation].
   Future<void> _clearCapStamp(String successorEnrollmentId, String key) async {
     try {
@@ -1173,11 +1173,11 @@ class EnrollmentManager {
       final String? raw = atData?.data;
       if (atData == null || raw == null) return;
       final value = EnrollDataStoreValue.fromJson(jsonDecode(raw));
-      if (value.predecessorCapArmedAt == null) return;
+      if (value.predecessorSettledAt == null) return;
       final status =
           EnrollmentStatus.values.asNameMap()[value.approval?.state ?? ''];
       if (status == null) return;
-      value.predecessorCapArmedAt = null;
+      value.predecessorSettledAt = null;
       atData.data = jsonEncode(value.toJson());
       final storedExpiry = atData.metaData?.expiresAt;
       await put(successorEnrollmentId, atData, status,
@@ -1248,7 +1248,7 @@ class EnrollmentManager {
       final EnrollDataStoreValue cached =
           await getEnrollmentById(successorEnrollmentId);
       if (cached.retrofitPredecessorEnrollmentId == null) return;
-      if (cached.predecessorCapArmedAt != null) return;
+      if (cached.predecessorSettledAt != null) return;
     } catch (e) {
       logger.warning('Could not decide whether to arm the retrofit cap for '
           '$successorEnrollmentId: $e');
@@ -1265,7 +1265,7 @@ class EnrollmentManager {
           await getEnrollmentById(successorEnrollmentId);
       final predecessorId = cached.retrofitPredecessorEnrollmentId;
       if (predecessorId == null) return;
-      if (cached.predecessorCapArmedAt != null) return;
+      if (cached.predecessorSettledAt != null) return;
 
       final key = buildEnrollmentKey(successorEnrollmentId);
 
@@ -1308,9 +1308,9 @@ class EnrollmentManager {
       final successor = EnrollDataStoreValue.fromJson(jsonDecode(raw));
       // NOTE this uncached re-test is what makes "first" hold; the cached
       // checks at the entry point are only a fast path.
-      if (successor.predecessorCapArmedAt != null) return;
+      if (successor.predecessorSettledAt != null) return;
 
-      successor.predecessorCapArmedAt = DateTime.now().toUtc();
+      successor.predecessorSettledAt = DateTime.now().toUtc();
       atData.data = jsonEncode(successor.toJson());
       // NOTE the successor's own expiry must not move.
       final storedExpiry = atData.metaData?.expiresAt;

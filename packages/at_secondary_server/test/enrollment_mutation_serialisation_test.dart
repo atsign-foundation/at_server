@@ -275,7 +275,7 @@ void main() {
       await Future<void>.delayed(Duration(milliseconds: 100));
 
       final armedDuringHold =
-          (await enMgr.getEnrollmentById(successor)).predecessorCapArmedAt;
+          (await enMgr.getEnrollmentById(successor)).predecessorSettledAt;
       final cappedDuringHold = await expiryOf(predecessor);
       final approverDuringHold = await approverOf(child);
 
@@ -295,7 +295,7 @@ void main() {
           reason: 'and all three land once the section is free — otherwise '
               'this would be measuring an arming that simply never ran');
       expect(
-          (await enMgr.getEnrollmentById(successor)).predecessorCapArmedAt,
+          (await enMgr.getEnrollmentById(successor)).predecessorSettledAt,
           isNotNull);
       expect(await expiryOf(predecessor), isNotNull);
     });

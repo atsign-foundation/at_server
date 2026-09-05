@@ -82,28 +82,45 @@ void main() {
       expect(EnrollDataStoreValue.fromJson(withBare.toJson()).apskLegacy, bare);
     });
 
-    test('predecessorCapArmedAt round-trips under its at-rest name', () {
+    test('predecessorSettledAt round-trips under its at-rest name', () {
       // ⚠️ AT-REST PIN on the raw field name; frozen for stored records.
       final armedAt = DateTime.utc(2026, 8, 31, 12, 34, 56, 789);
       final v = EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey')
-        ..predecessorCapArmedAt = armedAt;
+        ..predecessorSettledAt = armedAt;
 
-      expect(v.toJson()['predecessorCapArmedAt'], '2026-08-31T12:34:56.789Z',
+      expect(v.toJson()['predecessorSettledAt'], '2026-08-31T12:34:56.789Z',
           reason: 'raw literal: the key name and the ISO-8601 encoding are '
               'what a record written by an earlier server is read back '
               'through');
-      expect(EnrollDataStoreValue.fromJson(v.toJson()).predecessorCapArmedAt,
+      expect(EnrollDataStoreValue.fromJson(v.toJson()).predecessorSettledAt,
           armedAt);
 
       final unarmed =
           EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey');
-      expect(unarmed.toJson().containsKey('predecessorCapArmedAt'), false,
+      expect(unarmed.toJson().containsKey('predecessorSettledAt'), false,
           reason: 'omitted rather than written null, so a record from before '
               'this field existed reads back as "never armed"');
       expect(
           EnrollDataStoreValue.fromJson(unarmed.toJson())
-              .predecessorCapArmedAt,
+              .predecessorSettledAt,
           isNull);
+    });
+
+    test('a record stamped under the former name predecessorCapArmedAt reads '
+        'back as settled', () {
+      // ⚠️ AT-REST PIN: the former name is frozen for records already stored.
+      final v = EnrollDataStoreValue('123', 'testclient', 'iphone', 'mykey');
+      final json = v.toJson()
+        ..['predecessorCapArmedAt'] = '2026-08-31T12:34:56.789Z';
+
+      expect(EnrollDataStoreValue.fromJson(json).predecessorSettledAt,
+          DateTime.utc(2026, 8, 31, 12, 34, 56, 789),
+          reason: 'a successor stamped by an earlier build must not read back '
+              'as unsettled, or it settles its predecessor a second time');
+      expect(
+          EnrollDataStoreValue.fromJson(json).toJson().keys,
+          isNot(contains('predecessorCapArmedAt')),
+          reason: 'and it is written back under the current name only');
     });
 
     test('parentEnrollmentId round-trips under its at-rest name', () {

@@ -611,17 +611,17 @@ void main() {
       String successorId = await selfEnrollId(predecessorId);
 
       expect((await enrollmentRecord(owner, successorId)).value,
-          isNot(contains('predecessorCapArmedAt')),
+          isNot(contains('predecessorSettledAt')),
           reason: 'absent until it arms, so an unarmed successor is '
               'distinguishable from an armed one at rest');
 
       await authenticateAsEnrollment(successorId);
 
       final armed = (await enrollmentRecord(owner, successorId)).value;
-      expect(armed['predecessorCapArmedAt'], isA<String>(),
+      expect(armed['predecessorSettledAt'], isA<String>(),
           reason: 'the at-rest key name and its ISO-8601 encoding are what a '
               'record written by an earlier server is read back through');
-      expect(DateTime.parse(armed['predecessorCapArmedAt']).isUtc, isTrue);
+      expect(DateTime.parse(armed['predecessorSettledAt']).isUtc, isTrue);
     });
 
     test('revoking an enrollment does not restart its expiry either',
