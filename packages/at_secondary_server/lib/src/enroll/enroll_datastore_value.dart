@@ -60,14 +60,9 @@ class EnrollDataStoreValue {
   /// it.
   String? retrofitPredecessorEnrollmentId;
 
-  /// When this enrollment settled what it replaced: the predecessor's
-  /// approval children moved onto this one, and the predecessor was put on the
-  /// retrofit cap unless it holds full privilege. Null while that is still
-  /// open.
-  ///
-  /// Stamped by the successor's FIRST PKAM authentication rather than by the
-  /// write, and re-armed by each sibling replacing the same predecessor.
-  DateTime? predecessorCapArmedAt;
+  /// When this enrollment settled what it replaced, at its first PKAM
+  /// authentication; null while that is still open.
+  DateTime? predecessorSettledAt;
 
   /// The at-rest shape of this record: 1 for every record this build writes,
   /// 0 for one written before the field existed.
@@ -120,8 +115,8 @@ class EnrollDataStoreValue {
           'parentEnrollmentId': parentEnrollmentId,
         if (retrofitPredecessorEnrollmentId != null)
           'retrofitPredecessorEnrollmentId': retrofitPredecessorEnrollmentId,
-        if (predecessorCapArmedAt != null)
-          'predecessorCapArmedAt': predecessorCapArmedAt!.toIso8601String(),
+        if (predecessorSettledAt != null)
+          'predecessorSettledAt': predecessorSettledAt!.toIso8601String(),
       };
 }
 

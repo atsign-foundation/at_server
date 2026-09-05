@@ -5,6 +5,10 @@ enum EnrollmentRevocationEventType {
 
   /// A revocation was withdrawn: the enrollment went back to approved.
   unrevoked,
+
+  /// The enrollment became revoked because the one that replaced it in a
+  /// retrofit authenticated for the first time.
+  superseded,
 }
 
 /// One moment an enrollment's revocation state changed.
@@ -21,7 +25,8 @@ class EnrollmentRevocationEvent {
   final Map<String, String> namespaces;
 
   /// The enrollment on the connection that issued the command, or null when
-  /// the connection carried no enrollment id, a CRAM connection.
+  /// the connection carried no enrollment id, a CRAM connection; for a
+  /// supersession, the successor.
   final String? byEnrollmentId;
 
   /// The enrollment the command NAMED when this event is a consequence of
@@ -41,12 +46,10 @@ class EnrollmentRevocationEvent {
   /// including an event kind it does not know.
   factory EnrollmentRevocationEvent.fromJson(Map<String, dynamic> json) {
     final Object? kind = json['event'];
-    final EnrollmentRevocationEventType type;
-    if (kind == EnrollmentRevocationEventType.revoked.name) {
-      type = EnrollmentRevocationEventType.revoked;
-    } else if (kind == EnrollmentRevocationEventType.unrevoked.name) {
-      type = EnrollmentRevocationEventType.unrevoked;
-    } else {
+    final EnrollmentRevocationEventType? type = kind is String
+        ? EnrollmentRevocationEventType.values.asNameMap()[kind]
+        : null;
+    if (type == null) {
       throw FormatException('unknown revocation event kind: $kind');
     }
     final Object? enrollmentId = json['enrollmentId'];

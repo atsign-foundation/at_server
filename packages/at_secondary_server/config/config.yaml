@@ -215,12 +215,3 @@ enrollment:
   # If the duration between the last received invalid OTP and the current date-time
   # exceeds the delayIntervalThreshold, trigger a reset to the default value.
   delayIntervalThreshold: 55
-  # How long a superseded enrollment keeps working after the enrollment that
-  # replaced it first authenticates. A retrofit (an APKAM self-enrollment)
-  # replaces the credential it authenticated as; the replaced one is capped
-  # rather than deleted, so sibling clones of the same keyfile can still
-  # upgrade until the cap elapses. The cap re-arms on each sibling, so the
-  # window runs from the LAST upgrade, and it never extends an enrollment past
-  # the expiry its own apkamKeysExpiryInMillis posture already imposes.
-  # Default: 720 (30 days)
-  apkamSelfEnrollmentGraceHours: 720

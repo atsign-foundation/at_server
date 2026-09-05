@@ -12,7 +12,6 @@ import 'package:at_secondary/src/verb/handler/pkam_verb_handler.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/enroll/enrollment_revocation_event.dart';
-import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:test/test.dart';
@@ -44,6 +43,12 @@ void main() {
 
   /// Issues `enroll:request` on an APKAM-authenticated connection carrying
   /// [predecessorId], with no OTP.
+  Future<String?> stateOf(String id) async => EnrollDataStoreValue.fromJson(
+          jsonDecode((await keyValueStore.get(enMgr.buildEnrollmentKey(id)))!
+              .data!))
+      .approval
+      ?.state;
+
   Future<Response> selfEnroll({
     required String predecessorId,
     Map<String, String>? namespaces,
@@ -158,9 +163,9 @@ void main() {
     expect(successor.approval?.state, EnrollmentStatus.approved.name);
     expect(successor.retrofitPredecessorEnrollmentId, predecessorId,
         reason: 'the successor records what it replaced, which is what the '
-            'retrofit cap reads to know whose expiry to put a clock on. NOT '
-            'for revocation: that follows the approver the successor '
-            'inherits, never this edge');
+            'settlement reads to know what to revoke. NOT for revocation by '
+            'cascade: that follows the approver the successor inherits, '
+            'never this edge');
     expect(successor.namespaces.containsKey('__manage'), isFalse,
         reason: 'auto-approve must NOT carry the CRAM branch\'s __manage/* '
             'grant — that grant is what makes CRAM the atSign\'s root, and a '
@@ -170,17 +175,18 @@ void main() {
     final predecessorAfter = await enMgr.getEnrollmentById(predecessorId);
     expect(predecessorAfter.approval?.state, EnrollmentStatus.approved.name,
         reason: 'sibling clones of the same keyfile still authenticate as the '
-            'predecessor until the cap elapses');
+            'predecessor until a successor does');
     final predecessorData =
         await keyValueStore.get(enMgr.buildEnrollmentKey(predecessorId));
     expect(predecessorData?.metaData?.expiresAt, isNull,
-        reason: 'the cap is armed by the successor\'s first authentication, '
-            'not by storing it. A successor whose keyfile write failed exists '
-            'here and nowhere else, and starting a clock on the predecessor — '
-            'by then the only credential that still works — on the strength '
-            'of a record only this server has seen is exactly the hazard');
-    expect(successor.predecessorCapArmedAt, isNull,
-        reason: 'and the successor records that it has armed nothing yet');
+        reason: 'the predecessor is settled by the successor\'s first '
+            'authentication, not by storing it. A successor whose keyfile '
+            'write failed exists here and nowhere else, and revoking the '
+            'predecessor, by then the only credential that still works, on '
+            'the strength of a record only this server has seen is exactly '
+            'the hazard');
+    expect(successor.predecessorSettledAt, isNull,
+        reason: 'and the successor records that it has settled nothing yet');
   });
 
   test('escalation is refused: a namespace the predecessor does not hold', () async {
@@ -228,7 +234,7 @@ void main() {
         reason: 'a retrofit replaces its predecessor, so it carries those '
             'grants exactly — __manage included, which is what leaves the '
             'atSign able to approve a replacement once the predecessor is '
-            'capped');
+            'revoked');
   });
 
   test('naming a subset of a wildcard predecessor is refused', () async {
@@ -293,64 +299,32 @@ void main() {
   });
 
   test(
-      'the cap re-arms on each sibling\'s first authentication rather than '
-      'keeping the first deadline', () async {
+      'siblings that both enrolled before either authenticated settle the same '
+      'predecessor: the first revokes it, the second finds it revoked',
+      () async {
     final predecessorId = (await etu.createEnrollments(n: 1)).$1.first;
     final (firstId, firstKey) = await retrofitWithRealKey(predecessorId,
         appName: 'sib1', deviceName: 'sib1-device');
-    // NOTE both siblings enrol before either authenticates: once the first
-    // has capped the predecessor, the predecessor no longer splits.
     final (secondId, secondKey) = await retrofitWithRealKey(predecessorId,
         appName: 'sib2', deviceName: 'sib2-device');
-    await authenticateAs(firstId, firstKey, sessionId: 'sib1-session');
 
-    final key = enMgr.buildEnrollmentKey(predecessorId);
-    final aged = await keyValueStore.get(key);
-    aged!.metaData!.ttl = 60000;
-    await enMgr.put(predecessorId, aged, EnrollmentStatus.approved);
+    await authenticateAs(firstId, firstKey, sessionId: 'sib1-session');
+    expect(await stateOf(predecessorId), EnrollmentStatus.revoked.name,
+        reason: 'the first sibling to authenticate supersedes the predecessor');
 
     await authenticateAs(secondId, secondKey, sessionId: 'sib2-session');
-
-    final graceMillis =
-        Duration(hours: AtSecondaryConfig.apkamSelfEnrollmentGraceHours)
-            .inMilliseconds;
-    final ttl = (await keyValueStore.get(key))!.metaData!.ttl!;
-    expect(ttl, greaterThan(60000),
-        reason: 'a min-fold against the previously capped ttl keeps the '
-            'first sibling\'s deadline and strands every later one — the cap '
-            'must re-arm to a full grace period from the moment the newest '
-            'sibling proves itself');
-    expect(ttl, lessThanOrEqualTo(graceMillis));
-  });
-
-  test(
-      'the cap never extends past the expiry the predecessor\'s own posture '
-      'imposes', () async {
-    final predecessorId = (await etu.createEnrollments(n: 1)).$1.first;
-    final key = enMgr.buildEnrollmentKey(predecessorId);
-    final atData = await keyValueStore.get(key);
-    final value = EnrollDataStoreValue.fromJson(jsonDecode(atData!.data!));
-    value.apkamKeysExpiryDuration = Duration(hours: 1);
-    atData.data = jsonEncode(value.toJson());
-    atData.metaData!.ttl = Duration(hours: 1).inMilliseconds;
-    await enMgr.put(predecessorId, atData, EnrollmentStatus.approved);
-
-    // NOTE the successor must authenticate, or no cap is armed at all.
-    final (successorId, successorKey) = await retrofitWithRealKey(predecessorId);
-    await authenticateAs(successorId, successorKey, sessionId: 'posture-session');
-
-    final ttl = (await keyValueStore.get(key))!.metaData!.ttl!;
-    expect(ttl, greaterThan(0),
-        reason: 'control: a cap was actually written, so the bound below is '
-            'measuring the fold and not an uncapped record');
-    expect(ttl, lessThanOrEqualTo(Duration(hours: 1).inMilliseconds),
-        reason: 'the re-arm applies only within the enrollment\'s own '
-            'key-expiry posture — a 1h apkamKeysExpiryDuration must not '
-            'become a 30-day grace');
-    expect(ttl, greaterThan(Duration(minutes: 55).inMilliseconds),
-        reason: 'and it is the posture\'s REMAINING life, not an arbitrary '
-            'smaller number: an upper bound alone is satisfied by any '
-            'mistake that shortens the cap, including writing 1ms');
+    expect((await enMgr.getEnrollmentById(secondId)).predecessorSettledAt,
+        isNotNull,
+        reason: 'the second is settled too, or every later authentication '
+            're-asks the question');
+    final supersessions = (await enMgr.revocationEvents())
+        .where((e) =>
+            e.enrollmentId == predecessorId &&
+            e.type == EnrollmentRevocationEventType.superseded)
+        .toList();
+    expect(supersessions.map((e) => e.byEnrollmentId), [firstId],
+        reason: 'one supersession, by the sibling that revoked it; the '
+            'second found it revoked and wrote none');
   });
 
   test('the successor record expires per the posture it inherited', () async {
@@ -776,7 +750,7 @@ void main() {
           reason: 'whoever admitted the predecessor admitted this');
       expect(successor.retrofitPredecessorEnrollmentId, predecessorId,
           reason: 'control: the replacement edge is still recorded, because '
-              'the retrofit cap needs to know what it replaced');
+              'the settlement needs to know what it replaced');
     });
 
     test('revoking a predecessor does NOT revoke what replaced it', () async {
@@ -935,32 +909,59 @@ void main() {
             deviceName: 'sibling-dev-$i');
         expect(r.isError, false,
             reason: 'sibling $i must still be able to retrofit the root, no '
-                'successor having authenticated and capped it yet: '
+                'successor having authenticated and settled it yet: '
                 '${r.errorMessage}');
       }
     });
 
-    test('a predecessor its first successor has capped is not split again',
+    test('a predecessor its first successor has settled is not split again',
         () async {
       final predecessorId = (await etu.createEnrollments(n: 1)).$1.first;
       final (firstId, firstKey) = await retrofitWithRealKey(predecessorId,
-          appName: 'capped-app', deviceName: 'capped-dev');
-      await authenticateAs(firstId, firstKey, sessionId: 'capped-session');
-      expect((await enMgr.getEnrollmentById(firstId)).predecessorCapArmedAt,
+          appName: 'settled-app', deviceName: 'settled-dev');
+      await authenticateAs(firstId, firstKey, sessionId: 'settled-session');
+      expect((await enMgr.getEnrollmentById(firstId)).predecessorSettledAt,
           isNotNull,
           reason: 'precondition: the first successor has authenticated, and '
-              'the cap it armed is what the refusal reads');
+              'the settlement it recorded is what the refusal reads');
 
       await expectLater(
           () => selfEnroll(
               predecessorId: predecessorId,
-              appName: 'capped-app-2',
-              deviceName: 'capped-dev-2'),
+              appName: 'settled-app-2',
+              deviceName: 'settled-dev-2'),
           throwsA(isA<UnAuthorizedException>().having((e) => e.message,
-              'message', contains('a second split is not allowed'))),
-          reason: 'the predecessor is on a clock nothing takes it off, so a '
-              'successor minted now inherits a life measured in hours; a '
-              'sibling clone of the keyfile enrols over an OTP instead');
+              'message', contains('a second replacement is not allowed'))),
+          reason: 'a superseded predecessor is revoked, and stays settled '
+              'even if un-revoked; a sibling clone of the keyfile enrols '
+              'over an OTP instead');
+    });
+
+    test('an un-revoked predecessor is still not split again', () async {
+      final predecessorId = (await etu.createEnrollments(n: 1)).$1.first;
+      final (firstId, firstKey) = await retrofitWithRealKey(predecessorId,
+          appName: 'revived-app', deviceName: 'revived-dev');
+      await authenticateAs(firstId, firstKey, sessionId: 'revived-session');
+      expect(await stateOf(predecessorId), EnrollmentStatus.revoked.name,
+          reason: 'precondition: superseded');
+
+      final k = enMgr.buildEnrollmentKey(predecessorId);
+      final revived = (await keyValueStore.get(k))!;
+      final value = EnrollDataStoreValue.fromJson(jsonDecode(revived.data!))
+        ..approval = EnrollApproval(EnrollmentStatus.approved.name);
+      revived.data = jsonEncode(value.toJson());
+      await enMgr.put(predecessorId, revived, EnrollmentStatus.approved);
+
+      await expectLater(
+          () => selfEnroll(
+              predecessorId: predecessorId,
+              appName: 'revived-app-2',
+              deviceName: 'revived-dev-2'),
+          throwsA(isA<UnAuthorizedException>().having((e) => e.message,
+              'message', contains('a second replacement is not allowed'))),
+          reason: 'an un-revoke restores the credential, not the once-off '
+              'migration it has already spent; the approval check alone would '
+              'let it through');
     });
 
     test('a ROOT predecessor is split again after its first successor '
@@ -970,7 +971,7 @@ void main() {
           appName: 'root-split-app', deviceName: 'root-split-dev');
       await authenticateAs(firstId, firstKey,
           sessionId: 'root-split-session');
-      expect((await enMgr.getEnrollmentById(firstId)).predecessorCapArmedAt,
+      expect((await enMgr.getEnrollmentById(firstId)).predecessorSettledAt,
           isNotNull,
           reason: 'precondition: the successor has authenticated and settled '
               'what it replaced');
@@ -981,106 +982,8 @@ void main() {
           deviceName: 'root-split-dev-2');
 
       expect(r.isError, false,
-          reason: 'a root is never capped, so it keeps its life and stays '
-              'splittable: ${r.errorMessage}');
-    });
-  });
-
-  group('the retrofit cap fold', () {
-    final now = DateTime.utc(2026, 1, 1, 12);
-    final graceMs =
-        Duration(hours: AtSecondaryConfig.apkamSelfEnrollmentGraceHours)
-            .inMilliseconds;
-
-    EnrollDataStoreValue withPosture(Duration d) =>
-        EnrollDataStoreValue('s', 'app', 'device', 'pk')
-          ..apkamKeysExpiryDuration = d;
-
-    test('a record that never expires is bounded only by the grace', () {
-      expect(
-          enMgr.retrofitCapTtlMillis(
-              AtMetaData()..createdAt = now, withPosture(Duration.zero), now),
-          graceMs);
-      expect(enMgr.retrofitCapTtlMillis(null, withPosture(Duration.zero), now),
-          graceMs,
-          reason: 'and a record with no metadata at all is the same case');
-    });
-
-    test('a POSTURE with no stored expiry does not bound anything', () {
-      expect(
-          enMgr.retrofitCapTtlMillis(
-              AtMetaData()..createdAt = now.subtract(Duration(days: 60)),
-              withPosture(Duration(days: 7)),
-              now),
-          graceMs,
-          reason: 'the record stores no expiry, so it does not expire, and '
-              'only the migration grace bounds the cap');
-    });
-
-    test('a stored expiry sooner than the grace wins', () {
-      expect(
-          enMgr.retrofitCapTtlMillis(
-              AtMetaData()
-                ..createdAt = now.subtract(Duration(minutes: 10))
-                ..expiresAt = now.add(Duration(minutes: 50)),
-              withPosture(Duration(hours: 1)),
-              now),
-          Duration(minutes: 50).inMilliseconds,
-          reason: 'the cap may never outlive the expiry the enrollment '
-              'already carries');
-    });
-
-    test('a stored expiry later than the grace does not extend it', () {
-      expect(
-          enMgr.retrofitCapTtlMillis(
-              AtMetaData()
-                ..createdAt = now
-                ..expiresAt = now.add(Duration(days: 3650)),
-              withPosture(Duration(days: 3650)),
-              now),
-          graceMs,
-          reason: 'the fold is a min, not a max');
-    });
-
-    test('an elapsed expiry is floored at 1ms, never at zero', () {
-      expect(
-          enMgr.retrofitCapTtlMillis(
-              AtMetaData()
-                ..createdAt = now.subtract(Duration(hours: 5))
-                ..expiresAt = now.subtract(Duration(hours: 4)),
-              withPosture(Duration(hours: 1)),
-              now),
-          1,
-          reason: 'a ttl of zero is the keystore\'s "never expires", so an '
-              'elapsed record must not be written as 0 — that would turn a '
-              'spent credential into a permanent one');
-    });
-
-    test('the deadline is taken from approval, not from creation', () {
-      expect(
-          enMgr.retrofitCapTtlMillis(
-              AtMetaData()
-                ..createdAt = now.subtract(Duration(hours: 8))
-                ..expiresAt = now.add(Duration(hours: 7)),
-              withPosture(Duration(hours: 1)),
-              now),
-          Duration(hours: 7).inMilliseconds,
-          reason: 'createdAt + posture is 7 hours in the PAST here; the '
-              'stored expiry is what the record actually carries');
-    });
-
-    test('an expiry already shortened by a previous cap does not bound the '
-        're-arm', () {
-      expect(
-          enMgr.retrofitCapTtlMillis(
-              AtMetaData()
-                ..createdAt = now.subtract(Duration(minutes: 10))
-                ..expiresAt = now.add(Duration(minutes: 1)),
-              withPosture(Duration(hours: 1)),
-              now),
-          Duration(minutes: 50).inMilliseconds,
-          reason: 'a previously written cap is not the posture: the posture '
-              'still has 50 minutes to run, and the re-arm may use them');
+          reason: 'a root is never revoked as a predecessor, so it keeps its '
+              'life and stays splittable: ${r.errorMessage}');
     });
   });
 
@@ -1470,7 +1373,8 @@ void main() {
               'enrollment part-way up no longer severs the chain');
     });
 
-    test('a retrofit cap re-parents a child whose ttl has elapsed', () async {
+    test('settling a predecessor re-parents a child whose ttl has elapsed',
+        () async {
       await mintApprovedBy('rp-predecessor', etu.primaryEnId);
       await mintApprovedBy('rp-child', 'rp-predecessor',
           ttl: Duration(milliseconds: 1));
@@ -1491,31 +1395,11 @@ void main() {
       expect(r.isError, false, reason: '${r.errorMessage}');
       final String successor = jsonDecode(r.data!)['enrollmentId'] as String;
 
-      await enMgr.armRetrofitCapOnFirstAuth(successor);
+      await enMgr.settlePredecessorOnFirstAuth(successor);
 
       expect(await approverIdOf('rp-child'), successor,
           reason: 'the successor stands where its predecessor stood, and the '
-              'predecessor is now on a clock — a child left naming it is '
-              'orphaned the moment that clock runs out');
-    });
-
-    test('capping refuses on a record that is no longer approved', () async {
-      await mintUnder('cap-target', null);
-      final stale = await enMgr.getEnrollmentById('cap-target');
-      expect(stale.approval?.state, EnrollmentStatus.approved.name,
-          reason: 'precondition: the snapshot says approved');
-
-      await revoke(etu.primaryEnId, 'cap-target');
-      final key = enMgr.buildEnrollmentKey('cap-target');
-      final before = (await keyValueStore.get(key))?.metaData?.expiresAt;
-
-      await enMgr.capEnrollmentExpiry('cap-target');
-
-      expect((await keyValueStore.get(key))?.metaData?.expiresAt, before,
-          reason: 'the cap must read the status off the record it just read, '
-              'not off the caller\'s snapshot, and must not write at all once '
-              'the record is no longer approved');
-      expect(await statusOf('cap-target'), EnrollmentStatus.revoked.name);
+              'predecessor is revoked; a child left naming it is orphaned');
     });
 
     test('a revoke whose cascade would remove the caller is refused', () async {
@@ -1844,8 +1728,7 @@ void main() {
           reason: 'a revoke says nothing about expiry, and the metadata '
               'builder re-derives it from the retained ttl unless the stored '
               'value is asserted back — so a cascade would hand every '
-              'enrollment it revoked a fresh full lifetime, and restart any '
-              'retrofit cap standing on it');
+              'enrollment it revoked a fresh full lifetime');
     });
 
     /// The revocation history: one record per moment an enrollment's
@@ -1860,6 +1743,30 @@ void main() {
         // Control: the log does not record every enrollment operation.
         await etu.createEnrollments(n: 1);
         expect(await enMgr.revocationEvents(), isEmpty);
+      });
+
+      test('a supersession writes one event of its own kind, by the '
+          'successor, with no cascade', () async {
+        final predecessorId = (await etu.createEnrollments(n: 1)).$1.first;
+        final grants = Map<String, String>.from(
+            (await enMgr.getEnrollmentById(predecessorId)).namespaces);
+        final (successorId, key) = await retrofitWithRealKey(predecessorId);
+        final before = DateTime.now().toUtc();
+
+        await authenticateAs(successorId, key, sessionId: 'supersede-log');
+
+        final events = await eventsFor(predecessorId);
+        expect(events, hasLength(1),
+            reason: 'one event for the supersession, and no plain revoke '
+                'beside it');
+        final e = events.single;
+        expect(e.type, EnrollmentRevocationEventType.superseded,
+            reason: 'the history says what happened, not that the successor '
+                'revoked its predecessor by name');
+        expect(e.byEnrollmentId, successorId);
+        expect(e.cascadedFrom, isNull);
+        expect(e.namespaces, grants);
+        expect(e.at.isBefore(before), isFalse);
       });
 
       test('a revoke writes one event, naming who did it and what it held',
@@ -2017,13 +1924,33 @@ void main() {
         return jsonDecode(r.data!) as Map<String, dynamic>;
       }
 
+      test('a supersession counts as a revocation of what the predecessor '
+          'held', () async {
+        final predecessorId = (await etu.createEnrollments(n: 1)).$1.first;
+        final namespace =
+            (await enMgr.getEnrollmentById(predecessorId)).namespaces.keys.first;
+        expect(await enMgr.lastRevocationForNamespace(namespace), isNull,
+            reason: 'control: nothing holding $namespace has been revoked yet');
+        final (successorId, key) = await retrofitWithRealKey(predecessorId);
+
+        await authenticateAs(successorId, key, sessionId: 'supersede-infons');
+
+        final supersededAt = (await enMgr.revocationEvents())
+            .singleWhere((e) => e.enrollmentId == predecessorId)
+            .at;
+        expect(await enMgr.lastRevocationForNamespace(namespace), supersededAt,
+            reason: 'a superseded credential stopped holding $namespace at '
+                'that moment, and a client reading infons must learn it; an '
+                'event kind read as a withdrawal would hide it');
+      });
+
       /// The moment the LOG says [id] was revoked, read straight off the
       /// stored event rather than through the derivation under test.
       Future<DateTime> soleRevocationOf(String id) async {
         final es = (await enMgr.revocationEvents())
             .where((e) =>
                 e.enrollmentId == id &&
-                e.type == EnrollmentRevocationEventType.revoked)
+                e.type != EnrollmentRevocationEventType.unrevoked)
             .toList();
         expect(es, hasLength(1),
             reason: 'meaningful only for an enrollment revoked exactly once');
@@ -2251,80 +2178,74 @@ void main() {
     });
   });
 
-  group('the retrofit cap is armed by the successor\'s first authentication',
+  group('the predecessor is settled by the successor\'s first authentication',
       () {
     test('a successor that never authenticates leaves its predecessor alone',
         () async {
       final predecessorId = (await etu.createEnrollments(n: 1)).$1.first;
       await selfEnroll(predecessorId: predecessorId);
 
-      final rec = await keyValueStore.get(enMgr.buildEnrollmentKey(predecessorId));
-      expect(rec?.metaData?.expiresAt, isNull,
+      expect(await stateOf(predecessorId), EnrollmentStatus.approved.name,
           reason: 'a retrofit whose keyfile never reached disk must not '
               'retire the credential that still works');
     });
 
     test(
-        'the first authentication caps the predecessor, through the real PKAM '
-        'handler', () async {
+        'the first authentication revokes the predecessor, through the real '
+        'PKAM handler', () async {
       final predecessorId = (await etu.createEnrollments(n: 1)).$1.first;
       final (successorId, key) = await retrofitWithRealKey(predecessorId);
-
-      final before =
-          await keyValueStore.get(enMgr.buildEnrollmentKey(predecessorId));
-      expect(before?.metaData?.expiresAt, isNull,
-          reason: 'control: uncapped right up until the successor proves '
+      expect(await stateOf(predecessorId), EnrollmentStatus.approved.name,
+          reason: 'control: approved right up until the successor proves '
               'itself, so the assertion below measures the authentication');
 
       await authenticateAs(successorId, key);
 
-      final after =
-          await keyValueStore.get(enMgr.buildEnrollmentKey(predecessorId));
-      expect(after?.metaData?.expiresAt, isNotNull,
-          reason: 'the arming is wired into the production PKAM path rather '
-              'than merely implemented on EnrollmentManager — a mechanism '
-              'nothing calls is not delivered');
-      expect((await enMgr.getEnrollmentById(successorId)).predecessorCapArmedAt,
+      expect(await stateOf(predecessorId), EnrollmentStatus.revoked.name,
+          reason: 'the settlement is wired into the production PKAM path '
+              'rather than merely implemented on EnrollmentManager');
+      expect((await enMgr.getEnrollmentById(successorId)).predecessorSettledAt,
           isNotNull,
-          reason: 'and the successor records that it armed');
+          reason: 'and the successor records that it settled');
     });
 
-    test('a second authentication does not push the deadline out again',
-        () async {
+    test('a second authentication does not revoke an un-revoked predecessor '
+        'again', () async {
       final predecessorId = (await etu.createEnrollments(n: 1)).$1.first;
       final (successorId, key) = await retrofitWithRealKey(predecessorId);
       await authenticateAs(successorId, key, sessionId: 'first-session');
+      expect(await stateOf(predecessorId), EnrollmentStatus.revoked.name,
+          reason: 'control: the first authentication did revoke it');
+      final settledAt =
+          (await enMgr.getEnrollmentById(successorId)).predecessorSettledAt;
 
       final k = enMgr.buildEnrollmentKey(predecessorId);
-      expect((await keyValueStore.get(k))?.metaData?.expiresAt, isNotNull,
-          reason: 'control: the first authentication did arm it');
-      final armedAt =
-          (await enMgr.getEnrollmentById(successorId)).predecessorCapArmedAt;
-
-      final aged = await keyValueStore.get(k);
-      aged!.metaData!.ttl = 60000;
-      await enMgr.put(predecessorId, aged, EnrollmentStatus.approved);
+      final revived = (await keyValueStore.get(k))!;
+      final value = EnrollDataStoreValue.fromJson(jsonDecode(revived.data!))
+        ..approval = EnrollApproval(EnrollmentStatus.approved.name);
+      revived.data = jsonEncode(value.toJson());
+      await enMgr.put(predecessorId, revived, EnrollmentStatus.approved);
 
       await authenticateAs(successorId, key, sessionId: 'second-session');
 
-      expect((await keyValueStore.get(k))!.metaData!.ttl!,
-          lessThanOrEqualTo(60000),
-          reason: 'a successor authenticates on every reconnect. Arming on '
-              'each one would rewrite a full grace period onto the '
-              'predecessor forever and it would never retire at all');
-      expect((await enMgr.getEnrollmentById(successorId)).predecessorCapArmedAt,
-          armedAt,
-          reason: 'the stamp records the FIRST arming and does not move');
+      expect(await stateOf(predecessorId), EnrollmentStatus.approved.name,
+          reason: 'a successor authenticates on every reconnect; settling '
+              'on each one would revoke a deliberately un-revoked '
+              'predecessor again');
+      expect((await enMgr.getEnrollmentById(successorId)).predecessorSettledAt,
+          settledAt,
+          reason: 'the stamp records the FIRST settlement and does not move');
     });
 
-    test('an enrollment that replaced nothing arms nothing', () async {
-      await enMgr.armRetrofitCapOnFirstAuth(etu.primaryEnId);
+    test('an enrollment that replaced nothing settles nothing', () async {
+      await enMgr.settlePredecessorOnFirstAuth(etu.primaryEnId);
 
-      final rec =
-          await keyValueStore.get(enMgr.buildEnrollmentKey(etu.primaryEnId));
-      expect(rec?.metaData?.expiresAt, isNull,
+      expect(await stateOf(etu.primaryEnId), EnrollmentStatus.approved.name,
           reason: 'an enrollment with no predecessor must pass through the '
-              'arming untouched');
+              'settlement untouched');
+      expect((await enMgr.getEnrollmentById(etu.primaryEnId))
+              .predecessorSettledAt,
+          isNull);
     });
 
     test('the successor\'s OWN expiry is not restarted by the stamp',
@@ -2353,8 +2274,8 @@ void main() {
               'long it waited to authenticate');
     });
 
-    test('a REVOKED predecessor is not capped, and is not written back',
-        () async {
+    test('a REVOKED predecessor is left as it is, and the successor is '
+        'settled all the same', () async {
       final predecessorId = (await etu.createEnrollments(n: 1)).$1.first;
       final (successorId, successorKey) = await retrofitWithRealKey(predecessorId);
 
@@ -2369,19 +2290,22 @@ void main() {
 
       final after = await keyValueStore.get(key);
       expect(after?.metaData?.expiresAt, isNull,
-          reason: 'a revoked predecessor is not on a retirement clock — it is '
-              'already retired, and capping it would rewrite the record');
-      expect(
-          EnrollDataStoreValue.fromJson(jsonDecode(after!.data!))
-              .approval
-              ?.state,
-          EnrollmentStatus.revoked.name,
+          reason: 'a revoked predecessor is already retired; nothing is '
+              'written onto it');
+      expect(await stateOf(predecessorId), EnrollmentStatus.revoked.name,
           reason: 'and it stays revoked');
-      expect((await enMgr.getEnrollmentById(successorId)).predecessorCapArmedAt,
-          isNull,
-          reason: 'and nothing is recorded as armed, because nothing was: an '
-              'unrevoke restores an ordinary predecessor and the decision has '
-              'to be re-made rather than frozen');
+      expect(
+          (await enMgr.revocationEvents())
+              .where((e) => e.enrollmentId == predecessorId)
+              .map((e) => e.type),
+          isNot(contains(EnrollmentRevocationEventType.superseded)),
+          reason: 'a predecessor found revoked is not revoked again, so no '
+              'supersession is recorded');
+      expect((await enMgr.getEnrollmentById(successorId)).predecessorSettledAt,
+          isNotNull,
+          reason: 'settled all the same: an un-revoke later restores the '
+              'predecessor, and the successor\'s next authentication must '
+              'not take it away again');
     });
 
     // A fully privileged predecessor keeps its life, whatever the successor's
@@ -2393,7 +2317,7 @@ void main() {
       ('31 days, just past the grace', Duration(days: 31)),
       ('ten years', Duration(days: 3650)),
     ]) {
-      test('a ROOT predecessor is not capped by a successor expiring in $label',
+      test('a ROOT predecessor is not revoked by a successor expiring in $label',
           () async {
         final rootId = etu.primaryEnId;
         expect((await enMgr.getEnrollmentById(rootId)).isRootEnrollment, isTrue,
@@ -2410,9 +2334,11 @@ void main() {
                 ?.metaData
                 ?.expiresAt,
             isNull,
-            reason: 'a root is never put on the retrofit cap');
+            reason: 'a root is never put on a clock');
+        expect(await stateOf(rootId), EnrollmentStatus.approved.name,
+            reason: 'and never revoked as a predecessor');
         expect(
-            (await enMgr.getEnrollmentById(successorId)).predecessorCapArmedAt,
+            (await enMgr.getEnrollmentById(successorId)).predecessorSettledAt,
             isNotNull,
             reason: 'settled all the same: the stamp is what stops every later '
                 'authentication re-asking, and what records that the '
@@ -2450,30 +2376,26 @@ void main() {
     });
 
     test(
-        'an ORDINARY predecessor is capped even by a short-lived successor',
+        'an ORDINARY predecessor is revoked even by a short-lived successor',
         () async {
       final predecessorId = (await etu.createEnrollments(n: 1)).$1.first;
       final predecessorBefore = await enMgr.getEnrollmentById(predecessorId);
       expect(predecessorBefore.namespaces.containsKey('__manage'), isFalse,
           reason: 'precondition: an ordinary predecessor, not an approver, so '
-              'capping it strands nothing');
+              'revoking it strands nothing');
 
       final (successorId, successorKey) = await retrofitWithRealKey(predecessorId,
           apkamKeysExpiryDuration: Duration(minutes: 1));
       await authenticateAs(successorId, successorKey, sessionId: 'ordinary-short');
 
-      expect(
-          (await keyValueStore.get(enMgr.buildEnrollmentKey(predecessorId)))
-              ?.metaData
-              ?.expiresAt,
-          isNotNull,
+      expect(await stateOf(predecessorId), EnrollmentStatus.revoked.name,
           reason: 'a short-lived successor still retires an ordinary '
               'predecessor: there are other approvers behind it, so nothing '
               'is stranded and the migration must still make progress');
     });
 
     test(
-        'an ordinary predecessor is capped even when NOTHING could restore a '
+        'an ordinary predecessor is revoked even when NOTHING could restore a '
         'root', () async {
       final predecessorId = (await etu.createEnrollments(n: 1)).$1.first;
       expect((await enMgr.getEnrollmentById(predecessorId)).isRootEnrollment,
@@ -2491,24 +2413,20 @@ void main() {
       expect(
           await enMgr.hasUnexpiringRootEnrollment({predecessorId}),
           isFalse,
-          reason: 'precondition: nothing could restore a root, so a cap that '
-              'asked the stranding question here would decline');
+          reason: 'precondition: nothing could restore a root, so a revoke '
+              'that asked the stranding question here would decline');
 
       final (successorId, successorKey) = await retrofitWithRealKey(predecessorId,
           apkamKeysExpiryDuration: Duration(minutes: 1));
       await authenticateAs(successorId, successorKey, sessionId: 'ordinary-noroot');
 
-      expect(
-          (await keyValueStore.get(enMgr.buildEnrollmentKey(predecessorId)))
-              ?.metaData
-              ?.expiresAt,
-          isNotNull,
+      expect(await stateOf(predecessorId), EnrollmentStatus.revoked.name,
           reason: 'the migration must still make progress for ordinary '
               'credentials, whatever state the atSign\'s roots are in');
     });
 
-    test('a cap that declines LATE takes its stamp back', () async {
-      // NOTE the stamp goes on before the cap, deliberately.
+    test('a predecessor revoked between the decision and the write is not '
+        'revoked twice, and the successor is settled', () async {
       final predecessorId = (await etu.createEnrollments(n: 1)).$1.first;
       final (successorId, successorKey) =
           await retrofitWithRealKey(predecessorId);
@@ -2526,14 +2444,21 @@ void main() {
       await authenticateAs(successorId, successorKey,
           sessionId: 'late-decline');
 
-      expect((await enMgr.getEnrollmentById(successorId)).predecessorCapArmedAt,
-          isNull,
-          reason: 'the cap did not happen, so the stamp saying it did must not '
-              'stand — otherwise the early exit short-circuits every later '
-              'authentication and the predecessor is never capped again');
+      expect(await stateOf(predecessorId), EnrollmentStatus.revoked.name);
+      expect(
+          (await enMgr.revocationEvents())
+              .where((e) => e.enrollmentId == predecessorId)
+              .map((e) => e.type),
+          isNot(contains(EnrollmentRevocationEventType.superseded)),
+          reason: 'the revoke reads the record it is about to write, not '
+              'the cached snapshot the decision was made on');
+      expect((await enMgr.getEnrollmentById(successorId)).predecessorSettledAt,
+          isNotNull,
+          reason: 'and the successor is settled, so nothing is re-asked');
     });
 
-    test('a declined cap is re-decided on the next authentication', () async {
+    test('a predecessor found revoked is settled for good: un-revoking it does '
+        'not get it revoked by the next authentication', () async {
       final predecessorId = (await etu.createEnrollments(n: 1)).$1.first;
       final (successorId, successorKey) = await retrofitWithRealKey(predecessorId);
 
@@ -2545,10 +2470,9 @@ void main() {
       await enMgr.put(predecessorId, atData, EnrollmentStatus.revoked);
 
       await authenticateAs(successorId, successorKey, sessionId: 'declined-1');
-      expect((await enMgr.getEnrollmentById(successorId)).predecessorCapArmedAt,
-          isNull,
-          reason: 'nothing was armed, so nothing is recorded as armed — the '
-              'successor must ask again rather than carry a stale verdict');
+      expect((await enMgr.getEnrollmentById(successorId)).predecessorSettledAt,
+          isNotNull,
+          reason: 'settled: nothing was revoked, and nothing will be');
 
       final back = await keyValueStore.get(key);
       final restored = EnrollDataStoreValue.fromJson(jsonDecode(back!.data!));
@@ -2557,11 +2481,9 @@ void main() {
       await enMgr.put(predecessorId, back, EnrollmentStatus.approved);
 
       await authenticateAs(successorId, successorKey, sessionId: 'declined-2');
-      expect((await keyValueStore.get(key))?.metaData?.expiresAt, isNotNull,
-          reason: 'and once the condition clears it arms, rather than staying '
-              'exempt for the life of the atSign');
-      expect((await enMgr.getEnrollmentById(successorId)).predecessorCapArmedAt,
-          isNotNull);
+      expect(await stateOf(predecessorId), EnrollmentStatus.approved.name,
+          reason: 'an un-revoke is an operator\'s decision, and the '
+              'successor\'s next authentication must not overturn it');
     });
 
     test('a predecessor that is already gone is not an error, and its '
@@ -2582,11 +2504,11 @@ void main() {
       final successorId = jsonDecode(r.data!)['enrollmentId'] as String;
 
       await enMgr.remove(enId: predecessorId);
-      await enMgr.armRetrofitCapOnFirstAuth(successorId);
+      await enMgr.settlePredecessorOnFirstAuth(successorId);
 
-      expect((await enMgr.getEnrollmentById(successorId)).predecessorCapArmedAt,
+      expect((await enMgr.getEnrollmentById(successorId)).predecessorSettledAt,
           isNotNull,
-          reason: 'stamped even with nothing to cap, or every later '
+          reason: 'stamped even with nothing to revoke, or every later '
               'connection re-walks the lookup for a predecessor that is '
               'never coming back');
       expect(await enMgr.descendantsOf(successorId), contains(childId),
@@ -2594,7 +2516,7 @@ void main() {
               'it should have been hanging off');
     });
 
-    test('capping an approver moves what it admitted onto its successor',
+    test('superseding an approver moves what it admitted onto its successor',
         () async {
       final middleId = await etu.createPendingEnrollment(
           appName: 'middle',
@@ -2618,27 +2540,10 @@ void main() {
       expect(r.isError, false, reason: '${r.errorMessage}');
       final successorId = jsonDecode(r.data!)['enrollmentId'] as String;
 
-      await enMgr.armRetrofitCapOnFirstAuth(successorId);
+      await enMgr.settlePredecessorOnFirstAuth(successorId);
 
-      final DateTime? capped =
-          (await keyValueStore.get(enMgr.buildEnrollmentKey(middleId)))
-              ?.metaData
-              ?.expiresAt;
-      expect(capped, isNotNull,
-          reason: 'precondition: the cap really did arm — otherwise nothing '
-              'was adopted because nothing was being retired');
-
-      inboundConnection.metaData.isAuthenticated = true;
-      inboundConnection.metaData.enrollmentId = etu.primaryEnId;
-      final fetched = Response();
-      await etu.evh.processVerb(
-          fetched,
-          getVerbParam(VerbSyntax.enroll,
-              'enroll:fetch:{"enrollmentId":"$middleId"}'),
-          inboundConnection);
-      expect(DateTime.parse(jsonDecode(fetched.data!)['expiresAt']),
-          capped!.toUtc(),
-          reason: 'what a client reads through enroll:fetch is the cap itself');
+      expect(await stateOf(middleId), EnrollmentStatus.revoked.name,
+          reason: 'precondition: the predecessor really was superseded');
       expect(await enMgr.descendantsOf(successorId), contains(behindId),
           reason: 'the successor stands where its predecessor stood, so what '
               'the predecessor admitted hangs off it now');
@@ -2669,7 +2574,7 @@ void main() {
 
       final String childKey = enMgr.buildEnrollmentKey(childId);
       // NOTE the stored expiry is pulled in ahead of the hour its retained ttl
-      // would re-derive, which is what a cap on the child leaves behind.
+      // would re-derive.
       final DateTime shortened =
           DateTime.now().toUtc().add(Duration(minutes: 5));
       await enMgr.put(
@@ -2693,7 +2598,7 @@ void main() {
       expect(r.isError, false, reason: '${r.errorMessage}');
       final successorId = jsonDecode(r.data!)['enrollmentId'] as String;
 
-      await enMgr.armRetrofitCapOnFirstAuth(successorId);
+      await enMgr.settlePredecessorOnFirstAuth(successorId);
 
       expect(await enMgr.descendantsOf(successorId), contains(childId),
           reason: 'precondition: the child really was re-parented, so the '

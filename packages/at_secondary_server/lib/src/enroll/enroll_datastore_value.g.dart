@@ -35,9 +35,8 @@ EnrollDataStoreValue _$EnrollDataStoreValueFromJson(
       ..parentEnrollmentId = json['parentEnrollmentId'] as String?
       ..retrofitPredecessorEnrollmentId =
           json['retrofitPredecessorEnrollmentId'] as String?
-      ..predecessorCapArmedAt = json['predecessorCapArmedAt'] == null
-          ? null
-          : DateTime.parse(json['predecessorCapArmedAt'] as String);
+      // NOTE records written before the rename carry `predecessorCapArmedAt`.
+      ..predecessorSettledAt = _settledAtFromJson(json);
 
 Map<String, dynamic> _$EnrollDataStoreValueToJson(
         EnrollDataStoreValue instance) =>
@@ -62,11 +61,17 @@ Map<String, dynamic> _$EnrollDataStoreValueToJson(
       if (instance.retrofitPredecessorEnrollmentId != null)
         'retrofitPredecessorEnrollmentId':
             instance.retrofitPredecessorEnrollmentId,
-      if (instance.predecessorCapArmedAt != null)
-        'predecessorCapArmedAt': instance.predecessorCapArmedAt!.toIso8601String(),
+      if (instance.predecessorSettledAt != null)
+        'predecessorSettledAt': instance.predecessorSettledAt!.toIso8601String(),
     };
 
 const _$EnrollRequestTypeEnumMap = {
   EnrollRequestType.newEnrollment: 'newEnrollment',
   EnrollRequestType.changeEnrollment: 'changeEnrollment',
 };
+
+DateTime? _settledAtFromJson(Map<String, dynamic> json) {
+  final Object? raw =
+      json['predecessorSettledAt'] ?? json['predecessorCapArmedAt'];
+  return raw == null ? null : DateTime.parse(raw as String);
+}
