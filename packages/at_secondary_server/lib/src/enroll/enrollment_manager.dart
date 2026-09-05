@@ -5,28 +5,12 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/enroll/enrollment_revocation_event.dart';
-import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/apkam_signature_verifier.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:meta/meta.dart';
 import 'package:mutex/mutex.dart';
 import 'package:uuid/uuid.dart';
-
-/// What [EnrollmentManager.capEnrollmentExpiry] did.
-enum RetrofitCapOutcome {
-  /// The expiry was written.
-  capped,
-
-  /// The predecessor's record is gone, so the successor's stamp stands.
-  predecessorGone,
-
-  /// The predecessor was approved when the decision was made and is not now.
-  notApproved,
-
-  /// The record could not be read or decoded. Treated like [notApproved].
-  unreadable,
-}
 
 /// An atSign's enrollment records: reading and writing them, and the
 /// questions that have to be asked of the whole roster before a write.
@@ -773,15 +757,15 @@ class EnrollmentManager {
     final Map<String, EnrollmentRevocationEvent> lastRevoke = {};
     final Map<String, DateTime> lastUnrevoke = {};
     for (final event in await revocationEvents()) {
-      if (event.type == EnrollmentRevocationEventType.revoked) {
-        final prev = lastRevoke[event.enrollmentId];
-        if (prev == null || event.at.isAfter(prev.at)) {
-          lastRevoke[event.enrollmentId] = event;
-        }
-      } else {
+      if (event.type == EnrollmentRevocationEventType.unrevoked) {
         final prev = lastUnrevoke[event.enrollmentId];
         if (prev == null || event.at.isAfter(prev)) {
           lastUnrevoke[event.enrollmentId] = event.at;
+        }
+      } else {
+        final prev = lastRevoke[event.enrollmentId];
+        if (prev == null || event.at.isAfter(prev.at)) {
+          lastRevoke[event.enrollmentId] = event;
         }
       }
     }
@@ -895,31 +879,6 @@ class EnrollmentManager {
 
   /// Get the enrollmentId from any key where enrollmentId is the first part
   String getIdFromKey(String ek) => ek.substring(0, ek.indexOf('.'));
-
-  /// The ttl a retrofit cap would write onto a record right now:
-  /// `min(grace, what the enrollment's own key-expiry posture leaves it)`,
-  /// floored at one millisecond because a ttl of zero never expires.
-  @visibleForTesting
-  int retrofitCapTtlMillis(AtMetaData? recordMetaData,
-      EnrollDataStoreValue enrollment, DateTime now) {
-    int cappedTtl =
-        Duration(hours: AtSecondaryConfig.apkamSelfEnrollmentGraceHours)
-            .inMilliseconds;
-    final ownMs = enrollment.apkamKeysExpiryDuration.inMilliseconds;
-    final stored = recordMetaData?.expiresAt?.toUtc();
-    // NOTE a record with no stored expiry never expires, whatever posture its
-    // value carries, so it must not be folded against one.
-    if (ownMs > 0 && stored != null) {
-      final fromCreation = (recordMetaData?.createdAt ?? now)
-          .toUtc()
-          .add(Duration(milliseconds: ownMs));
-      final postureDeadline =
-          stored.isAfter(fromCreation) ? stored : fromCreation;
-      final remainingMs = postureDeadline.difference(now).inMilliseconds;
-      if (remainingMs < cappedTtl) cappedTtl = remainingMs;
-    }
-    return cappedTtl < 1 ? 1 : cappedTtl;
-  }
 
   /// Whether any enrollment outside [excluding] is an APPROVED root that will
   /// NOT expire: `rw` on both `*` and `__manage`, and no expiry at all.
@@ -1089,21 +1048,24 @@ class EnrollmentManager {
           assertedTimestamps: storedExpiry == null
               ? null
               : AtAssertedTimestamps(expiresAt: storedExpiry));
-      logger.info('Enrollment $childId was approved by $predecessorId, which '
-          'has just been capped; it now hangs off its successor $successorId');
+      logger.info('Enrollment $childId was approved by $predecessorId; it '
+          'now hangs off the successor $successorId');
     }
   }
 
-  /// Revokes each of [enrollmentIds] that is currently approved, and returns
-  /// the ids it actually revoked.
+  /// Revokes each of [enrollmentIds] that is currently approved, recording
+  /// one history event of [type] each, and returns the ids it revoked.
   ///
-  /// [byEnrollmentId] is the enrollment on the connection that issued the
-  /// command, null for a CRAM connection; [cascadedFrom] is the enrollment it
-  /// named; [at] is the moment of the command, one timestamp for the set.
+  /// Must be called inside [serialiseMutation]. [byEnrollmentId] is the
+  /// enrollment on the acting connection, null for a CRAM connection;
+  /// [cascadedFrom] the enrollment a revoke command named, null otherwise;
+  /// [at] one timestamp for the set.
   Future<List<String>> revokeAll(Iterable<String> enrollmentIds,
       {required String? byEnrollmentId,
-      required String cascadedFrom,
-      required DateTime at}) async {
+      required String? cascadedFrom,
+      required DateTime at,
+      EnrollmentRevocationEventType type =
+          EnrollmentRevocationEventType.revoked}) async {
     final List<String> revoked = [];
     // The grants each one held, captured before the write, because the event
     // outlives the record they are stored on.
@@ -1115,7 +1077,7 @@ class EnrollmentManager {
       try {
         atData = await keyStore.get(ek);
       } on KeyNotFoundException {
-        logger.info('Cascade: enrollment $id is already gone; skipping');
+        logger.info('Revoking $id: it is already gone; skipping');
         continue;
       }
       final String? raw = atData?.data;
@@ -1124,7 +1086,7 @@ class EnrollmentManager {
       try {
         value = EnrollDataStoreValue.fromJson(jsonDecode(raw));
       } catch (e) {
-        logger.severe('Cascade could not decode enrollment $id: $e');
+        logger.severe('Revoking $id: its record does not decode: $e');
         continue;
       }
       if (value.approval?.state != EnrollmentStatus.approved.name) continue;
@@ -1140,7 +1102,7 @@ class EnrollmentManager {
     await recordRevocationEvents([
       for (final String id in revoked)
         EnrollmentRevocationEvent(
-          type: EnrollmentRevocationEventType.revoked,
+          type: type,
           enrollmentId: id,
           at: at,
           namespaces: grantsHeld[id]!,
@@ -1165,156 +1127,79 @@ class EnrollmentManager {
     return revoked;
   }
 
-  /// Takes back a `predecessorSettledAt` stamp whose cap did not happen,
-  /// best-effort and inside [serialiseMutation].
-  Future<void> _clearCapStamp(String successorEnrollmentId, String key) async {
-    try {
-      final AtData? atData = await keyStore.get(key);
-      final String? raw = atData?.data;
-      if (atData == null || raw == null) return;
-      final value = EnrollDataStoreValue.fromJson(jsonDecode(raw));
-      if (value.predecessorSettledAt == null) return;
-      final status =
-          EnrollmentStatus.values.asNameMap()[value.approval?.state ?? ''];
-      if (status == null) return;
-      value.predecessorSettledAt = null;
-      atData.data = jsonEncode(value.toJson());
-      final storedExpiry = atData.metaData?.expiresAt;
-      await put(successorEnrollmentId, atData, status,
-          assertedTimestamps: storedExpiry == null
-              ? null
-              : AtAssertedTimestamps(expiresAt: storedExpiry));
-      logger.info(
-          'Took back the retrofit-cap stamp on $successorEnrollmentId: the '
-          'cap it recorded did not happen, and the reason was transient');
-    } catch (e) {
-      logger.warning(
-          'Could not take back the retrofit-cap stamp on '
-          '$successorEnrollmentId: $e');
-    }
-  }
-
-  /// Caps [enrollmentId] to expire [retrofitCapTtlMillis] from this moment,
-  /// leaving the record in place.
-  Future<RetrofitCapOutcome> capEnrollmentExpiry(String enrollmentId) async {
-    final key = buildEnrollmentKey(enrollmentId);
-    final AtData? atData;
-    try {
-      atData = await keyStore.get(key);
-    } on KeyNotFoundException {
-      return RetrofitCapOutcome.predecessorGone;
-    }
-    if (atData == null) return RetrofitCapOutcome.predecessorGone;
-
-    // NOTE the status must come off the record just read, never off a
-    // caller's snapshot.
-    final String? raw = atData.data;
-    if (raw == null) return RetrofitCapOutcome.unreadable;
-    final EnrollDataStoreValue fresh;
-    final EnrollmentStatus? current;
-    try {
-      fresh = EnrollDataStoreValue.fromJson(jsonDecode(raw));
-      current =
-          EnrollmentStatus.values.asNameMap()[fresh.approval?.state ?? ''];
-    } catch (e) {
-      logger.severe('Not capping $enrollmentId: its record does not decode: $e');
-      return RetrofitCapOutcome.unreadable;
-    }
-    if (current == null) {
-      logger.severe('Not capping $enrollmentId: unreadable approval state');
-      return RetrofitCapOutcome.unreadable;
-    }
-    if (current != EnrollmentStatus.approved) {
-      logger.info(
-          'Not capping $enrollmentId: it is ${current.name} as of this write, '
-          'though it was approved when the cap was decided');
-      return RetrofitCapOutcome.notApproved;
-    }
-    atData.metaData = (atData.metaData ?? AtMetaData())
-      ..ttl = retrofitCapTtlMillis(
-          atData.metaData, fresh, DateTime.now().toUtc());
-    await put(enrollmentId, atData, current);
-    return RetrofitCapOutcome.capped;
-  }
-
   /// Settles what the enrollment [successorEnrollmentId] replaced, ONCE, at
-  /// the successor's first authentication: the successor is stamped, the
-  /// predecessor's approval children move onto it, and a predecessor that is
-  /// not fully privileged is capped.
+  /// the successor's first authentication: the predecessor's approval
+  /// children move onto the successor, a predecessor that is approved and not
+  /// fully privileged is revoked as superseded, and the successor is stamped.
   ///
   /// A no-op for an enrollment that replaced nothing, and it never throws.
-  Future<void> armRetrofitCapOnFirstAuth(String successorEnrollmentId) async {
+  Future<void> settlePredecessorOnFirstAuth(
+      String successorEnrollmentId) async {
     try {
       final EnrollDataStoreValue cached =
           await getEnrollmentById(successorEnrollmentId);
       if (cached.retrofitPredecessorEnrollmentId == null) return;
       if (cached.predecessorSettledAt != null) return;
     } catch (e) {
-      logger.warning('Could not decide whether to arm the retrofit cap for '
-          '$successorEnrollmentId: $e');
+      logger.warning('Could not decide whether $successorEnrollmentId has a '
+          'predecessor to settle: $e');
       return;
     }
     await serialiseMutation(
-        () => _armRetrofitCapOnFirstAuth(successorEnrollmentId));
+        () => _settlePredecessorOnFirstAuth(successorEnrollmentId));
   }
 
-  Future<void> _armRetrofitCapOnFirstAuth(String successorEnrollmentId) async {
+  Future<void> _settlePredecessorOnFirstAuth(
+      String successorEnrollmentId) async {
     try {
       // NOTE both tests are re-asked here, inside the critical section.
       final EnrollDataStoreValue cached =
           await getEnrollmentById(successorEnrollmentId);
-      final predecessorId = cached.retrofitPredecessorEnrollmentId;
+      final String? predecessorId = cached.retrofitPredecessorEnrollmentId;
       if (predecessorId == null) return;
       if (cached.predecessorSettledAt != null) return;
 
-      final key = buildEnrollmentKey(successorEnrollmentId);
+      await _adoptApprovalChildren(predecessorId, successorEnrollmentId);
 
+      final DateTime now = DateTime.now().toUtc();
       EnrollDataStoreValue? predecessor;
       try {
         predecessor = await getEnrollmentById(predecessorId);
       } on KeyNotFoundException {
-        logger.info('Enrollment $successorEnrollmentId replaced '
-            '$predecessorId, which is already gone — nothing to cap');
+        predecessor = null;
       }
-
-      bool settled = false;
-      bool capPredecessor = false;
-      final bool predecessorGone = predecessor == null;
-
-      if (predecessorGone) {
-        settled = true;
-      } else if (predecessor.approval?.state != EnrollmentStatus.approved.name) {
-        // NOTE deliberately left unstamped, so the question is re-asked at
-        // the next authentication.
-        logger.info('Enrollment $successorEnrollmentId replaced $predecessorId, '
-            'which is ${predecessor.approval?.state} — not capping it');
+      if (predecessor == null) {
+        logger.info('Enrollment $successorEnrollmentId replaced '
+            '$predecessorId, which is already gone');
       } else if (predecessor.isRootEnrollment) {
         logger.info('Enrollment $successorEnrollmentId replaced $predecessorId, '
             'which holds full privilege and keeps its life; what it admitted '
             'now hangs off its successor');
-        settled = true;
+      } else if (predecessor.approval?.state !=
+          EnrollmentStatus.approved.name) {
+        logger.info('Enrollment $successorEnrollmentId replaced $predecessorId, '
+            'which is ${predecessor.approval?.state}; leaving it as it is');
       } else {
-        settled = true;
-        capPredecessor = true;
+        final List<String> revoked = await revokeAll([predecessorId],
+            byEnrollmentId: successorEnrollmentId,
+            cascadedFrom: null,
+            at: now,
+            type: EnrollmentRevocationEventType.superseded);
+        logger.info(revoked.isEmpty
+            ? 'Enrollment $predecessorId was no longer approved when its '
+                'supersession by $successorEnrollmentId came to be written'
+            : 'Enrollment $predecessorId is superseded by '
+                '$successorEnrollmentId and revoked');
       }
 
-      if (!settled) return;
-
-      // NOTE read immediately before the write, not from a snapshot taken
-      // before the lookups above.
+      // NOTE the stamp goes last, read immediately before its write; a
+      // failure before it is re-asked at the next authentication.
+      final key = buildEnrollmentKey(successorEnrollmentId);
       final AtData? atData = await keyStore.get(key);
       final String? raw = atData?.data;
       if (atData == null || raw == null) return;
       final successor = EnrollDataStoreValue.fromJson(jsonDecode(raw));
-      // NOTE this uncached re-test is what makes "first" hold; the cached
-      // checks at the entry point are only a fast path.
       if (successor.predecessorSettledAt != null) return;
-
-      successor.predecessorSettledAt = DateTime.now().toUtc();
-      atData.data = jsonEncode(successor.toJson());
-      // NOTE the successor's own expiry must not move.
-      final storedExpiry = atData.metaData?.expiresAt;
-      // NOTE the record's own status, never a default.
       final EnrollmentStatus? successorStatus =
           EnrollmentStatus.values.asNameMap()[successor.approval?.state ?? ''];
       if (successorStatus == null) {
@@ -1323,26 +1208,16 @@ class EnrollmentManager {
             'state ${successor.approval?.state}; not stamping it');
         return;
       }
+      successor.predecessorSettledAt = now;
+      atData.data = jsonEncode(successor.toJson());
+      // NOTE the successor's own expiry must not move.
+      final storedExpiry = atData.metaData?.expiresAt;
       await put(successorEnrollmentId, atData, successorStatus,
           assertedTimestamps: storedExpiry == null
               ? null
               : AtAssertedTimestamps(expiresAt: storedExpiry));
-
-      // NOTE the cap goes after the stamp.
-      if (capPredecessor) {
-        final RetrofitCapOutcome outcome =
-            await capEnrollmentExpiry(predecessorId);
-        // NOTE a transient refusal takes the stamp back, so the question is
-        // re-asked at the next authentication.
-        if (outcome == RetrofitCapOutcome.notApproved ||
-            outcome == RetrofitCapOutcome.unreadable) {
-          await _clearCapStamp(successorEnrollmentId, key);
-          return;
-        }
-      }
-      await _adoptApprovalChildren(predecessorId, successorEnrollmentId);
     } catch (e) {
-      logger.warning('Could not arm the retrofit cap for '
+      logger.warning('Could not settle the predecessor of '
           '$successorEnrollmentId: $e');
     }
   }

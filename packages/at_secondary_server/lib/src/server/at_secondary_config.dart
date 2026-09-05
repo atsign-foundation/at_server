@@ -727,15 +727,6 @@ class AtSecondaryConfig {
         48;
   }
 
-  /// How long a superseded enrollment keeps authenticating after the
-  /// enrollment that replaced it first authenticates.
-  static int get apkamSelfEnrollmentGraceHours {
-    return _getIntEnvVar('apkamSelfEnrollmentGraceHours') ??
-        getNullableIntFromYaml(
-            ['enrollment', 'apkamSelfEnrollmentGraceHours']) ??
-        720;
-  }
-
   static final int _enrollmentResponseDelayIntervalInSeconds = 55;
 
   static int? _maxEnrollRequestsAllowed;

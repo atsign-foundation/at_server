@@ -398,6 +398,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
             'Predecessor enrollment $predecessorId does not exist or has '
             'expired');
       }
+      if (!predecessor.isRootEnrollment &&
+          await _predecessorAlreadySettled(enMgr, predecessorId)) {
+        throw UnAuthorizedException(
+            'Enrollment $predecessorId has already been replaced, and its '
+            'replacement has authenticated; a second replacement is not '
+            'allowed. A sibling clone of this keyfile enrols over an OTP');
+      }
       if (predecessor.approval?.state != EnrollmentStatus.approved.name) {
         throw UnAuthorizedException(
             'Predecessor enrollment $predecessorId is not approved');
@@ -414,21 +421,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
             'Enrollment $predecessorId is itself a replacement, and a '
             'replacement may not be replaced without an approver');
       }
-      if (!predecessor.isRootEnrollment &&
-          await _retrofitCapAlreadyArmed(enMgr, predecessorId)) {
-        throw UnAuthorizedException(
-            'Enrollment $predecessorId has already been replaced, and its '
-            'replacement has authenticated; a second split is not allowed '
-            'once the first successor has authenticated. A sibling clone of '
-            'this keyfile enrols over an OTP');
-      }
       // Escalation first, so a request naming MORE keeps its own diagnosis.
       verifyNoEscalation(predecessor.namespaces, enrollNamespaces);
       requireGrantsMatchPredecessor(predecessor.namespaces, enrollParams.namespaces);
       enrollmentValue.namespaces = Map.of(predecessor.namespaces);
 
       enrollmentValue.approval = EnrollApproval(EnrollmentStatus.approved.name);
-      // What this successor REPLACED, which the retrofit cap reads.
+      // What this successor REPLACED, which the settlement reads.
       // ⛔ Not for revocation: the revoke path does NOT walk this edge.
       enrollmentValue.retrofitPredecessorEnrollmentId = predecessorId;
       // A retrofit takes the predecessor's place in the approval graph.
@@ -454,9 +453,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
             predecessor.apkamKeysExpiryDuration;
       }
 
-      // The clamp above compares TERMS, and a capped predecessor's real
-      // deadline lives only in its RECORD metadata, so bound the successor by
-      // that stored DEADLINE. The POSTURE is narrowed rather than the ttl.
+      // The clamp above compares TERMS, and the predecessor's real deadline
+      // lives only in its RECORD metadata, so bound the successor by that
+      // stored DEADLINE. The POSTURE is narrowed rather than the ttl.
       DateTime? boundedDeadline;
       final DateTime? predecessorExpiresAt =
           (await keyStore.getMeta(enMgr.buildEnrollmentKey(predecessorId)))
@@ -503,7 +502,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
               ? null
               : AtAssertedTimestamps(expiresAt: boundedDeadline));
 
-      // NOTE the predecessor is NOT capped here; the cap is armed by the
+      // NOTE the predecessor is NOT settled here; that happens at the
       // successor's FIRST PKAM authentication.
       return;
     }
@@ -1335,9 +1334,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     return md.isAuthenticated && id != null && id.isNotEmpty;
   }
 
-  /// Whether a retrofit of [predecessorId] has already capped it: a stored
-  /// enrollment naming it as the one it replaced, whose cap is armed.
-  Future<bool> _retrofitCapAlreadyArmed(
+  /// Whether a stored enrollment that replaced [predecessorId] has already
+  /// settled it.
+  Future<bool> _predecessorAlreadySettled(
       EnrollmentManager enMgr, String predecessorId) async {
     final String canonical =
         EnrollmentManager.canonicalEnrollmentId(predecessorId);

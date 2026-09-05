@@ -133,11 +133,11 @@ class PkamVerbHandler extends AbstractVerbHandler {
       response.data = 'success';
       enrollId = atConnectionMetadata.enrollmentId;
 
-      // NOTE the retrofit cap is armed here, on the first authentication that
-      // proves the successor's APKAM private half is usable, and never throws.
+      // NOTE a retrofit predecessor is settled here, on the first
+      // authentication proving the successor's private half is usable.
       if (enrollId != null && enrollId.isNotEmpty) {
         final enMgr = AtSecondaryServerImpl.getInstance().enrollmentManager;
-        await enMgr.armRetrofitCapOnFirstAuth(enrollId);
+        await enMgr.settlePredecessorOnFirstAuth(enrollId);
       }
     } else {
       atConnectionMetadata.isAuthenticated = false;

@@ -287,7 +287,7 @@ void main() {
           recordFor(liveChildId, approvedBy: predecessorId));
       store.reapOnEnumeration.add(mgr.buildEnrollmentKey(goneChildId));
 
-      await mgr.armRetrofitCapOnFirstAuth(successorId);
+      await mgr.settlePredecessorOnFirstAuth(successorId);
 
       expect((await mgr.getEnrollmentById(liveChildId)).parentEnrollmentId,
           successorId,

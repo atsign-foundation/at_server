@@ -4,7 +4,7 @@
   c3.16.x wrote the field on ONE path — a self-enrolment — and wrote the
   SPAWNING enrollment into it. This build reads it as the APPROVER: a record
   carrying it is cascaded to when the enrollment it names is revoked, and it
-  is never capped as a retrofit predecessor. A record written by c3.16.x is
+  is never revoked as a retrofit predecessor. A record written by c3.16.x is
   therefore read as approved by the enrollment that spawned it, and nothing
   in the record distinguishes it from one this build wrote. No released
   client self-enrols, so the population that can hold such a record is
@@ -165,8 +165,7 @@
   expiry as `expiresAt` — ISO-8601 UTC, or null when the record never
   expires — on every projection of `enroll:list` (the whole record, the
   roster, and an enrollment's own entry). It is the record's own expiry,
-  whatever set it last: the key-expiry posture at approval or the retrofit
-  cap. A client used to read it with `llookup:meta` on the `__manage` record
+  the key-expiry posture at approval. A client used to read it with `llookup:meta` on the `__manage` record
   over a connection carrying no enrollment id; that connection now carries
   `primary`, and no enrollment may read a `__manage` record with a data verb,
   so without the field no client could learn when a credential stops
@@ -236,23 +235,30 @@
   stops NEW duplicates, which is where one can be prevented rather than
   discovered.
 
-- ⚠️ BREAKING: a fully privileged retrofit predecessor is not capped. A
-  predecessor holding `*:rw` and `__manage:rw` keeps its life when its
-  successor first authenticates: key management is its owner's
-  responsibility, and a clock on an atSign's root is a clock on the atSign's
-  ability to restore itself. Every other predecessor is still capped to
-  `min(apkamSelfEnrollmentGraceHours, what its own posture leaves it)`; a
-  non-root predecessor was created deliberately, by an app with enrollment
-  tooling, for one device, so a clock there is safe and useful, and it can
-  never be the atSign's last root, so no stranding question is asked of it.
-  The cap's stranding question and its decline memo are gone with it.
+- feat: a retrofit predecessor that is not fully privileged is REVOKED when
+  its successor first authenticates. The successor's first `pkam:` moves the
+  predecessor's approval children onto the successor, then revokes the
+  predecessor, recording it in the revocation history as `superseded`, by
+  the successor, with no cascade; `enroll:infons` counts that as a revocation
+  of the namespaces the predecessor held. Every other holder of the
+  predecessor's keyfile is refused with AT0027 on its next command, as after
+  any revoke. It happens at the successor's first authentication rather than
+  when the successor is stored, because storing proves nothing about the
+  client's keyfile: the private half lives client-side, and a write that
+  failed there leaves the predecessor the only credential that works.
 
-  The predecessor's approval children move onto the successor whenever the
-  successor's first authentication is recorded: off a capped predecessor,
-  off a root that keeps its life, and off one already deleted. That last
-  case was described and never done. A predecessor that is not approved is
-  still left alone and nothing is recorded, so an un-revoke restores it
-  with the question still open.
+  A predecessor holding `*:rw` and `__manage:rw` keeps its life, and only its
+  children move: key management is its owner's responsibility, and a clock
+  on an atSign's root is a clock on the atSign's ability to restore itself.
+  A predecessor found revoked, pending or already gone at that moment is
+  settled without a revoke and never re-asked, so an `enroll:unrevoke` of a
+  superseded enrollment, allowed as for any other, is not overturned by the
+  successor's next authentication; the once-off rule still refuses a second
+  retrofit of it.
+
+  Pre-release builds of this version capped the predecessor to a grace period
+  instead; the config key `apkamSelfEnrollmentGraceHours` they read is gone
+  and a value set for it is ignored.
 
 - ⚠️ BREAKING at rest: `parentEnrollmentId` is the enrollment that APPROVED
   this one, and `retrofitPredecessorEnrollmentId` is the enrollment a
@@ -260,7 +266,7 @@
   is set from the connection on `enroll:approve`, null for an enrollment
   approved over CRAM and for `primary`, and copied from the predecessor on
   a retrofit, so a successor is a SIBLING of what it replaced. The
-  replacement edge is read by the once-off rule, by the retrofit cap and by
+  replacement edge is read by the once-off rule, by the settlement and by
   tooling looking for a whole sibling set; `enroll:list` exposes both.
   Re-meaning the stored key is not free — released c3.16.x wrote it on a
   self-enrolment, as the spawning enrollment (see the at-rest entry at the
@@ -415,8 +421,8 @@
 - fix: every enrollment mutation now runs inside ONE store-wide critical
   section, and it covers the whole read-decide-write rather than the write:
   `enroll:request` (past the throttle and the OTP gate), `enroll:approve`,
-  `deny`, `revoke`, `unrevoke`, `update` and `delete`, the retrofit cap's
-  arming, and the adoption of a capped approver's children.
+  `deny`, `revoke`, `unrevoke`, `update` and `delete`, the settlement of a
+  retrofit predecessor, and the adoption of its children.
 
   The keystore has no compare-and-set, and the decision each write rests on
   is a question about the WHOLE store — "would any unexpiring root survive
@@ -426,32 +432,29 @@
 
   Measured on this tree before the change: two concurrent `enroll:revoke`
   commands each counted the root the other was about to remove and left the
-  atSign with none; a retrofit cap arming alongside an `enroll:revoke` did
-  the same, while both serial orderings are safe; and a revoke and a cap
-  arming writing the same record lost one of the two whole-record snapshots
+  atSign with none; a retrofit settlement alongside an `enroll:revoke` did
+  the same, while both serial orderings are safe; and a revoke and a
+  settlement writing the same record lost one of the two whole-record snapshots
   — the verb answering `{"status":"revoked"}` over a record the store held
   `approved`, with that credential's published `_apsk` back at the live
-  address. The adoption of a capped approver's children is the sharpest of
+  address. The adoption of a superseded approver's children is the sharpest of
   them, because its lost update is permanent and silent: nothing re-parents
   twice, so a child left naming its old approver is outside every later
   revocation cascade for the rest of its life.
 
-  The section replaces the arming-only lock, whose docstring claimed it made
-  the liveness answer safe to act on — true only against another arming.
+  The section replaces the settlement-only lock, whose docstring claimed it
+  made the liveness answer safe to act on — true only against another
+  settlement.
 
   ⚠️ Throughput: an enrollment mutation arriving while another is in flight
-  now waits for it. Measured at 100 enrollments, a retrofit cap arming takes
-  9-10ms with nothing to adopt and 36-39ms adopting 50 children, each adopted
-  child being a record write that walks the keystore.
+  now waits for it; a settlement adopting children is one record write per
+  child, each walking the keystore.
 
-  AUTHENTICATION is not affected. The retrofit cap's early exits sit outside
-  the section, so an APKAM authentication with nothing to arm — every
+  AUTHENTICATION is not affected. The settlement's early exits sit outside
+  the section, so an APKAM authentication with nothing to settle — every
   authentication except a retrofit successor's first — costs 2-8us whether or
-  not a mutation is in flight. With those exits inside the section, twenty
-  such authentications took as long as the arming they queued behind: 9.8ms,
-  21ms and 37-38ms at 0, 25 and 50 adopted children respectively. Reads are
-  outside the section entirely, so no verb queues behind an enrollment write
-  to read one.
+  not a mutation is in flight. Reads are outside the section entirely, so no
+  verb queues behind an enrollment write to read one.
 - fix: an enrollment id is canonicalised to the keystore's own fold wherever
   it enters the server or is used to build a keystore key, so handler-side
   identity and stored identity agree by construction. The keystore normalises
@@ -637,13 +640,6 @@
 
   An approver holding `__manage:r` may still admit an enrollment asking for
   `__manage:r`, and reaching a `__manage` key is unaffected.
-- fix: a revocation could be partly undone by a retrofit cap running
-  concurrently. `capEnrollmentExpiry` re-read the record but took the STATUS
-  from the caller's snapshot, taken before a keystore walk and a write — so a
-  revoke landing in that window was written back as approved, moving the
-  revoked enrollment's per-enrollment data (its published `_apsk` signing key
-  among it) back to the live address. The status is now read off the record it
-  just read, and a record that is no longer approved is not written at all.
 - fix: a revoke missed every descendant behind an EXPIRED link. Key
   enumeration hides records whose ttl has elapsed, so the expired enrollment's
   approver edge vanished with it while everything behind it survived approved —
@@ -887,27 +883,18 @@
   client that expected to authenticate without an enrollment id after
   onboarding will not be able to.
 
-- fix: capping a retrofitted approver moves the enrollments it admitted onto
+- fix: superseding a retrofitted approver moves the enrollments it admitted onto
   its successor. Nothing records ancestry beyond an enrollment's immediate
   approver, so a severed link orphans everything behind it — a later revoke of
   the chain above reaches the first live candidate and stops, and the
   reactivation refusal then permits un-revoking exactly what a cascade had
-  swept. `enroll:delete` and the expiry sweep could already sever a link; the
-  retrofit cap would have made it routine, putting a thirty-day deadline on an
-  administrator without asking what sat behind it. The successor is where those
+  swept. `enroll:delete` and the expiry sweep could already sever a link; a
+  retrofit would have made it routine, retiring an administrator without
+  asking what sat behind it. The successor is where those
   enrollments belong: it is the same principal re-keyed, it already inherits
   its predecessor's approver, and this is that substitution seen from the other
   side. It also stops retiring a superseded credential taking down everything
   that credential ever admitted.
-
-- fix: two enrollments authenticating for the first time at once no longer cap
-  BOTH of an atSign's roots. Arming a retrofit's cap asks whether any
-  unexpiring root would survive capping this predecessor and then caps, which
-  is read-modify-write across the whole keystore. Run twice concurrently, both
-  walks finished before either write, so each saw the other's root still
-  uncapped and both were capped — leaving the atSign with no root it could
-  restore itself from. Two devices reconnecting together was enough. The walk
-  and the cap that follows it are now one critical section.
 
 - fix: `update:meta` is authorised like `update` rather than refused to every
   enrollment (#2691). `UpdateMeta` extends `Verb` and not `Update`, and
@@ -956,38 +943,6 @@
   thing the app does rather than at the request that caused it. Asking for MORE
   than the predecessor holds is still refused, with its own message, so the two
   mistakes stay distinguishable.
-- feat: the retrofit expiry cap is armed by the successor's first
-  authentication rather than by storing it. Storing a successor proves only
-  that the atServer wrote a record: the successor's APKAM private half is
-  persisted client-side, so a keyfile write that fails, a read-only file, or a
-  process that dies before the flush each leave the successor existing on the
-  server and nowhere else — with a clock already started on the predecessor,
-  which is by then the only credential that still works. The cap now fires when
-  the successor first authenticates over a connection it opened, which is what
-  proves the private half survived and is usable. It still re-arms once per
-  successor, so a predecessor retires one grace period after the last sibling
-  upgrades, and a successor's own repeated connections never extend it.
-
-  Two conditions stop the cap, and neither is remembered: both are judgements
-  about state that can change, so they are re-made on the successor's next
-  authentication rather than frozen into the record. A predecessor that is not
-  approved is left alone — it is already retired, and capping it would hand it
-  a fresh expiry it has no business carrying; an unrevoke restores an ordinary
-  predecessor and must not find it permanently exempt. A predecessor holding
-  `*:rw` and `__manage:rw` is never capped at all — see the entry above on
-  fully privileged predecessors — and its children still move. Every other
-  predecessor is capped regardless of how long its successor lives: declining
-  more widely than that would switch retirement off for any fleet whose APKAM
-  keys are shorter-lived than the grace, and would make the grace setting
-  work backwards, a longer grace declining more often.
-
-  The expiry the cap measures against is taken from APPROVAL rather than from
-  the request. A record that carries no expiry does not expire, whatever
-  posture its stored value states, so nothing but the grace bounds the cap
-  there. The two differ by the approval latency, and a request-anchored
-  measurement went negative for an enrollment retrofitted between them —
-  capping it to one millisecond, killing a credential with hours of legitimate
-  life left and locking out every sibling clone that had still to upgrade.
 - fix: a published APKAM signing key is world-READABLE, not world-writable.
   The only cross-enrollment denial in the authorisation path short-circuited on
   the `public:` prefix, and its own comment justified that on read grounds —
@@ -1009,11 +964,8 @@
   mint-time check compared TERMS, and a term restarts its clock at the
   successor's own write — so an inherited term always expired later in
   absolute time than its predecessor's deadline, by exactly the predecessor's
-  age. It was also vacuous in the case that mattered most: it read the posture
-  off the predecessor's stored VALUE, while a capped predecessor's real
-  deadline lives only in its record metadata. A CRAM root carrying posture 0,
-  capped to now+grace, could therefore mint a successor asking for 0 — written
-  as "never expires", by a credential due to die inside the grace.
+  age. It also read the posture off the predecessor's stored VALUE, while the
+  predecessor's real deadline lives only in its record metadata.
 
   The successor's posture is now bounded by what is LEFT of the predecessor's
   stored deadline, carried to the write as an ABSOLUTE so it lands exactly
@@ -1030,9 +982,9 @@
   authenticated, that the named enrollment existed and was approved, and that
   grants did not escalate, but never asked whether that enrollment had itself
   replaced something. A non-root predecessor is refused for a second split
-  once its first successor has authenticated and capped it, since the clock
-  that cap started is what a later sibling would inherit; a sibling clone of
-  the keyfile enrols over an OTP instead, and a root, never being capped,
+  once its first successor has authenticated and settled it, whether it is
+  still revoked or has since been un-revoked; a sibling clone of the keyfile
+  enrols over an OTP instead, and a root, never revoked as a predecessor,
   stays splittable.
 
   What made repetition costly is the key-expiry clock: each link restarts it,
@@ -1047,8 +999,8 @@
   predecessor, so losing a replacement link orphans nothing.
 
   ⚠️ This bounds the REPLACEMENT edge only, and only its depth. Several
-  sibling clones of one keyfile may still each retrofit the same enrollment —
-  that is the behaviour the retrofit cap re-arms for — so the graph is one link
+  sibling clones of one keyfile may still each retrofit the same enrollment
+  until one of them authenticates, so the graph is one link
   deep and arbitrarily wide. Approval is a separate edge and is NOT bounded:
   an approver may admit an enrollment that admits another, to any depth, and
   the cascade is what governs that rather than any limit on minting.
@@ -1117,16 +1069,10 @@
   holding both `*` and a narrower grant at different access letters had its
   roster entry decided by which grant happened to be written first — and could
   report a letter the server itself would not act on.
-- fix: the retrofit cap computes its ttl against the record it just read,
-  rather than taking one the caller computed earlier. A ttl is a distance from
-  the instant it was computed at and the store re-anchors it at the instant of
-  the write, so the value the caller had already decided on was stamped as the
-  deadline it checked PLUS however long the intervening keystore walk took.
-  The parameter is gone rather than corrected, which also removes the last way
-  a caller's stale snapshot could reach the write.
-- fix: arming the cap no longer reverts a concurrent change to the successor.
+- fix: settling a predecessor no longer reverts a concurrent change to the
+  successor.
   The successor's record is read immediately before it is written rather than
-  before the predecessor lookup and the cap, so an `enroll:update` rotating its
+  before the predecessor lookup and the revoke, so an `enroll:update` rotating its
   APKAM public key, or an `enroll:revoke` of it, is no longer overwritten from
   a stale snapshot. The keystore has no compare-and-set, so on its own this
   narrowed the window rather than closing it; the enrollment-mutation critical
@@ -1137,43 +1083,24 @@
   this release. A record stamped by a pre-release build of this version
   under the name `predecessorCapArmedAt` reads back as settled and is
   written back under the current name.
-- `apkamSelfEnrollmentGraceHours` is now documented in `config.yaml` with its
-  720-hour default. It was already read from there and from the environment;
-  it governs every enrollment now that the first-enrollment exemption is gone,
-  so it should not have been invisible.
 - fix: approving an enrollment whose key-expiry posture is zero or negative no
   longer leaves it carrying the approval window as its deadline. The metadata
   builder derives an expiry only for a ttl of zero or more, so a negative one
   skipped the derivation and the PENDING record's expiry — the window the
   request had to be approved in, 48 hours by default — survived onto the
   approved enrollment. The credential then expired on a deadline nobody asked
-  for, and a retrofit cap measured against that stale value appeared to EXTEND
-  the enrollment rather than shorten it. A non-positive posture is now written
+  for. A non-positive posture is now written
   as the keystore's "never expires", which is what it asks for.
 - fix: amending or revoking an enrollment no longer restarts its expiry.
   `enroll:update`, `enroll:revoke`, `enroll:deny` and `enroll:unrevoke` each
   wrote the record with no statement about expiry, and the metadata builder
   re-derives `expiresAt` from the retained ttl on any such write — so every one
-  of them silently moved the deadline to a grace period from the moment of the
-  write. An enrollment could therefore postpone its own retirement indefinitely
-  by amending itself once per period, which would have made the retrofit cap
-  advisory rather than a deadline. These writes now carry the stored expiry
+  of them silently moved the deadline to one full term from the moment of the
+  write. An enrollment could therefore postpone its own expiry indefinitely
+  by amending itself once per term, which would have made any deadline
+  advisory. These writes now carry the stored expiry
   forward as an assertion. `enroll:approve` still sets the expiry deliberately,
   which is where an enrollment's key-expiry clock is meant to start.
-- BREAKING for operators: `preserveFirstEnrollmentOnRetrofit` is removed, from
-  `config.yaml` and from the environment. It exempted the atSign's first
-  enrollment from the retrofit cap, because capping it could leave an atSign
-  with no enrollment able to approve a replacement. The exemption asked
-  whether an enrollment was the FIRST; what mattered is whether it is fully
-  privileged, and a fully privileged predecessor is now never capped at all —
-  see the entry above. A deployment that still sets the key needs no change:
-  config is read by explicit key lookup with no schema validation, so an
-  unknown key is never read.
-
-  An atSign that retrofitted under the exemption has a root carrying no
-  expiry and a successor carrying no record of having settled anything. On
-  that successor's first connection after the upgrade the root keeps its
-  life, and what the root admitted moves onto the successor.
 - fix: assemble outbound responses correctly however the network splits them.
   A peer writes a response and the prompt that follows it as one string, but
   it arrives in however many pieces the network chooses, and the atServer

@@ -43,6 +43,23 @@ void main() {
               'wrong way');
     });
 
+    test('a supersession is the same shape with its own kind', () {
+      final json = EnrollmentRevocationEvent(
+        type: EnrollmentRevocationEventType.superseded,
+        enrollmentId: 'aaaa-1111',
+        at: at,
+        namespaces: {'wavi': 'rw'},
+        byEnrollmentId: 'ssss-4444',
+        cascadedFrom: null,
+      ).toJson();
+
+      expect(json['event'], 'superseded');
+      expect(EnrollmentRevocationEvent.fromJson(json).type,
+          EnrollmentRevocationEventType.superseded,
+          reason: 'a kind the reader refuses would drop the event from the '
+              'history that answers which namespaces were revoked when');
+    });
+
     test('the optional fields are omitted, not written null', () {
       final json = EnrollmentRevocationEvent(
         type: EnrollmentRevocationEventType.revoked,

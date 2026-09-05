@@ -424,7 +424,7 @@ void main() {
       await mint('upper-kid',
           namespaces: {'wavi': 'rw'}, approvedBy: 'UPPER-PRED');
 
-      await enMgr.armRetrofitCapOnFirstAuth('upper-succ');
+      await enMgr.settlePredecessorOnFirstAuth('upper-succ');
 
       expect((await enMgr.getEnrollmentById('upper-kid')).parentEnrollmentId,
           'upper-succ',

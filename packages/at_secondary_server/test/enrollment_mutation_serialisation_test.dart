@@ -164,7 +164,7 @@ void main() {
     });
   });
 
-  group('a revoke and a cap arming writing the same record', () {
+  group('a revoke and a settlement writing the same record', () {
     /// A successor of `primary` that published an `_apsk`.
     Future<String> lostUpdateArrangement() async {
       final successor = await selfEnroll(etu.primaryEnId,
@@ -180,15 +180,15 @@ void main() {
     }
 
     // NOTE this arm stays green with the critical section removed: nothing in
-    // a test can park the arming between its read and its write, so what it
-    // pins is the outcome, not the serialisation.
+    // a test can park the settlement between its read and its write, so what
+    // it pins is the outcome, not the serialisation.
     test('run together, the store holds the revoke the verb answered',
         () async {
       final successor = await lostUpdateArrangement();
 
       final outcomes = await Future.wait([
         revoke(etu.primaryEnId, successor),
-        enMgr.armRetrofitCapOnFirstAuth(successor).then((_) => null),
+        enMgr.settlePredecessorOnFirstAuth(successor).then((_) => null),
       ]);
       expect(outcomes.first, isNull,
           reason: 'precondition: the revoke was allowed and answered revoked');
@@ -209,15 +209,15 @@ void main() {
           reason: 'it belongs at the parked address');
     });
 
-    test('SERIAL CONTROL: revoking then arming leaves the record revoked',
+    test('SERIAL CONTROL: revoking then settling leaves the record revoked',
         () async {
       final successor = await lostUpdateArrangement();
 
       expect(await revoke(etu.primaryEnId, successor), isNull);
-      await enMgr.armRetrofitCapOnFirstAuth(successor);
+      await enMgr.settlePredecessorOnFirstAuth(successor);
 
       expect(await stateOf(successor), EnrollmentStatus.revoked.name,
-          reason: 'the arming reads the record it is about to write, so run '
+          reason: 'the settlement reads the record it is about to write, so run '
               'after the revoke it carries the revoked state forward — no '
               'serialisation needed, so this stays green when the critical '
               'section is removed');
@@ -228,7 +228,7 @@ void main() {
     });
   });
 
-  group('adopting a capped approver\'s children', () {
+  group('adopting a superseded approver\'s children', () {
     /// A predecessor P that admitted three children, and a short-lived
     /// successor S of P. Returns P, one child, and S.
     Future<(String, String, String)> adoptionArrangement() async {
@@ -265,49 +265,49 @@ void main() {
                 (await keyValueStore.get(enMgr.buildEnrollmentKey(id)))!.data!))
             .parentEnrollmentId;
 
-    test('the stamp, the cap and the adoption are all inside the section',
+    test('the stamp, the revoke and the adoption are all inside the section',
         () async {
       final (predecessor, child, successor) = await adoptionArrangement();
 
       final gate = Completer<void>();
       final holder = enMgr.serialiseMutation(() => gate.future);
-      final arming = enMgr.armRetrofitCapOnFirstAuth(successor);
+      final settling = enMgr.settlePredecessorOnFirstAuth(successor);
       await Future<void>.delayed(Duration(milliseconds: 100));
 
-      final armedDuringHold =
+      final settledDuringHold =
           (await enMgr.getEnrollmentById(successor)).predecessorSettledAt;
-      final cappedDuringHold = await expiryOf(predecessor);
+      final predecessorDuringHold = await stateOf(predecessor);
       final approverDuringHold = await approverOf(child);
 
       gate.complete();
-      await Future.wait([holder, arming]);
+      await Future.wait([holder, settling]);
 
       expect(approverDuringHold, predecessor,
           reason: 'the re-parent must not happen while another mutation holds '
               'the section: it is a read-modify-write of a whole child '
               'record, and the write that overtakes it is never repeated');
-      expect(armedDuringHold, isNull,
+      expect(settledDuringHold, isNull,
           reason: 'nor the stamp on the successor');
-      expect(cappedDuringHold, isNull,
-          reason: 'nor the cap on the predecessor');
+      expect(predecessorDuringHold, EnrollmentStatus.approved.name,
+          reason: 'nor the revoke of the predecessor');
 
       expect(await approverOf(child), successor,
           reason: 'and all three land once the section is free — otherwise '
-              'this would be measuring an arming that simply never ran');
+              'this would be measuring a settlement that simply never ran');
       expect(
           (await enMgr.getEnrollmentById(successor)).predecessorSettledAt,
           isNotNull);
-      expect(await expiryOf(predecessor), isNotNull);
+      expect(await stateOf(predecessor), EnrollmentStatus.revoked.name);
     });
 
-    test('SERIAL CONTROL: revoking then arming leaves both writes standing',
+    test('SERIAL CONTROL: revoking then settling leaves both writes standing',
         () async {
       final (predecessor, child, successor) = await adoptionArrangement();
 
       expect(await revoke(etu.primaryEnId, child), isNull);
-      await enMgr.armRetrofitCapOnFirstAuth(successor);
+      await enMgr.settlePredecessorOnFirstAuth(successor);
 
-      expect(await expiryOf(predecessor), isNotNull);
+      expect(await stateOf(predecessor), EnrollmentStatus.revoked.name);
       expect(await approverOf(child), successor,
           reason: 'the adoption reads each child immediately before writing '
               'it, so run after the revoke it re-parents the revoked child '
@@ -372,7 +372,7 @@ void main() {
       expect(reachedTheSection, isTrue);
     });
 
-    test('the cap arming takes no section when there is nothing to arm',
+    test('settling takes no section when there is nothing to settle',
         () async {
       final plain = await addUnexpiringRoot('replaced-nothing');
 
@@ -380,12 +380,12 @@ void main() {
         await Future<void>.delayed(Duration(milliseconds: 300));
       });
       final sw = Stopwatch()..start();
-      await enMgr.armRetrofitCapOnFirstAuth(plain);
+      await enMgr.settlePredecessorOnFirstAuth(plain);
       sw.stop();
       await held;
 
       expect(sw.elapsedMilliseconds, lessThan(200),
-          reason: 'an enrollment that replaced nothing has nothing to arm, so '
+          reason: 'an enrollment that replaced nothing has nothing to settle, so '
               'it must answer while a mutation is in flight rather than queue '
               'behind it');
     });
