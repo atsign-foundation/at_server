@@ -17,13 +17,7 @@ class AtSecondaryConfig {
   static const bool _useTLS = true;
   static const bool _clientCertificateRequired = true;
 
-  // Cross-server 'to:' verb. Inbound understanding of 'to:@x' is always on
-  // (unauthenticated, serves only data that is already publicly readable via
-  // lookup) — see ToVerbHandler. Outbound emission (send 'to:@target' as the
-  // first verb on outbound peer connections, which also fetches the peer's
-  // public key so no separate lookup is needed) is gated by this flag,
-  // default OFF until every atServer understands 'to:'. OutboundClient falls
-  // back to the legacy lookup when a peer rejects 'to:'.
+  // Gates outbound emission of the cross-server 'to:' verb.
   static const bool _toVerbOutboundEnabled = false;
 
   //Certificate Paths
@@ -42,19 +36,9 @@ class AtSecondaryConfig {
   static const String _notificationStoragePath = 'storage/notificationLog.v1';
   static const int _expiringRunFreqMins = 10;
 
-  // Persistence backend selection. 'hive' (default) keeps the historical
-  // Hive stores. 'sqlite' opens one atsign.db per atSign under
-  // <storageRoot>/sqlite. A mismatch between this and the on-disk backend
-  // marker triggers a migrate-verify-flip at startup (abort on failure).
+  // Persistence backend: 'hive', 'sqlite' or 'dual'.
   static const String _persistenceBackend = 'hive';
-  // The common storage root for the backend marker (.persistence_backend) and,
-  // for the 'sqlite'/'dual' backends, the SQLite data (<storageRoot>/sqlite).
-  // INDEPENDENT of the Hive path constants above (_storagePath / _commitLogPath
-  // / ...): with the default 'hive' backend this only locates the marker file —
-  // the Hive stores live at those paths, NOT under here. A relative path, so in
-  // the secondary container (WORKDIR /atsign) it resolves to /atsign/storage,
-  // the mounted persistent volume. Kept equal to the Hive paths' parent by
-  // convention so all state lands on that one volume.
+  // Storage root for the backend marker and the SQLite data.
   static const String _storageRoot = 'storage';
 
   //Commit Log
@@ -72,8 +56,10 @@ class AtSecondaryConfig {
   //Notification
   static const bool _autoNotify = true;
 
-  // The time interval(in seconds) to notify latest commitID to monitor connections
-  // To disable to the feature, set to -1.
+  // Whether this server is running as a test fixture.
+  static const bool _testingMode = false;
+
+  // Interval in seconds for notifying the latest commitID; -1 disables.
   static const int _statsNotificationJobTimeInterval = 15;
 
   // defines the time after which a notification expires in units of minutes
@@ -106,7 +92,7 @@ class AtSecondaryConfig {
   static const int _statsTopKeys = 5;
   static const int _statsTopVisits = 5;
 
-  //log level configuration. Value should match the name of one of dart logging package's Level.LEVELS
+  // Must match the name of one of the logging package's Level.LEVELS.
   static const String _defaultLogLevel = 'INFO';
 
   //root server configurations
@@ -125,7 +111,7 @@ class AtSecondaryConfig {
   static const bool _shouldRemoveMalformedKeys = true;
 
   // Protected Keys
-  // <@atsign> is a placeholder. To be replaced with actual atsign during runtime
+  // <@atsign> is a placeholder, replaced with the atSign at runtime.
   static final Set<String> _protectedKeys = {
     'signing_publickey<@atsign>',
     'signing_privatekey<@atsign>',
@@ -144,19 +130,13 @@ class AtSecondaryConfig {
 
   static String? get secondaryServerVersion => _secondaryServerVersion;
 
-  // TODO: Medium priority: Most (all?) getters in this class return a default value but the signatures currently
-  //  allow for nulls. Should fix this as has been done for logLevel
-  // TODO: Low priority: Lots of very similar boilerplate code here. Not necessarily bad in this particular case, but
-  //  could be terser as per the logLevel getter
   static String get logLevel {
     return _getStringEnvVar('logLevel') ??
         getStringValueFromYaml(['log', 'level']) ??
         _defaultLogLevel;
   }
 
-  /// Used to be called "useSSL" and check env and config for "useSSL"
-  /// Now we are checking env and config for "useTLS", and for backwards
-  /// compatibility reasons we will fallback check env and config for "useSSL"
+  /// Reads `useTLS` from env and config, falling back to the older `useSSL`.
   static bool? get useTLS {
     var result = _getBoolEnvVar('useTLS');
     if (result != null) {
@@ -179,15 +159,7 @@ class AtSecondaryConfig {
     }
   }
 
-  /// Whether to require a client certificate when another atServer
-  /// connects to us. This should NEVER be set to false except in
-  /// very specific circumstances, such as a self-contained ephemeral
-  /// environment, or for testing purposes.
-  ///
-  /// This flag also controls whether we present a client certificate
-  /// when connecting to another atServer
-  ///
-  /// - To override from env: `clientCertificateRequired=false`
+  /// Whether a client certificate is required inbound and presented outbound.
   static bool get clientCertificateRequired {
     var result = _getBoolEnvVar('clientCertificateRequired');
     if (result != null) {
@@ -200,12 +172,7 @@ class AtSecondaryConfig {
     }
   }
 
-  /// Gates outbound emission of the cross-server `to:` verb as the first verb
-  /// on outbound peer connections. Default false (outbound connections use the
-  /// legacy `lookup:`/bare-`from:` path, byte for byte). When on, a peer that
-  /// rejects `to:` triggers a fallback to the legacy lookup, so enabling is
-  /// safe against atServers that do not understand the verb. Override with env
-  /// `toVerbOutboundEnabled=true` or yaml `protocol.toVerbOutboundEnabled`.
+  /// Gates outbound emission of the cross-server `to:` verb.
   static bool get toVerbOutboundEnabled {
     var result = _getBoolEnvVar('toVerbOutboundEnabled');
     if (result != null) {
@@ -334,22 +301,18 @@ class AtSecondaryConfig {
   }
 
   /// Whether the commit-log compactor cron should be scheduled.
-  /// Disable to suppress the periodic prune.
   static bool get enableCommitLogCompactor {
     return _getBoolEnvVar('enableCommitLogCompactor') ??
         _enableCommitLogCompactor;
   }
 
-  /// Whether the access-log compactor cron should be scheduled. No
-  /// effect when [AtPersistenceConfig.enableAccessLog] is `false`.
+  /// Whether the access-log compactor cron should be scheduled.
   static bool get enableAccessLogCompactor {
     return _getBoolEnvVar('enableAccessLogCompactor') ??
         _enableAccessLogCompactor;
   }
 
-  /// Whether the notification-keystore compactor cron should be
-  /// scheduled. No effect when
-  /// [AtPersistenceConfig.enableNotificationKeystore] is `false`.
+  /// Whether the notification-keystore compactor cron should be scheduled.
   static bool get enableNotificationCompactor {
     return _getBoolEnvVar('enableNotificationCompactor') ??
         _enableNotificationCompactor;
@@ -399,9 +362,7 @@ class AtSecondaryConfig {
     }
   }
 
-  /// The active persistence backend: `'hive'` (default) or `'sqlite'`.
-  /// Override with env `persistenceBackend` or yaml
-  /// `persistence.backend`.
+  /// The active persistence backend, `'hive'` or `'sqlite'`.
   static String get persistenceBackend {
     final result = _getStringEnvVar('persistenceBackend');
     if (result != null) return result;
@@ -412,13 +373,7 @@ class AtSecondaryConfig {
     }
   }
 
-  /// The common storage root for the backend marker and (for the
-  /// `'sqlite'`/`'dual'` backends) the SQLite data. INDEPENDENT of the Hive
-  /// paths — with the default `'hive'` backend this only locates the marker
-  /// file; the Hive stores live at [storagePath] / [commitLogPath] / etc.,
-  /// not under here. Relative to the container working dir in production
-  /// (`/atsign` → `/atsign/storage`, the mounted volume). Override with env
-  /// `storageRoot` or yaml `persistence.storageRoot`.
+  /// Storage root for the backend marker and the SQLite data.
   static String get storageRoot {
     final result = _getStringEnvVar('storageRoot');
     if (result != null) return result;
@@ -558,6 +513,34 @@ class AtSecondaryConfig {
     } on ElementNotFoundException {
       return _autoNotify;
     }
+  }
+
+  /// Forces [testingMode] to a value for the duration of a test; null asks the
+  /// environment and the yaml, as every non-test run does.
+  @visibleForTesting
+  static bool? testingModeOverride;
+
+  /// Whether this server is running as a test fixture; only a bool `true` or
+  /// the string `true` in env or yaml answers true, and anything else,
+  /// including an unparseable setting, answers false.
+  static bool get testingMode {
+    if (testingModeOverride != null) {
+      return testingModeOverride!;
+    }
+    var result = _getBoolEnvVar('testingMode');
+    if (result != null) {
+      return result;
+    }
+    final dynamic configured;
+    try {
+      configured = getConfigFromYaml(['testing', 'testingMode']);
+    } on ElementNotFoundException {
+      return _testingMode;
+    }
+    if (configured is bool) {
+      return configured;
+    }
+    return configured is String && configured.trim().toLowerCase() == 'true';
   }
 
   static String get trustedCertificateLocation {
@@ -745,28 +728,7 @@ class AtSecondaryConfig {
   }
 
   /// How long a superseded enrollment keeps authenticating after the
-  /// enrollment that replaced it FIRST AUTHENTICATES.
-  ///
-  /// A retrofit replaces the credential its connection authenticated as. The
-  /// predecessor is capped rather than removed, so sibling clones of the same
-  /// keyfile can still upgrade until the cap elapses — and the clock starts
-  /// when the successor proves it can authenticate, not when the server
-  /// stores it, because storing it proves only that the server wrote a
-  /// record while the private half lives client-side.
-  ///
-  /// The cap written is `min(this, what the predecessor's own key-expiry
-  /// posture leaves it)`, and NOT folded against a previously written cap:
-  /// re-arming has to be able to push a deadline OUT, or the first sibling's
-  /// upgrade fixes a date every laggard is then stranded behind. It re-arms
-  /// once per successor, so the predecessor retires one grace period after
-  /// the LAST clone upgrades. A laggard stranded past the window recovers via
-  /// an ordinary OTP enrollment.
-  ///
-  /// The default (30 days) is deliberately generous. Two cases decline to cap
-  /// at all — a predecessor that is not approved, and a fully-privileged one
-  /// whose successor would be gone before the deadline with no other
-  /// fully-privileged enrollment surviving it. See
-  /// [EnrollmentManager.armRetrofitCapOnFirstAuth].
+  /// enrollment that replaced it first authenticates.
   static int get apkamSelfEnrollmentGraceHours {
     return _getIntEnvVar('apkamSelfEnrollmentGraceHours') ??
         getNullableIntFromYaml(
@@ -818,7 +780,7 @@ class AtSecondaryConfig {
     }
   }
 
-  // implementation for config:set. This method returns a data stream which subscribers listen to for updates
+  // The stream subscribers listen on for config:set updates.
   static Stream<dynamic>? subscribe(ModifiableConfigs configName) {
     if (!_streamListeners.containsKey(configName)) {
       _streamListeners[configName] = ModifiableConfigurationEntry()
@@ -828,31 +790,28 @@ class AtSecondaryConfig {
     return _streamListeners[configName]!.streamController.stream;
   }
 
-  // implementation for config:set. Broadcasts new config value to all the listeners/subscribers
+  // Broadcasts a new config value to every subscriber, for config:set.
   static void broadcastConfigChange(
       ModifiableConfigs configName, var newConfigValue,
       {bool isReset = false}) {
-    // if an entry for the config does not exist new entry is created
     if (!_streamListeners.containsKey(configName)) {
       _streamListeners[configName] = ModifiableConfigurationEntry()
         ..streamController = StreamController<dynamic>.broadcast()
         ..defaultValue = AtSecondaryConfig.getDefaultValue(configName);
     }
-    // in case of reset, the default value of that config is broadcast
     if (isReset) {
       _streamListeners[configName]
           ?.streamController
           .add(_streamListeners[configName]!.defaultValue);
       _streamListeners[configName]?.currentValue =
           _streamListeners[configName]!.defaultValue;
-      // this else case broadcast new config value
     } else {
       _streamListeners[configName]?.streamController.add(newConfigValue!);
       _streamListeners[configName]?.currentValue = newConfigValue;
     }
   }
 
-  // implementation for config:Set. Returns current value of modifiable configs
+  // The current value of a modifiable config, for config:set.
   static dynamic getLatestConfigValue(ModifiableConfigs configName) {
     if (_streamListeners.containsKey(configName)) {
       return _streamListeners[configName]?.currentValue ??
@@ -861,8 +820,7 @@ class AtSecondaryConfig {
     return null;
   }
 
-  // implementation for config:set
-  // switch case that returns default value of modifiable configs
+  // The default value of a modifiable config, which config:set resets to.
   static Object getDefaultValue(ModifiableConfigs configName) {
     switch (configName) {
       case ModifiableConfigs.accessLogCompactionFrequencyMins:
@@ -932,7 +890,6 @@ class AtSecondaryConfig {
         }
       }
     }
-    // If value not found throw exception
     if (value == Null || value == null) {
       throw ElementNotFoundException(
           'Element ${args.toString()} Not Found in yaml');
@@ -955,7 +912,6 @@ class AtSecondaryConfig {
         }
       }
     }
-    // If value not found throw exception
     if (value == Null || value == null) {
       return null;
     } else {

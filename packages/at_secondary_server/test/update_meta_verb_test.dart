@@ -7,6 +7,7 @@ import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 
 import 'test_utils.dart';
 
@@ -75,6 +76,7 @@ void main() {
       updateVerbParams.putIfAbsent('value', () => '99899');
 
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       await updateVerbHandler.processVerb(
           updateResponse, updateVerbParams, inboundConnection);
 
@@ -127,6 +129,7 @@ void main() {
       updateVerbParams.putIfAbsent('atKey', () => 'location');
       updateVerbParams.putIfAbsent('value', () => 'hyderabad');
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       await updateVerbHandler.processVerb(
           updateResponse, updateVerbParams, inboundConnection);
 
@@ -146,6 +149,7 @@ void main() {
       upMetaParams.putIfAbsent('atKey', () => 'location');
       upMetaParams.putIfAbsent('ttl', () => ttl.toString());
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       await updateMetaVerbHandler.processVerb(
           updateMetaResponse, upMetaParams, inboundConnection);
 

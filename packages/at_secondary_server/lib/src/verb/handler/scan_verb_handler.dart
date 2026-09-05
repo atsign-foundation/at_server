@@ -6,6 +6,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/wire_param_names.dart';
+import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -16,9 +17,7 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
 
-/// ScanVerbHandler class is used to process scan verb
-/// Scan verb will return all the possible keys you can lookup
-///Ex: scan\n
+/// Handles `scan`, which returns the keys this connection may look up.
 class ScanVerbHandler extends AbstractVerbHandler {
   static Scan scan = Scan();
   final OutboundClientManager outboundClientManager;
@@ -27,29 +26,16 @@ class ScanVerbHandler extends AbstractVerbHandler {
   ScanVerbHandler(
       super.keyStore, this.outboundClientManager, this.cacheManager);
 
-  /// Verifies whether command is accepted or not
-  ///
-  /// [command]: Input to scan verb
-  ///
-  /// Return true if command is accepted, else false.
   @override
   bool accept(String command) => command.startsWith(getName(VerbEnum.scan));
 
-  /// Returns [Scan] verb.
   @override
   Verb getVerb() {
     return scan;
   }
 
-  /// Process scan Verb. Process the given command and write response to response object.
-  ///
-  /// [response] - Holds the response from server and sends to the client.
-  ///
-  /// [verbParams] - Holds the key value pair that matches the regular expression.
-  ///
-  /// [AtConnection] - The connection which invokes the process verb.
-  ///
-  /// Throws [UnAuthenticatedException] if forAtSign is not null and connection is not authenticated.
+  /// Throws [UnAuthenticatedException] when a scan names another atSign, or
+  /// asks for the commit log, on an unauthenticated connection.
   @override
   Future<void> processVerb(
       Response response,
@@ -65,17 +51,14 @@ class ScanVerbHandler extends AbstractVerbHandler {
     try {
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
       if (verbParams[WireParams.commitLog] != null) {
-        // scan:cl — scan the commit log instead of the keystore, so a
-        // client can inspect (and then delete:nc) its entries.
         if (!atConnectionMetadata.isAuthenticated) {
           throw UnAuthenticatedException(
               'scan:cl requires an authenticated connection');
         }
         if ((forAtSign != null && forAtSign.isNotEmpty) &&
             forAtSign != currentAtSign) {
-          // The outbound scan proxy cannot forward :cl, so a remote
-          // commit-log scan would silently degrade to a plain remote
-          // scan — refuse loudly instead.
+          // NOTE the outbound scan proxy cannot forward :cl, so a remote
+          // commit-log scan is refused rather than silently degraded.
           throw InvalidRequestException(
               'scan:cl can only scan this atSign\'s own commit log');
         }
@@ -83,13 +66,8 @@ class ScanVerbHandler extends AbstractVerbHandler {
             atConnectionMetadata, scanRegex, showHiddenKeys, currentAtSign));
         return;
       }
-      // If forAtSign is set, fetch keys that are sharedBy the "forAtSign" to the currentAtSign
-      // If currentAtSign is @alice and forAtSign is @bob, fetch all the keys that @bob has
-      // created for @alice.
       if ((forAtSign != null && forAtSign.isNotEmpty) &&
           forAtSign != currentAtSign) {
-        // When looking up keys of another atSign and connection is not authenticated,
-        // Throw UnAuthenticatedException.
         if (!atConnectionMetadata.isAuthenticated) {
           throw UnAuthenticatedException(
               'Scan to another atSign cannot be performed without auth');
@@ -107,24 +85,13 @@ class ScanVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  /// Fetches the keys of another user atSign
-  ///
-  /// [forAtSign] : The another user atSign to lookup for keys.
-  ///
-  /// [scanRegex] : The regular expression to filter the keys
-  ///
-  /// [atConnection] : The inbound connection
-  ///
-  /// **Returns**
-  ///
-  /// String : The another atSign keys returned. Returns null if no keys found.
+  /// The keys [forAtSign] shares with this atSign, matching [scanRegex],
+  /// fetched over an outbound connection. Null when there are none.
   Future<String?> _getExternalKeys(String forAtSign, String? scanRegex,
       InboundConnection atConnection) async {
-    //scan has to be performed for another atSign
     final OutboundClient outBoundClient = await outboundClientManager
         .getClient(forAtSign, atConnection, handshakeRequired: true);
     var handShake = false;
-    // Performs handshake if not done.
     if (!outBoundClient.isHandShakeDone) {
       await outBoundClient.connect();
       handShake = true;
@@ -134,7 +101,6 @@ class ScanVerbHandler extends AbstractVerbHandler {
     return scanResult;
   }
 
-  /// Filter keys based on authentication type of inbound connection
   @visibleForTesting
   Future<List<String>> getLocalKeys(
       InboundConnectionMetadata atConnectionMetadata,
@@ -152,9 +118,12 @@ class ScanVerbHandler extends AbstractVerbHandler {
     if (atConnectionMetadata.isAuthenticated) {
       localKeysList
           .removeWhere((key) => _isPrivateKeyForAtSign(key, showHiddenKeys));
+      if (AbstractVerbHandler.isCramConnection(atConnectionMetadata)) {
+        return localKeysList;
+      }
       if (atConnectionMetadata.enrollmentId == null ||
           atConnectionMetadata.enrollmentId!.isEmpty) {
-        return localKeysList;
+        return <String>[];
       }
       return await _filterKeysBasedOnEnrollmentId(
           atConnectionMetadata, localKeysList, currentAtSign);
@@ -181,15 +150,9 @@ class ScanVerbHandler extends AbstractVerbHandler {
 
   /// The commit-log entries visible to this connection, as the JSON-ready
   /// maps `scan:cl` returns, in ascending commitId order:
-  /// `{"atKey", "operation" (the CommitOp symbol sync also uses),
-  /// "commitId", "opTime" (ISO 8601 UTC)}`.
-  ///
-  /// The same filters as a keystore scan apply: [scanRegex] against the
-  /// atKey, the hidden-key rules ([_isPrivateKeyForAtSign] with
-  /// [showHiddenKeys]), and — for an APKAM connection — the enrollment
-  /// namespace filter ([_filterKeysBasedOnEnrollmentId]). DELETE entries
-  /// are included: an entry for a key that no longer exists is exactly
-  /// what commit-log cruft management is looking for.
+  /// `{"atKey", "operation" (the CommitOp symbol sync also uses), "commitId",
+  /// "opTime" (ISO 8601 UTC)}`. The same filters as a keystore scan apply,
+  /// and DELETE entries are included.
   @visibleForTesting
   Future<List<Map<String, Object?>>> getCommitLogEntries(
       InboundConnectionMetadata atConnectionMetadata,
@@ -201,8 +164,6 @@ class ScanVerbHandler extends AbstractVerbHandler {
       return [];
     }
     final regex = scanRegex == null ? null : RegExp(scanRegex);
-    // The commit log holds at most one entry per atKey, so entries can be
-    // keyed by atKey and scan's own enrollment filter reused verbatim.
     final byKey = <String, CommitEntry>{};
     await for (final entry in commitLog.iterate()) {
       final atKey = entry.atKey;
@@ -218,10 +179,14 @@ class ScanVerbHandler extends AbstractVerbHandler {
       byKey[atKey] = entry;
     }
     List<String> visibleKeys = byKey.keys.toList();
-    if (atConnectionMetadata.enrollmentId != null &&
-        atConnectionMetadata.enrollmentId!.isNotEmpty) {
-      visibleKeys = await _filterKeysBasedOnEnrollmentId(
-          atConnectionMetadata, visibleKeys, currentAtSign);
+    if (!AbstractVerbHandler.isCramConnection(atConnectionMetadata)) {
+      if (atConnectionMetadata.enrollmentId == null ||
+          atConnectionMetadata.enrollmentId!.isEmpty) {
+        visibleKeys = <String>[];
+      } else {
+        visibleKeys = await _filterKeysBasedOnEnrollmentId(
+            atConnectionMetadata, visibleKeys, currentAtSign);
+      }
     }
     final entries = visibleKeys.map((key) => byKey[key]!).toList()
       ..sort((a, b) => a.commitId!.compareTo(b.commitId!));
@@ -237,16 +202,9 @@ class ScanVerbHandler extends AbstractVerbHandler {
         .toList();
   }
 
-  /// Checks if a key starts with `public:_`, `private:`, `privatekey:`.
-  /// [key] : The key to check.
-  /// Returns true if key starts with pattern, else false.
-  ///
-  /// When showHidden is set true, display hidden keys.
+  /// Whether [key] is hidden from a scan: a `private:`, `privatekey:`,
+  /// `public:_` or `_` key. [showHiddenKeys] re-admits the last two.
   bool _isPrivateKeyForAtSign(String key, bool showHiddenKeys) {
-    // If showHidden is set to true, display hidden public keys/self hidden keys.
-    // So returning false
-    // public hidden key: public:__location@alice
-    // self hidden key: _location@alice
     if ((key.startsWith('public:__') || key.startsWith('_')) &&
         showHiddenKeys) {
       return false;
@@ -257,36 +215,35 @@ class ScanVerbHandler extends AbstractVerbHandler {
         key.startsWith('_');
   }
 
-  /// Filter keys based on namespace access for the given enrollmentId
-  ///
-  ///   - If the enrollment namespace contains ".*", returns all the keys.
-  ///
-  ///   - Returns all the public keys and the keys whose namespace is authorized
-  ///     for the given enrollmentId.
-  ///
-  ///  - If a key's namespace contain "__manage", the key is ignored.
+  /// [localKeysList] narrowed to what the connection's enrollment may read:
+  /// the public keys, plus the keys whose namespace it is authorised for.
   Future<List<String>> _filterKeysBasedOnEnrollmentId(
       InboundConnectionMetadata atConnectionMetadata,
       List<String> localKeysList,
       String currentAtSign) async {
-    // NOTE: The atConnectionMetadata.enrollmentId is verified for null check in the caller of this method - getLocalKeys
-    // Therefore, added non-null assertation operator.
-    var enrollNamespaces = (await AtSecondaryServerImpl.getInstance()
-            .enrollmentManager
-            .getEnrollmentById(atConnectionMetadata.enrollmentId!))
-        .namespaces;
+    EnrollDataStoreValue enrollment = await AtSecondaryServerImpl.getInstance()
+        .enrollmentManager
+        .getEnrollmentById(atConnectionMetadata.enrollmentId!);
+    var enrollNamespaces = enrollment.namespaces;
 
-    // No namespace to filter keys. So, return.
     if (enrollNamespaces.isEmpty) {
       logger.finer(
           'For the enrollmentId ${atConnectionMetadata.enrollmentId} no namespaces are enrolled. Returning empty list');
       return [];
     }
-    // If the enrollment holds '*', it sees all namespaces EXCEPT the __manage
-    // namespace (enrollment records / key material) and any *other* enrollment's
-    // per-enrollment reserved namespace (<id>.a|r|d.__e). Public keys stay
-    // visible. This mirrors the isAuthorizedSync gate that the per-key branch
-    // below applies for non-'*' enrollments (the '*' fast path skips that loop).
+
+    // NOTE ahead of the '*' fast path below, which never calls isAuthorized:
+    // an enrollment that has left approved sees only the public keys.
+    if (enrollment.approval?.state != EnrollmentStatus.approved.name) {
+      logger.warning(
+          'Enrollment ${atConnectionMetadata.enrollmentId} is not approved'
+          ' (${enrollment.approval?.state}); scan returns public keys only');
+      localKeysList.removeWhere((key) => !key.startsWith('public:'));
+      return localKeysList;
+    }
+
+    // NOTE this fast path skips the per-key branch below, so it must exclude
+    // __manage and other enrollments' reserved namespaces itself.
     if (enrollNamespaces.containsKey(EnrollmentConstants.allNamespaces)) {
       localKeysList.removeWhere((key) =>
           !key.startsWith('public:') &&
@@ -296,26 +253,15 @@ class ScanVerbHandler extends AbstractVerbHandler {
       return localKeysList;
     }
 
-    // We've dealt with no access and with '*' access; now we have to check
-    // access on each key individually.
+    // NOTE removing a key shortens the list, so "index" advances only when
+    // the key is retained.
     int index = 0;
-    // Iterates through the list of local keys.
-    // Removes the key from the list if any of the below condition is met:
-    // 1. If a key does not have namespace
-    // 2. If key is an enrollment key - key whose namespace is "__manage"
-    // 3. If a keys namespace is not authorised in the enrollment.
-    // If a key is removed, the length of the list is reduced. To prevent skipping
-    // of the keys in the list, do not increment "index". Increment "index" only
-    // if key is not removed.
     while (index < localKeysList.length) {
       String key = localKeysList[index];
-      // Retain public keys
       if (key.startsWith('public:')) {
         index++;
         continue;
       }
-      // If key does not have ".", it indicates key does not have namespace
-      // Do not show it in scan result.
       if (!key.contains('.')) {
         localKeysList.remove(key);
         continue;

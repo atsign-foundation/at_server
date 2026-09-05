@@ -27,8 +27,6 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     this.notificationManager,
   );
 
-  //setter to set autoNotify value from dynamic server config "config:set".
-  //only works when testingMode is set to true
   static setAutoNotify(bool newState) {
     _autoNotify = newState;
   }
@@ -63,32 +61,22 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     if (verbParams[AtConstants.atSign] != null) {
       atSign = AtUtils.fixAtSign(verbParams[AtConstants.atSign]!);
     }
-    // :dAt — the caller-asserted deletion time. Recorded as the DELETE
-    // commit entry's opTime, and carried to the sharedWith atServer on the
-    // auto-notification (as :uAt: — the notify grammar has no dAt group)
-    // so the receiver's cached-key delete records the origin deletion
-    // time. With :nc there is no commit entry, so it has nothing to stamp
-    // locally. The verb grammar pins the value to ISO 8601 UTC.
+    // NOTE :dAt is the caller-asserted deletion time; with :nc there is no
+    // commit entry for it to stamp.
     DateTime? deletedAt;
     if (verbParams[WireParams.deletedAt] != null) {
       deletedAt = DateTime.parse(verbParams[WireParams.deletedAt]!);
     }
     var deleteKey = verbParams[AtConstants.atKey];
-    // If key is cram secret do not append atsign.
     if (verbParams[AtConstants.atKey] != AtConstants.atCramSecret) {
       deleteKey = '$deleteKey$atSign';
     }
-    // fetch protected keys listed in config.yaml
     protectedKeys ??= _getProtectedKeys(atSign);
-    // check to see if a key is protected. Cannot delete key if it's protected
     if (_isProtectedKey(deleteKey!, isCached: verbParams['isCached'])) {
       throw UnAuthorizedException(
           'Cannot delete protected key: \'$deleteKey\'');
     }
-    // Sets Response bean to the response bean in ChangeVerbHandler
     await super.processVerb(response, verbParams, atConnection);
-    // var keyNamespace = verbParams[AtConstants.atKey]!
-    //     .substring(deleteKey.lastIndexOf('.') + 1);
     if (verbParams[AtConstants.forAtSign] != null) {
       deleteKey =
           '${AtUtils.fixAtSign(verbParams[AtConstants.forAtSign]!)}:$deleteKey';
@@ -100,11 +88,9 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       deleteKey = 'cached:$deleteKey';
     }
     assert(deleteKey.isNotEmpty);
-    deleteKey = deleteKey.trim().toLowerCase().replaceAll(' ', '');
-    if (deleteKey == AtConstants.atCramSecret) {
-      await keyStore.put(
-          AtConstants.atCramSecretDeleted, AtData()..data = 'true');
-    }
+    // NOTE the keystore's own fold, not a copy of it: the checks below decide
+    // by string equality against this value.
+    deleteKey = canonicalAtKey(deleteKey);
 
     InboundConnectionMetadata inboundConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
@@ -117,17 +103,14 @@ class DeleteVerbHandler extends ChangeVerbHandler {
           'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'
           ' is not authorized to delete key: $deleteKey');
     }
+    bool cramSecretExisted = false;
     try {
-      // if this is not cached (because we should always be allowed to delete
-      // cached data from other atSigns)
-      // and the data exists
-      // then check if the data is immutable
-      // and if so, prevent deletion unless the "force" flag was set
+      // NOTE cached data is exempt: another atSign's cached copy may always
+      // be deleted.
       if (verbParams['isCached'] != 'true') {
         if (await keyStore.exists(deleteKey)) {
           AtData atData = (await keyStore.get(deleteKey))!;
           if (atData.metaData?.immutable == true) {
-            // immutable records need the force flag in order to be deleted
             bool force = verbParams[AtConstants.force] == AtConstants.force;
             if (!force) {
               throw IllegalStateException(
@@ -136,6 +119,10 @@ class DeleteVerbHandler extends ChangeVerbHandler {
           }
         }
       }
+      // NOTE read immediately before the removal: removing a key the store
+      // does not hold is not an error here.
+      cramSecretExisted = deleteKey == AtConstants.atCramSecret &&
+          await keyStore.exists(deleteKey);
       var result = await keyStore.remove(deleteKey,
           skipCommit: verbParams[WireParams.noCommit] != null,
           deletedAt: deletedAt);
@@ -145,6 +132,15 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       logger.warning('key $deleteKey does not exist in keystore');
       rethrow;
     }
+
+    // NOTE the marker stops the CRAM secret being replanted on a later start,
+    // and is written only after the removal has actually succeeded. It is
+    // deliberately outside the try above: one guard per operation.
+    if (cramSecretExisted) {
+      await keyStore.put(
+          AtConstants.atCramSecretDeleted, AtData()..data = 'true');
+    }
+
     try {
       if (!deleteKey.startsWith('@')) {
         return;
@@ -159,7 +155,6 @@ class DeleteVerbHandler extends ChangeVerbHandler {
         atSign = AtUtils.fixAtSign(atSign!);
       }
 
-      // send notification to other secondary if [AtSecondaryConfig.autoNotify] is true
       if (_autoNotify && (forAtSign != atSign)) {
         try {
           await _notify(
@@ -186,12 +181,8 @@ class DeleteVerbHandler extends ChangeVerbHandler {
       return;
     }
     key = '$forAtSign:$key$atSign';
-    // A client-asserted :dAt travels as the metadata's updatedAt, emitted
-    // on the wire as :uAt: (the notify grammar has no dAt group — a
-    // deletion is the record's last update). Without an assertion, no
-    // metadata is attached at all, keeping an ordinary delete
-    // notification's wire shape exactly what it always was — a receiver
-    // built before the timestamp syntax existed still parses it.
+    // NOTE a client-asserted :dAt travels as the metadata's updatedAt, and
+    // without an assertion no metadata is attached at all.
     var atNotification = (AtNotificationBuilder()
           ..type = NotificationType.sent
           ..fromAtSign = atSign
@@ -210,10 +201,7 @@ class DeleteVerbHandler extends ChangeVerbHandler {
   Set<String> _getProtectedKeys(String? atsign) {
     atsign ??= AtSecondaryServerImpl.getInstance().currentAtSign;
     Set<String> protectedKeys = {};
-    // fetch all protected private keys from config yaml
     for (var key in AtSecondaryConfig.protectedKeys) {
-      // protected keys are stored as 'signing_publickey<@atsign>'
-      // replace <@atsign> with actual atsign during runtime
       protectedKeys.add(key.replaceFirst('<@atsign>', atsign));
     }
     return protectedKeys;

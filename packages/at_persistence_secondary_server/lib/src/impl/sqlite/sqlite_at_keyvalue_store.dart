@@ -538,7 +538,12 @@ class SqliteAtKeyValueStore
   // Internals
   // ---------------------------------------------------------------
 
-  String _normalize(String key) => key.trim().toLowerCase().replaceAll(' ', '');
+  /// [canonicalAtKey], never a fold spelled out again here. Two backends
+  /// normalising keys their own way would disagree about which record a
+  /// spelling names, and every caller above them compares built keys against
+  /// enumerated ones — so a divergence would surface as a guard quietly
+  /// answering about a string that is in the other store.
+  String _normalize(String key) => canonicalAtKey(key);
 
   String _validateAndNormalize(String key) {
     final normalized = _normalize(key);
@@ -691,7 +696,7 @@ class _SqliteSnapshot
 
   @override
   Future<AtData?> get(String key) async {
-    final k = key.trim().toLowerCase().replaceAll(' ', '');
+    final k = canonicalAtKey(key);
     final rows = _conn
         .select('SELECT value, metadata FROM at_data WHERE atkey = ?;', [k]);
     if (rows.isEmpty) return null;

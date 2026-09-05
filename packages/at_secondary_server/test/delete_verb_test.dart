@@ -12,6 +12,7 @@ import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 
 import 'assets/test_config_util.dart';
 import 'test_utils.dart';
@@ -124,6 +125,7 @@ void main() {
 
     test('verify deletion of signing public key throws exception', () {
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       var command = 'delete:${AtConstants.atSigningPublicKey}$alice';
       expect(
           () => handler.processInternal(command, inboundConnection),
@@ -133,6 +135,7 @@ void main() {
 
     test('verify deletion of signing private key throws exception', () {
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       var command = 'delete:$alice:${AtConstants.atSigningPrivateKey}$alice';
       expect(
           () => handler.processInternal(command, inboundConnection),
@@ -142,6 +145,7 @@ void main() {
 
     test('verify deletion of encryption public key throws exception', () {
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       var command = 'delete:${AtConstants.atEncryptionPublicKey}$alice';
       expect(
           () async => await handler.processInternal(command, inboundConnection),
@@ -149,14 +153,11 @@ void main() {
               predicate((exception) => exception is UnAuthorizedException)));
     });
 
-    // The cram-secret-deleted marker keeps CRAM permanently disabled after
-    // onboarding. The delete verb's atKey regex only special-cases the literal
-    // 'privatekey:at_secret'; the marker contains a colon and is not that
-    // literal, so it cannot be parsed - and therefore cannot be deleted via the
-    // delete verb to resurrect CRAM. (The keys verb path is closed separately
-    // by KeysVerbHandler authorization.)
+    // NOTE the delete verb's atKey regex cannot name the colon-bearing
+    // marker at all, so this pins one route only.
     test('verify the cram-secret-deleted marker cannot be deleted', () {
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       var command = 'delete:${AtConstants.atCramSecretDeleted}';
       expect(
           () => handler.processInternal(command, inboundConnection),
@@ -164,10 +165,10 @@ void main() {
               predicate((exception) => exception is InvalidSyntaxException)));
     });
 
-    // the following test throws a syntax exception since delete verb handler
-    // expects a key to contain its atsign; but at_pkam_publickey does not
+    // A syntax exception: the handler expects a key to carry its atSign.
     test('verify deletion of pkam public key throws exception', () {
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       var command = 'delete:${AtConstants.atPkamPublicKey}';
       expect(
           () => handler.processInternal(command, inboundConnection),
@@ -177,17 +178,17 @@ void main() {
 
     test('verify deletion of cached encryption public key', () async {
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       var command = 'delete:cached:${AtConstants.atEncryptionPublicKey}$alice';
       Response response =
           await handler.processInternal(command, inboundConnection);
-      // expected response.data is an integer
-      // parsing data without exception should indicate that response is an int
       expect(int.parse(response.data!).runtimeType, int);
       expect(response.isError, false);
     });
 
     test('verify deletion of cached signing private key', () async {
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       var command =
           'delete:cached:$alice:${AtConstants.atSigningPrivateKey}$alice';
       Response response =
@@ -198,6 +199,7 @@ void main() {
 
     test('verify deletion of signing public key', () async {
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       var command = 'delete:cached:${AtConstants.atSigningPublicKey}$alice';
       Response response =
           await handler.processInternal(command, inboundConnection);
@@ -221,6 +223,7 @@ void main() {
       await verbTestsSetUp();
 
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       deleteHandler = DeleteVerbHandler(
         keyValueStore,
         statsNotificationService,
@@ -339,6 +342,7 @@ void main() {
           true; // owner connection, authenticated
       enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -350,7 +354,6 @@ void main() {
       };
       var keyName = '$enrollmentId.new.enrollments.__manage$alice';
       await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
-      // Delete a key with wavi namespace
       String deleteCommand = 'delete:$alice:phone.wavi$alice';
       HashMap<String, String?> deleteVerbParams =
           getVerbParam(VerbSyntax.delete, deleteCommand);
@@ -362,7 +365,6 @@ void main() {
       await deleteVerbHandler.processVerb(
           response, deleteVerbParams, inboundConnection);
       expect(response.data, isNotNull);
-      // Delete a key with buzz namespace
       deleteCommand = 'delete:$alice:phone.buzz$alice';
       deleteVerbParams = getVerbParam(VerbSyntax.delete, deleteCommand);
       deleteVerbHandler = DeleteVerbHandler(
@@ -382,6 +384,7 @@ void main() {
           true; // owner connection, authenticated
       String enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -418,6 +421,7 @@ void main() {
           true; // owner connection, authenticated
       String enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -457,6 +461,7 @@ void main() {
         () async {
       inboundConnection.metadata.isAuthenticated =
           true; // owner connection, authenticated
+      inboundConnection.metadata.authType = AuthType.cram;
       String deleteCommand = 'delete:$bob:shared_key$alice';
       HashMap<String, String?> deleteVerbParams =
           getVerbParam(VerbSyntax.delete, deleteCommand);
@@ -477,6 +482,7 @@ void main() {
           true; // owner connection, authenticated
       enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -508,6 +514,7 @@ void main() {
           true; // owner connection, authenticated
       enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -539,6 +546,7 @@ void main() {
           true; // owner connection, authenticated
       enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -586,6 +594,7 @@ void main() {
         inboundConnection.metadata.isAuthenticated = true;
         enrollmentId = Uuid().v4();
         inboundConnection.metadata.enrollmentId = enrollmentId;
+        inboundConnection.metadata.authType = AuthType.apkam;
         final enrollJson = {
           'sessionId': '123',
           'appName': 'wavi',
@@ -598,6 +607,7 @@ void main() {
         await keyValueStore.put('$enrollmentId.new.enrollments.__manage$alice',
             AtData()..data = jsonEncode(enrollJson));
         inboundConnection.metadata.enrollmentId = enrollmentId;
+        inboundConnection.metadata.authType = AuthType.apkam;
         String deleteCommand = 'delete:$alice:dummykey.wavi$alice';
         HashMap<String, String?> deleteVerbParams =
             getVerbParam(VerbSyntax.delete, deleteCommand);
@@ -634,6 +644,7 @@ void main() {
           true; // owner connection, authenticated
       enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       EnrollDataStoreValue enrollDataStoreValue = EnrollDataStoreValue(
           'dummy-session', 'app-name', 'my-device', 'dummy-public-key');
       enrollDataStoreValue.namespaces = {'wavi': 'rw'};
@@ -648,7 +659,6 @@ void main() {
             ..data = jsonEncode(enrollDataStoreValue.toJson())
             ..metaData = (AtMetaData()..ttl = 1));
 
-      // wait for the enrollment to expire
       await Future.delayed(Duration(milliseconds: 1));
       String deleteCommand = 'delete:$alice:phone.wavi$alice';
 

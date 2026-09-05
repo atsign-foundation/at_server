@@ -27,6 +27,7 @@ import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 
 import 'test_utils.dart';
 
@@ -81,6 +82,7 @@ void main() {
           keyValueStore, statsNotificationService, notificationManager, alice);
       llookupHandler = LocalLookupVerbHandler(keyValueStore, enMgr);
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
     });
 
     Future<Metadata> llookupAllMetadata(String fullKeyName) async {
@@ -169,6 +171,7 @@ void main() {
         'the monitor map carries it, and the outbound command '
         're-parses with it intact', () async {
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       final notifyHandler =
           NotifyVerbHandler(keyValueStore, notificationManager);
 
@@ -202,6 +205,7 @@ void main() {
     test('notify with malformed appMetadata is rejected as invalid syntax',
         () async {
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       final notifyHandler =
           NotifyVerbHandler(keyValueStore, notificationManager);
       await expectLater(
@@ -218,6 +222,7 @@ void main() {
         () async {
       // Seed a public key carrying appMetadata, as the owner.
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       final updateHandler = UpdateVerbHandler(
           keyValueStore, statsNotificationService, notificationManager, alice);
       await updateHandler.process(
@@ -242,6 +247,7 @@ void main() {
         'lookup of another atSign\'s shared key preserves appMetadata in '
         'the response AND in the cached copy', () async {
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       const keyName = 'some_key.some_namespace@bob';
 
       final AtData bobData = createRandomAtData(bob);
@@ -276,6 +282,7 @@ void main() {
 
     test('plookup of a public key preserves appMetadata', () async {
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       const keyName = 'first_name.wavi@bob';
 
       final AtData bobData = createRandomAtData(bob);
@@ -308,6 +315,7 @@ void main() {
         'autoNotify: an update of a key shared with another atSign creates '
         'a notification carrying appMetadata', () async {
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       AbstractUpdateVerbHandler.setAutoNotify(true);
       try {
         final updateHandler = UpdateVerbHandler(keyValueStore,
@@ -337,6 +345,7 @@ void main() {
         'sync response metadata carries appMetadata, base64-encoded as '
         'Metadata.decodeAppMetadata expects', () async {
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       await keyValueStore.put(
           'synced.wavi$alice',
           AtData()

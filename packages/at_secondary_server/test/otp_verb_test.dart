@@ -7,6 +7,7 @@ import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
 import 'package:test/test.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 
 import 'sync_unit_test.dart';
 import 'test_utils.dart';
@@ -53,6 +54,7 @@ void main() {
       Response response = Response();
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.enrollmentId = 'scoped-enroll-id';
+      inboundConnection.metaData.authType = AuthType.apkam;
       await keyValueStore.put(
           'scoped-enroll-id.new.enrollments.__manage$alice',
           AtData()
@@ -75,6 +77,7 @@ void main() {
       Response response = Response();
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.enrollmentId = 'manage-enroll-id';
+      inboundConnection.metaData.authType = AuthType.apkam;
       await keyValueStore.put(
           'manage-enroll-id.new.enrollments.__manage$alice',
           AtData()
@@ -98,6 +101,7 @@ void main() {
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:get');
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(response.data, isNotNull);
@@ -112,6 +116,7 @@ void main() {
         HashMap<String, String?> verbParams =
             getVerbParam(VerbSyntax.otp, 'otp:get');
         inboundConnection.metaData.isAuthenticated = true;
+        inboundConnection.metaData.authType = AuthType.cram;
         OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
         await otpVerbHandler.processVerb(
             response, verbParams, inboundConnection);
@@ -128,6 +133,7 @@ void main() {
         () async {
       Response response = Response();
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:get:ttl:1000');
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
@@ -140,6 +146,7 @@ void main() {
         () async {
       Response response = Response();
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:get:ttl:1');
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
@@ -183,6 +190,7 @@ void main() {
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:get');
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(await otpVerbHandler.isPasscodeValid(response.data), true);
@@ -194,6 +202,7 @@ void main() {
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:get:ttl:1');
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       String? otp = response.data;
@@ -206,6 +215,7 @@ void main() {
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:get:ttl:1');
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       AtData? atData = await keyValueStore.get(
@@ -214,6 +224,7 @@ void main() {
 
       verbParams = getVerbParam(VerbSyntax.otp, 'otp:get');
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       atData = await keyValueStore.get(
           'private:${response.data}.${OtpVerbHandler.otpNamespace}$atSign');
@@ -235,6 +246,7 @@ void main() {
       HashMap<String, String?> verbParams =
           getVerbParam(VerbSyntax.otp, 'otp:get');
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       String? otp = response.data;
@@ -280,6 +292,7 @@ void main() {
           getVerbParam(VerbSyntax.otp, 'otp:put:$passcode');
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.enrollmentId = enrollmentId;
+      inboundConnection.metaData.authType = AuthType.apkam;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(await otpVerbHandler.isPasscodeValid(passcode), true);
@@ -295,6 +308,7 @@ void main() {
           getVerbParam(VerbSyntax.otp, 'otp:put:$passcode:ttl:50');
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.enrollmentId = enrollmentId;
+      inboundConnection.metaData.authType = AuthType.apkam;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(await otpVerbHandler.isPasscodeValid(passcode), true);
@@ -312,6 +326,7 @@ void main() {
           getVerbParam(VerbSyntax.otp, 'otp:put:$passcode:ttl:50');
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.enrollmentId = enrollmentId;
+      inboundConnection.metaData.authType = AuthType.apkam;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(await otpVerbHandler.isPasscodeValid(passcode), true);
@@ -330,6 +345,7 @@ void main() {
           getVerbParam(VerbSyntax.otp, 'otp:put:$passcode');
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.enrollmentId = enrollmentId;
+      inboundConnection.metaData.authType = AuthType.apkam;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       await Future.delayed(Duration(milliseconds: 2));
@@ -347,6 +363,7 @@ void main() {
           getVerbParam(VerbSyntax.otp, 'otp:put:$passcode');
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.enrollmentId = enrollmentId;
+      inboundConnection.metaData.authType = AuthType.apkam;
       OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
       await otpVerbHandler.processVerb(response, verbParams, inboundConnection);
       expect(await otpVerbHandler.isPasscodeValid(passcode), true);

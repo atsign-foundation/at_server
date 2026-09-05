@@ -21,13 +21,8 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   static const int maxKeyLength = 255;
   static const int maxKeyLengthWithoutCached = 248;
 
-  /// Has to be static because both UpdateVerbHandler and UpdateMetaVerbHandler
-  /// need to use the same mutexes.
-  ///
-  /// Mutable holder rather than `(Mutex, int)` records so increments and
-  /// decrements happen in place — Dart records are immutable, so the previous
-  /// `map[k] = (rec.$1, rec.$2 + 1)` form allocated a fresh record on every
-  /// acquire and release.
+  /// Static because UpdateVerbHandler and UpdateMetaVerbHandler must contend
+  /// for the same mutexes.
   static final Map<String, MutexRef> _updateMutexes = {};
 
   Map<String, MutexRef> get updateMutexes => _updateMutexes;
@@ -41,8 +36,6 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     this.atSign,
   );
 
-  //setter to set autoNotify value from dynamic server config "config:set".
-  //only works when testingMode is set to true
   static setAutoNotify(bool newState) {
     _autoNotify = newState;
   }
@@ -52,14 +45,12 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     final sharedBy = updateParams.sharedBy;
     var atKey = updateParams.atKey!;
 
-    // Get the key using verbParams (forAtSign, key, atSign)
     if (sharedWith != null && sharedWith.isNotEmpty) {
       atKey = '$sharedWith:$atKey';
     }
     if (sharedBy != null && sharedBy.isNotEmpty) {
       atKey = '$atKey$sharedBy';
     }
-    // Append public: as prefix if key is public
     if (updateParams.metadata!.isPublic) {
       atKey = 'public:$atKey';
     }
@@ -71,36 +62,26 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       'Connection with enrollment ID $enId'
       ' is not authorized to update key: $key';
 
-  /// - Construct an AtKey and AtData and AtMetaData from the verb params
-  /// - Fetch existing record from data store
-  /// - If existing record,
-  ///   - Merge existing metadata into the new metadata where new metadata field
-  ///   has a null value
-  ///   - Iterate through the verb params again; if there is a metadata param
-  ///   supplied with a value of 'null' then set the AtMetaData field to null
+  /// Authorises the write and builds the atKey, [AtData] and [AtMetaData] it
+  /// will store, merging the existing record's metadata in wherever this
+  /// request said nothing.
   ///
-  /// The auto-notification is NOT queued here — the handler queues it via
-  /// [notifyAfterStore] once the keystore write has succeeded, so the
-  /// notification carries the metadata that was actually stored and a failed
-  /// write queues nothing.
+  /// The auto-notification is not queued here; the handler queues it via
+  /// [notifyAfterStore] once the keystore write has succeeded.
   Future<UpdatePreProcessResult> preProcess(
       Response response,
       HashMap<String, String?> verbParams,
       UpdateParams updateParams,
       InboundConnection atConnection) async {
-    // Sets Response bean to the response bean in ChangeVerbHandler
     await super.processVerb(response, verbParams, atConnection);
 
-    // Get the key and update the value
     final sharedBy = updateParams.sharedBy;
     final value = updateParams.value;
     final atData = AtData();
     atData.data = value;
 
-    // Get the key we're going to update in the data store
     String atKey = getDataStoreKey(updateParams);
 
-    // check authorization
     InboundConnectionMetadata md =
         atConnection.metaData as InboundConnectionMetadata;
     bool isAuthorized = await super.isAuthorized(md, atKey: atKey);
@@ -126,35 +107,8 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
 
     var existingAtMetaData = await keyStore.getMeta(atKey);
 
-    // An EXPIRED record is gone — a lookup of it already answers null — so it
-    // must not shape the record that replaces it. Delete it outright rather
-    // than teaching each reader below to look past it: once it is out of the
-    // store, the cache-metadata validation, the immutability check and the
-    // keystore's OWN retain-from-existing merge all see the same absence that
-    // a reader already sees, instead of three places agreeing to pretend.
-    //
-    // Teaching the readers here would not have been enough. The keystore
-    // re-reads the record for itself when it merges metadata
-    // (AtMetadataBuilder), so an expired record would still have supplied
-    // `immutable`, `createdAt` and `version` to the record replacing it — and
-    // a create that asked for neither would be born immutable with an expiry
-    // already in the past.
-    //
-    // Without this the server gave two different answers about whether a
-    // record existed. It refused a create over an expired immutable record,
-    // which made a ttl on such a record meaningless: the ttl expired the value
-    // but the record stayed in the keystore until next expired-keys-cleanup
-    // sweep, so a create-once interlock whose holder died blocked its own
-    // atSign for longer than intended.
-    //
-    // skipCommit because nothing observable changes. Whenever we delete
-    // expired records, we skip commit, because clients with sync'd copies will
-    // also see the expiration and delete their local copy.
-    //
-    // Expiry only, and deliberately NOT SecondaryUtil.isActiveKey, which also
-    // answers false before a record's ttb has elapsed. A not-yet-born record
-    // still exists and must still refuse a second create; only an expired one
-    // has stopped existing.
+    // NOTE expiry only, deliberately not SecondaryUtil.isActiveKey: a
+    // not-yet-born record still exists and must still refuse a second create.
     if (existingAtMetaData != null && _hasExpired(existingAtMetaData)) {
       await keyStore.remove(atKey, skipCommit: true);
       existingAtMetaData = null;
@@ -165,8 +119,6 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     updateParams.metadata!.ttr = cacheRefreshMetaMap[AtConstants.ttr];
     updateParams.metadata!.ccd = cacheRefreshMetaMap[AtConstants.ccd];
 
-    //If ttr is set and atsign is not equal to currentAtSign, the key is
-    //cached key.
     if (updateParams.metadata!.ttr != null &&
         updateParams.metadata!.ttr! > 0 &&
         sharedBy != null &&
@@ -180,8 +132,6 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     atData.metaData =
         AtMetaData.fromCommonsMetadata(updateParams.metadata!, atSign);
 
-    // Enforce the immutable feature. An expired record has already been
-    // dropped above, so this asks about a record that still exists.
     if (existingAtMetaData?.immutable == true) {
       throw IllegalStateException('Immutable records may not be updated');
     }
@@ -190,9 +140,6 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       existingAtMetaData,
     );
 
-    // Computed here, where existingAtMetaData reflects the expired-record
-    // drop above — an expired record must not have its old expiry carried
-    // forward into the record replacing it.
     return UpdatePreProcessResult(
         atKey,
         atData,
@@ -201,24 +148,11 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   }
 
   /// Queues the auto-notification for a write that has already succeeded,
-  /// reading the metadata back from the store so the notification carries
-  /// exactly what was stored (client-asserted timestamps included).
+  /// reading the metadata back so the notification carries what was stored,
+  /// client-asserted timestamps included.
   ///
-  /// The caller still holds the per-key mutex, but delete and the TTL sweep
-  /// take no mutex, so the record can vanish between the write and the
-  /// read-back. The two outcomes are deliberately different:
-  ///
-  ///   * read-back returns NULL — the record was concurrently deleted, and
-  ///     the deleter has queued (or is queueing) its own delete
-  ///     notification. Queueing this update notification anyway could land
-  ///     it AFTER the delete notification and resurrect the receiver's
-  ///     cached key, so it is skipped, at warning.
-  ///   * read-back THROWS — a transient store error; the record is
-  ///     presumed present, so the notification is queued from the metadata
-  ///     that was written rather than being dropped.
-  ///
-  /// A notify-queueing failure is logged at warning and NOT rethrown: the
-  /// write happened, and the client's response must report it faithfully.
+  /// A null read-back means a concurrent delete and the notification is
+  /// skipped; a queueing failure is logged at warning and not rethrown.
   Future<void> notifyAfterStore(
       HashMap<String, String?> verbParams,
       UpdateParams updateParams,
@@ -255,24 +189,8 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   }
 
   /// Puts back the "this request said nothing about it" state that commons
-  /// `Metadata.fromJson` cannot represent.
-  ///
-  /// That parser turns an absent — or explicitly null — ttl/ttb/ttr into 0,
-  /// and `Metadata.toJson` always writes the three, so a null makes the
-  /// round trip as a 0. An `update:json` that never mentions expiry is then
-  /// indistinguishable from one asking for `ttl:0`, which clears the
-  /// record's expiry; the same goes for `ttb:0`, and for `ttr:0`, which
-  /// stops the record being cached at the receiver.
-  ///
-  /// The metadata-fragment form of the same request leaves an unmentioned
-  /// ttl/ttb/ttr null, and the retain-merge then keeps what the record
-  /// already holds — so without this the two encodings of one request store
-  /// different things, and only the json one moves an axis it never named.
-  /// Read from the decoded map the DTO was built from, which still has the
-  /// null.
-  ///
-  /// An at_commons that preserves the null makes this a no-op rather than a
-  /// correction: it reads the same map to the same answer either way.
+  /// `Metadata.fromJson` cannot represent, reading it from the decoded map
+  /// the DTO was built from.
   void _restoreUnmentionedRelatives(Metadata? metadata, dynamic rawMetadata) {
     if (metadata == null || rawMetadata is! Map) {
       return;
@@ -289,36 +207,9 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
   }
 
   /// The timestamps this write must store faithfully: the request's own
-  /// assertions ([metadata]'s createdAt/updatedAt/expiresAt/availableAt,
-  /// parsed off the wire by [getUpdateParams] or, for `update:json`, by
-  /// commons `Metadata.fromJson`) — plus, when the request says nothing at
-  /// all about an expiry axis, the [existing] record's absolute for that
-  /// axis, carried forward as an assertion so this write cannot move it.
-  ///
-  /// Without the carry, the retain-from-existing merge re-feeds the stored
-  /// ttl/ttb into the metadata builder, which re-derives the absolute from
-  /// now — so a write that never mentioned expiry would restart the expiry
-  /// clock (and re-open a ttb record's not-yet-born window). Once set, an
-  /// absolute moves only when a request speaks about its axis: a new
-  /// assertion stores faithfully, a fresh ttl/ttb re-derives from now,
-  /// ttl:0 clears the expiry, and ttb:0 re-stamps availableAt to now
-  /// (immediate availability — the birth axis has no cleared state).
-  ///
-  /// A request that asserts an absolute WITHOUT supplying its relative
-  /// (an eAt with no ttl, an aAt with no ttb) additionally asks the store
-  /// to derive the relative the absolute implies — deriveTtl/deriveTtb on
-  /// the returned assertions — replacing any ttl/ttb the retain-merge or
-  /// the json coercion may have put on the write's metadata. That decision
-  /// belongs here because only the request layer can tell a caller-
-  /// supplied relative from a retained or coerced one.
-  ///
-  /// "Says nothing" is judged per axis on the request's own metadata,
-  /// where absent means null. On the update:json path commons
-  /// `Metadata.fromJson` coerces an absent ttl/ttb to 0, which is
-  /// indistinguishable from an explicit 0 and therefore counts as the
-  /// request speaking (ttl:0 clears expiry, as it always has) — except
-  /// alongside an asserted absolute, where a 0 contradicts the absolute
-  /// and counts as unsupplied, so the derivation wins on both encodings.
+  /// assertions ([metadata]'s createdAt/updatedAt/expiresAt/availableAt),
+  /// plus, when the request says nothing about an expiry axis, the [existing]
+  /// record's absolute for that axis.
   ///
   /// Returns null when there is nothing to assert.
   AtAssertedTimestamps? effectiveAssertedTimestamps(
@@ -348,12 +239,28 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
             (metadata.ttb == null || metadata.ttb == 0));
   }
 
+  /// The value charset the plain grammar pins: ` (?<value>.+)`, and Dart's
+  /// `.` does not match a newline.
+  static final RegExp _grammarValue = RegExp(r'^.+$');
+
   UpdateParams getUpdateParams(HashMap<String, String?> verbParams) {
     if (verbParams['json'] != null) {
       var jsonString = verbParams['json']!;
-      Map jsonMap = jsonDecode(jsonString);
-      final updateParams = UpdateParams.fromJson(jsonMap);
+      final UpdateParams updateParams;
+      final Map jsonMap;
+      try {
+        jsonMap = jsonDecode(jsonString);
+        updateParams = UpdateParams.fromJson(jsonMap);
+      } on AtException {
+        rethrow;
+      } catch (e) {
+        // NOTE catches Errors as well as Exceptions: a malformed document
+        // otherwise reaches the client as InternalServerError.
+        throw InvalidSyntaxException('invalid update:json document: $e');
+      }
       _restoreUnmentionedRelatives(updateParams.metadata, jsonMap['metadata']);
+      _validateJsonUpdateParams(updateParams);
+      _validateUpdateParams(updateParams);
       return updateParams;
     }
     var updateParams = UpdateParams();
@@ -382,8 +289,6 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       metadata.ccd =
           AtMetadataUtil.getBoolVerbParams(verbParams[AtConstants.ccd]);
     }
-    // Caller-asserted timestamps (:cAt/:uAt/:eAt/:aAt) — the verb grammar
-    // pins these to ISO 8601 UTC, so DateTime.parse cannot see a local time.
     if (verbParams[AtConstants.createdAt] != null) {
       metadata.createdAt = DateTime.parse(verbParams[AtConstants.createdAt]!);
     }
@@ -428,8 +333,6 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       metadata.immutable =
           AtMetadataUtil.getBoolVerbParams(verbParams[AtConstants.immutable]);
     }
-    // Arrives base64(JSON)-encoded on the wire; decodeAppMetadata also
-    // maps an absent param (or the literal 'null') to null.
     try {
       metadata.appMetadata =
           Metadata.decodeAppMetadata(verbParams[AtConstants.appMetadata]);
@@ -440,6 +343,15 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
 
     updateParams.metadata = metadata;
 
+    _validateUpdateParams(updateParams);
+
+    return updateParams;
+  }
+
+  /// The checks that hold however the command was spelled: a key must have a
+  /// name, and a write may not name another atSign as sharedBy inside this
+  /// atSign's keystore.
+  void _validateUpdateParams(UpdateParams updateParams) {
     if (updateParams.atKey == null || updateParams.atKey!.isEmpty) {
       throw InvalidSyntaxException('atKey.key not supplied');
     }
@@ -454,8 +366,61 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       logger.warning(message);
       throw InvalidAtKeyException(message);
     }
+  }
 
-    return updateParams;
+  /// Holds a decoded `update:json` document to the bar the plain grammar
+  /// enforces before a command ever reaches a handler.
+  void _validateJsonUpdateParams(UpdateParams updateParams) {
+    // NOTE the atKey CHARSET is deliberately not checked here.
+    final dynamic value = updateParams.value;
+    if (value is! String || !_grammarValue.hasMatch(value)) {
+      throw InvalidSyntaxException(
+          'invalid value: update:json requires a non-empty, single-line'
+          ' string, as the update grammar does');
+    }
+
+    // NOTE the atSigns are normalised before anything compares them.
+    if (updateParams.sharedBy.isNotNullOrEmpty) {
+      updateParams.sharedBy = AtUtils.fixAtSign(updateParams.sharedBy!);
+    }
+    if (updateParams.sharedWith.isNotNullOrEmpty) {
+      updateParams.sharedWith = AtUtils.fixAtSign(updateParams.sharedWith!);
+    }
+
+    final Metadata? metadata = updateParams.metadata;
+    if (metadata == null) {
+      return;
+    }
+    if (metadata.ttl != null) {
+      AtMetadataUtil.validateTTL(metadata.ttl.toString());
+    }
+    if (metadata.ttb != null) {
+      AtMetadataUtil.validateTTB(metadata.ttb.toString());
+    }
+    if (metadata.ttr != null) {
+      hu.validateTTR(metadata.ttr!);
+    }
+
+    if (metadata.isPublic == true && updateParams.sharedWith.isNotNullOrEmpty) {
+      throw InvalidSyntaxException(
+          'invalid update:json document: a key cannot be public and shared'
+          ' with ${updateParams.sharedWith} at once');
+    }
+
+    // NOTE the plain grammar pins these to ISO-8601 UTC, so the json door
+    // must refuse a local time too.
+    for (final MapEntry<String, DateTime?> asserted in {
+      'createdAt': metadata.createdAt,
+      'updatedAt': metadata.updatedAt,
+      'expiresAt': metadata.expiresAt,
+      'availableAt': metadata.availableAt,
+    }.entries) {
+      if (asserted.value != null && !asserted.value!.isUtc) {
+        throw InvalidSyntaxException(
+            'invalid update:json document: ${asserted.key} must be UTC, as'
+            ' the update grammar requires');
+      }
+    }
   }
 
   Future<AtNotification?> notify(
@@ -495,26 +460,16 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     return atNotification;
   }
 
-  /// Merges [newAtMetadata] (verb-supplied) with [existingAtMetadata] (what's
-  /// in the keystore today), in place, and returns [newAtMetadata]:
+  /// Merges the keystore's [existingAtMetadata] into the verb-supplied
+  /// [newAtMetadata], in place, and returns the latter.
   ///
-  ///   * For each field, if the new value is `null`, take the existing value
-  ///     (i.e. the verb didn't mention this field, so we keep what was there).
-  ///   * For string-typed fields, the verb parser carries an explicit "unset"
-  ///     intent as the literal string `'null'`. Translate that back to `null`.
-  ///   * Otherwise, leave the new value as-is.
-  ///
-  /// This used to round-trip both metadata objects through `toJson()` and then
-  /// `AtMetaData.fromJson()` to merge them generically, which allocated three
-  /// 26-entry maps per update. The merge here mutates [newAtMetadata] directly
-  /// and is allocation-free.
+  /// A null new value keeps the existing one; on a string-typed field the
+  /// literal `'null'` means an explicit unset.
   AtMetaData _unsetOrRetainMetadata(
       AtMetaData newAtMetadata, AtMetaData? existingAtMetadata) {
     final existing = existingAtMetadata;
 
-    // String fields. These can carry the 'null' sentinel because the verb
-    // parser stores user-supplied String? values verbatim (so a `:foo:null`
-    // verb param reaches us as the literal string 'null').
+    // NOTE only string fields can carry the 'null' sentinel.
     newAtMetadata.createdBy =
         _mergeStringField(newAtMetadata.createdBy, existing?.createdBy);
     newAtMetadata.updatedBy =
@@ -540,8 +495,6 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     newAtMetadata.skeEncAlgo =
         _mergeStringField(newAtMetadata.skeEncAlgo, existing?.skeEncAlgo);
 
-    // DateTime / numeric / bool / PublicKeyHash fields are typed, so the
-    // 'null' sentinel can never reach them — only retain-from-existing.
     newAtMetadata.createdAt ??= existing?.createdAt;
     newAtMetadata.updatedAt ??= existing?.updatedAt;
     newAtMetadata.availableAt ??= existing?.availableAt;
@@ -559,18 +512,13 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     newAtMetadata.immutable ??= existing?.immutable;
 
     newAtMetadata.pubKeyHash ??= existing?.pubKeyHash;
-    // Like pubKeyHash, appMetadata is a typed (non-String) field, so
-    // the 'null' unset sentinel cannot reach it — retain-only.
     newAtMetadata.appMetadata ??= existing?.appMetadata;
 
     return newAtMetadata;
   }
 
-  /// Whether [metaData]'s record has passed its ttl.
-  ///
-  /// Compared on epoch milliseconds like [SecondaryUtil.isActiveKey], so the
-  /// two agree about when a record dies even though they are asked different
-  /// questions — that one folds in ttb and this one deliberately does not.
+  /// Whether [metaData]'s record has passed its ttl. Unlike
+  /// [SecondaryUtil.isActiveKey], ttb plays no part.
   static bool _hasExpired(AtMetaData metaData) {
     final expiresAt = metaData.expiresAt;
     if (expiresAt == null) return false;
@@ -584,8 +532,8 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
     return newValue;
   }
 
-  /// Certain keys created on one atsign server may be cached in another atsign server.
-  /// Restrict key length to [_maxKeyLengthWithoutCached] if is not a cached key
+  /// Bounds the key length, allowing a cached key the extra room the
+  /// `cached:` prefix takes ([maxKeyLength] vs [maxKeyLengthWithoutCached]).
   void _checkMaxLength(String key) {
     int maxLength =
         key.startsWith('cached:') ? maxKeyLength : maxKeyLengthWithoutCached;
@@ -601,16 +549,14 @@ class UpdatePreProcessResult {
   String atKey;
   AtData atData;
 
-  /// What the store must keep faithfully for this write — the request's
-  /// own timestamp assertions plus the silent-write expiry carry. See
+  /// What the store must keep faithfully for this write. See
   /// [AbstractUpdateVerbHandler.effectiveAssertedTimestamps].
   AtAssertedTimestamps? assertedTimestamps;
 
   UpdatePreProcessResult(this.atKey, this.atData, this.assertedTimestamps);
 }
 
-/// Mutable holder for the per-key update mutex and its waiter count, so that
-/// updating the count does not require allocating a new (Mutex, int) record.
+/// The per-key update mutex and its waiter count.
 class MutexRef {
   final Mutex mutex = Mutex();
   int waiters = 0;

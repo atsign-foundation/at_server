@@ -2,18 +2,23 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_secondary/src/verb/handler/batch_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/config_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/local_lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
+import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
 import 'test_utils.dart';
 
-/// Covers authorization of namespace-less keys — keys carrying no namespace
-/// an enrollment can be granted, so the namespace check cannot decide them.
+/// Covers authorization of namespace-less keys: keys carrying no namespace an
+/// enrollment can be granted, so the namespace check cannot decide them.
 void main() {
   AtSignLogger.root_level = 'WARNING';
 
@@ -43,9 +48,10 @@ void main() {
     });
 
     /// Binds an approved enrollment with [namespaces] and returns its id.
-    Future<String> bindEnrollment(Map<String, String> namespaces) async {
+    Future<String> bindEnrollment(Map<String, String> namespaces,
+        {String? id}) async {
       inboundConnection.metadata.isAuthenticated = true;
-      final enrollId = Uuid().v4();
+      final enrollId = id ?? Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollId;
       final enrollJson = {
         'sessionId': '123',
@@ -63,9 +69,42 @@ void main() {
 
     Future<String> bindScoped() => bindEnrollment({'wavi': 'rw'});
     Future<String> bindWildcard() => bindEnrollment({'*': 'rw'});
-    Future<String> bindRoot() => bindEnrollment({'*': 'rw', '__manage': 'rw'});
+    Future<String> bindRoot({String? id}) =>
+        bindEnrollment({'*': 'rw', '__manage': 'rw'}, id: id);
 
-    // ---- the legacy PKAM public key ----
+    /// A fully privileged enrollment under the literal id `primary`, the id
+    /// a legacy `pkam:` authenticates as.
+    Future<String> bindPreviouslyCarvedOutId() => bindRoot(id: 'primary');
+
+    /// A connection carrying NO enrollment id, authenticated with the CRAM
+    /// secret: the shape a fresh atSign is given its first keypair over.
+    void bindCram() {
+      inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.enrollmentId = null;
+      inboundConnection.metadata.authType = AuthType.cram;
+    }
+
+    BatchVerbHandler batchHandler() => BatchVerbHandler(
+        keyValueStore,
+        DefaultVerbHandlerManager(
+            keyValueStore,
+            mockOutboundClientManager,
+            cacheManager,
+            statsNotificationService,
+            notificationManager,
+            enMgr,
+            alice,
+            commitLog: atCommitLog,
+            accessLog: atAccessLog));
+
+    /// A legacy-PKAM connection: authenticated, carrying no enrollment id,
+    /// and NOT CRAM, the one null-id caller the write ban refuses.
+    void bindLegacyNoId() {
+      inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.enrollmentId = null;
+      inboundConnection.metadata.authType = AuthType.pkamLegacy;
+    }
+
 
     test('scoped enrollment cannot overwrite the legacy PKAM public key',
         () async {
@@ -75,10 +114,9 @@ void main() {
 
       await expectLater(
           updateVerbHandler.process(
-              'update:${AtConstants.atPkamPublicKey} REPLACEMENT_KEY',
+              'update:${AtConstants.atPkamPublicKey} REPLACEMENTKEY00',
               inboundConnection),
           throwsA(isA<UnAuthorizedException>()));
-      // Assert the stored value, not merely that the call threw.
       final stored = await keyValueStore.get(AtConstants.atPkamPublicKey);
       expect(stored?.data, 'ORIGINAL_KEY');
     });
@@ -91,33 +129,379 @@ void main() {
 
       await expectLater(
           updateVerbHandler.process(
-              'update:${AtConstants.atPkamPublicKey} REPLACEMENT_KEY',
+              'update:${AtConstants.atPkamPublicKey} REPLACEMENTKEY00',
               inboundConnection),
           throwsA(isA<UnAuthorizedException>()));
       final stored = await keyValueStore.get(AtConstants.atPkamPublicKey);
       expect(stored?.data, 'ORIGINAL_KEY');
     });
 
-    test('a root enrollment CAN write the PKAM public key', () async {
+    test('a root enrollment CANNOT write the PKAM public key', () async {
       await bindRoot();
-      await updateVerbHandler.process(
-          'update:${AtConstants.atPkamPublicKey} NEW_KEY', inboundConnection);
-      final stored = await keyValueStore.get(AtConstants.atPkamPublicKey);
-      expect(stored?.data, 'NEW_KEY');
-    });
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
 
-    test('the PKAM key guard is not case-sensitive', () async {
-      // Verb regexes are built caseSensitive:false and the keystore lowercases
-      // on put, so an uppercase spelling addresses the same record.
-      await bindScoped();
       await expectLater(
           updateVerbHandler.process(
-              'update:PRIVATEKEY:AT_PKAM_PUBLICKEY REPLACEMENT_KEY',
+              'update:${AtConstants.atPkamPublicKey} REPLACEMENTKEY00',
               inboundConnection),
-          throwsA(isA<UnAuthorizedException>()));
+          throwsA(isA<UnAuthorizedException>().having(
+              (e) => e.message, 'message', contains('may not be written'))),
+          reason: 'root privilege is not enough for THIS key: an APKAM root '
+              'that plants a key it holds gains a legacy identity, and legacy '
+              'PKAM carries no enrollment id — so revoking that root leaves '
+              'the planted key authenticating');
+      final stored = await keyValueStore.get(AtConstants.atPkamPublicKey);
+      expect(stored?.data, 'ORIGINAL_KEY',
+          reason: 'and the refusal happened before the write');
     });
 
-    // ---- the atSign's own key material ----
+    test('the id that once had a carve-out is refused like any other',
+        () async {
+      await bindPreviouslyCarvedOutId();
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+
+      await expectLater(
+          updateVerbHandler.process(
+              'update:${AtConstants.atPkamPublicKey} NEWKEYAA',
+              inboundConnection),
+          throwsA(isA<UnAuthorizedException>().having(
+              (e) => e.message, 'message', contains('may not be written'))),
+          reason: 'refused by the one gate, like every other connection: no '
+              'id carries a right to write this key');
+
+      final stored = await keyValueStore.get(AtConstants.atPkamPublicKey);
+      expect(stored?.data, 'ORIGINAL_KEY',
+          reason: 'and the refusal happened before the write');
+    });
+
+    test('a CRAM connection may write it, with testingMode off', () async {
+      AtSecondaryConfig.testingModeOverride = false;
+      addTearDown(() => AtSecondaryConfig.testingModeOverride = null);
+
+      bindCram();
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+
+      await updateVerbHandler.process(
+          'update:${AtConstants.atPkamPublicKey} NEWKEYAA', inboundConnection);
+
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'ORIGINAL_KEY',
+          reason: 'admitted, but the flat key itself is never written: the '
+              'value is installed as the primary enrollment instead, so no '
+              'flat key exists on a running server in any mode');
+      expect(
+          (await enMgr.getEnrollmentById(
+                  EnrollmentManager.primaryEnrollmentId))
+              .apkamPublicKey,
+          'NEWKEYAA',
+          reason: 'a CRAM holder is auto-approved a *:rw + __manage:rw '
+              'enrollment on request, which is what primary holds, so the '
+              'install grants it nothing it could not already give itself; '
+              'and the packs have nothing to authenticate with if this is '
+              'refused — they authenticate as primary');
+    });
+
+    test('...and with testingMode on: the flag is not what admits it',
+        () async {
+      // Pairs with the arm above, differing in testingMode alone.
+      AtSecondaryConfig.testingModeOverride = true;
+      addTearDown(() => AtSecondaryConfig.testingModeOverride = null);
+
+      bindCram();
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+
+      await updateVerbHandler.process(
+          'update:${AtConstants.atPkamPublicKey} NEWKEYAA', inboundConnection);
+
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'ORIGINAL_KEY');
+      expect(
+          (await enMgr.getEnrollmentById(
+                  EnrollmentManager.primaryEnrollmentId))
+              .apkamPublicKey,
+          'NEWKEYAA');
+    });
+
+    for (final bool flag in [false, true]) {
+      test(
+          'a legacy connection carrying no id is refused, with testingMode '
+          '${flag ? 'on' : 'off'}', () async {
+        // The negative control: differs from the CRAM arms in auth type alone.
+        AtSecondaryConfig.testingModeOverride = flag;
+        addTearDown(() => AtSecondaryConfig.testingModeOverride = null);
+
+        inboundConnection.metadata.isAuthenticated = true;
+        inboundConnection.metadata.enrollmentId = null;
+        inboundConnection.metadata.authType = AuthType.pkamLegacy;
+        await keyValueStore.put(
+            AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+
+        await expectLater(
+            updateVerbHandler.process(
+                'update:${AtConstants.atPkamPublicKey} NEWKEYAA',
+                inboundConnection),
+            throwsA(isA<UnAuthorizedException>().having(
+                (e) => e.message, 'message', contains('may not be written'))),
+            reason: 'the carve-out is CRAM alone, and a legacy connection is '
+                'not CRAM whatever the flag says');
+        expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+            'ORIGINAL_KEY',
+            reason: 'and the refusal happened before the write');
+      });
+    }
+
+    test('a root enrollment can still write ANOTHER privatekey: key',
+        () async {
+      // The scope control: root enrollments are not locked out of the whole
+      // `privatekey:` prefix.
+      await bindRoot();
+      final params = UpdateParams()
+        ..atKey = 'privatekey:self_encryption_key'
+        ..value = 'NEW_VALUE'
+        ..metadata = Metadata();
+      await updateVerbHandler.process(
+          'update:json:${jsonEncode(params.toJson())}', inboundConnection);
+      expect((await keyValueStore.get('privatekey:self_encryption_key'))?.data,
+          'NEW_VALUE');
+    });
+
+    test('the PKAM key guard is not case-sensitive, for a ROOT enrollment',
+        () async {
+      await bindRoot();
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+      await expectLater(
+          updateVerbHandler.process(
+              'update:PRIVATEKEY:AT_PKAM_PUBLICKEY REPLACEMENTKEY00',
+              inboundConnection),
+          throwsA(isA<UnAuthorizedException>()),
+          reason: 'the same record under another spelling is the same record');
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'ORIGINAL_KEY');
+    });
+
+    test('...and neither is the write ban, for a connection with no id',
+        () async {
+      bindLegacyNoId();
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+      await expectLater(
+          updateVerbHandler.process(
+              'update:PRIVATEKEY:AT_PKAM_PUBLICKEY NEWKEYAA',
+              inboundConnection),
+          throwsA(isA<UnAuthorizedException>().having(
+              (e) => e.message, 'message', contains('may not be written'))),
+          reason: 'the same record under another spelling is the same record: '
+              'comparing the key as RECEIVED would let a shift key install an '
+              'unrevokable credential');
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'ORIGINAL_KEY',
+          reason: 'and the refusal happened before the write');
+    });
+
+    test('...and over CRAM a shifted spelling is redirected, not stored',
+        () async {
+      // Pairs with the legacy arm above, differing in the auth type alone.
+      bindCram();
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+
+      await updateVerbHandler.process(
+          'update:PRIVATEKEY:AT_PKAM_PUBLICKEY NEWKEYAA', inboundConnection);
+
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'ORIGINAL_KEY',
+          reason: 'the flat key is never written, under any spelling');
+      expect(
+          (await enMgr.getEnrollmentById(
+                  EnrollmentManager.primaryEnrollmentId))
+              .apkamPublicKey,
+          'NEWKEYAA',
+          reason: 'the redirect compares the key as the keystore folds it');
+    });
+
+    test('CONTROL: the same grants under an ordinary id are refused', () async {
+      // The scope control: an ordinary enrollment under the same spelling.
+      await bindEnrollment({'wavi': 'rw'});
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+      await expectLater(
+          updateVerbHandler.process(
+              'update:PRIVATEKEY:AT_PKAM_PUBLICKEY NEWKEYAA',
+              inboundConnection),
+          throwsA(isA<UnAuthorizedException>()),
+          reason: 'NO enrollment may write at_pkam_publickey, whatever it '
+              'holds — an enrollment that plants a key it possesses gains a '
+              'credential its own revocation cannot reach');
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'ORIGINAL_KEY');
+    });
+
+
+    test('update:json reaches the ban', () async {
+      bindLegacyNoId();
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+
+      final json = jsonEncode({
+        'atKey': AtConstants.atPkamPublicKey,
+        'value': 'REPLACEMENTKEY00',
+        'metadata': Metadata().toJson(),
+      });
+      await expectLater(
+          updateVerbHandler.process('update:json:$json', inboundConnection),
+          throwsA(isA<UnAuthorizedException>().having(
+              (e) => e.message, 'message', contains('may not be written'))),
+          reason: 'the json form is the one route that can store a value the '
+              'plain grammar rejects, so a ban that covered only the plain '
+              'form would leave the sharper write open');
+
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'ORIGINAL_KEY',
+          reason: 'and the refusal happened before the write');
+    });
+
+    test('update:json over CRAM is redirected into primary too', () async {
+      // Pairs with the arm above, differing in the auth type alone.
+      bindCram();
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+      final json = jsonEncode({
+        'atKey': AtConstants.atPkamPublicKey,
+        'value': 'REPLACEMENTKEY00',
+        'metadata': Metadata().toJson(),
+      });
+
+      await updateVerbHandler.process('update:json:$json', inboundConnection);
+
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'ORIGINAL_KEY',
+          reason: 'no flat key is written on the json route either');
+      expect(
+          (await enMgr.getEnrollmentById(
+                  EnrollmentManager.primaryEnrollmentId))
+              .apkamPublicKey,
+          'REPLACEMENTKEY00');
+    });
+
+    test('a zero-length update:json value is refused before it can be stored',
+        () async {
+      bindCram();
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+
+      final json = jsonEncode({
+        'atKey': AtConstants.atPkamPublicKey,
+        'value': '',
+        'metadata': Metadata().toJson(),
+      });
+      await expectLater(
+          updateVerbHandler.process('update:json:$json', inboundConnection),
+          throwsA(isA<InvalidSyntaxException>()),
+          reason: 'update:json carries the value inside the document, which '
+              'is how a zero-length value used to reach the keystore at all');
+
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'ORIGINAL_KEY');
+    });
+
+    test('CONTROL: update:json writes an ordinary key on this connection',
+        () async {
+      // The control: drawn from a key the ban does not touch.
+      bindCram();
+      final json = jsonEncode({
+        'atKey': 'privatekey:self_encryption_key',
+        'value': 'ORDINARY',
+        'metadata': Metadata().toJson(),
+      });
+      await updateVerbHandler.process(
+          'update:json:$json', inboundConnection);
+      expect(
+          (await keyValueStore.get('privatekey:self_encryption_key'))?.data,
+          'ORDINARY',
+          reason: 'the json route itself works on this connection; only the '
+              'one key is refused');
+    });
+
+    test('a batch-wrapped update reaches the ban', () async {
+      bindLegacyNoId();
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+
+      final response = await batchHandler().processInternal(
+          'batch:[{"id":1,"command":"update:privatekey:at_pkam_publickey '
+          'NEWKEYAA"}]',
+          inboundConnection);
+
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'ORIGINAL_KEY',
+          reason: 'wrapping the command in a batch must not get it past the '
+              'refusal — batch re-dispatches to the same handler');
+      expect(await enMgr.primaryEnrollment(), isNull,
+          reason: 'refused, not redirected: nothing was installed anywhere');
+      expect(response.data, contains('"id":1'),
+          reason: 'and the element is reported, not silently dropped');
+      expect(response.data, contains('AT0009'),
+          reason: 'refused as unauthorised, in the element\'s own response');
+    });
+
+    test('a batch-wrapped update over CRAM is redirected into primary',
+        () async {
+      // Pairs with the arm above, differing in the auth type alone.
+      bindCram();
+      await keyValueStore.put(
+          AtConstants.atPkamPublicKey, AtData()..data = 'ORIGINAL_KEY');
+
+      await batchHandler().processInternal(
+          'batch:[{"id":1,"command":"update:privatekey:at_pkam_publickey '
+          'NEWKEYAA"}]',
+          inboundConnection);
+
+      expect((await keyValueStore.get(AtConstants.atPkamPublicKey))?.data,
+          'ORIGINAL_KEY',
+          reason: 'no flat key is written on the batch route either');
+      expect(
+          (await enMgr.getEnrollmentById(
+                  EnrollmentManager.primaryEnrollmentId))
+              .apkamPublicKey,
+          'NEWKEYAA');
+    });
+
+    test('update:meta cannot name the key at all', () async {
+      // NOTE update:meta's atKey class is colon-free, so this key is
+      // unreachable rather than refused.
+      expect(
+          RegExp(VerbSyntax.update_meta).hasMatch(
+              'update:meta:privatekey:at_pkam_publickey@alice:ttl:1000'),
+          isFalse,
+          reason: 'update:meta has no route to the legacy PKAM credential, so '
+              'the ban has nothing to close there');
+      expect(
+          RegExp(VerbSyntax.update_meta)
+              .hasMatch('update:meta:phone.wavi@alice:ttl:1000'),
+          isTrue,
+          reason: 'CONTROL: the same regex does match an ordinary atKey, so '
+              'the miss above is about this key and not about the pattern');
+    });
+
+    test('delete cannot name the key at all', () async {
+      expect(
+          RegExp(VerbSyntax.delete)
+              .hasMatch('delete:privatekey:at_pkam_publickey'),
+          isFalse,
+          reason: 'a credential installable and not removable is precisely '
+              'what the write ban exists to prevent');
+      expect(
+          RegExp(VerbSyntax.delete).hasMatch('delete:privatekey:at_secret'),
+          isTrue,
+          reason: 'CONTROL: the delete grammar does whitelist a privatekey: '
+              'key, so the miss above is about which one');
+    });
+
 
     for (final key in [
       'public:publickey@alice',
@@ -137,8 +521,7 @@ void main() {
       });
 
       test('scoped enrollment CAN still read $key', () async {
-        // Reads stay open: sync force-includes these keys and then ANDs the
-        // result with this authorization check.
+        // NOTE reads stay open: sync force-includes these keys.
         await bindScoped();
         await keyValueStore.put(key, AtData()..data = 'GENUINE');
         await localLookupVerbHandler.process('llookup:$key', inboundConnection);
@@ -155,7 +538,6 @@ void main() {
       });
     }
 
-    // ---- the two shared_key forms stay reachable ----
 
     for (final key in [
       'shared_key.bob@alice',
@@ -178,7 +560,69 @@ void main() {
       });
     }
 
-    // ---- keys that merely contain an allow-listed form ----
+
+    for (final key in [
+      'shared_key.bob@alice',
+      '@bob:shared_key@alice',
+    ]) {
+      test('a read-only enrollment CAN read $key', () async {
+        await bindEnrollment({'wavi': 'r'});
+        await keyValueStore.put(key, AtData()..data = 'encryptedvalue');
+        await localLookupVerbHandler.process('llookup:$key', inboundConnection);
+        expect(inboundConnection.lastWrittenData, contains('encryptedvalue'),
+            reason: 'reads of $key stay open to every approved enrollment');
+      });
+
+      test('a read-only enrollment cannot update $key', () async {
+        await bindEnrollment({'wavi': 'r'});
+        await keyValueStore.put(key, AtData()..data = 'GENUINE');
+        await expectLater(
+            updateVerbHandler.process('update:$key FORGED', inboundConnection),
+            throwsA(isA<UnAuthorizedException>()),
+            reason: 'an enrollment holding no write access anywhere must not '
+                'overwrite $key');
+        final stored = await keyValueStore.get(key);
+        expect(stored?.data, 'GENUINE',
+            reason: 'the refused update must leave $key untouched');
+      });
+
+      test('a read-only enrollment cannot delete $key', () async {
+        await bindEnrollment({'wavi': 'r'});
+        await keyValueStore.put(key, AtData()..data = 'GENUINE');
+        await expectLater(
+            deleteVerbHandler.process('delete:$key', inboundConnection),
+            throwsA(isA<UnAuthorizedException>()),
+            reason: 'an enrollment holding no write access anywhere must not '
+                'delete $key');
+        expect(await keyValueStore.exists(key), isTrue,
+            reason: 'the refused delete must leave $key in the keystore');
+      });
+
+      test('a wavi:rw enrollment CAN update and delete $key', () async {
+        await bindScoped();
+        await keyValueStore.put(key, AtData()..data = 'GENUINE');
+        await updateVerbHandler.process(
+            'update:$key ROTATED', inboundConnection);
+        expect((await keyValueStore.get(key))?.data, 'ROTATED',
+            reason: 'write access on any namespace admits a write of $key');
+        await deleteVerbHandler.process('delete:$key', inboundConnection);
+        expect(await keyValueStore.exists(key), isFalse,
+            reason: 'write access on any namespace admits a delete of $key');
+      });
+
+      test('a *:rw enrollment CAN update and delete $key', () async {
+        await bindWildcard();
+        await keyValueStore.put(key, AtData()..data = 'GENUINE');
+        await updateVerbHandler.process(
+            'update:$key ROTATED', inboundConnection);
+        expect((await keyValueStore.get(key))?.data, 'ROTATED',
+            reason: 'a wildcard grant admits a write of $key');
+        await deleteVerbHandler.process('delete:$key', inboundConnection);
+        expect(await keyValueStore.exists(key), isFalse,
+            reason: 'a wildcard grant admits a delete of $key');
+      });
+    }
+
 
     for (final key in [
       'x.shared_key.bob@alice',
@@ -195,8 +639,6 @@ void main() {
     }
 
     test('the root-key allowlist is anchored, not a substring match', () async {
-      // Asserted against the predicate rather than a verb handler: some of
-      // these are rejected by verb grammar before authorization is reached.
       final enrollId = await bindScoped();
       final enroll = await enMgr.getEnrollmentById(enrollId);
       for (final key in [
@@ -208,7 +650,9 @@ void main() {
         'shared_key.bob@alice.evil@alice',
         'prefix:privatekey:at_pkam_publickey',
       ]) {
-        expect(updateVerbHandler.isAuthorizedSync(enroll, enrollId, atKey: key),
+        expect(
+            updateVerbHandler.isAuthorizedSync(enroll, enrollId,
+                cram: false, atKey: key),
             isFalse,
             reason: '"$key" only contains an exempt form, it is not one');
       }
@@ -216,8 +660,6 @@ void main() {
 
     test('a genuinely namespaced shared_key is still namespace-governed',
         () async {
-      // @bob:shared_key.wavi@alice has namespace 'wavi', so it is decided by
-      // the grant rather than by the namespace-less rule.
       await bindScoped();
       await updateVerbHandler.process(
           'update:@bob:shared_key.wavi$alice v', inboundConnection);
@@ -232,7 +674,6 @@ void main() {
 
     test("an enrollment granted the namespace 'null' gets no root access",
         () async {
-      // A key with no namespace must not match a grant named 'null'.
       await bindEnrollment({'null': 'rw'});
       for (final key in ['foo$alice', 'public:foo$alice', '@bob:foo$alice']) {
         await expectLater(
@@ -249,19 +690,15 @@ void main() {
       expect(inboundConnection.lastWrittenData, contains('data:'));
     });
 
-    // ---- matching the key the keystore writes ----
 
+    // NOTE whitespace only: case cannot be isolated, being lowercased by the
+    // fold before the caseSensitive:false regex sees it.
     for (final variant in [
       'public:publickey@alice ',
       ' public:publickey@alice',
       'public:publickey@alice\t',
-      'PUBLIC:PUBLICKEY@ALICE'
     ]) {
       test('a non-root enrollment is denied ${jsonEncode(variant)}', () async {
-        // HiveKeyStoreHelper.prepareKey normalises with
-        // trim().toLowerCase().replaceAll(' ',''), so these variants all
-        // address the same record. A '*:rw' enrollment is not a root
-        // enrollment.
         await bindWildcard();
         await keyValueStore.put(
             'public:publickey$alice', AtData()..data = 'GENUINE');
@@ -279,7 +716,6 @@ void main() {
       });
     }
 
-    // ---- the privatekey: prefix ----
 
     for (final key in [
       'privatekey:at_secret',
@@ -301,8 +737,46 @@ void main() {
       });
     }
 
+    test('NO enrollment may WRITE the CRAM secret, root included', () async {
+      await bindRoot();
+      await keyValueStore.put(
+          AtConstants.atCramSecret, AtData()..data = 'ORIGINAL_SECRET');
+
+      final json = jsonEncode({
+        'atKey': AtConstants.atCramSecret,
+        'value': 'A_SECRET_THE_CALLER_KNOWS',
+        'metadata': Metadata().toJson(),
+      });
+      await expectLater(
+          updateVerbHandler.process('update:json:$json', inboundConnection),
+          throwsA(isA<UnAuthorizedException>()),
+          reason: 'root privilege decides every other key on this prefix; '
+              'this one is refused outright');
+
+      expect((await keyValueStore.get(AtConstants.atCramSecret))?.data,
+          'ORIGINAL_SECRET',
+          reason: 'and the refusal happened before the write');
+    });
+
+    test('NO enrollment may WRITE the CRAM tombstone, root included', () async {
+      await bindRoot();
+
+      final json = jsonEncode({
+        'atKey': AtConstants.atCramSecretDeleted,
+        'value': 'true',
+        'metadata': Metadata().toJson(),
+      });
+      await expectLater(
+          updateVerbHandler.process('update:json:$json', inboundConnection),
+          throwsA(isA<UnAuthorizedException>()));
+
+      expect(await keyValueStore.exists(AtConstants.atCramSecretDeleted),
+          isFalse,
+          reason: 'an atSign that never deleted its CRAM secret must not be '
+              'left unable to replant one');
+    });
+
     test('a root enrollment can still delete the CRAM secret', () async {
-      // Onboarding removes privatekey:at_secret once PKAM is established.
       await bindRoot();
       await keyValueStore.put(
           'privatekey:at_secret', AtData()..data = 'SECRET');
@@ -310,7 +784,6 @@ void main() {
           'delete:privatekey:at_secret', inboundConnection);
     });
 
-    // ---- cached copies of another atSign's public keys ----
 
     test('a *:rw enrollment can still evict a cached foreign public key',
         () async {
@@ -333,7 +806,6 @@ void main() {
           throwsA(isA<UnAuthorizedException>()));
     });
 
-    // ---- config:block ----
 
     test('scoped enrollment cannot read or modify the blocklist', () async {
       await bindScoped();
@@ -365,8 +837,7 @@ void main() {
     });
 
     test('an unparseable atKey returns rather than throwing', () async {
-      // AtKey.fromString raises Errors as well as Exceptions on these, and the
-      // check runs inside sync's synchronous where: predicate.
+      // NOTE AtKey.fromString raises Errors as well as Exceptions on these.
       final enrollId = await bindScoped();
       final enroll = await enMgr.getEnrollmentById(enrollId);
       for (final key in [
@@ -378,7 +849,7 @@ void main() {
       ]) {
         expect(
             () => updateVerbHandler.isAuthorizedSync(enroll, enrollId,
-                atKey: key),
+                cram: false, atKey: key),
             returnsNormally,
             reason: '$key must not throw out of the authorization check');
       }

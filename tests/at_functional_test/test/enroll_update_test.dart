@@ -4,6 +4,7 @@ import 'package:at_chops/at_chops.dart';
 import 'package:at_demo_data/at_demo_data.dart';
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
+import 'package:at_functional_test/utils/apkam_keys.dart';
 import 'package:at_functional_test/utils/auth_utils.dart';
 import 'package:at_functional_test/utils/encryption_util.dart';
 import 'package:test/test.dart';
@@ -23,8 +24,6 @@ void main() {
   String host = ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignUrl'];
   int port = ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignPort'];
 
-  String apkamPublicKey = apkamPublicKeyMap[atSign]!;
-  String apkamPrivateKey = apkamPrivateKeyMap[atSign]!;
   String encryptedPrivateKey = EncryptionUtil.encryptValue(
       encryptionPrivateKeyMap[atSign]!, apkamSymmetricKeyMap[atSign]!);
   String encryptedSelfKey = EncryptionUtil.encryptValue(
@@ -33,6 +32,12 @@ void main() {
       apkamSymmetricKeyMap[atSign]!, encryptionPublicKeyMap[atSign]!);
 
   List<OutboundConnectionFactory> open = [];
+
+  /// The keypair each enrollment this file creates was created with, by
+  /// enrollment id.
+  Map<String, ApkamKeys> keysOf = {};
+
+  String privateKeyOf(String enrollmentId) => keysOf[enrollmentId]!.privateKey;
 
   Future<OutboundConnectionFactory> newConnection() async {
     OutboundConnectionFactory c = await OutboundConnectionFactory()
@@ -62,10 +67,12 @@ void main() {
     String deviceName = 'upd-dev-${Uuid().v4().hashCode}';
     // One enroll:request per connection: the rate limiter is per-connection.
     OutboundConnectionFactory requester = await newConnection();
+    ApkamKeys keys = mintApkamKeys();
     String response = await requester.sendRequestToServer(
-        'enroll:request:{"appName":"$appName","deviceName":"$deviceName","namespaces":${jsonEncode(namespaces)},"otp":"$otp","apkamPublicKey":"$apkamPublicKey","encryptedAPKAMSymmetricKey":"$encryptedApkamSymmetricKey"}');
+        'enroll:request:{"appName":"$appName","deviceName":"$deviceName","namespaces":${jsonEncode(namespaces)},"otp":"$otp","apkamPublicKey":"${keys.publicKey}","encryptedAPKAMSymmetricKey":"$encryptedApkamSymmetricKey"}');
     String enrollmentId =
         jsonDecode(response.replaceFirst('data:', ''))['enrollmentId'];
+    keysOf[enrollmentId] = keys;
     String approval = await owner.sendRequestToServer(
         'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"$encryptedPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfKey"}');
     expect(jsonDecode(approval.replaceFirst('data:', ''))['status'], 'approved');
@@ -95,9 +102,10 @@ void main() {
   /// `replaceAll('data:', '')` and nothing more. Trimming it or stripping the
   /// `@<atSign>@` prompt changes the bytes the digest covers, and the only
   /// symptom is an authentication that fails for a reason having nothing to
-  /// do with the key. This helper exists at all because the library helper
-  /// signs with the demo-data key, and half the point here is authenticating
-  /// with a key that was minted during the test.
+  /// do with the key. This helper exists at all because a refused
+  /// authentication has to come back as `false`, whether the server answered
+  /// with an error or closed the socket, and half the point here is asking
+  /// the question of a key that was rotated OUT.
   Future<bool> canAuthenticate(String enrollmentId, String privateKey) async {
     OutboundConnectionFactory c = await newConnection();
     String fromResponse = await c.sendRequestToServer(
@@ -127,7 +135,7 @@ void main() {
       final enId =
           await createApprovedEnrollment(owner, namespaces: {'buzz': 'rw'});
 
-      expect(await canAuthenticate(enId, apkamPrivateKey), true,
+      expect(await canAuthenticate(enId, privateKeyOf(enId)), true,
           reason: 'the enrollment must authenticate before the rotation, or '
               'the after-check proves nothing');
 
@@ -137,7 +145,9 @@ void main() {
       final self = await newConnection();
       expect(
           (await self.authenticateConnection(
-                  authType: AuthType.apkam, enrollmentId: enId))
+                  authType: AuthType.apkam,
+                  enrollmentId: enId,
+                  privateKey: privateKeyOf(enId)))
               .trim(),
           'data:success');
 
@@ -153,7 +163,7 @@ void main() {
           await canAuthenticate(enId, newPair.atPrivateKey.privateKey), true,
           reason: 'the rotated-in key must authenticate as the SAME '
               'enrollment id');
-      expect(await canAuthenticate(enId, apkamPrivateKey), false,
+      expect(await canAuthenticate(enId, privateKeyOf(enId)), false,
           reason: 'the rotated-out key must stop authenticating');
     });
 
@@ -169,7 +179,9 @@ void main() {
       final self = await newConnection();
       expect(
           (await self.authenticateConnection(
-                  authType: AuthType.apkam, enrollmentId: enId))
+                  authType: AuthType.apkam,
+                  enrollmentId: enId,
+                  privateKey: privateKeyOf(enId)))
               .trim(),
           'data:success');
 
@@ -184,7 +196,7 @@ void main() {
               'installed must be refused');
 
       // The differential half: the refusal left the record alone.
-      expect(await canAuthenticate(enId, apkamPrivateKey), true,
+      expect(await canAuthenticate(enId, privateKeyOf(enId)), true,
           reason: 'the original key must still authenticate after a refused '
               'rotation');
       expect(
@@ -202,7 +214,9 @@ void main() {
       final c = await newConnection();
       expect(
           (await c.authenticateConnection(
-                  authType: AuthType.apkam, enrollmentId: other))
+                  authType: AuthType.apkam,
+                  enrollmentId: other,
+                  privateKey: privateKeyOf(other)))
               .trim(),
           'data:success');
 
@@ -232,7 +246,9 @@ void main() {
       final self = await newConnection();
       expect(
           (await self.authenticateConnection(
-                  authType: AuthType.apkam, enrollmentId: enId))
+                  authType: AuthType.apkam,
+                  enrollmentId: enId,
+                  privateKey: privateKeyOf(enId)))
               .trim(),
           'data:success');
       final response = await self.sendRequestToServer(
@@ -262,7 +278,9 @@ void main() {
       final self = await newConnection();
       expect(
           (await self.authenticateConnection(
-                  authType: AuthType.apkam, enrollmentId: enId))
+                  authType: AuthType.apkam,
+                  enrollmentId: enId,
+                  privateKey: privateKeyOf(enId)))
               .trim(),
           'data:success');
       final response = await self.sendRequestToServer(
@@ -298,7 +316,9 @@ void main() {
       final self = await newConnection();
       expect(
           (await self.authenticateConnection(
-                  authType: AuthType.apkam, enrollmentId: enId))
+                  authType: AuthType.apkam,
+                  enrollmentId: enId,
+                  privateKey: privateKeyOf(enId)))
               .trim(),
           'data:success');
 
@@ -347,7 +367,9 @@ void main() {
       final self = await newConnection();
       expect(
           (await self.authenticateConnection(
-                  authType: AuthType.apkam, enrollmentId: enId))
+                  authType: AuthType.apkam,
+                  enrollmentId: enId,
+                  privateKey: privateKeyOf(enId)))
               .trim(),
           'data:success');
 

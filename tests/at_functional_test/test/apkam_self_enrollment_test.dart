@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:at_demo_data/at_demo_data.dart';
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
+import 'package:at_functional_test/utils/apkam_keys.dart';
 import 'package:at_functional_test/utils/auth_utils.dart';
 import 'package:at_functional_test/utils/encryption_util.dart';
 import 'package:test/test.dart';
@@ -23,7 +24,6 @@ void main() {
   String host = ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignUrl'];
   int port = ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignPort'];
 
-  String apkamPublicKey = apkamPublicKeyMap[atSign]!;
   String encryptedPrivateKey = EncryptionUtil.encryptValue(
       encryptionPrivateKeyMap[atSign]!, apkamSymmetricKeyMap[atSign]!);
   String encryptedSelfKey = EncryptionUtil.encryptValue(
@@ -33,6 +33,13 @@ void main() {
 
   /// Connections opened by a test, closed in tearDown.
   List<OutboundConnectionFactory> open = [];
+
+  /// The keypair each enrollment this file creates was created with, by
+  /// enrollment id: predecessors, successors and approvers alike, each its
+  /// own.
+  Map<String, ApkamKeys> keysOf = {};
+
+  String privateKeyOf(String enrollmentId) => keysOf[enrollmentId]!.privateKey;
 
   Future<OutboundConnectionFactory> newConnection() async {
     OutboundConnectionFactory c = await OutboundConnectionFactory()
@@ -73,10 +80,12 @@ void main() {
     // One enroll:request per connection: the rate limiter is per-connection,
     // and another test file lowers maxRequestsPerTimeFrame server-wide.
     OutboundConnectionFactory requester = await newConnection();
+    ApkamKeys keys = mintApkamKeys();
     String response = await requester.sendRequestToServer(
-        'enroll:request:{"appName":"$appName","deviceName":"$deviceName","namespaces":${jsonEncode(namespaces)},"otp":"$otp","apkamPublicKey":"$apkamPublicKey","encryptedAPKAMSymmetricKey":"$encryptedApkamSymmetricKey"$expiry}');
+        'enroll:request:{"appName":"$appName","deviceName":"$deviceName","namespaces":${jsonEncode(namespaces)},"otp":"$otp","apkamPublicKey":"${keys.publicKey}","encryptedAPKAMSymmetricKey":"$encryptedApkamSymmetricKey"$expiry}');
     String enrollmentId =
         jsonDecode(response.replaceFirst('data:', ''))['enrollmentId'];
+    keysOf[enrollmentId] = keys;
     String approval = await owner.sendRequestToServer(
         'enroll:approve:{"enrollmentId":"$enrollmentId","encryptedDefaultEncryptionPrivateKey":"$encryptedPrivateKey","encryptedDefaultSelfEncryptionKey":"$encryptedSelfKey"}');
     expect(jsonDecode(approval.replaceFirst('data:', ''))['status'], 'approved');
@@ -88,6 +97,9 @@ void main() {
   /// [namespaces] is optional, mirroring the wire: a retrofit that omits
   /// it inherits its predecessor's grants, and one that states them must
   /// state exactly them.
+  ///
+  /// The successor is minted a keypair of its own, as a real re-key would
+  /// be, and it is recorded in [keysOf] when the server admits it.
   Future<String> selfEnroll(String predecessorId,
       {Map<String, String>? namespaces,
       String? appName,
@@ -99,10 +111,13 @@ void main() {
     OutboundConnectionFactory predecessor = await newConnection();
     expect(
         (await predecessor.authenticateConnection(
-                authType: AuthType.apkam, enrollmentId: predecessorId))
+                authType: AuthType.apkam,
+                enrollmentId: predecessorId,
+                privateKey: privateKeyOf(predecessorId)))
             .trim(),
         'data:success',
         reason: 'the predecessor must be able to authenticate before it self-enrols');
+    ApkamKeys keys = mintApkamKeys();
     String nsField =
         namespaces == null ? '' : ',"namespaces":${jsonEncode(namespaces)}';
     String expiry = apkamKeysExpiryInMillis == null
@@ -115,9 +130,14 @@ void main() {
     // value; the tests below assert exactly that.
     String apskLegacyField =
         apskLegacy == null ? '' : ',"apskLegacy":${jsonEncode(apskLegacy)}';
-    return (await predecessor.sendRequestToServer(
-            'enroll:request:{"appName":"${appName ?? 'successor-${Uuid().v4().hashCode}'}","deviceName":"${deviceName ?? 'device-${Uuid().v4().hashCode}'}","apkamPublicKey":"$apkamPublicKey"$nsField$expiry$algo$apskField$apskLegacyField}'))
+    String response = (await predecessor.sendRequestToServer(
+            'enroll:request:{"appName":"${appName ?? 'successor-${Uuid().v4().hashCode}'}","deviceName":"${deviceName ?? 'device-${Uuid().v4().hashCode}'}","apkamPublicKey":"${keys.publicKey}"$nsField$expiry$algo$apskField$apskLegacyField}'))
         .trim();
+    if (response.startsWith('data:')) {
+      keysOf[jsonDecode(response.replaceFirst('data:', ''))['enrollmentId']] =
+          keys;
+    }
+    return response;
   }
 
   /// Opens a fresh connection and authenticates it as [enrollmentId], which
@@ -126,11 +146,30 @@ void main() {
     OutboundConnectionFactory conn = await newConnection();
     expect(
         (await conn.authenticateConnection(
-                authType: AuthType.apkam, enrollmentId: enrollmentId))
+                authType: AuthType.apkam,
+                enrollmentId: enrollmentId,
+                privateKey: privateKeyOf(enrollmentId)))
             .trim(),
         'data:success',
         reason: 'the successor must be able to authenticate, or the arming '
             'this drives never happens');
+  }
+
+  /// A connection APKAM-authenticated as [enrollmentId], so that enrollment
+  /// can itself act as the approver in [createApprovedEnrollment] — which
+  /// approves over whatever connection it is handed. That is how an APPROVAL
+  /// edge is built over the wire: an owner connection carries no enrollment
+  /// id, so anything it approves records no approver.
+  Future<OutboundConnectionFactory> connectionAs(String enrollmentId) async {
+    OutboundConnectionFactory c = await newConnection();
+    expect(
+        (await c.authenticateConnection(
+                authType: AuthType.apkam,
+                enrollmentId: enrollmentId,
+                privateKey: privateKeyOf(enrollmentId)))
+            .trim(),
+        'data:success');
+    return c;
   }
 
   /// [selfEnroll] for the cases that are expected to succeed.
@@ -196,20 +235,54 @@ void main() {
       OutboundConnectionFactory successor = await newConnection();
       expect(
           (await successor.authenticateConnection(
-                  authType: AuthType.apkam, enrollmentId: successorId))
+                  authType: AuthType.apkam,
+                  enrollmentId: successorId,
+                  privateKey: privateKeyOf(successorId)))
               .trim(),
           'data:success');
     });
 
-    test('the successor records what it replaced, which is what the cascade '
-        'walks', () async {
+    test('the successor records what it replaced, and inherits its approver',
+        () async {
       OutboundConnectionFactory owner = await ownerConnection();
+
+      // ⚠️ The predecessor is admitted by an ENROLLMENT rather than by the
+      // owner. An owner connection records no approver, so a predecessor made
+      // the ordinary way inherits null — and an assertion against null holds
+      // whether the successor inherits its predecessor's approver or nothing
+      // at all. Dropping inheritance entirely used to pass here.
+      final String approverId = await createApprovedEnrollment(owner,
+          namespaces: {'*': 'rw', '__manage': 'rw'});
+      OutboundConnectionFactory approver = await newConnection();
+      expect(
+          (await approver.authenticateConnection(
+                  authType: AuthType.apkam,
+                  enrollmentId: approverId,
+                  privateKey: privateKeyOf(approverId)))
+              .trim(),
+          'data:success');
+
       String predecessorId =
-          await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
+          await createApprovedEnrollment(approver, namespaces: {'wavi': 'rw'});
+      expect(
+          (await enrollmentRecord(owner, predecessorId))
+              .value['parentEnrollmentId'],
+          approverId,
+          reason: 'precondition: the predecessor has a REAL approver, which '
+              'is what makes inheriting it distinguishable from inheriting '
+              'nothing');
+
       String successorId = await selfEnrollId(predecessorId);
 
       final successor = await enrollmentRecord(owner, successorId);
-      expect(successor.value['parentEnrollmentId'], predecessorId);
+      expect(successor.value['retrofitPredecessorEnrollmentId'], predecessorId,
+          reason: 'the replacement edge, which the retrofit cap needs — it '
+              'does NOT cascade');
+      expect(successor.value['parentEnrollmentId'], approverId,
+          reason: 'a retrofit produces a PEER, so the successor stands where '
+              'its predecessor stood: whoever admitted the predecessor '
+              'admitted this. Null here would make a retrofit an escape hatch '
+              'from the approval cascade');
       expect(successor.value['namespaces'], {'wavi': 'rw'},
           reason: 'the successor carries its predecessor\'s grants, so it '
               'holds rw here and not the r an earlier contract let a '
@@ -261,7 +334,7 @@ void main() {
           .trim();
       OutboundConnectionFactory ordinary = await newConnection();
       String response = await ordinary.sendRequestToServer(
-          'enroll:request:{"appName":"$appName","deviceName":"$deviceName","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"$apkamPublicKey","encryptedAPKAMSymmetricKey":"$encryptedApkamSymmetricKey"}');
+          'enroll:request:{"appName":"$appName","deviceName":"$deviceName","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${mintApkamKeys().publicKey}","encryptedAPKAMSymmetricKey":"$encryptedApkamSymmetricKey"}');
       expect(response.trim(), startsWith('error:'),
           reason: 'the ordinary path must still reject duplicate names');
     });
@@ -362,6 +435,12 @@ void main() {
     // One hour, so a successor asking for longer, for "never", or for a negative
     // value has something to be clamped against.
     const int oneHourMs = 3600000;
+    // ⚠️ A LOWER bound tight enough to mean something. Every successor here is
+    // bounded by what is LEFT of the predecessor's hour, and the predecessor
+    // is seconds old, so the answer must be nearly the whole hour. A bare
+    // `greaterThan(0)` is satisfied by a bug that clamps every successor to
+    // one millisecond — it cannot tell "bounded correctly" from "destroyed".
+    const int almostAnHourMs = oneHourMs - 60000;
 
     test('a successor inherits the predecessor\'s key-expiry posture', () async {
       OutboundConnectionFactory owner = await ownerConnection();
@@ -370,10 +449,22 @@ void main() {
 
       String successorId = await selfEnrollId(predecessorId);
       final successor = await enrollmentRecord(owner, successorId);
-      expect(successor.value['apkamKeysExpiryInMillis'], oneHourMs);
+      // Bounded by what is LEFT of the predecessor, not by its full term: the
+      // successor's clock restarts at its own write, so inheriting the whole
+      // hour would put its deadline past the predecessor's by the
+      // predecessor's age. Behaviour CHANGED; this asserted `oneHourMs`
+      // exactly before the deadline bound landed.
+      expect(successor.value['apkamKeysExpiryInMillis'],
+          lessThanOrEqualTo(oneHourMs));
+      expect(successor.value['apkamKeysExpiryInMillis'],
+          greaterThan(almostAnHourMs),
+          reason: 'bounded, not zeroed and not clamped to some tiny value: it '
+              'is what is left of the hour, and the predecessor is seconds '
+              'old');
       // The posture is not merely recorded, it is written as the record's ttl
       // — the hole that made an inherited expiry into immortality.
-      expect(successor.metaData['ttl'], oneHourMs);
+      expect(successor.metaData['ttl'], lessThanOrEqualTo(oneHourMs));
+      expect(successor.metaData['ttl'], greaterThan(almostAnHourMs));
       expect(successor.metaData['expiresAt'], isNotNull);
     });
 
@@ -397,10 +488,16 @@ void main() {
       String successorId = await selfEnrollId(predecessorId,
           apkamKeysExpiryInMillis: 999999999);
       final successor = await enrollmentRecord(owner, successorId);
-      // Clamped to the predecessor's, not refused: a client asking for longer
-      // without knowing is corrected rather than broken.
-      expect(successor.value['apkamKeysExpiryInMillis'], oneHourMs);
-      expect(successor.metaData['ttl'], oneHourMs);
+      // Clamped to what is LEFT of the predecessor, not refused: a client
+      // asking for longer without knowing is corrected rather than broken.
+      expect(successor.value['apkamKeysExpiryInMillis'],
+          lessThanOrEqualTo(oneHourMs));
+      expect(successor.value['apkamKeysExpiryInMillis'],
+          greaterThan(almostAnHourMs));
+      expect(successor.metaData['ttl'], lessThanOrEqualTo(oneHourMs));
+      expect(successor.metaData['ttl'], greaterThan(almostAnHourMs),
+          reason: 'clamped to what is left of the hour, not to some tiny '
+              'value: an over-ask is corrected, not punished');
     });
 
     test('a successor may not state "never expires" against a bounded predecessor',
@@ -414,8 +511,39 @@ void main() {
       String successorId = await selfEnrollId(predecessorId,
           apkamKeysExpiryInMillis: 0);
       final successor = await enrollmentRecord(owner, successorId);
-      expect(successor.value['apkamKeysExpiryInMillis'], oneHourMs);
-      expect(successor.metaData['ttl'], oneHourMs);
+      expect(successor.value['apkamKeysExpiryInMillis'],
+          lessThanOrEqualTo(oneHourMs));
+      expect(successor.metaData['ttl'], greaterThan(almostAnHourMs),
+          reason: 'the ask for "never expires" is not honoured at all, and '
+              'what replaces it is the predecessor\'s remaining hour rather '
+              'than an arbitrarily small number');
+      expect(successor.metaData['ttl'], lessThanOrEqualTo(oneHourMs));
+      expect(successor.metaData['expiresAt'], isNotNull);
+    });
+
+    test('the successor\'s DEADLINE never passes its predecessor\'s',
+        () async {
+      // The property the term comparison could not express. A term restarts
+      // its clock at the successor's own write, so an inherited term always
+      // lands later in absolute time than the predecessor's deadline — by
+      // exactly the predecessor's age. This is the assertion that a
+      // term-only check cannot satisfy.
+      OutboundConnectionFactory owner = await ownerConnection();
+      String predecessorId = await createApprovedEnrollment(owner,
+          namespaces: {'wavi': 'rw'}, apkamKeysExpiryInMillis: oneHourMs);
+      final predecessor = await enrollmentRecord(owner, predecessorId);
+
+      String successorId = await selfEnrollId(predecessorId,
+          apkamKeysExpiryInMillis: 999999999);
+      final successor = await enrollmentRecord(owner, successorId);
+
+      final DateTime predecessorExpiry =
+          DateTime.parse(predecessor.metaData['expiresAt']).toUtc();
+      final DateTime successorExpiry =
+          DateTime.parse(successor.metaData['expiresAt']).toUtc();
+      expect(successorExpiry.isAfter(predecessorExpiry), isFalse,
+          reason: 'the successor must not outlive the credential it replaced. '
+              'Predecessor $predecessorExpiry, successor $successorExpiry');
     });
 
     test('a negative stated expiry is not honoured', () async {
@@ -428,8 +556,12 @@ void main() {
       String successorId = await selfEnrollId(predecessorId,
           apkamKeysExpiryInMillis: -1);
       final successor = await enrollmentRecord(owner, successorId);
-      expect(successor.value['apkamKeysExpiryInMillis'], oneHourMs);
-      expect(successor.metaData['ttl'], oneHourMs);
+      expect(successor.value['apkamKeysExpiryInMillis'],
+          lessThanOrEqualTo(oneHourMs));
+      expect(successor.metaData['ttl'], greaterThan(almostAnHourMs),
+          reason: 'a negative ask falls back to the predecessor\'s remaining '
+              'hour, not to some tiny value');
+      expect(successor.metaData['ttl'], lessThanOrEqualTo(oneHourMs));
     });
   });
 
@@ -456,7 +588,9 @@ void main() {
       OutboundConnectionFactory predecessor = await newConnection();
       expect(
           (await predecessor.authenticateConnection(
-                  authType: AuthType.apkam, enrollmentId: predecessorId))
+                  authType: AuthType.apkam,
+                  enrollmentId: predecessorId,
+                  privateKey: privateKeyOf(predecessorId)))
               .trim(),
           'data:success',
           reason: 'a capped credential keeps working until its deadline — a '
@@ -539,7 +673,9 @@ void main() {
       OutboundConnectionFactory predecessor = await newConnection();
       expect(
           (await predecessor.authenticateConnection(
-                  authType: AuthType.apkam, enrollmentId: predecessorId))
+                  authType: AuthType.apkam,
+                  enrollmentId: predecessorId,
+                  privateKey: privateKeyOf(predecessorId)))
               .trim(),
           'data:success');
       String response = await predecessor.sendRequestToServer(
@@ -580,20 +716,15 @@ void main() {
       String predecessorId =
           await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
 
+      // NOTE both siblings enrol before either authenticates: once the first
+      // has capped the predecessor, the predecessor no longer splits.
       String firstId = await selfEnrollId(predecessorId);
+      String secondId = await selfEnrollId(predecessorId);
       await authenticateAsEnrollment(firstId);
       DateTime firstCap = DateTime.parse(
           (await enrollmentRecord(owner, predecessorId)).metaData['expiresAt']);
 
       await Future.delayed(Duration(seconds: 2));
-
-      String secondId = await selfEnrollId(predecessorId);
-      expect(
-          DateTime.parse(
-              (await enrollmentRecord(owner, predecessorId)).metaData['expiresAt']),
-          firstCap,
-          reason: 'control: the second retrofit alone moves nothing — it is '
-              'the authentication that arms, not the enrolment');
 
       await authenticateAsEnrollment(secondId);
       DateTime secondCap = DateTime.parse(
@@ -642,22 +773,27 @@ void main() {
     Future<String> tryAuthenticateAs(String id) async {
       try {
         return (await (await newConnection()).authenticateConnection(
-                authType: AuthType.apkam, enrollmentId: id))
+                authType: AuthType.apkam,
+                enrollmentId: id,
+                privateKey: privateKeyOf(id)))
             .trim();
       } catch (e) {
         return 'threw: $e';
       }
     }
 
-    test('a successor stops authenticating when the enrollment it replaced is '
+    test('a successor KEEPS authenticating when the enrollment it replaced is '
         'revoked', () async {
+      // Behaviour CHANGED; this test previously asserted the opposite. A
+      // retrofit produces a PEER — the same principal re-keyed — not a child,
+      // so revoking the superseded credential must not take the one that
+      // superseded it. An operator retiring an old key would otherwise kill
+      // the device's current one.
       OutboundConnectionFactory owner = await ownerConnection();
       String predecessorId =
           await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
       String successorId = await selfEnrollId(predecessorId);
 
-      // The control. Without it a failure after the revoke could equally be a
-      // successor that never worked.
       expect(await tryAuthenticateAs(successorId), 'data:success',
           reason: 'precondition: the successor authenticates while its '
               'predecessor stands');
@@ -666,68 +802,80 @@ void main() {
           .sendRequestToServer('enroll:revoke:{"enrollmentId":"$predecessorId"}');
       expect(response, startsWith('data:'), reason: response);
       expect(
-          jsonDecode(response.replaceFirst('data:', ''))[
-              'cascadedEnrollmentIds'],
-          [successorId],
-          reason: 'the revoke reports what it took with it');
+          jsonDecode(response.replaceFirst('data:', ''))
+              .containsKey('cascadedEnrollmentIds'),
+          false,
+          reason: 'the replacement edge does not cascade, so the revoke took '
+              'nothing with it');
 
-      expect(await stateOf(owner, successorId), 'revoked');
-      expect(await tryAuthenticateAs(successorId), isNot('data:success'),
-          reason: 'a successor that still authenticates after the revocation '
-              'of what it replaced defeats revocation through the very '
-              'feature that created it');
+      expect(await stateOf(owner, predecessorId), 'revoked',
+          reason: 'control: the named target really was revoked, so a passing '
+              'assertion below is not a revoke that did nothing');
+      expect(await stateOf(owner, successorId), 'approved');
+      expect(await tryAuthenticateAs(successorId), 'data:success',
+          reason: 'the successor is a peer of what it replaced, not a '
+              'descendant of it');
     });
 
-    test('the cascade reaches a successor\'s successor, not just the first',
-        () async {
+    test('a successor may not itself retrofit', () async {
+      // This was 'the cascade reaches a successor's successor, not just the
+      // first', which built a two-link retrofit chain over the wire. A
+      // retrofit is now a ONCE-OFF, so that chain can no longer be constructed
+      // against a real server at all, and the test is replaced by the refusal
+      // that makes it impossible.
+      //
+      // ⚠️ What goes with it is the only over-the-wire proof that the cascade
+      // is TRANSITIVE. That property still matters — an atSign may hold a
+      // deeper chain written before this refusal — but it is now pinned solely
+      // by unit tests standing on records written straight to the store, which
+      // is a shape the product can no longer produce.
       OutboundConnectionFactory owner = await ownerConnection();
       String predecessorId =
           await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
       String successorId = await selfEnrollId(predecessorId);
-      String laterSuccessorId = await selfEnrollId(successorId);
 
-      expect(await tryAuthenticateAs(laterSuccessorId), 'data:success',
-          reason: 'precondition');
+      expect(await tryAuthenticateAs(successorId), 'data:success',
+          reason: 'precondition: the first retrofit is allowed and its '
+              'successor authenticates');
 
-      String response = await owner
-          .sendRequestToServer('enroll:revoke:{"enrollmentId":"$predecessorId"}');
-      expect(response, startsWith('data:'), reason: response);
-
-      expect(await stateOf(owner, laterSuccessorId), 'revoked',
-          reason: 'a self-enrolled enrollment can itself self-enroll, so a '
-              'one-level cascade would leave this one on every roster');
-      expect(await tryAuthenticateAs(laterSuccessorId), isNot('data:success'));
+      String second = await selfEnroll(successorId);
+      expect(second, startsWith('error:'),
+          reason: 'a replacement may not be replaced without an approver; '
+              'got: $second');
+      expect(second, contains('is itself a replacement'), reason: second);
     });
 
-    test('un-revoking a descendant is refused while what it replaced stays '
-        'revoked', () async {
+    test('un-revoking a descendant is refused while the one that APPROVED it '
+        'stays revoked', () async {
       OutboundConnectionFactory owner = await ownerConnection();
-      String predecessorId =
-          await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
-      String successorId = await selfEnrollId(predecessorId);
+      String approverId = await createApprovedEnrollment(owner,
+          namespaces: {'__manage': 'rw', 'wavi': 'rw'});
+      String admittedId = await createApprovedEnrollment(
+          await connectionAs(approverId),
+          namespaces: {'wavi': 'rw'});
       await owner
-          .sendRequestToServer('enroll:revoke:{"enrollmentId":"$predecessorId"}');
-      expect(await stateOf(owner, successorId), 'revoked', reason: 'precondition');
+          .sendRequestToServer('enroll:revoke:{"enrollmentId":"$approverId"}');
+      expect(await stateOf(owner, admittedId), 'revoked', reason: 'precondition');
 
       String refused = await owner
-          .sendRequestToServer('enroll:unrevoke:{"enrollmentId":"$successorId"}');
+          .sendRequestToServer('enroll:unrevoke:{"enrollmentId":"$admittedId"}');
       expect(refused, startsWith('error:'),
-          reason: 'without this the cascade is one-way: un-revoking a '
-              'descendant while its predecessor stays revoked restores the '
-              'orphan the cascade removed. Got: $refused');
+          reason: 'without this the cascade is one-way: un-revoking an '
+              'enrollment while the one that APPROVED it stays revoked '
+              'restores the orphan the cascade removed. Got: $refused');
 
-      // The control: once the predecessor is back, the descendant may be too.
+      // The control: once the approver is back, what it admitted may be too.
       // Otherwise the refusal above would be satisfied by an un-revoke that
       // never works at all.
       expect(
           await owner.sendRequestToServer(
-              'enroll:unrevoke:{"enrollmentId":"$predecessorId"}'),
+              'enroll:unrevoke:{"enrollmentId":"$approverId"}'),
           startsWith('data:'));
       expect(
           await owner.sendRequestToServer(
-              'enroll:unrevoke:{"enrollmentId":"$successorId"}'),
+              'enroll:unrevoke:{"enrollmentId":"$admittedId"}'),
           startsWith('data:'));
-      expect(await stateOf(owner, successorId), 'approved');
+      expect(await stateOf(owner, admittedId), 'approved');
     });
 
     test('a connection already open on a cascaded enrollment is dropped',
@@ -737,16 +885,13 @@ void main() {
       // authenticated connection would go on working in the meantime, which
       // is most of what the cascade exists to stop.
       OutboundConnectionFactory owner = await ownerConnection();
-      String predecessorId =
-          await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
-      String successorId = await selfEnrollId(predecessorId);
+      String approverId = await createApprovedEnrollment(owner,
+          namespaces: {'__manage': 'rw', 'wavi': 'rw'});
+      String successorId = await createApprovedEnrollment(
+          await connectionAs(approverId),
+          namespaces: {'wavi': 'rw'});
 
-      OutboundConnectionFactory successor = await newConnection();
-      expect(
-          (await successor.authenticateConnection(
-                  authType: AuthType.apkam, enrollmentId: successorId))
-              .trim(),
-          'data:success');
+      OutboundConnectionFactory successor = await connectionAs(successorId);
 
       String key = 'drop-probe-${Uuid().v4().hashCode}.wavi$atSign';
       // The control, on this very connection and this very command: without
@@ -758,7 +903,7 @@ void main() {
               'authorised for this key');
 
       await owner
-          .sendRequestToServer('enroll:revoke:{"enrollmentId":"$predecessorId"}');
+          .sendRequestToServer('enroll:revoke:{"enrollmentId":"$approverId"}');
 
       String after;
       try {
@@ -785,10 +930,17 @@ void main() {
       // Read on the OWNER's connection, which is what sees every record:
       // `enroll:list` narrows to the caller's own unless the caller is
       // legacy-PKAM or holds `__manage`.
+      // Two revoked records are wanted, one of them reached by the cascade —
+      // so the pair is an approver and an enrollment it ADMITTED. A retrofit
+      // pair would not do: a successor is a peer of what it replaced and the
+      // cascade does not travel that edge, so the second record would still
+      // be approved and the loop below would assert nothing.
       OutboundConnectionFactory owner = await ownerConnection();
-      String predecessorId =
-          await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
-      String successorId = await selfEnrollId(predecessorId);
+      String approverId = await createApprovedEnrollment(owner,
+          namespaces: {'__manage': 'rw', 'wavi': 'rw'});
+      String admittedId = await createApprovedEnrollment(
+          await connectionAs(approverId),
+          namespaces: {'wavi': 'rw'});
 
       Future<Map> listed() async => jsonDecode(
           (await owner.sendRequestToServer('enroll:list'))
@@ -796,15 +948,15 @@ void main() {
               .trim()) as Map;
 
       await owner
-          .sendRequestToServer('enroll:revoke:{"enrollmentId":"$predecessorId"}');
+          .sendRequestToServer('enroll:revoke:{"enrollmentId":"$approverId"}');
 
       final Map after = await listed();
       final matched = after.entries
           .where((e) =>
-              e.key.contains(predecessorId) || e.key.contains(successorId))
+              e.key.contains(approverId) || e.key.contains(admittedId))
           .toList();
       expect(matched.length, 2,
-          reason: 'both the named target and the successor the cascade took '
+          reason: 'both the named target and the enrollment the cascade took '
               'must still be listed, or the loop below asserts nothing');
       for (final e in matched) {
         expect((e.value as Map)['status'], 'revoked',
@@ -825,7 +977,9 @@ void main() {
           await createApprovedEnrollment(owner, namespaces: {'wavi': 'rw'});
       expect(
           (await asOther.authenticateConnection(
-                  authType: AuthType.apkam, enrollmentId: other))
+                  authType: AuthType.apkam,
+                  enrollmentId: other,
+                  privateKey: privateKeyOf(other)))
               .trim(),
           'data:success');
       final Map info = jsonDecode(
@@ -851,7 +1005,9 @@ void main() {
       OutboundConnectionFactory asA = await newConnection();
       expect(
           (await asA.authenticateConnection(
-                  authType: AuthType.apkam, enrollmentId: holderA))
+                  authType: AuthType.apkam,
+                  enrollmentId: holderA,
+                  privateKey: privateKeyOf(holderA)))
               .trim(),
           'data:success');
 
@@ -935,7 +1091,7 @@ void main() {
           (jsonDecode(response.replaceFirst('data:', '')) as Map)
               .containsKey('cascadedEnrollmentIds'),
           isFalse,
-          reason: 'an enrollment that replaced nothing has no descendants, '
+          reason: 'an enrollment that approved nothing has no descendants, '
               'and its revoke response must keep the shape it always had');
     });
   });
@@ -950,7 +1106,7 @@ void main() {
 
       OutboundConnectionFactory requester = await newConnection();
       String response = await requester.sendRequestToServer(
-          'enroll:request:{"appName":"kp-${Uuid().v4().hashCode}","deviceName":"device-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"$apkamPublicKey","metadata":{"keyPackage":"a-key-package"}}');
+          'enroll:request:{"appName":"kp-${Uuid().v4().hashCode}","deviceName":"device-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${mintApkamKeys().publicKey}","metadata":{"keyPackage":"a-key-package"}}');
       Map decoded = jsonDecode(response.replaceFirst('data:', ''));
       expect(decoded['status'], 'pending');
       expect(decoded['enrollmentId'], isNotEmpty);
@@ -968,7 +1124,7 @@ void main() {
 
       OutboundConnectionFactory requester = await newConnection();
       String response = await requester.sendRequestToServer(
-          'enroll:request:{"appName":"kp-${Uuid().v4().hashCode}","deviceName":"device-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"$apkamPublicKey"}');
+          'enroll:request:{"appName":"kp-${Uuid().v4().hashCode}","deviceName":"device-${Uuid().v4().hashCode}","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${mintApkamKeys().publicKey}"}');
       expect(
           response.trim(),
           contains(
@@ -1086,7 +1242,7 @@ void main() {
               'from:$atSign:clientConfig:${jsonEncode({'version': '3.0.57'})}'))
           .replaceAll('data:', '');
       String signature = AuthenticationUtils.generatePKAMDigest(
-          apkamPrivateKeyMap[atSign]!, challenge);
+          privateKeyOf(enrollmentId), challenge);
 
       expect(
           (await client.sendRequestToServer(

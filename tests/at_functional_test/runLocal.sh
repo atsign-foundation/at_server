@@ -27,52 +27,14 @@ else
   veCmd=""
 fi
 
-# The VE image built below is `FROM atsigncompany/vebase:latest` (see
-# tools/build_virtual_environment/ve/Dockerfile), whose baked TLS certs expire
-# periodically — they are refreshed by .github/workflows/refreshcerts.yaml,
-# which republishes the base image. `docker build` reuses a local base image
-# without checking the registry, so a stale local vebase means expired certs and
-# the root-server readiness check below times out. Force-pull the current
-# published base first. (Tolerate failure so offline runs fall back to the local
-# image — its certs may be stale.)
-echo "Force-pulling atsigncompany/vebase:latest (keeps the VE TLS certs fresh)"
-docker pull atsigncompany/vebase:latest \
-  || echo "WARNING: could not pull atsigncompany/vebase:latest; using the local image (its TLS certs may be stale)"
-
-echo "Generate atDirectory binary (root) [in dart:3.11.2 Linux container]"
-# Compile the binaries inside a Linux Dart container so they run inside the
-# Linux at_virtual_env container we build below. Compiling on the host
-# (e.g. on macOS) produces a Mach-O executable that the container's
-# supervisor can't exec — every secondary then exits 127. Pinned to the
-# same dart version vebase uses (tools/build_virtual_environment/ve_base/Dockerfile).
-docker run --rm \
-  -v "${repoDir}:/app" \
-  -w /app/packages/at_root_server \
-  dart:3.11.2 \
-  sh -c 'dart pub get && dart compile exe bin/main.dart -o root' || exit 1
-
-echo "Generate atServer binary (secondary) [in dart:3.11.2 Linux container]"
-docker run --rm \
-  -v "${repoDir}:/app" \
-  -w /app/packages/at_secondary_server \
-  dart:3.11.2 \
-  sh -c 'dart pub get && dart compile exe bin/main.dart -o secondary' || exit 1
-
-echo "copy root and secondary binaries to tools/build_virtual_environment/ve"
-cd $repoDir
-mkdir -p tools/build_virtual_environment/ve/contents/atsign/root
-mkdir -p tools/build_virtual_environment/ve/contents/atsign/secondary
-cp packages/at_root_server/root tools/build_virtual_environment/ve/contents/atsign/root/
-cp packages/at_root_server/pubspec.yaml tools/build_virtual_environment/ve/contents/atsign/root/
-chmod 755 tools/build_virtual_environment/ve/contents/atsign/root/root
-cp packages/at_secondary_server/secondary tools/build_virtual_environment/ve/contents/atsign/secondary/
-cp packages/at_secondary_server/pubspec.yaml tools/build_virtual_environment/ve/contents/atsign/secondary/
-chmod 755 tools/build_virtual_environment/ve/contents/atsign/secondary/secondary
-
-echo "Build docker image"
-cd ${repoDir}/tools/build_virtual_environment/ve
-ls -laR ./contents
-docker build -f ./Dockerfile -t at_virtual_env:local . || exit 1
+# Compile and build through buildve.sh, which is the ONLY builder that labels
+# the image. An unlabelled VE cannot be told from one built by anybody else, so
+# a cross-repo run against it proves nothing — see the header of that script.
+# It also force-pulls the base (expired TLS certs) and reads its own labels
+# back, so a silently-dropped override fails here rather than surfacing hours
+# later as an image somebody refuses to run.
+bash "${repoDir}/tools/build_virtual_environment/buildve.sh" || exit 1
+cd "$repoDir"
 
 echo "Stopping any running docker container"
 docker stop at_server_func_cont

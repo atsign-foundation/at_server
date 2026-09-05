@@ -1,17 +1,8 @@
 import 'package:at_secondary/src/enroll/enrollment_revocation_event.dart';
 import 'package:test/test.dart';
 
-/// The at-rest format of a revocation event.
-///
-/// Pinned as RAW LITERALS rather than round-tripped through the class,
-/// because the writer and the reader are the same pair of hand-written
-/// methods: a symmetric rename passes every round-trip test there is while
-/// every already-stored event becomes unreadable. These records are the only
-/// surviving evidence of a revocation once the enrollment is reaped, so
-/// losing them silently is the failure this file exists to catch.
-///
-/// An intended change edits the literal in the same commit, and that edit is
-/// the review.
+/// ⚠️ AT-REST PIN on the format of a revocation event, as raw literals rather
+/// than a round trip through the class.
 void main() {
   final at = DateTime.utc(2026, 8, 31, 12, 34, 56, 789);
 
@@ -63,8 +54,9 @@ void main() {
       ).toJson();
 
       expect(json.containsKey('byEnrollmentId'), false,
-          reason: 'a CRAM or legacy-PKAM owner carries no enrollment id, and '
-              'an absent key says that more plainly than a null');
+          reason: 'a connection carrying no enrollment id — CRAM, owner or '
+              'legacy PKAM — has none to record, and an absent key says that '
+              'more plainly than a null');
       expect(json.containsKey('cascadedFrom'), false);
       expect(json.keys.toSet(), {'event', 'enrollmentId', 'at', 'namespaces'});
     });
@@ -102,9 +94,6 @@ void main() {
 
   group('a record it cannot read', () {
     test('an unknown event kind is refused rather than guessed', () {
-      // A future kind that neither revokes nor un-revokes would be miscounted
-      // by any default, and miscounting here moves a security answer. The
-      // reader logs and skips what this throws.
       expect(
           () => EnrollmentRevocationEvent.fromJson({
                 'event': 'suspended',
@@ -130,8 +119,8 @@ void main() {
     });
 
     test('the control: the same record with all three reads fine', () {
-      // Without this the three refusals above are satisfied by a decoder that
-      // refuses everything.
+      // Without this the three refusals above are satisfied by a decoder
+      // that refuses everything.
       expect(
           EnrollmentRevocationEvent.fromJson({
             'event': 'revoked',

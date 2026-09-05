@@ -1,6 +1,9 @@
 import 'dart:collection';
 import 'dart:convert';
 
+import 'dart:typed_data';
+
+import 'package:at_chops/at_chops.dart' show MlDsa65PureDartAlgo;
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
@@ -9,6 +12,7 @@ import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/pkam_verb_handler.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
@@ -73,13 +77,13 @@ void main() async {
     late PkamVerbHandler pkamVerbHandler;
 
     setUp(() {
-      // dummy enroll value
       enrollData = EnrollDataStoreValue(
           'enrollId', 'unit_test', 'test_device', 'dummy_public_key');
       AtSecondaryServerImpl.getInstance().enrollmentManager =
           enMgr = EnrollmentManager(mockKeyStore, alice);
       enMgr.logger.level = 'shout';
       mockKeyStore.preRemoveHooks.add(enMgr.preRemoveHook);
+      mockKeyStore.postRemoveHooks.add(enMgr.postRemoveHook);
       pkamVerbHandler = PkamVerbHandler(mockKeyStore);
     });
 
@@ -144,18 +148,11 @@ void main() async {
 
       String enId = Uuid().v4();
       String ek = enMgr.buildEnrollmentKey(enId);
-      when(() => mockKeyStore.remove(ek, skipCommit: true))
-          .thenAnswer((invocation) => Future.value(null));
-      when(() => mockKeyStore.remove(
-            enMgr.keyForPEK(enId),
-            skipCommit: true,
-          )).thenAnswer((invocation) => Future.value(null));
-      when(() => mockKeyStore.remove(
-            enMgr.keyForSEK(enId),
-            skipCommit: true,
-          )).thenAnswer((invocation) => Future.value(null));
-      when(() => mockKeyStore.remove(enMgr.keyForLegacyPK(enValue),
-          skipCommit: true)).thenAnswer((invocation) => Future.value(null));
+
+      // NOTE permissive on purpose, so the verifyNever below is what reports
+      // a removal.
+      when(() => mockKeyStore.remove(any(),
+          skipCommit: any(named: 'skipCommit'))).thenAnswer((_) async => null);
 
       when(() => mockKeyStore.get(ek)).thenAnswer((invocation) => Future.value(
           AtData()
@@ -170,6 +167,11 @@ void main() async {
       expect(apkamResult.response.errorCode, 'AT0028');
       expect(apkamResult.response.errorMessage,
           'enrollment_id: $enId is expired or invalid');
+
+      // NOTE a read path must not write: this check runs outside the
+      // enrollment-mutation critical section.
+      verifyNever(
+          () => mockKeyStore.remove(any(), skipCommit: any(named: 'skipCommit')));
     });
   });
 
@@ -214,6 +216,59 @@ void main() async {
       expect(response.errorCode, 'AT0028');
       expect(response.errorMessage,
           'enrollment_id: $enrollmentId is expired or invalid');
+    });
+  });
+
+  group('legacy PKAM: the flat credential', () {
+    setUp(() async => await verbTestsSetUp());
+
+    tearDown(() async => await verbTestsTearDown());
+
+    test('authenticates with NO enrollment id, migrates into primary, and '
+        'keeps working', () async {
+      // ⚠️ The key is deliberately not re-seeded between the two logins.
+      final mlDsa = await MlDsa65PureDartAlgo().generateKeyPair();
+      await keyValueStore.put(AtConstants.atPkamPublicKey,
+          AtData()..data = base64Encode(mlDsa.publicKey),
+          skipCommit: true);
+
+      Future<Response> authenticate(String sessionId) async {
+        const challenge = 'a-per-connection-challenge';
+        await keyValueStore.put(
+            'private:$sessionId$alice', AtData()..data = challenge);
+        final signature = await MlDsa65PureDartAlgo().signBytes(
+            Uint8List.fromList(utf8.encode('$sessionId$alice:$challenge')),
+            secretKey: mlDsa.secretKey);
+        inboundConnection.metaData
+          ..isAuthenticated = false
+          ..enrollmentId = null
+          ..sessionID = sessionId;
+        final r = Response();
+        await PkamVerbHandler(keyValueStore).processVerb(
+          r,
+          getVerbParam(VerbSyntax.pkam,
+              'pkam:signingAlgo:mldsa65:${base64Encode(signature)}'),
+          inboundConnection,
+        );
+        return r;
+      }
+
+      expect((await authenticate('first')).data, 'success',
+          reason: 'a flat keyfile is the only credential some atSigns have');
+      expect(inboundConnection.metaData.enrollmentId,
+          EnrollmentManager.primaryEnrollmentId,
+          reason: 'the connection carries primary: the flat key has become '
+              'a record, so the login is judged as that record from here on');
+      expect(inboundConnection.metaData.authType, AuthType.pkamLegacy);
+      expect(await keyValueStore.exists(AtConstants.atPkamPublicKey), isFalse,
+          reason: 'one credential and one record: the flat key is absorbed '
+              'by the login that proved it');
+
+      expect((await authenticate('second')).data, 'success',
+          reason: 'and it must still work — a keypair that stops '
+              'authenticating on migration is not a credential');
+      expect(inboundConnection.metaData.enrollmentId,
+          EnrollmentManager.primaryEnrollmentId);
     });
   });
 }

@@ -15,20 +15,86 @@ import 'package:uuid/uuid.dart';
 
 import 'test_utils.dart';
 
-/// Faults the store can hand back, and what each guard owes.
-///
-/// Three fixes on this branch had no test, all for the same reason: each
-/// guards against something only the KEYSTORE can do — throw on a key the
-/// enumeration just returned, or fail outright mid-walk. A Hive-backed
-/// fixture cannot produce either on demand, so the guards shipped reasoned
-/// about rather than exercised. This file injects the faults.
-///
-/// A mocktail double is used rather than a delegating wrapper: only `get` and
-/// `getKeys` are reached by the code under test, and stubbing exactly those
-/// two keeps the double from silently answering a call nobody meant it to
-/// take.
+/// Pins what the enrollment guards owe when the KEYSTORE misbehaves: a
+/// throw on a key the enumeration just returned, or an outright failure
+/// mid-walk, injected through a mocktail double.
 class _FaultyKeyStore extends Mock
     implements AtKeyValueStore<String, AtData, AtMetaData?> {}
+
+/// A keystore that reaps nominated keys under a real one, standing in for
+/// the expiry sweep landing between a read and the read that follows it.
+///
+/// Enumerations serve the reaped keys first, so a walk reaches them before
+/// it reaches anything else.
+class _ReapingKeyStore extends Mock
+    implements AtKeyValueStore<String, AtData, AtMetaData?> {
+  _ReapingKeyStore(this._delegate);
+
+  final AtKeyValueStore<String, AtData, AtMetaData?> _delegate;
+
+  /// Keys removed as the enumeration that names them returns.
+  final Set<String> reapOnEnumeration = {};
+
+  /// Keys removed the moment they have been read once.
+  final Set<String> reapOnFirstGet = {};
+
+  Future<List<String>> _reapEnumerated(List<String> keys) async {
+    final List<String> due =
+        keys.where(reapOnEnumeration.contains).toList();
+    for (final String key in due) {
+      reapOnEnumeration.remove(key);
+      await _delegate.remove(key, skipCommit: true);
+    }
+    final Set<String> first = {...due, ...reapOnFirstGet};
+    return [
+      ...keys.where(first.contains),
+      ...keys.where((k) => !first.contains(k)),
+    ];
+  }
+
+  @override
+  Future<AtData?> get(String key) async {
+    final AtData? value = await _delegate.get(key);
+    if (reapOnFirstGet.remove(key)) {
+      await _delegate.remove(key, skipCommit: true);
+    }
+    return value;
+  }
+
+  @override
+  Future<Stream<String>> getKeys({String? regex}) async => Stream.fromIterable(
+      await _reapEnumerated(
+          await (await _delegate.getKeys(regex: regex)).toList()));
+
+  @override
+  Future<Stream<String>> scanKeys(KeyPattern pattern,
+          {bool includeExpired = false,
+          OrderByKey? orderBy,
+          int? limit,
+          int? skip}) async =>
+      Stream.fromIterable(await _reapEnumerated(await (await _delegate
+              .scanKeys(pattern,
+                  includeExpired: includeExpired,
+                  orderBy: orderBy,
+                  limit: limit,
+                  skip: skip))
+          .toList()));
+
+  @override
+  Future<int?> put(String key, AtData value,
+          {bool skipCommit = false,
+          AtAssertedTimestamps? assertedTimestamps}) =>
+      _delegate.put(key, value,
+          skipCommit: skipCommit, assertedTimestamps: assertedTimestamps);
+
+  @override
+  Future<int?> remove(String key,
+          {bool skipCommit = false, DateTime? deletedAt}) =>
+      _delegate.remove(key, skipCommit: skipCommit, deletedAt: deletedAt);
+
+  @override
+  Future<bool> exists(String key) => _delegate.exists(key);
+}
 
 class _MockInboundConnection extends Mock implements InboundConnection {}
 
@@ -44,7 +110,18 @@ class _StubPool extends Mock implements InboundConnectionPool {
 void main() {
   setUpAll(() async {
     registerFallbackValue(AtData());
+    registerFallbackValue(const KeyPattern());
   });
+
+  /// Makes [store] answer BOTH key enumerations with [keys]: a double that
+  /// answers only one returns null through `noSuchMethod` for the other.
+  void stubRoster(_FaultyKeyStore store, List<String> keys) {
+    when(() => store.getKeys(regex: any(named: 'regex')))
+        .thenAnswer((_) async => Stream.fromIterable(keys));
+    when(() => store.scanKeys(any(),
+            includeExpired: any(named: 'includeExpired')))
+        .thenAnswer((_) async => Stream.fromIterable(keys));
+  }
 
   setUp(() async => await verbTestsSetUp());
   tearDown(() async => await verbTestsTearDown());
@@ -52,22 +129,24 @@ void main() {
   String recordFor(String id,
       {Map<String, String> namespaces = const {'wavi': 'rw'},
       EnrollmentStatus status = EnrollmentStatus.approved,
-      String? predecessor}) {
+      String? approvedBy,
+      String? replacing}) {
     final v = EnrollDataStoreValue('sid', 'app-$id', 'device-$id', 'pk-$id')
       ..namespaces = Map<String, String>.from(namespaces)
       ..approval = EnrollApproval(status.name)
-      ..parentEnrollmentId = predecessor;
+      ..parentEnrollmentId = approvedBy
+      ..retrofitPredecessorEnrollmentId = replacing;
     return jsonEncode(v.toJson());
   }
 
+  /// Writes [id]'s record straight to the real store, unexpiring.
+  Future<void> persist(String id, String record) => keyValueStore
+      .put(enMgr.buildEnrollmentKey(id), AtData()..data = record,
+          skipCommit: true);
+
   group('a keystore fault mid-walk', () {
-    /// `_predecessorIdOf` catches [KeyNotFoundException] (the record is gone)
-    /// and [FormatException] (it does not decode) and treats both as "no
-    /// predecessor". It deliberately catches nothing else: a store that
-    /// FAILS is not a store that answered "no", and swallowing the
-    /// difference would make a revoke silently under-cascade — reporting
-    /// success while leaving a successor of the revoked enrollment approved
-    /// and usable.
+    /// `_approverIdOf` treats a missing or undecodable record as "no
+    /// predecessor" and catches nothing else.
     test('propagates out of descendantsOf rather than under-cascading',
         () async {
       final store = _FaultyKeyStore();
@@ -77,8 +156,7 @@ void main() {
       final rootKey = enMgr.buildEnrollmentKey(rootId);
       final childKey = enMgr.buildEnrollmentKey(childId);
 
-      when(() => store.getKeys(regex: any(named: 'regex')))
-          .thenAnswer((_) async => Stream.fromIterable([rootKey, childKey]));
+      stubRoster(store, [rootKey, childKey]);
       when(() => store.get(rootKey))
           .thenAnswer((_) async => AtData()..data = recordFor(rootId));
       when(() => store.get(childKey))
@@ -86,15 +164,14 @@ void main() {
 
       await expectLater(() => enMgr.descendantsOf(rootId),
           throwsA(isA<DataStoreException>()),
-          reason: 'a store that FAILED did not answer "no predecessor", and '
+          reason: 'a store that FAILED did not answer "no approver", and '
               'treating the two alike makes a revoke report success while '
               'leaving a successor approved');
     });
 
     test('the control: the same walk with a healthy store finds the child',
         () async {
-      // Without this the assertion above is satisfied by a walk that throws
-      // for some other reason, or by one that never reaches the child at all.
+      // The control: the walk reaches the child and fails for no other reason.
       final store = _FaultyKeyStore();
       final enMgr = EnrollmentManager(store, alice);
       final rootId = Uuid().v4();
@@ -102,23 +179,19 @@ void main() {
       final rootKey = enMgr.buildEnrollmentKey(rootId);
       final childKey = enMgr.buildEnrollmentKey(childId);
 
-      when(() => store.getKeys(regex: any(named: 'regex')))
-          .thenAnswer((_) async => Stream.fromIterable([rootKey, childKey]));
+      stubRoster(store, [rootKey, childKey]);
       when(() => store.get(rootKey))
           .thenAnswer((_) async => AtData()..data = recordFor(rootId));
       when(() => store.get(childKey)).thenAnswer(
-          (_) async => AtData()..data = recordFor(childId, predecessor: rootId));
+          (_) async => AtData()..data = recordFor(childId, approvedBy: rootId));
 
       expect(await enMgr.descendantsOf(rootId), {childId});
     });
   });
 
   group('a record reaped between the enumeration and the read', () {
-    /// `getKeys` and `get` are two calls with a gap between them, and an
-    /// enrollment can be deleted or expire inside it. `get` THROWS rather
-    /// than returning null, so without the guard one vanishing record takes
-    /// the whole roster with it — `enroll:list` fails for every enrollment
-    /// because one is gone.
+    /// `getKeys` and `get` are two calls with a gap in which an enrollment
+    /// can be deleted or expire.
     test('is skipped, and the rest of the roster is still served', () async {
       final store = _FaultyKeyStore();
       final enMgr = EnrollmentManager(store, alice);
@@ -127,14 +200,13 @@ void main() {
       final goneKey = enMgr.buildEnrollmentKey(goneId);
       final liveKey = enMgr.buildEnrollmentKey(liveId);
 
-      when(() => store.getKeys(regex: any(named: 'regex')))
-          .thenAnswer((_) async => Stream.fromIterable([goneKey, liveKey]));
+      stubRoster(store, [goneKey, liveKey]);
       when(() => store.get(goneKey))
           .thenThrow(KeyNotFoundException('$goneKey does not exist'));
       when(() => store.get(liveKey))
           .thenAnswer((_) async => AtData()..data = recordFor(liveId));
 
-      final roster = await enMgr.getEnrollmentsAsJson();
+      final roster = await enMgr.getEnrollmentsAsJson(redactSecrets: false);
 
       expect(roster.keys, [liveKey],
           reason: 'the survivor is served; the reaped one is skipped rather '
@@ -149,24 +221,84 @@ void main() {
       final aKey = enMgr.buildEnrollmentKey(aId);
       final bKey = enMgr.buildEnrollmentKey(bId);
 
-      when(() => store.getKeys(regex: any(named: 'regex')))
-          .thenAnswer((_) async => Stream.fromIterable([aKey, bKey]));
+      stubRoster(store, [aKey, bKey]);
       when(() => store.get(aKey))
           .thenAnswer((_) async => AtData()..data = recordFor(aId));
       when(() => store.get(bKey))
           .thenAnswer((_) async => AtData()..data = recordFor(bId));
 
-      expect((await enMgr.getEnrollmentsAsJson()).keys.toSet(), {aKey, bKey});
+      expect((await enMgr.getEnrollmentsAsJson(redactSecrets: false)).keys.toSet(), {aKey, bKey});
+    });
+  });
+
+  group('a record reaped between one read and the next', () {
+    /// The expiry sweep does not take the enrollment-mutation section, so it
+    /// can land between two reads of the same key.
+    const Map<String, String> root = {'*': 'rw', '__manage': 'rw'};
+
+    test('is left out of the listing, and the rest is still served',
+        () async {
+      final store = _ReapingKeyStore(keyValueStore);
+      final mgr = EnrollmentManager(store, alice);
+      final goneId = Uuid().v4();
+      final liveId = Uuid().v4();
+      await persist(goneId, recordFor(goneId));
+      await persist(liveId, recordFor(liveId));
+      store.reapOnFirstGet.add(mgr.buildEnrollmentKey(goneId));
+
+      final roster = await mgr.getEnrollmentsAsJson(redactSecrets: false);
+
+      expect(roster.keys, [mgr.buildEnrollmentKey(liveId)],
+          reason: 'the expiry read comes after the record read, so a reap '
+              'between them must skip that entry rather than fail the whole '
+              'listing');
+    });
+
+    test('does not stop the walk for an unexpiring root', () async {
+      final store = _ReapingKeyStore(keyValueStore);
+      final mgr = EnrollmentManager(store, alice);
+      final goneId = Uuid().v4();
+      final liveId = Uuid().v4();
+      await persist(goneId, recordFor(goneId, namespaces: root));
+      await persist(liveId, recordFor(liveId, namespaces: root));
+      store.reapOnFirstGet.add(mgr.buildEnrollmentKey(goneId));
+
+      expect(await mgr.hasUnexpiringRootEnrollment({}), isTrue,
+          reason: 'the reaped root is skipped and the live one is still '
+              'counted; a throw here refuses every revoke while an '
+              'unexpiring root stands');
+    });
+
+    test('does not stop the adoption pass part way through', () async {
+      final store = _ReapingKeyStore(keyValueStore);
+      final mgr = EnrollmentManager(store, alice);
+      final predecessorId = Uuid().v4();
+      final successorId = Uuid().v4();
+      final goneChildId = Uuid().v4();
+      final liveChildId = Uuid().v4();
+      await persist(predecessorId, recordFor(predecessorId, namespaces: root));
+      await persist(
+          successorId,
+          recordFor(successorId,
+              namespaces: root, replacing: predecessorId));
+      await persist(goneChildId,
+          recordFor(goneChildId, approvedBy: predecessorId));
+      await persist(liveChildId,
+          recordFor(liveChildId, approvedBy: predecessorId));
+      store.reapOnEnumeration.add(mgr.buildEnrollmentKey(goneChildId));
+
+      await mgr.armRetrofitCapOnFirstAuth(successorId);
+
+      expect((await mgr.getEnrollmentById(liveChildId)).parentEnrollmentId,
+          successorId,
+          reason: 'the pass runs once and never runs again, so a reaped '
+              'child must not carry off the children behind it');
     });
   });
 
   group('the connections a revoke drops', () {
     /// The drop set is what the revoke INTENDED to revoke, not the subset
-    /// this call actually flipped. The two differ exactly when a descendant
-    /// is already revoked in the store — which is the state a part-way
-    /// failure leaves behind, and therefore the state a retry runs against.
-    /// Sending the flipped set means the retry drops nothing for precisely
-    /// the enrollments whose connections are still open.
+    /// this call flipped.
     test('is the intended cascade, not the subset this call flipped',
         () async {
       final predecessorId = Uuid().v4();
@@ -177,13 +309,11 @@ void main() {
           enMgr.buildEnrollmentKey(predecessorId),
           AtData()..data = recordFor(predecessorId),
           skipCommit: true);
-      // ALREADY revoked, so revokeAll skips it and the flipped set is empty
-      // for exactly the enrollment whose connection is still open.
       await keyValueStore.put(
           enMgr.buildEnrollmentKey(successorId),
           AtData()
             ..data = recordFor(successorId,
-                status: EnrollmentStatus.revoked, predecessor: predecessorId),
+                status: EnrollmentStatus.revoked, approvedBy: predecessorId),
           skipCommit: true);
 
       final revoked = _MockInboundConnection();

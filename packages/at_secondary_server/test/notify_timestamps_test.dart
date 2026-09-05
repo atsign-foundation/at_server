@@ -25,6 +25,7 @@ import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 
 import 'test_utils.dart';
 
@@ -322,6 +323,7 @@ void main() {
     test('the cached copy of a remotely-looked-up key carries the origin\'s '
         'timestamps', () async {
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       const keyName = 'some_key.some_namespace@bob';
 
       final AtData bobData = createRandomAtData(bob);
@@ -365,6 +367,7 @@ void main() {
     test('a cached copy keeps the origin\'s ttb of 0 rather than deriving '
         'one from its availableAt', () async {
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       const keyName = 'ttb_zero.some_namespace@bob';
 
       final AtData bobData = createRandomAtData(bob);
@@ -399,6 +402,7 @@ void main() {
     test('a cached copy keeps the origin\'s ttl of 0 rather than deriving '
         'one from its expiresAt', () async {
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       const keyName = 'ttl_zero.some_namespace@bob';
 
       final AtData bobData = createRandomAtData(bob);

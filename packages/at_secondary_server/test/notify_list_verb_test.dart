@@ -133,7 +133,8 @@ void main() async {
       var inBoundSessionId = '123';
       var metadata = InboundConnectionMetadata()
         ..fromAtSign = alice
-        ..isAuthenticated = true;
+        ..isAuthenticated = true
+        ..authType = AuthType.cram;
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId)
         ..metaData = metadata;
       var response = Response();
@@ -232,7 +233,8 @@ void main() async {
       var inBoundSessionId = '100';
       var metadata = InboundConnectionMetadata()
         ..fromAtSign = alice
-        ..isAuthenticated = true;
+        ..isAuthenticated = true
+        ..authType = AuthType.cram;
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId)
         ..metaData = metadata;
       var response = Response();
@@ -286,7 +288,8 @@ void main() async {
       InboundConnectionMetadata inboundConnectionMetadata =
           InboundConnectionMetadata()
             ..fromAtSign = testFromAtsign.toAtsign()
-            ..isAuthenticated = true;
+            ..isAuthenticated = true
+            ..authType = AuthType.cram;
       InboundConnection inboundConnection =
           InboundConnectionImpl(mockSocket, 'sessionId9238472934')
             ..metaData = inboundConnectionMetadata;
@@ -366,7 +369,8 @@ void main() async {
       var inBoundSessionId = '123';
       var metadata = InboundConnectionMetadata()
         ..fromAtSign = alice
-        ..isAuthenticated = true;
+        ..isAuthenticated = true
+        ..authType = AuthType.cram;
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId)
         ..metaData = metadata;
       var response = Response();
@@ -435,7 +439,8 @@ void main() async {
       var inBoundSessionId = '123';
       var metadata = InboundConnectionMetadata()
         ..fromAtSign = alice
-        ..isAuthenticated = true;
+        ..isAuthenticated = true
+        ..authType = AuthType.cram;
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId)
         ..metaData = metadata;
       var response = Response();
@@ -481,7 +486,8 @@ void main() async {
       InboundConnectionMetadata inboundConnectionMetadata =
           InboundConnectionMetadata()
             ..fromAtSign = testFromAtsign.toAtsign()
-            ..isAuthenticated = true;
+            ..isAuthenticated = true
+            ..authType = AuthType.cram;
       InboundConnection inboundConnection =
           InboundConnectionImpl(mockSocket, 'sessionId9238472934')
             ..metaData = inboundConnectionMetadata;
@@ -538,7 +544,8 @@ void main() async {
       InboundConnectionMetadata inboundConnectionMetadata =
           InboundConnectionMetadata()
             ..fromAtSign = testFromAtsign.toAtsign()
-            ..isAuthenticated = true;
+            ..isAuthenticated = true
+            ..authType = AuthType.cram;
       InboundConnection inboundConnection =
           InboundConnectionImpl(mockSocket, 'sessionId9238472934')
             ..metaData = inboundConnectionMetadata;
@@ -588,7 +595,8 @@ void main() async {
       var inBoundSessionId = '123';
       var metadata = InboundConnectionMetadata()
         ..fromAtSign = alice
-        ..isAuthenticated = true;
+        ..isAuthenticated = true
+        ..authType = AuthType.cram;
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId)
         ..metaData = metadata;
       var response = Response();
@@ -615,7 +623,8 @@ void main() async {
       var inBoundSessionId = '123';
       var metadata = InboundConnectionMetadata()
         ..fromAtSign = alice
-        ..isAuthenticated = true;
+        ..isAuthenticated = true
+        ..authType = AuthType.cram;
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId)
         ..metaData = metadata;
       var response = Response();

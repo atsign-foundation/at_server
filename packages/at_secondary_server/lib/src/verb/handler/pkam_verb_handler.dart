@@ -32,24 +32,18 @@ class PkamVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams, AtConnection atConnection) async {
     var atConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
-    // Folded to match the keystore, which lowercases every key it is given.
-    // Without this an enrollment id spelled in another case resolves to the
-    // same RECORD while comparing unequal to the id everything downstream
-    // holds — so a revoke would not drop the connection, and the revoked
-    // credential would go on authenticating. Ids are server-issued and
-    // already lowercase; this rejects nothing, it just stops a non-canonical
-    // spelling of one from travelling further than the lookup.
-    var enrollId = verbParams[AtConstants.enrollmentId]?.toLowerCase();
+    // NOTE folded to the keystore's own fold, so every later comparison
+    // against the id the connection carries holds.
+    var enrollId = EnrollmentManager.canonicalEnrollmentIdOrNull(
+        verbParams[AtConstants.enrollmentId]);
     var sessionID = atConnectionMetadata.sessionID;
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     AuthType pkamAuthType;
     String? publicKey;
-    // Legacy PKAM has no enrollment record to be authoritative about, and may
-    // legitimately present ecc_secp256r1, so it goes on using the wire value.
+    // NOTE null lets the wire value decide the algorithm, which is what the
+    // flat legacy credential needs.
     String? recordSigningAlgo;
 
-    // Use APKAM public key for verification if enrollId is passed.
-    // Otherwise use legacy pkam public key.
     if (enrollId != null && enrollId.isNotEmpty) {
       pkamAuthType = AuthType.apkam;
       ApkamVerificationResult apkamResult =
@@ -61,25 +55,41 @@ class PkamVerbHandler extends AbstractVerbHandler {
         return;
       }
       publicKey = apkamResult.publicKey;
-      // Record-authoritative: an APKAM keypair's algorithm is a property of
-      // the enrollment it was registered under, not something the client
-      // restates on each connect. Hardening rather than a fix — the signature
-      // is checked against the stored public key either way, so a client that
-      // misstates the algorithm only fails its own verification — but it
-      // closes off cross-algorithm confusion, where one key blob parses under
-      // more than one algorithm. A legacy enrollment predating the field has
-      // none recorded, so it keeps the existing default EXPLICITLY here: a
-      // null must not fall through to the wire claim in _validateSignature,
-      // or the claim picks the verify routine for exactly the enrollments
-      // that predate the field (an RSA record verified as ML-DSA fails a
-      // legitimate legacy client; the wire fallback exists for legacy
-      // no-enrollment PKAM, which may present ecc_secp256r1).
+      // NOTE an enrollment with no algorithm recorded defaults to RSA
+      // explicitly, so the client never picks the verify routine.
       recordSigningAlgo =
           apkamResult.signingAlgo ?? ApkamSignatureVerifier.rsa2048Algo;
     } else {
+      // A legacy `pkam:` carries no enrollment id and authenticates as
+      // `primary`, verifying against a flat key if the store still holds one.
       pkamAuthType = AuthType.pkamLegacy;
-      var publicKeyData = await keyStore.get(AtConstants.atPkamPublicKey);
-      publicKey = publicKeyData?.data;
+      final EnrollmentManager enMgr =
+          AtSecondaryServerImpl.getInstance().enrollmentManager;
+      publicKey = await enMgr.legacyPkamPublicKey();
+      if (publicKey == null) {
+        final EnrollDataStoreValue? primary = await enMgr.primaryEnrollment();
+        if (primary == null) {
+          logger.warning('Legacy PKAM authentication refused: this atSign '
+              'holds neither a flat credential nor a '
+              '${EnrollmentManager.primaryEnrollmentId} enrollment');
+          throw UnAuthenticatedException(
+              'this atSign has no legacy PKAM credential. An atSign onboarded '
+              'through enroll:request has none by design: authenticate with '
+              'the enrollment id its keyfile carries, as '
+              'pkam:enrollmentId:<id>:<signature>');
+        }
+        final ApkamVerificationResult primaryResult =
+            await verifyEnrollmentIsActive(
+                EnrollmentManager.primaryEnrollmentId, atSign);
+        if (primaryResult.response.isError) {
+          response.isError = true;
+          response.errorCode = primaryResult.response.errorCode;
+          response.errorMessage = primaryResult.response.errorMessage;
+          return;
+        }
+        publicKey = primaryResult.publicKey;
+        recordSigningAlgo = primaryResult.signingAlgo;
+      }
     }
 
     if (publicKey == null || publicKey.isEmpty) {
@@ -87,51 +97,113 @@ class PkamVerbHandler extends AbstractVerbHandler {
     }
 
     String storedSecretId = 'private:$sessionID$atSign';
+    // NOTE the challenge is spent here whatever the signature turns out to be.
+    final String? storedSecret = await consumeChallenge(storedSecretId);
+    if (storedSecret == null) {
+      atConnectionMetadata.isAuthenticated = false;
+      logger.severe('pkam authentication failed: no live challenge for'
+          ' session $sessionID');
+      throw UnAuthenticatedException('pkam authentication failed');
+    }
     bool isValidSignature = await _validateSignature(
       verbParams,
       sessionID,
       atSign,
       publicKey,
       recordSigningAlgo,
-      storedSecretId,
+      storedSecret,
     );
 
     if (isValidSignature) {
-      // We're good
-      // remove the stored secret
-      try {
-        await keyStore.remove(storedSecretId);
-      } catch (e) {
-        logger.warning('Failed to immediately remove $storedSecretId');
+      // Admission is a read-decide-write, so it runs inside the atSign's one
+      // enrollment-mutation section.
+      final bool admitted = await AtSecondaryServerImpl.getInstance()
+          .enrollmentManager
+          .serialiseMutation(() => _admitUnderLock(
+              atConnectionMetadata,
+              pkamAuthType,
+              enrollId,
+              atSign,
+              response,
+              verifiedKey: publicKey!,
+              wireSigningAlgo: verbParams[AtConstants.atPkamSigningAlgo]));
+      if (!admitted) {
+        return;
       }
-
-      atConnectionMetadata.isAuthenticated = true;
-      atConnectionMetadata.authType = pkamAuthType;
-      atConnectionMetadata.enrollmentId = enrollId;
       response.data = 'success';
+      enrollId = atConnectionMetadata.enrollmentId;
 
-      // A retrofit's successor arms the expiry cap on the enrollment it
-      // replaced HERE, on its first authentication and never again — this is
-      // the moment that proves the successor's APKAM private half survived the
-      // client-side keyfile write and can actually be used. Arming it where
-      // the successor is stored would start a clock on the predecessor, the
-      // only credential that still works, on the strength of a record only the
-      // server had written.
-      //
-      // A no-op for every enrollment that replaced nothing, and it never
-      // throws: authentication has already succeeded by this point and must
-      // not be undone by bookkeeping.
+      // NOTE the retrofit cap is armed here, on the first authentication that
+      // proves the successor's APKAM private half is usable, and never throws.
       if (enrollId != null && enrollId.isNotEmpty) {
-        await AtSecondaryServerImpl.getInstance()
-            .enrollmentManager
-            .armRetrofitCapOnFirstAuth(enrollId);
+        final enMgr = AtSecondaryServerImpl.getInstance().enrollmentManager;
+        await enMgr.armRetrofitCapOnFirstAuth(enrollId);
       }
     } else {
-      // Nope
       atConnectionMetadata.isAuthenticated = false;
       logger.severe('pkam authentication failed');
       throw UnAuthenticatedException('pkam authentication failed');
     }
+  }
+
+  /// Re-reads the enrollment this connection's identity rests on and marks the
+  /// connection authenticated, returning whether it was admitted.
+  ///
+  /// Must be called inside the atSign's enrollment-mutation section; a refusal
+  /// is written into [response] rather than thrown.
+  Future<bool> _admitUnderLock(
+      InboundConnectionMetadata atConnectionMetadata,
+      AuthType pkamAuthType,
+      String? enrollId,
+      String atSign,
+      Response response,
+      {required String verifiedKey,
+      String? wireSigningAlgo}) async {
+    if (pkamAuthType == AuthType.pkamLegacy) {
+      final EnrollmentManager enMgr =
+          AtSecondaryServerImpl.getInstance().enrollmentManager;
+      await enMgr.absorbFlatKeyIntoPrimary(signingAlgo: wireSigningAlgo);
+      final ApkamVerificationResult primary = await verifyEnrollmentIsActive(
+          EnrollmentManager.primaryEnrollmentId, atSign);
+      if (primary.response.isError) {
+        logger.warning('Refusing legacy PKAM authentication: '
+            '${EnrollmentManager.primaryEnrollmentId} is not serving — '
+            '${primary.response.errorMessage}');
+        response.isError = true;
+        response.errorCode = primary.response.errorCode;
+        response.errorMessage = primary.response.errorMessage;
+        return false;
+      }
+      if (!EnrollmentManager.sameApkamKeyMaterial(verifiedKey, wireSigningAlgo,
+          primary.publicKey!, primary.signingAlgo)) {
+        // NOTE another login rotated `primary` in between, so the key that
+        // verified is no longer the key it holds; refused as a bad signature.
+        atConnectionMetadata.isAuthenticated = false;
+        logger.severe('pkam authentication failed: the key that verified is '
+            'no longer the key ${EnrollmentManager.primaryEnrollmentId} holds');
+        throw UnAuthenticatedException('pkam authentication failed');
+      }
+      enrollId = EnrollmentManager.primaryEnrollmentId;
+    } else {
+      // NOTE asked again inside the section, as the first ask read the state
+      // from before the signature check.
+      final ApkamVerificationResult recheck =
+          await verifyEnrollmentIsActive(enrollId!, atSign);
+      if (recheck.response.isError) {
+        logger.warning('Refusing APKAM authentication: enrollment $enrollId '
+            'stopped serving while the signature was being verified — '
+            '${recheck.response.errorMessage}');
+        response.isError = true;
+        response.errorCode = recheck.response.errorCode;
+        response.errorMessage = recheck.response.errorMessage;
+        return false;
+      }
+    }
+
+    atConnectionMetadata.isAuthenticated = true;
+    atConnectionMetadata.authType = pkamAuthType;
+    atConnectionMetadata.enrollmentId = enrollId;
+    return true;
   }
 
   @visibleForTesting
@@ -142,6 +214,7 @@ class PkamVerbHandler extends AbstractVerbHandler {
     EnrollmentStatus? enrollStatus;
     EnrollmentManager enMgr =
         AtSecondaryServerImpl.getInstance().enrollmentManager;
+
     try {
       enVal = await enMgr.getEnrollmentById(enId);
       enrollStatus = EnrollmentStatus.values.byName(enVal.approval!.state);
@@ -176,7 +249,6 @@ class PkamVerbHandler extends AbstractVerbHandler {
         response.errorMessage = 'enrollment_id: $enrollId is pending';
         break;
       case EnrollmentStatus.approved:
-        // do nothing when enrollment is approved
         break;
       case EnrollmentStatus.revoked:
         response.isError = true;
@@ -193,26 +265,21 @@ class PkamVerbHandler extends AbstractVerbHandler {
     return response;
   }
 
-  /// [recordSigningAlgo] is the algorithm recorded on the enrollment, when
-  /// this connection authenticates as one. It wins over whatever the wire
-  /// says, so the client stops choosing how its own signature is interpreted.
-  /// Null for legacy PKAM — there is no record — in which case the wire value
-  /// still decides, as it always has.
+  /// Verifies the PKAM signature, under [recordSigningAlgo] when the
+  /// enrollment records one and under the wire's claim when it is null.
   Future<bool> _validateSignature(
     var verbParams,
     var sessionId,
     String atSign,
     String publicKey,
     String? recordSigningAlgo,
-    String storedSecretId,
+    String storedSecret,
   ) async {
     var signature = verbParams[AtConstants.atPkamSignature]!;
     var signingAlgo =
         recordSigningAlgo ?? verbParams[AtConstants.atPkamSigningAlgo];
     var hashingAlgo = verbParams[AtConstants.atPkamHashingAlgo];
     bool isValidSignature = false;
-    var storedSecretData = await keyStore.get(storedSecretId);
-    var storedSecret = storedSecretData?.data;
     if (signature == null || signature.isEmpty) {
       logger.severe('inputSignature is null/empty');
       return false;
@@ -236,6 +303,6 @@ class ApkamVerificationResult {
   String? publicKey;
 
   /// The signing algorithm recorded on the enrollment, which is what
-  /// [publicKey] actually is. Null on a legacy enrollment predating the field.
+  /// [publicKey] actually is.
   String? signingAlgo;
 }

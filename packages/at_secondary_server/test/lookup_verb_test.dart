@@ -12,6 +12,7 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 
 import 'test_utils.dart';
 
@@ -60,6 +61,7 @@ void main() {
 
       inboundConnection.metadata.isAuthenticated =
           true; // owner connection, authenticated
+      inboundConnection.metadata.authType = AuthType.cram;
 
       AtData bobData = createRandomAtData(bob);
       bobData.metaData!.ttr = 10;
@@ -125,6 +127,7 @@ void main() {
 
       inboundConnection.metadata.isAuthenticated =
           true; // owner connection, authenticated
+      inboundConnection.metadata.authType = AuthType.cram;
 
       when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
           .thenAnswer((Invocation invocation) async {
@@ -171,6 +174,7 @@ void main() {
 
       inboundConnection.metadata.isAuthenticated =
           true; // owner connection, authenticated
+      inboundConnection.metadata.authType = AuthType.cram;
 
       when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
           .thenAnswer((Invocation invocation) async {
@@ -235,6 +239,7 @@ void main() {
 
       inboundConnection.metadata.isAuthenticated =
           true; // owner connection, authenticated
+      inboundConnection.metadata.authType = AuthType.cram;
 
       when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
           .thenAnswer((Invocation invocation) async {
@@ -291,6 +296,7 @@ void main() {
 
       inboundConnection.metadata.isAuthenticated =
           true; // owner connection, authenticated
+      inboundConnection.metadata.authType = AuthType.cram;
 
       when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
           .thenAnswer((Invocation invocation) async {
@@ -352,6 +358,7 @@ void main() {
 
       inboundConnection.metaData.isAuthenticated =
           true; // owner connection, authenticated
+      inboundConnection.metaData.authType = AuthType.cram;
 
       when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
           .thenAnswer((Invocation invocation) async {
@@ -380,6 +387,7 @@ void main() {
 
       inboundConnection.metaData.isAuthenticated =
           true; // owner connection, authenticated
+      inboundConnection.metaData.authType = AuthType.cram;
 
       when(() => mockOutboundConnection.write('lookup:all:$keyName\n'))
           .thenAnswer((Invocation invocation) async {
@@ -613,6 +621,7 @@ void main() {
       inboundConnection.metadata.isAuthenticated = true;
       String enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -679,6 +688,7 @@ void main() {
       inboundConnection.metadata.isAuthenticated = true;
       String enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -747,6 +757,7 @@ void main() {
       inboundConnection.metadata.isAuthenticated = true;
       String enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -787,6 +798,7 @@ void main() {
       inboundConnection.metadata.isAuthenticated = true;
       String enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -819,6 +831,7 @@ void main() {
       inboundConnection.metadata.isAuthenticated = true;
       String enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -855,6 +868,7 @@ void main() {
       inboundConnection.metadata.isAuthenticated = true;
       String enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -886,6 +900,7 @@ void main() {
         'A test to verify read access is allowed if key is $alice:shared_key@bob',
         () async {
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       String sharedKeyForThem = 'shared_key$bob';
       AtData bobAtData = createRandomAtData(bob)..metaData!.ttr = 100;
       String bobAtDataAsJsonWithKey = SecondaryUtil.prepareResponseData(
@@ -916,6 +931,7 @@ void main() {
         'A test to verify read access is allowed if key is shared_key.alice@bob',
         () async {
       inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
       String sharedKeyForMe = 'shared_key.alice$bob';
 
       LookupVerbHandler lookupVerbHandler = LookupVerbHandler(
@@ -933,6 +949,7 @@ void main() {
       inboundConnection.metadata.isAuthenticated = true;
       String enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       inboundConnection.metadata.fromAtSign = alice;
       final enrollJson = {
         'sessionId': '123',
@@ -980,6 +997,7 @@ void main() {
       inboundConnection.metadata.isAuthenticated = true;
       String enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -1020,6 +1038,7 @@ void main() {
       inboundConnection.metadata.isAuthenticated = true;
       String enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -1073,6 +1092,7 @@ void main() {
         inboundConnection.metadata.isAuthenticated = true;
         enrollmentId = Uuid().v4();
         inboundConnection.metadata.enrollmentId = enrollmentId;
+        inboundConnection.metadata.authType = AuthType.apkam;
         final enrollJson = {
           'sessionId': '123',
           'appName': 'wavi',
@@ -1085,6 +1105,7 @@ void main() {
         await keyValueStore.put('$enrollmentId.new.enrollments.__manage$alice',
             AtData()..data = jsonEncode(enrollJson));
         inboundConnection.metadata.enrollmentId = enrollmentId;
+        inboundConnection.metadata.authType = AuthType.apkam;
         String llookupCommand = 'lookup:dummykey.wavi$bob';
         HashMap<String, String?> lookupVerbParams =
             getVerbParam(VerbSyntax.lookup, llookupCommand);
@@ -1115,6 +1136,7 @@ void main() {
       inboundConnection.metadata.isAuthenticated = true;
       String enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',

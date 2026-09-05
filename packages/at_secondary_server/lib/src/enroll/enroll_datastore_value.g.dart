@@ -1,17 +1,7 @@
-// Originally generated, now MAINTAINED BY HAND. Edit it when you add a field.
-//
-// json_serializable is not a dependency of this package — only json_annotation,
-// so `@JsonSerializable()` compiles — and there is no build.yaml, so nothing
-// can regenerate this. Running a generator over it would rewrite
-// `apkamKeysExpiryInMillis` (a name no generator produces from an unannotated
-// Duration) and break the at-rest expiry of every stored enrollment.
-//
-// A field added to EnrollDataStoreValue and not added here does not persist,
-// and nothing goes red. enroll_data_store_value_test.dart pins the round trip
-// of SOME optional fields by raw at-rest name — apsk, apskLegacy and
-// predecessorCapArmedAt. The rest, parentEnrollmentId included,
-// are covered only incidentally through the keystore, so adding a field here
-// and pinning it there is the habit that keeps this file honest.
+// Originally generated, now MAINTAINED BY HAND: add a field here or it does
+// not persist, and nothing goes red. A generator run would rewrite
+// `apkamKeysExpiryInMillis` and break the at-rest expiry of every stored
+// enrollment.
 
 part of 'enroll_datastore_value.dart';
 
@@ -27,6 +17,7 @@ EnrollDataStoreValue _$EnrollDataStoreValueFromJson(
       json['deviceName'] as String,
       json['apkamPublicKey'] as String,
     )
+      ..recordVersion = json['recordVersion'] as int? ?? 0
       ..namespaces = Map<String, String>.from(json['namespaces'] as Map)
       ..requestType =
           $enumDecodeNullable(_$EnrollRequestTypeEnumMap, json['requestType'])
@@ -42,6 +33,8 @@ EnrollDataStoreValue _$EnrollDataStoreValueFromJson(
       ..apsk = (json['apsk'] as Map<String, dynamic>?)
       ..apskLegacy = json['apskLegacy'] as String?
       ..parentEnrollmentId = json['parentEnrollmentId'] as String?
+      ..retrofitPredecessorEnrollmentId =
+          json['retrofitPredecessorEnrollmentId'] as String?
       ..predecessorCapArmedAt = json['predecessorCapArmedAt'] == null
           ? null
           : DateTime.parse(json['predecessorCapArmedAt'] as String);
@@ -49,6 +42,7 @@ EnrollDataStoreValue _$EnrollDataStoreValueFromJson(
 Map<String, dynamic> _$EnrollDataStoreValueToJson(
         EnrollDataStoreValue instance) =>
     <String, dynamic>{
+      'recordVersion': instance.recordVersion,
       'sessionId': instance.sessionId,
       'appName': instance.appName,
       'deviceName': instance.deviceName,
@@ -65,6 +59,9 @@ Map<String, dynamic> _$EnrollDataStoreValueToJson(
       if (instance.apskLegacy != null) 'apskLegacy': instance.apskLegacy,
       if (instance.parentEnrollmentId != null)
         'parentEnrollmentId': instance.parentEnrollmentId,
+      if (instance.retrofitPredecessorEnrollmentId != null)
+        'retrofitPredecessorEnrollmentId':
+            instance.retrofitPredecessorEnrollmentId,
       if (instance.predecessorCapArmedAt != null)
         'predecessorCapArmedAt': instance.predecessorCapArmedAt!.toIso8601String(),
     };

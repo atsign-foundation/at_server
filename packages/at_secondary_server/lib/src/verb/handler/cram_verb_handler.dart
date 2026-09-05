@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -40,10 +41,6 @@ class CramVerbHandler extends AbstractVerbHandler {
     var atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     AtData? internalSecret = await keyStore.get('privatekey:at_secret');
 
-    // If there is no secret in keystore - or it is null/empty - then return
-    // error. An empty/null secret must never authenticate: the expected digest
-    // would be computed over a known constant (e.g. the literal 'null'), which
-    // any caller could reproduce from the public session id and proof.
     if (internalSecret == null ||
         internalSecret.data == null ||
         internalSecret.data!.isEmpty) {
@@ -51,32 +48,32 @@ class CramVerbHandler extends AbstractVerbHandler {
       throw UnAuthenticatedException('Authentication Failed');
     }
 
-    //retrieve stored secret using sessionid and atsign
     String storedSecretId = 'private:$sessionID$atSign';
-    String? storedSecret = (await keyStore.get(storedSecretId))?.data;
+    // NOTE the challenge is spent on read, so one `from:` buys one attempt.
+    String? storedSecret = await consumeChallenge(storedSecretId);
+    if (storedSecret == null) {
+      atConnection.metaData.isAuthenticated = false;
+      logger.severe('cram authentication failed: no live challenge for'
+          ' session $sessionID');
+      throw UnAuthenticatedException('Authentication Failed');
+    }
     String expectedDigest = sha512
         .convert(utf8
             .encode('${internalSecret.data}$sessionID$atSign:$storedSecret'))
         .toString();
 
-    // add a bit of jitter so it's impossible to do any timing-based attacks
-    // to determine the cram secret
+    // NOTE the jitter keeps the comparison's duration from leaking the secret.
     await Future.delayed(Duration(microseconds: rand.nextInt(1000)));
-    // Verify that the expected digest == cram digest from client
     if (digestFromClient == expectedDigest) {
       atConnection.metaData.isAuthenticated = true;
       atConnection.metaData.authType = AuthType.cram;
+      // NOTE a CRAM connection stands over no enrollment, so any id left by an
+      // earlier `pkam:` on this connection is cleared.
+      (atConnection.metaData as InboundConnectionMetadata).enrollmentId = null;
       try {
         await accessLog.insert(atSign, cram.name());
       } on DataStoreException catch (e) {
         logger.severe('Hive error adding to access log:${e.toString()}');
-      }
-
-      // remove the stored secret
-      try {
-        await keyStore.remove(storedSecretId);
-      } catch (e) {
-        logger.warning('Failed to immediately remove $storedSecretId');
       }
 
       response.data = 'success';

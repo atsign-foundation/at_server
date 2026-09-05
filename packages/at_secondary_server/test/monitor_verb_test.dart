@@ -31,6 +31,7 @@ void main() {
     test('A test to verify monitor verb writes all notifications', () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
@@ -67,6 +68,7 @@ void main() {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       verbParams[AtConstants.regex] = 'wavi';
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
@@ -117,6 +119,7 @@ void main() {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       verbParams[AtConstants.regex] = 'wavi';
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
@@ -151,6 +154,7 @@ void main() {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       verbParams[AtConstants.regex] = 'wavi';
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
@@ -200,6 +204,7 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.enrollmentId =
           await setEnrollmentKey(jsonEncode({"wavi": "r"}));
+      inboundConnection.metaData.authType = AuthType.apkam;
 
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(keyValueStore, notificationManager);
@@ -251,6 +256,7 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.enrollmentId =
           await setEnrollmentKey(jsonEncode({"wavi": "r", "buzz": 'rw'}));
+      inboundConnection.metaData.authType = AuthType.apkam;
 
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(keyValueStore, notificationManager);
@@ -312,6 +318,7 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.enrollmentId =
           await setEnrollmentKey(jsonEncode({"wavi": "r", "buzz": "rw"}));
+      inboundConnection.metaData.authType = AuthType.apkam;
 
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(keyValueStore, notificationManager);
@@ -361,11 +368,12 @@ void main() {
       Response response = Response();
       HashMap<String, String?> monitorVerbParams = HashMap<String, String?>();
       String enrollmentRequest =
-          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"rw"},"apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
+          'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":{"wavi":"rw"},"apkamPublicKey":"dummy_apkam_public_key-${Uuid().v4().hashCode}","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
       HashMap<String, String?> enrollmentRequestVerbParams =
           getVerbParam(VerbSyntax.enroll, enrollmentRequest);
       inboundConnection.metaData.authType = AuthType.cram;
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       inboundConnection.metaData.sessionID = 'dummy_session_id';
       EnrollVerbHandler enrollVerbHandler =
           EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
@@ -373,13 +381,13 @@ void main() {
           response, enrollmentRequestVerbParams, inboundConnection);
       inboundConnection.metaData.enrollmentId =
           jsonDecode(response.data!)['enrollmentId'];
+      inboundConnection.metaData.authType = AuthType.apkam;
       expect(jsonDecode(response.data!)['status'], 'approved');
 
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
           Response(), monitorVerbParams, inboundConnection);
-      // Notification with wavi namespace
       var atNotification = (AtNotificationBuilder()
             ..id = 'abc'
             ..fromAtSign = '@bob'
@@ -402,7 +410,6 @@ void main() {
       expect(notificationMap['key'], '$alice:phone.wavi@bob');
       expect(notificationMap['messageType'], 'MessageType.key');
       expect(notificationMap['operation'], 'update');
-      // Notification with buzz namespace
       atNotification = (AtNotificationBuilder()
             ..id = 'abc'
             ..fromAtSign = '@bob'
@@ -441,7 +448,7 @@ void main() {
           ',"appName":"$appName"'
           ',"deviceName":"$deviceName"'
           ',"namespaces":${jsonEncode(namespaces)}'
-          ',"apkamPublicKey":"dummy_apkam_public_key"'
+          ',"apkamPublicKey":"dummy_apkam_public_key-${Uuid().v4().hashCode}"'
           ',"encryptedAPKAMSymmetricKey":"dummy_encrypted_apkam_symmetric_key"'
           '}';
       HashMap<String, String?> enrollmentRequestVerbParams =
@@ -468,27 +475,19 @@ void main() {
     }
 
     test('Test delivery of enrollment request notification to PKAM', () async {
-      // - Make an inboundConnection without enrollmentId (i.e. legacy PKAM)
-      //   and issue monitor command with selfNotifications flag set
-      // - Make an enrollment request on another connection
-      // - Verify that the monitor connection receives the
-      //   enrollment request notification
-
       var mvp = VerbUtil.getVerbParam(
         VerbSyntax.monitor,
         'monitor:selfNotifications',
       )!;
 
-      // Make an inboundConnection without enrollmentId (i.e. legacy PKAM)
-      //    and issue monitor command with selfNotifications flag set
       DummyInboundConnection pkamMC = DummyInboundConnection();
       pkamMC.metaData.authType = AuthType.pkamLegacy;
       pkamMC.metaData.isAuthenticated = true;
+      pkamMC.metaData.authType = AuthType.cram;
       pkamMC.metaData.sessionID = 'legacy_pkam_monitor_session';
       await MonitorVerbHandler(keyValueStore, notificationManager)
           .processVerb(Response(), mvp, pkamMC);
 
-      // Make another enrollment request
       String nextEnrollmentId = await newEnrollment(
         'mvt_app_2',
         'mvt_dev_2',
@@ -496,8 +495,6 @@ void main() {
         autoApprove: false,
       );
 
-      // Verify that the monitor connection receives the
-      //    enrollment request notification
       var notificationJson = jsonDecode(
           pkamMC.lastWrittenData!.replaceAll('notification:', '').trim());
       expect(notificationJson['value'], isNotNull);
@@ -513,14 +510,6 @@ void main() {
     });
 
     test('Test delivery of enrollment request notification to APKAM', () async {
-      // - Make an enrollment with * and __manage permissions
-      // - Make an inboundConnection with that enrollment ID and
-      //   issue monitor command with selfNotifications flag set
-      // - Make an enrollment request on another connection
-      // - Verify that the APKAM monitor connection receives the
-      //    enrollment request notification
-
-      // Make an enrollment with * and __manage permissions
       String monitorsEnrollmentId = await newEnrollment(
         'mvt_app_1',
         'mvt_dev_1',
@@ -532,8 +521,6 @@ void main() {
         VerbSyntax.monitor,
         'monitor:selfNotifications',
       )!;
-      // Make an inboundConnection with that enrollment ID and
-      //    issue monitor command with selfNotifications flag set
       inboundConnection.metaData.enrollmentId = monitorsEnrollmentId;
       inboundConnection.metaData.authType = AuthType.apkam;
       inboundConnection.metaData.isAuthenticated = true;
@@ -541,7 +528,6 @@ void main() {
       await MonitorVerbHandler(keyValueStore, notificationManager)
           .processVerb(Response(), mvp, inboundConnection);
 
-      // Make another enrollment request
       String nextEnrollmentId = await newEnrollment(
         'mvt_app_2',
         'mvt_dev_2',
@@ -550,8 +536,6 @@ void main() {
       );
 
       await Future.delayed(Duration(milliseconds: 10));
-      // Verify that the APKAM monitor connection receives the
-      //    enrollment request notification
       var notificationJson = jsonDecode(inboundConnection.lastWrittenData!
           .replaceAll('notification:', '')
           .trim());
@@ -578,6 +562,7 @@ void main() {
       inboundConnection.metadata.isAuthenticated = true;
       var enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       var enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
@@ -681,6 +666,7 @@ void main() {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       verbParams[AtConstants.regex] = '[';
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(keyValueStore, notificationManager);
       await expectLater(
@@ -699,6 +685,7 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.enrollmentId =
           await setEnrollmentKey(jsonEncode({"wavi": "r"}));
+      inboundConnection.metaData.authType = AuthType.apkam;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(keyValueStore, notificationManager);
       await expectLater(
@@ -724,6 +711,7 @@ void main() {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       verbParams[AtConstants.monitorSelfNotifications] = 'selfNotifications';
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
@@ -772,6 +760,7 @@ void main() {
         () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
@@ -820,6 +809,7 @@ void main() {
         () async {
       HashMap<String, String?> verbParams = HashMap<String, String?>();
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       MonitorVerbHandler monitorVerbHandler =
           MonitorVerbHandler(keyValueStore, notificationManager);
       await monitorVerbHandler.processVerb(
@@ -886,6 +876,7 @@ void main() {
       HashMap<String, String?> verbParams =
           monitorVerbHandler.parse(monitorCommand);
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
 
@@ -936,6 +927,7 @@ void main() {
       HashMap<String, String?> verbParams =
           monitorVerbHandler.parse(monitorCommand);
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       await monitorVerbHandler.processVerb(
           Response(), verbParams, inboundConnection);
 
@@ -971,15 +963,14 @@ Future<String> setEnrollmentKey(String namespace) async {
   EnrollVerbHandler enrollVerbHandler =
       EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
   inboundConnection.metaData.isAuthenticated = true;
+  inboundConnection.metaData.authType = AuthType.cram;
   inboundConnection.metaData.sessionID = 'dummy_session';
-  // OTP Verb
   HashMap<String, String?> totpVerbParams =
       getVerbParam(VerbSyntax.otp, 'otp:get');
   OtpVerbHandler otpVerbHandler = OtpVerbHandler(keyValueStore);
   await otpVerbHandler.processVerb(response, totpVerbParams, inboundConnection);
-  // Enroll request
   String enrollmentRequest =
-      'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":$namespace,"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
+      'enroll:request:{"appName":"wavi","deviceName":"mydevice","namespaces":$namespace,"otp":"${response.data}","apkamPublicKey":"dummy_apkam_public_key-${Uuid().v4().hashCode}","encryptedAPKAMSymmetricKey": "dummy_encrypted_symm_key"}';
   HashMap<String, String?> enrollmentRequestVerbParams =
       getVerbParam(VerbSyntax.enroll, enrollmentRequest);
   inboundConnection.metaData.isAuthenticated = false;
@@ -988,12 +979,12 @@ Future<String> setEnrollmentKey(String namespace) async {
   await enrollVerbHandler.processVerb(
       response, enrollmentRequestVerbParams, inboundConnection);
   String enrollmentId = jsonDecode(response.data!)['enrollmentId'];
-  //Approve enrollment
   String approveEnrollmentRequest =
       'enroll:approve:{"enrollmentId":"$enrollmentId", "encryptedDefaultEncryptionPrivateKey":"dummy_encrypted_private_key","encryptedDefaultSelfEncryptionKey":"dummy_self_encrypted_key"}';
   HashMap<String, String?> approveEnrollmentVerbParams =
       getVerbParam(VerbSyntax.enroll, approveEnrollmentRequest);
   inboundConnection.metaData.isAuthenticated = true;
+  inboundConnection.metaData.authType = AuthType.cram;
   enrollVerbHandler =
       EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
   await enrollVerbHandler.processVerb(

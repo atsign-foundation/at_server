@@ -14,6 +14,7 @@ import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 
 import 'test_utils.dart';
 
@@ -252,6 +253,7 @@ void main() async {
         var response = Response();
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var batchVerbParams = HashMap<String, String>();
         batchVerbParams.putIfAbsent('json', () => batchRequestCommand);
         await batchVerbHandler.processVerb(
@@ -311,6 +313,7 @@ void main() async {
         var response = Response();
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var batchVerbParams = HashMap<String, String>();
         batchVerbParams.putIfAbsent('json', () => batchRequestCommand);
 
@@ -372,6 +375,7 @@ void main() async {
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
@@ -413,6 +417,7 @@ void main() async {
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         syncVerbParams.putIfAbsent('skipDeletesUntil', () => '15');
@@ -443,6 +448,7 @@ void main() async {
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         syncVerbParams.putIfAbsent('regex', () => 'buzz');
@@ -477,6 +483,7 @@ void main() async {
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         syncVerbParams.putIfAbsent('regex', () => 'buzz');
@@ -510,6 +517,7 @@ void main() async {
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         syncVerbParams.putIfAbsent('regex', () => 'buzz');
@@ -547,6 +555,7 @@ void main() async {
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
@@ -582,6 +591,7 @@ void main() async {
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
@@ -626,6 +636,7 @@ void main() async {
         var atConnection = InboundConnectionImpl(
             mockSocket, '_6665436c-29ff-481b-8dc6-129e89199718');
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
 
@@ -694,6 +705,7 @@ void main() async {
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
@@ -757,6 +769,7 @@ void main() async {
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
@@ -793,6 +806,7 @@ void main() async {
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
@@ -832,6 +846,7 @@ void main() async {
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
@@ -882,6 +897,7 @@ void main() async {
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         await syncProgressiveVerbHandler.processVerb(
@@ -910,6 +926,7 @@ void main() async {
         var response = Response();
         inboundConnection.metaData.isAuthenticated = true;
         inboundConnection.metaData.enrollmentId = enrollmentId;
+        inboundConnection.metaData.authType = AuthType.apkam;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams[AtConstants.fromCommitSequence] = fromCommitId;
         if (skipDeletesUntil != null) {
@@ -1041,6 +1058,7 @@ void main() async {
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         syncVerbParams.putIfAbsent('skipDeletesUntil', () => '15');
@@ -1073,6 +1091,7 @@ void main() async {
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         syncVerbParams.putIfAbsent('skipDeletesUntil', () => '50');
@@ -1110,6 +1129,7 @@ void main() async {
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         syncVerbParams.putIfAbsent('skipDeletesUntil', () => '100');
@@ -1157,6 +1177,7 @@ void main() async {
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         syncVerbParams.putIfAbsent('skipDeletesUntil', () => '100');
@@ -1191,6 +1212,7 @@ void main() async {
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         syncVerbParams.putIfAbsent('skipDeletesUntil', () => '30');
@@ -1230,6 +1252,7 @@ void main() async {
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         syncVerbParams.putIfAbsent('skipDeletesUntil', () => '50');
@@ -1277,6 +1300,7 @@ void main() async {
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         syncVerbParams.putIfAbsent('skipDeletesUntil', () => '33');
@@ -1315,6 +1339,7 @@ void main() async {
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         syncVerbParams.putIfAbsent('skipDeletesUntil', () => '34');
@@ -1356,6 +1381,7 @@ void main() async {
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         syncVerbParams.putIfAbsent('skipDeletesUntil', () => '36');
@@ -1397,6 +1423,7 @@ void main() async {
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         syncVerbParams.putIfAbsent(
@@ -1447,6 +1474,7 @@ void main() async {
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         syncVerbParams.putIfAbsent('skipDeletesUntil', () => '15');
@@ -1497,6 +1525,7 @@ void main() async {
         var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
         var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
         atConnection.metaData.isAuthenticated = true;
+        atConnection.metaData.authType = AuthType.cram;
         var syncVerbParams = HashMap<String, String>();
         syncVerbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
         syncVerbParams.putIfAbsent('skipDeletesUntil', () => '70');

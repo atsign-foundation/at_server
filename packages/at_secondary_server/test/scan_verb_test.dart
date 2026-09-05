@@ -129,6 +129,7 @@ void main() {
     test('A test to verify all keys are returned for a simple scan', () async {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       await keyValueStore.put(
           'public:location.wavi$alice', AtData()..data = 'dummy_value');
       await keyValueStore.put(
@@ -154,6 +155,7 @@ void main() {
         () async {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       await keyValueStore.put(
           'public:location.wavi$alice', AtData()..data = 'dummy_value');
       await keyValueStore.put(
@@ -177,6 +179,7 @@ void main() {
         () async {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       await keyValueStore.put(
           'public:__phone.wavi$alice', AtData()..data = 'dummy_value');
       await keyValueStore.put(
@@ -196,6 +199,7 @@ void main() {
         () async {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       await keyValueStore.put(
           'public:__phone.wavi$alice', AtData()..data = 'dummy_value');
       await keyValueStore.put(
@@ -214,6 +218,7 @@ void main() {
     test('Test that __atserver events are returned by scan', () async {
       String enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'my_app',
@@ -230,6 +235,7 @@ void main() {
       );
 
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
 
       final event = AtSignPKChangedEvent(bob);
       // store the event for retrieval by clients
@@ -371,6 +377,7 @@ void main() {
         'A test to verify scan does not return the enrollment keys when enrollment namespace has __manage',
         () async {
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       inboundConnection.metaData.sessionID = 'dummy_session';
       var enrollmentId = Uuid().v4();
       final enrollJson = {
@@ -391,6 +398,7 @@ void main() {
           keyValueStore, mockOutboundClientManager, cacheManager);
       // Set enrollmentId to the inboundConnection to mimic the APKAM auth
       inboundConnection.metaData.enrollmentId = enrollmentId;
+      inboundConnection.metaData.authType = AuthType.apkam;
       await scanVerbHandler.process('scan', inboundConnection);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
           .split('\n')[0]
@@ -407,6 +415,7 @@ void main() {
         'A test to verify scan returns only the keys whose namespaces are authorized in enrollment request',
         () async {
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       inboundConnection.metaData.sessionID = 'dummy_session';
       var enrollmentId = Uuid().v4();
       final enrollJson = {
@@ -429,6 +438,7 @@ void main() {
           keyValueStore, mockOutboundClientManager, cacheManager);
       // Set enrollmentId to the inboundConnection to mimic the APKAM auth
       inboundConnection.metaData.enrollmentId = enrollmentId;
+      inboundConnection.metaData.authType = AuthType.apkam;
       await scanVerbHandler.process('scan', inboundConnection);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
           .split('\n')[0]
@@ -442,6 +452,7 @@ void main() {
         'A test to verify scan returns enrollment keys on a CRAM authenticated connection',
         () async {
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       inboundConnection.metaData.sessionID = 'dummy_session';
       inboundConnection.metaData.authType = AuthType.cram;
       var enrollmentId = Uuid().v4();
@@ -476,6 +487,7 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.sessionID = 'dummy_session';
       inboundConnection.metaData.enrollmentId = enrollmentId;
+      inboundConnection.metaData.authType = AuthType.apkam;
 
       final enrollJson = {
         'sessionId': '123',
@@ -508,12 +520,57 @@ void main() {
     });
 
     test(
+        'A test to verify a *:rw enrollment does NOT see another enrollment'
+        ' per-enrollment reserved keys in scan', () async {
+      var enrollmentId = Uuid().v4();
+      var otherEnrollmentId = Uuid().v4();
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.sessionID = 'dummy_session';
+      inboundConnection.metaData.enrollmentId = enrollmentId;
+      inboundConnection.metaData.authType = AuthType.apkam;
+
+      final enrollJson = {
+        'sessionId': '123',
+        'appName': 'wavi',
+        'deviceName': 'pixel',
+        'namespaces': {'*': 'rw'},
+        'apkamPublicKey': 'testPublicKeyValue',
+        'requestType': 'newEnrollment',
+        'approval': {'state': 'approved'}
+      };
+      await keyValueStore.put('$enrollmentId.new.enrollments.__manage$alice',
+          AtData()..data = jsonEncode(enrollJson));
+
+      var ownKey = 'signing.$enrollmentId'
+          '.${EnrollmentConstants.perEnrollmentApproved}$alice';
+      var foreignKey = 'signing.$otherEnrollmentId'
+          '.${EnrollmentConstants.perEnrollmentApproved}$alice';
+      await keyValueStore.put(ownKey, AtData()..data = 'mine');
+      await keyValueStore.put(foreignKey, AtData()..data = 'theirs');
+
+      scanVerbHandler = ScanVerbHandler(
+          keyValueStore, mockOutboundClientManager, cacheManager);
+      await scanVerbHandler.process('scan', inboundConnection);
+      inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
+          .split('\n')[0]
+          .replaceAll('data:', '');
+      List scanResponseList = jsonDecode(inboundConnection.lastWrittenData!);
+      expect(scanResponseList.contains(foreignKey), false,
+          reason: 'the wildcard fast path listed another enrollment'
+              ' per-enrollment reserved key');
+      expect(scanResponseList.contains(ownKey), true,
+          reason: 'the wildcard fast path hid the enrollment own'
+              ' per-enrollment reserved key');
+    });
+
+    test(
         'A test to verify scan returns all keys EXCEPT __manage when enrollment has *:rw access',
         () async {
       var enrollmentId = Uuid().v4();
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.sessionID = 'dummy_session';
       inboundConnection.metaData.enrollmentId = enrollmentId;
+      inboundConnection.metaData.authType = AuthType.apkam;
 
       final enrollJson = {
         'sessionId': '123',
@@ -560,6 +617,7 @@ void main() {
       inboundConnection.metaData.isAuthenticated = true;
       inboundConnection.metaData.sessionID = 'dummy_session';
       inboundConnection.metaData.enrollmentId = enrollmentId;
+      inboundConnection.metaData.authType = AuthType.apkam;
 
       final enrollJson = {
         'sessionId': '123',
@@ -598,6 +656,7 @@ void main() {
         'A test to verify keys without namespace are not returned when enrollmentId is supplied',
         () async {
       inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.cram;
       inboundConnection.metaData.sessionID = 'dummy_session';
       var enrollmentId = Uuid().v4();
       final enrollJson = {
@@ -623,6 +682,7 @@ void main() {
           keyValueStore, mockOutboundClientManager, cacheManager);
       // Set enrollmentId to the inboundConnection to mimic the APKAM auth
       inboundConnection.metaData.enrollmentId = enrollmentId;
+      inboundConnection.metaData.authType = AuthType.apkam;
       await scanVerbHandler.process('scan', inboundConnection);
       inboundConnection.lastWrittenData = inboundConnection.lastWrittenData!
           .split('\n')[0]

@@ -12,6 +12,7 @@ import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 
 import 'test_utils.dart';
 
@@ -25,6 +26,7 @@ void main() {
   setUp(() async {
     await verbTestsSetUp();
     inboundConnection.metaData.isAuthenticated = true;
+    inboundConnection.metaData.authType = AuthType.cram;
   });
 
   tearDown(() async {
@@ -130,6 +132,8 @@ void main() {
       verbParams.putIfAbsent('limit', () => '10');
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+      atConnection.metaData.isAuthenticated = true;
+      atConnection.metaData.authType = AuthType.cram;
       await verbHandler.processVerb(response, verbParams, atConnection);
 
       Map syncResponseMap = (jsonDecode(response.data!)).first;
@@ -334,6 +338,8 @@ void main() {
       verbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '0');
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+      atConnection.metaData.isAuthenticated = true;
+      atConnection.metaData.authType = AuthType.cram;
       await verbHandler.processVerb(response, verbParams, atConnection);
 
       var syncResponseList = jsonDecode(response.data!);
@@ -373,6 +379,8 @@ void main() {
       verbParams.putIfAbsent(AtConstants.syncLimit, () => '12');
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+      atConnection.metaData.isAuthenticated = true;
+      atConnection.metaData.authType = AuthType.cram;
       await verbHandler.processVerb(response, verbParams, atConnection);
 
       var syncResponseList = jsonDecode(response.data!);
@@ -411,6 +419,8 @@ void main() {
       verbParams.putIfAbsent(AtConstants.syncLimit, () => '35');
       var inBoundSessionId = '123';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
+      atConnection.metaData.isAuthenticated = true;
+      atConnection.metaData.authType = AuthType.cram;
       await verbHandler.processVerb(response, verbParams, atConnection);
 
       var syncResponseList = jsonDecode(response.data!);
@@ -418,6 +428,87 @@ void main() {
       for (int i = 0; i < syncResponseList.length; i++) {
         expect(syncResponseList[i]['atKey'], 'random_${i + 1}.wavi$alice');
       }
+    });
+  });
+
+  group('__manage keys never leave the atServer over sync', () {
+    late String manageKey;
+    late String ordinaryKey;
+
+    setUp(() async {
+      manageKey = '${Uuid().v4()}.new.enrollments.__manage$alice';
+      await keyValueStore.put(
+          manageKey, AtData()..data = jsonEncode({'appName': 'wavi'}),
+          skipCommit: true);
+      await atCommitLog.commit(manageKey, CommitOp.UPDATE);
+      ordinaryKey = 'phone.wavi$alice';
+      await keyValueStore.put(ordinaryKey, AtData()..data = '+12025551234');
+    });
+
+    /// Enrols the connection with [namespaces] and returns its enrollment id.
+    Future<String> enrolWith(Map<String, String> namespaces) async {
+      final String enrollmentId = Uuid().v4();
+      await keyValueStore.put(
+          '$enrollmentId.new.enrollments.__manage$alice',
+          AtData()
+            ..data = jsonEncode({
+              'sessionId': '123',
+              'appName': 'wavi',
+              'deviceName': 'pixel',
+              'namespaces': namespaces,
+              'apkamPublicKey': 'testPublicKeyValue',
+              'requestType': 'newEnrollment',
+              'approval': {'state': 'approved'}
+            }),
+          skipCommit: true);
+      inboundConnection.metaData.isAuthenticated = true;
+      inboundConnection.metaData.authType = AuthType.apkam;
+      inboundConnection.metaData.enrollmentId = enrollmentId;
+      return enrollmentId;
+    }
+
+    /// The atKeys `sync:from` serves over [inboundConnection].
+    Future<List<String>> syncedKeys() async {
+      final verbHandler =
+          SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog);
+      final response = Response();
+      final verbParams = HashMap<String, String>();
+      verbParams.putIfAbsent(AtConstants.fromCommitSequence, () => '-1');
+      verbParams.putIfAbsent(AtConstants.syncLimit, () => '25');
+      await verbHandler.processVerb(response, verbParams, inboundConnection);
+      return [
+        for (final entry in jsonDecode(response.data!) as List)
+          entry['atKey'] as String
+      ];
+    }
+
+    test('a CRAM connection is served the ordinary key and not the __manage key',
+        () async {
+      final List<String> served = await syncedKeys();
+      expect(served, contains(ordinaryKey),
+          reason: 'a CRAM connection must still sync ordinary keys');
+      expect(served, isNot(contains(manageKey)),
+          reason: 'a CRAM connection must never sync a __manage key');
+    });
+
+    test(
+        'a root enrollment holding *:rw and __manage:rw is not served the '
+        '__manage key', () async {
+      await enrolWith({'*': 'rw', '__manage': 'rw'});
+      final List<String> served = await syncedKeys();
+      expect(served, contains(ordinaryKey),
+          reason: 'a root enrollment must still sync ordinary keys');
+      expect(served, isNot(contains(manageKey)),
+          reason: 'holding __manage:rw must not put __manage keys on the wire');
+    });
+
+    test('a scoped enrollment is not served the __manage key', () async {
+      await enrolWith({'wavi': 'rw'});
+      final List<String> served = await syncedKeys();
+      expect(served, contains(ordinaryKey),
+          reason: 'a scoped enrollment must still sync its own namespace');
+      expect(served, isNot(contains(manageKey)),
+          reason: 'a scoped enrollment must never sync a __manage key');
     });
   });
 
@@ -432,6 +523,7 @@ void main() {
       inboundConnection.metadata.isAuthenticated = true;
       enrollmentId = Uuid().v4();
       inboundConnection.metadata.enrollmentId = enrollmentId;
+      inboundConnection.metadata.authType = AuthType.apkam;
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',

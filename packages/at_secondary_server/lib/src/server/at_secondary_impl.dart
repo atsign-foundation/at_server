@@ -38,7 +38,7 @@ import 'package:meta/meta.dart';
 
 import 'http_request_handler.dart';
 
-/// [AtSecondaryServerImpl] is a singleton class which implements [AtSecondaryServer]
+/// Singleton implementation of [AtSecondaryServer].
 class AtSecondaryServerImpl implements AtSecondaryServer {
   static final bool? useTLS = AtSecondaryConfig.useTLS;
   static final AtSecondaryServerImpl _singleton =
@@ -54,16 +54,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   var logger = AtSignLogger('AtSecondaryServer');
 
-  /// Builds the per-atSign persistence stores during [start] and tears
-  /// them down during [stop]. Defaults to a [HiveAtPersistenceFactory];
-  /// tests / alternative deployments can replace it before calling
-  /// [start]. Made public so tests can inject a stand-in (e.g.
-  /// `TestAtPersistenceFactory`).
+  /// Builds the per-atSign persistence stores during [start] and tears them
+  /// down during [stop]. Replaceable before [start] is called.
   AtPersistenceFactory persistenceFactory = HiveAtPersistenceFactory();
 
-  /// The bundle this server is currently running against. Set during
-  /// [_initializePersistentInstances]; used by [start] for
-  /// scheduleKeyExpireTask and by [stop] to close.
+  /// The bundle this server is currently running against.
   AtPersistenceBundle? _persistenceBundle;
 
   factory AtSecondaryServerImpl.getInstance() {
@@ -74,17 +69,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     logger.shout('executableArguments: ${Platform.executableArguments}');
     logger.shout('DART_VM_OPTIONS: ${Platform.environment['DART_VM_OPTIONS']}');
 
-    // TODO There's a whole lifecycle mess here that needs to be cleaned up
-    // at some point. Currently we create this singleton which then has a
-    // lifecycle where it can be started and stopped. When it is started, all
-    // of its relevant state is recreated, since things (e.g. ssl certs) may
-    // have changed. When it is stopped, all relevant state is cleared.
-    // This should not be a singleton, and state management should be
-    // 'stop the current server; create new instance; start new instance'.
-    // Doing this will be a massive chunk of busywork.
-    // NB: These specific instance variables are depended on by unit tests
-    // so they are initialized here, but are also initialized as part of the
-    // `start()` function
+    // NOTE these are initialized here as well as in [start], because unit
+    // tests depend on them without starting the server.
     final socketConfig = SecureSocketConfig()
       ..decryptPackets = false
       ..pathToCerts = AtSecondaryConfig.trustedCertificateLocation
@@ -118,22 +104,15 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   final StatsNotificationService statsNotificationService =
       StatsNotificationService();
 
-  /// Timers driving the per-resource compaction cron. Each ticks
-  /// on its own configured frequency; tick body drains the
-  /// resource's `compact(false)` stream with an overlap guard.
+  /// Timers driving the per-resource compaction cron, each on its own
+  /// configured frequency.
   final List<Timer> _compactionTimers = [];
 
-  /// One-shot timer driving the key-expiry sweep, rescheduled after
-  /// every sweep from [AtKeyValueStore.nextExpiresAt] — the server
-  /// sleeps until the next key actually expires instead of polling
-  /// on a fixed cadence. Owned by the secondary (not the
-  /// persistence layer): the application picks the schedule, the
-  /// keystore exposes [AtKeyValueStore.nextExpiresAt] and
-  /// [AtKeyValueStore.deleteExpiredKeys].
+  /// One-shot timer driving [runHousekeepingSweep], re-armed after every
+  /// sweep so the server sleeps until the next key expires.
   Timer? _keyExpiryTimer;
 
-  /// Floor for the expiry-sweep sleep — stops a burst of
-  /// near-future expiries from re-running the sweep back-to-back.
+  /// Floor for the expiry-sweep sleep.
   static const Duration _minExpirySleep = Duration(seconds: 10);
   @visibleForTesting
   AtCertificateValidationJob? certificateReloadJob;
@@ -163,50 +142,13 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     return _isRunning == true;
   }
 
-  /// Check various parameters required to start the secondary server. Invokes call to [_startSecuredServer] to start secondary server in secure mode and
-  /// [_startUnSecuredServer] to start secondary server in un-secure mode.
-  /// Throws [AtServerException] if exception occurs in starting the secondary server.
+  /// Starts the secondary server, secured or unsecured according to
+  /// configuration. Throws [AtServerException] if the server cannot be
+  /// started.
   ///
-  /// ## This runs more than once per process
-  ///
-  /// [AtCertificateValidationJob] restarts the server **in process** when the
-  /// TLS certificates on disk have been replaced: it calls [stop] and then
-  /// [start] again on this same singleton. So a long-lived server may run this
-  /// method many times over its life, and everything it touches has to be
-  /// correct on the second and hundredth call, not only the first.
-  ///
-  /// Two things trigger that restart, and neither is under an operator's eye at
-  /// the time: a cron inside the job that looks for the restart file twice a
-  /// day, and the `checkCertificateReload` modifiable config, which fires a
-  /// forced check as soon as it is set. Both reach [stop]/[start] via
-  /// `AtCertificateValidationJob.restartServer`, which does **not** await
-  /// [start].
-  ///
-  /// That unawaited call does not mean an exception here goes unnoticed — it
-  /// means it arrives somewhere surprising. `SecondaryServerBootStrapper.run`
-  /// starts the first [start] inside a `runZonedGuarded`, and every timer,
-  /// cron and stream listener created during that start inherits the zone,
-  /// the certificate job's cron among them. So a throw from a restart-time
-  /// [start] has no `await` to propagate to and goes to the zone's error
-  /// handler instead, which passes anything that is not a `SocketException`
-  /// to `handleTerminateSignal`. That awaits [stop], finds `isRunning()`
-  /// false — a [start] that threw before reaching `_isRunning = true` never
-  /// set it — and calls `exit(0)`.
-  ///
-  /// **So a failed certificate-rotation restart terminates the process, with a
-  /// success status.** Under an orchestration policy of `restart: on-failure`
-  /// that reads as a deliberate shutdown and the atServer is not brought back.
-  /// Anything added here that can throw should be weighed against that, not
-  /// against the assumption that a restart failure leaves something running to
-  /// inspect.
-  ///
-  /// What that asks of anything added to this method: process-wide state that
-  /// outlives [stop] must either be safe to pick up again as it is, or be torn
-  /// down there. Persistence takes the second route — [stop] closes it through
-  /// `persistenceFactory.close()` and this method builds it again from
-  /// scratch — while [certificateReloadJob] deliberately takes the first, and
-  /// is created only when it is null so that the job driving the restart is not
-  /// replaced underneath itself.
+  /// Runs more than once per process, as [AtCertificateValidationJob] calls
+  /// [stop] and then [start] again on this singleton to pick up replaced TLS
+  /// certificates.
   @override
   Future<void> start() async {
     pause();
@@ -222,8 +164,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw AtServerException('Verb executor is not initialized');
     }
 
-    // We used to check at this stage that a verbHandlerManager was set
-    // but now we don't, as if it's not set we will create a DefaultVerbHandlerManager
 
     if (useTLS! && serverContext!.securityContext == null) {
       throw AtServerException('Security context is not set');
@@ -236,14 +176,12 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     currentAtSign = serverContext!.currentAtSign!.toAtsign();
     logger.shout('start(): currentAtSign : $currentAtSign');
 
-    // Initialize persistent storage
     await _initializePersistentInstances();
 
     if (!serverContext!.isKeyStoreInitialized) {
       throw AtServerException('Secondary keystore is not initialized');
     }
 
-    // Initialize enrollment manager
     enrollmentManager = EnrollmentManager(keyValueStore, currentAtSign);
     List<String> deletedKeys =
         await enrollmentManager.removeLegacyApkamPublicKeys();
@@ -255,20 +193,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.info('Removed orphaned APKAM encryption keys: $deletedKeys');
     }
 
-    // Set up removal of expired keys
-    // We add a hook here to handle deletion of enrollments.
-    keyValueStore.preRemoveHooks.add(enrollmentManager.preRemoveHook);
+    await prepareStoreForFirstConnection();
 
-    // Startup sweep, then schedule the next one from
-    // nextExpiresAt() — see _scheduleNextExpirySweep for the
-    // sleep-until-next-expiry shape and its staleness bound.
-    await keyValueStore.deleteExpiredKeys();
     await _scheduleNextExpirySweep();
 
-    // Compaction is scheduled at the secondary level (not by the
-    // persistence layer): the Timer ticks, drains the resource's
-    // compact(false) stream with an overlap guard, and records
-    // primitives to a stats service.
     final statsService = AtCompactionStatsService(keyValueStore);
     if (AtSecondaryConfig.enableCommitLogCompactor) {
       _scheduleCompaction(
@@ -325,7 +253,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           poolSize: serverContext!.outboundConnectionLimit,
         ));
 
-    // Refresh Cached Keys
     cacheManager = AtCacheManager(serverContext!.currentAtSign!, keyValueStore,
         outboundClientManager, notificationManager);
 
@@ -335,17 +262,13 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         AtCacheRefreshJob(serverContext!.currentAtSign!, cacheManager);
     atRefreshJob.scheduleRefreshJob(runRefreshJobHour);
 
-    // setting doCacheRefresh to true will trigger an immediate run of the cache refresh job
     AtSecondaryConfig.subscribe(ModifiableConfigs.doCacheRefreshNow)
         ?.listen((newValue) async {
-      //parse bool from string
       if (newValue.toString() == 'true') {
         unawaited(atRefreshJob.refreshNow());
       }
     });
 
-    // We may have had a VerbHandlerManager set via setVerbHandlerManager()
-    // But if not, create a DefaultVerbHandlerManager
     if (verbHandlerManager == null) {
       verbHandlerManager = DefaultVerbHandlerManager(
         keyValueStore,
@@ -359,10 +282,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         accessLog: accessLog,
       );
     } else {
-      // If the server has been stop()'d and re-start()'d then we will get here.
-      // We have to make sure that if we used a DefaultVerbHandlerManager then we
-      // create a new one here so that it has the correct instances of the AtKeyValueStore,
-      // OutboundClientManager and AtCacheManager
+      // NOTE a restart needs a new manager, holding the current stores.
       if (verbHandlerManager is DefaultVerbHandlerManager) {
         verbHandlerManager = DefaultVerbHandlerManager(
           keyValueStore,
@@ -378,9 +298,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       }
     }
 
-    // Certificate reload
-    // We are only ever creating ONE of these jobs in the server - i.e. reusing the same instance
-    // across soft restarts
+    // NOTE one job per process: it is what drives a soft restart.
     if (certificateReloadJob == null) {
       certificateReloadJob = AtCertificateValidationJob(
           this,
@@ -389,20 +307,16 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           AtSecondaryConfig.isForceRestart);
       await certificateReloadJob!.start();
 
-      // setting checkCertificateReload to true will trigger a check (and restart if required)
       AtSecondaryConfig.subscribe(ModifiableConfigs.checkCertificateReload)
           ?.listen((newValue) async {
-        //parse bool from string
         if (newValue.toString() == 'true') {
           unawaited(certificateReloadJob!
               .checkAndRestartIfRequired(forceRestartThisTime: true));
         }
       });
 
-      // setting checkCertificateReload to true will trigger a check (and restart if required)
       AtSecondaryConfig.subscribe(ModifiableConfigs.shouldReloadCertificates)
           ?.listen((newValue) async {
-        //parse bool from string
         if (newValue.toString() == 'true') {
           await certificateReloadJob!.createRestartFile();
         } else if (newValue.toString() == 'false') {
@@ -410,20 +324,16 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         }
       });
     }
-    // We're currently in process of restarting, so we can delete the file which triggers restarts
     await certificateReloadJob!.deleteRestartFile();
 
     inboundConnectionManager = InboundConnectionManager(
         serverAtSign: currentAtSign,
         poolSize: serverContext!.inboundConnectionLimit);
 
-    // Starts StatsNotificationService to keep monitor connections alive
     await statsNotificationService.schedule(currentAtSign, commitLog);
 
-    //initializes subscribers for dynamic config change 'config:Set'
     await initDynamicConfigListeners();
 
-    // clean up malformed keys from keystore
     await removeMalformedKeys();
 
     int removed, failed;
@@ -451,7 +361,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     if (serverContext!.trainingMode) {
       try {
         logger.warning('Training mode set - stopping server');
-        // waiting a few milliseconds to allow the server socket to finish its initialization
         await Future.delayed(Duration(milliseconds: 100));
         await stop();
       } catch (e) {
@@ -461,14 +370,13 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       exit(0);
     }
 
-    // Enqueue any undelivered notifications for delivery to other atServers
     await notificationManager.reEnqueueUndelivered();
 
     resume();
   }
 
-  /// Restart compaction with a new frequency for the resource
-  /// identified by [label]. Works only when testing mode is set.
+  /// Restarts compaction with a new frequency for the resource identified by
+  /// [label]. Works only when testing mode is set.
   Future<void> _restartCompaction(
     Compactable resource,
     Duration newFrequency,
@@ -477,9 +385,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   ) async {
     logger.finest(
         'Received new frequency for $label compaction: ${newFrequency.inMinutes}m');
-    // Cancel any existing timer for this label (best effort: we
-    // currently don't index timers by label so the simplest restart
-    // is to cancel all and re-schedule the one we care about).
+    // NOTE timers are not indexed by label, so all are cancelled and the one
+    // being changed is re-scheduled.
     for (final t in _compactionTimers) {
       t.cancel();
     }
@@ -487,22 +394,35 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     _scheduleCompaction(resource, newFrequency, label, statsService);
   }
 
+  /// Everything the keystore needs done before a client can connect, in the
+  /// order it has to happen.
+  ///
+  /// Both remove hooks are registered before the expired-keys sweep.
+  @visibleForTesting
+  Future<void> prepareStoreForFirstConnection() async {
+    keyValueStore.preRemoveHooks.add(enrollmentManager.preRemoveHook);
+    keyValueStore.postRemoveHooks.add(enrollmentManager.postRemoveHook);
+
+    // NOTE before the sweep, so an expired root about to be reaped is not the
+    // survivor that licenses deleting a copy of its key.
+    final StartupFlatKeyOutcome migrated =
+        await enrollmentManager.migrateFlatKeyAtStartup();
+    logger.info('Flat legacy credential at startup: ${migrated.name}');
+
+    await runHousekeepingSweep();
+  }
+
+  /// One pass of the periodic store housekeeping: reap expired keys.
+  @visibleForTesting
+  Future<void> runHousekeepingSweep() async {
+    await keyValueStore.deleteExpiredKeys();
+  }
+
   /// Computes the next expiry-sweep wake-up from
   /// [AtKeyValueStore.nextExpiresAt] and arms [_keyExpiryTimer].
   ///
-  /// Sleep is clamped to `[_minExpirySleep, expiringRunFreqMins]`.
-  /// The ceiling matters for correctness, not just hygiene:
-  /// `nextExpiresAt()` is a snapshot, and a put with a sooner
-  /// expiry while we sleep would otherwise go un-swept until the
-  /// (stale) wake-up. Capping the sleep bounds that staleness at
-  /// one old-style poll interval — the worst case is exactly
-  /// today's fixed-cadence behaviour, the common case is a sweep
-  /// within seconds of the next key actually expiring. The same
-  /// ceiling doubles as the idle re-check period when no key has
-  /// a ttl at all.
-  ///
-  /// A 0-30s jitter spreads the disk load when multiple co-hosted
-  /// atSigns have expiries clustered at the same wall-clock minute.
+  /// Sleep is clamped to `[_minExpirySleep, expiringRunFreqMins]`, plus a
+  /// 0-30s jitter.
   Future<void> _scheduleNextExpirySweep() async {
     if (_persistenceBundle == null) {
       return;
@@ -529,18 +449,25 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       if (_persistenceBundle == null) {
         return;
       }
-      try {
-        await keyValueStore.deleteExpiredKeys();
-      } on Exception catch (e) {
-        logger.warning('Key expiry sweep failed: $e');
-      }
+      await onExpirySweepTimerFired();
       await _scheduleNextExpirySweep();
     });
   }
 
-  /// Schedule a periodic compaction tick for [resource]. The tick
-  /// drains `compact(false)` with an overlap guard and records the
-  /// pass via [statsService].
+  /// What the expiry timer does when it fires: one housekeeping sweep, with a
+  /// failure logged rather than propagated into the timer.
+  @visibleForTesting
+  Future<void> onExpirySweepTimerFired() async {
+    try {
+      await runHousekeepingSweep();
+    } on Exception catch (e) {
+      logger.warning('Key expiry sweep failed: $e');
+    }
+  }
+
+  /// Schedules a periodic compaction tick for [resource]. The tick drains
+  /// `compact(false)` with an overlap guard and records the pass via
+  /// [statsService].
   void _scheduleCompaction(
     Compactable resource,
     Duration period,
@@ -575,7 +502,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   Future<void> initDynamicConfigListeners() async {
-    //subscriber for inbound_max_limit change
     logger.finest('Subscribing to dynamic changes made to inbound_max_limit');
     AtSecondaryConfig.subscribe(ModifiableConfigs.inboundMaxLimit)
         ?.listen((newSize) {
@@ -586,7 +512,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     final statsService = AtCompactionStatsService(keyValueStore);
 
-    //subscriber for notification keystore compaction freq change
     logger.finest(
         'Subscribing to dynamic changes made to notificationKeystoreCompactionFreq');
     AtSecondaryConfig.subscribe(
@@ -599,7 +524,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           statsService);
     });
 
-    //subscriber for access log compaction frequency change
     logger.finest(
         'Subscribing to dynamic changes made to accessLogCompactionFreq');
     AtSecondaryConfig.subscribe(
@@ -609,7 +533,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           'accessLog', statsService);
     });
 
-    //subscriber for commit log compaction frequency change
     logger.finest(
         'Subscribing to dynamic changes made to commitLogCompactionFreq');
     AtSecondaryConfig.subscribe(
@@ -619,12 +542,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           'commitLog', statsService);
     });
 
-    //subscriber for autoNotify state change
     logger.finest('Subscribing to dynamic changes made to autoNotify');
     late bool autoNotifyState;
     AtSecondaryConfig.subscribe(ModifiableConfigs.autoNotify)
         ?.listen((newValue) {
-      //parse bool from string
       if (newValue.toString() == 'true') {
         autoNotifyState = true;
       } else if (newValue.toString() == 'false') {
@@ -660,26 +581,17 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
   }
 
-  /// Listens on the secondary server socket and creates an inbound connection to server socket from client socket
-  /// Throws [AtConnection] if unable to create a connection
-  /// Throws [SocketException] for exceptions on socket
-  /// Throws [Exception] for any other exceptions.
-  /// @param - ServerSocket
+  /// Listens on the secondary server socket and creates an inbound connection
+  /// for each client socket. Throws [SocketException] for socket errors.
   void _listen(final serverSocket) {
-    // ALPN support.
-    // First, make a PseudoServerSocket to which we will pass sockets which
-    // have a selectedProtocol which is neither null nor 'atProtocol/1.0'.
-    // See later in this method for where we pass sockets received on the real
-    // serverSocket to the pseudoServerSocket.
+    // NOTE sockets whose ALPN selectedProtocol is neither null nor
+    // 'atProtocol/1.0' are handed to the PseudoServerSocket.
     final pseudoServerSocket = PseudoServerSocket(serverSocket);
-    // Second, make an HttpServer which is handling sockets which are passed
-    // to the pseudoServerSocket
     HttpServer httpServer = HttpServer.listenOn(pseudoServerSocket);
     final httpReqHandler =
         AtServerHttpRequestHandler(currentAtSign, keyValueStore);
     httpServer.listen((HttpRequest req) {
       if (req.uri.path == '/ws') {
-        // Upgrade an HttpRequest to a WebSocket connection.
         logger.info('Upgraded to WebSocket connection');
         WebSocketTransformer.upgrade(req)
             .then((WebSocket ws) => webSocketListener(ws));
@@ -712,19 +624,15 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
               .handle(e, atConnection: connection, clientSocket: clientSocket);
         }
       } else {
-        // ALPN support
-        // selectedProtocol is neither null nor 'atProtocol/1.0'
-        // TODO check specifically for http/1.1
         logger.info('Transferring socket to HttpServer for handling');
         pseudoServerSocket.add(clientSocket);
       }
     }), onError: (error) {
-      // We've got no action to take here, let's just log a warning
       logger.warning("ServerSocket.listen called onError with '$error'");
     });
   }
 
-  /// Starts the secondary server in secure mode and calls the listen method of server socket.
+  /// Starts the secondary server in secure mode and listens on its socket.
   Future<void> _startSecuredServer() async {
     var secCon = SecurityContext.defaultContext;
     var retryCount = 0;
@@ -741,7 +649,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         secCon.setTrustedCertificates(
             serverContext!.securityContext!.trustedCertificatePath);
         certsAvailable = true;
-        // secCon.setAlpnProtocols(['atp/1.0', 'h2', 'http/1.1'], true);
         secCon.setAlpnProtocols(['atProtocol/1.0', 'http/1.1'], true);
       } on FileSystemException catch (e) {
         retryCount++;
@@ -763,7 +670,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
   }
 
-  /// Starts the secondary server in un-secure mode and calls the listen method of server socket.
+  /// Starts the secondary server in unsecured mode and listens on its socket.
   Future<void> _startUnSecuredServer() async {
     _serverSocket =
         await ServerSocket.bind(InternetAddress.anyIPv4, serverContext!.port);
@@ -771,11 +678,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     _listen(_serverSocket);
   }
 
-  ///Accepts the command and the inbound connection and invokes a call to execute method.
-  ///@param - command : Command to process
-  ///@param - connection : The inbound connection to secondary server from client
-  ///Throws [AtConnection] if exceptions occurs in connection.
-  ///Throws [InternalServerError] if error occurs in server.
+  /// Executes [command] on [connection].
+  /// Throws [InternalServerError] if the server fails to process it.
   void _executeVerbCallBack(
       String command, InboundConnection connection) async {
     if (logger.isLoggable('finer')) {
@@ -791,9 +695,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         return;
       }
 
-      // We're not paused - let's try to execute the command
-      // command = SecondaryUtil.convertCommand(command);
-      // logger.finer('after conversion : $command');
       await executor!.execute(command, connection, verbHandlerManager!);
     } on Exception catch (e, st) {
       await GlobalExceptionHandler.getInstance()
@@ -827,35 +728,17 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
   }
 
-  /// Removes all the active connections and stops the secondary server
-  /// Throws [AtServerException] if exception occurs in stop the server.
+  /// Removes all the active connections and stops the secondary server.
+  /// Throws [AtServerException] if the server cannot be stopped.
   ///
-  /// ## This is not only a shutdown — it is half of a restart
-  ///
-  /// [AtCertificateValidationJob] calls this and then [start] again on the same
-  /// singleton, in the same process, to pick up replaced TLS certificates. So
-  /// this method is usually followed by the server coming back, not by the
-  /// process ending, and it runs unattended: a cron checks for the restart file
-  /// twice a day, and setting the `checkCertificateReload` config forces a
-  /// check immediately.
-  ///
-  /// Anything acquired in [start] therefore has to be released here, or it
-  /// leaks once per certificate rotation and is still held when [start] runs
-  /// again. Timers, sockets, cron schedules, stream subscriptions and pooled
-  /// connections all count. Persistence is closed through
-  /// `persistenceFactory.close()` rather than left open, so the next [start]
-  /// builds a fresh bundle instead of inheriting a half-torn-down one.
-  ///
-  /// The exception is [certificateReloadJob] itself, which survives on purpose:
-  /// it is the thing calling this method, and [start] only creates one when it
-  /// is null.
+  /// Half of a restart, so everything [start] acquires must be released here.
+  /// [certificateReloadJob] is the exception, and survives on purpose.
   @override
   Future<void> stop() async {
     pause();
     try {
       logger.shout("Executing server stop()");
 
-      //close server socket
       logger.shout("Closing ServerSocket");
       _serverSocket.close();
 
@@ -893,21 +776,15 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
   }
 
-  /// Gets the inbound connection metrics and outbound connection metrics.
-  /// @return: Returns [ConnectionMetrics]
+  /// The inbound and outbound connection metrics.
   @override
   ConnectionMetrics getMetrics() {
     throw Exception("AtSecondaryServer.getMetrics() is obsolete");
   }
 
-  /// Plants the CRAM (registrar activation) secret into [keyValueStore] for
-  /// first-time activation. Deliberately conservative: the secret is planted
-  /// only when it has NOT been explicitly deleted (marker absent), is NOT
-  /// already present, and a non-empty [sharedSecret] was supplied. This
-  /// prevents (a) clobbering a real secret with a null on a restart started
-  /// without `-s`, and (b) resurrecting a deleted secret. A null/empty secret
-  /// must never be stored — it would be CRAM-authenticatable (see
-  /// [CramVerbHandler]).
+  /// Plants the CRAM activation secret into [keyValueStore] for first-time
+  /// activation, only when it has not been deleted, is not already present,
+  /// and a non-empty [sharedSecret] was supplied.
   @visibleForTesting
   Future<void> plantCramSecretIfRequired(
       AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore,
@@ -927,7 +804,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
   }
 
-  /// Initializes [AtKeyValueStore], [AtCommitLog], [AtNotificationKeystore] and [AtAccessLog] instances.
+  /// Initializes the [AtKeyValueStore], [AtCommitLog],
+  /// [AtNotificationKeystore] and [AtAccessLog] instances.
   Future<void> _initializePersistentInstances() async {
     AtNotification.defaultTtl =
         Duration(minutes: AtSecondaryConfig.notificationExpiryInMins);
@@ -935,14 +813,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     final atSign = serverContext!.currentAtSign!;
     final targetBackend = PersistenceBackendManager.configuredBackend;
 
-    // If the on-disk backend marker disagrees with the configured backend,
-    // migrate → verify → flip before opening the target. Any failure here
-    // throws out of start(), leaving the source data and marker untouched.
+    // NOTE when the on-disk marker disagrees with the configured backend,
+    // migrate, verify, then flip, before opening the target.
     await PersistenceBackendManager.migrateIfNeeded(atSign, targetBackend);
 
-    // For 'hive' (default) keep using the injectable persistenceFactory
-    // field, so existing behaviour and test injection are unchanged; for
-    // 'sqlite' / 'dual' switch to the corresponding factory.
     if (targetBackend != PersistenceBackendManager.hive) {
       persistenceFactory = PersistenceBackendManager.factoryFor(targetBackend);
     }
@@ -953,9 +827,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     _assertServerCapabilities(bundle);
 
-    // Server bundle invariant: the keystore's commitLog is non-null
-    // (asserted above). Bind once to a non-nullable local so
-    // downstream consumers don't litter `!` at every call site.
     commitLog = bundle.keyValueStore.commitLog!;
     accessLog = bundle.accessLog!;
     notificationKeystore = bundle.notificationKeystore!;
@@ -963,8 +834,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     serverContext!.isKeyStoreInitialized = true;
 
-    // Plant the CRAM secret for first-time activation only — never resurrect
-    // or clobber it once onboarding has moved to PKAM/APKAM.
     await plantCramSecretIfRequired(keyValueStore, serverContext!.sharedSecret);
     if (!await keyValueStore.exists(AtConstants.atSigningKeypairGenerated)) {
       var rsaKeypair = RSAKeypair.fromRandom();
@@ -987,14 +856,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
   }
 
-  /// Confirms that the bundle was initialised with the optional
-  /// capabilities a server requires (access log, notification
-  /// keystore). The bundle exposes them as nullable to support
-  /// client-shaped consumers that don't need them; for a server
-  /// they must be present, so missing them is a configuration
-  /// bug, not a runtime condition. After this check, the
-  /// [accessLog] and [notificationKeystore] fields can be assigned
-  /// from the bundle without `!` litter at every call site.
+  /// Confirms the bundle was initialised with the capabilities a server
+  /// requires: access log and notification keystore.
   void _assertServerCapabilities(AtPersistenceBundle bundle) {
     if (bundle.accessLog == null) {
       throw StateError('Server bundle is missing the access log capability. '
@@ -1013,12 +876,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   }
 
   Future<void> removeMalformedKeys() async {
-    // The below code removes the invalid keys on server start-up
-    // Intended to remove only keys that starts with "public:cached:" or key is "public:publickey"
-    // Fix for the git issue: https://github.com/atsign-foundation/at_server/issues/865
-
-    // [AtSecondaryConfig.shouldRemoveMalformedKeys] is set to true by default.
-    // To retain the invalid keys on server start-up, set the flag to false.
     if (AtSecondaryConfig.shouldRemoveMalformedKeys) {
       List<String> malformedKeys = AtSecondaryConfig.malformedKeysList;
       List<String> keys = await (await keyValueStore.getKeys()).toList();

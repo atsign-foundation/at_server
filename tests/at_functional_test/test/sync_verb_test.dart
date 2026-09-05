@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:at_demo_data/at_demo_data.dart' as at_demos;
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
+import 'package:at_functional_test/utils/apkam_keys.dart';
 import 'package:at_functional_test/utils/encryption_util.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
@@ -98,6 +99,7 @@ void main() {
     late OutboundConnectionFactory unauthenticatedSocket =
         OutboundConnectionFactory();
     late String enrollmentId;
+    late ApkamKeys keys;
 
     setUp(() async {
       await authenticatedSocket.initiateConnectionWithListener(
@@ -110,8 +112,9 @@ void main() {
       String otp = await authenticatedSocket.sendRequestToServer('otp:get');
       otp = otp.replaceFirst('data:', '');
       int random = Uuid().v4().hashCode;
+      keys = mintApkamKeys();
       String enrollRequest =
-          'enroll:request:{"appName":"my-first-app-$random","deviceName":"pixel-$random","namespaces":{"wavi":"rw","buzz":"r"},"otp":"$otp","apkamPublicKey":"${at_demos.apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
+          'enroll:request:{"appName":"my-first-app-$random","deviceName":"pixel-$random","namespaces":{"wavi":"rw","buzz":"r"},"otp":"$otp","apkamPublicKey":"${keys.publicKey}","encryptedAPKAMSymmetricKey" : "${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}';
 
       String enrollmentResponse =
           await unauthenticatedSocket.sendRequestToServer(enrollRequest);
@@ -149,7 +152,9 @@ void main() {
       await authenticatedSocket.initiateConnectionWithListener(
           firstAtSign, firstAtSignHost, firstAtSignPort);
       await authenticatedSocket.authenticateConnection(
-          authType: AuthType.apkam, enrollmentId: enrollmentId);
+          authType: AuthType.apkam,
+          enrollmentId: enrollmentId,
+          privateKey: keys.privateKey);
       String syncResponse = await authenticatedSocket
           .sendRequestToServer('sync:from:$lastCommitIdBeforeUpdate:limit:10');
       List syncResponseList = jsonDecode(syncResponse.replaceAll('data:', ''));

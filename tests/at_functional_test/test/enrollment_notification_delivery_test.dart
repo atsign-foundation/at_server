@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:at_demo_data/at_demo_data.dart';
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
+import 'package:at_functional_test/utils/apkam_keys.dart';
 import 'package:at_functional_test/utils/auth_utils.dart';
 import 'package:at_functional_test/utils/encryption_util.dart';
 import 'package:test/test.dart';
@@ -25,7 +26,9 @@ void main() {
   String host = ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignUrl'];
   int port = ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignPort'];
 
-  String apkamPublicKey = apkamPublicKeyMap[atSign]!;
+  // The one enrollment this file creates, and the key its monitor signs with.
+  ApkamKeys enrollmentKeys = mintApkamKeys();
+  String apkamPublicKey = enrollmentKeys.publicKey;
   String encryptedPrivateKey = EncryptionUtil.encryptValue(
       encryptionPrivateKeyMap[atSign]!, apkamSymmetricKeyMap[atSign]!);
   String encryptedSelfKey = EncryptionUtil.encryptValue(
@@ -71,7 +74,7 @@ void main() {
         String challenge =
             all.substring(start, end == -1 ? all.length : end).trim();
         String digest = AuthenticationUtils.generatePKAMDigest(
-            apkamPrivateKeyMap[atSign]!, challenge);
+            enrollmentKeys.privateKey, challenge);
         socket.write('pkam:enrollmentId:$enrollmentId:$digest\n');
       } else if (pkamSent && !monitorSent && all.contains('data:success')) {
         monitorSent = true;

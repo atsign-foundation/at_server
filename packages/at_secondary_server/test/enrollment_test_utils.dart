@@ -23,7 +23,10 @@ class ETU {
   late ProxyLookupVerbHandler plvh;
   late String primaryEnId;
 
-  Future<void> init() async {
+  /// Builds the handlers and, unless [withPrimaryEnrollment] says otherwise,
+  /// the CRAM-auto-approved enrollment [primaryEnId] names. Pass false to
+  /// leave the keystore holding no enrollment at all.
+  Future<void> init({bool withPrimaryEnrollment = true}) async {
     evh = EnrollVerbHandler(keyValueStore, enMgr, notificationManager);
     ovh = OtpVerbHandler(keyValueStore);
     uvh = UpdateVerbHandler(
@@ -39,8 +42,14 @@ class ETU {
     plvh = ProxyLookupVerbHandler(
         keyValueStore, mockOutboundClientManager, cacheManager,
         accessLog: atAccessLog);
-    primaryEnId = await createPrimaryEnrollment();
+    if (withPrimaryEnrollment) {
+      await initPrimaryEnrollment();
+    }
   }
+
+  /// Creates the CRAM-auto-approved enrollment and binds [primaryEnId] to it.
+  Future<String> initPrimaryEnrollment() async =>
+      primaryEnId = await createPrimaryEnrollment();
 
   Future<String> getOtp() async {
     inboundConnection.metaData.isAuthenticated = true;
@@ -52,22 +61,22 @@ class ETU {
   }
 
   /// [apsk] is the client-composed signing-key value and [apskLegacy] the bare
-  /// RSA string a plain-legacy enrollment publishes instead. Leaving both null
-  /// is the ordinary case and means no `_apsk` is published for this
-  /// enrollment. Sending both is what a client is refused for, so the pair is
-  /// exposed here rather than made exclusive — a test has to be able to send
-  /// the refused combination.
+  /// RSA string a plain-legacy enrollment publishes instead.
   Future<String> createPendingEnrollment(
       {required String appName,
       required String deviceName,
       required Map<String, String> namespaces,
       required Duration? apkamKeysExpiryDuration,
       Map<String, dynamic>? apsk,
-      String? apskLegacy}) async {
+      String? apskLegacy,
+      String? apkamPublicKey,
+      String? signingAlgo}) async {
     final EnrollParams ep = EnrollParams()
       ..appName = appName
       ..deviceName = deviceName
-      ..apkamPublicKey = 'apkam public key $appName $deviceName'
+      ..apkamPublicKey =
+          apkamPublicKey ?? 'apkam public key $appName $deviceName'
+      ..signingAlgo = signingAlgo
       ..encryptedAPKAMSymmetricKey =
           'encrypted apkam aes key $appName $deviceName'
       ..namespaces = namespaces
@@ -134,6 +143,22 @@ class ETU {
     expect(m['enrollmentId'], enIdToRevoke);
   }
 
+  Future<void> denyEnrollment(String denierEnId, String enIdToDeny) async {
+    inboundConnection.metaData.isAuthenticated = true;
+    inboundConnection.metaData.enrollmentId = denierEnId;
+    EnrollParams p = EnrollParams()..enrollmentId = enIdToDeny;
+    final denyResponse = Response();
+    await evh.processVerb(
+      denyResponse,
+      getVerbParam(VerbSyntax.enroll, 'enroll:deny:${jsonEncode(p.toJson())}'),
+      inboundConnection,
+    );
+    expect(denyResponse.isError, false);
+    final m = jsonDecode(denyResponse.data!);
+    expect(m['status'], EnrollmentStatus.denied.name);
+    expect(m['enrollmentId'], enIdToDeny);
+  }
+
   Future<void> unrevokeEnrollment(
       String unRevokerEnId, String enIdToUnRevoke) async {
     inboundConnection.metaData.isAuthenticated = true;
@@ -169,12 +194,15 @@ class ETU {
     expect(m['enrollmentId'], enIdToDelete);
   }
 
+  /// Serial for the keys [createPrimaryEnrollment] mints.
+  static int _primaryKeySerial = 0;
+
   Future<String> createPrimaryEnrollment(
       {Map<String, dynamic>? apsk, String? apskLegacy}) async {
     EnrollParams ep = EnrollParams()
       ..appName = 'primary'
       ..deviceName = 'primary'
-      ..apkamPublicKey = 'apkam public key'
+      ..apkamPublicKey = 'apkam public key ${_primaryKeySerial++}'
       ..encryptedAPKAMSymmetricKey = 'encrypted apkam aes key'
       ..apsk = apsk
       ..apskLegacy = apskLegacy
@@ -197,40 +225,54 @@ class ETU {
     return m['enrollmentId'];
   }
 
+  /// Asserts, for every id in [allCreated], that its enrollment record and its
+  /// two per-enrollment encryption keys are on disk or gone as
+  /// [deletedOrExpired] and [cleanedUp] say they should be.
   Future<void> verifyKeyStoreState(
       List<String> allCreated, List<String> deletedOrExpired,
       {required bool cleanedUp}) async {
-    // int i = 0;
+    expect(allCreated, isNotEmpty,
+        reason: 'the corpus must be non-empty, or this helper reports every '
+            'state as correct without asserting anything');
     for (final enId in allCreated) {
       bool enDeleted = deletedOrExpired.contains(enId);
-      // enrollment should exist unless was deleted
       bool enrollmentShouldExist = !enDeleted;
-      // ancillary keys should exist if not deleted, or if deleted but not cleanedUp
       bool ancillaryKeysShouldExist = !enDeleted || (enDeleted && !cleanedUp);
-      // print ('checking ${i++} deleted: $enDeleted cleanedUp: $cleanedUp ancillaryShouldExist: $ancillaryKeysShouldExist');
+      final String state = enDeleted
+          ? 'deleted or expired, with cleanedUp: $cleanedUp'
+          : 'still live';
       await expectLater(
           await keyValueStore.exists(enMgr.buildEnrollmentKey(enId)),
-          enrollmentShouldExist);
+          enrollmentShouldExist,
+          reason: 'the enrollment record for $enId is $state, so it should '
+              '${enrollmentShouldExist ? "be on disk" : "be gone"}');
       await expectLater(await keyValueStore.exists(enMgr.keyForPEK(enId)),
-          ancillaryKeysShouldExist);
+          ancillaryKeysShouldExist,
+          reason: 'the per-enrollment encryption private key for $enId '
+              '(${enMgr.keyForPEK(enId)}) belongs to an enrollment that is '
+              '$state, so it should '
+              '${ancillaryKeysShouldExist ? "be on disk" : "have gone with "
+                  "the record"}');
       await expectLater(await keyValueStore.exists(enMgr.keyForSEK(enId)),
-          ancillaryKeysShouldExist);
+          ancillaryKeysShouldExist,
+          reason: 'the per-enrollment self encryption key for $enId '
+              '(${enMgr.keyForSEK(enId)}) belongs to an enrollment that is '
+              '$state, so it should '
+              '${ancillaryKeysShouldExist ? "be on disk" : "have gone with "
+                  "the record"}');
     }
   }
 
   /// Returns (List of all enrollment IDs, List of IDS of enrollments with ttl)
   Future<(List<String>, List<String>)> createEnrollments({
-    /// number of enrollments to create
     required int n,
 
-    /// every m'th enrollment will have a ttl set
-    /// the ttl to set for every m'th enrollment
     int m = 1000,
+
     int ttl = 50,
   }) async {
     List<String> allEnIds = [];
     List<String> withTtlEnIds = [];
-    // Create and approve some enrollments
     for (int i = 0; i < n; i++) {
       final bool withTtl = (i + 1) % m == 0;
       final enId = await createPendingEnrollment(
@@ -263,7 +305,6 @@ class ETU {
       Response r;
       String key;
       String value;
-      // public key
       r = Response();
       key = 'public:public_foo_$i.my_app'
           '.${AbstractVerbHandler.enrollmentReservedNamespace(enId)}'
@@ -277,7 +318,6 @@ class ETU {
       keys.add(key);
       values.add(value);
 
-      // self key
       r = Response();
       key = '$alice:self_foo_$i.my_app'
           '.${AbstractVerbHandler.enrollmentReservedNamespace(enId)}'
@@ -291,7 +331,6 @@ class ETU {
       keys.add(key);
       values.add(value);
 
-      // shared key
       r = Response();
       key = '$bob:shared_foo_$i.my_app'
           '.${AbstractVerbHandler.enrollmentReservedNamespace(enId)}'

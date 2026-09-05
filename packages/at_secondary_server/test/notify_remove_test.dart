@@ -9,6 +9,7 @@ import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_remove_verb_handler.dart';
 import 'package:at_server_spec/verbs.dart';
 import 'package:test/test.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 
 import 'test_utils.dart';
 
@@ -41,7 +42,8 @@ void main() {
       var atConnection = InboundConnectionImpl(FakeSocket(), '123')
         ..metaData = (InboundConnectionMetadata()
           ..fromAtSign = alice
-          ..isAuthenticated = true);
+          ..isAuthenticated = true
+          ..authType = AuthType.cram);
       var response = Response();
       // Verify Notification is inserted into keystore
       var notifyListVerbHandler =

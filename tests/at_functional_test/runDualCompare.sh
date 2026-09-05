@@ -4,11 +4,14 @@
 # (Hive primary + SQLite secondary, every write mirrored), then compares each
 # hosted atSign's Hive and SQLite DB sets for byte-identity.
 #
-#   ./runDualCompare.sh [--build] [BASE_PORT]
+#   ./runDualCompare.sh [BASE_PORT]
 #
-# --build recompiles the root/secondary binaries first; without it, the
-# binaries already staged in ve/contents (e.g. from a prior runLocal.sh) are
-# reused. The VE image is always rebuilt so it picks up libsqlite3.
+# The root/secondary binaries are always recompiled, through buildve.sh, which
+# compiles, copies and builds as one act. `--build` used to make that optional
+# and is now accepted and ignored: reusing binaries staged by a previous run
+# produced an image whose provenance labels named THIS tree while its contents
+# came from whatever built them last, which is the lie those labels exist to
+# prevent.
 #
 # Optional VE base port, as in runLocal.sh: set VIRTUALENV_BASE_PORT (env) or
 # pass it as a positional argument. Shifts the whole VE port range —
@@ -23,10 +26,14 @@ cd "$(dirname -- "$0")"; cd ../../; repoDir=$(pwd)
 CONT=at_server_func_cont
 PERSIST_PKG="${repoDir}/packages/at_persistence_secondary_server"
 
-BUILD=""
 for arg in "$@"; do
   case "$arg" in
-    --build) BUILD="--build" ;;
+    # Accepted and ignored. The compile is unconditional now: buildve.sh
+    # compiles, copies and builds as one act, because skipping the compile
+    # produced an image whose labels named this tree while its binaries came
+    # from whatever built them last. Kept as a no-op rather than an error so
+    # an existing invocation does not start failing.
+    --build) echo "note: --build is now the default and is ignored" ;;
     *) VIRTUALENV_BASE_PORT="$arg" ;;
   esac
 done
@@ -44,22 +51,16 @@ else
   veCmd=""
 fi
 
-if [[ "$BUILD" == "--build" ]]; then
-  echo "== compile root =="
-  docker run --rm -v "${repoDir}:/app" -w /app/packages/at_root_server \
-    dart:3.11.2 sh -c 'dart pub get && dart compile exe bin/main.dart -o root' || exit 1
-  echo "== compile secondary =="
-  docker run --rm -v "${repoDir}:/app" -w /app/packages/at_secondary_server \
-    dart:3.11.2 sh -c 'dart pub get && dart compile exe bin/main.dart -o secondary' || exit 1
-  cp packages/at_root_server/root tools/build_virtual_environment/ve/contents/atsign/root/
-  cp packages/at_secondary_server/secondary tools/build_virtual_environment/ve/contents/atsign/secondary/
-  chmod 755 tools/build_virtual_environment/ve/contents/atsign/root/root
-  chmod 755 tools/build_virtual_environment/ve/contents/atsign/secondary/secondary
-fi
-
+# buildve.sh compiles, copies AND builds, and it is the only builder that
+# LABELS the image — an unlabelled VE is indistinguishable from one built by
+# anybody else, which is why a cross-repo run against one proves nothing.
+#
+# ⚠️ Note this differs from the previous behaviour: the compile used to be
+# skippable with --build, and is not any more. Skipping it produced an image
+# whose labels named this tree while its binaries came from whatever built
+# them last — precisely the provenance lie the labels exist to stop.
 echo "== build VE image (with libsqlite3) =="
-( cd "${repoDir}/tools/build_virtual_environment/ve" && \
-  docker build -f ./Dockerfile -t at_virtual_env:local . ) || exit 1
+bash "${repoDir}/tools/build_virtual_environment/buildve.sh" || exit 1
 
 echo "== run container in DUAL mode =="
 # No --rm: the DB snapshot is taken from the *stopped* container, so it has to

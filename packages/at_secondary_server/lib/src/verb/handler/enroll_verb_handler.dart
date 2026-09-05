@@ -18,17 +18,17 @@ import 'package:meta/meta.dart';
 import 'package:uuid/uuid.dart';
 
 import 'abstract_verb_handler.dart';
+import 'package:at_secondary/src/enroll/enrollment_access.dart';
 
 /// Verb handler to process APKAM enroll requests
 class EnrollVerbHandler extends AbstractVerbHandler {
   static Enroll enrollVerb = Enroll();
 
-  /// Defaulting the initial delay to 1000 milliseconds (1 second).
   @visibleForTesting
   static int initialDelayInMilliseconds = 1000;
 
-  /// A list storing a series of delay intervals for handling invalid OTP series.
-  /// The series is initially set to [0, [initialDelayInMilliseconds]] and is updated using the Fibonacci sequence.
+  /// Delay intervals for handling a series of invalid OTPs. Initially
+  /// `[0, initialDelayInMilliseconds]`, then extended Fibonacci-wise.
   @visibleForTesting
   List<int> delayForInvalidOTPSeries = <int>[0, initialDelayInMilliseconds];
 
@@ -39,30 +39,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       .inMilliseconds;
 
   /// The largest enrollment record the atServer will store, measured on its
-  /// JSON encoding — the string that lands in the keystore.
-  ///
-  /// One bound on the whole record rather than one per opaque field. A
-  /// per-field cap bounds nothing while a sibling field is uncapped, and that
-  /// was the state this replaced: `apsk` was capped while `metadata` — which
-  /// carries the enrollment's key package, the largest blob in play — was not,
-  /// so the cap sat on the one field nobody would use to make a record big.
-  /// It also means a field added later is covered without anyone remembering
-  /// to cap it.
-  ///
-  /// The record's contents are opaque, so nothing about them can be validated;
-  /// a bound is all the server can meaningfully impose. What it protects is
-  /// not disk: the record is read on every verb command and held in
-  /// [EnrollmentManager]'s cache, which is evicted only on write, so an
-  /// oversized record occupies server memory for the process's life. It is
-  /// also returned whole by `enroll:list`, and its `metadata` by
-  /// `enroll:listns` for every approved enrollment in a namespace — so one fat
-  /// record inflates every discovery response, for every caller.
-  ///
-  /// 500KB is far above any legitimate record (ML-DSA-65's public half, the
-  /// largest key in play, is ~2.6KB base64-encoded, and a record holds a
-  /// handful) and far below the ~10MB an inbound connection will buffer, which
-  /// is otherwise the only ceiling on a request that reaches this path with
-  /// nothing but an OTP.
+  /// JSON encoding, the string that lands in the keystore.
   static const int maxEnrollmentRecordBytes = 500 * 1024;
 
   final EnrollmentManager enMgr;
@@ -90,16 +67,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     logger.finer('verb params: $verbParams');
     final operation = verbParams['operation'];
     final currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-    // Approve, deny, revoke or list enrollments only on authenticated connections
     if (operation != 'request' && !atConnection.metaData.isAuthenticated) {
       throw UnAuthenticatedException(
           'Cannot $operation enrollment without authentication');
     }
     EnrollParams? enrollVerbParams;
 
-    // Ensure that enrollParams are present for all enroll operation.
-    // 'list', 'listns' and 'infons' carry no enrollParams JSON body — the
-    // namespace-scoped pair take their argument in the command itself.
+    // 'list', 'listns' and 'infons' carry no enrollParams JSON body.
     if (verbParams[AtConstants.enrollParams] == null) {
       if (operation != 'list' &&
           operation != 'listns' &&
@@ -112,25 +86,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enrollVerbParams = EnrollParams.fromJson(
           jsonDecode(verbParams[AtConstants.enrollParams]!)
               as Map<String, dynamic>);
-      // Folded here, once, for the same reason `pkam` folds the id it reads:
-      // the keystore lowercases every key, so a non-canonical spelling
-      // resolves to the SAME record while comparing unequal to the id held on
-      // the connection. Every id comparison on the revoke path — the
-      // self-revoke refusal, the descendant walk, the caller-in-cascade and
-      // last-root refusals, and the connection drop — is a string comparison
-      // against that folded value, so an unfolded params id makes each of them
-      // silently vacuous while the record is still written revoked.
-      //
-      // Ids are server-issued uuids and already lower case, so this rejects
-      // nothing that works today. It does mean a mixed-case spelling now
-      // behaves exactly like the canonical one wherever it previously fell
-      // through a guard — `enroll:fetch` of one's own enrollment and a
-      // self-`enroll:update` included. That is the intended reading of "the
-      // same enrollment", and is called out here because a fold that makes
-      // previously-refused requests succeed should be a decision rather than
-      // a side effect.
+      // NOTE folded here, once, to EXACTLY the keystore's fold. Every id
+      // comparison on the revoke path is a string comparison against this
+      // value.
       enrollVerbParams.enrollmentId =
-          enrollVerbParams.enrollmentId?.toLowerCase();
+          EnrollmentManager.canonicalEnrollmentIdOrNull(
+              enrollVerbParams.enrollmentId);
     }
 
     _validateParams(enrollVerbParams, operation!, atConnection);
@@ -181,12 +142,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         if (responseJson['status'] == EnrollmentStatus.revoked.name) {
           logger.info(
               'Dropping any open connections for enrollmentId: $enrollmentIdFromParams');
-          // The cascaded enrollments too, and the whole INTENDED set rather
-          // than the subset this call flipped. A descendant left holding an
-          // open authenticated connection goes on working until it happens to
-          // reconnect, which is most of what the cascade exists to stop — and
-          // on a retry after a part-way failure the flipped set is empty for
-          // precisely those enrollments.
+          // The whole INTENDED set, cascade included, rather than the subset
+          // this call flipped.
           await _dropRevokedClientConnections(
               {enrollmentIdFromParams!, ...alsoRevoked},
               forceFlag != null,
@@ -258,22 +215,26 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     Response response,
     InboundConnection atConnection,
   ) async {
-    // Note: The enrollmentId is verified for null check in _validateParams.
+    // _validateParams has already refused a null enrollmentId.
     final String targetEnrollmentId = enrollVerbParams!.enrollmentId!;
     EnrollDataStoreValue enrollDataStoreValue =
         await enMgr.getEnrollmentById(targetEnrollmentId);
 
-    // enroll:fetch returns the enrollment's encryptedAPKAMSymmetricKey (a
-    // secret). A caller may always fetch its OWN enrollment (and a
-    // no-enrollmentId CRAM/owner connection may fetch any). Fetching ANOTHER
-    // enrollment requires __manage AND access to EVERY namespace the target
-    // holds — the same bar as approve/deny/revoke.
+    // A caller may always fetch its OWN enrollment, and a connection carrying
+    // no enrollment id may fetch any. Fetching ANOTHER enrollment requires
+    // __manage AND access to EVERY namespace the target holds.
     final inboundConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
     final callerEnrollmentId = inboundConnectionMetadata.enrollmentId;
-    if (callerEnrollmentId != null &&
-        callerEnrollmentId.isNotEmpty &&
+    if (!AbstractVerbHandler.isCramConnection(inboundConnectionMetadata) &&
         callerEnrollmentId != targetEnrollmentId) {
+      if (enrollDataStoreValue.namespaces.isEmpty) {
+        throw UnAuthorizedException(
+            'Not authorized to fetch enrollment $targetEnrollmentId: it holds'
+            ' no namespaces, so no caller can demonstrate authority over it.'
+            ' Fetch it from the enrollment itself, or from a CRAM'
+            ' connection');
+      }
       for (final MapEntry<String, String> entry
           in enrollDataStoreValue.namespaces.entries) {
         final bool isAuthorised = await isAuthorized(inboundConnectionMetadata,
@@ -288,37 +249,25 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       }
     }
 
+    // `expiresAt` is the effective expiry, read from the record's metadata.
     return jsonEncode({
       'appName': enrollDataStoreValue.appName,
       'deviceName': enrollDataStoreValue.deviceName,
       'namespace': enrollDataStoreValue.namespaces,
       'encryptedAPKAMSymmetricKey':
           enrollDataStoreValue.encryptedAPKAMSymmetricKey,
-      'status': enrollDataStoreValue.approval?.state
+      'status': enrollDataStoreValue.approval?.state,
+      'expiresAt': EnrollmentManager.expiresAtField(
+          await enMgr.effectiveExpiryOf(
+              enMgr.buildEnrollmentKey(targetEnrollmentId))),
     });
   }
 
-  /// Enrollment requests details are persisted in the keystore and are excluded from
-  /// adding to the commit log to prevent the synchronization of enrollment
-  /// keys with clients.
+  /// `enroll:request`. Mints an enrollment record, excluded from the commit
+  /// log so enrollment keys never sync to clients.
   ///
-  /// If the enrollment request originates from a CRAM authenticated connection:
-  ///
-  /// The enrollment is automatically approved and given privilege to the "__manage"
-  /// namespace group with "rw" access.
-  /// The default encryption private key and default self-encryption key are
-  /// securely stored in encrypted format within the keystore.
-  ///
-  /// If the enrollment request originates from an unauthenticated connection and
-  /// includes a valid OTP (One-Time Password), it is marked as pending.
-  ///
-  ///
-  /// The function returns a JSON-encoded string containing the enrollmentId
-  /// and its corresponding state.
-  ///
-  /// Throws [IllegalArgumentException], if the OTP provided is invalid.
-  /// Throws [AtThrottleLimitExceeded], if the number of requests exceed within
-  /// a time window.
+  /// Throws [IllegalArgumentException] on an invalid OTP, and
+  /// [AtThrottleLimitExceeded] when requests exceed the rate limit.
   Future<void> _handleEnrollmentRequest(
       EnrollmentManager enMgr,
       EnrollParams enrollParams,
@@ -330,46 +279,53 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'Enrollment requests have exceeded the limit within the specified time frame');
     }
 
-    // Structural checks plus a size pre-filter, before anything is created
-    // or an OTP is spent. The record itself is bounded at each write.
+    // Structural checks plus a size pre-filter, before an OTP is spent.
     _validateEnrollParams(enrollParams);
 
-    // OTP is sent only in enrollment request which is submitted on
-    // unauthenticated connection.
     if (atConnection.metaData.isAuthenticated == false) {
       var isValid = await isPasscodeValid(enrollParams.otp);
       if (!isValid) {
-        // Invalid passcode, delay before responding.
         await Future.delayed(
             Duration(milliseconds: getDelayIntervalInMilliseconds()));
         throw IllegalArgumentException(
             'invalid otp. Cannot process enroll request');
       } else {
-        // Valid passcode - reset the delay
         delayForInvalidOTPSeries.clear();
         delayForInvalidOTPSeries.addAll([0, initialDelayInMilliseconds]);
       }
     }
 
-    if (atConnection.metaData.authType == AuthType.cram) {
-      // A CRAM-authenticated connection is allowed a 'duplicate' enrollment
-      // request. See #2208
+    // NOTE the throttle and OTP gate stay OUTSIDE the section: the
+    // invalid-OTP arm sleeps for a growing interval, and would hold the
+    // atSign's one enrollment-mutation lock while it did.
+    return enMgr.serialiseMutation(() => _enrollmentRequestUnderLock(
+        enMgr, enrollParams, currentAtSign, responseJson, atConnection));
+  }
+
+  /// The read-decide-write half of [_handleEnrollmentRequest], run under
+  /// [EnrollmentManager.serialiseMutation].
+  Future<void> _enrollmentRequestUnderLock(
+      EnrollmentManager enMgr,
+      EnrollParams enrollParams,
+      currentAtSign,
+      Map<dynamic, dynamic> responseJson,
+      InboundConnection atConnection) async {
+    var enrollNamespaces = enrollParams.namespaces ?? {};
+    final inboundConnectionMetadata =
+        atConnection.metaData as InboundConnectionMetadata;
+
+    if (AbstractVerbHandler.isCramConnection(atConnection.metaData as InboundConnectionMetadata)) {
       logger.warning('CRAM-authenticated connection - i.e. initial enrollment;'
           ' will replace the existing initial enrollment, if any');
-    } else if (atConnection.metaData.authType == AuthType.apkam) {
-      // An APKAM self-enrollment keeps its app's own (appName, deviceName):
-      // a retrofit is the same app re-enrolling itself, and sibling clones of
-      // one keyfile share those names, each needing to coexist with the
-      // approved enrollments the others already spawned. Uniqueness of
-      // (appName, deviceName) among live enrollments therefore ends on this
-      // branch by design.
+    } else if (carriesEnrollment(inboundConnectionMetadata)) {
+      // A self-enrollment keeps its app's own (appName, deviceName).
     } else {
-      // Every other connection must not duplicate an existing enrollment's
-      // (appName, deviceName).
       await preventDuplicateEnrollRequest(enrollParams);
     }
+    // AFTER the (appName, deviceName) rule, and before anything is written.
+    await _refuseKeyHeldByAnotherEnrollment(
+        enrollParams.apkamPublicKey!, enrollParams.signingAlgo);
 
-    var enrollNamespaces = enrollParams.namespaces ?? {};
     var newEnrollmentId = Uuid().v4();
     var enrollmentKey = enMgr.buildEnrollmentKey(newEnrollmentId);
     logger.finer('New enrollment key created : $enrollmentKey$currentAtSign');
@@ -383,18 +339,14 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     enrollmentValue.namespaces = enrollNamespaces;
     enrollmentValue.requestType = EnrollRequestType.newEnrollment;
 
-    // The X-Wing key package (at `metadata.keyPackage`), the APKAM
-    // `signingAlgo` and the client-composed `_apsk` value ride EnrollParams on
-    // enroll:request and are persisted verbatim onto the enrollment record —
-    // there is no separate enroll:metadata write.
+    // Persisted verbatim from EnrollParams; no separate metadata write.
     if (enrollParams.metadata != null) {
       enrollmentValue.metadata = enrollParams.metadata;
     }
     if (enrollParams.signingAlgo != null) {
       enrollmentValue.signingAlgo = enrollParams.signingAlgo;
     }
-    // At most one of the two is set — _validateEnrollParams refused the request
-    // that carried both, above.
+    // At most one of the two is set: _validateEnrollParams refused both.
     if (enrollParams.apsk != null) {
       enrollmentValue.apsk = enrollParams.apsk;
     }
@@ -407,9 +359,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           enrollParams.apkamKeysExpiryDuration!;
     }
 
-    // We auto-approve enroll requests from a CRAM-authenticated connection.
-    if (atConnection.metaData.authType != null &&
-        atConnection.metaData.authType == AuthType.cram) {
+    if (AbstractVerbHandler.isCramConnection(atConnection.metaData as InboundConnectionMetadata)) {
       enrollNamespaces[EnrollmentConstants.enrollManageNamespace] = 'rw';
       enrollNamespaces[EnrollmentConstants.allNamespaces] = 'rw';
       enrollmentValue.approval = EnrollApproval(EnrollmentStatus.approved.name);
@@ -417,16 +367,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       final inboundConnectionMetadata =
           atConnection.metaData as InboundConnectionMetadata;
       inboundConnectionMetadata.enrollmentId = newEnrollmentId;
-      // Before any write: a refusal must not leave a published _apsk or a
-      // rewritten default pkam public key behind for an enrollment that was
-      // never created.
+      // Before any write, so a refusal leaves no published _apsk behind.
       _validateRecordSize(enrollmentValue);
-      // store this apkam as default pkam public key for old clients
-      // The keys with AT_PKAM_PUBLIC_KEY does not sync to client.
-      await keyStore.put(AtConstants.atPkamPublicKey,
-          AtData()..data = enrollParams.apkamPublicKey!,
-          skipCommit: true);
-      // Publish the client-composed `_apsk` signing key, if it sent one.
+
+      // ⛔ This branch must NOT copy the APKAM public key into
+      // `at_pkam_publickey`: that gives one keypair two identities with
+      // separate lifecycles, and the write is unconditional.
+
       await _publishApskSigningKey(
           newEnrollmentId, enrollmentValue, currentAtSign);
       AtData enrollData = AtData()..data = jsonEncode(enrollmentValue.toJson());
@@ -435,23 +382,14 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       return;
     }
 
-    // An APKAM-authenticated connection retrofits itself: it enrols a FRESH
-    // enrollment that REPLACES the one the connection authenticated as.
-    // Auto-approved with no human step and no OTP, that existing approved
-    // enrollment being the authority — and because the successor replaces
-    // rather than descends, it holds exactly the predecessor's grants. The
-    // predecessor is capped rather than removed, and only once the successor
-    // has authenticated, so sibling clones of the same keyfile can still
-    // retrofit until the cap elapses.
-    if (atConnection.metaData.authType == AuthType.apkam) {
-      final inboundConnectionMetadata =
-          atConnection.metaData as InboundConnectionMetadata;
-      final predecessorId = inboundConnectionMetadata.enrollmentId;
-      if (predecessorId == null) {
-        throw UnAuthorizedException(
-            'An APKAM-authenticated self-enrollment needs a resolvable '
-            'enrollment id on the connection');
-      }
+    // A connection already holding an enrollment retrofits itself: a FRESH
+    // enrollment that REPLACES the one it authenticated as, auto-approved
+    // with no OTP, holding exactly the predecessor's grants.
+    //
+    // ⚠️ Keyed on the enrollment the connection carries rather than on the
+    // auth type, and placed AFTER the CRAM auto-approve.
+    if (carriesEnrollment(inboundConnectionMetadata)) {
+      final String predecessorId = inboundConnectionMetadata.enrollmentId!;
       final EnrollDataStoreValue predecessor;
       try {
         predecessor = await enMgr.getEnrollmentById(predecessorId);
@@ -464,34 +402,44 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         throw UnAuthorizedException(
             'Predecessor enrollment $predecessorId is not approved');
       }
-      // Escalation first, so a request naming MORE than the predecessor holds
-      // keeps its own diagnosis rather than being reported as a mismatch.
+      if (predecessor.namespaces.isEmpty) {
+        throw UnAuthorizedException(
+            'Predecessor enrollment $predecessorId holds no namespaces, and a '
+            'replacement carries exactly the grants of the enrollment it '
+            'replaces, so it would hold none either');
+      }
+      // A retrofit is a ONCE-OFF: one no-approver migration per device.
+      if (predecessor.retrofitPredecessorEnrollmentId != null) {
+        throw UnAuthorizedException(
+            'Enrollment $predecessorId is itself a replacement, and a '
+            'replacement may not be replaced without an approver');
+      }
+      if (!predecessor.isRootEnrollment &&
+          await _retrofitCapAlreadyArmed(enMgr, predecessorId)) {
+        throw UnAuthorizedException(
+            'Enrollment $predecessorId has already been replaced, and its '
+            'replacement has authenticated; a second split is not allowed '
+            'once the first successor has authenticated. A sibling clone of '
+            'this keyfile enrols over an OTP');
+      }
+      // Escalation first, so a request naming MORE keeps its own diagnosis.
       verifyNoEscalation(predecessor.namespaces, enrollNamespaces);
-      // Then the replacement rule. A retrofit carries its predecessor's grants
-      // verbatim and does not choose its own.
       requireGrantsMatchPredecessor(predecessor.namespaces, enrollParams.namespaces);
       enrollmentValue.namespaces = Map.of(predecessor.namespaces);
 
       enrollmentValue.approval = EnrollApproval(EnrollmentStatus.approved.name);
-      // The successor records what it replaced so revocation can CASCADE: a
-      // stolen keyfile must not spawn a successor that survives the
-      // revocation of what it replaced. The revoke path walks this edge.
-      enrollmentValue.parentEnrollmentId = predecessorId;
-      // The successor inherits the predecessor's key-expiry posture unless
-      // the request states its own. Time is a separate axis from grants: the
-      // successor carries the predecessor's grants exactly, but it may hold a
-      // shorter life than the credential it replaced.
+      // What this successor REPLACED, which the retrofit cap reads.
+      // ⛔ Not for revocation: the revoke path does NOT walk this edge.
+      enrollmentValue.retrofitPredecessorEnrollmentId = predecessorId;
+      // A retrofit takes the predecessor's place in the approval graph.
+      enrollmentValue.parentEnrollmentId =
+          predecessor.parentEnrollmentId;
       if (enrollParams.apkamKeysExpiryDuration == null) {
         enrollmentValue.apkamKeysExpiryDuration =
             predecessor.apkamKeysExpiryDuration;
       }
-      // A stated posture may narrow the predecessor's, never widen it.
-      // `verifyNoEscalation` covers namespaces; TIME is the other axis a
-      // stolen keyfile would want to widen, and this branch is the one
-      // enrollment path with no human in the loop to notice. Zero is the
-      // keystore's "never expires" and a negative value skips the ttl write
-      // altogether, so both are ways of asking for a permanent credential —
-      // against a time-bound predecessor, neither is honoured.
+      // NOTE a stated posture may narrow the predecessor's, never widen it;
+      // zero and negative both ask for a permanent credential.
       final predecessorExpiryMs = predecessor.apkamKeysExpiryDuration.inMilliseconds;
       final statedExpiryMs =
           enrollmentValue.apkamKeysExpiryDuration.inMilliseconds;
@@ -505,57 +453,72 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         enrollmentValue.apkamKeysExpiryDuration =
             predecessor.apkamKeysExpiryDuration;
       }
-      // May be absent: a PQ self-enrollment conveys its legacy material
-      // client-side, sealed to its own new key package.
+
+      // The clamp above compares TERMS, and a capped predecessor's real
+      // deadline lives only in its RECORD metadata, so bound the successor by
+      // that stored DEADLINE. The POSTURE is narrowed rather than the ttl.
+      DateTime? boundedDeadline;
+      final DateTime? predecessorExpiresAt =
+          (await keyStore.getMeta(enMgr.buildEnrollmentKey(predecessorId)))
+              ?.expiresAt
+              ?.toUtc();
+      if (predecessorExpiresAt != null) {
+        final int remainingMs = predecessorExpiresAt
+            .difference(DateTime.now().toUtc())
+            .inMilliseconds;
+        // Zero is the keystore's "never expires".
+        final int boundedMs = remainingMs < 1 ? 1 : remainingMs;
+        final int statedMs =
+            enrollmentValue.apkamKeysExpiryDuration.inMilliseconds;
+        if (statedMs <= 0 || statedMs > boundedMs) {
+          logger.warning(
+              'Self-enrollment under $predecessorId asked for ${statedMs}ms '
+              'against a predecessor whose record expires at '
+              '$predecessorExpiresAt; bounding it to ${boundedMs}ms');
+          enrollmentValue.apkamKeysExpiryDuration =
+              Duration(milliseconds: boundedMs);
+          // Carried as an ABSOLUTE: a ttl is re-anchored at the write.
+          boundedDeadline = predecessorExpiresAt;
+        }
+      }
+      // May be absent: a PQ self-enrollment conveys legacy material
+      // client-side.
       enrollmentValue.encryptedAPKAMSymmetricKey =
           enrollParams.encryptedAPKAMSymmetricKey;
       responseJson['status'] = 'approved';
 
-      // Before any write, so a refusal leaves no published _apsk behind for an
-      // enrollment that was never created.
+      // Before any write, so a refusal leaves no published _apsk behind.
       _validateRecordSize(enrollmentValue);
-      // Publish the client-composed `_apsk` signing key, if it sent one.
       await _publishApskSigningKey(
           newEnrollmentId, enrollmentValue, currentAtSign);
-      // The successor's record expires per its (inherited or stated)
-      // key-expiry posture, exactly as the ordinary approve path writes it —
-      // the retrofit copies the predecessor's expiry, it does not grant
-      // immortality. A ttl of zero is the keystore's "never expires",
-      // matching a predecessor with no posture.
+      // A ttl of zero is the keystore's "never expires".
       await enMgr.put(
           newEnrollmentId,
           AtData()
             ..data = jsonEncode(enrollmentValue.toJson())
             ..metaData = (AtMetaData()
               ..ttl = enrollmentValue.apkamKeysExpiryDuration.inMilliseconds),
-          EnrollmentStatus.approved);
+          EnrollmentStatus.approved,
+          assertedTimestamps: boundedDeadline == null
+              ? null
+              : AtAssertedTimestamps(expiresAt: boundedDeadline));
 
-      // The predecessor is NOT capped here. Storing the successor proves only
-      // that this server wrote a record: the successor's APKAM private half is
-      // persisted client-side, so a keyfile write that fails would leave it
-      // existing here and nowhere else — with a clock already running on the
-      // predecessor, which is by then the only credential that still works.
-      // The cap is armed by the successor's FIRST PKAM authentication instead,
-      // which is what proves the private half survived and is usable. See
-      // [EnrollmentManager.armRetrofitCapOnFirstAuth].
+      // NOTE the predecessor is NOT capped here; the cap is armed by the
+      // successor's FIRST PKAM authentication.
       return;
     }
 
-    // OK it's a standard enrollment request.
-    // - send a notification to be received by an approver app
-    // - store the enrollment in 'pending' state
+    // A standard request: notify an approver app, and store it `pending`.
     enrollmentValue.encryptedAPKAMSymmetricKey =
         enrollParams.encryptedAPKAMSymmetricKey;
     enrollmentValue.approval = EnrollApproval(EnrollmentStatus.pending.name);
-    await _storeNotification(enrollmentKey, enrollParams, currentAtSign);
     responseJson['status'] = 'pending';
+    // Every check runs before the notification.
     _validateRecordSize(enrollmentValue);
+    await _storeNotification(enrollmentKey, enrollParams, currentAtSign);
     AtData enrollData = AtData()
       ..data = jsonEncode(enrollmentValue.toJson())
-      // Set TTL to the pending enrollments.
-      // The enrollments will expire after configured
-      // expiry limit, beyond which any action (approve/deny/revoke) on an
-      // enrollment is forbidden
+      // A pending enrollment expires after the configured limit.
       ..metaData = (AtMetaData()..ttl = enrollmentExpiryInMills);
 
     await enMgr.put(newEnrollmentId, enrollData, EnrollmentStatus.pending);
@@ -563,11 +526,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
   /// Rejects any requested grant the predecessor enrollment does not hold.
   ///
-  /// Subset per namespace and per access letter: `r` fits under `rw`, never
-  /// the reverse. A predecessor's `*` grant covers any ordinary namespace at
-  /// letters it carries — mirroring the server's own authorisation — but
-  /// `__manage` and `*` themselves must be held literally: `*` does not imply
-  /// `__manage` anywhere else in the server, and it must not here.
+  /// `__manage` and `*` must be held literally; a predecessor's `*` covers
+  /// any other namespace at the letters it carries.
   @visibleForTesting
   void verifyNoEscalation(
       Map<String, String> predecessorGrants, Map<String, String> requested) {
@@ -592,25 +552,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// Refuses a self-enrollment whose stated grants are not exactly those of
   /// the enrollment it replaces.
   ///
-  /// A retrofit REPLACES its predecessor rather than descending from it, so it
-  /// carries the predecessor's grants and does not choose its own. Stating
   /// [requested] is optional: omit it and the predecessor's grants are
   /// inherited, state it and it must name exactly them.
-  ///
-  /// Refused rather than reconciled, in both directions. Silently widening a
-  /// narrower request would hand a caller authority it never asked for.
-  /// Silently honouring one would retire a working credential in favour of a
-  /// successor that cannot do what it replaced — a loss that surfaces at the
-  /// next thing the app does, far from the request that caused it.
-  ///
-  /// Escalation is rejected before this by [verifyNoEscalation], which keeps
-  /// its own diagnosis. What reaches the throw here is anything that is not
-  /// literally the predecessor's map — usually fewer namespaces or narrower
-  /// letters, but also a request that names MORE namespaces without escalating,
-  /// as `{'*':'rw','wavi':'rw'}` does against a predecessor holding `{'*':'rw'}`:
-  /// `wavi` falls under the wildcard so no grant is gained, and the request is
-  /// still refused because a replacement states its predecessor's grants or
-  /// states nothing.
   @visibleForTesting
   void requireGrantsMatchPredecessor(
       Map<String, String> predecessorGrants, Map<String, String>? requested) {
@@ -626,19 +569,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         'exactly them.');
   }
 
-  /// Handles enrollment approve, deny, revoke and unrevoke requests.
-  /// Retrieves enrollment details from keystore and updates the enrollment status based on [operation]
-  /// If [operation] is approve, store encrypted encryption keys
-  /// Returns every id the revoke INTENDED to revoke by cascade, so the caller
-  /// can drop their connections. Deliberately not the subset this call
-  /// actually flipped: a retry after a part-way failure finds the descendants
-  /// already revoked, so the flipped set is empty for exactly the enrollments
-  /// whose connections still need dropping. The response field reports the
-  /// flipped set, which is the honest answer to "what did this command
-  /// change"; the two are different questions.
+  /// Handles `enroll:approve`, `deny`, `revoke` and `unrevoke`, updating the
+  /// stored enrollment's status and, on approve, storing the encrypted
+  /// encryption keys.
   ///
-  /// Empty for every operation but `revoke`, and for a revoke whose target has
-  /// no descendants.
+  /// Returns every id the revoke INTENDED to revoke by cascade, empty for
+  /// every other operation.
   Future<List<String>> _handleApproveDenyRevokeUnrevoke(
       EnrollmentManager enMgr,
       InboundConnectionMetadata inboundConnectionMetadata,
@@ -647,19 +583,39 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       String operation,
       Map<dynamic, dynamic> responseJson,
       Response response) async {
-    // Note: The enrollParams.enrollmentId is verified for null check in _validateParams method.
-    // Therefore, when control comes here, enrollmentId will not be null.
+    // NOTE the SPAN is the point rather than the write: a revoke reads the
+    // target, walks its descendants and asks whether an unexpiring root
+    // survives the act, all before writing.
+    return enMgr.serialiseMutation(() => _approveDenyRevokeUnrevokeUnderLock(
+        enMgr,
+        inboundConnectionMetadata,
+        enrollParams,
+        currentAtSign,
+        operation,
+        responseJson,
+        response));
+  }
+
+  /// The read-decide-write half of [_handleApproveDenyRevokeUnrevoke], run
+  /// under [EnrollmentManager.serialiseMutation].
+  Future<List<String>> _approveDenyRevokeUnrevokeUnderLock(
+      EnrollmentManager enMgr,
+      InboundConnectionMetadata inboundConnectionMetadata,
+      EnrollParams enrollParams,
+      currentAtSign,
+      String operation,
+      Map<dynamic, dynamic> responseJson,
+      Response response) async {
     final String enId = enrollParams.enrollmentId!;
+
     EnrollDataStoreValue? enVal;
     EnrollmentStatus? status;
     try {
       enVal = await enMgr.getEnrollmentById(enId);
     } on KeyNotFoundException {
-      // When an enrollment key is expired or invalid
       status = EnrollmentStatus.expired;
     }
     status ??= EnrollmentStatus.values.byName(enVal!.approval!.state);
-    // Validates if enrollment is not expired
     if (EnrollmentStatus.expired == status) {
       response.isError = true;
       response.errorCode = 'AT0028';
@@ -667,14 +623,28 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       return const [];
     }
 
-    // Verifies whether the enrollment state matches the intended state
-    // Throws IllegalStateException, if the enrollment state is different from
-    // the intended state
     try {
       _verifyEnrollmentStateBeforeAction(operation, status);
     } on IllegalStateException catch (e) {
       throw IllegalStateException(
           'Failed to $operation enrollment id: $enId. ${e.message}');
+    }
+    if (operation == 'approve' && enVal!.namespaces.isEmpty) {
+      throw IllegalArgumentException(
+          'Failed to approve enrollment id: $enId. It holds no namespaces, '
+          'and an approved enrollment granting nothing must not exist');
+    }
+
+    // NOTE a target holding NO namespaces passes the loop below vacuously,
+    // so it is refused here; the self and CRAM clauses stay open.
+    final String? callerIdForAuthz = inboundConnectionMetadata.enrollmentId;
+    if (!AbstractVerbHandler.isCramConnection(inboundConnectionMetadata) &&
+        callerIdForAuthz != enId &&
+        enVal!.namespaces.isEmpty) {
+      throw UnAuthorizedException('Failed to $operation enrollment id: $enId.'
+          ' It holds no namespaces, so no caller can demonstrate authority'
+          ' over it. Act on it from the enrollment itself, or from a CRAM'
+          ' connection');
     }
 
     for (MapEntry<String, String> entry in enVal!.namespaces.entries) {
@@ -695,77 +665,42 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (operation == 'revoke') {
       cascadeIds = (await enMgr.descendantsOf(enId)).toList();
 
-      // A revoker must survive its own act. The authorisation loop above only
-      // asks whether the caller covers the target's namespaces, and a
-      // successor holds its predecessor's grants EXACTLY — so a successor
-      // always passes it against its predecessor, and a successor is a
-      // descendant of what it replaced. The cascade would therefore take the
-      // caller with it. On a two-enrollment atSign that is stranding reached
-      // without anyone self-revoking, which is why neither the self-revoke
-      // refusal on the way in nor the liveness check below ever sees it.
+      // A revoker must survive its own act.
       if (callerId != null && cascadeIds.contains(callerId)) {
         throw AtEnrollmentRevokeException(
             'Cannot revoke enrollment $enId: $callerId, the enrollment making '
-            'this request, replaced it and would be revoked by the same '
-            'cascade. Revoke $enId from an enrollment outside the chain that '
-            'replaced it');
+            'this request, descends from it by approval and would be revoked '
+            'by the same cascade. Revoke $enId from an enrollment outside the '
+            'chain of approvals beneath it');
       }
 
       // Revoking a fully privileged enrollment may not leave the atSign
-      // without one. Asked for EVERY such revoke, not only a self-revoke:
-      // gating it on `enId == callerId` missed the case where a root with a
-      // finite lifetime revokes the atSign's other root and then expires,
-      // which strands it just as completely and trips none of the other
-      // refusals — the caller is not the target, and a target with no
-      // descendants cannot contain the caller in its cascade.
-      //
-      // The DEADLINE is what the caller's own record buys. A caller that
-      // never expires and is itself fully privileged answers the question by
-      // existing (it is not in the excluded set, so it is counted). A caller
-      // that expires must leave someone alive past that moment. A caller that
-      // is NOT fully privileged is never counted whatever its lifetime —
-      // which is right, and closes a second gap: revoking a root requires
-      // authority over the target's namespaces, and `__manage:r` satisfies
-      // that, so a caller who could not restore a root could previously
-      // remove the last one.
-      //
-      // Asked over what SURVIVES the cascade, not over what is stored: the
-      // descendants are still `approved` while this runs, so counting them
-      // would report the atSign safe at the moment it is being stranded.
-      //
-      // Skipped entirely for a connection carrying no enrollment id — a
-      // legacy-PKAM or CRAM owner can always mint a fresh enrollment, so it
-      // cannot strand itself this way.
-      if (enVal.isRootEnrollment && callerId != null) {
-        final AtMetaData? callerRecord =
-            await keyStore.getMeta(enMgr.buildEnrollmentKey(callerId));
-        final DateTime deadline =
-            callerRecord?.expiresAt?.toUtc() ?? DateTime.now().toUtc();
-        final bool someoneSurvives = await enMgr.hasRootEnrollmentAliveAfter(
-            {enId, ...cascadeIds}, deadline);
-        if (!someoneSurvives) {
+      // without a PERMANENT one. Asked of the ACT rather than of the target,
+      // over what SURVIVES the cascade, and skipped for a connection carrying
+      // no enrollment id.
+      if (callerId != null) {
+        // Cheapest question first: the liveness question walks the keystore.
+        final List<String> rootsRemoved = [
+          if (await enMgr.isUsableRootEnrollment(enId, enVal)) enId,
+          ...await enMgr.approvedRootEnrollmentsAmong(cascadeIds),
+        ];
+        if (rootsRemoved.isNotEmpty &&
+            !await enMgr.hasUnexpiringRootEnrollment({enId, ...cascadeIds})) {
           throw AtEnrollmentRevokeException(
-              'Cannot revoke enrollment $enId: it holds full privilege and no '
-              'other fully privileged enrollment on $currentAtSign would '
-              'survive $deadline, so the atSign would be left unable to '
-              'approve a replacement. Approve another fully privileged '
-              'enrollment first');
+              'Cannot revoke enrollment $enId: it would remove the fully '
+              'privileged enrollment(s) ${rootsRemoved.join(', ')} and no '
+              'fully privileged enrollment surviving it on $currentAtSign is '
+              'permanent, so the atSign would be left unable to approve a '
+              'replacement once the remaining ones expire. Approve another '
+              'fully privileged enrollment that does not expire first');
         }
       }
     } else if (operation == 'approve' || operation == 'unrevoke') {
-      await _refuseIfPredecessorNotApproved(enMgr, enId, enVal, operation);
+      await _refuseIfApproverNotApproved(enMgr, enId, enVal, operation);
     }
 
-    // The cascade goes FIRST, before the target's own write. The order is
-    // about what a retry does: revoking the target first and then failing
-    // part-way through the subtree leaves a state where the same command
-    // comes back "Cannot revoke a revoked enrollment", so the cascade can
-    // never be completed. This order fails the other way — the subtree is
-    // revoked and the target is not — and re-running the command finishes
-    // the job.
-    //
-    // One moment for the whole command — the enrollment named and every
-    // enrollment the cascade takes. See EnrollmentManager.revokeAll.
+    // The cascade goes FIRST, before the target's own write, so a part-way
+    // failure is finished by re-running. One moment for the whole command.
     final DateTime commandAt = DateTime.now().toUtc();
     final List<String> cascaded = cascadeIds.isEmpty
         ? const []
@@ -781,13 +716,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     enVal.approval!.state = newEnrollmentStatus.name;
     responseJson['status'] = newEnrollmentStatus.name;
 
-    // The revocation history, for the enrollment this command NAMED. The
-    // cascade wrote its own above, with the same provenance and `cascadedFrom`
-    // pointing here.
-    //
-    // Grants are read off the record BEFORE the write, and recorded on the
-    // un-revoke too: an event has to say which namespaces it affects without
-    // the enrollment, which by then may be reaped.
+    // The revocation history for the enrollment this command NAMED. Grants
+    // are read off the record BEFORE the write, and recorded on the un-revoke
+    // too.
     EnrollmentRevocationEvent? revocationEvent;
     if (operation == 'revoke' || operation == 'unrevoke') {
       revocationEvent = EnrollmentRevocationEvent(
@@ -801,46 +732,32 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         cascadedFrom: null,
       );
     }
-    // A revoke records BEFORE its write and an un-revoke AFTER it, so that a
-    // crash in the window always errs towards reporting the namespace as
-    // revoked. Over-stating a revocation costs a client a refetch;
-    // under-stating one tells it nothing has changed when a credential has
-    // just stopped working.
+    // A revoke records BEFORE its write and an un-revoke AFTER it.
     if (operation == 'revoke') {
       await enMgr.recordRevocationEvents([revocationEvent!]);
     }
 
-    // Update the enrollment status against the enrollment key in keystore.
-    AtData atData = AtData()..data = jsonEncode(enVal.toJson());
-    // If an enrollment is approved, we need the enrollment to be active
-    // to subsequently revoke the enrollment. Hence reset TTL and
-    // expiredAt on metadata.
+    // Read off the connection rather than the request, so an approver cannot
+    // name someone else as the admitting party.
     if (operation == 'approve') {
-      // Fetch the existing data
+      final String? approverId = inboundConnectionMetadata.enrollmentId;
+      enVal.parentEnrollmentId =
+          (approverId != null && approverId.isNotEmpty) ? approverId : null;
+    }
+
+    AtData atData = AtData()..data = jsonEncode(enVal.toJson());
+    // Approval resets the ttl off the enrollment's APKAM key-expiry posture.
+    // NOTE a non-positive posture is written as 0, never passed through: a
+    // negative ttl leaves the pending record's expiry standing.
+    if (operation == 'approve') {
       String ek = enMgr.buildEnrollmentKey(enId);
       AtMetaData emd = await keyStore.getMeta(ek) ?? AtMetaData();
-      // Update key with new data
-      // Update ttl value to support auto expiry of APKAM keys.
-      //
-      // A non-positive posture is a request for a credential that does not
-      // expire, and is written as ttl 0 — the keystore's "never expires" —
-      // rather than passed through. A NEGATIVE ttl is not "no expiry": the
-      // metadata builder derives `expiresAt` only for `ttl >= 0`, so a
-      // negative one skips the derivation and leaves the PENDING record's
-      // expiry standing on the approved enrollment. The credential then
-      // carries a deadline nobody asked for, inherited from the window it had
-      // to be approved in — and a later retrofit cap, measuring against that
-      // stale value, appears to EXTEND the enrollment rather than shorten it.
       final int postureMs = enVal.apkamKeysExpiryDuration.inMilliseconds;
       emd.ttl = postureMs > 0 ? postureMs : 0;
       atData.metaData = emd;
     }
-    // A write that says nothing about expiry must not MOVE expiry. The
-    // metadata builder re-derives `expiresAt = now + ttl` from the RETAINED
-    // ttl on any write that does not assert the stored absolute back, so a
-    // revoke, deny or unrevoke would silently restart the enrollment's APKAM
-    // key-expiry clock — and with it any retrofit cap standing on the record.
-    // `approve` is the deliberate exception: it starts that clock, just above.
+    // NOTE a write that says nothing about expiry must not MOVE expiry, so
+    // the stored absolute is asserted back. `approve` is the exception above.
     AtAssertedTimestamps? expiryCarry;
     if (operation != 'approve') {
       final AtMetaData? stored =
@@ -857,17 +774,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       await enMgr.recordRevocationEvents([revocationEvent!]);
     }
 
-    // when enrollment is approved store the encrypted encryption keys
     if (operation == 'approve') {
       await _storeEncryptionKeys(enId, enrollParams, enVal);
-      // Publish the `_apsk` signing key the enrollee composed on its request.
-      // Read off the RECORD, not off these approve params: the value is the
-      // enrollee's, and an approver must not be able to substitute a signing
-      // key for the enrollment it is approving.
+      // Read off the RECORD, not off these approve params.
       await _publishApskSigningKey(enId, enVal, currentAtSign);
     }
     responseJson['enrollmentId'] = enId;
-    // Only when it happened, so no existing response shape changes.
+    // Emitted only when a cascade happened.
     if (cascaded.isNotEmpty) {
       responseJson['cascadedEnrollmentIds'] = cascaded;
     }
@@ -875,70 +788,33 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   }
 
   /// Refuses an operation that would make [enId] active while the enrollment
-  /// it replaced is not.
+  /// that APPROVED it is not.
   ///
-  /// This is what stops the revoke cascade being one-way. `enroll:unrevoke` on
-  /// a descendant would otherwise resurrect exactly the orphan the cascade
-  /// removed.
-  ///
-  /// `approve` is checked for the same reason, and today it CANNOT reach the
-  /// refusal: `parentEnrollmentId` is set only in the APKAM self-enrollment
-  /// branch, which auto-approves, so no enrollment carrying a predecessor is
-  /// ever pending and `enroll:approve` on one is already refused as a state
-  /// error. The check is here so the invariant is total — an enrollment does
-  /// not become active while what it replaced is inactive — at every
-  /// transition into an active state rather than at the one that happens to be
-  /// reachable.
-  ///
-  /// Two things are always allowed, for DIFFERENT reasons — they were once
-  /// documented here as one, which credited the second with the first's job.
-  ///
-  /// A null [EnrollDataStoreValue.parentEnrollmentId] is the ordinary approver
-  /// path, which is most enrollments; the field is set only by a retrofit.
-  /// That check alone is what stops the rule barring every enrollment ever
-  /// made through an approver.
-  ///
-  /// A predecessor that no longer EXISTS is separate, and narrower: it can
-  /// only be a retrofit successor whose predecessor was deleted. It is
-  /// permitted because there is nothing left to compare against — but it does
-  /// mean `enroll:delete` on a middle link is a way to un-revoke what is
-  /// behind it, which is the same gap [EnrollmentManager.descendantsOf]
-  /// documents for a deleted link.
-  Future<void> _refuseIfPredecessorNotApproved(EnrollmentManager enMgr,
+  /// Allowed when nothing recorded here admitted [enId], and when the
+  /// approver no longer exists.
+  Future<void> _refuseIfApproverNotApproved(EnrollmentManager enMgr,
       String enId, EnrollDataStoreValue enVal, String operation) async {
-    final String? predecessorId = enVal.parentEnrollmentId;
-    if (predecessorId == null) return;
-    final EnrollDataStoreValue predecessor;
+    final String? approverId = enVal.parentEnrollmentId;
+    if (approverId == null) return;
+    final EnrollDataStoreValue approver;
     try {
-      predecessor = await enMgr.getEnrollmentById(predecessorId);
+      approver = await enMgr.getEnrollmentById(approverId);
     } on KeyNotFoundException {
       return;
     }
-    final String? state = predecessor.approval?.state;
+    final String? state = approver.approval?.state;
     if (state == EnrollmentStatus.approved.name) return;
     throw IllegalStateException(
-        'Cannot $operation enrollment $enId: the enrollment it replaced '
-        '($predecessorId) is $state, and reactivating $enId would restore the '
-        'access that was withdrawn from $predecessorId');
+        'Cannot $operation enrollment $enId: the enrollment that approved it '
+        '($approverId) is $state, and reactivating $enId would restore the '
+        'access that was withdrawn from $approverId');
   }
 
-  /// `enroll:update` — an approved enrollment amending its OWN record.
+  /// `enroll:update`: an approved enrollment amending its OWN record.
   ///
   /// Reaches `apkamPublicKey`, `signingAlgo`, `apsk` and `metadata`, and
-  /// nothing else. `namespaces` and the approval state are permanently out of
-  /// reach: this operation is self-only, so an enrollment that could reach
-  /// them could widen its own grant, which is privilege escalation with a
-  /// valid signature on it.
-  ///
-  /// Replacing `apkamPublicKey` is how an enrollment rotates its
-  /// authentication keypair while keeping its id. Before this existed the only
-  /// route was a new enrollment, which strands every record addressed to the
-  /// old id.
-  ///
-  /// Metadata is a per-key set, never a whole-map replace: keys the request
-  /// does not name survive untouched. A whole-map replace is read-mutate-write
-  /// against shared durable state, so a client that does not know about a
-  /// future sibling field would clobber it.
+  /// nothing else: `namespaces` and the approval state are permanently out of
+  /// reach. Metadata is a per-key set, never a whole-map replace.
   Future<void> _handleEnrollmentUpdate(
     EnrollmentManager enMgr,
     InboundConnectionMetadata connectionMetadata,
@@ -949,18 +825,29 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   ) async {
     final enId = enrollParams.enrollmentId!;
 
-    // Self-only. An explicit exception to `isAuthorized`'s "no enrollmentId
-    // means full permissions" default: an owner or legacy-PKAM connection is
-    // refused here, not waved through. An owner cannot sign anything with this
-    // enrollment's APKAM private, so anything it wrote would fail every
-    // reader's verification and buys only a denial of service — and self-only
-    // is what makes replace semantics safe, because the only party who can
-    // reinstate a stale value is the holder of the key it was signed with.
+    // NOTE self-only, and an explicit exception to `isAuthorized`'s "no
+    // enrollmentId means full permissions" default.
     if (connectionMetadata.enrollmentId != enId) {
       throw AtEnrollmentException(
           'enroll:update is self-only: this connection is authenticated as '
-          '${connectionMetadata.enrollmentId ?? "the owner"}, not $enId');
+          '${connectionMetadata.enrollmentId ?? "the owner"}, not $enId. '
+          'Authenticate as $enId to update it');
     }
+
+    // Everything below reads the record, decides against it and writes it.
+    return enMgr.serialiseMutation(() => _enrollmentUpdateUnderLock(
+        enMgr, enrollParams, currentAtSign, responseJson));
+  }
+
+  /// The read-decide-write half of [_handleEnrollmentUpdate], run under
+  /// [EnrollmentManager.serialiseMutation].
+  Future<void> _enrollmentUpdateUnderLock(
+    EnrollmentManager enMgr,
+    EnrollParams enrollParams,
+    String currentAtSign,
+    Map<dynamic, dynamic> responseJson,
+  ) async {
+    final enId = enrollParams.enrollmentId!;
 
     final enVal = await enMgr.getEnrollmentById(enId);
     final status = EnrollmentStatus.values.byName(enVal.approval!.state);
@@ -970,8 +857,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           '${status.name}');
     }
 
-    // Same checks and the same reasons as enroll:request, applied before
-    // anything is written.
     _validateEnrollParams(enrollParams);
 
     if (enrollParams.apkamPublicKey != null) {
@@ -982,24 +867,23 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         signingAlgo: newSigningAlgo,
         signature: enrollParams.apkamPublicKeySignature,
       );
+      // The record re-sending its own current key is not a collision.
+      await _refuseKeyHeldByAnotherEnrollment(
+          enrollParams.apkamPublicKey!, newSigningAlgo,
+          excluding: enId);
       enVal.apkamPublicKey = enrollParams.apkamPublicKey!;
       if (enrollParams.signingAlgo != null) {
         enVal.signingAlgo = enrollParams.signingAlgo;
       }
     } else if (enrollParams.signingAlgo != null) {
-      // The algorithm describes the key, so moving one without the other would
-      // leave the record claiming a spelling its key is not in — and PKAM
-      // verification is record-authoritative, so that record is what every
-      // later authentication is judged against.
+      // The algorithm describes the key, and PKAM verification is
+      // record-authoritative.
       throw IllegalArgumentException(
           'signingAlgo cannot be changed without apkamPublicKey: the '
           'algorithm describes the key');
     }
 
-    // Setting either shape clears the other: one record publishes one value,
-    // and this is the operation that moves an enrollment between them — a
-    // retrofit that gains a structured key must stop the record claiming the
-    // bare one it used to publish.
+    // Setting either shape clears the other: one record, one value.
     if (enrollParams.apsk != null) {
       enVal.apsk = enrollParams.apsk;
       enVal.apskLegacy = null;
@@ -1014,51 +898,61 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enVal.metadata = merged;
     }
 
-    // Measured AFTER the merge: metadata merges rather than replaces, so a
-    // request nowhere near the cap can still push the record past it.
+    // Measured AFTER the merge: metadata merges rather than replaces.
     _validateRecordSize(enVal);
 
-    // The state and ttl are untouched — but an untouched ttl is not an
-    // untouched EXPIRY. The metadata builder re-derives `expiresAt = now + ttl`
-    // on any write that does not assert the stored absolute back, so without
-    // this carry an enrollment could postpone its own retirement indefinitely
-    // by amending itself, one `enroll:update` per grace period, and the
-    // retrofit cap would be advisory rather than a deadline.
-    final AtMetaData? storedMeta =
-        await keyStore.getMeta(enMgr.buildEnrollmentKey(enId));
-    await enMgr.put(
-        enId, AtData()..data = jsonEncode(enVal), EnrollmentStatus.approved,
+    // NOTE the stored expiry is asserted back below, or an enrollment could
+    // postpone its own retirement by amending itself. The status is read off
+    // the record JUST BEFORE the write, never off the snapshot above, and a
+    // record no longer approved is REFUSED rather than written.
+    final AtData? fresh;
+    try {
+      fresh = await keyStore.get(enMgr.buildEnrollmentKey(enId));
+    } on KeyNotFoundException {
+      throw AtEnrollmentException(
+          'enroll:update: enrollment $enId no longer exists');
+    }
+    final String? freshRaw = fresh?.data;
+    EnrollmentStatus? current;
+    if (freshRaw != null) {
+      try {
+        current = EnrollmentStatus.values.asNameMap()[
+            EnrollDataStoreValue.fromJson(jsonDecode(freshRaw)).approval?.state ??
+                ''];
+      } on FormatException {
+        current = null;
+      }
+    }
+    if (current == null) {
+      throw AtEnrollmentException(
+          'enroll:update: enrollment $enId does not decode as of this write');
+    }
+    if (current != EnrollmentStatus.approved) {
+      throw AtEnrollmentException(
+          'enroll:update: enrollment $enId is ${current.name} as of this'
+          ' write, though it was approved when the request was checked');
+    }
+    final AtMetaData? storedMeta = fresh!.metaData;
+    await enMgr.put(enId, AtData()..data = jsonEncode(enVal), current,
         assertedTimestamps: storedMeta?.expiresAt == null
             ? null
             : AtAssertedTimestamps(expiresAt: storedMeta!.expiresAt));
 
-    // Republish only when the request carried a new value. An update that says
-    // nothing about either shape leaves the published record exactly as it was.
+    // Republish only when the request carried a new value.
     if (enrollParams.apsk != null || enrollParams.apskLegacy != null) {
       await _publishApskSigningKey(enId, enVal, currentAtSign);
     }
 
     responseJson['enrollmentId'] = enId;
-    responseJson['status'] = EnrollmentStatus.approved.name;
+    // The status just read off the record, not a constant.
+    responseJson['status'] = current.name;
   }
 
   /// Verifies that whoever sent this `enroll:update` holds the private half of
   /// the [apkamPublicKey] it is asking to install.
   ///
-  /// The connection proves possession of the enrollment's **current** key;
-  /// nothing else proves possession of the new one. Without this check a
-  /// compromised-but-authenticated client can install a public key whose
-  /// private half is held by an attacker, locking out the legitimate holder
-  /// while the enrollment record still looks entirely valid.
-  ///
   /// The signature covers `<enrollmentId>|<apkamPublicKey>|<signingAlgo>` and
-  /// is verified against the new public key carried in the same request —
-  /// a self-signature, which is exactly what proof of possession is.
-  ///
-  /// No nonce, deliberately: the operation is self-only over an authenticated
-  /// connection, and the old key stops authenticating the moment the rotation
-  /// lands, so a replayed request can only be sent by the current holder. That
-  /// makes a rollback self-harm rather than an attack.
+  /// is verified against the new public key carried in the same request.
   Future<void> _verifyApkamPublicKeyPossession({
     required String enrollmentId,
     required String apkamPublicKey,
@@ -1072,11 +966,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           'of the key it is installing');
     }
 
-    // Verified through ApkamSignatureVerifier, the same path `pkam:` uses.
-    // PKAM is the other place that verifies an APKAM signature against a
-    // record's algorithm, and the two must agree byte-for-byte about how a
-    // signature is framed: a key that can authenticate has to be installable,
-    // and a key installed here has to be able to authenticate afterwards.
+    // NOTE the framing must match `pkam:` byte-for-byte: a key installed
+    // here has to be able to authenticate afterwards.
     final signable = '$enrollmentId|$apkamPublicKey|$signingAlgo';
     final verified = await ApkamSignatureVerifier.verify(
       message: utf8.encode(signable),
@@ -1129,13 +1020,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  /// Stores the encrypted default encryption private key
-  /// in `<enrollmentId>.default_enc_private_key.__manage@<atsign>`
-  /// and the encrypted self encryption key
-  /// in `<enrollmentId>.default_self_enc_key.__manage@<atsign>`
-  /// These keys will be stored only on server and will not be synced to the
-  /// client. Encrypted keys will be used later on by the approving app to
-  /// send the keys to a new enrolling app
+  /// Stores the encrypted default encryption private key and the encrypted
+  /// self encryption key against the enrollment's `__manage` keys, which an
+  /// approving app reads to convey the keys to a new enrolling app.
   Future<void> _storeEncryptionKeys(
     String newEnrollmentId,
     EnrollParams enrollParams,
@@ -1172,19 +1059,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// Refuses a request carrying both `_apsk` shapes, and refuses one whose
   /// payload cannot fit in an enrollment record.
   ///
-  /// Both shapes at once is a client error rather than a precedence question:
-  /// one record publishes one value, and the server has no basis for choosing
-  /// between two the client disagreed with itself about. Refusing is also what
-  /// keeps the choice observable — silently preferring one would publish a
-  /// signing key the enrollee did not think it had asked for.
-  ///
-  /// The size check here is a **pre-filter**, not the authority. It runs
-  /// before the OTP is validated so an oversized request does not spend a
-  /// one-shot passcode on its way to being refused, and it is safe to do early
-  /// because these params are strictly larger than the part of the record they
-  /// become. [_validateRecordSize] is what actually holds the bound, because
-  /// `enroll:update` merges `metadata` and so can grow a record past the cap
-  /// with a request that is nowhere near it.
+  /// The size check here is a pre-filter, run before the OTP is spent;
+  /// [_validateRecordSize] holds the bound.
   void _validateEnrollParams(EnrollParams enrollParams) {
     if (enrollParams.apsk != null && enrollParams.apskLegacy != null) {
       throw IllegalArgumentException(
@@ -1203,18 +1079,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// Refuses an enrollment record over [maxEnrollmentRecordBytes], measured on
   /// the JSON that would land in the keystore.
   ///
-  /// Called before every write of a record, on the record as it will be
-  /// stored — after any merge — because that is the only measurement the
-  /// bound can be stated in. Refused rather than truncated: a truncated record
-  /// is unparseable, and the enrollment it describes would be unusable with
-  /// nothing to say why.
-  ///
-  /// On the `enroll:request` path the pre-filter in [_validateEnrollParams]
-  /// almost always refuses first, because `EnrollParams.toJson()` emits every
-  /// field including the null ones and so encodes larger than the record it
-  /// becomes. `enroll:update` is where this check does the work: `metadata`
-  /// merges rather than replaces, so a request nowhere near the cap can still
-  /// leave a record past it, and no measurement of the request can see that.
+  /// Called before every write, on the record as it will be stored and so
+  /// after any merge.
   void _validateRecordSize(EnrollDataStoreValue enVal) {
     final length = utf8.encode(jsonEncode(enVal.toJson())).length;
     if (length > maxEnrollmentRecordBytes) {
@@ -1227,15 +1093,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// The exact string this enrollment publishes as its `_apsk`, or null when
   /// it publishes none.
   ///
-  /// The two shapes are stored differently because they are read differently.
-  /// [EnrollDataStoreValue.apskLegacy] goes out **verbatim**: every deployed
-  /// `_apsk` consumer base64-decodes the value as an RSA key, and a JSON string
-  /// — quotes and all — is not what that parser reads. [EnrollDataStoreValue.apsk]
-  /// is JSON-encoded, which is what makes it unmistakable to those same
-  /// consumers: they fail loudly on it rather than mis-reading it.
-  ///
-  /// The two are mutually exclusive on the wire, so the order here decides
-  /// nothing; it is written as a chain only so the null case has one answer.
+  /// [EnrollDataStoreValue.apskLegacy] goes out verbatim and
+  /// [EnrollDataStoreValue.apsk] JSON-encoded; the two are mutually exclusive.
   static String? _apskRecordValue(EnrollDataStoreValue enVal) {
     if (enVal.apskLegacy != null) {
       return enVal.apskLegacy;
@@ -1246,30 +1105,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     return null;
   }
 
-  /// Publishes the `_apsk` value the CLIENT composed and sent on
-  /// `enroll:request` at `public:_apsk.<enrollmentId>.a.__e@<atSign>`, the
-  /// location the at_client `ApkamSigning` mixin reads.
+  /// Publishes the `_apsk` value the CLIENT composed at
+  /// `public:_apsk.<enrollmentId>.a.__e@<atSign>`, world-readable so a
+  /// verifier can reach it via plookup.
   ///
-  /// A no-op when [enVal] carries neither shape. The atServer composes
-  /// nothing: PKAM verification reads the enrollment record's
-  /// `apkamPublicKey` and `signingAlgo`, so `_apsk` is a client-side artefact
-  /// and its format belongs to the side that parses it. An enrollment that
-  /// sent no value publishes its own signing key from its own connection, or
-  /// goes without.
-  ///
-  /// The server writes it despite never reading it because `_apsk` accepts
-  /// writes only from its own enrollment's connection, and at approval that
-  /// connection has never existed. The approver needs the record immediately —
-  /// it verifies the enrollee's key package against it and signs signing-chain
-  /// links over it — so this is the only party that can put it there in time.
-  ///
-  /// Takes the RECORD rather than a value, so every call site publishes what
-  /// the enrollee asked for: an approver handing its own value in would be
-  /// substituting a signing key for the enrollment it is approving.
-  ///
-  /// World-readable, so a same-atSign or peer-atSign verifier can reach it via
-  /// plookup. Idempotent: a re-publish is a harmless overwrite with the same
-  /// value.
+  /// A no-op when [enVal] carries neither shape. Takes the RECORD rather than
+  /// a value, so an approver cannot substitute its own.
   Future<void> _publishApskSigningKey(
       String enrollmentId, EnrollDataStoreValue enVal, currentAtSign) async {
     final value = _apskRecordValue(enVal);
@@ -1287,40 +1128,46 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       'approve': EnrollmentStatus.approved,
       'deny': EnrollmentStatus.denied,
       'revoke': EnrollmentStatus.revoked,
-      // If an enrollment is un-revoked, then it should be go back to approved state to authenticate with the APKAM keys
-      // corresponding to the enrollment-id. Therefore setting "EnrollmentStatus.approved"
       'unrevoke': EnrollmentStatus.approved
     };
 
     return operationMap[enrollmentOperation] ?? EnrollmentStatus.pending;
   }
 
-  /// Returns a Map where key is an enrollment key and value is a
-  /// Map of "appName","deviceName" and "namespaces"
+  /// `enroll:list`. The enrollments this caller may see, keyed by enrollment
+  /// key, projected according to what the caller holds on `__manage`.
   Future<String> _fetchEnrollmentRequests(
       EnrollmentManager enMgr, AtConnection atConnection, String currentAtSign,
       {EnrollParams? enrollVerbParams}) async {
-    String? authenticatedEnrollmentId =
-        (atConnection.metaData as InboundConnectionMetadata).enrollmentId;
-    // If connection is authenticated via legacy PKAM, then enrollApprovalId is null.
-    // Return all the enrollments.
-    if (authenticatedEnrollmentId == null ||
-        authenticatedEnrollmentId.isEmpty) {
+    final InboundConnectionMetadata md =
+        atConnection.metaData as InboundConnectionMetadata;
+    String? authenticatedEnrollmentId = md.enrollmentId;
+    // A CRAM connection gets every enrollment whole.
+    if (AbstractVerbHandler.isCramConnection(md)) {
       final enrollmentRequestsMap = await enMgr.getEnrollmentsAsJson(
+        redactSecrets: false,
         statuses: enrollVerbParams?.enrollmentStatusFilter,
       );
       return jsonEncode(enrollmentRequestsMap);
     }
+    if (authenticatedEnrollmentId == null ||
+        authenticatedEnrollmentId.isEmpty) {
+      throw UnAuthenticatedException(
+          'enroll:list requires an enrollment or a CRAM connection');
+    }
 
-    // If connection is authenticated via APKAM, then enrollApprovalId is populated,
-    // check if the enrollment has access to __manage namespace.
-    // If enrollApprovalId has access to __manage namespace, return all the enrollments,
-    // Else return only the specific enrollment.
+    // An APKAM connection sees every enrollment when its own holds `__manage`.
     EnrollDataStoreValue enrollDataStoreValue =
         await enMgr.getEnrollmentById(authenticatedEnrollmentId);
 
     if (_doesEnrollmentHaveManageNamespace(enrollDataStoreValue)) {
+      // NOTE the projection turns on the caller's own __manage LETTER: a
+      // read-only administrator can never approve, so it gets the roster.
+      final bool callerMayApprove = EnrollmentAccess.allowsWrite(
+          enrollDataStoreValue
+              .namespaces[EnrollmentConstants.enrollManageNamespace]);
       final jsonMap = await enMgr.getEnrollmentsAsJson(
+        redactSecrets: !callerMayApprove,
         statuses: enrollVerbParams?.enrollmentStatusFilter,
       );
       return jsonEncode(jsonMap);
@@ -1328,8 +1175,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       final jsonMap = {};
       if (enrollDataStoreValue.approval!.state !=
           EnrollmentStatus.expired.name) {
+        // The caller's OWN record, whole.
         String ek = enMgr.buildEnrollmentKey(authenticatedEnrollmentId);
-        jsonMap[ek] = enrollDataStoreValue.toJsonExtended();
+        jsonMap[ek] = enrollDataStoreValue.toJsonExtended()
+          ..['expiresAt'] = EnrollmentManager.expiresAtField(
+              await enMgr.effectiveExpiryOf(ek));
       }
       return jsonEncode(jsonMap);
     }
@@ -1338,11 +1188,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// Returns a JSON-encoded list of approved enrollments authorised for
   /// [namespace]. Each element has shape:
   ///   `{"enrollmentId": <id>, "access": <"r"|"rw">, "metadata": <map|null>}`
-  ///
-  /// Only enrollments with at least read-access to [namespace] are included.
-  /// Requires an APKAM-authenticated connection that itself has access to the
-  /// namespace (the atServer namespace gating ensures this implicitly; the
-  /// handler re-verifies that the caller's enrollment is approved).
   Future<String> _fetchEnrollmentsForNamespace(
     EnrollmentManager enMgr,
     InboundConnection atConnection,
@@ -1360,24 +1205,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// Facts about [namespace] itself, as opposed to the roster of enrollments
   /// holding it.
   ///
-  /// A MAP, and deliberately so. The roster is a list of members and the last
-  /// revocation affecting a namespace is not a fact about any member — putting
-  /// it there meant the same value on every row under a name that had to
-  /// explain why it was in the wrong place. A map also has room for the next
-  /// per-namespace fact without touching the roster's shape, which matters
-  /// because a deployed client reads that roster as
-  /// `if (decoded is! List) return const []` and would take an unrecognised
-  /// shape for an empty namespace, silently.
-  ///
-  /// `lastRevokedAt` is present ALWAYS, null when nothing holding the
-  /// namespace has been revoked. An absent key and a key a client failed to
-  /// parse are the same thing to a careless reader; an explicit null is an
-  /// answer.
-  ///
-  /// It is derived from the revocation history, which outlives the enrollments
-  /// it describes, and it NETS OUT un-revocations — so it can move backwards.
-  /// A client deciding whether to refetch must compare it for inequality
-  /// rather than order it.
+  /// `lastRevokedAt` is present always, null when nothing holding the
+  /// namespace has been revoked, and it can move BACKWARDS: compare it for
+  /// inequality rather than ordering it.
   Future<String> _fetchNamespaceInfo(
     EnrollmentManager enMgr,
     InboundConnection atConnection,
@@ -1395,10 +1225,6 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// The gate both namespace-scoped verbs sit behind: an APKAM-authenticated
   /// caller whose own enrollment is approved and which holds at least read
   /// access to [namespace].
-  ///
-  /// Shared rather than restated so the two verbs cannot drift apart — what a
-  /// caller may learn ABOUT a namespace and who it may learn holds that
-  /// namespace are the same authorisation question.
   Future<void> _requireNamespaceAccess(
     EnrollmentManager enMgr,
     InboundConnection atConnection,
@@ -1419,22 +1245,27 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       throw UnAuthorizedException(
           'Caller enrollment is not authorised for namespace "$namespace"');
     }
+    // NOTE `*` does not imply `__manage`: the matcher above falls back to the
+    // wildcard for any namespace with no explicit grant.
+    if (namespace == EnrollmentConstants.enrollManageNamespace &&
+        !_doesEnrollmentHaveManageNamespace(callerEnVal)) {
+      throw UnAuthorizedException(
+          'Caller enrollment is not authorised for namespace "$namespace":'
+          ' it must be held explicitly, and a `*` grant does not confer it');
+    }
   }
 
-  /// The caller's access (`r`|`rw`) to [namespace] under the atServer's own
-  /// suffix / `*`-wildcard rule, or null if the enrollment has no access.
-  /// Mirrors [EnrollmentManager.getEnrollmentsForNamespace]'s match; both `r`
-  /// and `rw` satisfy the ≥`r` bar the discovery verb requires.
+  /// Whether the enrollment holds `__manage` EXPLICITLY; a `*` grant does not
+  /// satisfy this.
   bool _doesEnrollmentHaveManageNamespace(
       EnrollDataStoreValue enrollDataStoreValue) {
     return enrollDataStoreValue.namespaces
         .containsKey(EnrollmentConstants.enrollManageNamespace);
   }
 
-  /// Pending enrollments have to be notified to clients which have rw access
-  /// to the __manage namespace, so store a self notification with key
-  /// `<enrollmentId>.new.enrollments.__manage` and value containing the
-  /// encrypted APKAM symmetric key
+  /// Announces a pending enrollment to approver apps as a self notification
+  /// keyed `<enrollmentId>.new.enrollments.__manage`, carrying the encrypted
+  /// APKAM symmetric key.
   Future<void> _storeNotification(
       String key, EnrollParams enrollParams, String atSign) async {
     AtNotification? atNotification;
@@ -1442,8 +1273,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       var notificationValue = {};
       notificationValue[AtConstants.apkamEncryptedSymmetricKey] =
           enrollParams.encryptedAPKAMSymmetricKey;
-      // send both encryptedAPKAMSymmetricKey and encryptedApkamSymmetricKey in notification
-      // after the server is released, use encryptedAPKAMSymmetricKey. Modify the constant name in at_commons and client side code.
+      // NOTE both spellings go out; dropping either is a wire change.
       notificationValue['encryptedAPKAMSymmetricKey'] =
           enrollParams.encryptedAPKAMSymmetricKey;
       notificationValue[AtConstants.appName] = enrollParams.appName;
@@ -1468,9 +1298,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  /// Verifies whether the enrollment state matches the intended state.
-  /// Throws IllegalStateException: If the enrollment state is different
-  /// from the intended state.
+  /// Throws [IllegalStateException] when [enrollStatus] is not a state
+  /// [operation] may act on.
   void _verifyEnrollmentStateBeforeAction(
       String? operation, EnrollmentStatus enrollStatus) {
     if (operation == 'approve' && EnrollmentStatus.pending != enrollStatus) {
@@ -1497,42 +1326,73 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  /// Checks whether an enrollment with the same appName and deviceName already exists for the given request.
-  /// If a matching enrollment is found, [AtEnrollmentException] exception is thrown.
-  /// Otherwise, the enrollment request is accepted.
+  /// Whether [md] carries an enrollment: an authenticated connection holding a
+  /// non-empty enrollment id. This, and not the auth type, selects the
+  /// retrofit branch of the request path and the exemptions that go with it.
   @visibleForTesting
-  Future<void> preventDuplicateEnrollRequest(EnrollParams enrollParams) async {
-    // Fetches all the enrollment keys from the keystore.
-    List<dynamic> enrollmentKeys = await (await keyStore.getKeys(
-            regex: EnrollmentConstants.enrollmentsRegex))
-        .toList();
+  static bool carriesEnrollment(InboundConnectionMetadata md) {
+    final String? id = md.enrollmentId;
+    return md.isAuthenticated && id != null && id.isNotEmpty;
+  }
 
-    // Iterate through the existing enrollments and verify that there is no enrollment with the same
-    // appName and deviceName combination, and a status of 'pending' or 'approved'
-    for (String key in enrollmentKeys) {
-      AtData atData = AtData();
-      try {
-        atData = (await keyStore.get(key))!;
-      } on KeyNotFoundException {
-        logger.finest('An enrollment with $key does not exist or expired');
-      }
-      if (atData.data == null) {
-        continue;
-      }
-      EnrollDataStoreValue enrollDataStoreValue =
-          EnrollDataStoreValue.fromJson(jsonDecode(atData.data!));
-
-      if ((enrollParams.appName == enrollDataStoreValue.appName &&
-              enrollParams.deviceName == enrollDataStoreValue.deviceName) &&
-          (enrollDataStoreValue.approval?.state ==
-                  EnrollmentStatus.approved.name ||
-              enrollDataStoreValue.approval?.state ==
-                  EnrollmentStatus.pending.name)) {
-        String enrollmentId = key.substring(0, key.indexOf('.'));
-        throw IllegalStateException(
-            'Another enrollment with id $enrollmentId exists with the app name: ${enrollParams.appName} and device name: ${enrollParams.deviceName} in ${enrollDataStoreValue.approval?.state} state');
+  /// Whether a retrofit of [predecessorId] has already capped it: a stored
+  /// enrollment naming it as the one it replaced, whose cap is armed.
+  Future<bool> _retrofitCapAlreadyArmed(
+      EnrollmentManager enMgr, String predecessorId) async {
+    final String canonical =
+        EnrollmentManager.canonicalEnrollmentId(predecessorId);
+    for (final (_, EnrollDataStoreValue existing)
+        in await enMgr.storedEnrollments()) {
+      if (existing.predecessorCapArmedAt == null) continue;
+      if (EnrollmentManager.canonicalEnrollmentIdOrNull(
+              existing.retrofitPredecessorEnrollmentId) ==
+          canonical) {
+        return true;
       }
     }
+    return false;
+  }
+
+  /// Refuses a request whose (appName, deviceName) an approved or pending
+  /// enrollment already holds, with [IllegalStateException].
+  ///
+  /// Read off the stored roster rather than the visible one.
+  @visibleForTesting
+  Future<void> preventDuplicateEnrollRequest(EnrollParams enrollParams) async {
+    for (final (String enrollmentId, EnrollDataStoreValue existing)
+        in await enMgr.storedEnrollments()) {
+      if (enrollParams.appName == existing.appName &&
+          enrollParams.deviceName == existing.deviceName &&
+          (existing.approval?.state == EnrollmentStatus.approved.name ||
+              existing.approval?.state == EnrollmentStatus.pending.name)) {
+        throw IllegalStateException(
+            'Another enrollment with id $enrollmentId exists with the app name: ${enrollParams.appName} and device name: ${enrollParams.deviceName} in ${existing.approval?.state} state');
+      }
+    }
+  }
+
+  /// Refuses to install [apkamPublicKey] when a stored enrollment, in ANY
+  /// status, already holds that key material, with [IllegalStateException],
+  /// and before anything is written.
+  ///
+  /// [excluding] is the enrollment re-sending its own current key. The
+  /// refusal names the holding enrollment only under `testingMode`.
+  Future<void> _refuseKeyHeldByAnotherEnrollment(
+      String apkamPublicKey, String? signingAlgo,
+      {String? excluding}) async {
+    final (String, EnrollDataStoreValue)? holder = await enMgr
+        .holderOfApkamPublicKey(apkamPublicKey, signingAlgo,
+            excluding: excluding);
+    if (holder == null) return;
+    final (String holderId, EnrollDataStoreValue value) = holder;
+    logger.warning('Refusing to install an APKAM public key that enrollment '
+        '$holderId (${value.approval?.state}) already holds');
+    final String named = AtSecondaryConfig.testingMode
+        ? ' (held by enrollment $holderId, ${value.approval?.state})'
+        : '';
+    throw IllegalStateException(
+        'The apkamPublicKey is already held by another enrollment on this '
+        'atSign; every enrollment needs a keypair of its own$named');
   }
 
   /// Throws [IllegalArgumentException] if parameters are not valid.
@@ -1556,25 +1416,38 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         }
 
         if (enrollParams.otp != null) {
-          // encryptedAPKAMSymmetricKey is mandatory for new client enrollments,
-          // except when the request advertises a key package. Such a client
-          // never generates the symmetric key: the approver mints it and
-          // encapsulates it to the advertised public half, so the request has
-          // no RSA-wrapped secret to carry. Absence alongside a key package is
-          // therefore the signal that conveyance is expected, and the field
-          // stays mandatory for every other client so a legacy one still fails
-          // here rather than enrolling into a state it cannot decrypt.
+          // NOTE not required when the request advertises a key package:
+          // such a client never generates the symmetric key.
           if (enrollParams.encryptedAPKAMSymmetricKey.isNullOrEmpty &&
               enrollParams.metadata?['keyPackage'] == null) {
             throw IllegalArgumentException(
                 'encrypted apkam symmetric key is mandatory for new client enroll:request');
           }
-          if (enrollParams.namespaces == null ||
-              enrollParams.namespaces!.isEmpty) {
-            throw IllegalArgumentException(
-                'At least one namespace must be specified for new client enroll:request');
-          }
         }
+
+        // Outside the OTP branch deliberately: an empty map lands an
+        // enrollment no caller can demonstrate authority over. ⚠️ The
+        // exemption must be keyed exactly as the request path's branches are.
+        final InboundConnectionMetadata md =
+            inboundConnection.metaData as InboundConnectionMetadata;
+        if (!AbstractVerbHandler.isCramConnection(md) &&
+            !carriesEnrollment(md) &&
+            (enrollParams.namespaces == null ||
+                enrollParams.namespaces!.isEmpty)) {
+          throw IllegalArgumentException(
+              'At least one namespace must be specified for enroll:request');
+        }
+
+        // The one place a spelling the server will not act on can be kept
+        // out of the store. See [EnrollmentAccess].
+        enrollParams.namespaces?.forEach((namespace, access) {
+          if (EnrollmentAccess.canonicalise(access) == null) {
+            throw IllegalArgumentException(
+                'Invalid access "$access" for namespace "$namespace" in '
+                'enroll:request. Valid values are '
+                '${EnrollmentAccess.canonicalSpellings.join(' and ')}');
+          }
+        });
 
         break;
       case 'approve':
@@ -1606,9 +1479,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           throw IllegalArgumentException(
               'enrollmentId is mandatory for enroll:update');
         }
-        // An update that names nothing to change is a caller bug, not a no-op
-        // worth accepting: it costs a write and a sync round for nothing, and
-        // it usually means the field the caller meant to set is misspelled.
+        // An update naming nothing to change is a caller bug.
         if (enrollParams.apkamPublicKey == null &&
             enrollParams.signingAlgo == null &&
             enrollParams.apsk == null &&
@@ -1618,37 +1489,22 @@ class EnrollVerbHandler extends AbstractVerbHandler {
               'enroll:update must name at least one of apkamPublicKey, '
               'signingAlgo, apsk, apskLegacy or metadata');
         }
-        // Named explicitly rather than silently ignored. These are the two
-        // fields the operation must never reach — an enrollment amending
-        // itself must not be able to widen its own grant or change its own
-        // approval — so a request that asks is told why, not quietly obeyed
-        // in part.
+        // Refused explicitly rather than silently ignored.
         if (enrollParams.namespaces != null) {
           throw IllegalArgumentException(
               'enroll:update cannot change namespaces: an enrollment amending '
               'itself must not be able to widen its own grant');
         }
         break;
-      // list / listns carry no enrollParams; listns validates its namespace
-      // (from the 'listNamespace' capture group) in its own handler.
+      // list, listns and infons carry no enrollParams.
     }
   }
 
-  /// Calculates and returns the delay interval in milliseconds for handling
-  /// invalid OTP.
-  ///
-  /// This method updates a series of delays stored in the '_delayForInvalidOTPSeries'
-  /// list.
-  /// The delays are calculated based on the Fibonacci sequence. If the last delay in the
-  /// series surpasses a predefined threshold, the series is reset to default value.
-  ///
-  /// Returns the calculated delay interval in milliseconds.
-
+  /// The next delay in milliseconds for an invalid OTP, advancing
+  /// [delayForInvalidOTPSeries] Fibonacci-wise and holding at
+  /// [maxDelayInMillis].
   @visibleForTesting
   int getDelayIntervalInMilliseconds() {
-    // If the last digit in "delayForInvalidOTPSeries" list reaches the threshold
-    // (enrollmentResponseDelayIntervalInMillis) then return the same without
-    // further incrementing the delay.
     if (delayForInvalidOTPSeries.last >= maxDelayInMillis) {
       return delayForInvalidOTPSeries.last;
     }
@@ -1669,11 +1525,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (enrolledNamespaceAccess.isEmpty) {
       return false;
     }
-    if (authorisedNamespaceAccess == 'rw' ||
-        (authorisedNamespaceAccess == 'r' && enrolledNamespaceAccess == 'r')) {
-      return true;
-    }
-    return false;
+    // A caller holding write may act on any grant; one holding only read may
+    // act only on a grant that is itself read-only.
+    return EnrollmentAccess.allowsWrite(authorisedNamespaceAccess) ||
+        (EnrollmentAccess.allowsRead(authorisedNamespaceAccess) &&
+            !EnrollmentAccess.allowsWrite(enrolledNamespaceAccess));
   }
 
   /// NOT a part of API. Used for unit tests
@@ -1689,62 +1545,41 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       Map responseJson,
       response,
       InboundConnection atConnection) async {
-    // Note: The enrollmentId is verified for the null check in the _validateParams methods.
-    // Therefore, when control comes here, enrollmentId will not be null.
+    // Read-decide-write from the first line, so the whole is one mutation.
+    return enMgr.serialiseMutation(() => _deleteEnrollmentUnderLock(
+        enMgr, enrollParams, responseJson, response, atConnection));
+  }
+
+  /// The read-decide-write half of [_deleteEnrollment], run under
+  /// [EnrollmentManager.serialiseMutation].
+  Future<void> _deleteEnrollmentUnderLock(
+      EnrollmentManager enMgr,
+      EnrollParams? enrollParams,
+      Map responseJson,
+      response,
+      InboundConnection atConnection) async {
+    // _validateParams has already refused a null enrollmentId.
     final String targetEnrollmentId = enrollParams!.enrollmentId!;
     EnrollDataStoreValue enVal =
         await enMgr.getEnrollmentById(targetEnrollmentId);
 
-    // A caller may always delete its OWN enrollment (and a no-enrollmentId
-    // CRAM/owner connection may delete any). Deleting ANOTHER enrollment
-    // requires __manage AND access to EVERY namespace the target holds — the
-    // same bar as approve/deny/revoke/fetch, and the same exemptions.
-    //
-    // Asked BEFORE the status checks below, so a caller that may not delete
-    // this enrollment does not learn its state from the refusal it gets.
-    //
-    // Delete is irreversible and it was the only operation naming a target
-    // that asked nothing: `enroll:fetch`, which reads a secret rather than
-    // destroying a record, has had this check all along. Two things now rest
-    // on it that did not before. `EnrollmentManager.descendantsOf` climbs
-    // `parentEnrollmentId` and fetches each link BY KEY, so a delete of a
-    // middle link puts everything behind it permanently out of reach of a
-    // later cascade. (Expiry severs a chain too, once the scheduled sweep
-    // removes the record — see [EnrollmentManager.descendantsOf]. A delete is
-    // the half a caller chooses.) And [_refuseIfPredecessorNotApproved] permits an
-    // enrollment whose predecessor no longer exists, so deleting that
-    // predecessor is what makes the orphan un-revokable.
+    // A caller may always delete its OWN enrollment, and a connection
+    // carrying no enrollment id may delete any. Deleting ANOTHER requires
+    // __manage AND access to EVERY namespace the target holds. Asked before
+    // the status checks, so a refusal leaks no state.
     final inboundConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
     final callerEnrollmentId = inboundConnectionMetadata.enrollmentId;
-    if (callerEnrollmentId != null &&
-        callerEnrollmentId.isNotEmpty &&
+    if (!AbstractVerbHandler.isCramConnection(inboundConnectionMetadata) &&
         callerEnrollmentId != targetEnrollmentId) {
-      // A target holding NO namespaces fails closed. The loop below decides by
-      // iterating the target's grants, so an empty map passes it vacuously —
-      // zero iterations, no refusal — and the `__manage` requirement lives
-      // inside that loop too, so it would not be asked either. An enrollment
-      // with an empty grant map would therefore be the one record any enrolled
-      // caller could destroy, which inverts the rule exactly where the record
-      // is most anomalous.
-      //
-      // Reachable, and not only from storage written by an older build: an
-      // `enroll:request` on a LEGACY-PKAM connection lands one. `AuthType` has
-      // three values and that path is neither of the two that fill the map in
-      // — it takes the `else` branch, so it never gets the CRAM branch's
-      // `__manage`+`*` nor the APKAM branch's copy of the predecessor's grants
-      // — while the "at least one namespace" check sits inside the OTP branch
-      // of _validateParams, which an authenticated connection does not enter.
-      //
-      // ⚠️ Every OTHER per-namespace loop still passes such a record
-      // vacuously: approve, deny, revoke and unrevoke share one loop, and
-      // enroll:fetch has its own. This gate is the only one that refuses.
+      // NOTE a target holding NO namespaces fails closed: the loop below
+      // passes an empty map vacuously, and each such loop carries this guard.
       if (enVal.namespaces.isEmpty) {
         throw UnAuthorizedException(
             'Not authorized to delete enrollment $targetEnrollmentId: it holds'
             ' no namespaces, so no caller can demonstrate authority over it.'
-            ' Delete it from the enrollment itself, or from an owner (CRAM or'
-            ' legacy-PKAM) connection');
+            ' Delete it from the enrollment itself, or from a CRAM'
+            ' connection');
       }
       for (final MapEntry<String, String> entry in enVal.namespaces.entries) {
         final bool isAuthorised = await isAuthorized(inboundConnectionMetadata,

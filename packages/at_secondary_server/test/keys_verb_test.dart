@@ -70,7 +70,6 @@ void main() {
       await keysVerbHandler.process(keysGetCommand, inboundConnection);
       expect(inboundConnection.lastWrittenData,
           "data:[\"public:encryption_$enrollId.__public_keys.__global$alice\"]\n$alice@");
-      // llookup of keys is not allowed
       var llookUpCommand =
           'llookup:public:encryption_$enrollId.__public_keys.__global$alice';
       await localLookupVerbHandler.process(llookUpCommand, inboundConnection);
@@ -118,7 +117,6 @@ void main() {
       await keysVerbHandler.process(keysGetCommand, inboundConnection);
       expect(inboundConnection.lastWrittenData,
           "data:[\"public:encryption_$enrollId.__public_keys.__global$alice\"]\n$alice@");
-      // llookup of keys is not allowed
       var llookUpCommand =
           'llookup:public:encryption_$enrollId.__public_keys.__global$alice';
       await localLookupVerbHandler.process(llookUpCommand, inboundConnection);
@@ -783,9 +781,11 @@ void main() {
       };
       var keyName = '$enrollId.new.enrollments.__manage$alice';
       await keyValueStore.put(keyName, AtData()..data = jsonEncode(enrollJson));
+      // NOTE processVerb, not process: `process` never reaches this refusal,
+      // which is the keys verb's own.
       expect(
-          () async =>
-              await keysVerbHandler.process(keysGetCommand, inboundConnection),
+          () async => await keysVerbHandler.processVerb(Response(),
+              keysVerbHandler.parse(keysGetCommand), inboundConnection),
           throwsA(predicate((dynamic e) =>
               e is AtEnrollmentException &&
               e.message ==

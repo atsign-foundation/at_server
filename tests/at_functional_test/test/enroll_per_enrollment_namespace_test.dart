@@ -1,18 +1,16 @@
 import 'dart:convert';
 
 import 'package:at_demo_data/at_demo_data.dart' as at_demos;
-import 'package:at_demo_data/at_demo_data.dart';
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
+import 'package:at_functional_test/utils/apkam_keys.dart';
 import 'package:at_functional_test/utils/encryption_util.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
 
-/// Functional coverage of the per-enrollment reserved namespace (`<enId>.a.__e`)
-/// over the wire: an enrollment owns a private reserved namespace it (and only it)
-/// can read/write, public keys within it are world-readable, and a state change
-/// (revoke) MOVES that enrollment's data `a.__e -> r.__e` — scoped to the
-/// transitioning enrollment, leaving other enrollments' data untouched.
+/// Functional coverage of the per-enrollment reserved namespace
+/// (`<enId>.a.__e`) over the wire: who may read and write it, and the move to
+/// `r.__e` on revoke.
 void main() {
   OutboundConnectionFactory firstAtSignConnection = OutboundConnectionFactory();
   String firstAtSign =
@@ -43,12 +41,13 @@ void main() {
     await firstAtSignConnection.close();
   });
 
-  /// CRAM-authenticate, enroll (auto-approved), then re-connect and APKAM-auth on
-  /// the new enrollment id. Returns the enrollment id.
+  /// CRAM-authenticate, enroll (auto-approved), then re-connect and APKAM-auth
+  /// on the new enrollment id. Returns the enrollment id.
   Future<String> cramEnrollAndApkam() async {
     await firstAtSignConnection.authenticateConnection(authType: AuthType.cram);
+    ApkamKeys keys = mintApkamKeys();
     String enrollRequest =
-        'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+        'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${keys.publicKey}"}\n';
     var enrollJsonMap = jsonDecode(
         (await firstAtSignConnection.sendRequestToServer(enrollRequest))
             .replaceAll('data:', ''));
@@ -58,7 +57,9 @@ void main() {
     await firstAtSignConnection.initiateConnectionWithListener(
         firstAtSign, firstAtSignHost, firstAtSignPort);
     await firstAtSignConnection.authenticateConnection(
-        authType: AuthType.pkam, enrollmentId: enrollmentId);
+        authType: AuthType.apkam,
+        enrollmentId: enrollmentId,
+        privateKey: keys.privateKey);
     return enrollmentId;
   }
 
@@ -91,7 +92,6 @@ void main() {
           (!updateResponse.contains('Invalid syntax')) &&
           (!updateResponse.contains('null')));
 
-      // A fresh, unauthenticated connection can read the public key.
       OutboundConnectionFactory unauthConnection =
           await OutboundConnectionFactory().initiateConnectionWithListener(
               firstAtSign, firstAtSignHost, firstAtSignPort);
@@ -104,40 +104,40 @@ void main() {
     test(
         'a *:rw + __manage primary cannot read another enrollment\'s per-enrollment (a.__e) data',
         () async {
-      // Primary CRAM enrollment (has __manage + *:rw) — it will approve.
       await firstAtSignConnection.authenticateConnection(authType: AuthType.cram);
+      ApkamKeys primaryKeys = mintApkamKeys();
       String primaryEnroll =
-          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${pkamPublicKeyMap[firstAtSign]!}"}\n';
+          'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${primaryKeys.publicKey}"}\n';
       var primaryJson = jsonDecode(
           (await firstAtSignConnection.sendRequestToServer(primaryEnroll))
               .replaceAll('data:', ''));
       expect(primaryJson['status'], 'approved');
+      String primaryEnrollmentId = primaryJson['enrollmentId'];
 
-      // A second enrollment, requested with an OTP from a second connection.
       String otp = (await firstAtSignConnection.sendRequestToServer('otp:get'))
           .replaceFirst('data:', '')
           .trim();
       OutboundConnectionFactory secondConnection =
           await OutboundConnectionFactory().initiateConnectionWithListener(
               firstAtSign, firstAtSignHost, firstAtSignPort);
+      ApkamKeys secondKeys = mintApkamKeys();
       String secondEnroll =
-          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otp","apkamPublicKey":"${apkamPublicKeyMap[firstAtSign]!}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}\n';
+          'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otp","apkamPublicKey":"${secondKeys.publicKey}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}\n';
       var secondJson = jsonDecode(
           (await secondConnection.sendRequestToServer(secondEnroll))
               .replaceAll('data:', ''));
       expect(secondJson['status'], 'pending');
       String secondEnrollmentId = secondJson['enrollmentId'];
 
-      // Primary approves the second enrollment.
       var approveJson = jsonDecode((await firstAtSignConnection.sendRequestToServer(
               'enroll:approve:{"enrollmentId":"$secondEnrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap["encryptedDefaultEncPrivateKey"]}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap["encryptedSelfEncKey"]}"}'))
           .replaceAll('data:', ''));
       expect(approveJson['status'], 'approved');
 
-      // The second enrollment writes AND reads a self key in its OWN reserved
-      // namespace — own-enrollment access is unchanged.
       await secondConnection.authenticateConnection(
-          authType: AuthType.apkam, enrollmentId: secondEnrollmentId);
+          authType: AuthType.apkam,
+          enrollmentId: secondEnrollmentId,
+          privateKey: secondKeys.privateKey);
       String approvedKey =
           '$firstAtSign:secret.$secondEnrollmentId.a.__e$firstAtSign';
       String updateResponse = await secondConnection
@@ -148,11 +148,18 @@ void main() {
           'data:topsecret');
       await secondConnection.close();
 
-      // The primary holds *:rw + __manage, yet must NOT be able to read another
-      // enrollment's per-enrollment reserved-namespace (a.__e) data. (The
-      // a -> r/d lifecycle move on revoke/delete is verified by the server unit
-      // tests, which observe the keystore directly; it is intentionally no
-      // longer observable cross-enrollment over the wire.)
+      expect(
+          await firstAtSignConnection.sendRequestToServer('llookup:$approvedKey'),
+          'data:topsecret',
+          reason: 'a CRAM connection is the atSign, whatever it has enrolled');
+
+      await firstAtSignConnection.close();
+      await firstAtSignConnection.initiateConnectionWithListener(
+          firstAtSign, firstAtSignHost, firstAtSignPort);
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.apkam,
+          enrollmentId: primaryEnrollmentId,
+          privateKey: primaryKeys.privateKey);
       String crossRead = await firstAtSignConnection
           .sendRequestToServer('llookup:$approvedKey');
       expect(crossRead, isNot(contains('topsecret')),
