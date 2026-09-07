@@ -1,3 +1,8 @@
+## 5.3.0
+- build: `at_commons` to `^5.17.0`, which lists `enroll:infons`. The `Enroll`
+  verb takes its syntax from at_commons unchanged again; the local insertion
+  of `infons` is gone.
+
 ## 5.2.1
 - docs: the Scan/Update/UpdateMeta/Delete verb dartdocs describe the
   at_commons 5.10.0 wire options: `scan:cl`, `:nc`, `delete:dAt` and the

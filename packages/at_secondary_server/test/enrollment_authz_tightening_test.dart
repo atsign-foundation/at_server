@@ -284,7 +284,7 @@ void main() {
     });
 
     // ⚠️ RAW-LITERAL PIN of the reserved-namespace match: the id may start
-    // the key or follow a colon, not only a dot (at_commons 5.17.0).
+    // the key or follow a colon, not only a dot.
     for (final String shape in ['ID.a.__e', '@bob:ID.a.__e']) {
       test('*:rw enrollment cannot UPDATE the bare spelling $shape', () async {
         await bindWildcardEnrollment();

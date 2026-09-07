@@ -150,11 +150,10 @@ abstract class AbstractVerbHandler implements VerbHandler {
     return '$enrollmentId.${EnrollmentConstants.perEnrollmentApproved}';
   }
 
-  /// Matches a per-enrollment reserved-namespace key (`<EnId>.a|r|d.__e@…`),
-  /// capturing the owning enrollment id in the `EnId` group.
-  /// at_commons 5.17.0's `regexForPerEnrollmentNamespaces`, carried here
-  /// until that release is consumed: the id may start the key or follow a
-  /// colon, not only a dot.
+  /// Matches a per-enrollment reserved-namespace key (`<EnId>.a|r|d.__e@…`)
+  /// whether the id starts the key or follows a colon or a dot, capturing the
+  /// owning enrollment id in the `EnId` group. Wider than at_commons'
+  /// `regexForPerEnrollmentNamespaces`, which requires the leading dot.
   static final RegExp _perEnrollmentReservedKeyRegex =
       RegExp(r'(?:^|[.:])(?<EnId>[^.:]+)\.[ard]\.__e@');
 

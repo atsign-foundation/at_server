@@ -746,14 +746,8 @@
   that response as "if this is not a list, the namespace has no members", so an
   unrecognised shape there would silently empty every roster rather than fail.
 
-  ⚠️ The enroll operation alternation lives in at_commons, which does not yet
-  list `infons`, so `at_server_spec`'s `Enroll` verb adds it locally by
-  INSERTING into at_commons' pattern — not by copying it, so every other
-  upstream change still reaches this server, and it throws rather than
-  returning an unmodified pattern if the insertion point ever moves. This is a
-  temporary divergence between what the server accepts and what at_commons
-  describes; `enroll_verb_syntax_test.dart` fails deliberately once a published
-  at_commons defines `infons`, which is the signal to delete the override.
+  The enroll operation alternation lives in at_commons, and at_commons 5.17.0
+  lists `infons`; `at_server_spec` 5.3.0 takes it from there unchanged.
 - feat: a revocation history. Every moment an enrollment's revocation state
   changes is written as a record of its OWN, carrying the enrollment id, the
   moment, the namespace grants it held, the enrollment that issued the command
@@ -1144,6 +1138,7 @@
   and add one, taking the pool past its configured maximum without the limit
   exception ever being raised. A slot is now taken before connecting and
   given back if the connect fails.
+- build: `at_commons` 5.17.0 and `at_server_spec` 5.3.0.
 
 # 3.16.3
 - fix: answer each cross-atSign request with its own response. A pooled
