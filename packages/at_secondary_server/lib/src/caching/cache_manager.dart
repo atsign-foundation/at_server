@@ -200,7 +200,7 @@ class AtCacheManager {
           shouldCache = false;
           if (cachedKeyName.startsWith('cached:public:')) {
             // HOWEVER: publickey@atSign should be cached with ttr of -1 (cache indefinitely)
-            if (cachedKeyName.startsWith('cached:public:publickey:@')) {
+            if (cachedKeyName.startsWith('cached:public:publickey@')) {
               shouldCache = true;
               atData.metaData!.ttr = -1;
             } else {
