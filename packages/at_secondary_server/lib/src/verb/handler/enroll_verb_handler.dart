@@ -208,6 +208,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   }
 
   /// Fetches the enrollment request with enrollment id.
+  ///
+  /// `metadata` is the enrolling client's opaque map, returned verbatim to
+  /// every caller this gate admits; it is not redacted by the caller's own
+  /// `__manage` letter, which is what `enroll:list` does with its roster
+  /// projection.
   Future<String> _fetchEnrollmentInfoById(
     EnrollmentManager enMgr,
     EnrollParams? enrollVerbParams,
@@ -249,7 +254,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       }
     }
 
-    // `expiresAt` is the effective expiry, read from the record's metadata.
+    // NOTE two senses of metadata meet here: `expiresAt` is read from the
+    // STORED record's AtMetaData, while `metadata` is the opaque map the
+    // enrolling client supplied.
     return jsonEncode({
       'appName': enrollDataStoreValue.appName,
       'deviceName': enrollDataStoreValue.deviceName,
@@ -260,6 +267,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       'expiresAt': EnrollmentManager.expiresAtField(
           await enMgr.effectiveExpiryOf(
               enMgr.buildEnrollmentKey(targetEnrollmentId))),
+      'metadata': enrollDataStoreValue.metadata,
     });
   }
 
