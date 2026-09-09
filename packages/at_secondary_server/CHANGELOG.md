@@ -1,4 +1,13 @@
 # 3.16.5
+- fix: `plookup:all:publickey@<atSign>` and `plookup:meta:publickey@<atSign>`
+  report `ttr` -1 with no `ttl`, instead of `ttl` 86400000 with no `ttr`. The
+  carve-out in `AtCacheManager.remoteLookUp` guarded on
+  `cached:public:publickey:@`, a form no key has, so a peer's encryption
+  public key took the 24-hour fallback meant for other public values.
+
+  Storage is unchanged and was never wrong. `lookup` is unaffected: it builds
+  a `cached:@<atSign>:` name, which the carve-out cannot match.
+
 - feat: `enroll:fetch` returns `metadata`, the opaque map the enrolling client
   supplied, verbatim. A caller that may fetch an enrollment can now read its
   key package by id instead of calling `enroll:list` and filtering a whole
