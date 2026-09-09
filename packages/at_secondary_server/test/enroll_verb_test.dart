@@ -2149,7 +2149,8 @@ void main() {
 
     // enroll:fetch authorisation: self, or __manage plus access to ALL of
     // the target enrollment's namespaces.
-    Future<void> seedEnrollment(String id, Map<String, String> ns) async {
+    Future<void> seedEnrollment(String id, Map<String, String> ns,
+        {Map<String, dynamic>? metadata}) async {
       await keyValueStore.put(
           '$id.new.enrollments.__manage$alice',
           AtData()
@@ -2157,6 +2158,7 @@ void main() {
                 EnrollDataStoreValue('session', 'wavi', 'pixel', 'pubkey')
                   ..namespaces = ns
                   ..approval = EnrollApproval(EnrollmentStatus.approved.name)
+                  ..metadata = metadata
                   ..encryptedAPKAMSymmetricKey = 'secret-$id'));
     }
 
@@ -2268,6 +2270,68 @@ void main() {
       expect(record!['encryptedAPKAMSymmetricKey'], 'secret-peer1',
           reason: 'it covers every namespace the target holds, __manage '
               'included');
+    });
+
+    // ⚠️ RAW-LITERAL PIN of the enroll:fetch response shape. This is a wire
+    // contract other atServer implementations mirror, so an intended change
+    // edits this list in the same commit and that edit is the review.
+    test('enroll:fetch returns exactly these fields', () async {
+      await seedEnrollment('shape1', {'wavi': 'rw'},
+          metadata: {'keyPackage': 'pkg-shape1'});
+      final r = await fetchAs('shape1', 'shape1');
+      expect(
+          r.keys.toSet(),
+          {
+            'appName',
+            'deviceName',
+            'namespace',
+            'encryptedAPKAMSymmetricKey',
+            'status',
+            'expiresAt',
+            'metadata',
+          },
+          reason: 'a field added or removed here changes what every client '
+              'and every other atServer implementation reads');
+    });
+
+    test('enroll:fetch returns the client metadata verbatim', () async {
+      await seedEnrollment('mgr3', {'wavi': 'rw', '__manage': 'rw'});
+      await seedEnrollment('target4', {'wavi': 'rw'}, metadata: {
+        'keyPackage': {'alg': 'xwing', 'pub': 'AAAA'},
+        'anythingElse': 42,
+      });
+      final r = await fetchAs('mgr3', 'target4');
+      expect(
+          r['metadata'],
+          {
+            'keyPackage': {'alg': 'xwing', 'pub': 'AAAA'},
+            'anythingElse': 42,
+          },
+          reason: 'the map is opaque to the atServer, so it comes back whole '
+              'rather than reshaped or filtered');
+    });
+
+    test('enroll:fetch reports a null metadata rather than omitting the key',
+        () async {
+      await seedEnrollment('mgr4', {'wavi': 'rw', '__manage': 'rw'});
+      await seedEnrollment('target5', {'wavi': 'rw'});
+      final r = await fetchAs('mgr4', 'target5');
+      expect(r.containsKey('metadata'), isTrue,
+          reason: 'an absent key and a key a client failed to parse read the '
+              'same to a careless caller');
+      expect(r['metadata'], isNull);
+    });
+
+    test('enroll:fetch gives metadata to a read-only administrator too',
+        () async {
+      // NOTE fetch does NOT redact by the caller's own __manage letter, which
+      // is what enroll:list's roster projection does; the two verbs
+      // deliberately disagree, so the disagreement is pinned.
+      await seedEnrollment('readOnlyAdmin2', {'*': 'rw', '__manage': 'r'});
+      await seedEnrollment('peer2', {'*': 'rw', '__manage': 'r'},
+          metadata: {'keyPackage': 'pkg-peer2'});
+      final r = await fetchAs('readOnlyAdmin2', 'peer2');
+      expect(r['metadata'], {'keyPackage': 'pkg-peer2'});
     });
 
     tearDown(() async => await verbTestsTearDown());

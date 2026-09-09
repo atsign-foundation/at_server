@@ -75,6 +75,32 @@ void main() {
           enrollMap['namespace'], {'wavi': 'rw', '__manage': 'rw', '*': 'rw'});
     });
 
+    test('enroll:fetch returns the metadata an enroll:request carried',
+        () async {
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      String deviceName = "pixel-${Uuid().v4().hashCode}";
+      // The server stores this map verbatim and has no opinion on its
+      // contents; keyPackage is what at_client seals secrets to.
+      String metadata =
+          '{"keyPackage":{"alg":"xwing","pub":"AAAA"},"note":"opaque"}';
+      String enrollRequest =
+          'enroll:request:{"appName":"wavi","deviceName":"$deviceName","namespaces":{"wavi":"rw"},"metadata":$metadata,"encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap['encryptedDefaultEncPrivateKey']}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap['encryptedSelfEncKey']}","apkamPublicKey":"${mintApkamKeys().publicKey}"}\n';
+      var enrollJsonMap = jsonDecode(
+          (await firstAtSignConnection.sendRequestToServer(enrollRequest))
+              .replaceAll('data:', ''));
+      expect(enrollJsonMap['status'], 'approved');
+
+      Map<dynamic, dynamic> enrollMap = jsonDecode(
+          (await firstAtSignConnection.sendRequestToServer(
+                  'enroll:fetch:{"enrollmentId":"${enrollJsonMap['enrollmentId']}"}'))
+              .replaceAll('data:', ''));
+      expect(enrollMap['metadata'],
+          {'keyPackage': {'alg': 'xwing', 'pub': 'AAAA'}, 'note': 'opaque'},
+          reason: 'the map comes back off the wire whole, so a client can '
+              'fetch ONE enrollment instead of listing every one');
+    });
+
     test(
         'A test to verify denying of enroll request on an unauthenticated connection throws error',
         () async {

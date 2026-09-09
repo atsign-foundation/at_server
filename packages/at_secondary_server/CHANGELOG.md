@@ -1139,6 +1139,23 @@
   exception ever being raised. A slot is now taken before connecting and
   given back if the connect fails.
 - build: `at_commons` 5.17.0 and `at_server_spec` 5.3.0.
+- feat: `enroll:fetch` returns `metadata`, the opaque map the enrolling client
+  supplied, verbatim. A caller that may fetch an enrollment can now read its
+  key package by id instead of calling `enroll:list` and filtering a whole
+  roster client-side.
+
+  It is returned to every caller the fetch gate admits, and is NOT redacted by
+  the caller's own `__manage` letter — which is what `enroll:list` does, giving
+  a read-only administrator `toJsonRoster` without `metadata`. The two verbs
+  deliberately disagree: the key package is a public bundle for sealing TO an
+  enrollment, not material that would let anyone use it. `enroll:list` is
+  unchanged.
+
+  The key is ALWAYS present, null when the record carries no metadata, so a
+  caller cannot mistake an absent field for one it failed to parse. The fetch
+  gate is unchanged: a caller may always fetch its own enrollment, and fetching
+  another still requires `__manage` plus access to every namespace the target
+  holds.
 
 # 3.16.3
 - fix: answer each cross-atSign request with its own response. A pooled
