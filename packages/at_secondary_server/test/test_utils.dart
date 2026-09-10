@@ -79,6 +79,9 @@ class FakeInboundConnection extends Fake implements InboundConnectionImpl {
   /// Every write the server-side code performs on this connection.
   final writes = <String>[];
 
+  /// How many times the server-side code has closed this connection.
+  int closeCount = 0;
+
   FakeInboundConnection(this.socket, this.metadata);
 
   @override
@@ -98,7 +101,9 @@ class FakeInboundConnection extends Fake implements InboundConnectionImpl {
   }
 
   @override
-  Future<void> close() async {}
+  Future<void> close() async {
+    closeCount++;
+  }
 }
 
 class MockInboundConnectionPool extends Mock implements InboundConnectionPool {}
