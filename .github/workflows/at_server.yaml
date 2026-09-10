@@ -47,6 +47,16 @@ jobs:
         with:
           sdk: ${{ matrix.dart-channel}}
 
+      # setup-dart mints an OIDC token for pub.dev whenever the job grants
+      # id-token: write, and configures pub to send it on every request. pub.dev
+      # refuses reads carrying a token it does not recognise, so every `dart pub
+      # get` below fails with "Insufficient permissions". Nothing in this repo
+      # publishes to pub.dev, so the credential has no other use here; the
+      # permission stays for the tag-gated attestation step. `|| true` because
+      # pub exits 65 when there was no token to remove.
+      - name: Drop the pub.dev credential minted from the OIDC token
+        run: dart pub token remove https://pub.dev || true
+
       # Runs dart lint rules and unit tests on at_persistence_root_server
       - name: Install dependencies in at_persistence_root_server
         working-directory: ${{ env.proot-working-directory }}
