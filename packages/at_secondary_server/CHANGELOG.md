@@ -1,3 +1,22 @@
+# 3.16.6
+- fix: a client that writes a second command without waiting for the first
+  one's response now gets two responses. The inbound buffer dispatched
+  everything it held as a single command, so two commands landing in one read
+  event — a client writing them back to back, or one TLS record carrying both
+  — reached the verb layer as one string with a terminator in the middle,
+  which no verb syntax matches. Commands are now framed one per terminator and
+  dispatched one at a time, in arrival order.
+
+  The case this was found on is `monitor` immediately followed by `noop:0`, as
+  a notification connection carrying its own heartbeat does. The client got a
+  single `error:AT0003` frame, the monitor was never registered and the
+  `noop:0` never ran, on a connection that stayed open — a client reporting
+  itself as listening while the atServer had no monitor for it. Note that
+  `monitor:multiplexed` is still accepted and ignored, so a notification can
+  still be written between a command on a monitor connection and its reply.
+
+  A read that carries no bytes no longer closes the connection.
+
 # 3.16.5
 - fix: `plookup:all:publickey@<atSign>` and `plookup:meta:publickey@<atSign>`
   report `ttr` -1 with no `ttl`, instead of `ttl` 86400000 with no `ttr`. The
