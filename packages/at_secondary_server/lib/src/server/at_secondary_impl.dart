@@ -25,6 +25,7 @@ import 'package:at_secondary/src/server/at_certificate_validation.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/persistence_backend.dart';
 import 'package:at_secondary/src/server/server_context.dart';
+import 'package:at_secondary/src/telemetry/at_server_heartbeat.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_update_verb_handler.dart';
@@ -111,6 +112,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// One-shot timer driving [runHousekeepingSweep], re-armed after every
   /// sweep so the server sleeps until the next key expires.
   Timer? _keyExpiryTimer;
+  AtServerHeartbeatScheduler? _heartbeatScheduler;
 
   /// Floor for the expiry-sweep sleep.
   static const Duration _minExpirySleep = Duration(seconds: 10);
@@ -163,7 +165,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     if (executor == null) {
       throw AtServerException('Verb executor is not initialized');
     }
-
 
     if (useTLS! && serverContext!.securityContext == null) {
       throw AtServerException('Security context is not set');
@@ -357,6 +358,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.severe(stacktrace);
       throw AtServerException(e.toString());
     }
+
+    _heartbeatScheduler ??= await startAtServerHeartbeat(
+      serverId: currentAtSign.toString(),
+    );
 
     if (serverContext!.trainingMode) {
       try {
