@@ -7,8 +7,15 @@ environment:
   sdk: ">=2.15.0 <4.0.0"
 
 dependencies:
-  at_demo_data: ^1.2.0
+  at_demo_data: ^2.0.0
   at_lookup: ^3.1.0
+
+dependency_overrides:
+  at_demo_data:
+    git:
+      url: https://github.com/atsign-foundation/at_demos.git
+      path: packages/at_demo_data
+      ref: jt/at-demo-data-2-0-0
 
 dev_dependencies:
   lints: ^6.0.0
