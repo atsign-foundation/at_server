@@ -7,6 +7,11 @@ environment:
   sdk: '>=3.6.0'
 
 dependency_overrides:
+  at_demo_data:
+    git:
+      url: https://github.com/atsign-foundation/at_demos.git
+      path: packages/at_demo_data
+      ref: jt/at-demo-data-2-0-0
   at_persistence_secondary_server:
     path: ../../packages/at_persistence_secondary_server
   # Same tag the atServer itself resolves. The ML-DSA PKAM test needs to
@@ -20,7 +25,11 @@ dependency_overrides:
 dependencies:
   hex: ^0.2.0
   at_persistence_secondary_server: ^4.3.5
-  at_demo_data: ^1.2.0
+  at_demo_data:
+    git:
+      url: https://github.com/atsign-foundation/at_demos.git
+      path: packages/at_demo_data
+      ref: jt/at-demo-data-2-0-0
   at_chops: ^3.5.0
   at_lookup: ^3.3.0
   at_commons: ^5.11.0
