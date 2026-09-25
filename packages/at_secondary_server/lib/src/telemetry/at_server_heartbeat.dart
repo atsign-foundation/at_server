@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:at_telemetry/at_telemetry.dart';
 import 'package:at_telemetry/at_telemetry_otel.dart';
@@ -79,35 +80,91 @@ final class AtServerHeartbeat {
 }
 
 final class AtServerHeartbeatScheduler {
+  // minimum that the interval can be set to
+  static const Duration _minimumInterval = Duration(milliseconds: 1);
+
   final AtServerHeartbeat _heartbeat;
-  final Duration _interval;
+  final Duration interval;
+  final Duration offset;
+  final DateTime Function() _now;
   Timer? _timer;
+  DateTime? _previousSlot;
 
   AtServerHeartbeatScheduler({
     required AtServerHeartbeat heartbeat,
-    required Duration interval,
+    this.interval = AtServerHeartbeatConfiguration.heartbeatInterval,
+    Duration? offset,
+    Random? random,
+    DateTime Function()? now,
   })  : _heartbeat = heartbeat,
-        _interval = interval {
-    if (interval <= Duration.zero) {
-      throw ArgumentError.value(interval, 'interval', 'must be positive');
+        offset = offset ?? randomOffset(interval, random ?? Random.secure()),
+        _now = now ?? DateTime.now {
+    _requireInterval(interval);
+    if (this.offset < Duration.zero || this.offset >= interval) {
+      throw ArgumentError.value(
+        this.offset,
+        'offset',
+        'must be at least zero and less than interval',
+      );
+    }
+  }
+
+  static Duration randomOffset(Duration interval, Random random) {
+    _requireInterval(interval);
+    return Duration(milliseconds: random.nextInt(interval.inMilliseconds));
+  }
+
+  static void _requireInterval(Duration interval) {
+    if (interval < _minimumInterval) {
+      throw ArgumentError.value(
+        interval,
+        'interval',
+        'must be at least one millisecond',
+      );
     }
   }
 
   bool get isRunning => _timer != null;
 
-  Future<void> start() async {
-    if (_timer != null) {
-      return;
+  DateTime nextSlot({required DateTime now, DateTime? previousSlot}) {
+    final int intervalMicroseconds = interval.inMicroseconds;
+    final int nowMicroseconds = now.microsecondsSinceEpoch;
+    int slotMicroseconds = nowMicroseconds -
+        nowMicroseconds % intervalMicroseconds +
+        offset.inMicroseconds;
+    if (slotMicroseconds <= nowMicroseconds) {
+      slotMicroseconds += intervalMicroseconds;
     }
-    await _heartbeat.send();
-    _timer = Timer.periodic(_interval, (_) {
-      unawaited(_heartbeat.send());
-    });
+
+    final DateTime slot = DateTime.fromMicrosecondsSinceEpoch(
+      slotMicroseconds,
+      isUtc: true,
+    );
+    if (previousSlot != null && slot.isAtSameMomentAs(previousSlot)) {
+      return slot.add(interval);
+    }
+    return slot;
+  }
+
+  void start() {
+    if (_timer == null) {
+      _scheduleNext();
+    }
   }
 
   void stop() {
     _timer?.cancel();
     _timer = null;
+  }
+
+  void _scheduleNext() {
+    final DateTime now = _now().toUtc();
+    final DateTime slot = nextSlot(now: now, previousSlot: _previousSlot);
+    _timer = Timer(slot.difference(now), () {
+      _previousSlot = slot;
+      _scheduleNext();
+      unawaited(_heartbeat.send());
+    });
   }
 }
 
@@ -132,8 +189,7 @@ Future<AtServerHeartbeatScheduler?> startAtServerHeartbeat({
       telemetryExporter: exporter,
       serverId: serverId,
     ),
-    interval: AtServerHeartbeatConfiguration.heartbeatInterval,
   );
-  await scheduler.start();
+  scheduler.start();
   return scheduler;
 }
