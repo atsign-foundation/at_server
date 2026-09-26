@@ -361,6 +361,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     _heartbeatScheduler ??= await startAtServerHeartbeat(
       serverId: currentAtSign.toString(),
+      signingKey: signingKey as String?,
     );
 
     if (serverContext!.trainingMode) {
