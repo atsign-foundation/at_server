@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_configuration.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry_disk_exporter.dart';
 import 'package:at_telemetry/at_telemetry.dart';
 import 'package:at_telemetry/at_telemetry_otel.dart';
 import 'package:crypton/crypton.dart';
@@ -61,6 +63,8 @@ void main() {
       })!;
 
       expect(configuration.endpoint.host, 'collector.example.org');
+      expect(configuration.maxRecords, 1000);
+      expect(configuration.maxBytes, 10 * 1024 * 1024);
     });
 
     test('rejects insecure and invalid endpoints', () {
@@ -84,6 +88,35 @@ void main() {
       );
     });
 
+    test('storage path and caps prefer config.yaml over environment', () {
+      final AtServerTelemetryConfiguration configuration = _load(
+        <String, String>{
+          'AT_TELEMETRY_ENDPOINT': 'https://collector.example.org',
+          'AT_TELEMETRY_STORAGE_PATH': '/tmp/environment-telemetry',
+          'AT_TELEMETRY_MAX_RECORDS': '200',
+          'AT_TELEMETRY_MAX_BYTES': '2048',
+        },
+        <String, Object?>{
+          'storagePath': '/tmp/yaml-telemetry',
+          'maxRecords': 50,
+          'maxBytes': 1024,
+        },
+      )!;
+      expect(configuration.storagePath, '/tmp/yaml-telemetry');
+      expect(configuration.maxRecords, 50);
+      expect(configuration.maxBytes, 1024);
+    });
+
+    test('rejects nonpositive queue limits', () {
+      expect(
+        () => _load(<String, String>{
+          'AT_TELEMETRY_ENDPOINT': 'https://collector.example.org',
+          'AT_TELEMETRY_MAX_RECORDS': '0',
+        }),
+        throwsFormatException,
+      );
+    });
+
     test('ignores legacy collector Atsign and API key settings', () {
       expect(
         _load(<String, String>{
@@ -97,16 +130,20 @@ void main() {
 
   test('a configured exporter always signs with the server key', () async {
     final RSAKeypair keys = RSAKeypair.fromRandom();
+    final Directory storage =
+        await Directory.systemTemp.createTemp('atserver-telemetry-');
+    addTearDown(() => storage.delete(recursive: true));
     final AtTelemetryExporter? exporter = await createAtServerTelemetryExporter(
       serverId: '@denise',
       signingKey: keys.privateKey.toString(),
       yaml: const <String, Object?>{},
       environment: <String, String>{
         'AT_TELEMETRY_ENDPOINT': 'https://collector.example.org:4318',
+        'AT_TELEMETRY_STORAGE_PATH': storage.path,
       },
     );
 
-    expect(exporter, isA<AtTelemetrySignedHttpExporter>());
+    expect(exporter, isA<AtServerTelemetryDiskExporter>());
     await exporter!.shutdown();
   });
 
