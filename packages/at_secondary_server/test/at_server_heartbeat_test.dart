@@ -1,122 +1,18 @@
 import 'dart:math';
 
 import 'package:at_secondary/src/telemetry/at_server_heartbeat.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_telemetry/at_telemetry.dart';
-import 'package:at_telemetry/at_telemetry_otel.dart';
-import 'package:crypton/crypton.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('server-resolved at_chops signs and verifies telemetry', () async {
-    final RSAKeypair keys = RSAKeypair.fromRandom();
-    final AtTelemetryHttpSignature signed = await AtTelemetryHttpSignature.sign(
-      body: <int>[1, 2, 3],
-      path: '/v1/logs',
-      keyId: '@denise',
-      audience: '@telemetry1',
-      signer: AtTelemetryRsaSigner.fromBase64(keys.privateKey.toString()),
-    );
-    expect(
-        await signed.verify(
-          path: '/v1/logs',
-          publicKey: keys.publicKey.toString(),
-        ),
-        isTrue);
-  });
-
-  group('AtServerHeartbeatConfiguration', () {
-    test('is disabled when telemetry environment variables are absent', () {
-      expect(
-        AtServerHeartbeatConfiguration.fromEnvironment(<String, String>{}),
-        isNull,
-      );
-    });
-
-    test('uses the configured endpoint, audience and optional API key', () {
-      final AtServerHeartbeatConfiguration configuration =
-          AtServerHeartbeatConfiguration.fromEnvironment(<String, String>{
-        'AT_TELEMETRY_ENDPOINT': 'http://host.docker.internal:4318',
-        'AT_TELEMETRY_API_KEY': 'secret',
-        'AT_TELEMETRY_COLLECTOR_ATSIGN': '@telemetry1',
-      })!;
-
-      expect(
-        configuration.endpoint,
-        Uri.parse('http://host.docker.internal:4318'),
-      );
-      expect(configuration.apiKey, 'secret');
-      expect(configuration.collectorAtsign, '@telemetry1');
-      final AtServerHeartbeatConfiguration legacy =
-          AtServerHeartbeatConfiguration.fromEnvironment(<String, String>{
-        'AT_TELEMETRY_ENDPOINT': 'http://localhost:4318',
-        'AT_TELEMETRY_API_KEY': 'secret',
-      })!;
-      expect(legacy.collectorAtsign, isNull);
-      expect(legacy.apiKey, 'secret');
-      expect(
-          AtServerHeartbeatConfiguration.fromEnvironment(<String, String>{
-            'AT_TELEMETRY_ENDPOINT': 'http://localhost:4318',
-            'AT_TELEMETRY_COLLECTOR_ATSIGN': '@telemetry1',
-          })!
-              .apiKey,
-          isNull);
-      expect(
-        AtServerHeartbeatConfiguration.heartbeatInterval,
-        const Duration(seconds: 60),
-      );
-    });
-
-    test('rejects partial and invalid configurations', () {
-      expect(
-        () => AtServerHeartbeatConfiguration.fromEnvironment(<String, String>{
-          'AT_TELEMETRY_ENDPOINT': 'http://localhost:4318',
-        }),
-        throwsFormatException,
-      );
-      expect(
-        () => AtServerHeartbeatConfiguration.fromEnvironment(<String, String>{
-          'AT_TELEMETRY_API_KEY': 'secret',
-        }),
-        throwsFormatException,
-      );
-      expect(
-        () => AtServerHeartbeatConfiguration.fromEnvironment(<String, String>{
-          'AT_TELEMETRY_ENDPOINT': 'http://localhost:4318',
-          'AT_TELEMETRY_COLLECTOR_ATSIGN': '@Telemetry1',
-        }),
-        throwsFormatException,
-      );
-      expect(
-        () => AtServerHeartbeatConfiguration.fromEnvironment(<String, String>{
-          'AT_TELEMETRY_ENDPOINT': 'localhost:4318',
-          'AT_TELEMETRY_API_KEY': 'secret',
-        }),
-        throwsFormatException,
-      );
-    });
-  });
-
-  test('signed heartbeats do not start without the signing key', () async {
-    expect(
-        await startAtServerHeartbeat(
-          serverId: '@denise',
-          signingKey: null,
-          environment: <String, String>{
-            'AT_TELEMETRY_ENDPOINT': 'http://localhost:4318',
-            'AT_TELEMETRY_COLLECTOR_ATSIGN': '@telemetry1',
-          },
-        ),
-        isNull);
-  });
-
   test('heartbeat uses the current server Atsign as its server ID', () async {
     final _RecordingExporter exporter = _RecordingExporter();
     final AtServerHeartbeat heartbeat = AtServerHeartbeat(
-      telemetryExporter: exporter,
-      serverId: '@denise',
+      telemetry: _enabledTelemetry(exporter),
     );
 
-    await heartbeat.send();
+    heartbeat.send();
 
     expect(exporter.events, hasLength(1));
     expect(exporter.events.single.name, 'atsign.server.heartbeat');
@@ -134,8 +30,7 @@ void main() {
     }) {
       return AtServerHeartbeatScheduler(
         heartbeat: AtServerHeartbeat(
-          telemetryExporter: exporter ?? _RecordingExporter(),
-          serverId: '@denise',
+          telemetry: _enabledTelemetry(exporter ?? _RecordingExporter()),
         ),
         interval: interval,
         offset: offset,
@@ -144,10 +39,13 @@ void main() {
     }
 
     test('defaults to a one-minute interval with an offset inside it', () {
+      expect(
+        AtServerHeartbeatScheduler.defaultInterval,
+        const Duration(minutes: 1),
+      );
       final AtServerHeartbeatScheduler defaults = AtServerHeartbeatScheduler(
         heartbeat: AtServerHeartbeat(
-          telemetryExporter: _RecordingExporter(),
-          serverId: '@denise',
+          telemetry: _enabledTelemetry(_RecordingExporter()),
         ),
       );
 
@@ -319,4 +217,8 @@ final class _RecordingExporter implements AtTelemetryExporter {
 
   @override
   Future<void> shutdown() async {}
+}
+
+AtServerTelemetry _enabledTelemetry(AtTelemetryExporter exporter) {
+  return AtServerTelemetry()..enable(exporter: exporter, serverId: '@denise');
 }

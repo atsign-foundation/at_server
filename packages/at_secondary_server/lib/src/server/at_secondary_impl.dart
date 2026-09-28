@@ -26,6 +26,8 @@ import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/persistence_backend.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/telemetry/at_server_heartbeat.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
+import 'package:at_telemetry/at_telemetry.dart' show AtTelemetryExporter;
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_update_verb_handler.dart';
@@ -113,6 +115,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// sweep so the server sleeps until the next key expires.
   Timer? _keyExpiryTimer;
   AtServerHeartbeatScheduler? _heartbeatScheduler;
+
+  final AtServerTelemetry telemetry = AtServerTelemetry();
+
+  static const Duration _telemetryFlushTimeout = Duration(seconds: 5);
 
   /// Floor for the expiry-sweep sleep.
   static const Duration _minExpirySleep = Duration(seconds: 10);
@@ -359,10 +365,22 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw AtServerException(e.toString());
     }
 
-    _heartbeatScheduler ??= await startAtServerHeartbeat(
-      serverId: currentAtSign.toString(),
-      signingKey: signingKey as String?,
-    );
+    if (!telemetry.isEnabled) {
+      final AtTelemetryExporter? exporter =
+          await createAtServerTelemetryExporter(
+        serverId: currentAtSign.toString(),
+        signingKey: signingKey as String?,
+      );
+      if (exporter != null) {
+        telemetry.enable(
+            exporter: exporter, serverId: currentAtSign.toString());
+      }
+    }
+    if (telemetry.isEnabled && _heartbeatScheduler == null) {
+      _heartbeatScheduler = AtServerHeartbeatScheduler(
+          heartbeat: AtServerHeartbeat(telemetry: telemetry))
+        ..start();
+    }
 
     if (serverContext!.trainingMode) {
       try {
@@ -775,6 +793,13 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         t.cancel();
       }
       _compactionTimers.clear();
+
+      // Telemetry stays enabled across a restart: the OTel exporter cannot be
+      // initialised twice in one process.
+      logger.shout("Stopping heartbeat and flushing telemetry");
+      _heartbeatScheduler?.stop();
+      _heartbeatScheduler = null;
+      await telemetry.flush(timeout: _telemetryFlushTimeout);
       _isRunning = false;
     } on Exception catch (e) {
       throw AtServerException(
