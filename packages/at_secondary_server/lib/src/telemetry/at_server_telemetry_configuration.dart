@@ -1,14 +1,25 @@
 import 'dart:io';
 
 import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:path/path.dart' as p;
 
 final class AtServerTelemetryConfiguration {
   // Used when neither config.yaml nor the environment sets a value.
   static const String? _defaultEndpoint = null;
+  static const int defaultMaxRecords = 1000;
+  static const int defaultMaxBytes = 10 * 1024 * 1024;
 
   final Uri endpoint;
+  final String storagePath;
+  final int maxRecords;
+  final int maxBytes;
 
-  const AtServerTelemetryConfiguration({required this.endpoint});
+  const AtServerTelemetryConfiguration({
+    required this.endpoint,
+    required this.storagePath,
+    required this.maxRecords,
+    required this.maxBytes,
+  });
 
   // config.yaml first, then the environment, then the defaults above.
   static AtServerTelemetryConfiguration? load({
@@ -38,7 +49,37 @@ final class AtServerTelemetryConfiguration {
       throw const FormatException('Telemetry endpoint must be an HTTPS URL');
     }
 
-    return AtServerTelemetryConfiguration(endpoint: endpoint);
+    int positiveLimit(String yamlKey, String environmentKey, int fallback) {
+      final String? value = setting(yamlKey, environmentKey, null);
+      if (value == null) {
+        return fallback;
+      }
+      final int? parsed = int.tryParse(value);
+      if (parsed == null || parsed < 1) {
+        throw FormatException('Telemetry $yamlKey must be a positive integer');
+      }
+      return parsed;
+    }
+
+    final String storagePath = setting(
+      'storagePath',
+      'AT_TELEMETRY_STORAGE_PATH',
+      p.join(AtSecondaryConfig.storageRoot, 'telemetry'),
+    )!;
+    return AtServerTelemetryConfiguration(
+      endpoint: endpoint,
+      storagePath: storagePath,
+      maxRecords: positiveLimit(
+        'maxRecords',
+        'AT_TELEMETRY_MAX_RECORDS',
+        defaultMaxRecords,
+      ),
+      maxBytes: positiveLimit(
+        'maxBytes',
+        'AT_TELEMETRY_MAX_BYTES',
+        defaultMaxBytes,
+      ),
+    );
   }
 
   static String? _nonEmpty(String? value) {

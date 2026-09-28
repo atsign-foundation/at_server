@@ -5,6 +5,7 @@ import 'package:at_telemetry/at_telemetry_otel.dart';
 import 'package:at_utils/at_logger.dart';
 
 import 'at_server_telemetry_configuration.dart';
+import 'at_server_telemetry_disk_exporter.dart';
 
 final class AtServerTelemetry {
   static const String serverIdAttribute = 'atsign.server.id';
@@ -167,12 +168,14 @@ Future<AtTelemetryExporter?> createAtServerTelemetryExporter({
 
   final String destination = configuration.endpoint.origin;
   try {
-    final AtTelemetryExporter exporter = AtTelemetrySignedHttpExporter(
+    final AtTelemetryExporter exporter = AtServerTelemetryDiskExporter.open(
       endpoint: configuration.endpoint,
-      serviceName: 'at_secondary_server',
       keyId: serverId,
       audience: configuration.endpoint.host,
       signer: AtTelemetryRsaSigner.fromBase64(signingKey),
+      storagePath: configuration.storagePath,
+      maxRecords: configuration.maxRecords,
+      maxBytes: configuration.maxBytes,
       onError: (Object error) =>
           logger.warning('Telemetry export failed: ${error.runtimeType}'),
     );
