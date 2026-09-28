@@ -35,11 +35,10 @@ dependencies:
   mime: ^2.1.0
   at_base2e15: ^1.0.0
   at_telemetry:
-    path: ../../../../../at_client_sdk/jt/control-center-spike/packages/at_telemetry
-    # git:
-    #   url: https://github.com/atsign-foundation/at_client_sdk
-    #   ref: jt/control-center-spike
-    #   path: packages/at_telemetry
+    git:
+      url: https://github.com/atsign-foundation/at_client_sdk.git
+      ref: 205f83f73f5778f1f83f2d216ddb05c6d9bb4f2f
+      path: packages/at_telemetry
 
   hive: any
   path: any

@@ -14,7 +14,7 @@ void main() {
       body: <int>[1, 2, 3],
       path: '/v1/logs',
       keyId: '@denise',
-      audience: '@telemetry1',
+      audience: 'collector.example.org',
       signer: AtTelemetryRsaSigner.fromBase64(keys.privateKey.toString()),
     );
     expect(
@@ -33,94 +33,81 @@ void main() {
     test('prefers config.yaml over the environment', () {
       final AtServerTelemetryConfiguration configuration = _load(
         <String, String>{
-          'AT_TELEMETRY_ENDPOINT': 'http://environment:4318',
-          'AT_TELEMETRY_API_KEY': 'environment-secret',
+          'AT_TELEMETRY_ENDPOINT': 'https://environment.example.org',
         },
-        <String, Object?>{
-          'endpoint': 'http://yaml:4318',
-          'apiKey': 'yaml-secret',
-        },
+        <String, Object?>{'endpoint': 'https://collector.example.org'},
       )!;
 
-      expect(configuration.endpoint, Uri.parse('http://yaml:4318'));
-      expect(configuration.apiKey, 'yaml-secret');
+      expect(
+          configuration.endpoint, Uri.parse('https://collector.example.org'));
     });
 
-    test('falls back to the environment for empty config.yaml values', () {
+    test('falls back to the environment for an empty config.yaml value', () {
       final AtServerTelemetryConfiguration configuration = _load(
         <String, String>{
-          'AT_TELEMETRY_API_KEY': 'environment-secret',
-          'AT_TELEMETRY_COLLECTOR_ATSIGN': '@telemetry1',
+          'AT_TELEMETRY_ENDPOINT': 'https://collector.example.org',
         },
-        <String, Object?>{
-          'endpoint': 'http://yaml:4318',
-          'apiKey': '',
-          'collectorAtsign': null,
-        },
+        <String, Object?>{'endpoint': ''},
       )!;
 
-      expect(configuration.endpoint, Uri.parse('http://yaml:4318'));
-      expect(configuration.apiKey, 'environment-secret');
-      expect(configuration.collectorAtsign, '@telemetry1');
+      expect(
+          configuration.endpoint, Uri.parse('https://collector.example.org'));
     });
 
-    test('uses the configured endpoint, audience and optional API key', () {
+    test('an endpoint alone enables signed telemetry', () {
       final AtServerTelemetryConfiguration configuration =
           _load(<String, String>{
-        'AT_TELEMETRY_ENDPOINT': 'http://host.docker.internal:4318',
-        'AT_TELEMETRY_API_KEY': 'secret',
-        'AT_TELEMETRY_COLLECTOR_ATSIGN': '@telemetry1',
+        'AT_TELEMETRY_ENDPOINT': 'https://collector.example.org:4318',
       })!;
 
-      expect(
-        configuration.endpoint,
-        Uri.parse('http://host.docker.internal:4318'),
-      );
-      expect(configuration.apiKey, 'secret');
-      expect(configuration.collectorAtsign, '@telemetry1');
-      final AtServerTelemetryConfiguration legacy = _load(<String, String>{
-        'AT_TELEMETRY_ENDPOINT': 'http://localhost:4318',
-        'AT_TELEMETRY_API_KEY': 'secret',
-      })!;
-      expect(legacy.collectorAtsign, isNull);
-      expect(legacy.apiKey, 'secret');
-      expect(
-          _load(<String, String>{
-            'AT_TELEMETRY_ENDPOINT': 'http://localhost:4318',
-            'AT_TELEMETRY_COLLECTOR_ATSIGN': '@telemetry1',
-          })!
-              .apiKey,
-          isNull);
+      expect(configuration.endpoint.host, 'collector.example.org');
     });
 
-    test('rejects partial and invalid configurations', () {
+    test('rejects insecure and invalid endpoints', () {
       expect(
         () => _load(<String, String>{
-          'AT_TELEMETRY_ENDPOINT': 'http://localhost:4318',
+          'AT_TELEMETRY_ENDPOINT': 'http://collector.example.org',
         }),
         throwsFormatException,
       );
       expect(
         () => _load(<String, String>{
-          'AT_TELEMETRY_API_KEY': 'secret',
+          'AT_TELEMETRY_ENDPOINT': 'https://',
         }),
         throwsFormatException,
       );
       expect(
         () => _load(<String, String>{
-          'AT_TELEMETRY_ENDPOINT': 'http://localhost:4318',
-          'AT_TELEMETRY_COLLECTOR_ATSIGN': '@Telemetry1',
-        }),
-        throwsFormatException,
-      );
-      expect(
-        () => _load(<String, String>{
-          'AT_TELEMETRY_ENDPOINT': 'localhost:4318',
-          'AT_TELEMETRY_API_KEY': 'secret',
+          'AT_TELEMETRY_ENDPOINT': 'collector.example.org:4318',
         }),
         throwsFormatException,
       );
     });
+
+    test('ignores legacy collector Atsign and API key settings', () {
+      expect(
+        _load(<String, String>{
+          'AT_TELEMETRY_COLLECTOR_ATSIGN': '@telemetry1',
+          'AT_TELEMETRY_API_KEY': 'legacy-secret',
+        }),
+        isNull,
+      );
+    });
+  });
+
+  test('a configured exporter always signs with the server key', () async {
+    final RSAKeypair keys = RSAKeypair.fromRandom();
+    final AtTelemetryExporter? exporter = await createAtServerTelemetryExporter(
+      serverId: '@denise',
+      signingKey: keys.privateKey.toString(),
+      yaml: const <String, Object?>{},
+      environment: <String, String>{
+        'AT_TELEMETRY_ENDPOINT': 'https://collector.example.org:4318',
+      },
+    );
+
+    expect(exporter, isA<AtTelemetrySignedHttpExporter>());
+    await exporter!.shutdown();
   });
 
   test('signed telemetry is disabled without the signing key', () async {
@@ -129,8 +116,7 @@ void main() {
       signingKey: null,
       yaml: const <String, Object?>{},
       environment: <String, String>{
-        'AT_TELEMETRY_ENDPOINT': 'http://localhost:4318',
-        'AT_TELEMETRY_COLLECTOR_ATSIGN': '@telemetry1',
+        'AT_TELEMETRY_ENDPOINT': 'https://collector.example.org:4318',
       },
     );
 
@@ -156,7 +142,7 @@ void main() {
       signingKey: null,
       yaml: const <String, Object?>{},
       environment: <String, String>{
-        'AT_TELEMETRY_ENDPOINT': 'http://localhost:4318',
+        'AT_TELEMETRY_ENDPOINT': 'http://collector.example.org:4318',
       },
     );
 

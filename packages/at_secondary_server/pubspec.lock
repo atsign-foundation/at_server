@@ -98,9 +98,11 @@ packages:
   at_telemetry:
     dependency: "direct main"
     description:
-      path: "../../../../../at_client_sdk/jt/control-center-spike/packages/at_telemetry"
-      relative: true
-    source: path
+      path: "packages/at_telemetry"
+      ref: "205f83f73f5778f1f83f2d216ddb05c6d9bb4f2f"
+      resolved-ref: "205f83f73f5778f1f83f2d216ddb05c6d9bb4f2f"
+      url: "https://github.com/atsign-foundation/at_client_sdk.git"
+    source: git
     version: "0.1.0"
   at_utf7:
     dependency: transitive
@@ -415,7 +417,7 @@ packages:
     source: hosted
     version: "5.1.0"
   hive:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: hive
       sha256: "8dcf6db979d7933da8217edcec84e9df1bdb4e4edc7fc77dbd5aa74356d6d941"
@@ -567,7 +569,7 @@ packages:
     source: hosted
     version: "3.0.0"
   path:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: path
       sha256: "75cca69d1490965be98c73ceaea117e8a04dd21217b37b292c9ddbec0d955bc5"
@@ -863,4 +865,4 @@ packages:
     source: hosted
     version: "3.1.4"
 sdks:
-  dart: ">=3.13.0 <4.0.0"
+  dart: ">=3.12.0 <4.0.0"

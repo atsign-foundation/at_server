@@ -222,11 +222,3 @@ telemetry:
   # Base HTTP or HTTPS URL of the telemetry collector; '/v1/logs' is appended.
   # Env: AT_TELEMETRY_ENDPOINT
   endpoint: ''
-  # Canonical atSign of the collector, quoted, e.g. '@telemetry'. When set,
-  # events are signed with this atServer's signing key.
-  # Env: AT_TELEMETRY_COLLECTOR_ATSIGN
-  collectorAtsign: ''
-  # Bearer token sent to the collector; required when collectorAtsign is empty.
-  # Prefer the environment variable so the key is not baked into the image.
-  # Env: AT_TELEMETRY_API_KEY
-  apiKey: ''
