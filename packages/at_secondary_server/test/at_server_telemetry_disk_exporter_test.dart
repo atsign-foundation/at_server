@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_disk_exporter.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry_event_names.dart';
 import 'package:at_telemetry/at_telemetry.dart';
 import 'package:at_telemetry/at_telemetry_otel.dart';
 import 'package:crypton/crypton.dart';
@@ -40,7 +41,7 @@ void main() {
 
   test('retains failures on disk and deletes only after signed HTTP 200',
       () async {
-    final AtTelemetryEvent event = _event('atsign.server.heartbeat');
+    final AtTelemetryEvent event = _event(atServerHeartbeatEventName);
     final AtServerTelemetryDiskExporter first = open(
       client:
           MockClient((http.Request request) async => http.Response('', 503)),
@@ -101,9 +102,9 @@ void main() {
     );
     final AtServerTelemetry telemetry = AtServerTelemetry()
       ..enable(exporter: exporter, serverId: '@denise');
-    telemetry.push('atsign.server.heartbeat');
+    telemetry.push(atServerHeartbeatEventName);
 
-    expect(_storedEvents(storage).single.name, 'atsign.server.heartbeat');
+    expect(_storedEvents(storage).single.name, 'atsign.atserver.heartbeat');
     await telemetry.flush(timeout: const Duration(milliseconds: 20));
     expect(_storedEvents(storage), hasLength(1));
     response.complete(http.Response('', 503));
@@ -188,11 +189,11 @@ void main() {
       client:
           MockClient((http.Request request) async => http.Response('', 401)),
     );
-    await exporter.export(_event('atsign.server.heartbeat'));
+    await exporter.export(_event(atServerHeartbeatEventName));
     await exporter.flush();
     await exporter.shutdown();
 
-    expect(_storedEvents(storage).single.name, 'atsign.server.heartbeat');
+    expect(_storedEvents(storage).single.name, atServerHeartbeatEventName);
   });
 
   test('discards oldest records when count limit is reached', () async {
@@ -222,16 +223,16 @@ void main() {
     );
     final AtServerTelemetry telemetry = AtServerTelemetry(maxPendingEvents: 1)
       ..enable(exporter: exporter, serverId: '@denise');
-    telemetry.push('first');
-    telemetry.push('second');
-    telemetry.push('third');
+    telemetry.push('${atServerTelemetryEventPrefix}first');
+    telemetry.push('${atServerTelemetryEventPrefix}second');
+    telemetry.push('${atServerTelemetryEventPrefix}third');
     await telemetry.flush();
     await exporter.shutdown();
 
     expect(exporter.droppedRecords, 1);
     expect(
       _storedEvents(storage).map((AtTelemetryEvent event) => event.name),
-      <String>['second', 'third'],
+      <String>['atsign.atserver.second', 'atsign.atserver.third'],
     );
   });
 

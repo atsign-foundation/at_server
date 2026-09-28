@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_configuration.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_disk_exporter.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry_event_names.dart';
 import 'package:at_telemetry/at_telemetry.dart';
 import 'package:at_telemetry/at_telemetry_otel.dart';
 import 'package:crypton/crypton.dart';
@@ -272,13 +273,13 @@ void main() {
       )..enable(exporter: exporter, serverId: '@denise');
 
       telemetry.push(
-        'atsign.server.notify',
+        '${atServerTelemetryEventPrefix}notify',
         attributes: <String, Object?>{'atsign.notify.count': 3},
       );
       await telemetry.flush();
 
       expect(telemetry.isEnabled, isTrue);
-      expect(exporter.events.single.name, 'atsign.server.notify');
+      expect(exporter.events.single.name, 'atsign.atserver.notify');
       expect(exporter.events.single.timestamp, DateTime.utc(2026, 9, 28, 12));
       expect(exporter.events.single.attributes, <String, Object?>{
         'atsign.notify.count': 3,
@@ -291,7 +292,7 @@ void main() {
       final AtServerTelemetry telemetry = _enabledTelemetry(exporter);
 
       telemetry.push(
-        'atsign.server.op',
+        '${atServerTelemetryEventPrefix}op',
         attributes: <String, Object?>{'atsign.server.id': '@mallory'},
       );
       await telemetry.flush();
@@ -309,10 +310,23 @@ void main() {
       expect(exporter.events, isEmpty);
     });
 
+    test('only exports events in the atServer namespace', () async {
+      final _RecordingExporter exporter = _RecordingExporter();
+      final AtServerTelemetry telemetry = _enabledTelemetry(exporter);
+
+      telemetry.push('atsign.server.heartbeat');
+      telemetry.push(atServerTelemetryEventPrefix);
+      telemetry.push('atsign.atserver.invalid ');
+      telemetry.push(atServerHeartbeatEventName);
+      await telemetry.flush();
+
+      expect(exporter.events.single.name, 'atsign.atserver.heartbeat');
+    });
+
     test('telemetry ignores every call until enabled', () async {
       final AtServerTelemetry telemetry = AtServerTelemetry();
 
-      telemetry.push('atsign.server.op');
+      telemetry.push('${atServerTelemetryEventPrefix}op');
       await telemetry.flush();
       await telemetry.shutdown();
 
@@ -323,7 +337,7 @@ void main() {
       final AtServerTelemetry telemetry =
           _enabledTelemetry(_RecordingExporter(failExports: true));
 
-      telemetry.push('atsign.server.op');
+      telemetry.push('${atServerTelemetryEventPrefix}op');
 
       await expectLater(telemetry.flush(), completes);
     });
@@ -334,7 +348,7 @@ void main() {
           _RecordingExporter(exportGate: release.future);
       final AtServerTelemetry telemetry = _enabledTelemetry(exporter);
 
-      telemetry.push('atsign.server.op');
+      telemetry.push('${atServerTelemetryEventPrefix}op');
       bool flushed = false;
       final Future<void> flush =
           telemetry.flush().then((void _) => flushed = true);
@@ -352,10 +366,10 @@ void main() {
       final _RecordingExporter exporter = _RecordingExporter();
       final AtServerTelemetry telemetry = _enabledTelemetry(exporter);
 
-      telemetry.push('atsign.server.before');
+      telemetry.push('${atServerTelemetryEventPrefix}before');
       await telemetry.shutdown();
       await telemetry.shutdown();
-      telemetry.push('atsign.server.after');
+      telemetry.push('${atServerTelemetryEventPrefix}after');
       await telemetry.flush();
 
       expect(telemetry.isEnabled, isFalse);
@@ -364,7 +378,7 @@ void main() {
         <String>[
           for (final AtTelemetryEvent event in exporter.events) event.name
         ],
-        <String>['atsign.server.before'],
+        <String>['atsign.atserver.before'],
       );
     });
 
@@ -372,9 +386,9 @@ void main() {
       final _RecordingExporter exporter = _RecordingExporter();
       final AtServerTelemetry telemetry = AtServerTelemetry();
 
-      telemetry.push('atsign.server.before');
+      telemetry.push('${atServerTelemetryEventPrefix}before');
       telemetry.enable(exporter: exporter, serverId: '@denise');
-      telemetry.push('atsign.server.after');
+      telemetry.push('${atServerTelemetryEventPrefix}after');
       await telemetry.flush();
 
       expect(telemetry.serverId, '@denise');
@@ -382,7 +396,7 @@ void main() {
         <String>[
           for (final AtTelemetryEvent event in exporter.events) event.name
         ],
-        <String>['atsign.server.after'],
+        <String>['atsign.atserver.after'],
       );
       expect(
         () => telemetry.enable(exporter: exporter, serverId: '@denise'),
@@ -398,12 +412,12 @@ void main() {
         maxPendingEvents: 2,
       )..enable(exporter: exporter, serverId: '@denise');
 
-      telemetry.push('atsign.server.one');
-      telemetry.push('atsign.server.two');
-      telemetry.push('atsign.server.three');
+      telemetry.push('${atServerTelemetryEventPrefix}one');
+      telemetry.push('${atServerTelemetryEventPrefix}two');
+      telemetry.push('${atServerTelemetryEventPrefix}three');
       release.complete();
       await telemetry.flush();
-      telemetry.push('atsign.server.four');
+      telemetry.push('${atServerTelemetryEventPrefix}four');
       await telemetry.flush();
 
       expect(
@@ -411,9 +425,9 @@ void main() {
           for (final AtTelemetryEvent event in exporter.events) event.name
         ],
         <String>[
-          'atsign.server.one',
-          'atsign.server.two',
-          'atsign.server.four'
+          'atsign.atserver.one',
+          'atsign.atserver.two',
+          'atsign.atserver.four'
         ],
       );
       expect(() => AtServerTelemetry(maxPendingEvents: 0), throwsArgumentError);
@@ -424,7 +438,7 @@ void main() {
           _RecordingExporter(exportGate: Completer<void>().future);
       final AtServerTelemetry telemetry = _enabledTelemetry(exporter);
 
-      telemetry.push('atsign.server.op');
+      telemetry.push('${atServerTelemetryEventPrefix}op');
 
       await expectLater(
         telemetry.flush(timeout: const Duration(milliseconds: 50)),

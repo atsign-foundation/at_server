@@ -2,16 +2,18 @@ import 'dart:async';
 import 'dart:math';
 
 import 'at_server_telemetry.dart';
+import 'at_server_telemetry_event_names.dart';
 
 final class AtServerHeartbeatScheduler {
-  static const String eventName = 'atsign.server.heartbeat';
-  static const Duration defaultInterval = Duration(seconds: 60);
+  static const String eventName = atServerHeartbeatEventName;
 
   // minimum that the interval can be set to
   static const Duration _minimumInterval = Duration(milliseconds: 1);
+  static const Duration defaultInterval = Duration(seconds: 60);
 
-  final AtServerTelemetry _telemetry;
-  final Duration interval;
+  final AtServerTelemetry
+      _telemetry; // an object for atServer to push telemetry easily
+  final Duration interval; // the interval at which heartbeats will be sent
   final Duration offset;
   final DateTime Function() _now;
   Timer? _timer;
