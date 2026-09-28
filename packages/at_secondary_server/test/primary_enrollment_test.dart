@@ -30,9 +30,8 @@ void main() {
 
   const String primary = EnrollmentManager.primaryEnrollmentId;
 
-  Future<void> installFlatKey(String value) =>
-      keyValueStore.put(AtConstants.atPkamPublicKey, AtData()..data = value,
-          skipCommit: true);
+  Future<void> installFlatKey(String value) => keyValueStore
+      .put(AtConstants.atPkamPublicKey, AtData()..data = value, skipCommit: true);
 
   Future<bool> flatKeyExists() =>
       keyValueStore.exists(AtConstants.atPkamPublicKey);
@@ -59,8 +58,8 @@ void main() {
     final v = EnrollDataStoreValue('s', 'app-$id', 'device-$id', key)
       ..namespaces = {'wavi': 'rw'}
       ..approval = EnrollApproval(EnrollmentStatus.approved.name);
-    await enMgr.put(
-        id, AtData()..data = jsonEncode(v.toJson()), EnrollmentStatus.approved);
+    await enMgr.put(id, AtData()..data = jsonEncode(v.toJson()),
+        EnrollmentStatus.approved);
   }
 
   group('the shape of primary', () {
@@ -94,8 +93,7 @@ void main() {
       // ⚠️ AT-REST PIN: frozen; changing the literal orphans every stored
       // primary.
       await enMgr.serialiseMutation(() => enMgr.mintPrimary('k'));
-      expect(
-          await keyValueStore.exists('primary.new.enrollments.__manage$alice'),
+      expect(await keyValueStore.exists('primary.new.enrollments.__manage$alice'),
           isTrue);
     });
   });
@@ -104,8 +102,8 @@ void main() {
     test('mints primary from the flat key and deletes the flat key', () async {
       await installFlatKey('THE_FLAT_KEY');
 
-      expect(
-          await enMgr.absorbFlatKeyIntoPrimary(signingAlgo: 'mldsa65'), isTrue);
+      expect(await enMgr.absorbFlatKeyIntoPrimary(signingAlgo: 'mldsa65'),
+          isTrue);
 
       expect(await flatKeyExists(), isFalse,
           reason: 'one credential and one record from this moment on');
@@ -168,8 +166,7 @@ void main() {
   });
 
   group('the flat key at startup', () {
-    test(
-        'a copy of an approved root\'s key is deleted, and primary is not '
+    test('a copy of an approved root\'s key is deleted, and primary is not '
         'minted', () async {
       await storeRoot('first-root', 'ROOT_KEY');
       await installFlatKey('ROOT_KEY');
@@ -182,8 +179,7 @@ void main() {
           reason: 'the root is what a client should authenticate as');
     });
 
-    test(
-        'a copy of a revoked root\'s key is deleted when another root '
+    test('a copy of a revoked root\'s key is deleted when another root '
         'survives', () async {
       await storeRoot('revoked-root', 'ROOT_KEY',
           status: EnrollmentStatus.revoked);
@@ -197,8 +193,7 @@ void main() {
       expect(await enMgr.primaryEnrollment(), isNull);
     });
 
-    test(
-        'a copy of a revoked root\'s key is REINSTATED as primary when '
+    test('a copy of a revoked root\'s key is REINSTATED as primary when '
         'nothing else survives', () async {
       await storeRoot('revoked-root', 'ROOT_KEY',
           status: EnrollmentStatus.revoked);
@@ -208,18 +203,18 @@ void main() {
           StartupFlatKeyOutcome.migratedIntoPrimary);
 
       expect(await flatKeyExists(), isFalse);
-      expect(
-          (await enMgr.getEnrollmentById(primary)).apkamPublicKey, 'ROOT_KEY');
+      expect((await enMgr.getEnrollmentById(primary)).apkamPublicKey,
+          'ROOT_KEY');
       expect(await enMgr.hasUnexpiringRootEnrollment({}), isTrue,
           reason: 'the atSign is left with a root it can restore itself from');
     });
 
-    test(
-        'a zero-length flat value is not a credential: nothing is minted '
+    test('a zero-length flat value is not a credential: nothing is minted '
         'from it, and it is cleared', () async {
       await installFlatKey('');
 
-      expect(await enMgr.migrateFlatKeyAtStartup(), StartupFlatKeyOutcome.none);
+      expect(await enMgr.migrateFlatKeyAtStartup(),
+          StartupFlatKeyOutcome.none);
 
       expect(await enMgr.primaryEnrollment(), isNull,
           reason: 'a primary holding an empty key would be a phantom root');
@@ -227,8 +222,7 @@ void main() {
           reason: 'and nothing exists at the key on a running server');
     });
 
-    test(
-        'a scoped enrollment is not a survivor, so a revoked root\'s copy '
+    test('a scoped enrollment is not a survivor, so a revoked root\'s copy '
         'is reinstated', () async {
       await storeRoot('revoked-root', 'ROOT_KEY',
           status: EnrollmentStatus.revoked);
@@ -268,12 +262,11 @@ void main() {
       expect(await enMgr.migrateFlatKeyAtStartup(),
           StartupFlatKeyOutcome.migratedIntoPrimary);
 
-      expect(
-          (await enMgr.getEnrollmentById(primary)).apkamPublicKey, 'ROOT_KEY');
+      expect((await enMgr.getEnrollmentById(primary)).apkamPublicKey,
+          'ROOT_KEY');
     });
 
-    test(
-        'a scoped holder of the key is not a root, so the key migrates and '
+    test('a scoped holder of the key is not a root, so the key migrates and '
         'the holder is only logged', () async {
       await storeScoped('scoped-holder', 'SHARED_KEY');
       await installFlatKey('SHARED_KEY');
@@ -328,8 +321,7 @@ void main() {
           'LEGACY_KEY');
     });
 
-    test(
-        'a stray flat key beside a primary holding a different key is '
+    test('a stray flat key beside a primary holding a different key is '
         'deleted, and primary is untouched', () async {
       await enMgr.serialiseMutation(() => enMgr.mintPrimary('PRIMARY_KEY'));
       await installFlatKey('STRAY_KEY');
@@ -342,8 +334,7 @@ void main() {
           'PRIMARY_KEY');
     });
 
-    test(
-        'a stray flat key that a revoked root also holds is deleted without '
+    test('a stray flat key that a revoked root also holds is deleted without '
         'the log claiming a reinstatement', () async {
       // primary expires, so it is not the unexpiring root that would make
       // the flat key a deletable copy.
@@ -354,7 +345,7 @@ void main() {
 
       final List<String> shouts = [];
       final sub = enMgr.logger.logger.onRecord
-          .listen((record) => shouts.add(record.message));
+          .listen((record) => shouts.add('${record.message}'));
 
       expect(await enMgr.migrateFlatKeyAtStartup(),
           StartupFlatKeyOutcome.deletedAsStray);
@@ -417,8 +408,7 @@ void main() {
               'install reinstates primary as well as rotating its key');
     });
 
-    test(
-        'a CRAM install re-approves a revoked primary that already holds '
+    test('a CRAM install re-approves a revoked primary that already holds '
         'the key', () async {
       await storeRoot(primary, 'KEYAAAAA', status: EnrollmentStatus.revoked);
 
@@ -431,14 +421,13 @@ void main() {
               'rotate onto');
       expect(v.apkamPublicKey, 'KEYAAAAA',
           reason: 'primary already holds the installed key');
-      expect(
-          await enMgr.getAllEnrollmentKeys(includeExpired: true), hasLength(1),
+      expect(await enMgr.getAllEnrollmentKeys(includeExpired: true),
+          hasLength(1),
           reason: 'the install reinstates primary rather than minting a '
               'second enrollment');
     });
 
-    test(
-        'is subject to key uniqueness: a key another enrollment holds is '
+    test('is subject to key uniqueness: a key another enrollment holds is '
         'refused, with nothing written', () async {
       await storeScoped('holder', 'HELD_KEY');
 
@@ -453,7 +442,7 @@ void main() {
 
     test('an ECC public key, which is hex rather than base64, is accepted',
         () async {
-      final String eccHex = '04${'ab' * 64}';
+      final String eccHex = '04' + 'ab' * 64;
       await enMgr.installLegacyKeyIntoPrimary(eccHex);
       expect((await enMgr.getEnrollmentById(primary)).apkamPublicKey, eccHex,
           reason: 'an ecc_secp256r1 key is spelled in hex, and the install '
@@ -475,14 +464,14 @@ void main() {
     });
 
     test('a value of nothing but a space is refused too', () async {
-      await expectLater(() => enMgr.installLegacyKeyIntoPrimary(' '),
+      await expectLater(
+          () => enMgr.installLegacyKeyIntoPrimary(' '),
           throwsA(isA<IllegalArgumentException>()),
           reason: 'an empty credential is one nobody can authenticate with');
       expect(await enMgr.primaryEnrollment(), isNull);
     });
 
-    test(
-        'an ECC key another enrollment holds is refused however it is '
+    test('an ECC key another enrollment holds is refused however it is '
         'cased', () async {
       await storeRoot('ecc-root', 'deadbeef', signingAlgo: 'ecc_secp256r1');
 
@@ -511,8 +500,7 @@ void main() {
       await installFlatKey('LEGACY_KEY');
       await storeScoped('an-app', 'APP_KEY');
 
-      await AtSecondaryServerImpl.getInstance()
-          .prepareStoreForFirstConnection();
+      await AtSecondaryServerImpl.getInstance().prepareStoreForFirstConnection();
 
       expect(await flatKeyExists(), isFalse,
           reason: 'no flat key exists on a running server');
@@ -525,8 +513,7 @@ void main() {
       await storeRoot('first-root', 'ROOT_KEY');
       await installFlatKey('ROOT_KEY');
 
-      await AtSecondaryServerImpl.getInstance()
-          .prepareStoreForFirstConnection();
+      await AtSecondaryServerImpl.getInstance().prepareStoreForFirstConnection();
 
       expect(await flatKeyExists(), isFalse);
       expect(await enMgr.primaryEnrollment(), isNull);
