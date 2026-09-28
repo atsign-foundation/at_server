@@ -8,6 +8,7 @@ import 'package:sqlite3/sqlite3.dart';
 
 import 'at_server_telemetry_configuration.dart';
 import 'at_server_telemetry_disk_exporter.dart';
+import 'at_server_telemetry_event_names.dart';
 
 final class AtServerTelemetry {
   static const String serverIdAttribute = 'atsign.server.id';
@@ -55,6 +56,13 @@ final class AtServerTelemetry {
     }
     if (name.trim().isEmpty) {
       _logger.warning('Ignoring telemetry event with an empty name');
+      return;
+    }
+    if (!name.startsWith(atServerTelemetryEventPrefix) ||
+        name.length == atServerTelemetryEventPrefix.length ||
+        name.trim() != name) {
+      _logger
+          .warning('Ignoring telemetry event outside the atServer namespace');
       return;
     }
     if (_pending.length >= maxPendingEvents &&

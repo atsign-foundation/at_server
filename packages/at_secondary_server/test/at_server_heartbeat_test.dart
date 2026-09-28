@@ -20,7 +20,8 @@ void main() {
     scheduler.stop();
 
     expect(exporter.events, isNotEmpty);
-    expect(exporter.events.first.name, 'atsign.server.heartbeat');
+    expect(AtServerHeartbeatScheduler.eventName, 'atsign.atserver.heartbeat');
+    expect(exporter.events.first.name, AtServerHeartbeatScheduler.eventName);
     expect(exporter.events.first.attributes, <String, Object?>{
       'atsign.server.id': '@denise',
     });
