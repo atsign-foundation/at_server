@@ -1,6 +1,6 @@
 import 'dart:math';
 
-import 'package:at_secondary/src/telemetry/at_server_heartbeat.dart';
+import 'package:at_secondary/src/telemetry/at_server_heartbeat_scheduler.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_telemetry/at_telemetry.dart';
 import 'package:test/test.dart';
