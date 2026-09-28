@@ -8,15 +8,20 @@ import 'package:test/test.dart';
 void main() {
   test('heartbeat uses the current server Atsign as its server ID', () async {
     final _RecordingExporter exporter = _RecordingExporter();
-    final AtServerHeartbeat heartbeat = AtServerHeartbeat(
+    final AtServerHeartbeatScheduler scheduler = AtServerHeartbeatScheduler(
       telemetry: _enabledTelemetry(exporter),
+      interval: const Duration(milliseconds: 100),
+      offset: Duration.zero,
     );
+    addTearDown(scheduler.stop);
 
-    heartbeat.send();
+    scheduler.start();
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    scheduler.stop();
 
-    expect(exporter.events, hasLength(1));
-    expect(exporter.events.single.name, 'atsign.server.heartbeat');
-    expect(exporter.events.single.attributes, <String, Object?>{
+    expect(exporter.events, isNotEmpty);
+    expect(exporter.events.first.name, 'atsign.server.heartbeat');
+    expect(exporter.events.first.attributes, <String, Object?>{
       'atsign.server.id': '@denise',
     });
   });
@@ -29,9 +34,7 @@ void main() {
       _RecordingExporter? exporter,
     }) {
       return AtServerHeartbeatScheduler(
-        heartbeat: AtServerHeartbeat(
-          telemetry: _enabledTelemetry(exporter ?? _RecordingExporter()),
-        ),
+        telemetry: _enabledTelemetry(exporter ?? _RecordingExporter()),
         interval: interval,
         offset: offset,
         random: random,
@@ -44,9 +47,7 @@ void main() {
         const Duration(minutes: 1),
       );
       final AtServerHeartbeatScheduler defaults = AtServerHeartbeatScheduler(
-        heartbeat: AtServerHeartbeat(
-          telemetry: _enabledTelemetry(_RecordingExporter()),
-        ),
+        telemetry: _enabledTelemetry(_RecordingExporter()),
       );
 
       expect(defaults.interval, const Duration(minutes: 1));
