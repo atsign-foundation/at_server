@@ -10,12 +10,14 @@ final class AtServerTelemetryConfiguration {
   static const int defaultMaxBytes = 10 * 1024 * 1024;
 
   final Uri endpoint;
+  final bool persistToDisk;
   final String storagePath;
   final int maxRecords;
   final int maxBytes;
 
   const AtServerTelemetryConfiguration({
     required this.endpoint,
+    required this.persistToDisk,
     required this.storagePath,
     required this.maxRecords,
     required this.maxBytes,
@@ -61,6 +63,16 @@ final class AtServerTelemetryConfiguration {
       return parsed;
     }
 
+    final String persistValue = setting(
+      'persistToDisk',
+      'AT_TELEMETRY_PERSIST_TO_DISK',
+      'true',
+    )!
+        .toLowerCase();
+    if (persistValue != 'true' && persistValue != 'false') {
+      throw const FormatException(
+          'Telemetry persistToDisk must be true or false');
+    }
     final String storagePath = setting(
       'storagePath',
       'AT_TELEMETRY_STORAGE_PATH',
@@ -68,6 +80,7 @@ final class AtServerTelemetryConfiguration {
     )!;
     return AtServerTelemetryConfiguration(
       endpoint: endpoint,
+      persistToDisk: persistValue == 'true',
       storagePath: storagePath,
       maxRecords: positiveLimit(
         'maxRecords',
