@@ -172,6 +172,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw AtServerException('Verb executor is not initialized');
     }
 
+
     if (useTLS! && serverContext!.securityContext == null) {
       throw AtServerException('Security context is not set');
     }
@@ -794,12 +795,13 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       }
       _compactionTimers.clear();
 
-      // Telemetry stays enabled across a restart: the OTel exporter cannot be
-      // initialised twice in one process.
+      // Stop telemetry schedulers
       logger.shout("Stopping heartbeat and flushing telemetry");
       _heartbeatScheduler?.stop();
       _heartbeatScheduler = null;
+      // Do a final flush
       await telemetry.flush(timeout: _telemetryFlushTimeout);
+
       _isRunning = false;
     } on Exception catch (e) {
       throw AtServerException(
