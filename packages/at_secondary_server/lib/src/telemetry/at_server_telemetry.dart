@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:at_telemetry/at_telemetry.dart';
 import 'package:at_telemetry/at_telemetry_otel.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:sqlite3/sqlite3.dart';
 
 import 'at_server_telemetry_configuration.dart';
 import 'at_server_telemetry_disk_exporter.dart';
@@ -55,7 +57,9 @@ final class AtServerTelemetry {
       _logger.warning('Ignoring telemetry event with an empty name');
       return;
     }
-    if (_pending.length >= maxPendingEvents) {
+    if (_pending.length >= maxPendingEvents &&
+        !(exporter is AtServerTelemetryDiskExporter &&
+            !exporter.isDirectExport)) {
       if (!_isDropping) {
         _isDropping = true;
         _logger.warning('Telemetry backlog full, dropping events');
@@ -166,21 +170,48 @@ Future<AtTelemetryExporter?> createAtServerTelemetryExporter({
     return null;
   }
 
-  final String destination = configuration.endpoint.origin;
+  final Uri endpoint = configuration.endpoint;
+  final String destination = endpoint.origin;
   try {
-    final AtTelemetryExporter exporter = AtServerTelemetryDiskExporter.open(
-      endpoint: configuration.endpoint,
-      keyId: serverId,
-      audience: configuration.endpoint.host,
-      signer: AtTelemetryRsaSigner.fromBase64(signingKey),
-      storagePath: configuration.storagePath,
-      maxRecords: configuration.maxRecords,
-      maxBytes: configuration.maxBytes,
-      onError: (Object error) =>
-          logger.warning('Telemetry export failed: ${error.runtimeType}'),
-    );
-    logger.info('Pushing signed telemetry to $destination');
-    return exporter;
+    final AtTelemetryRsaSigner signer =
+        AtTelemetryRsaSigner.fromBase64(signingKey);
+    void onError(Object error) =>
+        logger.warning('Telemetry export failed: ${error.runtimeType}');
+    AtTelemetryExporter direct() => AtTelemetrySignedHttpExporter(
+          endpoint: endpoint,
+          serviceName: 'at_secondary_server',
+          keyId: serverId,
+          audience: endpoint.host,
+          signer: signer,
+          onError: onError,
+        );
+
+    if (!configuration.persistToDisk) {
+      logger.info('Pushing signed telemetry directly to $destination');
+      return direct();
+    }
+    try {
+      final AtTelemetryExporter exporter = AtServerTelemetryDiskExporter.open(
+        endpoint: endpoint,
+        keyId: serverId,
+        audience: endpoint.host,
+        signer: signer,
+        storagePath: configuration.storagePath,
+        maxRecords: configuration.maxRecords,
+        maxBytes: configuration.maxBytes,
+        onError: onError,
+      );
+      logger.info('Pushing persisted signed telemetry to $destination');
+      return exporter;
+    } on FileSystemException catch (error) {
+      logger.warning('Telemetry disk unavailable: ${error.runtimeType}; '
+          'switching to direct signed export');
+      return direct();
+    } on SqliteException catch (error) {
+      logger.warning('Telemetry disk unavailable: ${error.runtimeType}; '
+          'switching to direct signed export');
+      return direct();
+    }
   } catch (error) {
     disable('exporter setup failed: ${error.runtimeType}');
     return null;

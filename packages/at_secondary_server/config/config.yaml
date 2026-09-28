@@ -222,3 +222,4 @@ telemetry:
   # Base HTTP or HTTPS URL of the telemetry collector; '/v1/logs' is appended.
   # Env: AT_TELEMETRY_ENDPOINT
   endpoint: ''
+  persistToDisk: ''
