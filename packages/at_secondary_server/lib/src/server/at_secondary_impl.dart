@@ -25,7 +25,7 @@ import 'package:at_secondary/src/server/at_certificate_validation.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/persistence_backend.dart';
 import 'package:at_secondary/src/server/server_context.dart';
-import 'package:at_secondary/src/telemetry/at_server_heartbeat.dart';
+import 'package:at_secondary/src/telemetry/at_server_heartbeat_scheduler.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_telemetry/at_telemetry.dart' show AtTelemetryExporter;
 import 'package:at_secondary/src/utils/logging_util.dart';

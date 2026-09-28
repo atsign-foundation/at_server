@@ -27,15 +27,46 @@ void main() {
 
   group('AtServerTelemetryConfiguration', () {
     test('is disabled when telemetry environment variables are absent', () {
-      expect(
-        AtServerTelemetryConfiguration.fromEnvironment(<String, String>{}),
-        isNull,
-      );
+      expect(_load(<String, String>{}), isNull);
+    });
+
+    test('prefers config.yaml over the environment', () {
+      final AtServerTelemetryConfiguration configuration = _load(
+        <String, String>{
+          'AT_TELEMETRY_ENDPOINT': 'http://environment:4318',
+          'AT_TELEMETRY_API_KEY': 'environment-secret',
+        },
+        <String, Object?>{
+          'endpoint': 'http://yaml:4318',
+          'apiKey': 'yaml-secret',
+        },
+      )!;
+
+      expect(configuration.endpoint, Uri.parse('http://yaml:4318'));
+      expect(configuration.apiKey, 'yaml-secret');
+    });
+
+    test('falls back to the environment for empty config.yaml values', () {
+      final AtServerTelemetryConfiguration configuration = _load(
+        <String, String>{
+          'AT_TELEMETRY_API_KEY': 'environment-secret',
+          'AT_TELEMETRY_COLLECTOR_ATSIGN': '@telemetry1',
+        },
+        <String, Object?>{
+          'endpoint': 'http://yaml:4318',
+          'apiKey': '',
+          'collectorAtsign': null,
+        },
+      )!;
+
+      expect(configuration.endpoint, Uri.parse('http://yaml:4318'));
+      expect(configuration.apiKey, 'environment-secret');
+      expect(configuration.collectorAtsign, '@telemetry1');
     });
 
     test('uses the configured endpoint, audience and optional API key', () {
       final AtServerTelemetryConfiguration configuration =
-          AtServerTelemetryConfiguration.fromEnvironment(<String, String>{
+          _load(<String, String>{
         'AT_TELEMETRY_ENDPOINT': 'http://host.docker.internal:4318',
         'AT_TELEMETRY_API_KEY': 'secret',
         'AT_TELEMETRY_COLLECTOR_ATSIGN': '@telemetry1',
@@ -47,15 +78,14 @@ void main() {
       );
       expect(configuration.apiKey, 'secret');
       expect(configuration.collectorAtsign, '@telemetry1');
-      final AtServerTelemetryConfiguration legacy =
-          AtServerTelemetryConfiguration.fromEnvironment(<String, String>{
+      final AtServerTelemetryConfiguration legacy = _load(<String, String>{
         'AT_TELEMETRY_ENDPOINT': 'http://localhost:4318',
         'AT_TELEMETRY_API_KEY': 'secret',
       })!;
       expect(legacy.collectorAtsign, isNull);
       expect(legacy.apiKey, 'secret');
       expect(
-          AtServerTelemetryConfiguration.fromEnvironment(<String, String>{
+          _load(<String, String>{
             'AT_TELEMETRY_ENDPOINT': 'http://localhost:4318',
             'AT_TELEMETRY_COLLECTOR_ATSIGN': '@telemetry1',
           })!
@@ -65,26 +95,26 @@ void main() {
 
     test('rejects partial and invalid configurations', () {
       expect(
-        () => AtServerTelemetryConfiguration.fromEnvironment(<String, String>{
+        () => _load(<String, String>{
           'AT_TELEMETRY_ENDPOINT': 'http://localhost:4318',
         }),
         throwsFormatException,
       );
       expect(
-        () => AtServerTelemetryConfiguration.fromEnvironment(<String, String>{
+        () => _load(<String, String>{
           'AT_TELEMETRY_API_KEY': 'secret',
         }),
         throwsFormatException,
       );
       expect(
-        () => AtServerTelemetryConfiguration.fromEnvironment(<String, String>{
+        () => _load(<String, String>{
           'AT_TELEMETRY_ENDPOINT': 'http://localhost:4318',
           'AT_TELEMETRY_COLLECTOR_ATSIGN': '@Telemetry1',
         }),
         throwsFormatException,
       );
       expect(
-        () => AtServerTelemetryConfiguration.fromEnvironment(<String, String>{
+        () => _load(<String, String>{
           'AT_TELEMETRY_ENDPOINT': 'localhost:4318',
           'AT_TELEMETRY_API_KEY': 'secret',
         }),
@@ -97,6 +127,7 @@ void main() {
     final AtTelemetryExporter? exporter = await createAtServerTelemetryExporter(
       serverId: '@denise',
       signingKey: null,
+      yaml: const <String, Object?>{},
       environment: <String, String>{
         'AT_TELEMETRY_ENDPOINT': 'http://localhost:4318',
         'AT_TELEMETRY_COLLECTOR_ATSIGN': '@telemetry1',
@@ -111,7 +142,22 @@ void main() {
     final AtTelemetryExporter? exporter = await createAtServerTelemetryExporter(
       serverId: '@denise',
       signingKey: null,
+      yaml: const <String, Object?>{},
       environment: <String, String>{},
+    );
+
+    expect(exporter, isNull);
+  });
+
+  test('an invalid configuration disables telemetry instead of throwing',
+      () async {
+    final AtTelemetryExporter? exporter = await createAtServerTelemetryExporter(
+      serverId: '@denise',
+      signingKey: null,
+      yaml: const <String, Object?>{},
+      environment: <String, String>{
+        'AT_TELEMETRY_ENDPOINT': 'http://localhost:4318',
+      },
     );
 
     expect(exporter, isNull);
@@ -321,4 +367,14 @@ final class _RecordingExporter implements AtTelemetryExporter {
   Future<void> shutdown() async {
     shutdownCount++;
   }
+}
+
+AtServerTelemetryConfiguration? _load(
+  Map<String, String> environment, [
+  Map<String, Object?> yaml = const <String, Object?>{},
+]) {
+  return AtServerTelemetryConfiguration.load(
+    yaml: yaml,
+    environment: environment,
+  );
 }

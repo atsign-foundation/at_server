@@ -137,34 +137,59 @@ final class AtServerTelemetry {
 Future<AtTelemetryExporter?> createAtServerTelemetryExporter({
   required String serverId,
   required String? signingKey,
+  Map<Object?, Object?>? yaml,
   Map<String, String>? environment,
 }) async {
-  final AtServerTelemetryConfiguration? configuration =
-      AtServerTelemetryConfiguration.fromEnvironment(environment);
+  final AtSignLogger logger = AtSignLogger('AtServerTelemetry');
+  void disable(String reason) {
+    logger.warning('Not pushing telemetry anywhere: $reason');
+  }
+
+  final AtServerTelemetryConfiguration? configuration;
+  try {
+    configuration = AtServerTelemetryConfiguration.load(
+      yaml: yaml,
+      environment: environment,
+    );
+  } on FormatException catch (error) {
+    disable(error.message);
+    return null;
+  }
   if (configuration == null) {
+    disable('no telemetry endpoint is configured');
     return null;
   }
 
-  if (configuration.collectorAtsign case final String audience) {
-    if (signingKey == null || signingKey.isEmpty) {
-      AtSignLogger('AtServerTelemetry')
-          .warning('Signing key unavailable, disabling signed telemetry');
-      return null;
+  final String destination = configuration.endpoint.origin;
+  try {
+    if (configuration.collectorAtsign case final String audience) {
+      if (signingKey == null || signingKey.isEmpty) {
+        disable('signing key unavailable');
+        return null;
+      }
+      final AtTelemetryExporter exporter = AtTelemetrySignedHttpExporter(
+        endpoint: configuration.endpoint,
+        serviceName: 'at_secondary_server',
+        keyId: serverId,
+        audience: audience,
+        signer: AtTelemetryRsaSigner.fromBase64(signingKey),
+        apiKey: configuration.apiKey,
+        onError: (Object error) =>
+            logger.warning('Telemetry export failed: ${error.runtimeType}'),
+      );
+      logger.info('Pushing signed telemetry to $destination for $audience');
+      return exporter;
     }
-    return AtTelemetrySignedHttpExporter(
+    final AtTelemetryExporter exporter =
+        await AtTelemetryExporterOtelHttp.create(
       endpoint: configuration.endpoint,
       serviceName: 'at_secondary_server',
-      keyId: serverId,
-      audience: audience,
-      signer: AtTelemetryRsaSigner.fromBase64(signingKey),
       apiKey: configuration.apiKey,
-      onError: (Object error) => AtSignLogger('AtServerTelemetry')
-          .warning('Telemetry export failed: ${error.runtimeType}'),
     );
+    logger.info('Pushing telemetry to $destination');
+    return exporter;
+  } catch (error) {
+    disable('exporter setup failed: ${error.runtimeType}');
+    return null;
   }
-  return AtTelemetryExporterOtelHttp.create(
-    endpoint: configuration.endpoint,
-    serviceName: 'at_secondary_server',
-    apiKey: configuration.apiKey,
-  );
 }

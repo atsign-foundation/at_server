@@ -1,9 +1,15 @@
 import 'dart:io';
 
 import 'package:at_commons/at_commons.dart' show InvalidAtSignException;
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_utils/at_utils.dart' show AtUtils;
 
 final class AtServerTelemetryConfiguration {
+  // Used when neither config.yaml nor the environment sets a value.
+  static const String? _defaultEndpoint = null;
+  static const String? _defaultCollectorAtsign = null;
+  static const String? _defaultApiKey = null;
+
   final Uri endpoint;
   final String? collectorAtsign;
   final String? apiKey;
@@ -14,26 +20,43 @@ final class AtServerTelemetryConfiguration {
     this.apiKey,
   });
 
-  static AtServerTelemetryConfiguration? fromEnvironment([
+  // config.yaml first, then the environment, then the defaults above.
+  static AtServerTelemetryConfiguration? load({
+    Map<Object?, Object?>? yaml,
     Map<String, String>? environment,
-  ]) {
+  }) {
     final Map<String, String> values = environment ?? Platform.environment;
-    final String? endpointValue = _nonEmpty(
-      values['AT_TELEMETRY_ENDPOINT'],
+    String? fromYaml(String key) => yaml != null
+        ? yaml[key]?.toString()
+        : AtSecondaryConfig.getStringValueFromYaml(['telemetry', key]);
+    String? setting(String yamlKey, String environmentKey, String? fallback) {
+      return _nonEmpty(fromYaml(yamlKey)) ??
+          _nonEmpty(values[environmentKey]) ??
+          fallback;
+    }
+
+    final String? endpointValue =
+        setting('endpoint', 'AT_TELEMETRY_ENDPOINT', _defaultEndpoint);
+    final String? apiKey =
+        setting('apiKey', 'AT_TELEMETRY_API_KEY', _defaultApiKey);
+    final String? collectorAtsign = setting(
+      'collectorAtsign',
+      'AT_TELEMETRY_COLLECTOR_ATSIGN',
+      _defaultCollectorAtsign,
     );
-    final String? apiKey = _nonEmpty(values['AT_TELEMETRY_API_KEY']);
-    final String? collectorAtsign =
-        _nonEmpty(values['AT_TELEMETRY_COLLECTOR_ATSIGN']);
 
     if (endpointValue == null && apiKey == null && collectorAtsign == null) {
       return null;
     }
     if (endpointValue == null) {
-      throw const FormatException('AT_TELEMETRY_ENDPOINT is required');
+      throw const FormatException(
+        'telemetry.endpoint or AT_TELEMETRY_ENDPOINT is required',
+      );
     }
     if (collectorAtsign == null && apiKey == null) {
       throw const FormatException(
-        'AT_TELEMETRY_API_KEY or AT_TELEMETRY_COLLECTOR_ATSIGN is required',
+        'telemetry.apiKey, telemetry.collectorAtsign, AT_TELEMETRY_API_KEY or '
+        'AT_TELEMETRY_COLLECTOR_ATSIGN is required',
       );
     }
     if (collectorAtsign != null) {
@@ -53,7 +76,7 @@ final class AtServerTelemetryConfiguration {
     if (!endpoint.hasAuthority ||
         (endpoint.scheme != 'http' && endpoint.scheme != 'https')) {
       throw const FormatException(
-        'AT_TELEMETRY_ENDPOINT must be an HTTP or HTTPS URL',
+        'Telemetry endpoint must be an HTTP or HTTPS URL',
       );
     }
 
