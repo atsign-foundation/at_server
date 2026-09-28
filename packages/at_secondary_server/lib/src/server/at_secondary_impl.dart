@@ -172,7 +172,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw AtServerException('Verb executor is not initialized');
     }
 
-
     if (useTLS! && serverContext!.securityContext == null) {
       throw AtServerException('Security context is not set');
     }
@@ -378,8 +377,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       }
     }
     if (telemetry.isEnabled && _heartbeatScheduler == null) {
-      _heartbeatScheduler = AtServerHeartbeatScheduler(
-          heartbeat: AtServerHeartbeat(telemetry: telemetry))
+      _heartbeatScheduler = AtServerHeartbeatScheduler(telemetry: telemetry)
         ..start();
     }
 

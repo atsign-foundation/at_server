@@ -3,26 +3,14 @@ import 'dart:math';
 
 import 'at_server_telemetry.dart';
 
-final class AtServerHeartbeat {
-  static const String eventName = 'atsign.server.heartbeat';
-
-  final AtServerTelemetry _telemetry;
-
-  AtServerHeartbeat({required AtServerTelemetry telemetry})
-      : _telemetry = telemetry;
-
-  void send() {
-    _telemetry.push(eventName);
-  }
-}
-
 final class AtServerHeartbeatScheduler {
+  static const String eventName = 'atsign.server.heartbeat';
   static const Duration defaultInterval = Duration(seconds: 60);
 
   // minimum that the interval can be set to
   static const Duration _minimumInterval = Duration(milliseconds: 1);
 
-  final AtServerHeartbeat _heartbeat;
+  final AtServerTelemetry _telemetry;
   final Duration interval;
   final Duration offset;
   final DateTime Function() _now;
@@ -30,12 +18,12 @@ final class AtServerHeartbeatScheduler {
   DateTime? _previousSlot;
 
   AtServerHeartbeatScheduler({
-    required AtServerHeartbeat heartbeat,
+    required AtServerTelemetry telemetry,
     this.interval = defaultInterval,
     Duration? offset,
     Random? random,
     DateTime Function()? now,
-  })  : _heartbeat = heartbeat,
+  })  : _telemetry = telemetry,
         offset = offset ?? randomOffset(interval, random ?? Random.secure()),
         _now = now ?? DateTime.now {
     _requireInterval(interval);
@@ -102,7 +90,7 @@ final class AtServerHeartbeatScheduler {
     _timer = Timer(slot.difference(now), () {
       _previousSlot = slot;
       _scheduleNext();
-      _heartbeat.send();
+      _telemetry.push(eventName);
     });
   }
 }
