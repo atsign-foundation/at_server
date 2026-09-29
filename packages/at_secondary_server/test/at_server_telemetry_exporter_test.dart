@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
-import 'package:at_secondary/src/telemetry/at_server_telemetry_disk_exporter.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry_exporter.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_event_names.dart';
 import 'package:at_telemetry/at_telemetry.dart';
 import 'package:at_telemetry/at_telemetry_otel.dart';
@@ -22,12 +22,13 @@ void main() {
   });
   tearDown(() => storage.delete(recursive: true));
 
-  AtServerTelemetryDiskExporter open({
+  AtServerTelemetryExporter open({
     required http.Client client,
     int maxRecords = 1000,
     int maxBytes = 10 * 1024 * 1024,
+    bool persistToDisk = true,
   }) {
-    return AtServerTelemetryDiskExporter.open(
+    return AtServerTelemetryExporter.open(
       endpoint: Uri.parse('https://collector.example.org:4318'),
       keyId: '@denise',
       audience: 'collector.example.org',
@@ -35,6 +36,7 @@ void main() {
       storagePath: storage.path,
       maxRecords: maxRecords,
       maxBytes: maxBytes,
+      persistToDisk: persistToDisk,
       client: client,
     );
   }
@@ -42,7 +44,7 @@ void main() {
   test('retains failures on disk and deletes only after signed HTTP 200',
       () async {
     final AtTelemetryEvent event = _event(atServerHeartbeatEventName);
-    final AtServerTelemetryDiskExporter first = open(
+    final AtServerTelemetryExporter first = open(
       client:
           MockClient((http.Request request) async => http.Response('', 503)),
     );
@@ -53,7 +55,7 @@ void main() {
 
     final List<http.Request> delivered = <http.Request>[];
     final Completer<void> sent = Completer<void>();
-    final AtServerTelemetryDiskExporter second = open(
+    final AtServerTelemetryExporter second = open(
       client: MockClient((http.Request request) async {
         delivered.add(request);
         sent.complete();
@@ -94,10 +96,32 @@ void main() {
     );
   });
 
+  test('sends directly without opening a disk queue when disabled', () async {
+    final List<http.Request> delivered = <http.Request>[];
+    final AtServerTelemetryExporter exporter = open(
+      persistToDisk: false,
+      client: MockClient((http.Request request) async {
+        delivered.add(request);
+        return http.Response('', 200);
+      }),
+    );
+
+    await exporter.export(_event('direct'));
+    await exporter.flush();
+    await exporter.shutdown();
+
+    expect(exporter.isDirectExport, isTrue);
+    expect(exporter.droppedRecords, 0);
+    expect(delivered, hasLength(1));
+    expect(delivered.single.headers,
+        contains(AtTelemetryHttpSignature.signatureHeader));
+    expect(storage.listSync(), isEmpty);
+  });
+
   test('persists a push before export and keeps it after flush times out',
       () async {
     final Completer<http.Response> response = Completer<http.Response>();
-    final AtServerTelemetryDiskExporter exporter = open(
+    final AtServerTelemetryExporter exporter = open(
       client: MockClient((http.Request request) => response.future),
     );
     final AtServerTelemetry telemetry = AtServerTelemetry()
@@ -115,7 +139,7 @@ void main() {
   test('switches future events to direct export after a disk write fails',
       () async {
     final List<http.Request> delivered = <http.Request>[];
-    final AtServerTelemetryDiskExporter exporter = open(
+    final AtServerTelemetryExporter exporter = open(
       client: MockClient((http.Request request) async {
         delivered.add(request);
         return http.Response('', 200);
@@ -152,7 +176,7 @@ void main() {
   test('keeps queued records when writes switch to direct export', () async {
     final List<String> delivered = <String>[];
     bool available = false;
-    final AtServerTelemetryDiskExporter exporter = open(
+    final AtServerTelemetryExporter exporter = open(
       client: MockClient((http.Request request) async {
         final String name = const AtTelemetryOtelLogsCodec()
             .decodeExportRequest(request.bodyBytes)
@@ -185,7 +209,7 @@ void main() {
   });
 
   test('retains records rejected by the collector', () async {
-    final AtServerTelemetryDiskExporter exporter = open(
+    final AtServerTelemetryExporter exporter = open(
       client:
           MockClient((http.Request request) async => http.Response('', 401)),
     );
@@ -197,7 +221,7 @@ void main() {
   });
 
   test('discards oldest records when count limit is reached', () async {
-    final AtServerTelemetryDiskExporter exporter = open(
+    final AtServerTelemetryExporter exporter = open(
       maxRecords: 2,
       client:
           MockClient((http.Request request) async => http.Response('', 503)),
@@ -216,7 +240,7 @@ void main() {
 
   test('the disk cap drops oldest even when the memory backlog is full',
       () async {
-    final AtServerTelemetryDiskExporter exporter = open(
+    final AtServerTelemetryExporter exporter = open(
       maxRecords: 2,
       client:
           MockClient((http.Request request) async => http.Response('', 503)),
@@ -240,7 +264,7 @@ void main() {
       () async {
     final http.Client unavailable =
         MockClient((http.Request request) async => http.Response('', 503));
-    final AtServerTelemetryDiskExporter first = open(
+    final AtServerTelemetryExporter first = open(
       maxRecords: 3,
       client: unavailable,
     );
@@ -249,7 +273,7 @@ void main() {
     await first.export(_event('third'));
     await first.shutdown();
 
-    final AtServerTelemetryDiskExporter second = open(
+    final AtServerTelemetryExporter second = open(
       maxRecords: 2,
       client: unavailable,
     );
@@ -268,7 +292,7 @@ void main() {
       <AtTelemetryEvent>[first],
       serviceName: 'at_secondary_server',
     ).length;
-    final AtServerTelemetryDiskExporter exporter = open(
+    final AtServerTelemetryExporter exporter = open(
       maxBytes: payloadBytes + 1,
       client:
           MockClient((http.Request request) async => http.Response('', 503)),
@@ -284,7 +308,7 @@ void main() {
   test('does not store an individual record larger than the byte cap',
       () async {
     int requests = 0;
-    final AtServerTelemetryDiskExporter exporter = open(
+    final AtServerTelemetryExporter exporter = open(
       maxBytes: 1,
       client: MockClient((http.Request request) async {
         requests++;
