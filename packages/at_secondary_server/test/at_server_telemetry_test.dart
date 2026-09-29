@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_configuration.dart';
@@ -65,9 +64,6 @@ void main() {
       })!;
 
       expect(configuration.endpoint.host, 'collector.example.org');
-      expect(configuration.persistToDisk, isTrue);
-      expect(configuration.maxRecords, 1000);
-      expect(configuration.maxBytes, 10 * 1024 * 1024);
     });
 
     test('rejects insecure and invalid endpoints', () {
@@ -91,68 +87,6 @@ void main() {
       );
     });
 
-    test('storage path and caps prefer config.yaml over environment', () {
-      final AtServerTelemetryConfiguration configuration = _load(
-        <String, String>{
-          'AT_TELEMETRY_ENDPOINT': 'https://collector.example.org',
-          'AT_TELEMETRY_STORAGE_PATH': '/tmp/environment-telemetry',
-          'AT_TELEMETRY_MAX_RECORDS': '200',
-          'AT_TELEMETRY_MAX_BYTES': '2048',
-        },
-        <String, Object?>{
-          'storagePath': '/tmp/yaml-telemetry',
-          'maxRecords': 50,
-          'maxBytes': 1024,
-        },
-      )!;
-      expect(configuration.storagePath, '/tmp/yaml-telemetry');
-      expect(configuration.maxRecords, 50);
-      expect(configuration.maxBytes, 1024);
-    });
-
-    test('allows config.yaml to override direct-export environment settings',
-        () {
-      final AtServerTelemetryConfiguration configuration = _load(
-        <String, String>{
-          'AT_TELEMETRY_ENDPOINT': 'https://collector.example.org',
-          'AT_TELEMETRY_PERSIST_TO_DISK': 'true',
-        },
-        <String, Object?>{'persistToDisk': false},
-      )!;
-      expect(configuration.persistToDisk, isFalse);
-    });
-
-    test('falls back to the environment for an empty disk setting', () {
-      final AtServerTelemetryConfiguration configuration = _load(
-        <String, String>{
-          'AT_TELEMETRY_ENDPOINT': 'https://collector.example.org',
-          'AT_TELEMETRY_PERSIST_TO_DISK': 'false',
-        },
-        <String, Object?>{'persistToDisk': ''},
-      )!;
-      expect(configuration.persistToDisk, isFalse);
-    });
-
-    test('rejects invalid disk persistence settings', () {
-      expect(
-        () => _load(<String, String>{
-          'AT_TELEMETRY_ENDPOINT': 'https://collector.example.org',
-          'AT_TELEMETRY_PERSIST_TO_DISK': 'sometimes',
-        }),
-        throwsFormatException,
-      );
-    });
-
-    test('rejects nonpositive queue limits', () {
-      expect(
-        () => _load(<String, String>{
-          'AT_TELEMETRY_ENDPOINT': 'https://collector.example.org',
-          'AT_TELEMETRY_MAX_RECORDS': '0',
-        }),
-        throwsFormatException,
-      );
-    });
-
     test('ignores legacy collector Atsign and API key settings', () {
       expect(
         _load(<String, String>{
@@ -166,68 +100,18 @@ void main() {
 
   test('a configured exporter always signs with the server key', () async {
     final RSAKeypair keys = RSAKeypair.fromRandom();
-    final Directory storage =
-        await Directory.systemTemp.createTemp('atserver-telemetry-');
-    addTearDown(() => storage.delete(recursive: true));
     final AtTelemetryExporter? exporter = await createAtServerTelemetryExporter(
       serverId: '@denise',
       signingKey: keys.privateKey.toString(),
       yaml: const <String, Object?>{},
       environment: <String, String>{
         'AT_TELEMETRY_ENDPOINT': 'https://collector.example.org:4318',
-        'AT_TELEMETRY_STORAGE_PATH': storage.path,
       },
     );
 
-    expect(exporter, isA<AtServerTelemetryExporter>());
-    expect((exporter as AtServerTelemetryExporter).isDirectExport, isFalse);
-    await exporter.shutdown();
-  });
-
-  test('direct mode does not open a disk queue', () async {
-    final Directory storage =
-        await Directory.systemTemp.createTemp('atserver-telemetry-');
-    addTearDown(() => storage.delete(recursive: true));
-    final String queuePath = '${storage.path}/no-queue';
-    final RSAKeypair keys = RSAKeypair.fromRandom();
-    final AtTelemetryExporter? exporter = await createAtServerTelemetryExporter(
-      serverId: '@denise',
-      signingKey: keys.privateKey.toString(),
-      yaml: const <String, Object?>{},
-      environment: <String, String>{
-        'AT_TELEMETRY_ENDPOINT': 'https://collector.example.org',
-        'AT_TELEMETRY_PERSIST_TO_DISK': 'false',
-        'AT_TELEMETRY_STORAGE_PATH': queuePath,
-      },
-    );
-
-    expect(exporter, isA<AtServerTelemetryExporter>());
-    expect((exporter as AtServerTelemetryExporter).isDirectExport, isTrue);
-    expect(Directory(queuePath).existsSync(), isFalse);
-    await exporter.shutdown();
-  });
-
-  test('disk initialization failure falls back to direct signed export',
-      () async {
-    final Directory storage =
-        await Directory.systemTemp.createTemp('atserver-telemetry-');
-    addTearDown(() => storage.delete(recursive: true));
-    final File blocked = File('${storage.path}/not-a-directory')
-      ..writeAsStringSync('blocked');
-    final RSAKeypair keys = RSAKeypair.fromRandom();
-    final AtTelemetryExporter? exporter = await createAtServerTelemetryExporter(
-      serverId: '@denise',
-      signingKey: keys.privateKey.toString(),
-      yaml: const <String, Object?>{},
-      environment: <String, String>{
-        'AT_TELEMETRY_ENDPOINT': 'https://collector.example.org',
-        'AT_TELEMETRY_STORAGE_PATH': blocked.path,
-      },
-    );
-
-    expect(exporter, isA<AtServerTelemetryExporter>());
-    expect((exporter as AtServerTelemetryExporter).isDirectExport, isTrue);
-    await exporter.shutdown();
+    expect(exporter, isA<AtTelemetryOtelSignedHttpExporter>());
+    expect(exporter, isA<AtTelemetryGaugeExporter>());
+    await exporter!.shutdown();
   });
 
   test('signed telemetry is disabled with an empty signing key', () async {
