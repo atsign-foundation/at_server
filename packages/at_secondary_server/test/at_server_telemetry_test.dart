@@ -180,7 +180,7 @@ void main() {
 
     expect(exporter, isA<AtServerTelemetryExporter>());
     expect((exporter as AtServerTelemetryExporter).isDirectExport, isFalse);
-    await exporter!.shutdown();
+    await exporter.shutdown();
   });
 
   test('direct mode does not open a disk queue', () async {
@@ -276,7 +276,7 @@ void main() {
 
       final DateTime beforePush = DateTime.now().toUtc();
       telemetry.push(
-        '${atServerTelemetryEventPrefix}notify',
+        '$atServerTelemetryEventPrefix.notify',
         attributes: <String, Object?>{'atsign.notify.count': 3},
       );
       final DateTime afterPush = DateTime.now().toUtc();
@@ -299,7 +299,7 @@ void main() {
       final AtServerTelemetry telemetry = _enabledTelemetry(exporter);
 
       telemetry.push(
-        '${atServerTelemetryEventPrefix}op',
+        '$atServerTelemetryEventPrefix.op',
         attributes: <String, Object?>{'atsign.atserver.id': '@mallory'},
       );
       await telemetry.flush();
@@ -322,8 +322,11 @@ void main() {
       final _RecordingExporter exporter = _RecordingExporter();
       final AtServerTelemetry telemetry = _enabledTelemetry(exporter);
 
+      expect(atServerTelemetryEventPrefix, 'atsign.atserver');
       telemetry.push('atsign.server.heartbeat');
       telemetry.push(atServerTelemetryEventPrefix);
+      telemetry.push('$atServerTelemetryEventPrefix.');
+      telemetry.push('atsign.atserverx.heartbeat');
       telemetry.push('atsign.atserver.invalid ');
       telemetry.push(atServerHeartbeatEventName);
       await telemetry.flush();
@@ -334,7 +337,7 @@ void main() {
     test('telemetry ignores every call until enabled', () async {
       final AtServerTelemetry telemetry = AtServerTelemetry();
 
-      telemetry.push('${atServerTelemetryEventPrefix}op');
+      telemetry.push('$atServerTelemetryEventPrefix.op');
       await telemetry.flush();
       await telemetry.shutdown();
 
@@ -345,7 +348,7 @@ void main() {
       final AtServerTelemetry telemetry =
           _enabledTelemetry(_RecordingExporter(failExports: true));
 
-      telemetry.push('${atServerTelemetryEventPrefix}op');
+      telemetry.push('$atServerTelemetryEventPrefix.op');
 
       await expectLater(telemetry.flush(), completes);
     });
@@ -356,7 +359,7 @@ void main() {
           _RecordingExporter(exportGate: release.future);
       final AtServerTelemetry telemetry = _enabledTelemetry(exporter);
 
-      telemetry.push('${atServerTelemetryEventPrefix}op');
+      telemetry.push('$atServerTelemetryEventPrefix.op');
       bool flushed = false;
       final Future<void> flush =
           telemetry.flush().then((void _) => flushed = true);
@@ -374,10 +377,10 @@ void main() {
       final _RecordingExporter exporter = _RecordingExporter();
       final AtServerTelemetry telemetry = _enabledTelemetry(exporter);
 
-      telemetry.push('${atServerTelemetryEventPrefix}before');
+      telemetry.push('$atServerTelemetryEventPrefix.before');
       await telemetry.shutdown();
       await telemetry.shutdown();
-      telemetry.push('${atServerTelemetryEventPrefix}after');
+      telemetry.push('$atServerTelemetryEventPrefix.after');
       await telemetry.flush();
 
       expect(telemetry.isEnabled, isFalse);
@@ -394,9 +397,9 @@ void main() {
       final _RecordingExporter exporter = _RecordingExporter();
       final AtServerTelemetry telemetry = AtServerTelemetry();
 
-      telemetry.push('${atServerTelemetryEventPrefix}before');
+      telemetry.push('$atServerTelemetryEventPrefix.before');
       telemetry.enable(exporter: exporter, serverId: '@denise');
-      telemetry.push('${atServerTelemetryEventPrefix}after');
+      telemetry.push('$atServerTelemetryEventPrefix.after');
       await telemetry.flush();
 
       expect(telemetry.serverId, '@denise');
@@ -420,13 +423,13 @@ void main() {
         maxPendingEvents: 2,
       )..enable(exporter: exporter, serverId: '@denise');
 
-      telemetry.push('${atServerTelemetryEventPrefix}one');
-      telemetry.push('${atServerTelemetryEventPrefix}two');
-      telemetry.push('${atServerTelemetryEventPrefix}three');
-      telemetry.push('${atServerTelemetryEventPrefix}four');
+      telemetry.push('$atServerTelemetryEventPrefix.one');
+      telemetry.push('$atServerTelemetryEventPrefix.two');
+      telemetry.push('$atServerTelemetryEventPrefix.three');
+      telemetry.push('$atServerTelemetryEventPrefix.four');
       release.complete();
       await telemetry.flush();
-      telemetry.push('${atServerTelemetryEventPrefix}five');
+      telemetry.push('$atServerTelemetryEventPrefix.five');
       await telemetry.flush();
 
       expect(
@@ -447,7 +450,7 @@ void main() {
           _RecordingExporter(exportGate: Completer<void>().future);
       final AtServerTelemetry telemetry = _enabledTelemetry(exporter);
 
-      telemetry.push('${atServerTelemetryEventPrefix}op');
+      telemetry.push('$atServerTelemetryEventPrefix.op');
 
       await expectLater(
         telemetry.flush(timeout: const Duration(milliseconds: 50)),

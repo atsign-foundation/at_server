@@ -247,9 +247,9 @@ void main() {
     );
     final AtServerTelemetry telemetry = AtServerTelemetry(maxPendingEvents: 1)
       ..enable(exporter: exporter, serverId: '@denise');
-    telemetry.push('${atServerTelemetryEventPrefix}first');
-    telemetry.push('${atServerTelemetryEventPrefix}second');
-    telemetry.push('${atServerTelemetryEventPrefix}third');
+    telemetry.push('$atServerTelemetryEventPrefix.first');
+    telemetry.push('$atServerTelemetryEventPrefix.second');
+    telemetry.push('$atServerTelemetryEventPrefix.third');
     await telemetry.flush();
     await exporter.shutdown();
 
