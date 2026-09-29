@@ -28,7 +28,8 @@ import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_constants.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_exporter.dart';
-import 'package:at_telemetry/at_telemetry.dart' show AtTelemetryLogRecordExporter;
+import 'package:at_telemetry/at_telemetry.dart'
+    show AtTelemetryLogRecordExporter;
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_update_verb_handler.dart';
@@ -173,6 +174,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     if (executor == null) {
       throw AtServerException('Verb executor is not initialized');
     }
+
 
     if (useTLS! && serverContext!.securityContext == null) {
       throw AtServerException('Security context is not set');
