@@ -161,7 +161,7 @@ final class AtServerTelemetry {
   Future<void> _guard(Future<void> Function() action, String operation) async {
     try {
       await action();
-    } catch (error) {
+    } on Object catch (error) {
       _logger.warning('Telemetry $operation failed: ${error.runtimeType}');
     }
   }

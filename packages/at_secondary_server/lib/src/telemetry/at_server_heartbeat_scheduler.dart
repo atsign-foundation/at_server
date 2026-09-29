@@ -48,8 +48,14 @@ final class AtServerHeartbeatScheduler {
     _uptime.start();
     _timer = Timer(offset, () {
       _sendUptime();
-      _timer = Timer.periodic(interval, (_) => _sendUptime());
+      _timer = Timer.periodic(interval, (Timer _) => _sendUptime());
     });
+  }
+
+  void stop() {
+    _timer?.cancel();
+    _timer = null;
+    _uptime.stop();
   }
 
   void _sendUptime() {
@@ -58,12 +64,6 @@ final class AtServerHeartbeatScheduler {
       _uptime.elapsedMicroseconds / Duration.microsecondsPerSecond,
       unit: 's',
     );
-  }
-
-  void stop() {
-    _timer?.cancel();
-    _timer = null;
-    _uptime.stop();
   }
 
   static Duration _randomOffset(Duration interval, Random random) {

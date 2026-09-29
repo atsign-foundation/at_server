@@ -9,6 +9,8 @@ import 'package:at_telemetry/at_telemetry_otel.dart';
 import 'package:crypton/crypton.dart';
 import 'package:test/test.dart';
 
+import 'telemetry_support/recording_event_exporter.dart';
+
 void main() {
   test('server-resolved at_chops signs and verifies telemetry', () async {
     final RSAKeypair keys = RSAKeypair.fromRandom();
@@ -155,7 +157,7 @@ void main() {
 
   group('AtServerTelemetry', () {
     test('pushes events stamped with the server ID and timestamp', () async {
-      final _RecordingExporter exporter = _RecordingExporter();
+      final RecordingEventExporter exporter = RecordingEventExporter();
       final AtServerTelemetry telemetry = AtServerTelemetry()
         ..enable(exporter: exporter, serverId: '@denise');
 
@@ -180,7 +182,7 @@ void main() {
     });
 
     test('callers cannot override the server ID', () async {
-      final _RecordingExporter exporter = _RecordingExporter();
+      final RecordingEventExporter exporter = RecordingEventExporter();
       final AtServerTelemetry telemetry = _enabledTelemetry(exporter);
 
       telemetry.push(
@@ -194,7 +196,7 @@ void main() {
     });
 
     test('drops events with an empty name', () async {
-      final _RecordingExporter exporter = _RecordingExporter();
+      final RecordingEventExporter exporter = RecordingEventExporter();
       final AtServerTelemetry telemetry = _enabledTelemetry(exporter);
 
       telemetry.push('  ');
@@ -204,7 +206,7 @@ void main() {
     });
 
     test('only exports events in the atServer namespace', () async {
-      final _RecordingExporter exporter = _RecordingExporter();
+      final RecordingEventExporter exporter = RecordingEventExporter();
       final AtServerTelemetry telemetry = _enabledTelemetry(exporter);
 
       expect(atServerTelemetryEventPrefix, 'atsign.atserver');
@@ -231,7 +233,7 @@ void main() {
 
     test('export failures never reach the caller', () async {
       final AtServerTelemetry telemetry =
-          _enabledTelemetry(_RecordingExporter(failExports: true));
+          _enabledTelemetry(RecordingEventExporter(failExports: true));
 
       telemetry.push('$atServerTelemetryEventPrefix.op');
 
@@ -240,8 +242,8 @@ void main() {
 
     test('flush waits for exports that are still in flight', () async {
       final Completer<void> release = Completer<void>();
-      final _RecordingExporter exporter =
-          _RecordingExporter(exportGate: release.future);
+      final RecordingEventExporter exporter =
+          RecordingEventExporter(exportGate: release.future);
       final AtServerTelemetry telemetry = _enabledTelemetry(exporter);
 
       telemetry.push('$atServerTelemetryEventPrefix.op');
@@ -259,7 +261,7 @@ void main() {
 
     test('shutdown drains, shuts the exporter down once and stops pushes',
         () async {
-      final _RecordingExporter exporter = _RecordingExporter();
+      final RecordingEventExporter exporter = RecordingEventExporter();
       final AtServerTelemetry telemetry = _enabledTelemetry(exporter);
 
       telemetry.push('$atServerTelemetryEventPrefix.before');
@@ -279,7 +281,7 @@ void main() {
     });
 
     test('the same instance starts pushing once enabled', () async {
-      final _RecordingExporter exporter = _RecordingExporter();
+      final RecordingEventExporter exporter = RecordingEventExporter();
       final AtServerTelemetry telemetry = AtServerTelemetry();
 
       telemetry.push('$atServerTelemetryEventPrefix.before');
@@ -302,8 +304,8 @@ void main() {
 
     test('drops events beyond the pending limit', () async {
       final Completer<void> release = Completer<void>();
-      final _RecordingExporter exporter =
-          _RecordingExporter(exportGate: release.future);
+      final RecordingEventExporter exporter =
+          RecordingEventExporter(exportGate: release.future);
       final AtServerTelemetry telemetry = AtServerTelemetry(
         maxPendingEvents: 2,
       )..enable(exporter: exporter, serverId: '@denise');
@@ -331,8 +333,8 @@ void main() {
     });
 
     test('flush with a timeout returns while an export is stuck', () async {
-      final _RecordingExporter exporter =
-          _RecordingExporter(exportGate: Completer<void>().future);
+      final RecordingEventExporter exporter =
+          RecordingEventExporter(exportGate: Completer<void>().future);
       final AtServerTelemetry telemetry = _enabledTelemetry(exporter);
 
       telemetry.push('$atServerTelemetryEventPrefix.op');
@@ -348,37 +350,6 @@ void main() {
 
 AtServerTelemetry _enabledTelemetry(AtTelemetryExporter exporter) {
   return AtServerTelemetry()..enable(exporter: exporter, serverId: '@denise');
-}
-
-final class _RecordingExporter implements AtTelemetryExporter {
-  _RecordingExporter({this.failExports = false, this.exportGate});
-
-  final bool failExports;
-  final Future<void>? exportGate;
-  final List<AtTelemetryEvent> events = <AtTelemetryEvent>[];
-  int flushCount = 0;
-  int shutdownCount = 0;
-
-  @override
-  Future<void> export(AtTelemetryEvent event) async {
-    if (exportGate case final Future<void> gate) {
-      await gate;
-    }
-    if (failExports) {
-      throw StateError('collector unavailable');
-    }
-    events.add(event);
-  }
-
-  @override
-  Future<void> flush() async {
-    flushCount++;
-  }
-
-  @override
-  Future<void> shutdown() async {
-    shutdownCount++;
-  }
 }
 
 AtServerTelemetryConfiguration? _load(
