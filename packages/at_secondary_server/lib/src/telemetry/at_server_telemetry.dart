@@ -1,13 +1,16 @@
 import 'dart:async';
 
 import 'package:at_telemetry/at_telemetry.dart';
+import 'package:at_telemetry/at_telemetry_otel.dart'
+    show AtTelemetryOtelHttpSignature;
 import 'package:at_utils/at_logger.dart';
 
 import 'at_server_telemetry_exporter.dart';
 import 'at_server_telemetry_constants.dart';
 
 final class AtServerTelemetry {
-  static const String serverIdAttribute = 'atsign.atserver.id';
+  static const String serverIdAttribute =
+      AtTelemetryOtelHttpSignature.serverIdAttribute;
   static const int defaultMaxPendingEvents = 1000;
   static const String _eventNamePrefix = '$atServerTelemetryEventPrefix.';
 
@@ -41,6 +44,43 @@ final class AtServerTelemetry {
     }
     _exporter = exporter;
     _serverId = serverId;
+  }
+
+  void pushGauge(
+    String name,
+    double value, {
+    String unit = '',
+    Map<String, Object?> attributes = const <String, Object?>{},
+  }) {
+    final AtTelemetryExporter? exporter = _exporter;
+    if (exporter is! AtTelemetryGaugeExporter) {
+      return;
+    }
+    if (!name.startsWith(_eventNamePrefix) ||
+        name.length == _eventNamePrefix.length ||
+        name.trim() != name ||
+        !value.isFinite) {
+      _logger.warning('Ignoring invalid atServer gauge');
+      return;
+    }
+    final AtTelemetryGauge gauge = AtTelemetryGauge(
+      name: name,
+      value: value,
+      unit: unit,
+      timestamp: DateTime.now().toUtc(),
+      attributes: Map<String, Object?>.unmodifiable(<String, Object?>{
+        ...attributes,
+        serverIdAttribute: _serverId,
+      }),
+    );
+    final AtTelemetryGaugeExporter gaugeExporter =
+        exporter as AtTelemetryGaugeExporter;
+    final Future<void> export = _guard(
+      () => gaugeExporter.exportGauges(<AtTelemetryGauge>[gauge]),
+      'gauge export',
+    );
+    _pending.add(export);
+    unawaited(export.whenComplete(() => _pending.remove(export)));
   }
 
   void push(String name, {Map<String, Object?> attributes = const {}}) {

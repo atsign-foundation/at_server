@@ -11,7 +11,8 @@ import 'at_server_telemetry_configuration.dart';
 import 'at_server_telemetry_disk_queue.dart';
 
 // Responsible for exporting from DiskQueue to OTLP HTTP to collector
-final class AtServerTelemetryExporter implements AtTelemetryExporter {
+final class AtServerTelemetryExporter
+    implements AtTelemetryExporter, AtTelemetryGaugeExporter {
   static const Duration _initialRetryDelay = Duration(seconds: 1);
   static const Duration _maxRetryDelay = Duration(seconds: 60);
 
@@ -117,6 +118,14 @@ final class AtServerTelemetryExporter implements AtTelemetryExporter {
       return _exportDirectly(event, error);
     }
     return Future<void>.value();
+  }
+
+  @override
+  Future<void> exportGauges(Iterable<AtTelemetryGauge> gauges) {
+    if (_closed) {
+      throw StateError('Exporter is closed');
+    }
+    return _httpExporter.exportGauges(gauges);
   }
 
   @override
