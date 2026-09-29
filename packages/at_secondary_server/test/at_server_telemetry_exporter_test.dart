@@ -80,8 +80,9 @@ void main() {
         return http.Response('', 200);
       }),
     );
-    final AtServerTelemetry telemetry = AtServerTelemetry()
-      ..enable(exporter: exporter, serverId: '@denise');
+    final AtServerTelemetry telemetry =
+        AtServerTelemetry(heartbeatInterval: null)
+          ..enable(exporter: exporter, serverId: '@denise');
 
     telemetry.pushGauge('$atServerTelemetryEventPrefix.uptime', 12, unit: 's');
     await telemetry.shutdown();
@@ -146,8 +147,9 @@ void main() {
         return stuck.future;
       }),
     );
-    final AtServerTelemetry telemetry = AtServerTelemetry(maxPendingEvents: 2)
-      ..enable(exporter: exporter, serverId: '@denise');
+    final AtServerTelemetry telemetry =
+        AtServerTelemetry(maxPendingEvents: 2, heartbeatInterval: null)
+          ..enable(exporter: exporter, serverId: '@denise');
 
     telemetry.push('$atServerTelemetryEventPrefix.first');
     telemetry.push('$atServerTelemetryEventPrefix.second');
