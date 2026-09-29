@@ -9,17 +9,17 @@ import 'package:sqlite3/sqlite3.dart';
 
 import 'at_server_telemetry_disk_queue.dart';
 
-final class AtServerTelemetryDiskExporter implements AtTelemetryExporter {
+final class AtServerTelemetryExporter implements AtTelemetryExporter {
   final Uri _endpoint;
   final String _keyId;
   final String _audience;
   final AtTelemetryRsaSigner _signer;
-  final AtServerTelemetryDiskQueue _queue;
+  final AtServerTelemetryDiskQueue? _queue;
   final http.Client _client;
   final bool _ownsClient;
   final AtTelemetrySignedHttpExporter _directExporter;
   final void Function(Object)? _onError;
-  final AtSignLogger _logger = AtSignLogger('AtServerTelemetryDiskExporter');
+  final AtSignLogger _logger = AtSignLogger('AtServerTelemetryExporter');
   final AtTelemetryOtelLogsCodec _codec = const AtTelemetryOtelLogsCodec();
   Future<void>? _draining;
   Timer? _timer;
@@ -27,12 +27,12 @@ final class AtServerTelemetryDiskExporter implements AtTelemetryExporter {
   bool _closed = false;
   bool _diskWriteDisabled = false;
 
-  AtServerTelemetryDiskExporter._({
+  AtServerTelemetryExporter._({
     required Uri endpoint,
     required String keyId,
     required String audience,
     required AtTelemetryRsaSigner signer,
-    required AtServerTelemetryDiskQueue queue,
+    required AtServerTelemetryDiskQueue? queue,
     required http.Client client,
     required bool ownsClient,
     void Function(Object)? onError,
@@ -53,13 +53,15 @@ final class AtServerTelemetryDiskExporter implements AtTelemetryExporter {
           onError: onError,
         ),
         _onError = onError {
-    _scheduleDrain();
+    if (queue != null) {
+      _scheduleDrain();
+    }
   }
 
-  int get droppedRecords => _queue.droppedRecords;
-  bool get isDirectExport => _diskWriteDisabled;
+  int get droppedRecords => _queue?.droppedRecords ?? 0;
+  bool get isDirectExport => _queue == null || _diskWriteDisabled;
 
-  static AtServerTelemetryDiskExporter open({
+  static AtServerTelemetryExporter open({
     required Uri endpoint,
     required String keyId,
     required String audience,
@@ -67,6 +69,7 @@ final class AtServerTelemetryDiskExporter implements AtTelemetryExporter {
     required String storagePath,
     required int maxRecords,
     required int maxBytes,
+    bool persistToDisk = true,
     http.Client? client,
     void Function(Object)? onError,
   }) {
@@ -80,14 +83,16 @@ final class AtServerTelemetryDiskExporter implements AtTelemetryExporter {
             !endpoint.path.endsWith('/v1/logs'))) {
       throw ArgumentError.value(endpoint, 'endpoint', 'invalid OTLP endpoint');
     }
-    final AtServerTelemetryDiskQueue queue = AtServerTelemetryDiskQueue.open(
-      serverId: keyId,
-      storagePath: storagePath,
-      maxRecords: maxRecords,
-      maxBytes: maxBytes,
-    );
+    final AtServerTelemetryDiskQueue? queue = persistToDisk
+        ? AtServerTelemetryDiskQueue.open(
+            serverId: keyId,
+            storagePath: storagePath,
+            maxRecords: maxRecords,
+            maxBytes: maxBytes,
+          )
+        : null;
     final http.Client actualClient = client ?? http.Client();
-    return AtServerTelemetryDiskExporter._(
+    return AtServerTelemetryExporter._(
       endpoint: endpoint.replace(path: '/v1/logs'),
       keyId: keyId,
       audience: audience,
@@ -104,7 +109,8 @@ final class AtServerTelemetryDiskExporter implements AtTelemetryExporter {
     if (_closed) {
       throw StateError('Exporter is closed');
     }
-    if (_diskWriteDisabled) {
+    final AtServerTelemetryDiskQueue? queue = _queue;
+    if (queue == null || _diskWriteDisabled) {
       return _directExporter.export(event);
     }
     final List<int> payload = _codec.encodeExportRequest(
@@ -112,7 +118,7 @@ final class AtServerTelemetryDiskExporter implements AtTelemetryExporter {
       serviceName: 'at_secondary_server',
     );
     try {
-      if (_queue.write(payload)) {
+      if (queue.write(payload)) {
         _scheduleDrain();
       }
     } on SqliteException catch (error) {
@@ -131,7 +137,7 @@ final class AtServerTelemetryDiskExporter implements AtTelemetryExporter {
   }
 
   void _scheduleDrain() {
-    if (_closed || _timer != null || _draining != null) {
+    if (_closed || _queue == null || _timer != null || _draining != null) {
       return;
     }
     _timer = Timer(Duration.zero, () {
@@ -146,7 +152,11 @@ final class AtServerTelemetryDiskExporter implements AtTelemetryExporter {
     }
     _timer?.cancel();
     _timer = null;
-    final Future<void> drain = _sendQueued();
+    final AtServerTelemetryDiskQueue? queue = _queue;
+    if (queue == null) {
+      return Future<void>.value();
+    }
+    final Future<void> drain = _sendQueued(queue);
     _draining = drain;
     unawaited(drain.whenComplete(() {
       _draining = null;
@@ -154,7 +164,7 @@ final class AtServerTelemetryDiskExporter implements AtTelemetryExporter {
         return;
       }
       try {
-        if (_queue.isNotEmpty) {
+        if (queue.isNotEmpty) {
           _scheduleDrain();
         }
       } on SqliteException catch (error) {
@@ -166,16 +176,16 @@ final class AtServerTelemetryDiskExporter implements AtTelemetryExporter {
     return drain;
   }
 
-  Future<void> _sendQueued() async {
+  Future<void> _sendQueued(AtServerTelemetryDiskQueue queue) async {
     while (!_closed) {
       try {
-        final (int, List<int>)? next = _queue.peek();
+        final (int, List<int>)? next = queue.peek();
         if (next == null) {
           return;
         }
         final (int id, List<int> payload) = next;
         await _send(payload);
-        _queue.acknowledge(id);
+        queue.acknowledge(id);
         _retryDelay = const Duration(seconds: 1);
       } catch (error) {
         _onError?.call(error);
@@ -246,7 +256,7 @@ final class AtServerTelemetryDiskExporter implements AtTelemetryExporter {
       if (_ownsClient) {
         _client.close();
       }
-      _queue.close();
+      _queue?.close();
     }
   }
 }

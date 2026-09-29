@@ -7,7 +7,7 @@ import 'package:at_utils/at_logger.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import 'at_server_telemetry_configuration.dart';
-import 'at_server_telemetry_disk_exporter.dart';
+import 'at_server_telemetry_exporter.dart';
 import 'at_server_telemetry_event_names.dart';
 
 final class AtServerTelemetry {
@@ -65,7 +65,7 @@ final class AtServerTelemetry {
       return;
     }
     if (_pending.length >= maxPendingEvents &&
-        !(exporter is AtServerTelemetryDiskExporter &&
+        !(exporter is AtServerTelemetryExporter &&
             !exporter.isDirectExport)) {
       _logger.warning('Telemetry backlog full, dropping event');
       return;
@@ -174,47 +174,42 @@ Future<AtTelemetryExporter?> createAtServerTelemetryExporter({
     return null;
   }
 
-  final Uri endpoint = configuration.endpoint;
+  final AtServerTelemetryConfiguration resolvedConfiguration = configuration;
+  final Uri endpoint = resolvedConfiguration.endpoint;
   final String destination = endpoint.origin;
   try {
     final AtTelemetryRsaSigner signer =
         AtTelemetryRsaSigner.fromBase64(signingKey);
     void onError(Object error) =>
         logger.warning('Telemetry export failed: ${error.runtimeType}');
-    AtTelemetryExporter direct() => AtTelemetrySignedHttpExporter(
+    AtServerTelemetryExporter open({required bool persistToDisk}) =>
+        AtServerTelemetryExporter.open(
           endpoint: endpoint,
-          serviceName: 'at_secondary_server',
           keyId: serverId,
           audience: endpoint.host,
           signer: signer,
+          storagePath: resolvedConfiguration.storagePath,
+          maxRecords: resolvedConfiguration.maxRecords,
+          maxBytes: resolvedConfiguration.maxBytes,
+          persistToDisk: persistToDisk,
           onError: onError,
         );
 
-    if (!configuration.persistToDisk) {
-      logger.info('Pushing signed telemetry directly to $destination');
-      return direct();
-    }
     try {
-      final AtTelemetryExporter exporter = AtServerTelemetryDiskExporter.open(
-        endpoint: endpoint,
-        keyId: serverId,
-        audience: endpoint.host,
-        signer: signer,
-        storagePath: configuration.storagePath,
-        maxRecords: configuration.maxRecords,
-        maxBytes: configuration.maxBytes,
-        onError: onError,
-      );
-      logger.info('Pushing persisted signed telemetry to $destination');
+      final AtServerTelemetryExporter exporter =
+          open(persistToDisk: resolvedConfiguration.persistToDisk);
+      logger.info(exporter.isDirectExport
+          ? 'Pushing signed telemetry directly to $destination'
+          : 'Pushing persisted signed telemetry to $destination');
       return exporter;
     } on FileSystemException catch (error) {
       logger.warning('Telemetry disk unavailable: ${error.runtimeType}; '
           'switching to direct signed export');
-      return direct();
+      return open(persistToDisk: false);
     } on SqliteException catch (error) {
       logger.warning('Telemetry disk unavailable: ${error.runtimeType}; '
           'switching to direct signed export');
-      return direct();
+      return open(persistToDisk: false);
     }
   } catch (error) {
     logger.warning(

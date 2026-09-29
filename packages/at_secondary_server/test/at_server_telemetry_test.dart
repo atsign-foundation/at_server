@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_configuration.dart';
-import 'package:at_secondary/src/telemetry/at_server_telemetry_disk_exporter.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry_exporter.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_event_names.dart';
 import 'package:at_telemetry/at_telemetry.dart';
 import 'package:at_telemetry/at_telemetry_otel.dart';
@@ -178,7 +178,8 @@ void main() {
       },
     );
 
-    expect(exporter, isA<AtServerTelemetryDiskExporter>());
+    expect(exporter, isA<AtServerTelemetryExporter>());
+    expect((exporter as AtServerTelemetryExporter).isDirectExport, isFalse);
     await exporter!.shutdown();
   });
 
@@ -199,9 +200,10 @@ void main() {
       },
     );
 
-    expect(exporter, isA<AtTelemetrySignedHttpExporter>());
+    expect(exporter, isA<AtServerTelemetryExporter>());
+    expect((exporter as AtServerTelemetryExporter).isDirectExport, isTrue);
     expect(Directory(queuePath).existsSync(), isFalse);
-    await exporter!.shutdown();
+    await exporter.shutdown();
   });
 
   test('disk initialization failure falls back to direct signed export',
@@ -222,14 +224,15 @@ void main() {
       },
     );
 
-    expect(exporter, isA<AtTelemetrySignedHttpExporter>());
-    await exporter!.shutdown();
+    expect(exporter, isA<AtServerTelemetryExporter>());
+    expect((exporter as AtServerTelemetryExporter).isDirectExport, isTrue);
+    await exporter.shutdown();
   });
 
-  test('signed telemetry is disabled without the signing key', () async {
+  test('signed telemetry is disabled with an empty signing key', () async {
     final AtTelemetryExporter? exporter = await createAtServerTelemetryExporter(
       serverId: '@denise',
-      signingKey: null,
+      signingKey: '',
       yaml: const <String, Object?>{},
       environment: <String, String>{
         'AT_TELEMETRY_ENDPOINT': 'https://collector.example.org:4318',
@@ -243,7 +246,7 @@ void main() {
       () async {
     final AtTelemetryExporter? exporter = await createAtServerTelemetryExporter(
       serverId: '@denise',
-      signingKey: null,
+      signingKey: '',
       yaml: const <String, Object?>{},
       environment: <String, String>{},
     );
@@ -255,7 +258,7 @@ void main() {
       () async {
     final AtTelemetryExporter? exporter = await createAtServerTelemetryExporter(
       serverId: '@denise',
-      signingKey: null,
+      signingKey: '',
       yaml: const <String, Object?>{},
       environment: <String, String>{
         'AT_TELEMETRY_ENDPOINT': 'http://collector.example.org:4318',

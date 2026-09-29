@@ -369,7 +369,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       final AtTelemetryExporter? exporter =
           await createAtServerTelemetryExporter(
         serverId: currentAtSign.toString(),
-        signingKey: signingKey as String?,
+        signingKey: (signingKey as String?) ?? '',
       );
       if (exporter != null) {
         telemetry.enable(
