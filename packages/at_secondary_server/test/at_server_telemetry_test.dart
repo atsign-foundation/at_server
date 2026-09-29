@@ -13,7 +13,8 @@ import 'package:test/test.dart';
 void main() {
   test('server-resolved at_chops signs and verifies telemetry', () async {
     final RSAKeypair keys = RSAKeypair.fromRandom();
-    final AtTelemetryHttpSignature signed = await AtTelemetryHttpSignature.sign(
+    final AtTelemetryOtelHttpSignature signed =
+        await AtTelemetryOtelHttpSignature.sign(
       body: <int>[1, 2, 3],
       path: '/v1/logs',
       keyId: '@denise',

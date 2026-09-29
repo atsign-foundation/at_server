@@ -37,7 +37,7 @@ dependencies:
   at_telemetry:
     git:
       url: https://github.com/atsign-foundation/at_client_sdk.git
-      ref: 205f83f73f5778f1f83f2d216ddb05c6d9bb4f2f
+      ref: jt/control-center-spike
       path: packages/at_telemetry
 
   hive: any

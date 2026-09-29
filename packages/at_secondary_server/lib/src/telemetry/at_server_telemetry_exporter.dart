@@ -14,16 +14,9 @@ import 'at_server_telemetry_disk_queue.dart';
 final class AtServerTelemetryExporter implements AtTelemetryExporter {
   static const Duration _initialRetryDelay = Duration(seconds: 1);
   static const Duration _maxRetryDelay = Duration(seconds: 60);
-  static const Duration _requestTimeout = Duration(seconds: 10);
 
-  final Uri _endpoint;
-  final String _keyId;
-  final String _audience;
-  final AtTelemetryRsaSigner _signer;
   final AtServerTelemetryDiskQueue? _queue;
-  final http.Client _client;
-  final bool _ownsClient;
-  final AtTelemetrySignedHttpExporter _directExporter;
+  final AtTelemetryOtelSignedHttpExporter _httpExporter;
   final void Function(Object)? _onError;
   final AtSignLogger _logger = AtSignLogger('AtServerTelemetryExporter');
   final AtTelemetryOtelLogsCodec _codec = const AtTelemetryOtelLogsCodec();
@@ -39,17 +32,10 @@ final class AtServerTelemetryExporter implements AtTelemetryExporter {
     required String audience,
     required AtTelemetryRsaSigner signer,
     required AtServerTelemetryDiskQueue? queue,
-    required http.Client client,
-    required bool ownsClient,
+    http.Client? client,
     void Function(Object)? onError,
-  })  : _endpoint = endpoint,
-        _keyId = keyId,
-        _audience = audience,
-        _signer = signer,
-        _queue = queue,
-        _client = client,
-        _ownsClient = ownsClient,
-        _directExporter = AtTelemetrySignedHttpExporter(
+  })  : _queue = queue,
+        _httpExporter = AtTelemetryOtelSignedHttpExporter(
           endpoint: endpoint,
           serviceName: 'at_secondary_server',
           keyId: keyId,
@@ -97,15 +83,13 @@ final class AtServerTelemetryExporter implements AtTelemetryExporter {
             maxBytes: maxBytes,
           )
         : null;
-    final http.Client actualClient = client ?? http.Client();
     return AtServerTelemetryExporter._(
       endpoint: endpoint.replace(path: '/v1/logs'),
       keyId: keyId,
       audience: audience,
       signer: signer,
       queue: queue,
-      client: actualClient,
-      ownsClient: client == null,
+      client: client,
       onError: onError,
     );
   }
@@ -117,7 +101,7 @@ final class AtServerTelemetryExporter implements AtTelemetryExporter {
     }
     final AtServerTelemetryDiskQueue? queue = _queue;
     if (queue == null || _diskWriteDisabled) {
-      return _directExporter.export(event);
+      return _httpExporter.export(event);
     }
     final List<int> payload = _codec.encodeExportRequest(
       <AtTelemetryEvent>[event],
@@ -143,7 +127,7 @@ final class AtServerTelemetryExporter implements AtTelemetryExporter {
     if (!_closed) {
       await _startDrain();
     }
-    await _directExporter.flush();
+    await _httpExporter.flush();
   }
 
   @override
@@ -156,11 +140,8 @@ final class AtServerTelemetryExporter implements AtTelemetryExporter {
     _timer = null;
     try {
       await _draining;
-      await _directExporter.shutdown();
+      await _httpExporter.shutdown();
     } finally {
-      if (_ownsClient) {
-        _client.close();
-      }
       _queue?.close();
     }
   }
@@ -169,7 +150,7 @@ final class AtServerTelemetryExporter implements AtTelemetryExporter {
     _diskWriteDisabled = true;
     _logger.warning('Telemetry disk write failed: ${error.runtimeType}; '
         'switching to direct signed export');
-    return _directExporter.export(event);
+    return _httpExporter.export(event);
   }
 
   void _scheduleDrain() {
@@ -220,7 +201,7 @@ final class AtServerTelemetryExporter implements AtTelemetryExporter {
           return;
         }
         final (int id, List<int> payload) = next;
-        await _send(payload);
+        await _httpExporter.sendEncodedLogs(payload);
         queue.acknowledge(id);
         _retryDelay = _initialRetryDelay;
       } catch (error) {
@@ -238,32 +219,6 @@ final class AtServerTelemetryExporter implements AtTelemetryExporter {
         }
         return;
       }
-    }
-  }
-
-  Future<void> _send(List<int> payload) async {
-    final AtTelemetryHttpSignature signed = await AtTelemetryHttpSignature.sign(
-      body: payload,
-      path: _endpoint.path,
-      keyId: _keyId,
-      audience: _audience,
-      signer: _signer,
-    );
-    final http.Request request = http.Request('POST', _endpoint)
-      ..followRedirects = false
-      ..headers.addAll(<String, String>{
-        'content-type': AtTelemetryHttpSignature.contentType,
-        AtTelemetryHttpSignature.digestHeader: signed.digest,
-        AtTelemetryHttpSignature.audienceHeader: signed.audience,
-        AtTelemetryHttpSignature.inputHeader: signed.input,
-        AtTelemetryHttpSignature.signatureHeader: signed.signature,
-      })
-      ..bodyBytes = payload;
-    final http.StreamedResponse response =
-        await _client.send(request).timeout(_requestTimeout);
-    await response.stream.drain<void>().timeout(_requestTimeout);
-    if (response.statusCode != HttpStatus.ok) {
-      throw StateError('Telemetry rejected: HTTP ${response.statusCode}');
     }
   }
 }

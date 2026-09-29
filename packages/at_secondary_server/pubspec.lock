@@ -99,8 +99,8 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/at_telemetry"
-      ref: "205f83f73f5778f1f83f2d216ddb05c6d9bb4f2f"
-      resolved-ref: "205f83f73f5778f1f83f2d216ddb05c6d9bb4f2f"
+      ref: "jt/control-center-spike"
+      resolved-ref: "7f896069574c55234005403d65dce70b9af5054e"
       url: "https://github.com/atsign-foundation/at_client_sdk.git"
     source: git
     version: "0.1.0"
