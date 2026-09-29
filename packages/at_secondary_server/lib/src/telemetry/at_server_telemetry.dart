@@ -21,7 +21,7 @@ final class AtServerTelemetry {
   final Duration? heartbeatInterval;
   final AtSignLogger _logger = AtSignLogger('AtServerTelemetry');
   final List<Future<void>> _pending = <Future<void>>[];
-  AtTelemetryExporter? _exporter;
+  AtTelemetryLogRecordExporter? _exporter;
   AtServerHeartbeatScheduler? _heartbeat;
   String? _serverId;
 
@@ -42,7 +42,7 @@ final class AtServerTelemetry {
   String? get serverId => _serverId;
 
   void enable({
-    required AtTelemetryExporter exporter,
+    required AtTelemetryLogRecordExporter exporter,
     required String serverId,
   }) {
     if (_exporter != null) {
@@ -59,14 +59,14 @@ final class AtServerTelemetry {
     }
   }
 
-  void pushGauge(
+  void recordGauge(
     String name,
     double value, {
     String unit = '',
     Map<String, Object?> attributes = const <String, Object?>{},
   }) {
-    final AtTelemetryExporter? exporter = _exporter;
-    if (exporter is! AtTelemetryGaugeExporter) {
+    final AtTelemetryLogRecordExporter? exporter = _exporter;
+    if (exporter is! AtTelemetryMetricExporter) {
       return;
     }
     if (!name.startsWith(_eventNamePrefix) ||
@@ -86,18 +86,18 @@ final class AtServerTelemetry {
         serverIdAttribute: _serverId,
       }),
     );
-    final AtTelemetryGaugeExporter gaugeExporter =
-        exporter as AtTelemetryGaugeExporter;
+    final AtTelemetryMetricExporter metricExporter =
+        exporter as AtTelemetryMetricExporter;
     final Future<void> export = _guard(
-      () => gaugeExporter.exportGauges(<AtTelemetryGauge>[gauge]),
+      () => metricExporter.exportMetrics(<AtTelemetryGauge>[gauge]),
       'gauge export',
     );
     _pending.add(export);
     unawaited(export.whenComplete(() => _pending.remove(export)));
   }
 
-  void push(String name, {Map<String, Object?> attributes = const {}}) {
-    final AtTelemetryExporter? exporter = _exporter;
+  void emitEvent(String name, {Map<String, Object?> attributes = const {}}) {
+    final AtTelemetryLogRecordExporter? exporter = _exporter;
     if (exporter == null) {
       return;
     }
@@ -117,7 +117,7 @@ final class AtServerTelemetry {
       return;
     }
 
-    final AtTelemetryEvent event = AtTelemetryEvent(
+    final AtTelemetryLogRecord event = AtTelemetryLogRecord(
       name: name,
       timestamp: DateTime.now().toUtc(),
       attributes: Map<String, Object?>.unmodifiable(<String, Object?>{
@@ -131,7 +131,7 @@ final class AtServerTelemetry {
   }
 
   Future<void> flush({Duration? timeout}) async {
-    final AtTelemetryExporter? exporter = _exporter;
+    final AtTelemetryLogRecordExporter? exporter = _exporter;
     if (exporter == null) {
       return;
     }
@@ -139,7 +139,7 @@ final class AtServerTelemetry {
   }
 
   Future<void> shutdown({Duration? timeout}) async {
-    final AtTelemetryExporter? exporter = _exporter;
+    final AtTelemetryLogRecordExporter? exporter = _exporter;
     if (exporter == null) {
       return;
     }
@@ -154,7 +154,7 @@ final class AtServerTelemetry {
     );
   }
 
-  Future<void> _drain(AtTelemetryExporter exporter) async {
+  Future<void> _drain(AtTelemetryLogRecordExporter exporter) async {
     await Future.wait(_pending.toList());
     await _guard(exporter.flush, 'flush');
   }
@@ -183,8 +183,8 @@ final class AtServerTelemetry {
   }
 
   Future<void> _export(
-    AtTelemetryExporter exporter,
-    AtTelemetryEvent event,
+    AtTelemetryLogRecordExporter exporter,
+    AtTelemetryLogRecord event,
   ) {
     return _guard(() => exporter.export(event), 'export');
   }

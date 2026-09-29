@@ -59,7 +59,7 @@ final class AtServerHeartbeatScheduler {
   }
 
   void _sendUptime() {
-    _telemetry.pushGauge(
+    _telemetry.recordGauge(
       metricName,
       _uptime.elapsedMicroseconds / Duration.microsecondsPerSecond,
       unit: 's',
