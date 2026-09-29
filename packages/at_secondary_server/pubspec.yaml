@@ -73,3 +73,5 @@ dependency_overrides:
   # pub runs: every Dockerfile that compiles this package must COPY it in.
   at_server_spec:
     path: ../at_server_spec
+  at_telemetry:
+    path: ../../../../../at_client_sdk/jt/control-center-spike/packages/at_telemetry
