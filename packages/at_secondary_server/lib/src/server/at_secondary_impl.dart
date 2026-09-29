@@ -26,6 +26,7 @@ import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/persistence_backend.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry_constants.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_exporter.dart';
 import 'package:at_telemetry/at_telemetry.dart' show AtTelemetryExporter;
 import 'package:at_secondary/src/utils/logging_util.dart';
@@ -377,6 +378,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       if (exporter != null) {
         telemetry.enable(
             exporter: exporter, serverId: currentAtSign.toString());
+        telemetry.push(atServerStartedEventName);
       }
     }
 
@@ -794,6 +796,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
       // Stops the heartbeat, flushes pending events and closes the exporter
       logger.info('Shutting down telemetry');
+      telemetry.push(atServerStoppedEventName);
       await telemetry.shutdown(timeout: _telemetryFlushTimeout);
 
       _isRunning = false;
