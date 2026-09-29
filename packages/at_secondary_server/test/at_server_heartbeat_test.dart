@@ -19,10 +19,11 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 150));
     scheduler.stop();
 
-    expect(exporter.events, isNotEmpty);
-    expect(AtServerHeartbeatScheduler.eventName, 'atsign.atserver.heartbeat');
-    expect(exporter.events.first.name, AtServerHeartbeatScheduler.eventName);
-    expect(exporter.events.first.attributes, <String, Object?>{
+    expect(exporter.gauges, isNotEmpty);
+    expect(AtServerHeartbeatScheduler.metricName, 'atsign.atserver.uptime');
+    expect(exporter.gauges.first.name, AtServerHeartbeatScheduler.metricName);
+    expect(exporter.gauges.first.unit, 's');
+    expect(exporter.gauges.first.attributes, <String, Object?>{
       'atsign.atserver.id': '@denise',
     });
   });
@@ -100,18 +101,18 @@ void main() {
       running.start();
       running.start();
       expect(running.isRunning, isTrue);
-      expect(exporter.events, isEmpty);
+      expect(exporter.gauges, isEmpty);
 
       await Future<void>.delayed(const Duration(milliseconds: 100));
-      expect(exporter.events, isEmpty);
+      expect(exporter.gauges, isEmpty);
 
       await Future<void>.delayed(const Duration(milliseconds: 250));
-      expect(exporter.events, hasLength(1));
+      expect(exporter.gauges, hasLength(1));
 
       await Future<void>.delayed(const Duration(milliseconds: 430));
-      expect(exporter.events, hasLength(2));
-      final Duration between = exporter.events[1].timestamp.difference(
-        exporter.events[0].timestamp,
+      expect(exporter.gauges, hasLength(2));
+      final Duration between = exporter.gauges[1].timestamp.difference(
+        exporter.gauges[0].timestamp,
       );
       expect(between, greaterThan(const Duration(milliseconds: 300)));
       expect(between, lessThan(const Duration(milliseconds: 500)));
@@ -119,12 +120,20 @@ void main() {
       running.stop();
       expect(running.isRunning, isFalse);
       await Future<void>.delayed(const Duration(milliseconds: 450));
-      expect(exporter.events, hasLength(2));
+      expect(exporter.gauges, hasLength(2));
     });
   });
 }
 
-final class _RecordingExporter implements AtTelemetryExporter {
+final class _RecordingExporter
+    implements AtTelemetryExporter, AtTelemetryGaugeExporter {
+  final List<AtTelemetryGauge> gauges = <AtTelemetryGauge>[];
+
+  @override
+  Future<void> exportGauges(Iterable<AtTelemetryGauge> values) async {
+    gauges.addAll(values);
+  }
+
   final List<AtTelemetryEvent> events = <AtTelemetryEvent>[];
 
   @override
