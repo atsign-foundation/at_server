@@ -28,7 +28,7 @@ import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_constants.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_exporter.dart';
-import 'package:at_telemetry/at_telemetry.dart' show AtTelemetryExporter;
+import 'package:at_telemetry/at_telemetry.dart' show AtTelemetryLogRecordExporter;
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_update_verb_handler.dart';
@@ -370,7 +370,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // Enabling telemetry also starts the uptime heartbeat. `stop()` shuts
     // telemetry down, so every start after a stop builds a fresh exporter.
     if (!telemetry.isEnabled) {
-      final AtTelemetryExporter? exporter =
+      final AtTelemetryLogRecordExporter? exporter =
           await createAtServerTelemetryExporter(
         serverId: currentAtSign.toString(),
         signingKey: (signingKey as String?) ?? '',
@@ -378,7 +378,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       if (exporter != null) {
         telemetry.enable(
             exporter: exporter, serverId: currentAtSign.toString());
-        telemetry.push(atServerStartedEventName);
+        telemetry.emitEvent(atServerStartedEventName);
       }
     }
 
@@ -796,7 +796,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
       // Stops the heartbeat, flushes pending events and closes the exporter
       logger.info('Shutting down telemetry');
-      telemetry.push(atServerStoppedEventName);
+      telemetry.emitEvent(atServerStoppedEventName);
       await telemetry.shutdown(timeout: _telemetryFlushTimeout);
 
       _isRunning = false;
