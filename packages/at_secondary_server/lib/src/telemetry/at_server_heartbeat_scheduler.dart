@@ -14,21 +14,27 @@ final class AtServerHeartbeatScheduler {
   final AtServerTelemetry
       _telemetry; // an object for atServer to push telemetry easily
   final Duration interval; // the interval at which heartbeats will be sent
-  final Duration offset;
-  final DateTime Function() _now;
+  final Duration
+      offset; // a random initial offset so that heartbeats are sent at random times
   Timer? _timer;
-  DateTime? _previousSlot;
 
   AtServerHeartbeatScheduler({
     required AtServerTelemetry telemetry,
     this.interval = defaultInterval,
     Duration? offset,
     Random? random,
-    DateTime Function()? now,
   })  : _telemetry = telemetry,
-        offset = offset ?? randomOffset(interval, random ?? Random.secure()),
-        _now = now ?? DateTime.now {
-    _requireInterval(interval);
+        offset = offset ?? _randomOffset(interval, random ?? Random.secure()) {
+    // verify `interval`
+    if (interval < _minimumInterval) {
+      throw ArgumentError.value(
+        interval,
+        'interval',
+        'must be at least one millisecond',
+      );
+    }
+
+    // verify `offset`
     if (this.offset < Duration.zero || this.offset >= interval) {
       throw ArgumentError.value(
         this.offset,
@@ -38,47 +44,13 @@ final class AtServerHeartbeatScheduler {
     }
   }
 
-  static Duration randomOffset(Duration interval, Random random) {
-    _requireInterval(interval);
-    return Duration(milliseconds: random.nextInt(interval.inMilliseconds));
-  }
-
-  static void _requireInterval(Duration interval) {
-    if (interval < _minimumInterval) {
-      throw ArgumentError.value(
-        interval,
-        'interval',
-        'must be at least one millisecond',
-      );
-    }
-  }
-
   bool get isRunning => _timer != null;
 
-  DateTime nextSlot({required DateTime now, DateTime? previousSlot}) {
-    final int intervalMicroseconds = interval.inMicroseconds;
-    final int nowMicroseconds = now.microsecondsSinceEpoch;
-    int slotMicroseconds = nowMicroseconds -
-        nowMicroseconds % intervalMicroseconds +
-        offset.inMicroseconds;
-    if (slotMicroseconds <= nowMicroseconds) {
-      slotMicroseconds += intervalMicroseconds;
-    }
-
-    final DateTime slot = DateTime.fromMicrosecondsSinceEpoch(
-      slotMicroseconds,
-      isUtc: true,
-    );
-    if (previousSlot != null && slot.isAtSameMomentAs(previousSlot)) {
-      return slot.add(interval);
-    }
-    return slot;
-  }
-
   void start() {
-    if (_timer == null) {
-      _scheduleNext();
-    }
+    _timer ??= Timer(offset, () {
+      _telemetry.push(eventName);
+      _timer = Timer.periodic(interval, (_) => _telemetry.push(eventName));
+    });
   }
 
   void stop() {
@@ -86,13 +58,14 @@ final class AtServerHeartbeatScheduler {
     _timer = null;
   }
 
-  void _scheduleNext() {
-    final DateTime now = _now().toUtc();
-    final DateTime slot = nextSlot(now: now, previousSlot: _previousSlot);
-    _timer = Timer(slot.difference(now), () {
-      _previousSlot = slot;
-      _scheduleNext();
-      _telemetry.push(eventName);
-    });
+  static Duration _randomOffset(Duration interval, Random random) {
+    if (interval < _minimumInterval) {
+      throw ArgumentError.value(
+        interval,
+        'interval',
+        'must be at least one millisecond',
+      );
+    }
+    return Duration(milliseconds: random.nextInt(interval.inMilliseconds));
   }
 }

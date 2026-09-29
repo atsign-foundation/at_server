@@ -268,22 +268,26 @@ void main() {
   group('AtServerTelemetry', () {
     test('pushes events stamped with the server ID and timestamp', () async {
       final _RecordingExporter exporter = _RecordingExporter();
-      final AtServerTelemetry telemetry = AtServerTelemetry(
-        now: () => DateTime.utc(2026, 9, 28, 12),
-      )..enable(exporter: exporter, serverId: '@denise');
+      final AtServerTelemetry telemetry = AtServerTelemetry()
+        ..enable(exporter: exporter, serverId: '@denise');
 
+      final DateTime beforePush = DateTime.now().toUtc();
       telemetry.push(
         '${atServerTelemetryEventPrefix}notify',
         attributes: <String, Object?>{'atsign.notify.count': 3},
       );
+      final DateTime afterPush = DateTime.now().toUtc();
       await telemetry.flush();
 
       expect(telemetry.isEnabled, isTrue);
       expect(exporter.events.single.name, 'atsign.atserver.notify');
-      expect(exporter.events.single.timestamp, DateTime.utc(2026, 9, 28, 12));
+      final DateTime timestamp = exporter.events.single.timestamp;
+      expect(timestamp.isUtc, isTrue);
+      expect(timestamp.isBefore(beforePush), isFalse);
+      expect(timestamp.isAfter(afterPush), isFalse);
       expect(exporter.events.single.attributes, <String, Object?>{
         'atsign.notify.count': 3,
-        'atsign.server.id': '@denise',
+        'atsign.atserver.id': '@denise',
       });
     });
 
@@ -293,11 +297,12 @@ void main() {
 
       telemetry.push(
         '${atServerTelemetryEventPrefix}op',
-        attributes: <String, Object?>{'atsign.server.id': '@mallory'},
+        attributes: <String, Object?>{'atsign.atserver.id': '@mallory'},
       );
       await telemetry.flush();
 
-      expect(exporter.events.single.attributes['atsign.server.id'], '@denise');
+      expect(
+          exporter.events.single.attributes['atsign.atserver.id'], '@denise');
     });
 
     test('drops events with an empty name', () async {
@@ -415,9 +420,10 @@ void main() {
       telemetry.push('${atServerTelemetryEventPrefix}one');
       telemetry.push('${atServerTelemetryEventPrefix}two');
       telemetry.push('${atServerTelemetryEventPrefix}three');
+      telemetry.push('${atServerTelemetryEventPrefix}four');
       release.complete();
       await telemetry.flush();
-      telemetry.push('${atServerTelemetryEventPrefix}four');
+      telemetry.push('${atServerTelemetryEventPrefix}five');
       await telemetry.flush();
 
       expect(
@@ -427,7 +433,7 @@ void main() {
         <String>[
           'atsign.atserver.one',
           'atsign.atserver.two',
-          'atsign.atserver.four'
+          'atsign.atserver.five'
         ],
       );
       expect(() => AtServerTelemetry(maxPendingEvents: 0), throwsArgumentError);

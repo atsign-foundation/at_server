@@ -11,21 +11,23 @@ import 'at_server_telemetry_disk_exporter.dart';
 import 'at_server_telemetry_event_names.dart';
 
 final class AtServerTelemetry {
-  static const String serverIdAttribute = 'atsign.server.id';
+  // constants
+  static const String serverIdAttribute = 'atsign.atserver.id';
   static const int defaultMaxPendingEvents = 1000;
 
-  final int maxPendingEvents;
-  final DateTime Function() _now;
+  final int maxPendingEvents; // the amount of events we'll hold in disk
   final AtSignLogger _logger = AtSignLogger('AtServerTelemetry');
-  final Set<Future<void>> _pending = <Future<void>>{};
-  AtTelemetryExporter? _exporter;
-  String? _serverId;
-  bool _isDropping = false;
+  final List<Future<void>> _pending =
+      <Future<void>>[]; // holds pending telemetry waiting to be pushed
+  AtTelemetryExporter? _exporter; // handles exporting of telemetry
+  String? _serverId; // the Atsign that the atServer claims to be
+
+  bool get isEnabled => _exporter != null;
+  String? get serverId => _serverId;
 
   AtServerTelemetry({
     this.maxPendingEvents = defaultMaxPendingEvents,
-    DateTime Function()? now,
-  }) : _now = now ?? DateTime.now {
+  }) {
     if (maxPendingEvents < 1) {
       throw ArgumentError.value(
         maxPendingEvents,
@@ -34,9 +36,6 @@ final class AtServerTelemetry {
       );
     }
   }
-
-  bool get isEnabled => _exporter != null;
-  String? get serverId => _serverId;
 
   void enable({
     required AtTelemetryExporter exporter,
@@ -68,17 +67,13 @@ final class AtServerTelemetry {
     if (_pending.length >= maxPendingEvents &&
         !(exporter is AtServerTelemetryDiskExporter &&
             !exporter.isDirectExport)) {
-      if (!_isDropping) {
-        _isDropping = true;
-        _logger.warning('Telemetry backlog full, dropping events');
-      }
+      _logger.warning('Telemetry backlog full, dropping event');
       return;
     }
-    _isDropping = false;
 
     final AtTelemetryEvent event = AtTelemetryEvent(
       name: name,
-      timestamp: _now().toUtc(),
+      timestamp: DateTime.now().toUtc(),
       attributes: Map<String, Object?>.unmodifiable(<String, Object?>{
         ...attributes,
         serverIdAttribute: _serverId,
@@ -149,15 +144,13 @@ final class AtServerTelemetry {
 
 Future<AtTelemetryExporter?> createAtServerTelemetryExporter({
   required String serverId,
-  required String? signingKey,
+  required String signingKey,
   Map<Object?, Object?>? yaml,
   Map<String, String>? environment,
 }) async {
   final AtSignLogger logger = AtSignLogger('AtServerTelemetry');
-  void disable(String reason) {
-    logger.warning('Not pushing telemetry anywhere: $reason');
-  }
 
+  // Set up AtServerTelemetryConfiguration
   final AtServerTelemetryConfiguration? configuration;
   try {
     configuration = AtServerTelemetryConfiguration.load(
@@ -165,16 +158,19 @@ Future<AtTelemetryExporter?> createAtServerTelemetryExporter({
       environment: environment,
     );
   } on FormatException catch (error) {
-    disable(error.message);
+    logger.warning('Not pushing telemetry anywhere: ${error.message}');
     return null;
   }
   if (configuration == null) {
-    disable('no telemetry endpoint is configured');
+    logger.warning(
+        'Not pushing telemetry anywhere: no telemetry endpoint is configured');
     return null;
   }
 
-  if (signingKey == null || signingKey.isEmpty) {
-    disable('signing key unavailable');
+  // Require signingKey
+  if (signingKey.isEmpty) {
+    logger
+        .warning('Not pushing telemetry anywhere: signing key is empty String');
     return null;
   }
 
@@ -221,7 +217,8 @@ Future<AtTelemetryExporter?> createAtServerTelemetryExporter({
       return direct();
     }
   } catch (error) {
-    disable('exporter setup failed: ${error.runtimeType}');
+    logger.warning(
+        'Not pushing telemetry anywhere: exporter setup failed: ${error.runtimeType}');
     return null;
   }
 }
