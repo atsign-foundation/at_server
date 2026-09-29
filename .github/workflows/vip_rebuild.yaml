@@ -180,6 +180,27 @@ jobs:
         with:
           ref: ${{ steps.prod_tag.outputs.prod_tag}}
 
+      # The certificates come from trunk, where a cert refresh lands: the
+      # production tag's copies are the ones that were current when it was cut,
+      # and expire. The VE gets trunk's the same way, through vebase.
+      - name: Checkout trunk's EE certificates
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: trunk
+          path: trunk-certs
+          sparse-checkout: |
+            tools/build_ephemeral_environment/ee_base/contents/atsign/root/certs
+            tools/build_ephemeral_environment/ee_base/contents/atsign/secondary/base/certs
+
+      - name: Use trunk's EE certificates
+        run: |
+          EE=tools/build_ephemeral_environment/ee_base/contents
+          for dir in atsign/root/certs atsign/secondary/base/certs; do
+            cp -R "trunk-certs/${EE}/${dir}/." "${EE}/${dir}/"
+          done
+          rm -rf trunk-certs
+          openssl x509 -noout -enddate -in "${EE}/atsign/root/certs/fullchain.pem"
+
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
