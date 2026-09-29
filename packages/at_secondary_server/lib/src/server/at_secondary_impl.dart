@@ -27,6 +27,7 @@ import 'package:at_secondary/src/server/persistence_backend.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/telemetry/at_server_heartbeat_scheduler.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry_exporter.dart';
 import 'package:at_telemetry/at_telemetry.dart' show AtTelemetryExporter;
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -379,7 +380,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       }
     }
 
-    // if it was already enabled, but the _heartbeatScheudler was null, we are recovering from a soft restart
+    // if it was already enabled, but the _heartbeatScheduler was null, we are recovering from a soft restart
     if (telemetry.isEnabled && _heartbeatScheduler == null) {
       _heartbeatScheduler = AtServerHeartbeatScheduler(telemetry: telemetry)
         ..start();
