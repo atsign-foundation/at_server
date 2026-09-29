@@ -117,7 +117,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   Timer? _keyExpiryTimer;
   AtServerHeartbeatScheduler? _heartbeatScheduler;
 
-  //
+  // an object that simplifies telemetry exporting for atServers
   final AtServerTelemetry telemetry = AtServerTelemetry();
 
   // the maximum amount of time to wait to send all telemetry when `stop()` is called. Once timeout passes, we simply ignore sending telemetry and it becomes non-blocking

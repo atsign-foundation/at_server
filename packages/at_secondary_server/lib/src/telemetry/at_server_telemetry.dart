@@ -5,7 +5,6 @@ import 'package:at_telemetry/at_telemetry_otel.dart'
     show AtTelemetryOtelHttpSignature;
 import 'package:at_utils/at_logger.dart';
 
-import 'at_server_telemetry_exporter.dart';
 import 'at_server_telemetry_constants.dart';
 
 final class AtServerTelemetry {
@@ -99,8 +98,7 @@ final class AtServerTelemetry {
           .warning('Ignoring telemetry event outside the atServer namespace');
       return;
     }
-    if (_pending.length >= maxPendingEvents &&
-        !(exporter is AtServerTelemetryExporter && !exporter.isDirectExport)) {
+    if (_pending.length >= maxPendingEvents) {
       _logger.warning('Telemetry backlog full, dropping event');
       return;
     }
