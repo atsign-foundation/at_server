@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_exporter.dart';
-import 'package:at_secondary/src/telemetry/at_server_telemetry_event_names.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry_constants.dart';
 import 'package:at_telemetry/at_telemetry.dart';
 import 'package:at_telemetry/at_telemetry_otel.dart';
 import 'package:crypton/crypton.dart';

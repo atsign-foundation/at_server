@@ -10,6 +10,7 @@ import 'package:sqlite3/sqlite3.dart';
 import 'at_server_telemetry_configuration.dart';
 import 'at_server_telemetry_disk_queue.dart';
 
+// Responsible for exporting from DiskQueue to OTLP HTTP to collector
 final class AtServerTelemetryExporter implements AtTelemetryExporter {
   static const Duration _initialRetryDelay = Duration(seconds: 1);
   static const Duration _maxRetryDelay = Duration(seconds: 60);

@@ -4,7 +4,7 @@ import 'package:at_telemetry/at_telemetry.dart';
 import 'package:at_utils/at_logger.dart';
 
 import 'at_server_telemetry_exporter.dart';
-import 'at_server_telemetry_event_names.dart';
+import 'at_server_telemetry_constants.dart';
 
 final class AtServerTelemetry {
   static const String serverIdAttribute = 'atsign.atserver.id';

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'at_server_telemetry.dart';
-import 'at_server_telemetry_event_names.dart';
+import 'at_server_telemetry_constants.dart';
 
 final class AtServerHeartbeatScheduler {
   static const String eventName = atServerHeartbeatEventName;
