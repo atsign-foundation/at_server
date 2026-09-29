@@ -51,7 +51,7 @@ Future<AtTelemetryOtelSignedHttpExporter?> createAtServerTelemetryExporter({
     );
     logger.info('Pushing signed telemetry to ${configuration.endpoint.origin}');
     return exporter;
-  } catch (error) {
+  } on Object catch (error) {
     logger.warning('Not pushing telemetry anywhere: '
         'exporter setup failed: ${error.runtimeType}');
     return null;

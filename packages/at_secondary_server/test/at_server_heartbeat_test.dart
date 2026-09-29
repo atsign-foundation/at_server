@@ -5,9 +5,11 @@ import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_telemetry/at_telemetry.dart';
 import 'package:test/test.dart';
 
+import 'telemetry_support/recording_gauge_exporter.dart';
+
 void main() {
   test('heartbeat uses the current server Atsign as its server ID', () async {
-    final _RecordingExporter exporter = _RecordingExporter();
+    final RecordingGaugeExporter exporter = RecordingGaugeExporter();
     final AtServerHeartbeatScheduler scheduler = AtServerHeartbeatScheduler(
       telemetry: _enabledTelemetry(exporter),
       interval: const Duration(milliseconds: 100),
@@ -33,10 +35,10 @@ void main() {
       Duration interval = const Duration(minutes: 1),
       Duration? offset,
       Random? random,
-      _RecordingExporter? exporter,
+      RecordingGaugeExporter? exporter,
     }) {
       return AtServerHeartbeatScheduler(
-        telemetry: _enabledTelemetry(exporter ?? _RecordingExporter()),
+        telemetry: _enabledTelemetry(exporter ?? RecordingGaugeExporter()),
         interval: interval,
         offset: offset,
         random: random,
@@ -49,7 +51,7 @@ void main() {
         const Duration(minutes: 1),
       );
       final AtServerHeartbeatScheduler defaults = AtServerHeartbeatScheduler(
-        telemetry: _enabledTelemetry(_RecordingExporter()),
+        telemetry: _enabledTelemetry(RecordingGaugeExporter()),
       );
 
       expect(defaults.interval, const Duration(minutes: 1));
@@ -90,7 +92,7 @@ void main() {
     test('waits for the initial offset, then sends every interval', () async {
       const Duration interval = Duration(milliseconds: 400);
       const Duration offset = Duration(milliseconds: 200);
-      final _RecordingExporter exporter = _RecordingExporter();
+      final RecordingGaugeExporter exporter = RecordingGaugeExporter();
       final AtServerHeartbeatScheduler running = scheduler(
         interval: interval,
         offset: offset,
@@ -123,29 +125,6 @@ void main() {
       expect(exporter.gauges, hasLength(2));
     });
   });
-}
-
-final class _RecordingExporter
-    implements AtTelemetryExporter, AtTelemetryGaugeExporter {
-  final List<AtTelemetryGauge> gauges = <AtTelemetryGauge>[];
-
-  @override
-  Future<void> exportGauges(Iterable<AtTelemetryGauge> values) async {
-    gauges.addAll(values);
-  }
-
-  final List<AtTelemetryEvent> events = <AtTelemetryEvent>[];
-
-  @override
-  Future<void> export(AtTelemetryEvent event) async {
-    events.add(event);
-  }
-
-  @override
-  Future<void> flush() async {}
-
-  @override
-  Future<void> shutdown() async {}
 }
 
 AtServerTelemetry _enabledTelemetry(AtTelemetryExporter exporter) {
