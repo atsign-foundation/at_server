@@ -304,7 +304,7 @@ void main() {
 AtTelemetryEvent _event(String name) => AtTelemetryEvent(
       name: name,
       timestamp: DateTime.utc(2026, 9, 28),
-      attributes: const <String, Object?>{'atsign.server.id': '@denise'},
+      attributes: const <String, Object?>{'atsign.atserver.id': '@denise'},
     );
 
 List<AtTelemetryEvent> _storedEvents(Directory storage) {
