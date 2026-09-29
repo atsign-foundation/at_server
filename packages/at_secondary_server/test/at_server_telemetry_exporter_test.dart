@@ -84,7 +84,8 @@ void main() {
         AtServerTelemetry(heartbeatInterval: null)
           ..enable(exporter: exporter, serverId: '@denise');
 
-    telemetry.recordGauge('$atServerTelemetryEventPrefix.uptime', 12, unit: 's');
+    telemetry.recordGauge('$atServerTelemetryEventPrefix.uptime', 12,
+        unit: 's');
     await telemetry.shutdown();
 
     expect(delivered, hasLength(1));
