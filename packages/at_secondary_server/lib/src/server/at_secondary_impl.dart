@@ -25,7 +25,6 @@ import 'package:at_secondary/src/server/at_certificate_validation.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/persistence_backend.dart';
 import 'package:at_secondary/src/server/server_context.dart';
-import 'package:at_secondary/src/telemetry/at_server_heartbeat_scheduler.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_exporter.dart';
 import 'package:at_telemetry/at_telemetry.dart' show AtTelemetryExporter;
@@ -115,12 +114,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// One-shot timer driving [runHousekeepingSweep], re-armed after every
   /// sweep so the server sleeps until the next key expires.
   Timer? _keyExpiryTimer;
-  AtServerHeartbeatScheduler? _heartbeatScheduler;
 
   // an object that simplifies telemetry exporting for atServers
   final AtServerTelemetry telemetry = AtServerTelemetry();
 
-  // the maximum amount of time to wait to send all telemetry when `stop()` is called. Once timeout passes, we simply ignore sending telemetry and it becomes non-blocking
+  // the maximum amount of time to wait to send all telemetry when `stop()` is called. Once the timeout passes, pending telemetry is abandoned so `stop()` never blocks on it
   static const Duration _telemetryFlushTimeout = Duration(seconds: 5);
 
   /// Floor for the expiry-sweep sleep.
@@ -368,8 +366,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw AtServerException(e.toString());
     }
 
-    // if `!telemetry.isEnabled`, we are booting up after a hard restart or initial start
-    // no exporter is attached, so we must create it.
+    // Enabling telemetry also starts the uptime heartbeat. `stop()` shuts
+    // telemetry down, so every start after a stop builds a fresh exporter.
     if (!telemetry.isEnabled) {
       final AtTelemetryExporter? exporter =
           await createAtServerTelemetryExporter(
@@ -380,12 +378,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         telemetry.enable(
             exporter: exporter, serverId: currentAtSign.toString());
       }
-    }
-
-    // if it was already enabled, but the _heartbeatScheduler was null, we are recovering from a soft restart
-    if (telemetry.isEnabled && _heartbeatScheduler == null) {
-      _heartbeatScheduler = AtServerHeartbeatScheduler(telemetry: telemetry)
-        ..start();
     }
 
     if (serverContext!.trainingMode) {
@@ -800,12 +792,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       }
       _compactionTimers.clear();
 
-      // Stop telemetry schedulers
-      logger.shout("Stopping heartbeat and flushing telemetry");
-      _heartbeatScheduler?.stop();
-      _heartbeatScheduler = null;
-      // Do a final flush
-      await telemetry.flush(timeout: _telemetryFlushTimeout);
+      // Stops the heartbeat, flushes pending events and closes the exporter
+      logger.info('Shutting down telemetry');
+      await telemetry.shutdown(timeout: _telemetryFlushTimeout);
 
       _isRunning = false;
     } on Exception catch (e) {

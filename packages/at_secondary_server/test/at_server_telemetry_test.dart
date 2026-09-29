@@ -10,6 +10,7 @@ import 'package:crypton/crypton.dart';
 import 'package:test/test.dart';
 
 import 'telemetry_support/recording_event_exporter.dart';
+import 'telemetry_support/recording_gauge_exporter.dart';
 
 void main() {
   test('server-resolved at_chops signs and verifies telemetry', () async {
@@ -158,8 +159,9 @@ void main() {
   group('AtServerTelemetry', () {
     test('pushes events stamped with the server ID and timestamp', () async {
       final RecordingEventExporter exporter = RecordingEventExporter();
-      final AtServerTelemetry telemetry = AtServerTelemetry()
-        ..enable(exporter: exporter, serverId: '@denise');
+      final AtServerTelemetry telemetry =
+          AtServerTelemetry(heartbeatInterval: null)
+            ..enable(exporter: exporter, serverId: '@denise');
 
       final DateTime beforePush = DateTime.now().toUtc();
       telemetry.push(
@@ -222,7 +224,8 @@ void main() {
     });
 
     test('telemetry ignores every call until enabled', () async {
-      final AtServerTelemetry telemetry = AtServerTelemetry();
+      final AtServerTelemetry telemetry =
+          AtServerTelemetry(heartbeatInterval: null);
 
       telemetry.push('$atServerTelemetryEventPrefix.op');
       await telemetry.flush();
@@ -282,7 +285,8 @@ void main() {
 
     test('the same instance starts pushing once enabled', () async {
       final RecordingEventExporter exporter = RecordingEventExporter();
-      final AtServerTelemetry telemetry = AtServerTelemetry();
+      final AtServerTelemetry telemetry =
+          AtServerTelemetry(heartbeatInterval: null);
 
       telemetry.push('$atServerTelemetryEventPrefix.before');
       telemetry.enable(exporter: exporter, serverId: '@denise');
@@ -308,6 +312,7 @@ void main() {
           RecordingEventExporter(exportGate: release.future);
       final AtServerTelemetry telemetry = AtServerTelemetry(
         maxPendingEvents: 2,
+        heartbeatInterval: null,
       )..enable(exporter: exporter, serverId: '@denise');
 
       telemetry.push('$atServerTelemetryEventPrefix.one');
@@ -332,6 +337,55 @@ void main() {
       expect(() => AtServerTelemetry(maxPendingEvents: 0), throwsArgumentError);
     });
 
+    test('enable starts the heartbeat and shutdown stops it', () async {
+      final RecordingGaugeExporter exporter = RecordingGaugeExporter();
+      final AtServerTelemetry telemetry = AtServerTelemetry(
+        heartbeatInterval: const Duration(milliseconds: 50),
+      );
+      addTearDown(telemetry.shutdown);
+
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      expect(exporter.gauges, isEmpty);
+
+      telemetry.enable(exporter: exporter, serverId: '@denise');
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(exporter.gauges, isNotEmpty);
+      expect(exporter.gauges.first.name, 'atsign.atserver.uptime');
+      expect(exporter.gauges.first.attributes['atsign.atserver.id'], '@denise');
+
+      await telemetry.shutdown();
+      final int sent = exporter.gauges.length;
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(exporter.gauges, hasLength(sent));
+    });
+
+    test('a null heartbeat interval sends no heartbeat', () async {
+      final RecordingGaugeExporter exporter = RecordingGaugeExporter();
+      final AtServerTelemetry telemetry = AtServerTelemetry(
+        heartbeatInterval: null,
+      )..enable(exporter: exporter, serverId: '@denise');
+      addTearDown(telemetry.shutdown);
+
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+
+      expect(exporter.gauges, isEmpty);
+    });
+
+    test('can be enabled again after shutdown', () async {
+      final RecordingGaugeExporter first = RecordingGaugeExporter();
+      final RecordingGaugeExporter second = RecordingGaugeExporter();
+      final AtServerTelemetry telemetry = AtServerTelemetry(
+        heartbeatInterval: const Duration(milliseconds: 50),
+      )..enable(exporter: first, serverId: '@denise');
+      addTearDown(telemetry.shutdown);
+
+      await telemetry.shutdown();
+      telemetry.enable(exporter: second, serverId: '@denise');
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+
+      expect(second.gauges, isNotEmpty);
+    });
+
     test('flush with a timeout returns while an export is stuck', () async {
       final RecordingEventExporter exporter =
           RecordingEventExporter(exportGate: Completer<void>().future);
@@ -349,7 +403,8 @@ void main() {
 }
 
 AtServerTelemetry _enabledTelemetry(AtTelemetryExporter exporter) {
-  return AtServerTelemetry()..enable(exporter: exporter, serverId: '@denise');
+  return AtServerTelemetry(heartbeatInterval: null)
+    ..enable(exporter: exporter, serverId: '@denise');
 }
 
 AtServerTelemetryConfiguration? _load(

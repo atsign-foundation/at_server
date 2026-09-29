@@ -128,5 +128,6 @@ void main() {
 }
 
 AtServerTelemetry _enabledTelemetry(AtTelemetryExporter exporter) {
-  return AtServerTelemetry()..enable(exporter: exporter, serverId: '@denise');
+  return AtServerTelemetry(heartbeatInterval: null)
+    ..enable(exporter: exporter, serverId: '@denise');
 }

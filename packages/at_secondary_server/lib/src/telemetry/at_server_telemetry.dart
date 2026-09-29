@@ -5,6 +5,7 @@ import 'package:at_telemetry/at_telemetry_otel.dart'
     show AtTelemetryOtelHttpSignature;
 import 'package:at_utils/at_logger.dart';
 
+import 'at_server_heartbeat_scheduler.dart';
 import 'at_server_telemetry_constants.dart';
 
 final class AtServerTelemetry {
@@ -14,13 +15,19 @@ final class AtServerTelemetry {
   static const String _eventNamePrefix = '$atServerTelemetryEventPrefix.';
 
   final int maxPendingEvents;
+
+  /// How often the uptime heartbeat is sent while telemetry is enabled.
+  /// Null turns the heartbeat off.
+  final Duration? heartbeatInterval;
   final AtSignLogger _logger = AtSignLogger('AtServerTelemetry');
   final List<Future<void>> _pending = <Future<void>>[];
   AtTelemetryExporter? _exporter;
+  AtServerHeartbeatScheduler? _heartbeat;
   String? _serverId;
 
   AtServerTelemetry({
     this.maxPendingEvents = defaultMaxPendingEvents,
+    this.heartbeatInterval = AtServerHeartbeatScheduler.defaultInterval,
   }) {
     if (maxPendingEvents < 1) {
       throw ArgumentError.value(
@@ -43,6 +50,13 @@ final class AtServerTelemetry {
     }
     _exporter = exporter;
     _serverId = serverId;
+    final Duration? interval = heartbeatInterval;
+    if (interval != null) {
+      _heartbeat = AtServerHeartbeatScheduler(
+        telemetry: this,
+        interval: interval,
+      )..start();
+    }
   }
 
   void pushGauge(
@@ -131,6 +145,8 @@ final class AtServerTelemetry {
     }
     _exporter = null;
     _serverId = null;
+    _heartbeat?.stop();
+    _heartbeat = null;
     await _bounded(
       _drain(exporter).then((void _) => _guard(exporter.shutdown, 'shutdown')),
       timeout,
