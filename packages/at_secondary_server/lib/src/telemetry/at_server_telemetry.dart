@@ -1,29 +1,21 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:at_telemetry/at_telemetry.dart';
-import 'package:at_telemetry/at_telemetry_otel.dart';
 import 'package:at_utils/at_logger.dart';
-import 'package:sqlite3/sqlite3.dart';
 
-import 'at_server_telemetry_configuration.dart';
 import 'at_server_telemetry_exporter.dart';
 import 'at_server_telemetry_event_names.dart';
 
 final class AtServerTelemetry {
-  // constants
   static const String serverIdAttribute = 'atsign.atserver.id';
   static const int defaultMaxPendingEvents = 1000;
+  static const String _eventNamePrefix = '$atServerTelemetryEventPrefix.';
 
-  final int maxPendingEvents; // the amount of events we'll hold in disk
+  final int maxPendingEvents;
   final AtSignLogger _logger = AtSignLogger('AtServerTelemetry');
-  final List<Future<void>> _pending =
-      <Future<void>>[]; // holds pending telemetry waiting to be pushed
-  AtTelemetryExporter? _exporter; // handles exporting of telemetry
-  String? _serverId; // the Atsign that the atServer claims to be
-
-  bool get isEnabled => _exporter != null;
-  String? get serverId => _serverId;
+  final List<Future<void>> _pending = <Future<void>>[];
+  AtTelemetryExporter? _exporter;
+  String? _serverId;
 
   AtServerTelemetry({
     this.maxPendingEvents = defaultMaxPendingEvents,
@@ -36,6 +28,9 @@ final class AtServerTelemetry {
       );
     }
   }
+
+  bool get isEnabled => _exporter != null;
+  String? get serverId => _serverId;
 
   void enable({
     required AtTelemetryExporter exporter,
@@ -57,8 +52,8 @@ final class AtServerTelemetry {
       _logger.warning('Ignoring telemetry event with an empty name');
       return;
     }
-    if (!name.startsWith('$atServerTelemetryEventPrefix.') ||
-        name.length == atServerTelemetryEventPrefix.length + 1 ||
+    if (!name.startsWith(_eventNamePrefix) ||
+        name.length == _eventNamePrefix.length ||
         name.trim() != name) {
       _logger
           .warning('Ignoring telemetry event outside the atServer namespace');
@@ -141,78 +136,3 @@ final class AtServerTelemetry {
   }
 }
 
-Future<AtTelemetryExporter?> createAtServerTelemetryExporter({
-  required String serverId,
-  required String signingKey,
-  Map<Object?, Object?>? yaml,
-  Map<String, String>? environment,
-}) async {
-  final AtSignLogger logger = AtSignLogger('AtServerTelemetry');
-
-  // Set up AtServerTelemetryConfiguration
-  final AtServerTelemetryConfiguration? configuration;
-  try {
-    configuration = AtServerTelemetryConfiguration.load(
-      yaml: yaml,
-      environment: environment,
-    );
-  } on FormatException catch (error) {
-    logger.warning('Not pushing telemetry anywhere: ${error.message}');
-    return null;
-  }
-  if (configuration == null) {
-    logger.warning(
-        'Not pushing telemetry anywhere: no telemetry endpoint is configured');
-    return null;
-  }
-
-  // Require signingKey
-  if (signingKey.isEmpty) {
-    logger
-        .warning('Not pushing telemetry anywhere: signing key is empty String');
-    return null;
-  }
-
-  final AtServerTelemetryConfiguration resolvedConfiguration = configuration;
-  final Uri endpoint = resolvedConfiguration.endpoint;
-  final String destination = endpoint.origin;
-  try {
-    final AtTelemetryRsaSigner signer =
-        AtTelemetryRsaSigner.fromBase64(signingKey);
-    void onError(Object error) =>
-        logger.warning('Telemetry export failed: ${error.runtimeType}');
-    AtServerTelemetryExporter open({required bool persistToDisk}) =>
-        AtServerTelemetryExporter.open(
-          endpoint: endpoint,
-          keyId: serverId,
-          audience: endpoint.host,
-          signer: signer,
-          storagePath: resolvedConfiguration.storagePath,
-          maxRecords: resolvedConfiguration.maxRecords,
-          maxBytes: resolvedConfiguration.maxBytes,
-          persistToDisk: persistToDisk,
-          onError: onError,
-        );
-
-    try {
-      final AtServerTelemetryExporter exporter =
-          open(persistToDisk: resolvedConfiguration.persistToDisk);
-      logger.info(exporter.isDirectExport
-          ? 'Pushing signed telemetry directly to $destination'
-          : 'Pushing persisted signed telemetry to $destination');
-      return exporter;
-    } on FileSystemException catch (error) {
-      logger.warning('Telemetry disk unavailable: ${error.runtimeType}; '
-          'switching to direct signed export');
-      return open(persistToDisk: false);
-    } on SqliteException catch (error) {
-      logger.warning('Telemetry disk unavailable: ${error.runtimeType}; '
-          'switching to direct signed export');
-      return open(persistToDisk: false);
-    }
-  } catch (error) {
-    logger.warning(
-        'Not pushing telemetry anywhere: exporter setup failed: ${error.runtimeType}');
-    return null;
-  }
-}

@@ -365,6 +365,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw AtServerException(e.toString());
     }
 
+    // if `!telemetry.isEnabled`, we are booting up after a hard restart or inital start
+    // no exporter is attached, so we must create it.
     if (!telemetry.isEnabled) {
       final AtTelemetryExporter? exporter =
           await createAtServerTelemetryExporter(
@@ -376,6 +378,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
             exporter: exporter, serverId: currentAtSign.toString());
       }
     }
+
+    // if it was already enabled, but the _heartbeatScheudler was null, we are recovering from a soft restart
     if (telemetry.isEnabled && _heartbeatScheduler == null) {
       _heartbeatScheduler = AtServerHeartbeatScheduler(telemetry: telemetry)
         ..start();

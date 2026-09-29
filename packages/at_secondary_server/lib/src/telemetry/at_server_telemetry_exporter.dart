@@ -7,9 +7,14 @@ import 'package:at_utils/at_logger.dart';
 import 'package:http/http.dart' as http;
 import 'package:sqlite3/sqlite3.dart';
 
+import 'at_server_telemetry_configuration.dart';
 import 'at_server_telemetry_disk_queue.dart';
 
 final class AtServerTelemetryExporter implements AtTelemetryExporter {
+  static const Duration _initialRetryDelay = Duration(seconds: 1);
+  static const Duration _maxRetryDelay = Duration(seconds: 60);
+  static const Duration _requestTimeout = Duration(seconds: 10);
+
   final Uri _endpoint;
   final String _keyId;
   final String _audience;
@@ -23,7 +28,7 @@ final class AtServerTelemetryExporter implements AtTelemetryExporter {
   final AtTelemetryOtelLogsCodec _codec = const AtTelemetryOtelLogsCodec();
   Future<void>? _draining;
   Timer? _timer;
-  Duration _retryDelay = const Duration(seconds: 1);
+  Duration _retryDelay = _initialRetryDelay;
   bool _closed = false;
   bool _diskWriteDisabled = false;
 
@@ -129,6 +134,36 @@ final class AtServerTelemetryExporter implements AtTelemetryExporter {
     return Future<void>.value();
   }
 
+  @override
+  Future<void> flush() async {
+    if (_draining case final Future<void> active) {
+      await active;
+    }
+    if (!_closed) {
+      await _startDrain();
+    }
+    await _directExporter.flush();
+  }
+
+  @override
+  Future<void> shutdown() async {
+    if (_closed) {
+      return;
+    }
+    _closed = true;
+    _timer?.cancel();
+    _timer = null;
+    try {
+      await _draining;
+      await _directExporter.shutdown();
+    } finally {
+      if (_ownsClient) {
+        _client.close();
+      }
+      _queue?.close();
+    }
+  }
+
   Future<void> _exportDirectly(AtTelemetryEvent event, Object error) {
     _diskWriteDisabled = true;
     _logger.warning('Telemetry disk write failed: ${error.runtimeType}; '
@@ -186,13 +221,14 @@ final class AtServerTelemetryExporter implements AtTelemetryExporter {
         final (int id, List<int> payload) = next;
         await _send(payload);
         queue.acknowledge(id);
-        _retryDelay = const Duration(seconds: 1);
+        _retryDelay = _initialRetryDelay;
       } catch (error) {
         _onError?.call(error);
         if (!_closed) {
           final Duration delay = _retryDelay;
           _retryDelay = Duration(
-            seconds: (_retryDelay.inSeconds * 2).clamp(1, 60),
+            seconds: (_retryDelay.inSeconds * 2)
+                .clamp(_initialRetryDelay.inSeconds, _maxRetryDelay.inSeconds),
           );
           _timer = Timer(delay, () {
             _timer = null;
@@ -223,40 +259,84 @@ final class AtServerTelemetryExporter implements AtTelemetryExporter {
       })
       ..bodyBytes = payload;
     final http.StreamedResponse response =
-        await _client.send(request).timeout(const Duration(seconds: 10));
-    await response.stream.drain<void>().timeout(const Duration(seconds: 10));
+        await _client.send(request).timeout(_requestTimeout);
+    await response.stream.drain<void>().timeout(_requestTimeout);
     if (response.statusCode != HttpStatus.ok) {
       throw StateError('Telemetry rejected: HTTP ${response.statusCode}');
     }
   }
+}
 
-  @override
-  Future<void> flush() async {
-    if (_draining case final Future<void> active) {
-      await active;
-    }
-    if (!_closed) {
-      await _startDrain();
-    }
-    await _directExporter.flush();
+Future<AtTelemetryExporter?> createAtServerTelemetryExporter({
+  required String serverId,
+  required String signingKey,
+  Map<Object?, Object?>? yaml,
+  Map<String, String>? environment,
+}) async {
+  final AtSignLogger logger = AtSignLogger('AtServerTelemetry');
+
+  final AtServerTelemetryConfiguration? configuration;
+  try {
+    configuration = AtServerTelemetryConfiguration.load(
+      yaml: yaml,
+      environment: environment,
+    );
+  } on FormatException catch (error) {
+    logger.warning('Not pushing telemetry anywhere: ${error.message}');
+    return null;
+  }
+  if (configuration == null) {
+    logger.warning(
+        'Not pushing telemetry anywhere: no telemetry endpoint is configured');
+    return null;
   }
 
-  @override
-  Future<void> shutdown() async {
-    if (_closed) {
-      return;
-    }
-    _closed = true;
-    _timer?.cancel();
-    _timer = null;
+  if (signingKey.isEmpty) {
+    logger
+        .warning('Not pushing telemetry anywhere: signing key is empty String');
+    return null;
+  }
+
+  final AtServerTelemetryConfiguration resolvedConfiguration = configuration;
+  final Uri endpoint = resolvedConfiguration.endpoint;
+  final String destination = endpoint.origin;
+  try {
+    final AtTelemetryRsaSigner signer =
+        AtTelemetryRsaSigner.fromBase64(signingKey);
+    void onError(Object error) =>
+        logger.warning('Telemetry export failed: ${error.runtimeType}');
+    AtServerTelemetryExporter open({required bool persistToDisk}) =>
+        AtServerTelemetryExporter.open(
+          endpoint: endpoint,
+          keyId: serverId,
+          audience: endpoint.host,
+          signer: signer,
+          storagePath: resolvedConfiguration.storagePath,
+          maxRecords: resolvedConfiguration.maxRecords,
+          maxBytes: resolvedConfiguration.maxBytes,
+          persistToDisk: persistToDisk,
+          onError: onError,
+        );
+
     try {
-      await _draining;
-      await _directExporter.shutdown();
-    } finally {
-      if (_ownsClient) {
-        _client.close();
-      }
-      _queue?.close();
+      final AtServerTelemetryExporter exporter =
+          open(persistToDisk: resolvedConfiguration.persistToDisk);
+      logger.info(exporter.isDirectExport
+          ? 'Pushing signed telemetry directly to $destination'
+          : 'Pushing persisted signed telemetry to $destination');
+      return exporter;
+    } on FileSystemException catch (error) {
+      logger.warning('Telemetry disk unavailable: ${error.runtimeType}; '
+          'switching to direct signed export');
+      return open(persistToDisk: false);
+    } on SqliteException catch (error) {
+      logger.warning('Telemetry disk unavailable: ${error.runtimeType}; '
+          'switching to direct signed export');
+      return open(persistToDisk: false);
     }
+  } catch (error) {
+    logger.warning(
+        'Not pushing telemetry anywhere: exporter setup failed: ${error.runtimeType}');
+    return null;
   }
 }
