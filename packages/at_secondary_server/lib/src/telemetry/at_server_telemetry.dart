@@ -135,4 +135,3 @@ final class AtServerTelemetry {
     return _guard(() => exporter.export(event), 'export');
   }
 }
-
