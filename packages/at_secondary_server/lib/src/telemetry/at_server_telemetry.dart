@@ -57,16 +57,15 @@ final class AtServerTelemetry {
       _logger.warning('Ignoring telemetry event with an empty name');
       return;
     }
-    if (!name.startsWith(atServerTelemetryEventPrefix) ||
-        name.length == atServerTelemetryEventPrefix.length ||
+    if (!name.startsWith('$atServerTelemetryEventPrefix.') ||
+        name.length == atServerTelemetryEventPrefix.length + 1 ||
         name.trim() != name) {
       _logger
           .warning('Ignoring telemetry event outside the atServer namespace');
       return;
     }
     if (_pending.length >= maxPendingEvents &&
-        !(exporter is AtServerTelemetryExporter &&
-            !exporter.isDirectExport)) {
+        !(exporter is AtServerTelemetryExporter && !exporter.isDirectExport)) {
       _logger.warning('Telemetry backlog full, dropping event');
       return;
     }
