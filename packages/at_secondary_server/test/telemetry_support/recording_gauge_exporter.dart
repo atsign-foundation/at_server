@@ -1,17 +1,17 @@
 import 'package:at_telemetry/at_telemetry.dart';
 
 final class RecordingGaugeExporter
-    implements AtTelemetryExporter, AtTelemetryGaugeExporter {
+    implements AtTelemetryLogRecordExporter, AtTelemetryMetricExporter {
   final List<AtTelemetryGauge> gauges = <AtTelemetryGauge>[];
-  final List<AtTelemetryEvent> events = <AtTelemetryEvent>[];
+  final List<AtTelemetryLogRecord> events = <AtTelemetryLogRecord>[];
 
   @override
-  Future<void> exportGauges(Iterable<AtTelemetryGauge> values) async {
-    gauges.addAll(values);
+  Future<void> exportMetrics(Iterable<AtTelemetryMetric> values) async {
+    gauges.addAll(values.cast<AtTelemetryGauge>());
   }
 
   @override
-  Future<void> export(AtTelemetryEvent event) async {
+  Future<void> export(AtTelemetryLogRecord event) async {
     events.add(event);
   }
 

@@ -84,7 +84,7 @@ void main() {
         AtServerTelemetry(heartbeatInterval: null)
           ..enable(exporter: exporter, serverId: '@denise');
 
-    telemetry.pushGauge('$atServerTelemetryEventPrefix.uptime', 12, unit: 's');
+    telemetry.recordGauge('$atServerTelemetryEventPrefix.uptime', 12, unit: 's');
     await telemetry.shutdown();
 
     expect(delivered, hasLength(1));
@@ -151,9 +151,9 @@ void main() {
         AtServerTelemetry(maxPendingEvents: 2, heartbeatInterval: null)
           ..enable(exporter: exporter, serverId: '@denise');
 
-    telemetry.push('$atServerTelemetryEventPrefix.first');
-    telemetry.push('$atServerTelemetryEventPrefix.second');
-    telemetry.push('$atServerTelemetryEventPrefix.third');
+    telemetry.emitEvent('$atServerTelemetryEventPrefix.first');
+    telemetry.emitEvent('$atServerTelemetryEventPrefix.second');
+    telemetry.emitEvent('$atServerTelemetryEventPrefix.third');
     await telemetry.flush(timeout: const Duration(milliseconds: 50));
     stuck.complete(http.Response('', 200));
     await telemetry.shutdown();
@@ -165,7 +165,7 @@ void main() {
   });
 }
 
-AtTelemetryEvent _event(String name) => AtTelemetryEvent(
+AtTelemetryLogRecord _event(String name) => AtTelemetryLogRecord(
       name: name,
       timestamp: DateTime.utc(2026, 9, 28),
       attributes: const <String, Object?>{'atsign.atserver.id': '@denise'},
