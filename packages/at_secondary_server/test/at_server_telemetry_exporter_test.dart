@@ -70,11 +70,12 @@ void main() {
     expect(request.url.path, '/v1/logs');
     expect(request.followRedirects, isFalse);
     expect(request.headers, isNot(contains('authorization')));
-    final AtTelemetryHttpSignature signature = AtTelemetryHttpSignature.parse(
-      input: request.headers[AtTelemetryHttpSignature.inputHeader]!,
-      signature: request.headers[AtTelemetryHttpSignature.signatureHeader]!,
-      digest: request.headers[AtTelemetryHttpSignature.digestHeader]!,
-      audience: request.headers[AtTelemetryHttpSignature.audienceHeader]!,
+    final AtTelemetryOtelHttpSignature signature =
+        AtTelemetryOtelHttpSignature.parse(
+      input: request.headers[AtTelemetryOtelHttpSignature.inputHeader]!,
+      signature: request.headers[AtTelemetryOtelHttpSignature.signatureHeader]!,
+      digest: request.headers[AtTelemetryOtelHttpSignature.digestHeader]!,
+      audience: request.headers[AtTelemetryOtelHttpSignature.audienceHeader]!,
     );
     expect(signature.keyId, '@denise');
     expect(signature.audience, 'collector.example.org');
@@ -113,7 +114,7 @@ void main() {
     expect(exporter.droppedRecords, 0);
     expect(delivered, hasLength(1));
     expect(delivered.single.headers,
-        contains(AtTelemetryHttpSignature.signatureHeader));
+        contains(AtTelemetryOtelHttpSignature.signatureHeader));
     expect(storage.listSync(), isEmpty);
   });
 
@@ -168,7 +169,7 @@ void main() {
     );
     expect(
         delivered.every((http.Request request) => request.headers
-            .containsKey(AtTelemetryHttpSignature.signatureHeader)),
+            .containsKey(AtTelemetryOtelHttpSignature.signatureHeader)),
         isTrue);
   });
 
@@ -216,6 +217,25 @@ void main() {
     await exporter.flush();
     await exporter.shutdown();
 
+    expect(_storedEvents(storage).single.name, atServerHeartbeatEventName);
+  });
+
+  test('does not follow redirects or acknowledge redirected records', () async {
+    final List<http.Request> requests = <http.Request>[];
+    final AtServerTelemetryExporter exporter = open(
+      client: MockClient((http.Request request) async {
+        requests.add(request);
+        return http.Response('', 302, headers: <String, String>{
+          'location': 'https://other.example.org/v1/logs',
+        });
+      }),
+    );
+    await exporter.export(_event(atServerHeartbeatEventName));
+    await exporter.flush();
+    await exporter.shutdown();
+
+    expect(requests, hasLength(1));
+    expect(requests.single.followRedirects, isFalse);
     expect(_storedEvents(storage).single.name, atServerHeartbeatEventName);
   });
 
