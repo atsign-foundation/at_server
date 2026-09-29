@@ -45,8 +45,7 @@ void main() {
       () async {
     final AtTelemetryEvent event = _event(atServerHeartbeatEventName);
     final AtServerTelemetryExporter first = open(
-      client:
-          MockClient((http.Request request) async => http.Response('', 503)),
+      client: _unavailableClient(),
     );
     await first.export(event);
     await first.flush();
@@ -223,8 +222,7 @@ void main() {
   test('discards oldest records when count limit is reached', () async {
     final AtServerTelemetryExporter exporter = open(
       maxRecords: 2,
-      client:
-          MockClient((http.Request request) async => http.Response('', 503)),
+      client: _unavailableClient(),
     );
     await exporter.export(_event('first'));
     await exporter.export(_event('second'));
@@ -242,8 +240,7 @@ void main() {
       () async {
     final AtServerTelemetryExporter exporter = open(
       maxRecords: 2,
-      client:
-          MockClient((http.Request request) async => http.Response('', 503)),
+      client: _unavailableClient(),
     );
     final AtServerTelemetry telemetry = AtServerTelemetry(maxPendingEvents: 1)
       ..enable(exporter: exporter, serverId: '@denise');
@@ -262,8 +259,7 @@ void main() {
 
   test('applies reduced queue limits when reopening existing records',
       () async {
-    final http.Client unavailable =
-        MockClient((http.Request request) async => http.Response('', 503));
+    final http.Client unavailable = _unavailableClient();
     final AtServerTelemetryExporter first = open(
       maxRecords: 3,
       client: unavailable,
@@ -294,8 +290,7 @@ void main() {
     ).length;
     final AtServerTelemetryExporter exporter = open(
       maxBytes: payloadBytes + 1,
-      client:
-          MockClient((http.Request request) async => http.Response('', 503)),
+      client: _unavailableClient(),
     );
     await exporter.export(first);
     await exporter.export(_event('other'));
@@ -324,6 +319,9 @@ void main() {
     expect(_storedEvents(storage), isEmpty);
   });
 }
+
+http.Client _unavailableClient() =>
+    MockClient((http.Request request) async => http.Response('', 503));
 
 AtTelemetryEvent _event(String name) => AtTelemetryEvent(
       name: name,

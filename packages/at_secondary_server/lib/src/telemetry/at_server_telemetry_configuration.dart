@@ -4,8 +4,6 @@ import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:path/path.dart' as p;
 
 final class AtServerTelemetryConfiguration {
-  // Used when neither config.yaml nor the environment sets a value.
-  static const String? _defaultEndpoint = null;
   static const int defaultMaxRecords = 1000;
   static const int defaultMaxBytes = 10 * 1024 * 1024;
 
@@ -39,7 +37,7 @@ final class AtServerTelemetryConfiguration {
     }
 
     final String? endpointValue =
-        setting('endpoint', 'AT_TELEMETRY_ENDPOINT', _defaultEndpoint);
+        setting('endpoint', 'AT_TELEMETRY_ENDPOINT', null);
     if (endpointValue == null) {
       return null;
     }
@@ -49,18 +47,6 @@ final class AtServerTelemetryConfiguration {
         !endpoint.hasAuthority ||
         endpoint.host.isEmpty) {
       throw const FormatException('Telemetry endpoint must be an HTTPS URL');
-    }
-
-    int positiveLimit(String yamlKey, String environmentKey, int fallback) {
-      final String? value = setting(yamlKey, environmentKey, null);
-      if (value == null) {
-        return fallback;
-      }
-      final int? parsed = int.tryParse(value);
-      if (parsed == null || parsed < 1) {
-        throw FormatException('Telemetry $yamlKey must be a positive integer');
-      }
-      return parsed;
     }
 
     final String persistValue = setting(
@@ -82,17 +68,28 @@ final class AtServerTelemetryConfiguration {
       endpoint: endpoint,
       persistToDisk: persistValue == 'true',
       storagePath: storagePath,
-      maxRecords: positiveLimit(
+      maxRecords: _positiveLimit(
         'maxRecords',
-        'AT_TELEMETRY_MAX_RECORDS',
+        setting('maxRecords', 'AT_TELEMETRY_MAX_RECORDS', null),
         defaultMaxRecords,
       ),
-      maxBytes: positiveLimit(
+      maxBytes: _positiveLimit(
         'maxBytes',
-        'AT_TELEMETRY_MAX_BYTES',
+        setting('maxBytes', 'AT_TELEMETRY_MAX_BYTES', null),
         defaultMaxBytes,
       ),
     );
+  }
+
+  static int _positiveLimit(String key, String? value, int fallback) {
+    if (value == null) {
+      return fallback;
+    }
+    final int? parsed = int.tryParse(value);
+    if (parsed == null || parsed < 1) {
+      throw FormatException('Telemetry $key must be a positive integer');
+    }
+    return parsed;
   }
 
   static String? _nonEmpty(String? value) {

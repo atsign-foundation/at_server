@@ -8,6 +8,8 @@ import 'package:path/path.dart' as p;
 import 'package:sqlite3/open.dart' as sqlite_open;
 import 'package:sqlite3/sqlite3.dart';
 
+// For interfacing with the telemetry queue that exists on disk (SQLite database)
+// This class does not send any HTTP requests. See AtServerTelemetryExporter. AtServerTelemetryExporter uses AtServerTelemetryDiskQueue to manage and find out what telemetry to push
 final class AtServerTelemetryDiskQueue {
   static bool _libraryConfigured = false;
 
@@ -61,6 +63,9 @@ final class AtServerTelemetryDiskQueue {
     }
   }
 
+  // saves payload in a transaction
+  // if record or byte limit would be exceeded,
+  // drop the oldest record.
   bool write(List<int> payload) {
     if (payload.length > maxBytes) {
       _reportDropped(1, 'oversized');
@@ -69,7 +74,7 @@ final class AtServerTelemetryDiskQueue {
 
     final int removed = _transaction(() {
       final int evicted =
-          _evict(incomingSize: payload.length, addingRecord: true);
+          _evictOldest(incomingSize: payload.length, addingRecord: true);
       _database.execute(
         'INSERT INTO telemetry_queue (payload) VALUES (?)',
         <Object?>[payload],
@@ -82,26 +87,51 @@ final class AtServerTelemetryDiskQueue {
     return true;
   }
 
+  // peek returns a tuple (int id, List<int> payload)
+  // returns oldest stored payload without removing it
+  // acknowledge() deletes the oldest payload
+  (int id, List<int> payload)? peek() {
+    final List<Row> rows = _database.select(
+      'SELECT id, payload FROM telemetry_queue ORDER BY id LIMIT 1',
+    );
+    if (rows.isEmpty) {
+      return null;
+    }
+    final Row row = rows.single;
+    return (row['id'] as int, row['payload'] as List<int>);
+  }
+
+  bool get isNotEmpty =>
+      _database.select('SELECT 1 FROM telemetry_queue LIMIT 1').isNotEmpty;
+
+  void acknowledge(int id) {
+    _database.execute(
+      'DELETE FROM telemetry_queue WHERE id = ?',
+      <Object?>[id],
+    );
+  }
+
+  void close() => _database.dispose();
+
   void _trimExisting() {
-    final int removed = _transaction(() => _evict());
+    final int removed = _transaction(() => _evictOldest());
     if (removed > 0) {
       _reportDropped(removed, 'oldest');
     }
   }
 
-  int _evict({int incomingSize = 0, bool addingRecord = false}) {
+  int _evictOldest({int incomingSize = 0, bool addingRecord = false}) {
     final List<Row> rows = _database.select(
       'SELECT id, length(payload) AS bytes FROM telemetry_queue ORDER BY id',
     );
-    int count = rows.length;
-    int bytes = 0;
+    int count = rows.length + (addingRecord ? 1 : 0);
+    int bytes = incomingSize;
     for (final Row row in rows) {
       bytes += row['bytes'] as int;
     }
     int removed = 0;
     for (final Row row in rows) {
-      if (count + (addingRecord ? 1 : 0) <= maxRecords &&
-          bytes + incomingSize <= maxBytes) {
+      if (count <= maxRecords && bytes <= maxBytes) {
         break;
       }
       _database.execute(
@@ -128,29 +158,6 @@ final class AtServerTelemetryDiskQueue {
       rethrow;
     }
   }
-
-  (int id, List<int> payload)? peek() {
-    final List<Row> rows = _database.select(
-      'SELECT id, payload FROM telemetry_queue ORDER BY id LIMIT 1',
-    );
-    if (rows.isEmpty) {
-      return null;
-    }
-    final Row row = rows.single;
-    return (row['id'] as int, row['payload'] as List<int>);
-  }
-
-  bool get isNotEmpty =>
-      _database.select('SELECT 1 FROM telemetry_queue LIMIT 1').isNotEmpty;
-
-  void acknowledge(int id) {
-    _database.execute(
-      'DELETE FROM telemetry_queue WHERE id = ?',
-      <Object?>[id],
-    );
-  }
-
-  void close() => _database.dispose();
 
   void _reportDropped(int count, String reason) {
     droppedRecords += count;
