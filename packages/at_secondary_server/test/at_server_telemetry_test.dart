@@ -223,6 +223,26 @@ void main() {
       expect(exporter.events.single.name, 'atsign.atserver.heartbeat');
     });
 
+    test('lifecycle events are accepted in the atServer namespace', () async {
+      final RecordingEventExporter exporter = RecordingEventExporter();
+      final AtServerTelemetry telemetry = _enabledTelemetry(exporter);
+
+      telemetry.push(atServerStartedEventName);
+      telemetry.push(atServerStoppedEventName);
+      await telemetry.flush();
+
+      expect(
+        <String>[
+          for (final AtTelemetryEvent event in exporter.events) event.name
+        ],
+        <String>['atsign.atserver.started', 'atsign.atserver.stopped'],
+      );
+      expect(
+        exporter.events.map((AtTelemetryEvent e) => e.attributes),
+        everyElement(containsPair('atsign.atserver.id', '@denise')),
+      );
+    });
+
     test('telemetry ignores every call until enabled', () async {
       final AtServerTelemetry telemetry =
           AtServerTelemetry(heartbeatInterval: null);
