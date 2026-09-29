@@ -117,8 +117,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   Timer? _keyExpiryTimer;
   AtServerHeartbeatScheduler? _heartbeatScheduler;
 
+  //
   final AtServerTelemetry telemetry = AtServerTelemetry();
 
+  // the maximum amount of time to wait to send all telemetry when `stop()` is called. Once timeout passes, we simply ignore sending telemetry and it becomes non-blocking
   static const Duration _telemetryFlushTimeout = Duration(seconds: 5);
 
   /// Floor for the expiry-sweep sleep.
@@ -366,7 +368,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw AtServerException(e.toString());
     }
 
-    // if `!telemetry.isEnabled`, we are booting up after a hard restart or inital start
+    // if `!telemetry.isEnabled`, we are booting up after a hard restart or initial start
     // no exporter is attached, so we must create it.
     if (!telemetry.isEnabled) {
       final AtTelemetryExporter? exporter =
