@@ -127,7 +127,7 @@ void main() {
   });
 }
 
-AtServerTelemetry _enabledTelemetry(AtTelemetryExporter exporter) {
+AtServerTelemetry _enabledTelemetry(AtTelemetryLogRecordExporter exporter) {
   return AtServerTelemetry(heartbeatInterval: null)
     ..enable(exporter: exporter, serverId: '@denise');
 }
