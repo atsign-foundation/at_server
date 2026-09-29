@@ -103,7 +103,8 @@ void main() {
 
   test('a configured exporter always signs with the server key', () async {
     final RSAKeypair keys = RSAKeypair.fromRandom();
-    final AtTelemetryLogRecordExporter? exporter = await createAtServerTelemetryExporter(
+    final AtTelemetryLogRecordExporter? exporter =
+        await createAtServerTelemetryExporter(
       serverId: '@denise',
       signingKey: keys.privateKey.toString(),
       yaml: const <String, Object?>{},
@@ -118,7 +119,8 @@ void main() {
   });
 
   test('signed telemetry is disabled with an empty signing key', () async {
-    final AtTelemetryLogRecordExporter? exporter = await createAtServerTelemetryExporter(
+    final AtTelemetryLogRecordExporter? exporter =
+        await createAtServerTelemetryExporter(
       serverId: '@denise',
       signingKey: '',
       yaml: const <String, Object?>{},
@@ -132,7 +134,8 @@ void main() {
 
   test('telemetry is disabled when the environment is not configured',
       () async {
-    final AtTelemetryLogRecordExporter? exporter = await createAtServerTelemetryExporter(
+    final AtTelemetryLogRecordExporter? exporter =
+        await createAtServerTelemetryExporter(
       serverId: '@denise',
       signingKey: '',
       yaml: const <String, Object?>{},
@@ -144,7 +147,8 @@ void main() {
 
   test('an invalid configuration disables telemetry instead of throwing',
       () async {
-    final AtTelemetryLogRecordExporter? exporter = await createAtServerTelemetryExporter(
+    final AtTelemetryLogRecordExporter? exporter =
+        await createAtServerTelemetryExporter(
       serverId: '@denise',
       signingKey: '',
       yaml: const <String, Object?>{},
