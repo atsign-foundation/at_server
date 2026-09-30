@@ -20,6 +20,17 @@ Future<void> callback(String value, InboundConnection connection) async {
   sc.add(value);
 }
 
+/// Counts the whole-buffer copies [StreamableByteBuffer.getData] makes.
+class _CopyCountingBuffer extends StreamableByteBuffer {
+  int copies = 0;
+
+  @override
+  List<int> getData() {
+    copies++;
+    return super.getData();
+  }
+}
+
 void _expectCommandsToValidate(
   List<String> commands,
   InboundConnection connection,
@@ -643,6 +654,47 @@ void main() async {
       expect(await dispatchedFor(['scan\n@exit\nfrom:@alice\n']), ['scan'],
           reason: '@exit closes the connection; anything queued behind it '
               'must not be dispatched');
+    });
+
+    test('a complete command is copied out of the buffer once', () {
+      final buffer = _CopyCountingBuffer()
+        ..append(utf8.encode('from:@alice\nnoop:0\n'));
+      expect(utf8.decode(buffer.takeCommand(fakeConnection)!), 'from:@alice');
+      expect(utf8.decode(buffer.takeCommand(fakeConnection)!), 'noop:0');
+      expect(buffer.takeCommand(fakeConnection), isNull);
+      expect(buffer.copies, 2,
+          reason: 'getData() copies the whole buffer, so validating a '
+              'command must reuse the copy it is taken from');
+    });
+
+    test(
+        'a command still arriving is validated once it is long enough to '
+        'judge', () {
+      final unauthenticated =
+          FakeInboundConnection(socket, unAuthenticatedMetadata);
+      final buffer = StreamableByteBuffer()
+        ..append(utf8.encode('update:public:k'));
+      expect(buffer.takeCommand(unauthenticated), isNull,
+          reason: '15 bytes is below minBytesForValidation, so judging them '
+              'could reject the first fragment of a legitimate command');
+      buffer.append(utf8.encode('@'));
+      expect(() => buffer.takeCommand(unauthenticated),
+          throwsA(isA<UnAuthenticatedException>()),
+          reason: 'At 16 bytes the verb is known, so an unauthenticated '
+              'update is refused before its terminator arrives');
+    });
+
+    test('a rejected command is left in the buffer', () {
+      final buffer = StreamableByteBuffer()
+        ..append(utf8.encode('update:public:k@alice v\nnoop:0\n'));
+      final before = buffer.getData();
+      expect(
+          () => buffer.takeCommand(
+              FakeInboundConnection(socket, unAuthenticatedMetadata)),
+          throwsA(isA<UnAuthenticatedException>()));
+      expect(buffer.getData(), before,
+          reason: 'takeCommand throws before it changes the buffer, so the '
+              'caller decides what happens to what it holds');
     });
   });
 }
