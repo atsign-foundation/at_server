@@ -4,7 +4,6 @@ import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_constants.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_exporter.dart';
 import 'package:at_telemetry/at_telemetry.dart';
-import 'package:at_telemetry/at_telemetry_otel.dart';
 import 'package:crypton/crypton.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -15,8 +14,8 @@ void main() {
 
   setUp(() => keys = RSAKeypair.fromRandom());
 
-  Future<AtTelemetryOtelSignedHttpExporter> create(http.Client client) async {
-    final AtTelemetryOtelSignedHttpExporter? exporter =
+  Future<AtTelemetrySignedHttpExporter> create(http.Client client) async {
+    final AtTelemetrySignedHttpExporter? exporter =
         await createAtServerTelemetryExporter(
       serverId: '@denise',
       signingKey: keys.privateKey.toString(),
@@ -31,7 +30,7 @@ void main() {
 
   test('sends each event as a signed OTLP request', () async {
     final List<http.Request> delivered = <http.Request>[];
-    final AtTelemetryOtelSignedHttpExporter exporter = await create(
+    final AtTelemetrySignedHttpExporter exporter = await create(
       MockClient((http.Request request) async {
         delivered.add(request);
         return http.Response('', 200);
@@ -46,12 +45,11 @@ void main() {
     expect(request.url.path, '/v1/logs');
     expect(request.followRedirects, isFalse);
     expect(request.headers, isNot(contains('authorization')));
-    final AtTelemetryOtelHttpSignature signature =
-        AtTelemetryOtelHttpSignature.parse(
-      input: request.headers[AtTelemetryOtelHttpSignature.inputHeader]!,
-      signature: request.headers[AtTelemetryOtelHttpSignature.signatureHeader]!,
-      digest: request.headers[AtTelemetryOtelHttpSignature.digestHeader]!,
-      audience: request.headers[AtTelemetryOtelHttpSignature.audienceHeader]!,
+    final AtTelemetryHttpSignature signature = AtTelemetryHttpSignature.parse(
+      input: request.headers[AtTelemetryHttpSignature.inputHeader]!,
+      signature: request.headers[AtTelemetryHttpSignature.signatureHeader]!,
+      digest: request.headers[AtTelemetryHttpSignature.digestHeader]!,
+      audience: request.headers[AtTelemetryHttpSignature.audienceHeader]!,
     );
     expect(signature.keyId, '@denise');
     expect(signature.audience, 'collector.example.org');
@@ -64,7 +62,7 @@ void main() {
       isTrue,
     );
     expect(
-      const AtTelemetryOtelLogsCodec()
+      const AtTelemetryLogsCodec()
           .decodeExportRequest(request.bodyBytes)
           .single
           .name,
@@ -74,7 +72,7 @@ void main() {
 
   test('sends gauges as signed OTLP metrics', () async {
     final List<http.Request> delivered = <http.Request>[];
-    final AtTelemetryOtelSignedHttpExporter exporter = await create(
+    final AtTelemetrySignedHttpExporter exporter = await create(
       MockClient((http.Request request) async {
         delivered.add(request);
         return http.Response('', 200);
@@ -91,12 +89,12 @@ void main() {
     expect(delivered, hasLength(1));
     expect(delivered.single.url.path, '/v1/metrics');
     expect(delivered.single.headers,
-        contains(AtTelemetryOtelHttpSignature.signatureHeader));
+        contains(AtTelemetryHttpSignature.signatureHeader));
   });
 
   test('does not follow redirects', () async {
     final List<http.Request> requests = <http.Request>[];
-    final AtTelemetryOtelSignedHttpExporter exporter = await create(
+    final AtTelemetrySignedHttpExporter exporter = await create(
       MockClient((http.Request request) async {
         requests.add(request);
         return http.Response('', 302, headers: <String, String>{
@@ -115,8 +113,8 @@ void main() {
   test('drops an event that the collector rejects', () async {
     int requests = 0;
     final List<Object> errors = <Object>[];
-    final AtTelemetryOtelSignedHttpExporter exporter =
-        AtTelemetryOtelSignedHttpExporter(
+    final AtTelemetrySignedHttpExporter exporter =
+        AtTelemetrySignedHttpExporter(
       endpoint: Uri.parse('https://collector.example.org'),
       serviceName: 'at_secondary_server',
       keyId: '@denise',
@@ -139,9 +137,9 @@ void main() {
   test('the backlog limit drops events while the collector is stuck', () async {
     final Completer<http.Response> stuck = Completer<http.Response>();
     final List<String> delivered = <String>[];
-    final AtTelemetryOtelSignedHttpExporter exporter = await create(
+    final AtTelemetrySignedHttpExporter exporter = await create(
       MockClient((http.Request request) async {
-        delivered.add(const AtTelemetryOtelLogsCodec()
+        delivered.add(const AtTelemetryLogsCodec()
             .decodeExportRequest(request.bodyBytes)
             .single
             .name);

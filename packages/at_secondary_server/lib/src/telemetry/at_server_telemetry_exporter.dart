@@ -1,4 +1,4 @@
-import 'package:at_telemetry/at_telemetry_otel.dart';
+import 'package:at_telemetry/at_telemetry.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:http/http.dart' as http;
 
@@ -6,7 +6,7 @@ import 'at_server_telemetry_configuration.dart';
 
 /// Builds the signed OTLP/HTTP exporter for this server, or returns null
 /// (after logging why) when telemetry is not configured or cannot be set up.
-Future<AtTelemetryOtelSignedHttpExporter?> createAtServerTelemetryExporter({
+Future<AtTelemetrySignedHttpExporter?> createAtServerTelemetryExporter({
   required String serverId,
   required String signingKey,
   Map<Object?, Object?>? yaml,
@@ -38,8 +38,8 @@ Future<AtTelemetryOtelSignedHttpExporter?> createAtServerTelemetryExporter({
   }
 
   try {
-    final AtTelemetryOtelSignedHttpExporter exporter =
-        AtTelemetryOtelSignedHttpExporter(
+    final AtTelemetrySignedHttpExporter exporter =
+        AtTelemetrySignedHttpExporter(
       endpoint: configuration.endpoint,
       serviceName: 'at_secondary_server',
       keyId: serverId,
