@@ -5,7 +5,6 @@ import 'package:at_secondary/src/telemetry/at_server_telemetry_configuration.dar
 import 'package:at_secondary/src/telemetry/at_server_telemetry_exporter.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_constants.dart';
 import 'package:at_telemetry/at_telemetry.dart';
-import 'package:at_telemetry/at_telemetry_otel.dart';
 import 'package:crypton/crypton.dart';
 import 'package:test/test.dart';
 
@@ -15,8 +14,7 @@ import 'telemetry_support/recording_gauge_exporter.dart';
 void main() {
   test('server-resolved at_chops signs and verifies telemetry', () async {
     final RSAKeypair keys = RSAKeypair.fromRandom();
-    final AtTelemetryOtelHttpSignature signed =
-        await AtTelemetryOtelHttpSignature.sign(
+    final AtTelemetryHttpSignature signed = await AtTelemetryHttpSignature.sign(
       body: <int>[1, 2, 3],
       path: '/v1/logs',
       keyId: '@denise',
@@ -113,7 +111,7 @@ void main() {
       },
     );
 
-    expect(exporter, isA<AtTelemetryOtelSignedHttpExporter>());
+    expect(exporter, isA<AtTelemetrySignedHttpExporter>());
     expect(exporter, isA<AtTelemetryMetricExporter>());
     await exporter!.shutdown();
   });

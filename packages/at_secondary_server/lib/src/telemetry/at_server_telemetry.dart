@@ -1,8 +1,6 @@
 import 'dart:async';
 
 import 'package:at_telemetry/at_telemetry.dart';
-import 'package:at_telemetry/at_telemetry_otel.dart'
-    show AtTelemetryOtelHttpSignature;
 import 'package:at_utils/at_logger.dart';
 
 import 'at_server_heartbeat_scheduler.dart';
@@ -10,7 +8,7 @@ import 'at_server_telemetry_constants.dart';
 
 final class AtServerTelemetry {
   static const String serverIdAttribute =
-      AtTelemetryOtelHttpSignature.serverIdAttribute;
+      AtTelemetryHttpSignature.serverIdAttribute;
   static const int defaultMaxPendingEvents = 1000;
   static const String _eventNamePrefix = '$atServerTelemetryEventPrefix.';
 
