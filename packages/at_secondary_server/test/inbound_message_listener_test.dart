@@ -667,6 +667,23 @@ void main() async {
               'command must reuse the copy it is taken from');
     });
 
+    test(
+        'a command still arriving is validated once it is long enough to '
+        'judge', () {
+      final unauthenticated =
+          FakeInboundConnection(socket, unAuthenticatedMetadata);
+      final buffer = StreamableByteBuffer()
+        ..append(utf8.encode('update:public:k'));
+      expect(buffer.takeCommand(unauthenticated), isNull,
+          reason: '15 bytes is below minBytesForValidation, so judging them '
+              'could reject the first fragment of a legitimate command');
+      buffer.append(utf8.encode('@'));
+      expect(() => buffer.takeCommand(unauthenticated),
+          throwsA(isA<UnAuthenticatedException>()),
+          reason: 'At 16 bytes the verb is known, so an unauthenticated '
+              'update is refused before its terminator arrives');
+    });
+
     test('a rejected command is left in the buffer', () {
       final buffer = StreamableByteBuffer()
         ..append(utf8.encode('update:public:k@alice v\nnoop:0\n'));
