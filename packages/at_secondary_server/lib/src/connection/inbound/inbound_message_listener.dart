@@ -76,8 +76,9 @@ class InboundMessageListener {
   /// terminator belongs to the next command rather than to this one.
   Future<void> _drain() async {
     while (true) {
+      final List<int>? commandBytes;
       try {
-        _buffer.validate(connection);
+        commandBytes = _buffer.takeCommand(connection);
       } on Exception catch (e) {
         logger.warning(logger.getAtConnectionLogMessage(
           connection.metaData,
@@ -88,7 +89,6 @@ class InboundMessageListener {
         _buffer.clear();
         return;
       }
-      final commandBytes = _buffer.takeCommand();
       if (commandBytes == null) {
         return;
       }
@@ -220,10 +220,22 @@ class StreamableByteBuffer extends at_commons.ByteBuffer {
   /// without the terminator, leaving whatever followed the terminator
   /// buffered as the start of the next command. Null when the buffer holds
   /// no complete command.
-  List<int>? takeCommand() {
-    if (_terminatorAt < 0) return null;
+  ///
+  /// The head command goes through [InboundCommandValidator.validate] once,
+  /// as soon as it is complete or long enough to judge; whatever that throws
+  /// propagates with the buffer unchanged.
+  List<int>? takeCommand(AtConnection connection) {
+    if (!hasCommand) {
+      _validatePartial(connection);
+      return null;
+    }
+    // NOTE getData() copies the whole buffer, so it is read once here and
+    // the command validated from the same copy.
     final buffered = getData();
     final command = buffered.sublist(0, _terminatorAt);
+    if (!validated) {
+      InboundCommandValidator.validate(command, connection);
+    }
     final remainder = buffered.sublist(_terminatorAt + 1);
     clear();
     if (remainder.isNotEmpty) {
@@ -240,24 +252,19 @@ class StreamableByteBuffer extends at_commons.ByteBuffer {
     super.clear();
   }
 
-  /// Runs [InboundCommandValidator.validate] over the command at the head of
-  /// the buffer, at most once per command.
-  void validate(AtConnection connection) {
-    if (validated) return;
-    final len = length();
-    if (len == 0) return;
+  /// Validates a command still arriving, once enough of it has arrived to
+  /// judge.
+  void _validatePartial(AtConnection connection) {
     // Defer validation until we have either a complete command or enough
     // bytes (see [InboundCommandValidator.minBytesForValidation]) to fully
     // cover the longest possible verb+subcommand. Validating against a
     // shorter partial buffer would reject the first fragment of a fragmented
     // command (e.g. `'loo'` arriving before `'kup:publickey@alice\n'`) and
     // bin the buffer, dropping the command bytes still in flight.
-    if (!hasCommand && len < InboundCommandValidator.minBytesForValidation) {
+    if (validated || length() < InboundCommandValidator.minBytesForValidation) {
       return;
     }
-    final buffered = getData();
-    InboundCommandValidator.validate(
-        hasCommand ? buffered.sublist(0, _terminatorAt) : buffered, connection);
+    InboundCommandValidator.validate(getData(), connection);
     validated = true;
   }
 }

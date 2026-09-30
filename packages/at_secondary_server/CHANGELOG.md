@@ -17,6 +17,11 @@
 
   A read that carries no bytes no longer closes the connection.
 
+- perf: the inbound buffer copies half as many bytes for a command that
+  arrives in one read, and no longer copies the whole buffer on every read of
+  one that arrives in many; an 8 MiB command in 64 KiB reads was copying
+  524 MiB.
+
 # 3.16.5
 - fix: `plookup:all:publickey@<atSign>` and `plookup:meta:publickey@<atSign>`
   report `ttr` -1 with no `ttl`, instead of `ttl` 86400000 with no `ttr`. The
