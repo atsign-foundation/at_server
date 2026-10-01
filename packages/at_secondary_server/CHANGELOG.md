@@ -1,4 +1,13 @@
 # 3.16.6
+- fix: `notify:all` stores each recipient as an atSign and notifies it once
+  however it is spelt, notifies the atServer's own atSign as `notify` does,
+  no longer fails for a text notification, and stores the time in UTC. Its
+  reply is keyed by the normalised atSign
+  ([#2832](https://github.com/atsign-foundation/at_server/issues/2832),
+  [#2833](https://github.com/atsign-foundation/at_server/issues/2833),
+  [#2834](https://github.com/atsign-foundation/at_server/issues/2834),
+  [#2835](https://github.com/atsign-foundation/at_server/issues/2835)).
+
 - fix: a client that writes a second command without waiting for the first
   one's response now gets two responses. The inbound buffer dispatched
   everything it held as a single command, so two commands landing in one read

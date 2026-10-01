@@ -82,38 +82,49 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
       rethrow;
     }
 
+    final currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     var resultMap = <String, String?>{};
     var dataSignature = SecondaryUtil.signChallenge(
         key, AtSecondaryServerImpl.getInstance().signingKey);
-    var forAtSignList = verbParams[AtConstants.forAtSign]
-        ?.replaceAll('[', '')
-        .replaceAll(']', '');
-    if (forAtSignList != null && forAtSignList.isNotEmpty) {
-      List forAtSigns = forAtSignList.split(',');
-      var forAtSignsSet = forAtSigns.toSet();
-      for (var forAtSign in forAtSignsSet) {
-        var updatedKey = '$forAtSign:$key';
-        var atMetadata = AtMetaData()
-          ..ttl = ttlMillis
-          ..ttb = ttbMillis
-          ..ttr = ttrMillis
-          ..isCascade = isCascade
-          ..dataSignature = dataSignature;
-        var atNotification = (AtNotificationBuilder()
-              ..type = NotificationType.sent
-              ..fromAtSign = atSign
-              ..toAtSign = forAtSign
-              ..notification = updatedKey
-              ..opType = operation
-              ..messageType = messageType
-              ..atValue = value
-              ..atMetaData = atMetadata)
-            .build();
+    for (final forAtSign in _recipients(verbParams[AtConstants.forAtSign])) {
+      final isSelf = forAtSign == currentAtSign;
+      var updatedKey = '$forAtSign:$key';
+      var atMetadata = AtMetaData()
+        ..ttl = ttlMillis
+        ..ttb = ttbMillis
+        ..ttr = ttrMillis
+        ..isCascade = isCascade
+        ..dataSignature = dataSignature;
+      // NOTE a text notification names no key owner, so its sender is the
+      // atServer's own atSign, as for the notify verb.
+      var atNotification = (AtNotificationBuilder()
+            ..type = isSelf ? NotificationType.received : NotificationType.sent
+            ..notificationStatus = isSelf
+                ? NotificationStatus.delivered
+                : NotificationStatus.queued
+            ..fromAtSign = atSign ?? currentAtSign
+            ..toAtSign = forAtSign
+            ..notification = updatedKey
+            ..notificationDateTime = DateTime.now().toUtcMillisecondsPrecision()
+            ..opType = operation
+            ..messageType = messageType
+            ..atValue = value
+            ..atMetaData = atMetadata)
+          .build();
 
-        await notificationManager.notify(atNotification);
-        resultMap[forAtSign] = atNotification.id;
-      }
+      await notificationManager.notify(atNotification);
+      resultMap[forAtSign] = atNotification.id;
     }
     response.data = json.encode(resultMap);
   }
+
+  /// The atSigns [forAtSignList] names, each normalised and named once, in
+  /// the order first named. Empty tokens name nobody.
+  static Set<String> _recipients(String? forAtSignList) => {
+        for (final token in (forAtSignList ?? '')
+            .replaceAll('[', '')
+            .replaceAll(']', '')
+            .split(','))
+          if (token.isNotEmpty) AtUtils.fixAtSign(token)
+      };
 }
