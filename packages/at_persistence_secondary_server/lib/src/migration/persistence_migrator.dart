@@ -31,8 +31,9 @@ class MigrationReport {
 /// Copies every store from one [AtPersistenceBundle] to another, backend-
 /// agnostically, using the verbatim primitives so nothing is re-derived:
 ///   * keystore   — `scanKeys(includeExpired) + get → restore`
-///   * commit log — `iterate → replay` (preserving `commitId`, and the
-///                   allocator is bumped past every replayed id)
+///   * commit log — `iterate → replay` (preserving `commitId`), then the
+///                   source's last commit id, which the replayed entries
+///                   need not reach
 ///   * access log — `iterate → replay` (preserving `requestDateTime`)
 ///   * notifications — `iterate → put`
 ///
@@ -96,6 +97,10 @@ class PersistenceMigrator {
         }
         await tgtCommitLog.replay(entry);
         commitEntries++;
+      }
+      final lastCommitId = srcCommitLog.lastCommittedSequenceNumber();
+      if (lastCommitId != null) {
+        await tgtCommitLog.raiseLastCommittedSequenceNumber(lastCommitId);
       }
     }
     if (orphanedCommitEntries > 0) {

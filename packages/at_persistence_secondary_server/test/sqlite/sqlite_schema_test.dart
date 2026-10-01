@@ -61,7 +61,9 @@ void main() {
 
       final counter = db.raw
           .select("SELECT value FROM counters WHERE name = 'last_commit_id';");
-      expect(counter.first['value'], 0);
+      expect(counter.first['value'], -1,
+          reason: 'the counter holds the last id issued, so it starts one '
+              'below the first id, 0, which is where the Hive log starts');
 
       final journal = db.raw.select('PRAGMA journal_mode;').first.values.first;
       expect((journal as String).toLowerCase(), 'truncate');
@@ -148,7 +150,8 @@ void main() {
           db.raw
               .select("SELECT value FROM counters WHERE name='last_commit_id';")
               .first['value'],
-          0);
+          -1,
+          reason: 'a cleared database numbers from 0, as a new one does');
       db.close();
     });
 
