@@ -151,8 +151,9 @@ class SqliteAtCommitLog extends AtCommitLog {
   /// Ordering: segment 1 ids are all <= skipDeletesUntil < segment 2 ids,
   /// so the two segments are globally ascending without a sort step. The
   /// kept entry only exists when `latestCommitId <= skipDeletesUntil`; a
-  /// truthful [latestCommitId] is the store's max commit id, so nothing
-  /// sits above it and segment 2 is empty whenever the kept entry fires --
+  /// truthful [latestCommitId] is the last id issued, at or above every row,
+  /// so nothing sits above it and segment 2 is empty whenever the kept entry
+  /// fires --
   /// it is therefore the largest id in the stream and emitting it between
   /// the segments keeps the output ordered.
   Stream<CommitEntry> _iterateSkippingDeletes(
