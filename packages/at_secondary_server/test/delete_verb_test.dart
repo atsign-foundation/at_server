@@ -213,6 +213,37 @@ void main() {
           handler.process('delete:phone.wavi$alice', inboundConnection),
           throwsA(isA<UnAuthenticatedException>()));
     });
+
+    test('a delete naming no atSign leaves the guard on', () async {
+      inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
+      final publicKey = '${AtConstants.atEncryptionPublicKey}$alice';
+      await keyValueStore.put(publicKey, AtData()..data = 'pk');
+      expect(await keyValueStore.exists(publicKey), isTrue);
+      await handler.processInternal(
+          'delete:${AtConstants.atCramSecret}', inboundConnection);
+      await expectLater(
+          handler.processInternal('delete:$publicKey', inboundConnection),
+          throwsA(isA<UnAuthorizedException>()),
+          reason: 'The protected keys are the atServer\'s own, whatever '
+              'atSign an earlier delete named');
+      expect(await keyValueStore.exists(publicKey), isTrue);
+    });
+
+    test('a protected key is refused whatever its case', () async {
+      inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata.authType = AuthType.cram;
+      final publicKey = '${AtConstants.atEncryptionPublicKey}$alice';
+      await keyValueStore.put(publicKey, AtData()..data = 'pk');
+      expect(await keyValueStore.exists(publicKey), isTrue);
+      await expectLater(
+          handler.processInternal(
+              'delete:public:Publickey$alice', inboundConnection),
+          throwsA(isA<UnAuthorizedException>()),
+          reason: 'The keystore folds the key to lower case, so the guard '
+              'must judge the same folded key');
+      expect(await keyValueStore.exists(publicKey), isTrue);
+    });
   });
 
   group('Tests of immutable data', () {
