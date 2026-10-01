@@ -47,6 +47,11 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
     if (atSign.isNotNullOrEmpty) {
       atSign = AtUtils.fixAtSign(atSign!);
     }
+    final currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+    if (atSign.isNotNullOrEmpty && atSign != currentAtSign) {
+      throw UnAuthorizedException(
+          '$atSign is not authorized to send notification as $currentAtSign');
+    }
     var key = verbParams[AtConstants.atKey]!;
     var inboundConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
@@ -82,7 +87,6 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
       rethrow;
     }
 
-    final currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     var resultMap = <String, String?>{};
     var dataSignature = SecondaryUtil.signChallenge(
         key, AtSecondaryServerImpl.getInstance().signingKey);
@@ -95,14 +99,12 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
         ..ttr = ttrMillis
         ..isCascade = isCascade
         ..dataSignature = dataSignature;
-      // NOTE a text notification names no key owner, so its sender is the
-      // atServer's own atSign, as for the notify verb.
       var atNotification = (AtNotificationBuilder()
             ..type = isSelf ? NotificationType.received : NotificationType.sent
             ..notificationStatus = isSelf
                 ? NotificationStatus.delivered
                 : NotificationStatus.queued
-            ..fromAtSign = atSign ?? currentAtSign
+            ..fromAtSign = currentAtSign
             ..toAtSign = forAtSign
             ..notification = updatedKey
             ..notificationDateTime = DateTime.now().toUtcMillisecondsPrecision()

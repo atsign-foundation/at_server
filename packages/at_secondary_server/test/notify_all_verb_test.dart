@@ -79,6 +79,16 @@ void main() {
     expect(n.fromAtSign, alice);
   });
 
+  test('a key another atSign owns is refused before anything is stored',
+      () async {
+    await expectLater(
+        notifyAll('notify:all:$bob:phone.wavi@carol'),
+        throwsA(isA<UnAuthorizedException>().having((e) => e.message, 'message',
+            '@carol is not authorized to send notification as $alice')),
+        reason: 'the notify verb refuses this, with this message');
+    expect(await stored(), isEmpty);
+  });
+
   test('notificationDateTime is UTC', () async {
     await notifyAll('notify:all:$bob:phone.wavi$alice');
     expect((await stored()).single.notificationDateTime!.isUtc, isTrue,
