@@ -22,6 +22,13 @@
   one that arrives in many; an 8 MiB command in 64 KiB reads was copying
   524 MiB.
 
+- fix: a commit id is never issued twice, and the last commit id a client
+  sees (`stats:3`) no longer goes down when the newest entry is purged
+  ([#2827](https://github.com/atsign-foundation/at_server/issues/2827),
+  [#2828](https://github.com/atsign-foundation/at_server/issues/2828)). On
+  the SQLite backend, commit ids now start at 0, as on Hive
+  ([#2826](https://github.com/atsign-foundation/at_server/issues/2826)).
+
 # 3.16.5
 - fix: `plookup:all:publickey@<atSign>` and `plookup:meta:publickey@<atSign>`
   report `ttr` -1 with no `ttl`, instead of `ttl` 86400000 with no `ttr`. The
