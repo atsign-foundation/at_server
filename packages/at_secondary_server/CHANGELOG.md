@@ -22,6 +22,10 @@
   one that arrives in many; an 8 MiB command in 64 KiB reads was copying
   524 MiB.
 
+- fix: the atServer's own encryption and signing keys can no longer be
+  deleted, which was possible after onboarding or by naming them in mixed case
+  ([#2825](https://github.com/atsign-foundation/at_server/issues/2825)).
+
 - fix: a commit id is never issued twice, and the last commit id a client
   sees (`stats:3`) no longer goes down when the newest entry is purged
   ([#2827](https://github.com/atsign-foundation/at_server/issues/2827),
