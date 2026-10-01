@@ -22,6 +22,10 @@
   one that arrives in many; an 8 MiB command in 64 KiB reads was copying
   524 MiB.
 
+- fix: the atServer's own encryption and signing keys can no longer be
+  deleted, which was possible after onboarding or by naming them in mixed case
+  ([#2825](https://github.com/atsign-foundation/at_server/issues/2825)).
+
 # 3.16.5
 - fix: `plookup:all:publickey@<atSign>` and `plookup:meta:publickey@<atSign>`
   report `ttr` -1 with no `ttl`, instead of `ttl` 86400000 with no `ttr`. The
