@@ -76,28 +76,44 @@ class HiveCommitLogKeyStore with HiveBase<CommitEntry?> {
   }
 
   Future<int> add(CommitEntry? commitEntry) async {
+    final entry = commitEntry!;
     // NOTE issued before the first await, so concurrent adds cannot share
     // an id.
     final int commitId = commitLogCache.issueCommitId();
     try {
-      commitEntry!.commitId = commitId;
-      await getBox().put(commitId, commitEntry);
-      CommitEntry? cachedCommitEntry =
-          commitLogCache.getEntry(commitEntry.atKey!);
+      entry.commitId = commitId;
+      await getBox().put(commitId, entry);
+      CommitEntry? cachedCommitEntry = commitLogCache.getEntry(entry.atKey!);
 
       // Delete old commit entry for the same key from the commit log
       if (cachedCommitEntry?.commitId != null) {
         await getBox().delete(cachedCommitEntry?.commitId);
       }
       // update the commitId in cache commitMap.
-      commitLogCache.update(commitEntry.atKey!, commitEntry);
+      commitLogCache.update(entry.atKey!, entry);
     } on Exception catch (e) {
+      await _keepHighWaterMarkAfterFailedAdd();
       throw DataStoreException('Exception updating entry:${e.toString()}');
     } on HiveError catch (e) {
+      await _keepHighWaterMarkAfterFailedAdd();
       throw DataStoreException(
           'Hive error updating entry to commit log:${e.toString()}');
     }
     return commitId;
+  }
+
+  /// Stores the highest commitId issued after an [add] fails, since the id
+  /// it issued may have no record in the box. Best effort: the failure being
+  /// reported is the add's, not this one's.
+  Future<void> _keepHighWaterMarkAfterFailedAdd() async {
+    try {
+      await _highWaterMarkBox.put(
+          _highWaterMarkKey, commitLogCache.latestCommitId);
+    } on Exception catch (e) {
+      _logger.severe('Could not store the highest commit id issued: $e');
+    } on HiveError catch (e) {
+      _logger.severe('Could not store the highest commit id issued: $e');
+    }
   }
 
   /// Writes [entry] under the commitId it was issued elsewhere.

@@ -152,6 +152,25 @@ void main() {
     });
   }
 
+  test('hive: an id issued to a write that fails is not issued again',
+      () async {
+    final dir = newDir();
+    var (factory, bundle) = await start('hive', dir);
+    await bundle.keyValueStore.create('a.app@alice', data('a'));
+    await bundle.keyValueStore.create('b.app@alice', data('b'));
+    final commitLog = bundle.keyValueStore.commitLog as HiveAtCommitLog;
+    await commitLog.commitLogKeyStore.getBox().close();
+    await expectLater(commitLog.commit('c.app@alice', CommitOp.UPDATE),
+        throwsA(isA<DataStoreException>()));
+    expect(commitLog.lastCommittedSequenceNumber(), 2,
+        reason: 'the failed write was issued id 2, and reported it');
+    await factory.close();
+
+    (factory, bundle) = await start('hive', dir);
+    expect(await bundle.keyValueStore.create('d.app@alice', data('d')), 3,
+        reason: 'a client may have taken id 2 as the last commit id');
+  });
+
   for (final (from, to) in [('hive', 'sqlite'), ('sqlite', 'hive')]) {
     test('migrating $from to $to carries the last commit id across', () async {
       final (_, source) = await start(from, newDir());
