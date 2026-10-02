@@ -115,7 +115,7 @@ class StatsVerbHandler extends AbstractVerbHandler {
   }
 
   /// Adds stat [id] to [result]. For stat 3, [admits] is the rule `sync:from`
-  /// sends entries to this connection by, or null when it lets every key
+  /// admits entries for this connection by, or null when it lets every key
   /// through.
   Future<void> addStatToResult(id, result,
       {String? regex, bool Function(String atKey)? admits}) async {
