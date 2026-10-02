@@ -19,9 +19,19 @@ void main() async {
           equals(logging.Level.INFO.name.trim().toUpperCase()));
     });
 
-    test('Config: toVerbOutboundEnabled defaults to false (fleet-safe)',
-        () async {
-      expect(AtSecondaryConfig.toVerbOutboundEnabled, false);
+    test('Config: toVerbOutboundEnabled defaults to true', () async {
+      expect(AtSecondaryConfig.toVerbOutboundEnabled, true,
+          reason: 'every release since c3.15.0 understands an inbound to:, '
+              'and a peer that does not makes the outbound client fall back '
+              'to the legacy lookup');
+    });
+
+    test('Config: toVerbOutboundEnabled is true with no yaml at all', () async {
+      final YamlMap? saved = AtSecondaryConfig.configYamlMap;
+      addTearDown(() => AtSecondaryConfig.configYamlMap = saved);
+      AtSecondaryConfig.configYamlMap = YamlMap.wrap({});
+      expect(AtSecondaryConfig.toVerbOutboundEnabled, true,
+          reason: 'the built-in default must agree with the shipped yaml');
     });
 
     test('Config: testingMode is false by default', () async {

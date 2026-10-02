@@ -70,13 +70,13 @@ persistence:
 # Understanding inbound 'to:@x' is always on (unauthenticated, serves only
 # data already publicly readable via lookup). Emitting 'to:@target' on
 # outbound peer connections is gated here:
-# - toVerbOutboundEnabled (default false): emit 'to:@target' as the first
+# - toVerbOutboundEnabled (default true): emit 'to:@target' as the first
 #   verb on outbound peer connections. A peer that rejects 'to:' triggers a
-#   fallback to the legacy lookup, so enabling early costs a wasted round
-#   trip per connection to legacy peers, not an outage. Turn on (env
-#   toVerbOutboundEnabled=true) once the fleet understands 'to:'.
+#   fallback to the legacy lookup, so a peer that predates 'to:' costs a
+#   wasted round trip per connection, not an outage. Set false (env
+#   toVerbOutboundEnabled=false) to send only the legacy lookup.
 protocol:
-  toVerbOutboundEnabled: false
+  toVerbOutboundEnabled: true
 
 # Hive storage paths — used when persistence.backend is 'hive' (the default).
 # These are INDEPENDENT of persistence.storageRoot above: the backend marker
