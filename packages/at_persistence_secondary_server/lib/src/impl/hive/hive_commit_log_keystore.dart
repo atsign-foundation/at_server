@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/hive.dart';
@@ -13,14 +15,20 @@ class HiveCommitLogKeyStore with HiveBase<CommitEntry?> {
   final _logger = AtSignLogger('CommitLogKeyStore');
   late HiveCommitLogCache commitLogCache;
 
+  /// Holds the highest commitId issued once the record that carried it has
+  /// left the commit-log box. Hive's compaction removes a deleted record
+  /// from disk entirely, and with it the only trace that its id was issued.
+  late Box _highWaterMarkBox;
+  static const String _highWaterMarkKey = 'highWaterMark';
+
   int get latestCommitId => commitLogCache.latestCommitId;
 
   /// Smallest commitId still retained in the box, or `null` when the
   /// box is empty.
   ///
   /// Read straight from the box (not the cache) — correct because
-  /// (1) the box's hive-internal key IS the commitId ([add] assigns
-  /// `commitId = internalKey`; [repairNullCommitIDs] backfills legacy
+  /// (1) the box's hive-internal key IS the commitId ([add] writes each
+  /// entry under its commitId; [repairNullCommitIDs] backfills legacy
   /// nulls at init), and (2) Hive iterates box keys in ascending
   /// sorted order, so `keys.first` is the floor regardless of
   /// insertion or compaction history. See commit message body.
@@ -56,35 +64,95 @@ class HiveCommitLogKeyStore with HiveBase<CommitEntry?> {
       hive.registerAdapter(CommitOpAdapter());
     }
     await super.openBox(_boxName);
+    _highWaterMarkBox = await hive.openBox('${_boxName}_meta');
+    final int? storedHighWaterMark =
+        _highWaterMarkBox.get(_highWaterMarkKey) as int?;
+    if (storedHighWaterMark != null) {
+      commitLogCache.raiseLatestCommitId(storedHighWaterMark);
+    }
     _logger.finer('Commit log key store is initialized');
 
     await repairCommitLogAndCreateCachedMap();
   }
 
   Future<int> add(CommitEntry? commitEntry) async {
-    int internalKey;
+    final entry = commitEntry!;
+    // NOTE issued before the first await, so concurrent adds cannot share
+    // an id.
+    final int commitId = commitLogCache.issueCommitId();
     try {
-      internalKey = await getBox().add(commitEntry!);
-      //set the hive generated key as commit id
-      commitEntry.commitId = internalKey;
-      // update entry with commitId
-      await getBox().put(internalKey, commitEntry);
-      CommitEntry? cachedCommitEntry =
-          commitLogCache.getEntry(commitEntry.atKey!);
+      entry.commitId = commitId;
+      await getBox().put(commitId, entry);
+      CommitEntry? cachedCommitEntry = commitLogCache.getEntry(entry.atKey!);
 
       // Delete old commit entry for the same key from the commit log
       if (cachedCommitEntry?.commitId != null) {
         await getBox().delete(cachedCommitEntry?.commitId);
       }
       // update the commitId in cache commitMap.
-      commitLogCache.update(commitEntry.atKey!, commitEntry);
+      commitLogCache.update(entry.atKey!, entry);
     } on Exception catch (e) {
+      await _keepHighWaterMarkAfterFailedAdd();
       throw DataStoreException('Exception updating entry:${e.toString()}');
     } on HiveError catch (e) {
+      await _keepHighWaterMarkAfterFailedAdd();
       throw DataStoreException(
           'Hive error updating entry to commit log:${e.toString()}');
     }
-    return internalKey;
+    return commitId;
+  }
+
+  /// Stores the highest commitId issued after an [add] fails, since the id
+  /// it issued may have no record in the box. Best effort: the failure being
+  /// reported is the add's, not this one's.
+  Future<void> _keepHighWaterMarkAfterFailedAdd() async {
+    try {
+      await _highWaterMarkBox.put(
+          _highWaterMarkKey, commitLogCache.latestCommitId);
+    } on Exception catch (e) {
+      _logger.severe('Could not store the highest commit id issued: $e');
+    } on HiveError catch (e) {
+      _logger.severe('Could not store the highest commit id issued: $e');
+    }
+  }
+
+  /// Writes [entry] under the commitId it was issued elsewhere.
+  Future<void> replay(CommitEntry entry) async {
+    await getBox().put(entry.commitId, entry);
+    commitLogCache.raiseLatestCommitId(entry.commitId!);
+  }
+
+  /// Raises the highest commitId issued to at least [commitId], storing it
+  /// because no record in the box carries it.
+  Future<void> raiseHighWaterMark(int commitId) async {
+    if (commitId <= commitLogCache.latestCommitId) return;
+    commitLogCache.raiseLatestCommitId(commitId);
+    await _highWaterMarkBox.put(_highWaterMarkKey, commitId);
+  }
+
+  /// Stores the highest of [commitIds] when no higher id has been issued,
+  /// before its record leaves the box.
+  Future<void> _keepHighWaterMarkOf(Iterable<int> commitIds) async {
+    if (commitIds.isEmpty) return;
+    final highest = commitIds.reduce(max);
+    if (highest < commitLogCache.latestCommitId) return;
+    commitLogCache.raiseLatestCommitId(highest);
+    await _highWaterMarkBox.put(_highWaterMarkKey, highest);
+  }
+
+  /// Removes every entry and forgets every id issued, so the next one is 0.
+  Future<void> clear() async {
+    await getBox().clear();
+    await _highWaterMarkBox.clear();
+    commitLogCache.reset();
+  }
+
+  @override
+  Future<void> close() async {
+    if (_highWaterMarkBox.isOpen) {
+      await _highWaterMarkBox.close();
+    }
+    await super.close();
   }
 
   /// Sorts the [CommitEntry]'s order by commit in descending order
@@ -112,6 +180,7 @@ class HiveCommitLogKeyStore with HiveBase<CommitEntry?> {
   Future<void> remove(int commitEntryIndex) async {
     CommitEntry? commitEntry = (getBox() as Box).get(commitEntryIndex);
     try {
+      await _keepHighWaterMarkOf([commitEntryIndex]);
       await getBox().delete(commitEntryIndex);
     } on Exception catch (e) {
       throw DataStoreException('Exception deleting entry:${e.toString()}');
@@ -141,6 +210,7 @@ class HiveCommitLogKeyStore with HiveBase<CommitEntry?> {
         toEvict[key] = entry!.atKey!;
       }
     }
+    await _keepHighWaterMarkOf(deleteKeysList);
     await getBox().deleteAll(deleteKeysList);
     // Removes stale entries from the commit log cache map
     toEvict.forEach((boxKey, atKey) {
@@ -205,13 +275,6 @@ class HiveCommitLogKeyStore with HiveBase<CommitEntry?> {
     for (final key in getBox().keys) {
       if (fromCommitId != null && (key as int) < fromCommitId) continue;
       final entry = await getValue(key) as CommitEntry;
-      // A null commitId is an entry [add] is mid-way through writing: the
-      // box.add has landed (entry visible) but the follow-up put that
-      // stamps the commitId has not. Skip it — consumers dereference
-      // commitId, and a client simply picks the entry up on its next
-      // iteration. (Legacy at-rest nulls are repaired at init by
-      // [repairNullCommitIDs], so mid-write is the only live source.)
-      if (entry.commitId == null) continue;
       // Sync's delete-skip: drop below-watermark DELETE entries, keeping
       // only the latest so the client can still advance its watermark.
       if (skipDeletesUntil != null &&
@@ -279,6 +342,7 @@ class HiveCommitLogKeyStore with HiveBase<CommitEntry?> {
       }
     }
     if (toDelete.isNotEmpty) {
+      await _keepHighWaterMarkOf(toDelete);
       await getBox().deleteAll(toDelete);
       _logger.info(
           'Commit log dedup migration: removed ${toDelete.length} duplicate entries');
@@ -351,7 +415,7 @@ class HiveCommitLogCache {
   // Stores AtKey and its corresponding commitEntry sorted by their commit-id's
   final _commitLogCacheMap = <String, CommitEntry>{};
 
-  // Keeps track of latest commit ID
+  // The highest commitId ever issued.
   int _latestCommitId = -1;
 
   int get latestCommitId => _latestCommitId;
@@ -410,6 +474,22 @@ class HiveCommitLogCache {
         commitEntry.commitId! > _latestCommitId) {
       _latestCommitId = commitEntry.commitId!;
     }
+  }
+
+  /// Raises [latestCommitId] to [commitId] when that is higher.
+  void raiseLatestCommitId(int commitId) {
+    if (commitId > _latestCommitId) {
+      _latestCommitId = commitId;
+    }
+  }
+
+  /// Issues the next commitId.
+  int issueCommitId() => ++_latestCommitId;
+
+  /// Forgets every entry and every commitId issued.
+  void reset() {
+    _commitLogCacheMap.clear();
+    _latestCommitId = -1;
   }
 
   /// Updates the commitId of the key.

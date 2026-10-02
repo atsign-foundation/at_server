@@ -90,8 +90,9 @@ void main() {
     test('commit ids are monotonic and dense', () async {
       await ks.create('a.wavi@alice', data('1'));
       await ks.create('b.wavi@alice', data('2'));
-      expect(commitLog.firstCommittedSequenceNumber(), 1);
-      expect(commitLog.lastCommittedSequenceNumber(), 2);
+      expect(commitLog.firstCommittedSequenceNumber(), 0,
+          reason: 'ids start at 0, as on the Hive log');
+      expect(commitLog.lastCommittedSequenceNumber(), 1);
     });
 
     test('one entry per atKey, newest-wins', () async {
@@ -145,7 +146,8 @@ void main() {
       expect(got.metaData!.version, 42);
       expect(got.metaData!.createdBy, '@other');
       expect(got.metaData!.createdAt, DateTime.utc(2020, 1, 1, 0, 0, 0, 5));
-      expect(commitLog.lastCommittedSequenceNumber(), isNull);
+      expect(commitLog.lastCommittedSequenceNumber(), -1,
+          reason: 'a restore issues no commit id');
     });
   });
 

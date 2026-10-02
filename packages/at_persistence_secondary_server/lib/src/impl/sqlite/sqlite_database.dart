@@ -126,7 +126,7 @@ class SqliteDatabase {
       _db.execute('DELETE FROM notifications;');
       _db.execute('DELETE FROM access_log;');
       _db.execute(
-          "UPDATE counters SET value = 0 WHERE name = 'last_commit_id';");
+          "UPDATE counters SET value = -1 WHERE name = 'last_commit_id';");
     });
   }
 

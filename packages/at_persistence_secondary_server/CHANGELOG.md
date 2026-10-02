@@ -1,3 +1,16 @@
+## 5.4.0
+
+- fix: a commit id is never issued twice, and `lastCommittedSequenceNumber()`
+  no longer goes down when the newest entry is purged
+  ([#2827](https://github.com/atsign-foundation/at_server/issues/2827),
+  [#2828](https://github.com/atsign-foundation/at_server/issues/2828)). Hive
+  keeps the highest id issued in a new `commit_log_<sha>_meta` box.
+- fix: SQLite numbers commit ids from 0, as Hive does, and an empty log
+  reports -1 on both
+  ([#2826](https://github.com/atsign-foundation/at_server/issues/2826)).
+- feat: `AtCommitLog.raiseLastCommittedSequenceNumber(int)`, which an
+  implementation of `AtCommitLog` must now provide.
+
 ## 5.3.0
 
 - fix: the fold that decides which record a key names has ONE definition,

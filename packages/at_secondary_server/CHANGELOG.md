@@ -37,6 +37,15 @@
   deleted, which was possible after onboarding or by naming them in mixed case
   ([#2825](https://github.com/atsign-foundation/at_server/issues/2825)).
 
+- fix: a commit id is never issued twice, and `stats:3` with no regex or
+  namespace restriction reports the last commit id issued: it no longer goes
+  down when the newest entry is purged, and is -1 rather than null for an
+  empty log
+  ([#2827](https://github.com/atsign-foundation/at_server/issues/2827),
+  [#2828](https://github.com/atsign-foundation/at_server/issues/2828)). On
+  the SQLite backend, commit ids now start at 0, as on Hive
+  ([#2826](https://github.com/atsign-foundation/at_server/issues/2826)).
+
 # 3.16.5
 - fix: `plookup:all:publickey@<atSign>` and `plookup:meta:publickey@<atSign>`
   report `ttr` -1 with no `ttl`, instead of `ttl` 86400000 with no `ttr`. The

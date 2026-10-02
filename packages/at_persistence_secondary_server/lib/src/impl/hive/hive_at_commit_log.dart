@@ -64,13 +64,23 @@ class HiveAtCommitLog extends AtCommitLog {
       throw ArgumentError('replay requires a non-null commitId on the entry');
     }
     try {
-      await _commitLogKeyStore.getBox().put(entry.commitId, entry);
+      await _commitLogKeyStore.replay(entry);
     } on Exception catch (e) {
       throw DataStoreException(
           'Exception replaying commit entry: ${e.toString()}');
     } on HiveError catch (e) {
       throw DataStoreException(
           'Hive error replaying commit entry: ${e.toString()}');
+    }
+  }
+
+  @override
+  Future<void> raiseLastCommittedSequenceNumber(int commitId) async {
+    try {
+      await _commitLogKeyStore.raiseHighWaterMark(commitId);
+    } on HiveError catch (e) {
+      throw DataStoreException(
+          'Hive error raising the last commit id: ${e.toString()}');
     }
   }
 
