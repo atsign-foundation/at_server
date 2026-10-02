@@ -46,6 +46,12 @@
   the SQLite backend, commit ids now start at 0, as on Hive
   ([#2826](https://github.com/atsign-foundation/at_server/issues/2826)).
 
+- fix: on a namespace-restricted enrollment, `stats:3` counts exactly what
+  `sync:from` sends it: its own reserved keys, `__atserver` keys and
+  multi-segment namespaces now count, `__manage` keys no longer do, and
+  concurrent `stats` requests no longer get each other's regex
+  ([#2840](https://github.com/atsign-foundation/at_server/issues/2840)).
+
 # 3.16.5
 - fix: `plookup:all:publickey@<atSign>` and `plookup:meta:publickey@<atSign>`
   report `ttr` -1 with no `ttl`, instead of `ttl` 86400000 with no `ttr`. The

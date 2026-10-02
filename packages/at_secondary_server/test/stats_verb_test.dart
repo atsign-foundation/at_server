@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:math';
 
@@ -11,8 +12,12 @@ import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/executor/default_verb_executor.dart';
+import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
+import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/stats_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_impl.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
@@ -454,38 +459,6 @@ void main() {
     });
 
     test(
-        'A test to verify latest commitId among enrolled namespaces is returned',
-        () async {
-      await keyValueStore.put(
-          '$alice:phone.wavi$alice', AtData()..data = '9848033443');
-      await keyValueStore.put(
-          '$alice:location.wavi$alice', AtData()..data = 'Hyderabad');
-      await keyValueStore.put(
-          '$alice:mobile.buzz$alice', AtData()..data = '9848033444');
-
-      var lastCommitId = await LastCommitIDMetricImpl(atServer)
-          .getMetrics(enrolledNamespaces: ['wavi']);
-      expect(lastCommitId, '1');
-    });
-
-    test(
-        'A test to verify highest commitId among the authorized namespaces is returned',
-        () async {
-      await keyValueStore.put(
-          '$alice:phone.wavi$alice', AtData()..data = '9848033443');
-      await keyValueStore.put(
-          '$alice:location.wavi$alice', AtData()..data = 'Hyderabad');
-      await keyValueStore.put(
-          '$alice:mobile.buzz$alice', AtData()..data = '9848033444');
-      await keyValueStore.put(
-          '$alice:contact.atmosphere$alice', AtData()..data = '9848033444');
-
-      var lastCommitId = await LastCommitIDMetricImpl(atServer)
-          .getMetrics(enrolledNamespaces: ['wavi', 'buzz']);
-      expect(lastCommitId, '2');
-    });
-
-    test(
         'A test to verify latestCommitId is returned when enrolledNamespace and regex are not supplied',
         () async {
       await keyValueStore.put(
@@ -501,22 +474,6 @@ void main() {
       expect(lastCommitId, '3');
     });
 
-    test(
-        'A test to verify latestCommitId is returned when only regex is not supplied',
-        () async {
-      await keyValueStore.put(
-          '$alice:phone.wavi$alice', AtData()..data = '9848033443');
-      await keyValueStore.put(
-          '$alice:location.wavi$alice', AtData()..data = 'Hyderabad');
-      await keyValueStore.put(
-          '$alice:mobile.buzz$alice', AtData()..data = '9848033444');
-      await keyValueStore.put(
-          '$alice:contact.atmosphere$alice', AtData()..data = '9848033444');
-
-      var lastCommitId =
-          await LastCommitIDMetricImpl(atServer).getMetrics(regex: 'buzz');
-      expect(lastCommitId, '2');
-    });
     test('A test to check LatestCommitEntryOfEachKey for empty commit log',
         () async {
       var latestCommitIdForEachKey =
@@ -529,9 +486,11 @@ void main() {
 
   group('stats:3 through the verb handler', () {
     /// The lastCommitID that `stats:3`, filtered by [regex] when given,
-    /// answers on a connection with no enrollment.
+    /// answers on a CRAM connection, which has no enrollment.
     Future<String> lastCommitIdFromVerb([String? regex]) async {
-      inboundConnection.metadata.isAuthenticated = true;
+      inboundConnection.metadata
+        ..isAuthenticated = true
+        ..authType = AuthType.cram;
       final response = await StatsVerbHandler(keyValueStore).processInternal(
           regex == null ? 'stats:3' : 'stats:3:$regex', inboundConnection);
       return (jsonDecode(response.data!) as List).single['value'];
@@ -559,15 +518,6 @@ void main() {
           reason: 'an explicit .* admits every key, as no regex does');
     });
 
-    test('an enrollment for every namespace is unfiltered', () async {
-      final purgedId = await purgeNewest();
-      expect(
-          await LastCommitIDMetricImpl(atServer)
-              .getMetrics(regex: '.*', enrolledNamespaces: ['*', '__manage']),
-          '$purgedId',
-          reason: 'an enrollment holding * admits every namespace');
-    });
-
     test('a filtered request reports the highest id it admits', () async {
       final purgedId = await purgeNewest();
       expect(await lastCommitIdFromVerb('wavi'), '${purgedId - 1}',
@@ -576,6 +526,207 @@ void main() {
 
     test('an unfiltered request on an empty log reports -1', () async {
       expect(await lastCommitIdFromVerb(), '-1');
+    });
+  });
+
+  group('stats:3 counts what sync:from sends', () {
+    /// Enrols [connection] with [namespaces] and returns its enrollment id.
+    Future<String> enrolWith(DummyInboundConnection connection,
+        Map<String, String> namespaces) async {
+      final String enrollmentId = Uuid().v4();
+      await keyValueStore.put(
+          '$enrollmentId.new.enrollments.__manage$alice',
+          AtData()
+            ..data = jsonEncode({
+              'sessionId': '123',
+              'appName': 'wavi',
+              'deviceName': 'pixel',
+              'namespaces': namespaces,
+              'apkamPublicKey': 'testPublicKeyValue',
+              'requestType': 'newEnrollment',
+              'approval': {'state': 'approved'}
+            }),
+          skipCommit: true);
+      connection.metadata
+        ..isAuthenticated = true
+        ..authType = AuthType.apkam
+        ..enrollmentId = enrollmentId;
+      return enrollmentId;
+    }
+
+    /// What `stats:3`, with [regex] when given, answers on [connection].
+    Future<String> statsLastCommitId(DummyInboundConnection connection,
+        {String? regex, StatsVerbHandler? handler}) async {
+      final response = Response();
+      await (handler ?? StatsVerbHandler(keyValueStore)).processVerb(
+          response,
+          HashMap.of({
+            AtConstants.statId: '3',
+            if (regex != null) AtConstants.regex: regex,
+          }),
+          connection);
+      return (jsonDecode(response.data!) as List).single['value'];
+    }
+
+    /// The highest commit id `sync:from`, with [regex] when given, sends
+    /// [connection], or `'null'` when it sends nothing.
+    Future<String> syncedLastCommitId(DummyInboundConnection connection,
+        {String? regex}) async {
+      final response = Response();
+      await SyncProgressiveVerbHandler(keyValueStore, commitLog: atCommitLog)
+          .processVerb(
+              response,
+              HashMap.of({
+                AtConstants.fromCommitSequence: '-1',
+                AtConstants.syncLimit: '100',
+                if (regex != null) 'regex': regex,
+              }),
+              connection);
+      final ids = [
+        for (final entry in jsonDecode(response.data!) as List)
+          entry['commitId'] as int
+      ];
+      return ids.isEmpty ? 'null' : '${ids.reduce(max)}';
+    }
+
+    Future<void> put(String key) =>
+        keyValueStore.put(key, AtData()..data = 'v');
+
+    test('an enrollment counts its own namespace', () async {
+      final connection = DummyInboundConnection();
+      await enrolWith(connection, {'wavi': 'rw'});
+      await put('$alice:phone.wavi$alice');
+      await put('$alice:location.wavi$alice');
+      await put('$alice:mobile.buzz$alice');
+      expect(await statsLastCommitId(connection), '1');
+      expect(await syncedLastCommitId(connection), '1');
+    });
+
+    test('an enrollment counts every namespace it holds', () async {
+      final connection = DummyInboundConnection();
+      await enrolWith(connection, {'wavi': 'rw', 'buzz': 'rw'});
+      await put('$alice:phone.wavi$alice');
+      await put('$alice:location.wavi$alice');
+      await put('$alice:mobile.buzz$alice');
+      await put('$alice:contact.atmosphere$alice');
+      expect(await statsLastCommitId(connection), '2');
+      expect(await syncedLastCommitId(connection), '2');
+    });
+
+    test('a CRAM connection\'s regex filters the count', () async {
+      final connection = DummyInboundConnection()
+        ..metadata.isAuthenticated = true
+        ..metadata.authType = AuthType.cram;
+      await put('$alice:phone.wavi$alice');
+      await put('$alice:location.wavi$alice');
+      await put('$alice:mobile.buzz$alice');
+      await put('$alice:contact.atmosphere$alice');
+      expect(await statsLastCommitId(connection, regex: 'buzz'), '2');
+      expect(await syncedLastCommitId(connection, regex: 'buzz'), '2');
+    });
+
+    test('an enrollment holding * is unfiltered', () async {
+      final connection = DummyInboundConnection();
+      await enrolWith(connection, {'*': 'rw', '__manage': 'rw'});
+      await put('phone.wavi$alice');
+      final purgedId = (await keyValueStore.put(
+          'location.wavi$alice', AtData()..data = 'v'))!;
+      await keyValueStore.put('location.wavi$alice', AtData()..data = 'v2',
+          skipCommit: true);
+      expect(await statsLastCommitId(connection), '$purgedId',
+          reason: 'an enrollment holding * filters nothing, so it gets the '
+              'last commit id issued, which a purge does not lower');
+    });
+
+    test('an enrollment\'s own reserved-namespace key is counted', () async {
+      final connection = DummyInboundConnection();
+      final enrollmentId = await enrolWith(connection, {'wavi': 'rw'});
+      await put('phone.wavi$alice');
+      await put('__ckcur.bob.wavi.'
+          '${AbstractVerbHandler.enrollmentReservedNamespace(enrollmentId)}'
+          '$alice');
+      expect(await statsLastCommitId(connection),
+          await syncedLastCommitId(connection),
+          reason: 'sync:from sends an enrollment its own .a.__e keys');
+    });
+
+    test('an __atserver key is counted', () async {
+      final connection = DummyInboundConnection();
+      await enrolWith(connection, {'wavi': 'rw'});
+      await put('phone.wavi$alice');
+      await put('config.__atserver$alice');
+      expect(await statsLastCommitId(connection),
+          await syncedLastCommitId(connection),
+          reason: 'every enrollment reads the __atserver namespace');
+    });
+
+    test('a multi-segment enrolled namespace is counted', () async {
+      final connection = DummyInboundConnection();
+      await enrolWith(connection, {'chat.wavi': 'rw'});
+      await put('msg1.chat.wavi$alice');
+      expect(await syncedLastCommitId(connection), isNot('null'),
+          reason: 'the case this test is about did not arise');
+      expect(await statsLastCommitId(connection),
+          await syncedLastCommitId(connection),
+          reason: 'sync:from matches chat.wavi against the whole key');
+    });
+
+    test('a __manage key is not counted', () async {
+      final connection = DummyInboundConnection();
+      await enrolWith(connection, {'wavi': 'rw', '__manage': 'rw'});
+      await put('phone.wavi$alice');
+      final manageKey = '${Uuid().v4()}.new.enrollments.__manage$alice';
+      await keyValueStore.put(manageKey, AtData()..data = '{}',
+          skipCommit: true);
+      await atCommitLog.commit(manageKey, CommitOp.UPDATE);
+      expect(await statsLastCommitId(connection),
+          await syncedLastCommitId(connection),
+          reason: 'sync:from never sends a __manage key');
+    });
+
+    test('a configkey entry neither breaks the count nor is counted', () async {
+      final connection = DummyInboundConnection();
+      await enrolWith(connection, {'wavi': 'rw'});
+      await put('phone.wavi$alice');
+      await keyValueStore.put('configkey', AtData()..data = '[]');
+      expect(atCommitLog.getLatestCommitEntry('configkey'), isNotNull,
+          reason: 'the blocklist key must be in the commit log for this test');
+      expect(await statsLastCommitId(connection),
+          await syncedLastCommitId(connection),
+          reason: 'configkey is not a well-formed atKey (#1570), and sync:from '
+              'skips it');
+    });
+
+    test('a regex filters the count as it filters sync:from', () async {
+      final connection = DummyInboundConnection();
+      await enrolWith(connection, {'*': 'rw'});
+      await put('phone.wavi$alice');
+      await put('mobile.buzz$alice');
+      expect(await statsLastCommitId(connection, regex: 'wavi'),
+          await syncedLastCommitId(connection, regex: 'wavi'));
+    });
+
+    test('concurrent requests each answer for their own regex', () async {
+      await put('phone.wavi$alice');
+      await put('mobile.buzz$alice');
+      final enrolled = DummyInboundConnection();
+      await enrolWith(enrolled, {'*': 'rw'});
+      final cram = DummyInboundConnection()
+        ..metadata.isAuthenticated = true
+        ..metadata.authType = AuthType.cram;
+      final handler = StatsVerbHandler(keyValueStore);
+      final answers = await Future.wait([
+        statsLastCommitId(enrolled, regex: 'wavi', handler: handler),
+        statsLastCommitId(cram, regex: 'buzz', handler: handler),
+      ]);
+      expect(
+          answers,
+          [
+            await syncedLastCommitId(enrolled, regex: 'wavi'),
+            await syncedLastCommitId(cram, regex: 'buzz'),
+          ],
+          reason: 'one handler serves every connection, so a request must not '
+              'read another request\'s regex');
     });
   });
 }

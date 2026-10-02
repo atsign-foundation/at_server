@@ -61,46 +61,11 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
         : await resolveEnrollment(enrollmentId);
     final int? latestCommitId = commitLog.lastCommittedSequenceNumber();
 
-    bool whereFilter(CommitEntry entry) {
-      final atKey = entry.atKey;
-      if (atKey == null) return false;
-
-      if (AtKey.getKeyType(atKey, enforceNameSpace: false) ==
-          KeyType.invalidKey) {
-        logger.warning('sync filter | $atKey is an invalid key. Skipping.');
-        return false;
-      }
-      try {
-        AtKey.fromString(atKey);
-      } catch (_) {
-        // NOTE AtKey.fromString raises Errors as well as Exceptions on some
-        // key shapes; the entry is skipped rather than ending the walk.
-        logger.warning(
-            'sync filter | found an invalid key "$atKey" in the commit log. Skipping.');
-        return false;
-      }
-
-      if (regex != null &&
-          regex.isNotEmpty &&
-          !RegExp(regex).hasMatch(atKey) &&
-          !sync_filter.alwaysIncludeInSync(atKey)) {
-        return false;
-      }
-
-      // NOTE __manage keys never sync, whatever the connection.
-      if (AbstractVerbHandler.isEnrollManageKey(atKey)) {
-        return false;
-      }
-
-      if (!isAuthorizedSync(enroll, enrollmentId, cram: cram, atKey: atKey)) {
-        return false;
-      }
-
-      // NOTE the keystore-presence check happens in prepareResponse; the
-      // keystore's existence check is async and cannot run in this
-      // synchronous predicate.
-      return true;
-    }
+    // NOTE the keystore-presence check happens in prepareResponse; the
+    // keystore's existence check is async and cannot run in this synchronous
+    // predicate.
+    bool whereFilter(CommitEntry entry) => admits(entry.atKey,
+        regex: regex, enroll: enroll, enrollmentId: enrollmentId, cram: cram);
 
     final List<KeyStoreEntry> syncResponse = [];
     await prepareResponse(
@@ -116,6 +81,48 @@ class SyncProgressiveVerbHandler extends AbstractVerbHandler {
     );
 
     response.data = jsonEncode(syncResponse);
+  }
+
+  /// Whether `sync:from` sends the commit entry for [atKey] to a connection
+  /// filtering by [regex] that authenticated by CRAM ([cram]) or as
+  /// [enrollmentId], whose record [resolveEnrollment] returned as [enroll].
+  /// `stats:3` counts by asking this handler, so its figure is the highest
+  /// commit id `sync:from` would send.
+  bool admits(String? atKey,
+      {String? regex,
+      EnrollDataStoreValue? enroll,
+      String? enrollmentId,
+      required bool cram}) {
+    if (atKey == null) return false;
+
+    if (AtKey.getKeyType(atKey, enforceNameSpace: false) ==
+        KeyType.invalidKey) {
+      logger.warning('sync filter | $atKey is an invalid key. Skipping.');
+      return false;
+    }
+    try {
+      AtKey.fromString(atKey);
+    } catch (_) {
+      // NOTE AtKey.fromString raises Errors as well as Exceptions on some
+      // key shapes; the entry is skipped rather than ending the walk.
+      logger.warning(
+          'sync filter | found an invalid key "$atKey" in the commit log. Skipping.');
+      return false;
+    }
+
+    if (regex != null &&
+        regex.isNotEmpty &&
+        !RegExp(regex).hasMatch(atKey) &&
+        !sync_filter.alwaysIncludeInSync(atKey)) {
+      return false;
+    }
+
+    // NOTE __manage keys never sync, whatever the connection.
+    if (AbstractVerbHandler.isEnrollManageKey(atKey)) {
+      return false;
+    }
+
+    return isAuthorizedSync(enroll, enrollmentId, cram: cram, atKey: atKey);
   }
 
   /// Drains the filtered [stream] of commit entries into [syncResponse],

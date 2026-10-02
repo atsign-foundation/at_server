@@ -4,12 +4,8 @@ import 'dart:math';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
-import 'package:at_secondary/src/utils/regex_util.dart' as sync_filter;
 import 'package:at_secondary/src/verb/metrics/metrics_provider.dart';
 import 'package:at_commons/at_commons.dart';
-import 'package:at_utils/at_logger.dart';
-
-final _logger = AtSignLogger('MetricsImpl');
 
 class InboundMetricImpl extends MetricProvider {
   InboundMetricImpl(super.atServer);
@@ -72,19 +68,18 @@ class OutBoundMetricImpl extends MetricProvider {
 class LastCommitIDMetricImpl extends MetricProvider {
   LastCommitIDMetricImpl(super.atServer);
 
+  /// The commit log's own last commit id, which purging the newest entry
+  /// does not lower.
   @override
-  Future<String> getMetrics(
-      {String? regex, List<String>? enrolledNamespaces}) async {
-    _logger.finer('In commitID getMetrics...regex : $regex');
-    if (_admitsEveryKey(regex, enrolledNamespaces)) {
-      return atServer.commitLog.lastCommittedSequenceNumber().toString();
-    }
-    final effectiveRegex = regex ?? '.*';
+  Future<String> getMetrics({String? regex}) async =>
+      atServer.commitLog.lastCommittedSequenceNumber().toString();
+
+  /// The highest commit id among the entries [admits] lets through, or
+  /// `'null'` when it lets none through.
+  Future<String> highestAdmitted(bool Function(String atKey) admits) async {
     int? lastCommitID;
-    await for (final entry in atServer.commitLog.iterate(
-        where: (e) => sync_filter.shouldIncludeKeyInSyncResponse(
-            e.atKey!, effectiveRegex,
-            enrolledNamespace: enrolledNamespaces))) {
+    await for (final entry in atServer.commitLog
+        .iterate(where: (e) => e.atKey != null && admits(e.atKey!))) {
       if (entry.commitId != null &&
           (lastCommitID == null || entry.commitId! > lastCommitID)) {
         lastCommitID = entry.commitId;
@@ -92,16 +87,6 @@ class LastCommitIDMetricImpl extends MetricProvider {
     }
     return lastCommitID.toString();
   }
-
-  /// Whether [regex] and [enrolledNamespaces] let every key through. The
-  /// answer is then the commit log's own last commit id, which purging the
-  /// newest entry does not lower, rather than the highest id still present.
-  static bool _admitsEveryKey(
-          String? regex, List<String>? enrolledNamespaces) =>
-      (regex == null || regex.isEmpty || regex == '.*') &&
-      (enrolledNamespaces == null ||
-          enrolledNamespaces.isEmpty ||
-          enrolledNamespaces.contains('*'));
 
   @override
   String getName() {
