@@ -69,23 +69,45 @@ class LastCommitIDMetricImpl extends MetricProvider {
   LastCommitIDMetricImpl(super.atServer);
 
   /// The commit log's own last commit id, which purging the newest entry
-  /// does not lower.
+  /// does not lower. Ignores [regex]: a filtered figure comes from
+  /// [highestAdmitted].
   @override
   Future<String> getMetrics({String? regex}) async =>
       atServer.commitLog.lastCommittedSequenceNumber().toString();
 
   /// The highest commit id among the entries [admits] lets through, or
   /// `'null'` when it lets none through.
+  ///
+  /// Searches back from the newest entry in widening windows and stops at
+  /// the first window holding an admitted entry, so [admits] runs only on
+  /// the entries above the answer rather than on the whole log.
   Future<String> highestAdmitted(bool Function(String atKey) admits) async {
-    int? lastCommitID;
-    await for (final entry in atServer.commitLog
-        .iterate(where: (e) => e.atKey != null && admits(e.atKey!))) {
-      if (entry.commitId != null &&
-          (lastCommitID == null || entry.commitId! > lastCommitID)) {
-        lastCommitID = entry.commitId;
-      }
+    final commitLog = atServer.commitLog;
+    final int? first = commitLog.firstCommittedSequenceNumber();
+    final int? last = commitLog.lastCommittedSequenceNumber();
+    if (first == null || last == null || last < first) {
+      return 'null';
     }
-    return lastCommitID.toString();
+    var upper = last + 1;
+    var window = 512;
+    while (upper > first) {
+      final lower = max(first, upper - window);
+      int? found;
+      await for (final entry in commitLog.iterate(fromCommitId: lower)) {
+        final commitId = entry.commitId;
+        if (commitId == null) continue;
+        if (commitId >= upper) break;
+        if (entry.atKey != null && admits(entry.atKey!)) {
+          found = commitId;
+        }
+      }
+      if (found != null) {
+        return '$found';
+      }
+      upper = lower;
+      window *= 2;
+    }
+    return 'null';
   }
 
   @override
