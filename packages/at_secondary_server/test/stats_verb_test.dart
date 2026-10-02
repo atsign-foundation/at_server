@@ -526,4 +526,56 @@ void main() {
       expect(latestCommitIdMap.isEmpty, true);
     });
   });
+
+  group('stats:3 through the verb handler', () {
+    /// The lastCommitID that `stats:3`, filtered by [regex] when given,
+    /// answers on a connection with no enrollment.
+    Future<String> lastCommitIdFromVerb([String? regex]) async {
+      inboundConnection.metadata.isAuthenticated = true;
+      final response = await StatsVerbHandler(keyValueStore).processInternal(
+          regex == null ? 'stats:3' : 'stats:3:$regex', inboundConnection);
+      return (jsonDecode(response.data!) as List).single['value'];
+    }
+
+    /// Writes two keys, then rewrites the second with no commit, which
+    /// purges the newest entry. Returns the id the second key was issued.
+    Future<int> purgeNewest() async {
+      await keyValueStore.put('$alice:phone.wavi$alice', AtData()..data = '1');
+      final purgedId = (await keyValueStore.put(
+          '$alice:location.wavi$alice', AtData()..data = '2'))!;
+      await keyValueStore.put(
+          '$alice:location.wavi$alice', AtData()..data = '3',
+          skipCommit: true);
+      return purgedId;
+    }
+
+    test('an unfiltered request reports the last commit id after a purge',
+        () async {
+      final purgedId = await purgeNewest();
+      expect(await lastCommitIdFromVerb(), '$purgedId',
+          reason: 'a client may already hold the purged id, and compares it '
+              'with this answer');
+      expect(await lastCommitIdFromVerb('.*'), '$purgedId',
+          reason: 'an explicit .* admits every key, as no regex does');
+    });
+
+    test('an enrollment for every namespace is unfiltered', () async {
+      final purgedId = await purgeNewest();
+      expect(
+          await LastCommitIDMetricImpl(atServer)
+              .getMetrics(regex: '.*', enrolledNamespaces: ['*', '__manage']),
+          '$purgedId',
+          reason: 'an enrollment holding * admits every namespace');
+    });
+
+    test('a filtered request reports the highest id it admits', () async {
+      final purgedId = await purgeNewest();
+      expect(await lastCommitIdFromVerb('wavi'), '${purgedId - 1}',
+          reason: 'a filtered request answers from the entries it admits');
+    });
+
+    test('an unfiltered request on an empty log reports -1', () async {
+      expect(await lastCommitIdFromVerb(), '-1');
+    });
+  });
 }

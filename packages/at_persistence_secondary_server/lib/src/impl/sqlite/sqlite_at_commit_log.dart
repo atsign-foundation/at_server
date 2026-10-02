@@ -36,11 +36,7 @@ class SqliteAtCommitLog extends AtCommitLog {
     return _db.runInTransaction(() {
       _db.raw.execute(
           "UPDATE counters SET value = value + 1 WHERE name = 'last_commit_id';");
-      final commitId = _db.raw
-          .select("SELECT value FROM counters WHERE name = 'last_commit_id';")
-          .first
-          .values
-          .first as int;
+      final commitId = _lastIssuedCommitId();
       _db.raw.execute(
         'INSERT INTO commit_log (atkey, commit_id, operation, op_time) '
         'VALUES (?, ?, ?, ?) '
@@ -103,6 +99,13 @@ class SqliteAtCommitLog extends AtCommitLog {
   }
 
   @override
+  Future<void> raiseLastCommittedSequenceNumber(int commitId) async {
+    _db.raw.execute(
+        "UPDATE counters SET value = MAX(value, ?) WHERE name = 'last_commit_id';",
+        [commitId]);
+  }
+
+  @override
   Stream<CommitEntry> iterate({
     int? fromCommitId,
     bool Function(CommitEntry)? where,
@@ -148,8 +151,9 @@ class SqliteAtCommitLog extends AtCommitLog {
   /// Ordering: segment 1 ids are all <= skipDeletesUntil < segment 2 ids,
   /// so the two segments are globally ascending without a sort step. The
   /// kept entry only exists when `latestCommitId <= skipDeletesUntil`; a
-  /// truthful [latestCommitId] is the store's max commit id, so nothing
-  /// sits above it and segment 2 is empty whenever the kept entry fires --
+  /// truthful [latestCommitId] is the last id issued, at or above every row,
+  /// so nothing sits above it and segment 2 is empty whenever the kept entry
+  /// fires --
   /// it is therefore the largest id in the stream and emitting it between
   /// the segments keeps the output ordered.
   Stream<CommitEntry> _iterateSkippingDeletes(
@@ -225,7 +229,13 @@ class SqliteAtCommitLog extends AtCommitLog {
   }
 
   @override
-  int? lastCommittedSequenceNumber() => _minMax('MAX');
+  int? lastCommittedSequenceNumber() => _lastIssuedCommitId();
+
+  int _lastIssuedCommitId() => _db.raw
+      .select("SELECT value FROM counters WHERE name = 'last_commit_id';")
+      .first
+      .values
+      .first as int;
 
   @override
   int? firstCommittedSequenceNumber() => _minMax('MIN');

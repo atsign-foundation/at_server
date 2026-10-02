@@ -146,25 +146,18 @@ void main() {
         expect(commitLog.entriesCount(), countBefore - 1);
       });
 
-      test('lastCommittedSequenceNumber after purging the newest entry: '
-          'pinned per-backend divergence', () async {
+      test('lastCommittedSequenceNumber is unchanged by purging the newest '
+          'entry', () async {
         final id1 = await keyStore.put('a.wavi@alice', AtData()..data = '1');
         final id2 = await keyStore.put('b.wavi@alice', AtData()..data = '2');
         expect(id2! > id1!, isTrue);
         expect(commitLog.lastCommittedSequenceNumber(), id2);
 
         await commitLog.removeEntryFor('b.wavi@alice');
-        if (backend == 'hive') {
-          expect(commitLog.lastCommittedSequenceNumber(), id2,
-              reason: 'Hive\'s latestCommitId is monotonic and never '
-                  'decremented on purge — a phantom id pointing at a purged '
-                  'entry is tolerated by sync (gaps are routine) and a '
-                  'client syncing from it simply receives nothing');
-        } else {
-          expect(commitLog.lastCommittedSequenceNumber(), id1,
-              reason: 'SQLite answers MAX(commit_id) from the table, so '
-                  'purging the newest entry lowers the reported ceiling');
-        }
+        expect(commitLog.lastCommittedSequenceNumber(), id2,
+            reason: 'the last commit id is the highest ever issued: a client '
+                'may already hold id2, and one syncing from it simply '
+                'receives nothing');
       });
 
       test('remove(deletedAt:) records the asserted time as the DELETE '
