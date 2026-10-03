@@ -4,12 +4,8 @@ import 'dart:math';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
-import 'package:at_secondary/src/utils/regex_util.dart' as sync_filter;
 import 'package:at_secondary/src/verb/metrics/metrics_provider.dart';
 import 'package:at_commons/at_commons.dart';
-import 'package:at_utils/at_logger.dart';
-
-final _logger = AtSignLogger('MetricsImpl');
 
 class InboundMetricImpl extends MetricProvider {
   InboundMetricImpl(super.atServer);
@@ -72,36 +68,47 @@ class OutBoundMetricImpl extends MetricProvider {
 class LastCommitIDMetricImpl extends MetricProvider {
   LastCommitIDMetricImpl(super.atServer);
 
+  /// The commit log's own last commit id, which purging the newest entry
+  /// does not lower. Ignores [regex]: a filtered figure comes from
+  /// [highestAdmitted].
   @override
-  Future<String> getMetrics(
-      {String? regex, List<String>? enrolledNamespaces}) async {
-    _logger.finer('In commitID getMetrics...regex : $regex');
-    if (_admitsEveryKey(regex, enrolledNamespaces)) {
-      return atServer.commitLog.lastCommittedSequenceNumber().toString();
-    }
-    final effectiveRegex = regex ?? '.*';
-    int? lastCommitID;
-    await for (final entry in atServer.commitLog.iterate(
-        where: (e) => sync_filter.shouldIncludeKeyInSyncResponse(
-            e.atKey!, effectiveRegex,
-            enrolledNamespace: enrolledNamespaces))) {
-      if (entry.commitId != null &&
-          (lastCommitID == null || entry.commitId! > lastCommitID)) {
-        lastCommitID = entry.commitId;
-      }
-    }
-    return lastCommitID.toString();
-  }
+  Future<String> getMetrics({String? regex}) async =>
+      atServer.commitLog.lastCommittedSequenceNumber().toString();
 
-  /// Whether [regex] and [enrolledNamespaces] let every key through. The
-  /// answer is then the commit log's own last commit id, which purging the
-  /// newest entry does not lower, rather than the highest id still present.
-  static bool _admitsEveryKey(
-          String? regex, List<String>? enrolledNamespaces) =>
-      (regex == null || regex.isEmpty || regex == '.*') &&
-      (enrolledNamespaces == null ||
-          enrolledNamespaces.isEmpty ||
-          enrolledNamespaces.contains('*'));
+  /// The highest commit id among the entries [admits] lets through, or
+  /// `'null'` when it lets none through.
+  ///
+  /// Searches back from the newest entry in widening windows and stops at
+  /// the first window holding an admitted entry, so [admits] runs only on
+  /// the entries above the answer rather than on the whole log.
+  Future<String> highestAdmitted(bool Function(String atKey) admits) async {
+    final commitLog = atServer.commitLog;
+    final int? first = commitLog.firstCommittedSequenceNumber();
+    final int? last = commitLog.lastCommittedSequenceNumber();
+    if (first == null || last == null || last < first) {
+      return 'null';
+    }
+    var upper = last + 1;
+    var window = 512;
+    while (upper > first) {
+      final lower = max(first, upper - window);
+      int? found;
+      await for (final entry in commitLog.iterate(fromCommitId: lower)) {
+        final commitId = entry.commitId;
+        if (commitId == null) continue;
+        if (commitId >= upper) break;
+        if (entry.atKey != null && admits(entry.atKey!)) {
+          found = commitId;
+        }
+      }
+      if (found != null) {
+        return '$found';
+      }
+      upper = lower;
+      window *= 2;
+    }
+    return 'null';
+  }
 
   @override
   String getName() {

@@ -5,8 +5,10 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/sync_progressive_verb_handler.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_impl.dart';
 import 'package:at_secondary/src/verb/metrics/metrics_provider.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -60,8 +62,6 @@ class StatsVerbHandler extends AbstractVerbHandler {
   AtSecondaryServerImpl atServer = AtSecondaryServerImpl.getInstance();
   static Stats stats = Stats();
 
-  dynamic _regex;
-
   MetricProvider getProvider(Metric metric) {
     switch (metric) {
       case Metric.INBOUND:
@@ -114,22 +114,22 @@ class StatsVerbHandler extends AbstractVerbHandler {
     return stats;
   }
 
-  Future<void> addStatToResult(
-      id, result, List<String> enrolledNamespaces) async {
-    logger.info('addStatToResult for id : $id, regex: $_regex');
+  /// Adds stat [id] to [result]. For stat 3, [admits] is the rule `sync:from`
+  /// admits entries for this connection by, or null when it lets every key
+  /// through.
+  Future<void> addStatToResult(id, result,
+      {String? regex, bool Function(String atKey)? admits}) async {
+    logger.info('addStatToResult for id : $id, regex: $regex');
     Metric metric = metricById(id);
     MetricProvider provider = getProvider(metric);
     dynamic value;
     if (id == '3') {
-      if (_regex == null || _regex.isEmpty) {
-        _regex = '.*';
-      }
-      // When connection is authenticated via the APKAM, return the highest commit-Id
-      // among the specified namespaces.
-      value = await (provider as LastCommitIDMetricImpl)
-          .getMetrics(regex: _regex, enrolledNamespaces: enrolledNamespaces);
-    } else if (id == '15' && _regex != null) {
-      value = await provider.getMetrics(regex: _regex);
+      final lastCommitId = provider as LastCommitIDMetricImpl;
+      value = admits == null
+          ? await lastCommitId.getMetrics()
+          : await lastCommitId.highestAdmitted(admits);
+    } else if (id == '15' && regex != null) {
+      value = await provider.getMetrics(regex: regex);
     } else {
       value = await provider.getMetrics();
     }
@@ -146,8 +146,8 @@ class StatsVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
     var statID = verbParams[AtConstants.statId];
-    _regex = verbParams[AtConstants.regex];
-    logger.finer('In statsVerbHandler statID : $statID, regex : $_regex');
+    final String? regex = verbParams[AtConstants.regex];
+    logger.finer('In statsVerbHandler statID : $statID, regex : $regex');
     Set statsList;
     if (statID != null) {
       //If user provides stats ID's create set out of it
@@ -157,25 +157,42 @@ class StatsVerbHandler extends AbstractVerbHandler {
       statsList = statsMap.keys.toSet();
     }
     var result = [];
-    List<String> enrolledNamespaces = [];
-    if ((atConnection.metaData as InboundConnectionMetadata).enrollmentId !=
-        null) {
-      enrolledNamespaces = (await atServer.enrollmentManager.getEnrollmentById(
-              (atConnection.metaData as InboundConnectionMetadata)
-                  .enrollmentId!))
-          .namespaces
-          .keys
-          .toList();
-    }
+    final metadata = atConnection.metaData as InboundConnectionMetadata;
+    final String? enrollmentId = metadata.enrollmentId;
+    final bool cram = AbstractVerbHandler.isCramConnection(metadata);
+    final EnrollDataStoreValue? enroll = (cram || enrollmentId == null)
+        ? null
+        : await resolveEnrollment(enrollmentId);
+    final sync =
+        SyncProgressiveVerbHandler(keyStore, commitLog: atServer.commitLog);
+    final bool Function(String atKey)? admits =
+        _filtersNothing(regex, cram: cram, enroll: enroll)
+            ? null
+            : (atKey) => sync.admits(atKey,
+                regex: regex,
+                enroll: enroll,
+                enrollmentId: enrollmentId,
+                cram: cram);
     //Iterate through stats_id_list
     await Future.forEach(
         statsList,
         (dynamic element) =>
-            addStatToResult(element, result, enrolledNamespaces));
+            addStatToResult(element, result, regex: regex, admits: admits));
     // Create response json
     var responseJson = result.toString();
     response.data = responseJson;
   }
+
+  /// Whether a request with [regex], on a CRAM connection or an enrollment
+  /// holding `*`, lets every key through. `stats:3` then answers the commit
+  /// log's own last commit id, which purging the newest entry does not
+  /// lower, rather than the highest id still present.
+  static bool _filtersNothing(String? regex,
+          {required bool cram, EnrollDataStoreValue? enroll}) =>
+      (regex == null || regex.isEmpty || regex == '.*') &&
+      (cram ||
+          (enroll?.namespaces.containsKey(EnrollmentConstants.allNamespaces) ??
+              false));
 
   // get Metric based on ID
   Metric metricById(String key) {

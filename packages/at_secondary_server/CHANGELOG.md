@@ -50,6 +50,12 @@
   to the legacy lookup when the peer doesn't understand it. Set
   `toVerbOutboundEnabled=false` to send only the legacy lookup.
 
+- fix: on a namespace-restricted enrollment, `stats:3` counts by the rule
+  `sync:from` sends by: the enrollment's own reserved keys, `__atserver` keys
+  and multi-segment namespaces now count, and `__manage` keys no longer do.
+  Concurrent `stats` requests no longer get each other's regex
+  ([#2840](https://github.com/atsign-foundation/at_server/issues/2840)).
+
 # 3.16.5
 - fix: `plookup:all:publickey@<atSign>` and `plookup:meta:publickey@<atSign>`
   report `ttr` -1 with no `ttl`, instead of `ttl` 86400000 with no `ttr`. The
