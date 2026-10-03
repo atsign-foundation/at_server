@@ -23,7 +23,6 @@
 
 set -uo pipefail
 cd "$(dirname -- "$0")"; cd ../../; repoDir=$(pwd)
-CONT=at_server_func_cont
 PERSIST_PKG="${repoDir}/packages/at_persistence_secondary_server"
 
 for arg in "$@"; do
@@ -51,6 +50,15 @@ else
   veCmd=""
 fi
 
+# One live run per checkout at a time; a run in another worktree does not wait.
+source "${repoDir}/tools/build_virtual_environment/live_rig.sh"
+live_rig_lock "$repoDir" || exit 1
+CONT=$(live_rig_container_name at_server_func_cont)
+veImage=$(live_rig_image "$repoDir")
+trap 'docker rm -f "$CONT" >/dev/null 2>&1 || true' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
 # buildve.sh compiles, copies AND builds, and it is the only builder that
 # LABELS the image — an unlabelled VE is indistinguishable from one built by
 # anybody else, which is why a cross-repo run against one proves nothing.
@@ -60,7 +68,7 @@ fi
 # whose labels named this tree while its binaries came from whatever built
 # them last — precisely the provenance lie the labels exist to stop.
 echo "== build VE image (with libsqlite3) =="
-bash "${repoDir}/tools/build_virtual_environment/buildve.sh" || exit 1
+live_rig_build_ve "$repoDir" "$veImage" || exit 1
 
 echo "== run container in DUAL mode =="
 # No --rm: the DB snapshot is taken from the *stopped* container, so it has to
@@ -70,15 +78,16 @@ docker rm -f $CONT 2>/dev/null
 docker run -d --name $CONT \
   -e testingMode="true" -e httpsEnabled="true" -e persistenceBackend="dual" \
   $veEnvArgs $vePortArgs \
-  at_virtual_env:local $veCmd || exit 1
+  "$veImage" $veCmd || exit 1
 
 echo "== readiness + keys =="
 cd "${repoDir}/tests/at_functional_test"
-dart run test/check_docker_readiness.dart || { docker rm -f $CONT; exit 1; }
-dart run test/check_root_server_readiness.dart || { docker rm -f $CONT; exit 1; }
+dart pub get || exit 1
+dart run test/check_docker_readiness.dart || exit 1
+dart run test/check_root_server_readiness.dart || exit 1
 ( cd "${repoDir}/tools/build_virtual_environment/install_PKAM_Keys" && \
-  dart pub get && dart bin/install_PKAM_Keys.dart ) || { docker rm -f $CONT; exit 1; }
-dart run test/check_test_env.dart || { docker rm -f $CONT; exit 1; }
+  dart pub get && dart bin/install_PKAM_Keys.dart ) || exit 1
+dart run test/check_test_env.dart || exit 1
 
 echo "== run functional pack (dual mode) =="
 dart run test --concurrency=1
