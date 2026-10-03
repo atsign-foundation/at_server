@@ -60,6 +60,11 @@ done
 REPO=$(git rev-parse --show-toplevel)
 cd "$REPO"
 
+# This build writes into the checkout, so it takes the checkout's live-rig
+# lock unless the runner that called it already holds it.
+source "$REPO/tools/build_virtual_environment/live_rig.sh"
+live_rig_lock "$REPO"
+
 VE_DIR="tools/build_virtual_environment/ve"
 DOCKERFILE="$VE_DIR/Dockerfile"
 [[ -f "$DOCKERFILE" ]] || { echo "buildve.sh: no $DOCKERFILE under $REPO" >&2; exit 1; }
