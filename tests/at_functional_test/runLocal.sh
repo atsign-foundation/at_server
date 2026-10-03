@@ -45,6 +45,10 @@ docker run -d --rm --name at_server_func_cont \
   $veEnvArgs $vePortArgs \
   at_virtual_env:local $veCmd || exit 1
 
+echo "Install dependencies"
+cd ${repoDir}/tests/at_functional_test
+dart pub get || exit 1
+
 echo "Check docker readiness to load PKAM keys"
 cd ${repoDir}/tests/at_functional_test
 dart run test/check_docker_readiness.dart || exit 1

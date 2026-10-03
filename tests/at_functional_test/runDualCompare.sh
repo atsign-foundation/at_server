@@ -74,6 +74,7 @@ docker run -d --name $CONT \
 
 echo "== readiness + keys =="
 cd "${repoDir}/tests/at_functional_test"
+dart pub get || { docker rm -f $CONT; exit 1; }
 dart run test/check_docker_readiness.dart || { docker rm -f $CONT; exit 1; }
 dart run test/check_root_server_readiness.dart || { docker rm -f $CONT; exit 1; }
 ( cd "${repoDir}/tools/build_virtual_environment/install_PKAM_Keys" && \
