@@ -25,6 +25,11 @@ import 'package:at_secondary/src/server/at_certificate_validation.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/persistence_backend.dart';
 import 'package:at_secondary/src/server/server_context.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry_constants.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry_exporter.dart';
+import 'package:at_telemetry/at_telemetry.dart'
+    show AtTelemetryLogRecordExporter;
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_update_verb_handler.dart';
@@ -111,6 +116,12 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// One-shot timer driving [runHousekeepingSweep], re-armed after every
   /// sweep so the server sleeps until the next key expires.
   Timer? _keyExpiryTimer;
+
+  // an object that simplifies telemetry exporting for atServers
+  final AtServerTelemetry telemetry = AtServerTelemetry();
+
+  // the maximum amount of time to wait to send all telemetry when `stop()` is called. Once the timeout passes, pending telemetry is abandoned so `stop()` never blocks on it
+  static const Duration _telemetryFlushTimeout = Duration(seconds: 15);
 
   /// Floor for the expiry-sweep sleep.
   static const Duration _minExpirySleep = Duration(seconds: 10);
@@ -356,6 +367,21 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.severe('AtSecondaryServer().start : ${e.toString()}');
       logger.severe(stacktrace);
       throw AtServerException(e.toString());
+    }
+
+    // Enabling telemetry also starts the uptime heartbeat. `stop()` shuts
+    // telemetry down, so every start after a stop builds a fresh exporter.
+    if (!telemetry.isEnabled) {
+      final AtTelemetryLogRecordExporter? exporter =
+          await createAtServerTelemetryExporter(
+        serverId: currentAtSign.toString(),
+        signingKey: (signingKey as String?) ?? '',
+      );
+      if (exporter != null) {
+        telemetry.enable(
+            exporter: exporter, serverId: currentAtSign.toString());
+        telemetry.emitEvent(atServerStartedEventName);
+      }
     }
 
     if (serverContext!.trainingMode) {
@@ -769,6 +795,12 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         t.cancel();
       }
       _compactionTimers.clear();
+
+      // Stops the heartbeat, flushes pending events and closes the exporter
+      logger.info('Shutting down telemetry');
+      telemetry.emitEvent(atServerStoppedEventName);
+      await telemetry.shutdown(timeout: _telemetryFlushTimeout);
+
       _isRunning = false;
     } on Exception catch (e) {
       throw AtServerException(

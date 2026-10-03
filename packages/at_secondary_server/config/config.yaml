@@ -215,3 +215,13 @@ enrollment:
   # If the duration between the last received invalid OTP and the current date-time
   # exceeds the delayIntervalThreshold, trigger a reset to the default value.
   delayIntervalThreshold: 55
+
+# Telemetry configurations. Telemetry is off unless an endpoint is set.
+# An empty value falls back to the environment variable named beside it.
+telemetry:
+  # HTTPS URL of the telemetry collector. Signed OTLP logs are sent to
+  # '/v1/logs' and the uptime gauge to '/v1/metrics' on this host.
+  # Events are sent as they happen and are not stored on disk: an event that
+  # cannot be delivered after three attempts is dropped.
+  # Env: AT_TELEMETRY_ENDPOINT
+  endpoint: ''
