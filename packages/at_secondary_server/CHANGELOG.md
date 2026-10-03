@@ -46,6 +46,10 @@
   the SQLite backend, commit ids now start at 0, as on Hive
   ([#2826](https://github.com/atsign-foundation/at_server/issues/2826)).
 
+- feat: a connection to another atServer now opens with `to:`, falling back
+  to the legacy lookup when the peer doesn't understand it. Set
+  `toVerbOutboundEnabled=false` to send only the legacy lookup.
+
 # 3.16.5
 - fix: `plookup:all:publickey@<atSign>` and `plookup:meta:publickey@<atSign>`
   report `ttr` -1 with no `ttl`, instead of `ttl` 86400000 with no `ttr`. The
