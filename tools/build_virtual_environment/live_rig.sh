@@ -26,13 +26,19 @@ live_rig_lock() {
     my ($file, $owner) = @ARGV;
     $SIG{$_} = "IGNORE" for qw(INT TERM HUP);
     open(my $fh, "+>>", $file) or die "live_rig_lock: cannot open $file: $!\n";
-    my $told = 0;
+    my ($told, $polls) = (0, 0);
     until (flock($fh, LOCK_EX | LOCK_NB)) {
       exit 1 if getppid() != $owner;
-      unless ($told++) {
+      unless ($told) {
         seek($fh, 0, 0);
-        my $holder = <$fh> // "an unknown process\n";
-        print STDERR "Waiting for the live-rig lock $file, held by $holder";
+        my $holder = <$fh> // "";
+        # NOTE a new holder takes the lock before it writes its pid, so an
+        # empty file is re-read for a few polls before the holder is unnamed.
+        if ($holder ne "" || ++$polls >= 5) {
+          $holder = "an unknown process\n" if $holder eq "";
+          print STDERR "Waiting for the live-rig lock $file, held by $holder";
+          $told = 1;
+        }
       }
       sleep 1;
     }
