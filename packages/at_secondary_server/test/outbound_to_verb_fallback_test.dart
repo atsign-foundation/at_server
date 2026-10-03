@@ -38,6 +38,12 @@ void main() {
     });
   }
 
+  void disableOutboundToVerb() {
+    AtSecondaryConfig.configYamlMap = YamlMap.wrap({
+      'protocol': {'toVerbOutboundEnabled': false}
+    });
+  }
+
   /// A `{key, data, metaData}` entry in the shape a `lookup:all:` /  `to:`
   /// envelope carries, with a ttr:-1 public-key metadata like the real ones.
   Map publicKeyEntry(String keyName, String data) {
@@ -169,7 +175,9 @@ void main() {
     });
   });
 
-  group('to: outbound disabled (default)', () {
+  group('to: outbound disabled', () {
+    setUp(disableOutboundToVerb);
+
     test('the legacy lookup is used and to: is never emitted', () async {
       when(() => mockOutboundConnection.write(legacyLookupRequest))
           .thenAnswer((_) async {

@@ -18,7 +18,7 @@ class AtSecondaryConfig {
   static const bool _clientCertificateRequired = true;
 
   // Gates outbound emission of the cross-server 'to:' verb.
-  static const bool _toVerbOutboundEnabled = false;
+  static const bool _toVerbOutboundEnabled = true;
 
   //Certificate Paths
   static const String _fullchainLocation = 'certs/fullchain.pem';
