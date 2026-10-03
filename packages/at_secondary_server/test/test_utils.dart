@@ -12,6 +12,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart' as at_lookup;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/hive.dart';
+import 'package:at_persistence_secondary_server/sqlite.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
@@ -79,6 +80,9 @@ class FakeInboundConnection extends Fake implements InboundConnectionImpl {
   /// Every write the server-side code performs on this connection.
   final writes = <String>[];
 
+  /// How many times the server-side code has closed this connection.
+  int closeCount = 0;
+
   FakeInboundConnection(this.socket, this.metadata);
 
   @override
@@ -98,7 +102,9 @@ class FakeInboundConnection extends Fake implements InboundConnectionImpl {
   }
 
   @override
-  Future<void> close() async {}
+  Future<void> close() async {
+    closeCount++;
+  }
 }
 
 class MockInboundConnectionPool extends Mock implements InboundConnectionPool {}
@@ -250,15 +256,28 @@ verbTestsSetUpAll() async {
   verbTestsSetUpLogging();
 }
 
-verbTestsSetUp() async {
+/// Wires the server and the test globals to a fresh store for [alice] on
+/// [backend].
+verbTestsSetUp(
+    {AtPersistenceBackendId backend = AtPersistenceBackendId.hive}) async {
   verbTestsSetUpLogging();
-  final factory = atServer.persistenceFactory = HiveAtPersistenceFactory();
-  final config = HivePersistenceConfig(
-    storagePath: storageDir,
-    commitLogPath: storageDir,
-    accessLogPath: storageDir,
-    notificationStoragePath: storageDir,
-  );
+  final (AtPersistenceFactory factory, AtPersistenceConfig config) =
+      switch (backend) {
+    AtPersistenceBackendId.hive => (
+        HiveAtPersistenceFactory(),
+        HivePersistenceConfig(
+          storagePath: storageDir,
+          commitLogPath: storageDir,
+          accessLogPath: storageDir,
+          notificationStoragePath: storageDir,
+        )
+      ),
+    AtPersistenceBackendId.sqlite => (
+        SqliteAtPersistenceFactory(),
+        SqlitePersistenceConfig(storagePath: storageDir)
+      ),
+  };
+  atServer.persistenceFactory = factory;
   final bundle = await factory.initialize(alice, config);
 
   atServer.commitLog = atCommitLog = bundle.keyValueStore.commitLog!;

@@ -192,7 +192,7 @@ class HiveAtPersistenceBundle implements AtPersistenceBundle {
     await keyValueStore.clear();
     final commitLog = keyValueStore.commitLog;
     if (commitLog is HiveAtCommitLog) {
-      await commitLog.commitLogKeyStore.getBox().clear();
+      await commitLog.commitLogKeyStore.clear();
     }
     await accessLog?.clear();
     await notificationKeystore?.clear();
