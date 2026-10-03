@@ -84,7 +84,11 @@ cleanup() {
   cleanedUp=true
   if [[ "$filesStashed" == true ]]; then
     echo "Restoring config/config.yaml and test/at_demo_data.dart"
-    cp "${backupDir}/config.yaml" "$configFile"
+    if [[ -f "${backupDir}/config.yaml" ]]; then
+      cp "${backupDir}/config.yaml" "$configFile"
+    else
+      rm -f "$configFile"
+    fi
     cp "${backupDir}/at_demo_data.dart" "$demoDataFile"
   fi
   rm -rf "$backupDir"
@@ -119,7 +123,10 @@ docker run -d --rm --name "$containerName" \
   "$veImage" $veCmd
 
 echo "Pointing config/config.yaml at the local virtualenv"
-cp "$configFile" "${backupDir}/config.yaml"
+# NOTE config.yaml is untracked, so a fresh checkout has none to back up.
+if [[ -f "$configFile" ]]; then
+  cp "$configFile" "${backupDir}/config.yaml"
+fi
 cp "$demoDataFile" "${backupDir}/at_demo_data.dart"
 filesStashed=true
 
