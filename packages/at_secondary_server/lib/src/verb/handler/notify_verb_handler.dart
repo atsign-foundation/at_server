@@ -550,7 +550,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   /// Whether [verbParams] ask for an ephemeral notification, one no atServer
   /// stores.
   static bool isEphemeral(HashMap<String, String?> verbParams) =>
-      SecondaryUtil.getBoolFromString(verbParams[AtConstants.ephemeral]);
+      verbParams[AtConstants.ephemeral] != null;
 
   /// Whether [verbParams] set the notification's expiry, through `eAtn` or
   /// `eph`, rather than leaving the builder to derive it from `ttln`.

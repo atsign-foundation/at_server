@@ -421,7 +421,7 @@ class NotificationManager {
     }
     if (isEphemeral(atNotification) &&
         peerFeatures.contains(ephemeralFeature)) {
-      commandBody = 'eph:true:$commandBody';
+      commandBody = 'eph:$commandBody';
     }
     if (hasExplicitExpiry(atNotification) &&
         peerFeatures.contains(explicitExpiryFeature)) {

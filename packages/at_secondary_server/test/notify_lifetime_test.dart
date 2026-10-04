@@ -103,7 +103,7 @@ void main() {
       final reply = await run(
           notify,
           'notify:id:n1:update:notifier:SYSTEM'
-          ':eAtn:2026-10-04T10:45:00.721000Z:eph:true:isEncrypted:true'
+          ':eAtn:2026-10-04T10:45:00.721000Z:eph:isEncrypted:true'
           ':@bob:msg.chat.myapp@alice:CIPHERTEXT');
       expect(reply, 'n1');
     });
@@ -111,7 +111,7 @@ void main() {
 
   group('eph', () {
     test('is held in memory and never in the store', () async {
-      final id = await run(notify, 'notify:eph:true:@bob:phone.wavi@alice:v');
+      final id = await run(notify, 'notify:eph:@bob:phone.wavi@alice:v');
       expect(await persisted(), isEmpty);
       final held = await notificationManager.get(id);
       expect(held, isNotNull);
@@ -120,10 +120,24 @@ void main() {
           reason: 'notify:list finds notifications through getKeys');
     });
 
+    test('is a bare flag: eph:true is a syntax error on both notify verbs',
+        () async {
+      for (final (handler, command) in [
+        (notify, 'notify:eph:@bob:phone.wavi@alice:v'),
+        (multi, 'notify:multi:eph:@bob,@colin:msg.chat.myapp@alice:v'),
+      ]) {
+        await run(handler, command);
+        await expectLater(
+            run(handler, command.replaceFirst(':eph:', ':eph:true:')),
+            throwsA(isA<InvalidSyntaxException>()),
+            reason: command);
+      }
+    });
+
     test('lives no more than two minutes', () async {
       for (final lifetime in [
-        'ttln:600000:eph:true',
-        'eAtn:${eAtn(const Duration(minutes: 10))}:eph:true',
+        'ttln:600000:eph',
+        'eAtn:${eAtn(const Duration(minutes: 10))}:eph',
       ]) {
         final id =
             await run(notify, 'notify:$lifetime:@bob:phone.wavi@alice:v');
@@ -137,7 +151,7 @@ void main() {
     for (final field in ['ttr:60000', 'ccd:true']) {
       test('with $field is refused, naming it', () async {
         await expectLater(
-            run(notify, 'notify:eph:true:$field:@bob:phone.wavi@alice:v'),
+            run(notify, 'notify:eph:$field:@bob:phone.wavi@alice:v'),
             throwsA(isA<InvalidSyntaxException>().having((e) => e.message,
                 'message', contains(field.split(':').first))));
       });
@@ -145,11 +159,8 @@ void main() {
 
     test('on a delete is refused, naming it, on both notify verbs', () async {
       for (final (handler, command) in [
-        (notify, 'notify:delete:eph:true:@bob:phone.wavi@alice'),
-        (
-          multi,
-          'notify:multi:delete:eph:true:@bob,@colin:msg.chat.myapp@alice'
-        ),
+        (notify, 'notify:delete:eph:@bob:phone.wavi@alice'),
+        (multi, 'notify:multi:delete:eph:@bob,@colin:msg.chat.myapp@alice'),
       ]) {
         await expectLater(
             run(handler, command),
@@ -163,7 +174,7 @@ void main() {
     test('from another atServer is held in memory and never in the store',
         () async {
       await deliver('notify:id:n4:update:messageType:key:notifier:system'
-          ':ttln:60000:eph:true:@alice:phone.wavi@bob:v');
+          ':ttln:60000:eph:@alice:phone.wavi@bob:v');
       expect(await persisted(), isEmpty);
       expect(await notificationManager.get('n4'), isNotNull);
     });
@@ -173,7 +184,7 @@ void main() {
       final sub = notificationManager.received.stream.listen(received.add);
       for (var i = 0; i < 2; i++) {
         await deliver('notify:id:n5:update:messageType:key:notifier:system'
-            ':ttln:60000:eph:true:@alice:phone.wavi@bob:v');
+            ':ttln:60000:eph:@alice:phone.wavi@bob:v');
       }
       await Future.delayed(Duration.zero);
       await sub.cancel();
@@ -182,14 +193,14 @@ void main() {
     });
 
     test('is served to a monitor\'s backlog and notify:list', () async {
-      final id = await run(notify, 'notify:eph:true:@bob:phone.wavi@alice:v');
+      final id = await run(notify, 'notify:eph:@bob:phone.wavi@alice:v');
       final listed = await notificationManager.getFilteredSorted(
           retain: (_) => true, comparator: null);
       expect(listed.map((n) => n.id), contains(id));
     });
 
     test('is gone after a restart', () async {
-      await run(notify, 'notify:eph:true:@bob:phone.wavi@alice:v');
+      await run(notify, 'notify:eph:@bob:phone.wavi@alice:v');
       final afterRestart =
           NotificationManager(alice, notifStore, MockNotifyConnectionsPool());
       expect(await afterRestart.getUndelivered(), isEmpty,
@@ -199,7 +210,7 @@ void main() {
     test('is dropped from memory once expired', () async {
       final id = await run(
           notify,
-          'notify:eAtn:${eAtn(const Duration(milliseconds: 100))}:eph:true'
+          'notify:eAtn:${eAtn(const Duration(milliseconds: 100))}:eph'
           ':@bob:phone.wavi@alice:v');
       expect(await notificationManager.get(id), isNotNull);
       await Future.delayed(const Duration(milliseconds: 200));
@@ -211,7 +222,7 @@ void main() {
   group('notify:multi', () {
     test('eph holds every copy in memory only', () async {
       final reply = jsonDecode(await run(multi,
-          'notify:multi:eph:true:@bob,@colin:msg.chat.myapp@alice:CIPHERTEXT'));
+          'notify:multi:eph:@bob,@colin:msg.chat.myapp@alice:CIPHERTEXT'));
       expect(await persisted(), isEmpty);
       for (final id in (reply as Map).values) {
         expect(await notificationManager.get(id), isNotNull);
@@ -242,7 +253,7 @@ void main() {
       // FROZEN: at_commons' notification lifetime pin for notify:multi.
       final reply = jsonDecode(await run(
           multi,
-          'notify:multi:eAtn:2026-10-04T10:45:00.721000Z:eph:true'
+          'notify:multi:eAtn:2026-10-04T10:45:00.721000Z:eph'
           ':isEncrypted:true:@bob,@sitaram:msg.chat.myapp@alice:CIPHERTEXT'));
       expect((reply as Map).keys, ['@bob', '@sitaram']);
     });
@@ -262,22 +273,22 @@ void main() {
     test('sends eAtn and eph to an atServer listing them', () async {
       final expiry = eAtn(const Duration(minutes: 1));
       final (sent, n) = await body(
-          'notify:eAtn:$expiry:eph:true:@bob:phone.wavi@alice:v',
+          'notify:eAtn:$expiry:eph:@bob:phone.wavi@alice:v',
           {'notify.eAtn', 'notify.eph'});
       // FROZEN: the lifetime fields' wire form between atServers.
       expect(
           sent,
           'id:<id>:update:messageType:key:notifier:SYSTEM:eAtn:$expiry'
-          ':eph:true:ttl:0:ttb:0:isEncrypted:true:@bob:phone.wavi@alice:v');
+          ':eph:ttl:0:ttb:0:isEncrypted:true:@bob:phone.wavi@alice:v');
       final HashMap<String, String?> parsed = getVerbParam(VerbSyntax.notify,
           'notify:${sent.replaceFirst('id:<id>:', 'id:${n.id}:')}');
       expect(parsed[AtConstants.notificationExpiresAt], expiry);
-      expect(parsed[AtConstants.ephemeral], 'true');
+      expect(parsed[AtConstants.ephemeral], 'eph');
     });
 
     test('sends ttln and no eph to an atServer listing neither', () async {
       final (sent, _) = await body(
-          'notify:eAtn:${eAtn(const Duration(minutes: 1))}:eph:true'
+          'notify:eAtn:${eAtn(const Duration(minutes: 1))}:eph'
           ':@bob:phone.wavi@alice:v',
           const {});
       expect(
@@ -291,8 +302,8 @@ void main() {
 
     test('sends eph after ttln to an atServer listing only eph', () async {
       final (sent, _) = await body(
-          'notify:ttln:60000:eph:true:@bob:phone.wavi@alice:v', {'notify.eph'});
-      expect(sent, matches(RegExp(r':ttln:\d+:eph:true:ttl:0:')));
+          'notify:ttln:60000:eph:@bob:phone.wavi@alice:v', {'notify.eph'});
+      expect(sent, matches(RegExp(r':ttln:\d+:eph:ttl:0:')));
     });
 
     test('sends ttln for a notification whose expiry the client left alone',
@@ -348,7 +359,7 @@ void main() {
 
       verify(() => client.peerFeatures()).called(1);
       expect(bodies.first, isNot(contains('eph')));
-      expect(bodies.last, contains(':eph:true:'),
+      expect(bodies.last, contains(':eph:'),
           reason: 'the atServer listed notify.eph');
     });
   });

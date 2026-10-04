@@ -89,7 +89,7 @@ void main() {
     final key = 'eph-${Uuid().v4()}.e2e';
     final sentAt = DateTime.now().toUtc();
     final listed = await sendAndList(
-        'notify:ttln:600000:eph:true:$atSign_2:$key$atSign_1:v', key);
+        'notify:ttln:600000:eph:$atSign_2:$key$atSign_1:v', key);
     expect(listed['value'], 'v');
     expect(
         DateTime.parse(listed['metadata']['expiresAt'])
