@@ -35,6 +35,11 @@ class InfoVerbHandler extends AbstractVerbHandler {
       'status': 'GA',
       'description': 'eAtn: a notification expiry the client sets',
     },
+    {
+      'name': 'notify.all',
+      'status': 'Deprecated',
+      'description': 'notify:all: use notify:multi',
+    },
   ];
   static int? approximateStartTimeMillis;
 

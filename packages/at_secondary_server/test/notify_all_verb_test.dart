@@ -6,6 +6,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
+import 'package:at_secondary/src/verb/handler/info_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_all_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart' show AuthType;
@@ -104,6 +105,18 @@ void main() {
     expect((await stored()).single.notification, '$bob:phone.wavi$alice',
         reason: 'the notify verb sends a key that names no sender as its own');
   });
+
+  for (final command in ['info', 'info:brief']) {
+    test('$command lists notify:all as Deprecated', () async {
+      final response = await InfoVerbHandler(keyValueStore)
+          .processInternal(command, inboundConnection);
+      final List features = jsonDecode(response.data!)['features'];
+      // FROZEN: the name and status a client reads to learn notify:all is
+      // on its way out; it becomes Retired once notify:all is refused.
+      expect(features.where((f) => f['name'] == 'notify.all').single['status'],
+          'Deprecated');
+    });
+  }
 
   group('notify:all judges each recipient as notify does', () {
     // FROZEN: enrollments and keys whose decisions turn on the recipient,

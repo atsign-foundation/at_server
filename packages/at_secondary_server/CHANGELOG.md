@@ -72,6 +72,9 @@
   refuses one, notifies nobody. A key that names no sender is sent as the
   atServer's own rather than as `<key>null`.
 
+- feat: `notify:all` is deprecated; use `notify:multi`. `info` lists it as
+  `notify.all` with status `Deprecated`.
+
 # 3.16.5
 - fix: `plookup:all:publickey@<atSign>` and `plookup:meta:publickey@<atSign>`
   report `ttr` -1 with no `ttl`, instead of `ttl` 86400000 with no `ttr`. The

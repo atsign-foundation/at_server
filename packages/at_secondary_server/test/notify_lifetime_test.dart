@@ -421,7 +421,7 @@ void main() {
             'features': InfoVerbHandler.features,
           })}';
       expect(OutboundClient.parsePeerFeatures(info),
-          {'notify.multi', 'notify.eph', 'notify.eAtn'});
+          {'notify.multi', 'notify.eph', 'notify.eAtn', 'notify.all'});
     });
 
     test('are none for an atServer whose info lists none', () {
