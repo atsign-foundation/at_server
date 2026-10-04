@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
@@ -251,10 +252,11 @@ void main() {
       inboundConnection.metadata
         ..authType = AuthType.apkam
         ..enrollmentId = enrollmentId;
-      await expectLater(multi('notify:multi:@bob:shared_key.bob@alice:v'),
+      await expectLater(multi('notify:multi:@bob:shared_key@alice:v'),
           throwsA(isA<UnAuthorizedException>()),
-          reason: 'notify:multi changes what recipients hold, as notify:all '
-              'does, so a read-only enrollment may not send a shared key');
+          reason: '@bob:shared_key@alice is a root shared key, and '
+              'notify:multi changes what recipients hold, as notify does, so '
+              'an enrollment that may write nothing may not send one');
       expect(await stored(), isEmpty);
     });
 
@@ -278,6 +280,74 @@ void main() {
       await expectLater(
           multi(frozenCommand), throwsA(isA<UnAuthorizedException>()));
       expect(await stored(), isEmpty);
+    });
+  });
+
+  group('notify:multi judges each recipient as notify does', () {
+    // FROZEN: enrollments and keys whose decisions turn on the recipient,
+    // the key's shape or the enrollment's access.
+    const enrollments = <String, Map<String, String>?>{
+      'cram': null,
+      'chat.myapp:r': {'chat.myapp': 'r'},
+      'chat.myapp:rw': {'chat.myapp': 'rw'},
+      '*:rw': {'*': 'rw'},
+    };
+    const recipientsAndKeys = [
+      ('@bob', 'msg.chat.myapp'),
+      ('@bob', 'x.other'),
+      ('@bob', 'shared_key'),
+      ('@bob', 'shared_key.bob'),
+      ('@alice', 'signing_privatekey'),
+    ];
+
+    /// Whether [handler] lets the connection run [command].
+    Future<bool> allows(dynamic handler, String command) async {
+      try {
+        await handler.processInternal(command, inboundConnection);
+        return true;
+      } on UnAuthorizedException {
+        return false;
+      }
+    }
+
+    for (final MapEntry(key: name, value: namespaces) in enrollments.entries) {
+      test('for $name', () async {
+        if (namespaces == null) {
+          inboundConnection.metadata.authType = AuthType.cram;
+        } else {
+          inboundConnection.metadata
+            ..authType = AuthType.apkam
+            ..enrollmentId = await createAndPersistAnEnrollment(
+                'myapp', 'pixel', namespaces);
+        }
+        final notify = NotifyVerbHandler(keyValueStore, notificationManager);
+        final decisions = <bool>{};
+        for (final (recipient, key) in recipientsAndKeys) {
+          final byNotify =
+              await allows(notify, 'notify:$recipient:$key@alice:v');
+          decisions.add(byNotify);
+          expect(await allows(handler, 'notify:multi:$recipient:$key@alice:v'),
+              byNotify,
+              reason: '$recipient:$key@alice for $name');
+        }
+        if (name == 'chat.myapp:rw' || name == '*:rw') {
+          expect(decisions, {true, false},
+              reason: 'control: this enrollment is allowed some keys and '
+                  'refused others');
+        }
+      });
+    }
+
+    test('refuses every recipient when one is refused', () async {
+      inboundConnection.metadata.authType = AuthType.cram;
+      handler = _RefusesColin(keyValueStore, notificationManager);
+      await expectLater(
+          multi('notify:multi:@bob,@colin:msg.chat.myapp@alice:v'),
+          throwsA(isA<UnAuthorizedException>().having((e) => e.message,
+              'message', contains('@colin:msg.chat.myapp@alice'))));
+      expect(await stored(), isEmpty,
+          reason: 'every recipient is judged before any is stored, so @bob, '
+              'judged first and allowed, is not notified either');
     });
   });
 
@@ -326,4 +396,23 @@ void main() {
       });
     }
   });
+}
+
+/// Refuses the key it is asked about for @colin, as an access check that
+/// turns on the recipient would.
+class _RefusesColin extends NotifyMultiVerbHandler {
+  _RefusesColin(super.keyStore, super.notificationManager);
+
+  @override
+  Future<bool> isAuthorized(InboundConnectionMetadata inboundConnectionMetadata,
+          {String? atKey,
+          String? namespace,
+          String enrolledNamespaceAccess = '',
+          String operation = ''}) async =>
+      !(atKey?.startsWith('@colin:') ?? false) &&
+      await super.isAuthorized(inboundConnectionMetadata,
+          atKey: atKey,
+          namespace: namespace,
+          enrolledNamespaceAccess: enrolledNamespaceAccess,
+          operation: operation);
 }

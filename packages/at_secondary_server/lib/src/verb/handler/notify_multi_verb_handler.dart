@@ -66,10 +66,16 @@ class NotifyMultiVerbHandler extends AbstractVerbHandler {
     final key = '${verbParams[AtConstants.atKey]}$atSign';
     final connectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
-    if (!await isAuthorized(connectionMetadata, atKey: key)) {
-      throw UnAuthorizedException(
-          'Connection with enrollment ID ${connectionMetadata.enrollmentId}'
-          ' is not authorized to notify key: $key');
+    final recipients = _recipients(verbParams[AtConstants.forAtSign]!);
+    // NOTE each recipient's key is judged whole, as notify judges it, and
+    // every one before any is stored, so a refusal stores nothing.
+    for (final forAtSign in recipients) {
+      final recipientKey = '$forAtSign:$key';
+      if (!await isAuthorized(connectionMetadata, atKey: recipientKey)) {
+        throw UnAuthorizedException(
+            'Connection with enrollment ID ${connectionMetadata.enrollmentId}'
+            ' is not authorized to notify key: $recipientKey');
+      }
     }
     final ttlnMillis = NotifyVerbHandler.getNotificationExpiryInMillis(
         verbParams[AtConstants.ttlNotification]);
@@ -82,7 +88,7 @@ class NotifyMultiVerbHandler extends AbstractVerbHandler {
         : null;
 
     final result = <String, String>{};
-    for (final forAtSign in _recipients(verbParams[AtConstants.forAtSign]!)) {
+    for (final forAtSign in recipients) {
       final isSelf = forAtSign == currentAtSign;
       final atNotification = (AtNotificationBuilder()
             ..type = isSelf ? NotificationType.received : NotificationType.sent
