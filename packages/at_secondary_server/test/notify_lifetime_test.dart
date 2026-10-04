@@ -157,17 +157,11 @@ void main() {
       });
     }
 
-    test('on a delete is refused, naming it, on both notify verbs', () async {
-      for (final (handler, command) in [
-        (notify, 'notify:delete:eph:@bob:phone.wavi@alice'),
-        (multi, 'notify:multi:delete:eph:@bob,@colin:msg.chat.myapp@alice'),
-      ]) {
-        await expectLater(
-            run(handler, command),
-            throwsA(isA<InvalidSyntaxException>()
-                .having((e) => e.message, 'message', contains('delete'))),
-            reason: command);
-      }
+    test('on a delete is refused, naming it', () async {
+      await expectLater(
+          run(notify, 'notify:delete:eph:@bob:phone.wavi@alice'),
+          throwsA(isA<InvalidSyntaxException>()
+              .having((e) => e.message, 'message', contains('delete'))));
       expect(await persisted(), isEmpty);
     });
 

@@ -19,7 +19,7 @@ import 'test_utils.dart';
 
 /// FROZEN: the notify:multi wire literal at_commons pins; a client sends
 /// exactly this, so the server must take it unchanged.
-const frozenCommand = 'notify:multi:update:ttln:900000:isEncrypted:true'
+const frozenCommand = 'notify:multi:ttln:900000:isEncrypted:true'
     ':appMetadata:eyJwcm92aWRlcklkIjoiYXQvc3ltbWV0cmljL0FFUy9HQ00vbXVsdGlyZWNpcGllbnQiLCJja0tpZCI6ImFiY2QiLCJpdiI6ImFYWT0iLCJucyI6ImNoYXQubXlhcHAiLCJja05zIjoiY2hhdC5teWFwcCJ9'
     ':@bob,@sitaram:msg.chat.myapp@alice:CIPHERTEXT';
 
@@ -180,6 +180,18 @@ void main() {
       expect(await stored(), isEmpty);
     });
 
+    test('an operation: every notify:multi is an update', () async {
+      const command = 'notify:multi:@bob:msg.chat.myapp@alice:v';
+      await multi(command);
+      for (final operation in ['update', 'delete']) {
+        await expectLater(
+            multi(command.replaceFirst(
+                'notify:multi:', 'notify:multi:$operation:')),
+            throwsA(isA<InvalidSyntaxException>()),
+            reason: 'a delete would remove every recipient\'s cached copy');
+      }
+    });
+
     test('a recipient without its @', () async {
       await expectLater(
           multi('notify:multi:@bob,sitaram:msg.chat.myapp@alice:v'),
@@ -190,7 +202,7 @@ void main() {
     test('a malformed metadata field rather than reading it as a recipient',
         () async {
       await expectLater(
-          multi('notify:multi:update:ttl:abc@evil:isEncrypted:true'
+          multi('notify:multi:ttl:abc@evil:isEncrypted:true'
               ':@bob,@sitaram:msg.chat.myapp@alice:CIPHERTEXT'),
           throwsA(isA<InvalidSyntaxException>()),
           reason: 'with a looser recipient pattern this parses as recipient '

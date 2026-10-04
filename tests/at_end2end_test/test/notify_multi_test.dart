@@ -77,7 +77,7 @@ void main() {
 
     final key = 'multi-${Uuid().v4()}';
     final value = 'CIPHERTEXT-${Uuid().v4()}';
-    await sh1.writeCommand('notify:multi:update:isEncrypted:true'
+    await sh1.writeCommand('notify:multi:isEncrypted:true'
         ':appMetadata:$encodedAppMetadata'
         ':$atSign_2,$atSign_1:$key.e2e$atSign_1:$value');
     final Map reply = jsonDecode((await sh1.read()).replaceFirst('data:', ''));

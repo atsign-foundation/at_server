@@ -6,7 +6,6 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
-import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -72,8 +71,6 @@ class NotifyMultiVerbHandler extends AbstractVerbHandler {
           'Connection with enrollment ID ${connectionMetadata.enrollmentId}'
           ' is not authorized to notify key: $key');
     }
-    final operation =
-        SecondaryUtil.getOperationType(verbParams[AtConstants.operation]);
     final ttlnMillis = NotifyVerbHandler.getNotificationExpiryInMillis(
         verbParams[AtConstants.ttlNotification]);
     final ephemeral = NotifyVerbHandler.isEphemeral(verbParams);
@@ -96,7 +93,7 @@ class NotifyMultiVerbHandler extends AbstractVerbHandler {
             ..toAtSign = forAtSign
             ..notification = '$forAtSign:$key'
             ..notificationDateTime = createdAt
-            ..opType = operation
+            ..opType = OperationType.update
             ..messageType = MessageType.key
             ..atValue = verbParams[AtConstants.atValue]
             ..atMetaData = NotifyVerbHandler.metadataFromParams(verbParams)
