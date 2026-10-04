@@ -58,9 +58,10 @@
 
 - feat: a notification can be ephemeral (`eph`): no atServer stores it,
   it lives at most two minutes, and an atServer restart loses it. A client can
-  also set when a notification expires (`eAtn`), and atServers pass that on as
-  given. `info` now lists `features`, among them `notify.eph` and
-  `notify.eAtn`.
+  also set when a notification expires (`eAtn`). An atServer passes both on,
+  as given, to an atServer whose `info` lists them with any status but
+  `Retired`, and logs a warning when that status is not `GA`. `info` now lists
+  `features`, among them `notify.eph` and `notify.eAtn`.
 
 - fix: a monitor is no longer sent a notification that has already expired.
 

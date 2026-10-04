@@ -505,16 +505,19 @@ class OutboundClient {
     return lookupResult;
   }
 
-  Set<String>? _peerFeatures;
+  InfoFeatures? _peerFeatures;
 
-  /// The feature names the peer's `info` lists, asked once per connection.
-  /// A peer that answers `info` with an error lists none.
-  Future<Set<String>> peerFeatures() =>
-      _serialise(() async => _peerFeatures ??= await _peerFeaturesOnWire());
+  /// Whether the peer takes [feature], for a caller about to use it, by
+  /// [InfoFeatures.has] over its `info`, asked once per connection; the
+  /// warning for a feature that is not GA is logged, once per connection. A
+  /// peer that answers `info` with an error, or unreadably, takes none.
+  Future<bool> usePeerFeature(String feature) => _serialise(() async =>
+      (_peerFeatures ??= await _peerFeaturesOnWire()).has(feature,
+          warn: (message) => logger.warning('$toAtSign: $message')));
 
   /// Writes `info:brief` and reads the features its response lists. Runs
   /// under [_requestResponseMutex].
-  Future<Set<String>> _peerFeaturesOnWire() async {
+  Future<InfoFeatures> _peerFeaturesOnWire() async {
     try {
       messageListener.beginExchange();
       await outboundConnection!.write('info:brief\n');
@@ -537,27 +540,11 @@ class OutboundClient {
     } on AtException catch (e) {
       logger
           .info('$toAtSign answered info:brief with $e; it lists no features');
-      return const {};
+      return InfoFeatures(const {});
     }
     lastUsed = DateTime.now();
-    return parsePeerFeatures(response.replaceFirst(_trailingPrompt, ''));
-  }
-
-  /// The feature names an `info` [response] lists, or none when it lists
-  /// none or is not the JSON `info` answers with.
-  @visibleForTesting
-  static Set<String> parsePeerFeatures(String response) {
-    try {
-      final info = jsonDecode(response.replaceFirst('data:', ''));
-      final features = info is Map ? info['features'] : null;
-      return {
-        if (features is List)
-          for (final f in features)
-            if (f is Map && f['name'] is String) f['name'] as String
-      };
-    } on FormatException {
-      return const {};
-    }
+    return InfoFeatures.parse(response.replaceFirst(_trailingPrompt, '')) ??
+        InfoFeatures(const {});
   }
 
   Future<String?> scan({bool handshake = true, String? regex}) =>

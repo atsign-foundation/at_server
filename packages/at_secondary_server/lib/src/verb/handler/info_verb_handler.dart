@@ -4,7 +4,6 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart' hide StringBuffer;
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
-import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -16,22 +15,22 @@ import 'abstract_verb_handler.dart';
 class InfoVerbHandler extends AbstractVerbHandler {
   static Info infoVerb = Info();
 
-  /// The features every form of `info` lists, in the shape the `Info` verb
-  /// documents; a client checks one by its `name`.
+  /// The features every form of `info` lists, each with the status this
+  /// atServer gives it, in the shape the `Info` verb documents.
   static const features = [
     {
-      'name': NotificationManager.ephemeralFeature,
-      'status': 'GA',
+      'name': InfoFeature.notifyEph,
+      'status': InfoFeatureStatus.ga,
       'description': 'eph: a notification no atServer stores',
     },
     {
-      'name': NotificationManager.explicitExpiryFeature,
-      'status': 'GA',
+      'name': InfoFeature.notifyEAtn,
+      'status': InfoFeatureStatus.ga,
       'description': 'eAtn: a notification expiry the client sets',
     },
     {
-      'name': 'notify.all',
-      'status': 'Deprecated',
+      'name': InfoFeature.notifyAll,
+      'status': InfoFeatureStatus.deprecated,
       'description': 'notify:all: send a notify to each recipient instead',
     },
   ];

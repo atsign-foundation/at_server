@@ -35,12 +35,6 @@ class NotificationManager {
   @visibleForTesting
   final StreamController<AtNotification> sent = StreamController.broadcast();
 
-  /// The `info` feature an atServer lists when it takes `eph`.
-  static const ephemeralFeature = 'notify.eph';
-
-  /// The `info` feature an atServer lists when it takes `eAtn`.
-  static const explicitExpiryFeature = 'notify.eAtn';
-
   /// How often expired ephemeral notifications are dropped from memory.
   @visibleForTesting
   static Duration ephemeralSweepInterval = const Duration(seconds: 30);
@@ -314,8 +308,8 @@ class NotificationManager {
 
   int defaultTtlnMillis = 15 * 60 * 1000; // 15 mins
   /// The body of the notify command that delivers [atNotification] to an
-  /// atServer listing [peerFeatures]. `eph` and `eAtn` are sent only to one
-  /// that lists them, so the default, none, is what every atServer takes.
+  /// atServer taking [peerFeatures]. `eph` and `eAtn` are sent only to one
+  /// that takes them, so the default, none, is what every atServer takes.
   @visibleForTesting
   String prepareNotifyCommandBody(AtNotification atNotification,
       {Set<String> peerFeatures = const {}}) {
@@ -420,11 +414,11 @@ class NotificationManager {
       }
     }
     if (isEphemeral(atNotification) &&
-        peerFeatures.contains(ephemeralFeature)) {
+        peerFeatures.contains(InfoFeature.notifyEph)) {
       commandBody = 'eph:$commandBody';
     }
     if (hasExplicitExpiry(atNotification) &&
-        peerFeatures.contains(explicitExpiryFeature)) {
+        peerFeatures.contains(InfoFeature.notifyEAtn)) {
       commandBody = 'eAtn:'
           '${VerbUtil.formatIso8601Micros(atNotification.expiresAt!)}'
           ':$commandBody';
@@ -546,10 +540,14 @@ class PerAtSignNotifSender {
         //   get outbound client and send notify command
         var outBoundClient =
             await notifMgr.notifyConnectionsPool.getOutboundClient(atSign);
-        final peerFeatures =
-            notifMgr.isEphemeral(n) || notifMgr.hasExplicitExpiry(n)
-                ? await outBoundClient.peerFeatures()
-                : const <String>{};
+        final peerFeatures = {
+          if (notifMgr.isEphemeral(n) &&
+              await outBoundClient.usePeerFeature(InfoFeature.notifyEph))
+            InfoFeature.notifyEph,
+          if (notifMgr.hasExplicitExpiry(n) &&
+              await outBoundClient.usePeerFeature(InfoFeature.notifyEAtn))
+            InfoFeature.notifyEAtn,
+        };
         var notifyCommandBody =
             notifMgr.prepareNotifyCommandBody(n, peerFeatures: peerFeatures);
         var notifyResponse = await outBoundClient.notify(notifyCommandBody);

@@ -10,6 +10,7 @@ import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/info_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart' show AuthType;
+import 'package:logging/logging.dart' show Level;
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
@@ -275,7 +276,8 @@ void main() {
           connect: any(named: 'connect'))).thenAnswer((_) async => client);
       when(() => client.notify(any(), handshake: any(named: 'handshake')))
           .thenAnswer((_) async => 'data:success');
-      when(() => client.peerFeatures()).thenAnswer((_) async => {'notify.eph'});
+      when(() => client.usePeerFeature(any())).thenAnswer((invocation) async =>
+          invocation.positionalArguments.first == 'notify.eph');
     });
     tearDown(() async => await nm.close());
 
@@ -302,10 +304,28 @@ void main() {
       await nm.notify(sentTo('ephemeral'), ephemeral: true);
       await bothSent.future.timeout(const Duration(seconds: 5));
 
-      verify(() => client.peerFeatures()).called(1);
+      expect(verify(() => client.usePeerFeature(captureAny())).captured,
+          ['notify.eph']);
       expect(bodies.first, isNot(contains('eph')));
       expect(bodies.last, contains(':eph:'),
-          reason: 'the atServer listed notify.eph');
+          reason: 'the atServer takes notify.eph');
+    });
+
+    test('leaves out a feature the atServer does not take', () async {
+      when(() => client.usePeerFeature(any())).thenAnswer((_) async => false);
+      final sent = Completer<String>();
+      when(() => client.notify(any(), handshake: any(named: 'handshake')))
+          .thenAnswer((invocation) async {
+        sent.complete(invocation.positionalArguments.first as String);
+        return 'data:success';
+      });
+
+      await nm.notify(sentTo('ephemeral'), ephemeral: true);
+
+      expect(await sent.future.timeout(const Duration(seconds: 5)),
+          isNot(contains(':eph:')),
+          reason: 'an atServer listing notify.eph as Retired, or not at all, '
+              'would refuse it');
     });
   });
 
@@ -318,7 +338,7 @@ void main() {
       final client = MockOutboundClient();
       when(() => nm.notifyConnectionsPool.getOutboundClient(any(),
           connect: any(named: 'connect'))).thenAnswer((_) async => client);
-      when(() => client.peerFeatures()).thenAnswer((_) async => const {});
+      when(() => client.usePeerFeature(any())).thenAnswer((_) async => false);
       final delivered = Completer<void>();
       when(() => client.notify(any(), handshake: any(named: 'handshake')))
           .thenAnswer((_) async {
@@ -344,42 +364,115 @@ void main() {
   });
 
   group('an atServer\'s features over the wire', () {
+    /// Answers `info:brief` with [features], a JSON list.
+    void answerInfo(String features) =>
+        when(() => mockOutboundConnection.write('info:brief\n'))
+            .thenAnswer((_) async {
+          socketOnDataFn(
+              'data:{"version":"3.16.6","features":$features}\n$alice@'
+                  .codeUnits);
+        });
+
+    /// The warnings [OutboundClient] logs while [body] runs.
+    Future<List<String>> warningsDuring(Future<void> Function() body) async {
+      final prior = OutboundClient.logger.logger.level;
+      OutboundClient.logger.level = 'warning';
+      final warnings = <String>[];
+      final sub = OutboundClient.logger.logger.onRecord.listen((r) {
+        if (r.level >= Level.WARNING) warnings.add(r.message);
+      });
+      try {
+        await body();
+      } finally {
+        await sub.cancel();
+        OutboundClient.logger.logger.level = prior;
+      }
+      return warnings;
+    }
+
     test('are asked for once per connection', () async {
       await outboundClientWithHandshake.connect();
-      when(() => mockOutboundConnection.write('info:brief\n'))
-          .thenAnswer((_) async {
-        socketOnDataFn('data:{"version":"3.16.6","features":'
-                '[{"name":"notify.eph"}]}\n$alice@'
-            .codeUnits);
-      });
-      expect(await outboundClientWithHandshake.peerFeatures(), {'notify.eph'});
-      expect(await outboundClientWithHandshake.peerFeatures(), {'notify.eph'});
+      answerInfo('[{"name":"notify.eph","status":"GA"}]');
+      expect(await outboundClientWithHandshake.usePeerFeature('notify.eph'),
+          isTrue);
+      expect(await outboundClientWithHandshake.usePeerFeature('notify.eph'),
+          isTrue);
+      expect(await outboundClientWithHandshake.usePeerFeature('notify.eAtn'),
+          isFalse);
       verify(() => mockOutboundConnection.write('info:brief\n')).called(1);
     });
 
     test('are none when the atServer answers info with an error', () async {
       await outboundClientWithHandshake.connect();
-      expect(await outboundClientWithHandshake.peerFeatures(), isEmpty,
+      expect(await outboundClientWithHandshake.usePeerFeature('notify.eph'),
+          isFalse,
           reason: 'the mock answers every unstubbed command with an error, '
               'as an atServer refusing the request does');
     });
+
+    test('are none when the atServer\'s answer to info cannot be read',
+        () async {
+      await outboundClientWithHandshake.connect();
+      when(() => mockOutboundConnection.write('info:brief\n'))
+          .thenAnswer((_) async {
+        socketOnDataFn('data:not json\n$alice@'.codeUnits);
+      });
+      expect(await outboundClientWithHandshake.usePeerFeature('notify.eph'),
+          isFalse);
+    });
+
+    test('leave out one listed as Retired', () async {
+      await outboundClientWithHandshake.connect();
+      answerInfo('[{"name":"notify.eph","status":"Retired"},'
+          '{"name":"notify.eAtn","status":"GA"}]');
+      expect(await outboundClientWithHandshake.usePeerFeature('notify.eph'),
+          isFalse);
+      expect(await outboundClientWithHandshake.usePeerFeature('notify.eAtn'),
+          isTrue,
+          reason: 'the same answer lists a GA feature, which is taken');
+    });
+
+    test('warn once per connection on using one that is not GA', () async {
+      final client = outboundClientWithHandshake;
+      await client.connect();
+      answerInfo('[{"name":"notify.eph","status":"Beta"},'
+          '{"name":"notify.eAtn","status":"GA"}]');
+      final warned = [
+        allOf(contains('@bob'), contains('notify.eph'), contains('Beta'))
+      ];
+
+      expect(
+          await warningsDuring(() async {
+            expect(await client.usePeerFeature('notify.eph'), isTrue);
+            expect(await client.usePeerFeature('notify.eph'), isTrue);
+            expect(await client.usePeerFeature('notify.eAtn'), isTrue);
+          }),
+          warned,
+          reason: 'one warning for the Beta feature, none for the GA one');
+
+      client.isConnectionCreated = false;
+      await client.connect();
+      expect(
+          await warningsDuring(() async {
+            expect(await client.usePeerFeature('notify.eph'), isTrue);
+          }),
+          warned,
+          reason: 'a new connection asks again and warns again');
+      verify(() => mockOutboundConnection.write('info:brief\n')).called(2);
+    });
   });
 
-  group('peer features', () {
-    test('are the names info lists', () {
-      final info = 'data:${jsonEncode({
-            'version': '3.16.6',
-            'features': InfoVerbHandler.features,
-          })}';
-      expect(OutboundClient.parsePeerFeatures(info),
-          {'notify.eph', 'notify.eAtn', 'notify.all'});
-    });
-
-    test('are none for an atServer whose info lists none', () {
-      expect(OutboundClient.parsePeerFeatures('data:{"version":"3.16.5"}'),
-          isEmpty);
-      expect(OutboundClient.parsePeerFeatures('not json'), isEmpty);
-    });
+  test('another atServer reads info\'s features as the statuses listed', () {
+    final features = InfoFeatures.parse('data:${jsonEncode({
+          'version': '3.16.6',
+          'features': InfoVerbHandler.features,
+        })}')!;
+    // FROZEN: the names and statuses on the wire.
+    expect(features.statusOf('notify.eph'), 'GA');
+    expect(features.statusOf('notify.eAtn'), 'GA');
+    expect(features.statusOf('notify.all'), 'Deprecated');
+    expect(['notify.eph', 'notify.eAtn', 'notify.all'].every(features.has),
+        isTrue);
   });
 
   test('info lists notify.eph and notify.eAtn', () async {
