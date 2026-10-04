@@ -24,7 +24,10 @@ e2eDir=$(pwd)
 cd ../../
 repoDir=$(pwd)
 
-containerName=at_server_e2e_cont
+# One live run per checkout at a time, since this runner rewrites files in the
+# checkout; a run in another worktree does not wait.
+source "${repoDir}/tools/build_virtual_environment/live_rig.sh"
+live_rig_lock "$repoDir"
 
 # Optional VE base port. Set VIRTUALENV_BASE_PORT (env) or pass it as the first
 # argument to run the virtualenv on a shifted port range, so it doesn't clash
@@ -49,6 +52,9 @@ else
   rootPort=64
   portShift=0
 fi
+
+containerName=$(live_rig_container_name at_server_e2e_cont)
+veImage=$(live_rig_image "$repoDir")
 
 # Ports the VE assigns to the demo atSigns
 # (tools/build_virtual_environment/ve_base/contents/tmp/setup/create_demo_accounts.sh),
@@ -78,7 +84,11 @@ cleanup() {
   cleanedUp=true
   if [[ "$filesStashed" == true ]]; then
     echo "Restoring config/config.yaml and test/at_demo_data.dart"
-    cp "${backupDir}/config.yaml" "$configFile"
+    if [[ -f "${backupDir}/config.yaml" ]]; then
+      cp "${backupDir}/config.yaml" "$configFile"
+    else
+      rm -f "$configFile"
+    fi
     cp "${backupDir}/at_demo_data.dart" "$demoDataFile"
   fi
   rm -rf "$backupDir"
@@ -94,24 +104,29 @@ trap cleanup EXIT INT TERM
 # force-pulls the base (whose baked TLS certs expire) and reads its own labels
 # back, so a silently-dropped override fails at the build rather than hours
 # later as an image somebody refuses to run.
-bash "${repoDir}/tools/build_virtual_environment/buildve.sh"
+live_rig_build_ve "$repoDir" "$veImage"
 cd "$repoDir"
 
-# at_functional_test's runner leaves at_server_func_cont holding the same port
-# range; a leftover from either pack blocks this one's port binds.
 echo "Stopping any running virtualenv containers"
 docker stop "$containerName" >/dev/null 2>&1 || true
-docker stop at_server_func_cont >/dev/null 2>&1 || true
+# NOTE only the default ports are shared with at_functional_test's runner, so
+# only there can its leftover container block this one's port binds.
+if [[ -z "$VIRTUALENV_BASE_PORT" ]]; then
+  docker stop at_server_func_cont >/dev/null 2>&1 || true
+fi
 
 echo "Run docker container"
 # shellcheck disable=SC2086 # veEnvArgs/vePortArgs/veCmd are deliberately split
 docker run -d --rm --name "$containerName" \
   -e testingMode="true" -e httpsEnabled="true" \
   $veEnvArgs $vePortArgs \
-  at_virtual_env:local $veCmd
+  "$veImage" $veCmd
 
 echo "Pointing config/config.yaml at the local virtualenv"
-cp "$configFile" "${backupDir}/config.yaml"
+# NOTE config.yaml is untracked, so a fresh checkout has none to back up.
+if [[ -f "$configFile" ]]; then
+  cp "$configFile" "${backupDir}/config.yaml"
+fi
 cp "$demoDataFile" "${backupDir}/at_demo_data.dart"
 filesStashed=true
 

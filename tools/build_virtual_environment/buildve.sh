@@ -60,6 +60,11 @@ done
 REPO=$(git rev-parse --show-toplevel)
 cd "$REPO"
 
+# This build writes into the checkout, so it takes the checkout's live-rig
+# lock unless the runner that called it already holds it.
+source "$REPO/tools/build_virtual_environment/live_rig.sh"
+live_rig_lock "$REPO"
+
 VE_DIR="tools/build_virtual_environment/ve"
 DOCKERFILE="$VE_DIR/Dockerfile"
 [[ -f "$DOCKERFILE" ]] || { echo "buildve.sh: no $DOCKERFILE under $REPO" >&2; exit 1; }
@@ -100,22 +105,26 @@ echo "Force-pulling atsigncompany/vebase:latest (keeps the VE TLS certs fresh)"
 docker pull atsigncompany/vebase:latest \
   || echo "WARNING: could not pull atsigncompany/vebase:latest; using the local image (its TLS certs may be stale)"
 
-echo "Generate atDirectory binary (root) [in dart:3.11.2 Linux container]"
-docker run --rm -v "${REPO}:/app" -w /app/packages/at_root_server dart:3.11.2 \
-  sh -c 'dart pub get && dart compile exe bin/main.dart -o root' || exit 1
-
-echo "Generate atServer binary (secondary) [in dart:3.11.2 Linux container]"
-docker run --rm -v "${REPO}:/app" -w /app/packages/at_secondary_server dart:3.11.2 \
-  sh -c 'dart pub get && dart compile exe bin/main.dart -o secondary' || exit 1
-
-echo "Copy root and secondary binaries into $VE_DIR/contents"
+echo "Generate atDirectory (root) and atServer (secondary) binaries into $VE_DIR/contents [in dart:3.11.2 Linux container]"
 mkdir -p "$VE_DIR/contents/atsign/root" "$VE_DIR/contents/atsign/secondary"
-cp packages/at_root_server/root "$VE_DIR/contents/atsign/root/"
+# NOTE the packages are mounted read-only and resolved in a copy, so the build
+# never rewrites the checkout's .dart_tool or lockfiles under a host process
+# that is using them.
+docker run --rm -v "${REPO}/packages:/src:ro" -v "${REPO}/${VE_DIR}/contents/atsign:/out" \
+  dart:3.11.2 sh -c '
+    set -e
+    mkdir /build
+    tar -C /src --exclude=.dart_tool -cf - . | tar -C /build -xf -
+    cd /build/at_root_server
+    dart pub get
+    dart compile exe bin/main.dart -o /out/root/root
+    cd /build/at_secondary_server
+    dart pub get
+    dart compile exe bin/main.dart -o /out/secondary/secondary
+    chmod 755 /out/root/root /out/secondary/secondary
+  ' || exit 1
 cp packages/at_root_server/pubspec.yaml "$VE_DIR/contents/atsign/root/"
-chmod 755 "$VE_DIR/contents/atsign/root/root"
-cp packages/at_secondary_server/secondary "$VE_DIR/contents/atsign/secondary/"
 cp packages/at_secondary_server/pubspec.yaml "$VE_DIR/contents/atsign/secondary/"
-chmod 755 "$VE_DIR/contents/atsign/secondary/secondary"
 
 echo "Build docker image"
 ( cd "$VE_DIR" && docker build \

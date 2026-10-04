@@ -27,5 +27,11 @@ same argument):
 ./runLocal.sh 30000
 ```
 
+Runs from separate clones or worktrees, each on its own base port, run side by
+side: each gets its own container (`at_server_e2e_cont_<base>`) and its own
+image tag, also tagged `at_virtual_env:local`. Two runs in one checkout take
+turns, since both build into it and rewrite files in it.
+
 `config/config.yaml` and `test/at_demo_data.dart` are rewritten for the run and
-restored when it exits — the same two files the CI job swaps.
+restored when it exits — the same two files the CI job swaps. A checkout with
+no `config/config.yaml` is left without one.
