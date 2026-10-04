@@ -20,7 +20,7 @@ import 'test_utils.dart';
 /// FROZEN: the notify:multi wire literal at_commons pins; a client sends
 /// exactly this, so the server must take it unchanged.
 const frozenCommand = 'notify:multi:update:ttln:900000:isEncrypted:true'
-    ':appMetadata:eyJwcm92aWRlcklkIjoiYXQvc3ltbWV0cmljL0FFUy9HQ00vZ3JvdXAiLCJja0tpZCI6ImFiY2QiLCJpdiI6ImFYWT0iLCJucyI6ImNoYXQubXlhcHAiLCJja05zIjoiY2hhdC5teWFwcCJ9'
+    ':appMetadata:eyJwcm92aWRlcklkIjoiYXQvc3ltbWV0cmljL0FFUy9HQ00vbXVsdGlyZWNpcGllbnQiLCJja0tpZCI6ImFiY2QiLCJpdiI6ImFYWT0iLCJucyI6ImNoYXQubXlhcHAiLCJja05zIjoiY2hhdC5teWFwcCJ9'
     ':@bob,@sitaram:msg.chat.myapp@alice:CIPHERTEXT';
 
 void main() {
@@ -64,7 +64,7 @@ void main() {
         expect(
             n.atMetadata!.appMetadata!.toJson(),
             {
-              'providerId': 'at/symmetric/AES/GCM/group',
+              'providerId': 'at/symmetric/AES/GCM/multirecipient',
               'ckKid': 'abcd',
               'iv': 'aXY=',
               'ns': 'chat.myapp',
@@ -99,7 +99,7 @@ void main() {
               .replaceFirst(RegExp(r':ttln:\d+:'), ':ttln:<ms>:'),
           'id:<id>:update:messageType:key:notifier:system:ttln:<ms>'
           ':ttl:0:ttb:0:isEncrypted:true'
-          ':appMetadata:eyJwcm92aWRlcklkIjoiYXQvc3ltbWV0cmljL0FFUy9HQ00vZ3JvdXAiLCJja0tpZCI6ImFiY2QiLCJpdiI6ImFYWT0iLCJucyI6ImNoYXQubXlhcHAiLCJja05zIjoiY2hhdC5teWFwcCJ9'
+          ':appMetadata:eyJwcm92aWRlcklkIjoiYXQvc3ltbWV0cmljL0FFUy9HQ00vbXVsdGlyZWNpcGllbnQiLCJja0tpZCI6ImFiY2QiLCJpdiI6ImFYWT0iLCJucyI6ImNoYXQubXlhcHAiLCJja05zIjoiY2hhdC5teWFwcCJ9'
           ':@bob:msg.chat.myapp@alice:CIPHERTEXT');
       final HashMap<String, String?> received =
           getVerbParam(Notify().syntax(), 'notify:$body');
@@ -193,7 +193,7 @@ void main() {
           multi('notify:multi:update:ttl:abc@evil:isEncrypted:true'
               ':@bob,@sitaram:msg.chat.myapp@alice:CIPHERTEXT'),
           throwsA(isA<InvalidSyntaxException>()),
-          reason: 'with a looser recipient group this parses as recipient '
+          reason: 'with a looser recipient pattern this parses as recipient '
               'ttl, key abc and sender evil');
       expect(await stored(), isEmpty);
     });

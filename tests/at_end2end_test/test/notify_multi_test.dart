@@ -22,7 +22,7 @@ void main() {
   late e2e.SimpleOutboundConnection sh2;
 
   final appMetadataJson = {
-    'providerId': 'at/symmetric/AES/GCM/group',
+    'providerId': 'at/symmetric/AES/GCM/multirecipient',
     'ckKid': 'k-e2e',
     'iv': 'aXY=',
   };
