@@ -61,6 +61,11 @@
   `ttln`. It refuses per-recipient fields such as `sharedKeyEnc`. `info` now
   lists `features`, including `notify.multi`.
 
+- feat: a notification can be ephemeral (`eph:true`): no atServer stores it,
+  it lives at most two minutes, and an atServer restart loses it. A client can
+  also set when a notification expires (`eAtn`), and atServers pass that on as
+  given. `info` lists `notify.eph` and `notify.eAtn`.
+
 - fix: a monitor is no longer sent a notification that has already expired.
 
 # 3.16.5

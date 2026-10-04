@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart' hide StringBuffer;
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -23,6 +24,16 @@ class InfoVerbHandler extends AbstractVerbHandler {
       'status': 'GA',
       'description':
           'notify:multi: one notification to many atSigns, carrying its metadata',
+    },
+    {
+      'name': NotificationManager.ephemeralFeature,
+      'status': 'GA',
+      'description': 'eph: a notification no atServer stores',
+    },
+    {
+      'name': NotificationManager.explicitExpiryFeature,
+      'status': 'GA',
+      'description': 'eAtn: a notification expiry the client sets',
     },
   ];
   static int? approximateStartTimeMillis;

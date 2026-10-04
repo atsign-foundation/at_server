@@ -71,6 +71,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       var atConnectionMetadata =
           atConnection.metaData as InboundConnectionMetadata;
       _validateNotifyVerbParams(verbParams);
+      refuseConflictingLifetime(verbParams);
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
       // If '@' is missing before an atSign, the formatAtSign method prefixes '@' before atSign.
       if (verbParams[AtConstants.forAtSign] != null) {
@@ -144,7 +145,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     }
 
     // Store and send the notification
-    await notifMgr.notify(n);
+    await notifMgr.notify(n, ephemeral: isEphemeral(verbParams));
 
     // Everything after here is to do with auto-caching based on notifications
     // First of all, caching is only relevant when ttr is set
@@ -289,9 +290,14 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     }
 
     AtNotification n = atNotificationBuilder.build();
-    await notifMgr.notify(n);
     response.data = n.id;
-    return;
+    // NOTE an expiry already past is accepted, and the notification dropped.
+    if (n.isExpired()) {
+      return;
+    }
+    await notifMgr.notify(n,
+        ephemeral: isEphemeral(verbParams),
+        explicitExpiry: verbParams[AtConstants.notificationExpiresAt] != null);
   }
 
   /// Create (or) update the cached key.
@@ -388,6 +394,10 @@ class NotifyVerbHandler extends AbstractVerbHandler {
           AtSecondaryServerImpl.getInstance().currentAtSign)
       ..ttl =
           getNotificationExpiryInMillis(verbParams[AtConstants.ttlNotification])
+      ..expiresAt = setsOwnExpiry(verbParams)
+          ? notificationExpiresAt(
+              verbParams, atNotificationBuilder.notificationDateTime!)
+          : null
       ..atValue = verbParams[AtConstants.atValue];
     atNotificationBuilder.strategy =
         _getStrategy(verbParams[AtConstants.strategy]);
@@ -532,6 +542,57 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       notifier = AtConstants.system;
     }
     return notifier!;
+  }
+
+  /// How long from its creation an ephemeral notification may live.
+  static const ephemeralMaxLifetime = Duration(minutes: 2);
+
+  /// Whether [verbParams] ask for an ephemeral notification, one no atServer
+  /// stores.
+  static bool isEphemeral(HashMap<String, String?> verbParams) =>
+      SecondaryUtil.getBoolFromString(verbParams[AtConstants.ephemeral]);
+
+  /// Whether [verbParams] set the notification's expiry, through `eAtn` or
+  /// `eph`, rather than leaving the builder to derive it from `ttln`.
+  static bool setsOwnExpiry(HashMap<String, String?> verbParams) =>
+      verbParams[AtConstants.notificationExpiresAt] != null ||
+      isEphemeral(verbParams);
+
+  /// Refuses, naming the fields, `eAtn` with `ttln`, and `eph` with `ttr` or
+  /// `ccd`, which would make a recipient keep a cached copy, or with
+  /// `delete`, which keeps recipients' cached copies consistent and so must
+  /// be stored and retried.
+  static void refuseConflictingLifetime(HashMap<String, String?> verbParams) {
+    if (verbParams[AtConstants.notificationExpiresAt] != null &&
+        verbParams[AtConstants.ttlNotification] != null) {
+      throw InvalidSyntaxException('eAtn and ttln cannot both be given');
+    }
+    if (isEphemeral(verbParams)) {
+      if (SecondaryUtil.getOperationType(verbParams[AtConstants.operation]) ==
+          OperationType.delete) {
+        throw InvalidSyntaxException('eph does not take delete');
+      }
+      for (final field in [AtConstants.ttr, AtConstants.ccd]) {
+        if (verbParams[field] != null) {
+          throw InvalidSyntaxException('eph does not take $field');
+        }
+      }
+    }
+  }
+
+  /// When a notification [verbParams] describe expires: `eAtn` as given,
+  /// else [createdAt] plus `ttln`, and no more than [ephemeralMaxLifetime]
+  /// after [createdAt] when `eph` is set.
+  static DateTime notificationExpiresAt(
+      HashMap<String, String?> verbParams, DateTime createdAt) {
+    final eAtn = verbParams[AtConstants.notificationExpiresAt];
+    final expiresAt = eAtn != null
+        ? DateTime.parse(eAtn)
+        : createdAt.add(Duration(
+            milliseconds: getNotificationExpiryInMillis(
+                verbParams[AtConstants.ttlNotification])));
+    final cap = createdAt.add(ephemeralMaxLifetime);
+    return isEphemeral(verbParams) && expiresAt.isAfter(cap) ? cap : expiresAt;
   }
 
   /// Returns the notification expiry duration in milliseconds

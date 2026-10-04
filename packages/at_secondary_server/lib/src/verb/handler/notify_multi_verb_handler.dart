@@ -54,6 +54,7 @@ class NotifyMultiVerbHandler extends AbstractVerbHandler {
         throw InvalidSyntaxException('notify:multi does not take $field');
       }
     }
+    NotifyVerbHandler.refuseConflictingLifetime(verbParams);
     final currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     final atSign = AtUtils.fixAtSign(verbParams[AtConstants.atSign]!);
     if (atSign != currentAtSign) {
@@ -72,6 +73,13 @@ class NotifyMultiVerbHandler extends AbstractVerbHandler {
         SecondaryUtil.getOperationType(verbParams[AtConstants.operation]);
     final ttlnMillis = NotifyVerbHandler.getNotificationExpiryInMillis(
         verbParams[AtConstants.ttlNotification]);
+    final ephemeral = NotifyVerbHandler.isEphemeral(verbParams);
+    final explicitExpiry =
+        verbParams[AtConstants.notificationExpiresAt] != null;
+    final createdAt = DateTime.now().toUtcMillisecondsPrecision();
+    final expiresAt = NotifyVerbHandler.setsOwnExpiry(verbParams)
+        ? NotifyVerbHandler.notificationExpiresAt(verbParams, createdAt)
+        : null;
 
     final result = <String, String>{};
     for (final forAtSign in _recipients(verbParams[AtConstants.forAtSign]!)) {
@@ -84,15 +92,20 @@ class NotifyMultiVerbHandler extends AbstractVerbHandler {
             ..fromAtSign = currentAtSign
             ..toAtSign = forAtSign
             ..notification = '$forAtSign:$key'
-            ..notificationDateTime = DateTime.now().toUtcMillisecondsPrecision()
+            ..notificationDateTime = createdAt
             ..opType = operation
             ..messageType = MessageType.key
             ..atValue = verbParams[AtConstants.atValue]
             ..atMetaData = NotifyVerbHandler.metadataFromParams(verbParams)
-            ..ttl = ttlnMillis)
+            ..ttl = ttlnMillis
+            ..expiresAt = expiresAt)
           .build();
-      await notificationManager.notify(atNotification);
       result[forAtSign] = atNotification.id!;
+      // NOTE an expiry already past is accepted, and the copy dropped.
+      if (!atNotification.isExpired()) {
+        await notificationManager.notify(atNotification,
+            ephemeral: ephemeral, explicitExpiry: explicitExpiry);
+      }
     }
     response.data = json.encode(result);
   }
