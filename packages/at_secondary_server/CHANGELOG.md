@@ -61,6 +61,8 @@
   `ttln`. It refuses per-recipient fields such as `sharedKeyEnc`. `info` now
   lists `features`, including `notify.multi`.
 
+- fix: a monitor is no longer sent a notification that has already expired.
+
 # 3.16.5
 - fix: `plookup:all:publickey@<atSign>` and `plookup:meta:publickey@<atSign>`
   report `ttr` -1 with no `ttl`, instead of `ttl` 86400000 with no `ttr`. The
