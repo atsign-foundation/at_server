@@ -1,10 +1,9 @@
 ## 5.3.0
-- docs: the `Info` verb's dartdoc names the `notify.eph` and `notify.eAtn`
-  features and lists `features` in `info:brief` too. The `Notify` verb's
-  dartdoc describes `eAtn` and `eph`.
-- docs: a feature's `status` in `info` may also be Deprecated or Retired. The
-  `Info` dartdoc lists `notify.all` as Deprecated, and the `NotifyAll`
-  dartdoc says to send a `notify` to each recipient instead.
+- docs: every form of `info`, `info:brief` included, lists `features`. The
+  `Info` dartdoc points at at_commons' `InfoFeature`, `InfoFeatureStatus` and
+  `InfoFeatures` for their names, statuses and how to read them. The `Notify`
+  dartdoc describes `eAtn` and `eph`, and the `NotifyAll` dartdoc says
+  `notify:all` is deprecated: send a `notify` to each recipient instead.
 - build: `at_commons` to `^5.17.0`, which lists `enroll:infons`. The `Enroll`
   verb takes its syntax from at_commons unchanged again; the local insertion
   of `infons` is gone.
