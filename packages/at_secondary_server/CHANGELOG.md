@@ -1,3 +1,20 @@
+# 3.17.0
+- feat: a notification can be ephemeral (`eph`): no atServer stores it,
+  it lives at most two minutes, and an atServer restart loses it. A client can
+  also set when a notification expires (`eAtn`). An atServer passes both on,
+  as given, to an atServer whose `info` lists them with any status but
+  `Retired`, and logs a warning when that status is not `GA`. `info` now lists
+  `features`, among them `notify.eph` and `notify.eAtn`.
+
+- fix: a monitor is no longer sent a notification that has already expired.
+
+- fix: `notify:all` judges each recipient's key as `notify` does and, when it
+  refuses one, notifies nobody. A key that names no sender is sent as the
+  atServer's own rather than as `<key>null`.
+
+- feat: `notify:all` is deprecated; send a `notify` to each recipient instead.
+  `info` lists it as `notify.all` with status `Deprecated`.
+
 # 3.16.6
 - fix: `notify:all` stores each recipient as an atSign and notifies it once
   however it is spelt, notifies the atServer's own atSign as `notify` does,
@@ -55,22 +72,6 @@
   and multi-segment namespaces now count, and `__manage` keys no longer do.
   Concurrent `stats` requests no longer get each other's regex
   ([#2840](https://github.com/atsign-foundation/at_server/issues/2840)).
-
-- feat: a notification can be ephemeral (`eph`): no atServer stores it,
-  it lives at most two minutes, and an atServer restart loses it. A client can
-  also set when a notification expires (`eAtn`). An atServer passes both on,
-  as given, to an atServer whose `info` lists them with any status but
-  `Retired`, and logs a warning when that status is not `GA`. `info` now lists
-  `features`, among them `notify.eph` and `notify.eAtn`.
-
-- fix: a monitor is no longer sent a notification that has already expired.
-
-- fix: `notify:all` judges each recipient's key as `notify` does and, when it
-  refuses one, notifies nobody. A key that names no sender is sent as the
-  atServer's own rather than as `<key>null`.
-
-- feat: `notify:all` is deprecated; send a `notify` to each recipient instead.
-  `info` lists it as `notify.all` with status `Deprecated`.
 
 # 3.16.5
 - fix: `plookup:all:publickey@<atSign>` and `plookup:meta:publickey@<atSign>`
