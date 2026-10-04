@@ -4,10 +4,12 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/info_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 import 'package:logging/logging.dart' show Level;
@@ -204,11 +206,49 @@ void main() {
           reason: 'a resent eph notification is recognised as already held');
     });
 
-    test('is served to a monitor\'s backlog and notify:list', () async {
+    test('is returned by getFilteredSorted beside stored ones', () async {
       final id = await run(notify, 'notify:eph:@bob:phone.wavi@alice:v');
       final listed = await notificationManager.getFilteredSorted(
           retain: (_) => true, comparator: null);
       expect(listed.map((n) => n.id), contains(id));
+    });
+
+    group('from another atServer, to a monitor that connects later', () {
+      /// The id of the notification a monitor asking for those since
+      /// [sinceMillis] is sent as it connects, or null for none.
+      Future<String?> backlogId(int sinceMillis) async {
+        final monitorConnection = DummyInboundConnection();
+        monitorConnection.metadata
+          ..isAuthenticated = true
+          ..authType = AuthType.cram;
+        await MonitorVerbHandler(keyValueStore, notificationManager)
+            .processVerb(
+                Response(),
+                HashMap<String, String?>.of(
+                    {AtConstants.epochMilliseconds: '$sinceMillis'}),
+                monitorConnection);
+        final written = monitorConnection.lastWrittenData;
+        return written == null
+            ? null
+            : jsonDecode(written.replaceFirst('notification:', ''))['id'];
+      }
+
+      for (final (kind, flag, stored) in [
+        ('an ephemeral one', ':eph', 0),
+        ('a stored one, the control', '', 1),
+      ]) {
+        test('is sent $kind', () async {
+          final before = DateTime.now().millisecondsSinceEpoch - 1;
+          await deliver('notify:id:n7:update:messageType:key:notifier:system'
+              ':ttln:60000$flag:@alice:phone.wavi@bob:v');
+          expect(await persisted(), hasLength(stored));
+
+          expect(await backlogId(before), 'n7');
+          expect(await backlogId(DateTime.now().millisecondsSinceEpoch + 1000),
+              isNull,
+              reason: 'nothing arrived after the time it asks from');
+        });
+      }
     });
 
     test('is gone after a restart', () async {
