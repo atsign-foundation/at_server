@@ -49,7 +49,7 @@ import 'package:at_commons/at_commons.dart';
 ///   cannot carry ttr or ccd.
 ///   An atServer that takes eAtn or eph lists `notify.eAtn` or `notify.eph`
 ///   in its `info` response.
-/// Example : notify:ttln:30000:eph:true:@alice:typing@bob
+/// Example : notify:ttln:30000:eph:@alice:typing@bob
 ///
 ///
 class Notify extends Verb {

@@ -14,7 +14,7 @@ import 'package:at_server_spec/src/verb/verb.dart';
 /// feature `notify.multi` in its `info` response.
 ///
 /// **Syntax**:
-/// notify:multi[:update|:delete][:ttln:<ms>|:eAtn:<ISO-8601 UTC>][:eph:true][<metadata>]:<@recipient>[,<@recipient>...]:<key>@<sender>[:<value>]
+/// notify:multi[:update|:delete][:ttln:<ms>|:eAtn:<ISO-8601 UTC>][:eph][<metadata>]:<@recipient>[,<@recipient>...]:<key>@<sender>[:<value>]
 ///
 /// Example:
 /// notify:multi:update:ttln:900000:isEncrypted:true:@bob,@colin:msg.chat.myapp@alice:<ciphertext>
