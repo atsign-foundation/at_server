@@ -381,7 +381,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
           verbParams[AtConstants.priority])
       ..messageType = getMessageType(verbParams[AtConstants.messageType])
       ..notificationStatus = NotificationStatus.queued
-      ..atMetaData = _getAtMetadataForNotification(verbParams)
+      ..atMetaData = metadataFromParams(verbParams)
       ..type = _getNotificationType(
           AtUtils.fixAtSign(verbParams[AtConstants.forAtSign] ?? ''),
           AtSecondaryServerImpl.getInstance().currentAtSign)
@@ -402,18 +402,18 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     return atNotificationBuilder;
   }
 
-  /// Gets the metadata from the verbParams
-  AtMetaData _getAtMetadataForNotification(
-      HashMap<String, String?> verbParams) {
+  /// The metadata a notify command's [verbParams] give the notification, and
+  /// so the recipient. `notify:multi` uses it too.
+  static AtMetaData metadataFromParams(HashMap<String, String?> verbParams) {
     var atMetadata = AtMetaData()
       ..createdBy = AtSecondaryServerImpl.getInstance().currentAtSign;
     // If operation type is update, set value and ttr to cache a key
     // If operation type is delete, set ttr when not null to delete the cached key.
     int? ttrMillis = _getTimeToRefresh(verbParams[AtConstants.ttr]);
-    if (getOperationType(verbParams[AtConstants.operation]) ==
+    if (SecondaryUtil.getOperationType(verbParams[AtConstants.operation]) ==
                 OperationType.update &&
             (ttrMillis != null && verbParams[AtConstants.atValue] != null) ||
-        getOperationType(verbParams[AtConstants.operation]) ==
+        SecondaryUtil.getOperationType(verbParams[AtConstants.operation]) ==
                 OperationType.delete &&
             ttrMillis != null) {
       atMetadata.ttr = ttrMillis;
@@ -484,7 +484,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
           'invalid ${AtConstants.appMetadata}: ${e.message}');
     }
     atMetadata.isEncrypted = getIsEncrypted(
-        getMessageType(verbParams[AtConstants.messageType]),
+        SecondaryUtil.getMessageType(verbParams[AtConstants.messageType]),
         verbParams[AtConstants.atKey]!,
         verbParams[AtConstants.isEncrypted]);
     return atMetadata;
@@ -541,8 +541,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   /// that contains other than numbers is passed
   ///
   /// If null or empty string is passed, defaults [AtSecondaryConfig.notificationExpiryInMins]
-  @visibleForTesting
-  int getNotificationExpiryInMillis(String? notificationExpiryDuration) {
+  static int getNotificationExpiryInMillis(String? notificationExpiryDuration) {
     int notificationExpiryMillis = 0;
     if (notificationExpiryDuration == null ||
         notificationExpiryDuration == '0') {
@@ -554,14 +553,14 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     return AtMetadataUtil.validateTTL(notificationExpiryDuration);
   }
 
-  int? _getTimeToRefresh(String? ttr) {
+  static int? _getTimeToRefresh(String? ttr) {
     if (ttr == null || ttr.isEmpty) {
       return null;
     }
     return AtMetadataUtil.validateTTR(int.parse(ttr));
   }
 
-  bool? _getCascadeDelete(String? cascadeDelete, int? ttrMillis) {
+  static bool? _getCascadeDelete(String? cascadeDelete, int? ttrMillis) {
     if (ttrMillis != null) {
       return AtMetadataUtil.validateCascadeDelete(
           ttrMillis, AtMetadataUtil.getBoolVerbParams(cascadeDelete));
@@ -577,7 +576,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   }
 
   @visibleForTesting
-  bool getIsEncrypted(
+  static bool getIsEncrypted(
       MessageType messageType, String key, String? isEncryptedStr) {
     if (messageType == MessageType.key && key.startsWith('public')) {
       return false;

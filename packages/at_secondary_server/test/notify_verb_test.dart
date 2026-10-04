@@ -659,11 +659,11 @@ void main() {
         'A test to validate default notification expiry duration is returned when null or 0 is passed',
         () {
       expect(
-          notifyVerbHandler.getNotificationExpiryInMillis(null),
+          NotifyVerbHandler.getNotificationExpiryInMillis(null),
           Duration(minutes: AtSecondaryConfig.notificationExpiryInMins)
               .inMilliseconds);
       expect(
-          notifyVerbHandler.getNotificationExpiryInMillis('0'),
+          NotifyVerbHandler.getNotificationExpiryInMillis('0'),
           Duration(minutes: AtSecondaryConfig.notificationExpiryInMins)
               .inMilliseconds);
     });
@@ -671,20 +671,20 @@ void main() {
     test(
         'A test to validate notification expiry duration positive integer is passed',
         () {
-      expect(notifyVerbHandler.getNotificationExpiryInMillis('30'), 30);
+      expect(NotifyVerbHandler.getNotificationExpiryInMillis('30'), 30);
     });
 
     test(
         'A test to assert exception when negative integer is passed to notification expiry duration ',
         () {
-      expect(() => notifyVerbHandler.getNotificationExpiryInMillis('-30'),
+      expect(() => NotifyVerbHandler.getNotificationExpiryInMillis('-30'),
           throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
 
     test(
         'A test to assert exception when character is passed to notification expiry duration ',
         () {
-      expect(() => notifyVerbHandler.getNotificationExpiryInMillis('abc'),
+      expect(() => NotifyVerbHandler.getNotificationExpiryInMillis('abc'),
           throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
   });
@@ -1478,11 +1478,11 @@ void main() {
     tearDown(() async => await verbTestsTearDown());
 
     test('test getIsEncrypted for MessageType.text', () {
-      expect(notifyVerbHandler.getIsEncrypted(MessageType.text, 'foo', null),
+      expect(NotifyVerbHandler.getIsEncrypted(MessageType.text, 'foo', null),
           false);
-      expect(notifyVerbHandler.getIsEncrypted(MessageType.text, 'foo', 'false'),
+      expect(NotifyVerbHandler.getIsEncrypted(MessageType.text, 'foo', 'false'),
           false);
-      expect(notifyVerbHandler.getIsEncrypted(MessageType.text, 'foo', 'true'),
+      expect(NotifyVerbHandler.getIsEncrypted(MessageType.text, 'foo', 'true'),
           true);
     });
 
@@ -1491,15 +1491,15 @@ void main() {
       // TODO Are there any functional or e2e tests of the same?
       // TODO Could be quite useful in some scenarios.
       expect(
-          notifyVerbHandler.getIsEncrypted(
+          NotifyVerbHandler.getIsEncrypted(
               MessageType.key, 'public:foo.bar$alice', null),
           false);
       expect(
-          notifyVerbHandler.getIsEncrypted(
+          NotifyVerbHandler.getIsEncrypted(
               MessageType.key, 'public:foo.bar$alice', 'false'),
           false);
       expect(
-          notifyVerbHandler.getIsEncrypted(
+          NotifyVerbHandler.getIsEncrypted(
               MessageType.key, 'public:foo.bar$alice', 'true'),
           false);
     });
@@ -1511,18 +1511,18 @@ void main() {
       // The reason is that those broken old clients do not set `isEncrypted`
       // on notifications when they ought to be doing so.
       expect(
-          notifyVerbHandler.getIsEncrypted(
+          NotifyVerbHandler.getIsEncrypted(
               MessageType.key, '@bob:foo.bar$alice', null),
           true);
 
       // This used to return 'true' as well, which is definitively wrong.
       expect(
-          notifyVerbHandler.getIsEncrypted(
+          NotifyVerbHandler.getIsEncrypted(
               MessageType.key, '@bob:foo.bar$alice', 'false'),
           false);
 
       expect(
-          notifyVerbHandler.getIsEncrypted(
+          NotifyVerbHandler.getIsEncrypted(
               MessageType.key, '@bob:foo.bar$alice', 'true'),
           true);
     });
