@@ -18,10 +18,13 @@ import 'package:at_utils/at_utils.dart';
 class NotifyMultiVerbHandler extends AbstractVerbHandler {
   static NotifyMulti notifyMulti = NotifyMulti();
 
-  /// Metadata fields `notify:multi` refuses: those describing one recipient's
-  /// copy of a value, which no single value can be right for, and those the
-  /// atServer does not deliver to a recipient.
+  /// Fields `notify:multi` refuses: those describing one recipient's copy of
+  /// a value, which no single value can be right for; those the atServer does
+  /// not deliver to a recipient; and `ttr` and `ccd`, which would make each
+  /// recipient keep a cached copy.
   static const refusedFields = [
+    AtConstants.ttr,
+    AtConstants.ccd,
     AtConstants.sharedKeyEncrypted,
     AtConstants.sharedWithPublicKeyCheckSum,
     AtConstants.sharedWithPublicKeyHash,

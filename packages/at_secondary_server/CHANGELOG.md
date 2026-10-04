@@ -58,8 +58,8 @@
 
 - feat: `notify:multi` sends one value to several atSigns, with the metadata
   each needs to read it (such as `isEncrypted` and `appMetadata`), and honours
-  `ttln`. It refuses per-recipient fields such as `sharedKeyEnc`. `info` now
-  lists `features`, including `notify.multi`.
+  `ttln`. It refuses per-recipient fields such as `sharedKeyEnc`, and `ttr`.
+  `info` now lists `features`, including `notify.multi`.
 
 - feat: a notification can be ephemeral (`eph:true`): no atServer stores it,
   it lives at most two minutes, and an atServer restart loses it. A client can

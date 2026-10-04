@@ -151,6 +151,8 @@ void main() {
   group('notify:multi refuses', () {
     // FROZEN: the metadata fields notify:multi refuses, by their wire names.
     const refused = {
+      'ttr': ':ttr:60000',
+      'ccd': ':ccd:true',
       'sharedKeyEnc': ':sharedKeyEnc:abc',
       'pubKeyCS': ':pubKeyCS:abc',
       'pubKeyHash': ':pubKeyHash:abc',
