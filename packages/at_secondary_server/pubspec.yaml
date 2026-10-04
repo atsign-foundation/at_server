@@ -64,3 +64,9 @@ dependency_overrides:
   # pub runs: every Dockerfile that compiles this package must COPY it in.
   at_server_spec:
     path: ../at_server_spec
+  # NOTE VerbSyntax.notifyMulti is not in a published at_commons yet.
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_client_sdk
+      ref: 599661fd7be5c8ede552faf450ff2b38b3e464cc
+      path: packages/at_commons
