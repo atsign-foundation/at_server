@@ -20,12 +20,6 @@ class InfoVerbHandler extends AbstractVerbHandler {
   /// documents; a client checks one by its `name`.
   static const features = [
     {
-      'name': 'notify.multi',
-      'status': 'GA',
-      'description':
-          'notify:multi: one notification to many atSigns, carrying its metadata',
-    },
-    {
       'name': NotificationManager.ephemeralFeature,
       'status': 'GA',
       'description': 'eph: a notification no atServer stores',
@@ -38,7 +32,7 @@ class InfoVerbHandler extends AbstractVerbHandler {
     {
       'name': 'notify.all',
       'status': 'Deprecated',
-      'description': 'notify:all: use notify:multi',
+      'description': 'notify:all: send a notify to each recipient instead',
     },
   ];
   static int? approximateStartTimeMillis;

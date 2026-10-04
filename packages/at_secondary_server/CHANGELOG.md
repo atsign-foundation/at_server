@@ -56,15 +56,11 @@
   Concurrent `stats` requests no longer get each other's regex
   ([#2840](https://github.com/atsign-foundation/at_server/issues/2840)).
 
-- feat: `notify:multi` sends one value to several atSigns, with the metadata
-  each needs to read it (such as `isEncrypted` and `appMetadata`), and honours
-  `ttln`. It refuses per-recipient fields such as `sharedKeyEnc`, and `ttr`.
-  `info` now lists `features`, including `notify.multi`.
-
 - feat: a notification can be ephemeral (`eph`): no atServer stores it,
   it lives at most two minutes, and an atServer restart loses it. A client can
   also set when a notification expires (`eAtn`), and atServers pass that on as
-  given. `info` lists `notify.eph` and `notify.eAtn`.
+  given. `info` now lists `features`, among them `notify.eph` and
+  `notify.eAtn`.
 
 - fix: a monitor is no longer sent a notification that has already expired.
 
@@ -72,8 +68,8 @@
   refuses one, notifies nobody. A key that names no sender is sent as the
   atServer's own rather than as `<key>null`.
 
-- feat: `notify:all` is deprecated; use `notify:multi`. `info` lists it as
-  `notify.all` with status `Deprecated`.
+- feat: `notify:all` is deprecated; send a `notify` to each recipient instead.
+  `info` lists it as `notify.all` with status `Deprecated`.
 
 # 3.16.5
 - fix: `plookup:all:publickey@<atSign>` and `plookup:meta:publickey@<atSign>`

@@ -61,6 +61,19 @@ void main() {
       expect(paramsMap[AtConstants.forAtSign], 'bob');
       expect(paramsMap[AtConstants.atSign], 'colin');
     });
+
+    test('notify:multi reaches the notify verb, which refuses it', () {
+      const command = 'notify:multi:@bob,@colin:email@alice:v';
+      expect(
+          NotifyVerbHandler(mockKeyStore, mockNotificationManager)
+              .accept(command),
+          isTrue,
+          reason: 'no other notify verb takes it');
+      expect(() => getVerbParam(Notify().syntax(), command),
+          throwsA(isA<InvalidSyntaxException>()),
+          reason: 'there is no notify:multi verb, so its commands are a '
+              'syntax error rather than notifications');
+    });
   });
 
   group('A group of notify accept tests', () {

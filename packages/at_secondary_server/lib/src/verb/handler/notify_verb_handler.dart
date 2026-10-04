@@ -48,7 +48,6 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       !command.startsWith('${getName(VerbEnum.notify)}:list') &&
       !command.startsWith('${getName(VerbEnum.notify)}:status') &&
       !command.startsWith('${getName(VerbEnum.notify)}:all') &&
-      !command.startsWith('${getName(VerbEnum.notify)}:multi') &&
       !command.startsWith('${getName(VerbEnum.notify)}:remove') &&
       !command.startsWith('${getName(VerbEnum.notify)}:fetch');
 
@@ -388,7 +387,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
           verbParams[AtConstants.priority])
       ..messageType = getMessageType(verbParams[AtConstants.messageType])
       ..notificationStatus = NotificationStatus.queued
-      ..atMetaData = metadataFromParams(verbParams)
+      ..atMetaData = _metadataFromParams(verbParams)
       ..type = _getNotificationType(
           AtUtils.fixAtSign(verbParams[AtConstants.forAtSign] ?? ''),
           AtSecondaryServerImpl.getInstance().currentAtSign)
@@ -414,8 +413,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   }
 
   /// The metadata a notify command's [verbParams] give the notification, and
-  /// so the recipient. `notify:multi` uses it too.
-  static AtMetaData metadataFromParams(HashMap<String, String?> verbParams) {
+  /// so the recipient.
+  static AtMetaData _metadataFromParams(HashMap<String, String?> verbParams) {
     var atMetadata = AtMetaData()
       ..createdBy = AtSecondaryServerImpl.getInstance().currentAtSign;
     // If operation type is update, set value and ttr to cache a key

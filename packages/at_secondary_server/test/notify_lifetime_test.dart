@@ -8,7 +8,6 @@ import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/info_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/notify_multi_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 import 'package:mocktail/mocktail.dart';
@@ -22,12 +21,10 @@ String eAtn(Duration fromNow) => VerbUtil.formatIso8601Micros(
 
 void main() {
   late NotifyVerbHandler notify;
-  late NotifyMultiVerbHandler multi;
 
   setUp(() async {
     await verbTestsSetUp();
     notify = NotifyVerbHandler(keyValueStore, notificationManager);
-    multi = NotifyMultiVerbHandler(keyValueStore, notificationManager);
     inboundConnection.metadata
       ..isAuthenticated = true
       ..authType = AuthType.cram;
@@ -120,18 +117,12 @@ void main() {
           reason: 'notify:list finds notifications through getKeys');
     });
 
-    test('is a bare flag: eph:true is a syntax error on both notify verbs',
-        () async {
-      for (final (handler, command) in [
-        (notify, 'notify:eph:@bob:phone.wavi@alice:v'),
-        (multi, 'notify:multi:eph:@bob,@colin:msg.chat.myapp@alice:v'),
-      ]) {
-        await run(handler, command);
-        await expectLater(
-            run(handler, command.replaceFirst(':eph:', ':eph:true:')),
-            throwsA(isA<InvalidSyntaxException>()),
-            reason: command);
-      }
+    test('is a bare flag: eph:true is a syntax error', () async {
+      const command = 'notify:eph:@bob:phone.wavi@alice:v';
+      await run(notify, command);
+      await expectLater(
+          run(notify, command.replaceFirst(':eph:', ':eph:true:')),
+          throwsA(isA<InvalidSyntaxException>()));
     });
 
     test('lives no more than two minutes', () async {
@@ -210,46 +201,6 @@ void main() {
       await Future.delayed(const Duration(milliseconds: 200));
       await notificationManager.removeExpired();
       expect(await notificationManager.get(id), isNull);
-    });
-  });
-
-  group('notify:multi', () {
-    test('eph holds every copy in memory only', () async {
-      final reply = jsonDecode(await run(multi,
-          'notify:multi:eph:@bob,@colin:msg.chat.myapp@alice:CIPHERTEXT'));
-      expect(await persisted(), isEmpty);
-      for (final id in (reply as Map).values) {
-        expect(await notificationManager.get(id), isNotNull);
-      }
-    });
-
-    test('eAtn sets every copy\'s expiry', () async {
-      final expiry = eAtn(const Duration(minutes: 5));
-      final reply = jsonDecode(await run(multi,
-          'notify:multi:eAtn:$expiry:@bob,@colin:msg.chat.myapp@alice:v'));
-      for (final id in (reply as Map).values) {
-        expect((await notificationManager.get(id))!.expiresAt,
-            DateTime.parse(expiry));
-      }
-    });
-
-    test('already past still answers every recipient, storing nothing',
-        () async {
-      final reply = jsonDecode(await run(
-          multi,
-          'notify:multi:eAtn:${eAtn(const Duration(minutes: -1))}'
-          ':@bob,@colin:msg.chat.myapp@alice:v'));
-      expect((reply as Map).keys, ['@bob', '@colin']);
-      expect(await persisted(), isEmpty);
-    });
-
-    test('takes the FROZEN notify:multi literal at_commons pins', () async {
-      // FROZEN: at_commons' notification lifetime pin for notify:multi.
-      final reply = jsonDecode(await run(
-          multi,
-          'notify:multi:eAtn:2026-10-04T10:45:00.721000Z:eph'
-          ':isEncrypted:true:@bob,@sitaram:msg.chat.myapp@alice:CIPHERTEXT'));
-      expect((reply as Map).keys, ['@bob', '@sitaram']);
     });
   });
 
@@ -421,7 +372,7 @@ void main() {
             'features': InfoVerbHandler.features,
           })}';
       expect(OutboundClient.parsePeerFeatures(info),
-          {'notify.multi', 'notify.eph', 'notify.eAtn', 'notify.all'});
+          {'notify.eph', 'notify.eAtn', 'notify.all'});
     });
 
     test('are none for an atServer whose info lists none', () {

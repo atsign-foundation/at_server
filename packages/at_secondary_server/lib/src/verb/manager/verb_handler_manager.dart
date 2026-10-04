@@ -19,7 +19,6 @@ import 'package:at_secondary/src/verb/handler/lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/monitor_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/noop_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_all_verb_handler.dart';
-import 'package:at_secondary/src/verb/handler/notify_multi_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_fetch_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_remove_verb_handler.dart';
@@ -144,7 +143,6 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
     _verbHandlers.add(BatchVerbHandler(keyStore, this));
     _verbHandlers.add(NotifyStatusVerbHandler(keyStore, notificationManager));
     _verbHandlers.add(NotifyAllVerbHandler(keyStore, notificationManager));
-    _verbHandlers.add(NotifyMultiVerbHandler(keyStore, notificationManager));
     _verbHandlers
         .add(SyncProgressiveVerbHandler(keyStore, commitLog: commitLog));
     _verbHandlers.add(InfoVerbHandler(keyStore));

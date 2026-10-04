@@ -64,8 +64,7 @@ dependency_overrides:
   # pub runs: every Dockerfile that compiles this package must COPY it in.
   at_server_spec:
     path: ../at_server_spec
-  # NOTE the notify:multi, eAtn and eph grammar is not in a published at_commons
-  # yet.
+  # NOTE the eAtn and eph grammar is not in a published at_commons yet.
   at_commons:
     git:
       url: https://github.com/atsign-foundation/at_client_sdk
