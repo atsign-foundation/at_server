@@ -34,6 +34,8 @@ import 'package:at_commons/at_commons.dart';
 /// Every form of `info` lists the features. A client checks a feature by its
 /// `name`; the names in use are:
 /// - `notify.multi`: the server takes the `notify:multi` verb.
+/// - `notify.eph`: the server takes `eph`, an ephemeral notification.
+/// - `notify.eAtn`: the server takes `eAtn`, an expiry the client sets.
 ///
 /// This verb _does not_ require authentication.
 ///

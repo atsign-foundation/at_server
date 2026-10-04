@@ -8,12 +8,13 @@ import 'package:at_server_spec/src/verb/verb.dart';
 /// under a key all of them hold. The metadata fields that describe one
 /// recipient's copy (`sharedKeyEnc`, `pubKeyCS`, `pubKeyHash`,
 /// `skeEncKeyName`, `skeEncAlgo`) are refused, as are those the atServer does
-/// not deliver (`isBinary`, `encoding`, `sharedKeyStatus`, `dataSignature`).
-/// An atServer that supports this verb lists the feature `notify.multi` in
-/// its `info` response.
+/// not deliver (`isBinary`, `encoding`, `sharedKeyStatus`, `dataSignature`),
+/// and `ttr` and `ccd`: no recipient keeps a cached copy. `eAtn` and `eph`
+/// work as on `notify`. An atServer that supports this verb lists the
+/// feature `notify.multi` in its `info` response.
 ///
 /// **Syntax**:
-/// notify:multi[:update|:delete][:ttln:<ms>][<metadata>]:<@recipient>[,<@recipient>...]:<key>@<sender>[:<value>]
+/// notify:multi[:update|:delete][:ttln:<ms>|:eAtn:<ISO-8601 UTC>][:eph:true][<metadata>]:<@recipient>[,<@recipient>...]:<key>@<sender>[:<value>]
 ///
 /// Example:
 /// notify:multi:update:ttln:900000:isEncrypted:true:@bob,@colin:msg.chat.myapp@alice:<ciphertext>
