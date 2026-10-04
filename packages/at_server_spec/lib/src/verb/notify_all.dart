@@ -2,6 +2,9 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_server_spec/src/verb/verb.dart';
 
 /// The “notify:all” allows to notify multiple @sign's at the same time .
+/// Deprecated: use “notify:multi”. An atServer lists the feature `notify.all`
+/// in its `info` response, with status Deprecated, and as Retired once it
+/// refuses `notify:all`.
 /// The @sign should be authenticated using the cram/pkam verb prior to use the notify verb.
 /// A malformed request closes the @sign client connection.
 ///

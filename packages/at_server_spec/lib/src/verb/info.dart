@@ -9,12 +9,12 @@ import 'package:at_commons/at_commons.dart';
 ///   "features" : [
 ///     {
 ///       "name" : "ID of feature 1",
-///       "status" : "One of Preview, Beta, GA",
+///       "status" : "One of Preview, Beta, GA, Deprecated, Retired",
 ///       "description" : "Description of feature"
 ///     },
 ///     {
 ///       "name" : "ID of feature 2",
-///       "status" : "One of Preview, Beta, GA",
+///       "status" : "One of Preview, Beta, GA, Deprecated, Retired",
 ///       "description" : "Description of feature"
 ///     },
 ///     ...
@@ -32,10 +32,13 @@ import 'package:at_commons/at_commons.dart';
 /// ```
 ///
 /// Every form of `info` lists the features. A client checks a feature by its
-/// `name`; the names in use are:
+/// `name` and `status`: a Deprecated feature still works but will be retired,
+/// and a Retired one is refused. The names in use are:
 /// - `notify.multi`: the server takes the `notify:multi` verb.
 /// - `notify.eph`: the server takes `eph`, an ephemeral notification.
 /// - `notify.eAtn`: the server takes `eAtn`, an expiry the client sets.
+/// - `notify.all`: the `notify:all` verb, Deprecated in favour of
+///   `notify:multi`.
 ///
 /// This verb _does not_ require authentication.
 ///
