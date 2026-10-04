@@ -9,15 +9,16 @@ import 'package:at_server_spec/src/verb/verb.dart';
 /// recipient's copy (`sharedKeyEnc`, `pubKeyCS`, `pubKeyHash`,
 /// `skeEncKeyName`, `skeEncAlgo`) are refused, as are those the atServer does
 /// not deliver (`isBinary`, `encoding`, `sharedKeyStatus`, `dataSignature`),
-/// and `ttr` and `ccd`: no recipient keeps a cached copy. `eAtn` and `eph`
-/// work as on `notify`. An atServer that supports this verb lists the
+/// and `ttr` and `ccd`: no recipient keeps a cached copy. It carries no
+/// operation: every `notify:multi` is an update. `eAtn` and `eph` work as on
+/// `notify`. An atServer that supports this verb lists the
 /// feature `notify.multi` in its `info` response.
 ///
 /// **Syntax**:
-/// notify:multi[:update|:delete][:ttln:<ms>|:eAtn:<ISO-8601 UTC>][:eph][<metadata>]:<@recipient>[,<@recipient>...]:<key>@<sender>[:<value>]
+/// notify:multi[:ttln:<ms>|:eAtn:<ISO-8601 UTC>][:eph][<metadata>]:<@recipient>[,<@recipient>...]:<key>@<sender>[:<value>]
 ///
 /// Example:
-/// notify:multi:update:ttln:900000:isEncrypted:true:@bob,@colin:msg.chat.myapp@alice:<ciphertext>
+/// notify:multi:ttln:900000:isEncrypted:true:@bob,@colin:msg.chat.myapp@alice:<ciphertext>
 class NotifyMulti extends Verb {
   @override
   String name() => 'notifyMulti';
