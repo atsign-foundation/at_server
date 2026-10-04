@@ -56,6 +56,11 @@
   Concurrent `stats` requests no longer get each other's regex
   ([#2840](https://github.com/atsign-foundation/at_server/issues/2840)).
 
+- feat: `notify:multi` sends one value to several atSigns, with the metadata
+  each needs to read it (such as `isEncrypted` and `appMetadata`), and honours
+  `ttln`. It refuses per-recipient fields such as `sharedKeyEnc`. `info` now
+  lists `features`, including `notify.multi`.
+
 # 3.16.5
 - fix: `plookup:all:publickey@<atSign>` and `plookup:meta:publickey@<atSign>`
   report `ttr` -1 with no `ttl`, instead of `ttl` 86400000 with no `ttr`. The
