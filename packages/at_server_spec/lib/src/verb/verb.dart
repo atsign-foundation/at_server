@@ -71,6 +71,7 @@ enum Subcommand {
   status(requiresAuth: false),
   update,
   all,
+  multi,
   //keys
   put,
   get;

@@ -21,13 +21,19 @@ import 'package:at_commons/at_commons.dart';
 ///   ]
 /// }
 /// ```
-/// `info:brief` will just return the version and uptime as milliseconds
+/// `info:brief` will just return the version, the features and uptime as
+/// milliseconds
 /// ```json
 /// {
 ///   "version" : "the version being run",
+///   "features" : [ ... ],
 ///   "uptimeAsMillis" : "uptime in milliseconds, as integer",
 /// }
 /// ```
+///
+/// Every form of `info` lists the features. A client checks a feature by its
+/// `name`; the names in use are:
+/// - `notify.multi`: the server takes the `notify:multi` verb.
 ///
 /// This verb _does not_ require authentication.
 ///
