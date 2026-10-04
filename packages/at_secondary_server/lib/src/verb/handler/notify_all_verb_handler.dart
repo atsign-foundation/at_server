@@ -43,24 +43,12 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
     int ttbMillis;
     int? ttrMillis;
     bool? isCascade;
-    var atSign = verbParams[AtConstants.atSign];
-    if (atSign.isNotNullOrEmpty) {
-      atSign = AtUtils.fixAtSign(atSign!);
-    }
     final currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-    if (atSign.isNotNullOrEmpty && atSign != currentAtSign) {
+    final atSign =
+        AtUtils.fixAtSign(verbParams[AtConstants.atSign] ?? currentAtSign);
+    if (atSign != currentAtSign) {
       throw UnAuthorizedException(
           '$atSign is not authorized to send notification as $currentAtSign');
-    }
-    var key = verbParams[AtConstants.atKey]!;
-    var inboundConnectionMetadata =
-        atConnection.metaData as InboundConnectionMetadata;
-    var isAuthorized = await super
-        .isAuthorized(inboundConnectionMetadata, atKey: '$key$atSign');
-    if (!isAuthorized) {
-      throw UnAuthorizedException(
-          'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'
-          ' is not authorized to notify key: $key$atSign');
     }
     var messageType =
         SecondaryUtil.getMessageType(verbParams[AtConstants.messageType]);
@@ -70,8 +58,23 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
 
     // If messageType is key, append the atSign to key. For messageType text,
     // atSign is not appended to the key.
+    var key = verbParams[AtConstants.atKey]!;
     if (messageType == MessageType.key) {
       key = '$key$atSign';
+    }
+
+    final recipients = _recipients(verbParams[AtConstants.forAtSign]);
+    final inboundConnectionMetadata =
+        atConnection.metaData as InboundConnectionMetadata;
+    // NOTE each recipient's key is judged whole, as notify judges it, and
+    // every one before any is stored, so a refusal stores nothing.
+    for (final forAtSign in recipients) {
+      final recipientKey = '$forAtSign:$key';
+      if (!await isAuthorized(inboundConnectionMetadata, atKey: recipientKey)) {
+        throw UnAuthorizedException(
+            'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'
+            ' is not authorized to notify key: $recipientKey');
+      }
     }
 
     try {
@@ -90,7 +93,7 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
     var resultMap = <String, String?>{};
     var dataSignature = SecondaryUtil.signChallenge(
         key, AtSecondaryServerImpl.getInstance().signingKey);
-    for (final forAtSign in _recipients(verbParams[AtConstants.forAtSign])) {
+    for (final forAtSign in recipients) {
       final isSelf = forAtSign == currentAtSign;
       var updatedKey = '$forAtSign:$key';
       var atMetadata = AtMetaData()

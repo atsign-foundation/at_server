@@ -68,6 +68,10 @@
 
 - fix: a monitor is no longer sent a notification that has already expired.
 
+- fix: `notify:all` judges each recipient's key as `notify` does and, when it
+  refuses one, notifies nobody. A key that names no sender is sent as the
+  atServer's own rather than as `<key>null`.
+
 # 3.16.5
 - fix: `plookup:all:publickey@<atSign>` and `plookup:meta:publickey@<atSign>`
   report `ttr` -1 with no `ttl`, instead of `ttl` 86400000 with no `ttr`. The

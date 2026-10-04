@@ -926,7 +926,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Connection with enrollment ID $enrollmentId is not authorized to notify key: phone.wavi$alice')));
+                  'Connection with enrollment ID $enrollmentId is not authorized to notify key: @bob:phone.wavi$alice')));
     });
     test(
         'A test to verify notify all is denied on a key with apkam enrollment with no namespace access',
@@ -963,7 +963,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Connection with enrollment ID $enrollmentId is not authorized to notify key: phone.wavi$alice')));
+                  'Connection with enrollment ID $enrollmentId is not authorized to notify key: @bob:phone.wavi$alice')));
     });
   });
   group(
