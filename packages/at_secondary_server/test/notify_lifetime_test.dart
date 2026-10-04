@@ -141,11 +141,37 @@ void main() {
     });
 
     for (final field in ['ttr:60000', 'ccd:true']) {
-      test('with $field is refused, naming it', () async {
+      final name = field.split(':').first;
+      test('with $name is refused, naming both, before it is held or sent',
+          () async {
+        final command = 'notify:eph:$field:@bob:phone.wavi@alice:v';
         await expectLater(
-            run(notify, 'notify:eph:$field:@bob:phone.wavi@alice:v'),
+            run(notify, command),
             throwsA(isA<InvalidSyntaxException>().having((e) => e.message,
-                'message', contains(field.split(':').first))));
+                'message', allOf(contains('eph'), contains(name)))));
+        expect(await notificationManager.getKeys(), isEmpty);
+        expect(notificationManager.senders, isEmpty);
+
+        await run(notify, command.replaceFirst(':$field', ''));
+        expect(await notificationManager.getKeys(), isNotEmpty,
+            reason: 'control: without $name it is held');
+        expect(notificationManager.senders.keys, contains(bob),
+            reason: 'control: and queued for @bob');
+      });
+
+      test('with $name from another atServer is refused, naming both',
+          () async {
+        final command = 'notify:id:n6:update:messageType:key:notifier:system'
+            ':ttln:60000:eph:$field:@alice:phone.wavi@bob:v';
+        await expectLater(
+            deliver(command),
+            throwsA(isA<InvalidSyntaxException>().having((e) => e.message,
+                'message', allOf(contains('eph'), contains(name)))));
+        expect(await notificationManager.get('n6'), isNull);
+
+        await deliver(command.replaceFirst(':$field', ''));
+        expect(await notificationManager.get('n6'), isNotNull,
+            reason: 'control: without $name it is held');
       });
     }
 
