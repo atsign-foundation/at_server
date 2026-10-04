@@ -5,6 +5,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
+import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/info_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_all_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_multi_verb_handler.dart';
@@ -78,8 +79,10 @@ void main() {
       await multi(frozenCommand);
       for (final n in await stored()) {
         expect(n.ttl, 900000);
+        // NOTE expiresAt is stamped when the notification is built, a few
+        // milliseconds after notificationDateTime.
         expect(n.expiresAt!.difference(n.notificationDateTime!).inMilliseconds,
-            900000);
+            inInclusiveRange(900000, 901000));
       }
     });
 
@@ -118,6 +121,23 @@ void main() {
       expect(reply.keys, ['@bob']);
       expect(await stored(), hasLength(1));
     });
+
+    for (final namespaces in [
+      {'chat.myapp': 'rw'},
+      {'*': 'rw'},
+    ]) {
+      test('for an enrollment holding $namespaces', () async {
+        final enrollmentId =
+            await createAndPersistAnEnrollment('myapp', 'pixel', namespaces);
+        inboundConnection.metadata
+          ..authType = AuthType.apkam
+          ..enrollmentId = enrollmentId;
+        await multi(frozenCommand);
+        expect(await stored(), hasLength(2),
+            reason: 'an enrollment that may write the key may notify it, as '
+                'with notify:all');
+      });
+    }
 
     test('the atServer\'s own atSign is notified as the notify verb does it',
         () async {
@@ -190,6 +210,48 @@ void main() {
       await expectLater(
           multi(frozenCommand), throwsA(isA<UnAuthenticatedException>()),
           reason: 'notify:multi is for clients; atServers send plain notify');
+      expect(await stored(), isEmpty);
+    });
+
+    test('a key in another enrollment\'s reserved namespace, even under *',
+        () async {
+      final otherId = await createAndPersistAnEnrollment(
+          'other', 'pixel', {'chat.myapp': 'rw'});
+      final enrollmentId =
+          await createAndPersistAnEnrollment('myapp', 'pixel', {'*': 'rw'});
+      inboundConnection.metadata
+        ..authType = AuthType.apkam
+        ..enrollmentId = enrollmentId;
+      final reserved = AbstractVerbHandler.enrollmentReservedNamespace(otherId);
+      await expectLater(multi('notify:multi:@bob:ck.$reserved@alice:v'),
+          throwsA(isA<UnAuthorizedException>()),
+          reason: 'an enrollment\'s reserved keys are its own, whatever '
+              'another enrollment holds');
+      expect(await stored(), isEmpty);
+    });
+
+    test('a root shared key, from an enrollment that may write nothing',
+        () async {
+      final enrollmentId = await createAndPersistAnEnrollment(
+          'myapp', 'pixel', {'chat.myapp': 'r'});
+      inboundConnection.metadata
+        ..authType = AuthType.apkam
+        ..enrollmentId = enrollmentId;
+      await expectLater(multi('notify:multi:@bob:shared_key.bob@alice:v'),
+          throwsA(isA<UnAuthorizedException>()),
+          reason: 'notify:multi changes what recipients hold, as notify:all '
+              'does, so a read-only enrollment may not send a shared key');
+      expect(await stored(), isEmpty);
+    });
+
+    test('a key in a namespace the enrollment may only read', () async {
+      final enrollmentId = await createAndPersistAnEnrollment(
+          'myapp', 'pixel', {'chat.myapp': 'r'});
+      inboundConnection.metadata
+        ..authType = AuthType.apkam
+        ..enrollmentId = enrollmentId;
+      await expectLater(
+          multi(frozenCommand), throwsA(isA<UnAuthorizedException>()));
       expect(await stored(), isEmpty);
     });
 

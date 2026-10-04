@@ -457,6 +457,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
             verb is Config ||
             verb is Notify ||
             verb is NotifyAll ||
+            verb is NotifyMulti ||
             verb is NotifyRemove ||
             verb is Monitor ||
             verb is SyncFrom) &&
@@ -525,6 +526,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
         verb is Delete ||
         verb is Notify ||
         verb is NotifyAll ||
+        verb is NotifyMulti ||
         verb is NotifyRemove;
   }
 
