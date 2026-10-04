@@ -12,8 +12,7 @@ dependencies:
   meta: ^1.11.0
   at_commons: ^5.17.0
 
-# NOTE the notify:multi, eAtn and eph grammar is not in a published at_commons
-# yet.
+# NOTE the eAtn and eph grammar is not in a published at_commons yet.
 dependency_overrides:
   at_commons:
     git:
