@@ -117,6 +117,12 @@ class MonitorVerbHandler extends AbstractVerbHandler {
   /// - Writes the notification to the connection
   Future<void> _sendNotification(
       AtConnection atConnection, AtNotification notification) async {
+    if (notification.isExpired()) {
+      logger.warning('Not delivering notification ${notification.id}'
+          ' (${notification.notification}) to session'
+          ' ${atConnection.metaData.sessionID} — it has expired');
+      return;
+    }
     if (!(await isAuthorized(atConnection.metaData as InboundConnectionMetadata,
         atKey: notification.notification))) {
       // A dropped notification is indistinguishable from one that was never

@@ -9,25 +9,31 @@ import 'package:at_commons/at_commons.dart';
 ///   "features" : [
 ///     {
 ///       "name" : "ID of feature 1",
-///       "status" : "One of Preview, Beta, GA",
+///       "status" : "Status of feature 1",
 ///       "description" : "Description of feature"
 ///     },
 ///     {
 ///       "name" : "ID of feature 2",
-///       "status" : "One of Preview, Beta, GA",
+///       "status" : "Status of feature 2",
 ///       "description" : "Description of feature"
 ///     },
 ///     ...
 ///   ]
 /// }
 /// ```
-/// `info:brief` will just return the version and uptime as milliseconds
+/// `info:brief` will just return the version, the features and uptime as
+/// milliseconds
 /// ```json
 /// {
 ///   "version" : "the version being run",
+///   "features" : [ ... ],
 ///   "uptimeAsMillis" : "uptime in milliseconds, as integer",
 /// }
 /// ```
+///
+/// Every form of `info` lists the features. Their names are [InfoFeature],
+/// their statuses [InfoFeatureStatus], and [InfoFeatures] reads them; each
+/// atServer decides the status it gives each feature.
 ///
 /// This verb _does not_ require authentication.
 ///
