@@ -19,7 +19,7 @@ dependencies:
   basic_utils: ^5.7.0
   ecdsa: ^0.1.2
   encrypt: ^5.0.3
-  at_commons: ^5.17.0
+  at_commons: ^5.19.0
   at_utils: ^3.4.0
   at_chops: ^3.6.0
   at_lookup: ^3.6.0
@@ -64,9 +64,3 @@ dependency_overrides:
   # pub runs: every Dockerfile that compiles this package must COPY it in.
   at_server_spec:
     path: ../at_server_spec
-  # NOTE the eAtn and eph grammar is not in a published at_commons yet.
-  at_commons:
-    git:
-      url: https://github.com/atsign-foundation/at_client_sdk
-      ref: abcb8bd2ee6b75efcea0fbdf4deb2cafe80e62c4
-      path: packages/at_commons

@@ -68,11 +68,10 @@ packages:
   at_commons:
     dependency: "direct main"
     description:
-      path: "packages/at_commons"
-      ref: abcb8bd2ee6b75efcea0fbdf4deb2cafe80e62c4
-      resolved-ref: abcb8bd2ee6b75efcea0fbdf4deb2cafe80e62c4
-      url: "https://github.com/atsign-foundation/at_client_sdk"
-    source: git
+      name: at_commons
+      sha256: b392e16b9d03d7e6be27f7c9bdebd6675039391013399acd81e583bcb5c339b5
+      url: "https://pub.dev"
+    source: hosted
     version: "5.19.0"
   at_lookup:
     dependency: "direct main"
