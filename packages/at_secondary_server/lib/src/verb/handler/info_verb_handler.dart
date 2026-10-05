@@ -14,6 +14,26 @@ import 'abstract_verb_handler.dart';
 /// Handler for the 'info' verb. Usage of info verb is documented in at_server_spec/lib/src/verb/info.dart
 class InfoVerbHandler extends AbstractVerbHandler {
   static Info infoVerb = Info();
+
+  /// The features every form of `info` lists, each with the status this
+  /// atServer gives it, in the shape the `Info` verb documents.
+  static const features = [
+    {
+      'name': InfoFeature.notifyEph,
+      'status': InfoFeatureStatus.ga,
+      'description': 'eph: a notification no atServer stores',
+    },
+    {
+      'name': InfoFeature.notifyEAtn,
+      'status': InfoFeatureStatus.ga,
+      'description': 'eAtn: a notification expiry the client sets',
+    },
+    {
+      'name': InfoFeature.notifyAll,
+      'status': InfoFeatureStatus.deprecated,
+      'description': 'notify:all: send a notify to each recipient instead',
+    },
+  ];
   static int? approximateStartTimeMillis;
 
   InfoVerbHandler(super.keyStore) {
@@ -37,6 +57,7 @@ class InfoVerbHandler extends AbstractVerbHandler {
         as InboundConnectionMetadata; // structure of what is returned is documented in the [Info] verb in at_server_spec
 
     infoMap['version'] = AtSecondaryConfig.secondaryServerVersion;
+    infoMap['features'] = features;
     Duration uptime = Duration(
         milliseconds: DateTime.now().millisecondsSinceEpoch -
             approximateStartTimeMillis!);

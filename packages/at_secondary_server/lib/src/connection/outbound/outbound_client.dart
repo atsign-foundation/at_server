@@ -200,6 +200,7 @@ class OutboundClient {
     // 3. Listen to outbound message
     messageListener = OutboundMessageListener(this);
     messageListener.listen();
+    _peerFeatures = null;
   }
 
   /// This method is called by [connect] after the connection has been established, but
@@ -502,6 +503,48 @@ class OutboundClient {
     lookupResult = lookupResult.replaceFirst(_trailingPrompt, '');
     lastUsed = DateTime.now();
     return lookupResult;
+  }
+
+  InfoFeatures? _peerFeatures;
+
+  /// Whether the peer takes [feature], for a caller about to use it, by
+  /// [InfoFeatures.has] over its `info`, asked once per connection; the
+  /// warning for a feature that is not GA is logged, once per connection. A
+  /// peer that answers `info` with an error, or unreadably, takes none.
+  Future<bool> usePeerFeature(String feature) => _serialise(() async =>
+      (_peerFeatures ??= await _peerFeaturesOnWire()).has(feature,
+          warn: (message) => logger.warning('$toAtSign: $message')));
+
+  /// Writes `info:brief` and reads the features its response lists. Runs
+  /// under [_requestResponseMutex].
+  Future<InfoFeatures> _peerFeaturesOnWire() async {
+    try {
+      messageListener.beginExchange();
+      await outboundConnection!.write('info:brief\n');
+    } on AtIOException catch (e) {
+      await outboundConnection!.close();
+      throw LookupException(
+          'Exception writing to outbound socket ${e.toString()}');
+    } on ConnectionInvalidException catch (e) {
+      logger.severe('$this | encountered $e');
+      throw OutBoundConnectionInvalidException('Outbound connection invalid');
+    }
+    final String response;
+    try {
+      response =
+          await messageListener.read(maxWaitMilliSeconds: lookupTimeoutMillis);
+    } on AtConnectException {
+      rethrow;
+    } on AtTimeoutException {
+      rethrow;
+    } on AtException catch (e) {
+      logger
+          .info('$toAtSign answered info:brief with $e; it lists no features');
+      return InfoFeatures(const {});
+    }
+    lastUsed = DateTime.now();
+    return InfoFeatures.parse(response.replaceFirst(_trailingPrompt, '')) ??
+        InfoFeatures(const {});
   }
 
   Future<String?> scan({bool handshake = true, String? regex}) =>
