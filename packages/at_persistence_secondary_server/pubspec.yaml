@@ -17,7 +17,7 @@ dependencies:
   uuid: ^4.0.0
   at_utf7: ^1.0.0
   at_commons: ^5.11.0
-  at_utils: ^3.0.19
+  at_utils: ">=3.0.19 <5.0.0"
   meta: ^1.8.0
 
 dev_dependencies:

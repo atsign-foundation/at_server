@@ -39,6 +39,17 @@ import 'package:at_commons/at_commons.dart';
 ///   Defines the time after the notification should expire.
 ///   Accepts a time duration in milliseconds
 /// Example : notify:ttln:60:@alice:pin@bob:99001
+/// eAtn:
+///   Sets when the notification expires, in ISO-8601 UTC, in place of ttln.
+///   Atservers pass it on as given. One already past is accepted and dropped.
+/// Example : notify:eAtn:2026-10-04T10:45:00.000Z:@alice:pin@bob:99001
+/// eph:
+///   An ephemeral notification: no atServer stores it, so it is lost if one
+///   restarts, and it lives at most two minutes. It is for update only, and
+///   cannot carry ttr or ccd.
+///   An atServer that takes eAtn or eph lists `notify.eAtn` or `notify.eph`
+///   in its `info` response.
+/// Example : notify:ttln:30000:eph:@alice:typing@bob
 ///
 ///
 class Notify extends Verb {
