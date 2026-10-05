@@ -374,6 +374,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     if (!telemetry.isEnabled) {
       final AtTelemetryLogRecordExporter? exporter =
           await createAtServerTelemetryExporter(
+        endpoint: serverContext!.telemetryEndpoint,
         serverId: currentAtSign.toString(),
         signingKey: (signingKey as String?) ?? '',
       );

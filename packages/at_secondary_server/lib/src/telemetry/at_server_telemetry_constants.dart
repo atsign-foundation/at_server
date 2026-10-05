@@ -1,3 +1,4 @@
+const String atServerServiceName = 'at_secondary_server';
 const String atServerTelemetryEventPrefix = 'atsign.atserver';
 const String atServerHeartbeatEventName =
     '$atServerTelemetryEventPrefix.heartbeat';

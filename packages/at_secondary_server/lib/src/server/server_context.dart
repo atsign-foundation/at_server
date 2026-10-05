@@ -51,4 +51,7 @@ class AtSecondaryContext extends AtServerContext {
   // When true, SecondaryServerImpl will gracefully shut down the service immediately
   // after fully starting up.
   bool trainingMode = false;
+
+  // Where to push telemetry. Null means telemetry is off.
+  String? telemetryEndpoint;
 }
