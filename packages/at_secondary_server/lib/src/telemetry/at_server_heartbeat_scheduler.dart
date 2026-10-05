@@ -5,7 +5,6 @@ import 'at_server_telemetry.dart';
 import 'at_server_telemetry_constants.dart';
 
 final class AtServerHeartbeatScheduler {
-  static const String metricName = '$atServerTelemetryEventPrefix.uptime';
   static const Duration defaultInterval = Duration(seconds: 60);
   static const Duration _minimumInterval = Duration(milliseconds: 1);
 
@@ -47,8 +46,8 @@ final class AtServerHeartbeatScheduler {
     }
     _uptime.start();
     _timer = Timer(offset, () {
-      _sendUptime();
-      _timer = Timer.periodic(interval, (Timer _) => _sendUptime());
+      _sendHeartbeat();
+      _timer = Timer.periodic(interval, (Timer _) => _sendHeartbeat());
     });
   }
 
@@ -58,11 +57,13 @@ final class AtServerHeartbeatScheduler {
     _uptime.stop();
   }
 
-  void _sendUptime() {
-    _telemetry.recordGauge(
-      metricName,
-      _uptime.elapsedMicroseconds / Duration.microsecondsPerSecond,
-      unit: 's',
+  void _sendHeartbeat() {
+    _telemetry.emitEvent(
+      atServerHeartbeatEventName,
+      attributes: <String, Object?>{
+        atServerUptimeSecondsAttribute:
+            _uptime.elapsedMicroseconds / Duration.microsecondsPerSecond,
+      },
     );
   }
 

@@ -57,43 +57,6 @@ final class AtServerTelemetry {
     }
   }
 
-  void recordGauge(
-    String name,
-    double value, {
-    String unit = '',
-    Map<String, Object?> attributes = const <String, Object?>{},
-  }) {
-    final AtTelemetryLogRecordExporter? exporter = _exporter;
-    if (exporter is! AtTelemetryMetricExporter) {
-      return;
-    }
-    if (!name.startsWith(_eventNamePrefix) ||
-        name.length == _eventNamePrefix.length ||
-        name.trim() != name ||
-        !value.isFinite) {
-      _logger.warning('Ignoring invalid atServer gauge');
-      return;
-    }
-    final AtTelemetryGauge gauge = AtTelemetryGauge(
-      name: name,
-      value: value,
-      unit: unit,
-      timestamp: DateTime.now().toUtc(),
-      attributes: Map<String, Object?>.unmodifiable(<String, Object?>{
-        ...attributes,
-        serverIdAttribute: _serverId,
-      }),
-    );
-    final AtTelemetryMetricExporter metricExporter =
-        exporter as AtTelemetryMetricExporter;
-    final Future<void> export = _guard(
-      () => metricExporter.exportMetrics(<AtTelemetryGauge>[gauge]),
-      'gauge export',
-    );
-    _pending.add(export);
-    unawaited(export.whenComplete(() => _pending.remove(export)));
-  }
-
   void emitEvent(String name, {Map<String, Object?> attributes = const {}}) {
     final AtTelemetryLogRecordExporter? exporter = _exporter;
     if (exporter == null) {
