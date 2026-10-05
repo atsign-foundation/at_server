@@ -98,9 +98,9 @@ packages:
   at_telemetry:
     dependency: "direct main"
     description:
-      path: "../../../../../at_client_sdk/jt/control-center-spike/packages/at_telemetry"
-      relative: true
-    source: path
+      name: at_telemetry
+      url: "https://pub.dev"
+    source: hosted
     version: "0.1.0"
   at_utf7:
     dependency: transitive
