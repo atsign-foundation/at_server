@@ -582,17 +582,20 @@ void main() {
 
     test('test to verify notification date time on receiver side', () async {
       atConnection.metaData.isPolAuthenticated = true;
-      (atConnection.metaData as InboundConnectionMetadata).fromAtSign = alice;
+      (atConnection.metaData as InboundConnectionMetadata).fromAtSign = bob;
+      HashMap<String, String> fromBob(HashMap<String, String> params) =>
+          HashMap.of(params)
+            ..[AtConstants.forAtSign] = alice
+            ..[AtConstants.atSign] = bob;
       // process first notification
-      await notifyVerbHandler.processVerb(
-          notifyResponse, firstNotificationVerbParams, atConnection);
+      await notifyVerbHandler.processVerb(notifyResponse,
+          fromBob(firstNotificationVerbParams), atConnection);
       // store current date time to capture the difference
       var currentDateTime = DateTime.now().millisecondsSinceEpoch;
       await Future.delayed(Duration(milliseconds: 50));
       // process second notification
-      secondNotificationVerbParams.putIfAbsent('forAtSign', () => alice);
-      await notifyVerbHandler.processVerb(
-          notifyResponse, secondNotificationVerbParams, atConnection);
+      await notifyVerbHandler.processVerb(notifyResponse,
+          fromBob(secondNotificationVerbParams), atConnection);
       // fetch second notification, as the atSign's own CRAM connection
       atConnection.metaData.isAuthenticated = true;
       atConnection.metaData.authType = AuthType.cram;
@@ -1567,6 +1570,117 @@ void main() {
       expect(stored.atMetadata, isNotNull);
       expect(stored.atMetadata!.ttr, isNull);
       expect(stored.atMetadata!.isEncrypted, false);
+    });
+  });
+
+  group('A notification from another atServer', () {
+    late NotifyVerbHandler notifyVerbHandler;
+    setUp(() async {
+      await verbTestsSetUp();
+      notifyVerbHandler = NotifyVerbHandler(keyValueStore, notificationManager);
+    });
+    tearDown(() async => await verbTestsTearDown());
+
+    /// Runs [command] as [from]'s atServer delivering a notification.
+    Future<Response> deliver(String command, {Atsign? from}) {
+      inboundConnection.metadata
+        ..isAuthenticated = false
+        ..isPolAuthenticated = true
+        ..fromAtSign = from ?? bob;
+      return notifyVerbHandler.processInternal(command, inboundConnection);
+    }
+
+    Matcher refused(String why) => throwsA(isA<UnAuthorizedException>()
+        .having((e) => e.message, 'message', contains(why)));
+
+    test('of a key it shares, for this atSign, is stored and cached',
+        () async {
+      await deliver('notify:id:own-1:update:messageType:key:ttr:100000'
+          ':$alice:phone.wavi$bob:v');
+      expect(await notificationManager.get('own-1'), isNotNull);
+      expect(await keyValueStore.exists('cached:$alice:phone.wavi$bob'),
+          isTrue);
+    });
+
+    test('of a key another atSign shares is refused, and nothing stored or '
+        'cached', () async {
+      await expectLater(
+          deliver('notify:id:spoof-1:update:messageType:key:ttr:100000'
+              ':$alice:phone.wavi@eve:v'),
+          refused('@eve is not authorized to send notification as @bob'));
+      expect(await notificationManager.get('spoof-1'), isNull);
+      expect(await keyValueStore.exists('cached:$alice:phone.wavi@eve'),
+          isFalse,
+          reason: 'a peer must not write a cached copy of another atSign\'s '
+              'key');
+    });
+
+    test('deleting a key another atSign shares is refused, and its cached '
+        'copy kept', () async {
+      const delete = 'notify:id:spoof-2:delete:messageType:key'
+          ':@alice:phone.wavi@eve';
+      await deliver(
+          'notify:id:eve-1:update:messageType:key:ttr:100000:ccd:true'
+          ':$alice:phone.wavi@eve:v',
+          from: '@eve'.toAtsign());
+      expect(await keyValueStore.exists('cached:$alice:phone.wavi@eve'),
+          isTrue);
+
+      await expectLater(deliver(delete),
+          refused('@eve is not authorized to send notification as @bob'));
+      expect(await notificationManager.get('spoof-2'), isNull);
+      expect(await keyValueStore.exists('cached:$alice:phone.wavi@eve'),
+          isTrue,
+          reason: 'a peer must not delete a cached copy of another atSign\'s '
+              'key');
+
+      await deliver(delete, from: '@eve'.toAtsign());
+      expect(await keyValueStore.exists('cached:$alice:phone.wavi@eve'),
+          isFalse,
+          reason: 'control: the sharing atSign\'s delete removes it');
+    });
+
+    test('of a key with no sharedBy is refused', () async {
+      await expectLater(
+          deliver('notify:id:spoof-3:update:messageType:key:$alice:phone.wavi'),
+          refused('with no sharedBy'));
+      expect(await notificationManager.get('spoof-3'), isNull);
+    });
+
+    for (final (name, messageType, key) in [
+      ('key', 'key', 'phone.wavi$bob:v'),
+      ('text', 'text', 'hello'),
+    ]) {
+      test('of a $name for another atSign is refused, and nothing stored',
+          () async {
+        await expectLater(
+            deliver('notify:id:spoof-4:update:messageType:$messageType'
+                ':@colin:$key'),
+            refused('is for @colin'));
+        expect(await notificationManager.get('spoof-4'), isNull);
+        expect(await notifStore.iterate().toList(), isEmpty);
+      });
+    }
+
+    test('of a public key, which names no recipient, is refused', () async {
+      await expectLater(
+          deliver('notify:id:spoof-5:update:messageType:key:ttr:100000'
+              ':public:phone.wavi$bob:v'),
+          refused('is for no atSign'));
+      expect(await notificationManager.get('spoof-5'), isNull);
+    });
+
+    test('of text, which has no sharedBy, is stored', () async {
+      await deliver('notify:id:text-1:update:messageType:text:$alice:hello');
+      expect(await notificationManager.get('text-1'), isNotNull);
+    });
+
+    test('compares normalised atSigns', () async {
+      await deliver('notify:id:norm-1:update:messageType:key:ttr:100000'
+          ':@Al.ice:phone.wavi@B.o.B:v');
+      expect(await notificationManager.get('norm-1'), isNotNull);
+      expect(await keyValueStore.exists('cached:$alice:phone.wavi$bob'),
+          isTrue);
     });
   });
 }
