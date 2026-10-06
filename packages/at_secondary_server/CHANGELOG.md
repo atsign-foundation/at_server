@@ -8,10 +8,7 @@
 
 - fix: a monitor is no longer sent a notification that has already expired.
 
-- fix: an atServer refuses a notification another atServer delivers unless it
-  is for the receiving atSign and, for a key, the key is shared by the atSign
-  that delivered it. A peer could otherwise plant, or delete, the receiving
-  atSign's cached copy of another atSign's key.
+- fix: tighten validation on notify: requests from other atServers
 
 - fix: `notify:all` judges each recipient's key as `notify` does and, when it
   refuses one, notifies nobody. A key that names no sender is sent as the
