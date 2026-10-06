@@ -6,39 +6,52 @@ import 'package:at_utils/at_logger.dart';
 import 'at_server_heartbeat_scheduler.dart';
 import 'at_server_telemetry_constants.dart';
 
+// Extra attributes for each heartbeat, such as the outbox's health
+typedef AtServerTelemetryHealthSource = Map<String, Object?> Function();
+
+// The atServer's telemetry facade. Nothing here throws into the server, and
+// flush and shutdown always return within their timeouts.
 final class AtServerTelemetry {
-  static const String serverIdAttribute =
-      AtTelemetryHttpSignature.serverIdAttribute;
   static const String _eventNamePrefix = '$atServerTelemetryEventPrefix.';
 
-  /// How often the uptime heartbeat is sent while telemetry is enabled.
-  /// Null turns the heartbeat off.
+  // How often the heartbeat is sent while telemetry is enabled. Null turns
+  // the heartbeat off.
   final Duration? heartbeatInterval;
   final AtSignLogger _logger = AtSignLogger('AtServerTelemetry');
   AtTelemetry? _telemetry;
   AtServerHeartbeatScheduler? _heartbeat;
-  String? _serverId;
+  AtServerTelemetryHealthSource? _health;
 
   AtServerTelemetry({
     this.heartbeatInterval = AtServerHeartbeatScheduler.defaultInterval,
   });
 
   bool get isEnabled => _telemetry != null;
-  String? get serverId => _serverId;
 
+  // serverId is the atSign and bootId the per-start id that also prefixes
+  // every batch's sequence
   void enable({
     required AtTelemetryLogRecordExporter exporter,
     required String serverId,
+    required String bootId,
+    String? serviceVersion,
+    AtServerTelemetryHealthSource? health,
   }) {
     if (_telemetry != null) {
       throw StateError('Telemetry is already enabled');
     }
     _telemetry = AtTelemetry(
       serviceName: atServerServiceName,
+      resourceAttributes: <String, Object?>{
+        AtTelemetryAttributes.atServerId: serverId,
+        AtTelemetryAttributes.serviceInstanceId: bootId,
+        if (serviceVersion != null)
+          AtTelemetryAttributes.serviceVersion: serviceVersion,
+      },
       exporter: exporter,
       onError: _onError,
     );
-    _serverId = serverId;
+    _health = health;
     final Duration? interval = heartbeatInterval;
     if (interval != null) {
       _heartbeat = AtServerHeartbeatScheduler(
@@ -48,13 +61,22 @@ final class AtServerTelemetry {
     }
   }
 
+  Map<String, Object?> healthAttributes() {
+    final AtServerTelemetryHealthSource? health = _health;
+    if (health == null) {
+      return const <String, Object?>{};
+    }
+    try {
+      return health();
+    } on Object catch (error) {
+      _logger.warning('Could not read telemetry health: ${error.runtimeType}');
+      return const <String, Object?>{};
+    }
+  }
+
   void emitEvent(String name, {Map<String, Object?> attributes = const {}}) {
     final AtTelemetry? telemetry = _telemetry;
     if (telemetry == null) {
-      return;
-    }
-    if (name.trim().isEmpty) {
-      _logger.warning('Ignoring telemetry event with an empty name');
       return;
     }
     if (!name.startsWith(_eventNamePrefix) ||
@@ -68,55 +90,36 @@ final class AtServerTelemetry {
     // AtTelemetry throws on invalid attribute values. Telemetry must never
     // take the server down, so log and drop the event instead.
     try {
-      telemetry.event(
-        name,
-        attributes: <String, Object?>{
-          ...attributes,
-          serverIdAttribute: _serverId,
-        },
-      );
+      telemetry.event(name, attributes: attributes);
     } on ArgumentError catch (error) {
       _logger.warning('Ignoring invalid telemetry event $name: '
           '${error.name} ${error.message}');
     }
   }
 
-  Future<void> flush({Duration? timeout}) async {
+  Future<void> flush({Duration timeout = AtTelemetry.defaultFlushTimeout}) {
     final AtTelemetry? telemetry = _telemetry;
     if (telemetry == null) {
-      return;
+      return Future<void>.value();
     }
-    await _bounded(telemetry.flush(), timeout, 'flush');
+    return telemetry.flush(timeout: timeout);
   }
 
-  Future<void> shutdown({Duration? timeout}) async {
+  Future<void> shutdown({
+    Duration timeout = AtTelemetry.defaultShutdownTimeout,
+  }) {
     final AtTelemetry? telemetry = _telemetry;
     if (telemetry == null) {
-      return;
+      return Future<void>.value();
     }
     _telemetry = null;
-    _serverId = null;
+    _health = null;
     _heartbeat?.stop();
     _heartbeat = null;
-    await _bounded(telemetry.shutdown(), timeout, 'shutdown');
+    return telemetry.shutdown(timeout: timeout);
   }
 
   void _onError(Object error, StackTrace stackTrace) {
-    _logger.warning('Telemetry export failed: ${error.runtimeType}');
-  }
-
-  Future<void> _bounded(
-    Future<void> work,
-    Duration? timeout,
-    String operation,
-  ) async {
-    if (timeout == null) {
-      return work;
-    }
-    try {
-      await work.timeout(timeout);
-    } on TimeoutException {
-      _logger.warning('Telemetry $operation timed out after $timeout');
-    }
+    _logger.warning('Telemetry export failed: $error');
   }
 }

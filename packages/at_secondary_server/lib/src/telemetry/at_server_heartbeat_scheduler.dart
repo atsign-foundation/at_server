@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:at_telemetry/at_telemetry.dart';
+
 import 'at_server_telemetry.dart';
 import 'at_server_telemetry_constants.dart';
 
@@ -61,8 +63,10 @@ final class AtServerHeartbeatScheduler {
     _telemetry.emitEvent(
       atServerHeartbeatEventName,
       attributes: <String, Object?>{
-        atServerUptimeSecondsAttribute:
+        ..._telemetry.healthAttributes(),
+        AtTelemetryAttributes.atServerUptimeSeconds:
             _uptime.elapsedMicroseconds / Duration.microsecondsPerSecond,
+        AtTelemetryAttributes.telemetryClasses: atServerEnabledTelemetryClasses,
       },
     );
   }

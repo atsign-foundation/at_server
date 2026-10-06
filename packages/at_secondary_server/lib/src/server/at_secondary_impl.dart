@@ -28,8 +28,8 @@ import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_constants.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_exporter.dart';
-import 'package:at_telemetry/at_telemetry.dart'
-    show AtTelemetryLogRecordExporter;
+import 'package:at_secondary/src/telemetry/at_server_telemetry_http_exporter.dart';
+import 'package:at_telemetry/at_telemetry.dart' show AtTelemetrySequence;
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_update_verb_handler.dart';
@@ -174,7 +174,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     if (executor == null) {
       throw AtServerException('Verb executor is not initialized');
     }
-
 
     if (useTLS! && serverContext!.securityContext == null) {
       throw AtServerException('Security context is not set');
@@ -369,18 +368,26 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw AtServerException(e.toString());
     }
 
-    // Enabling telemetry also starts the uptime heartbeat. `stop()` shuts
-    // telemetry down, so every start after a stop builds a fresh exporter.
+    // Enabling telemetry also starts the heartbeat. `stop()` shuts telemetry
+    // down, so every start after a stop is a new boot with a fresh exporter.
     if (!telemetry.isEnabled) {
-      final AtTelemetryLogRecordExporter? exporter =
+      final String bootId = AtTelemetrySequence.newBootId();
+      final AtServerTelemetryHttpExporter? exporter =
           await createAtServerTelemetryExporter(
         endpoint: serverContext!.telemetryEndpoint,
-        serverId: currentAtSign.toString(),
-        signingKey: (signingKey as String?) ?? '',
+        atSign: currentAtSign.toString(),
+        bootId: bootId,
+        keyStore: keyValueStore,
+        storageRoot: AtSecondaryConfig.storageRoot,
       );
       if (exporter != null) {
         telemetry.enable(
-            exporter: exporter, serverId: currentAtSign.toString());
+          exporter: exporter,
+          serverId: currentAtSign.toString(),
+          bootId: bootId,
+          serviceVersion: AtSecondaryConfig.secondaryServerVersion,
+          health: () => exporter.outboxHealth,
+        );
         telemetry.emitEvent(atServerStartedEventName);
       }
     }

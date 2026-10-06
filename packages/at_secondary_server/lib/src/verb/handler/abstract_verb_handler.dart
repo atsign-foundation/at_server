@@ -8,6 +8,7 @@ import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/enroll/enrollment_access.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry_key_guard.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as handler_util;
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/otp_verb_handler.dart';
@@ -177,8 +178,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
     }
     // NOTE the owning id comes out of a caller-supplied atKey, so it is
     // folded to the keystore's own form before comparison.
-    return EnrollmentManager.canonicalEnrollmentId(
-            match.namedGroup('EnId')!) !=
+    return EnrollmentManager.canonicalEnrollmentId(match.namedGroup('EnId')!) !=
         enrollmentId;
   }
 
@@ -204,6 +204,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
     // NOTE ahead of the short circuits below, which return early for a CRAM
     // connection and for one carrying no enrollment id.
     refuseFlatCredentialWrite(inboundConnectionMetadata, atKey);
+    refuseTelemetryKeyMutation(atKey);
     if (isCramConnection(inboundConnectionMetadata)) {
       return true;
     }
@@ -228,8 +229,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// except a CRAM connection sending `update`, plain or json; `update:meta`
   /// is refused. Throws [UnAuthorizedException]. Returns for any other key or
   /// non-writing verb.
-  void refuseFlatCredentialWrite(
-      InboundConnectionMetadata md, String? atKey) {
+  void refuseFlatCredentialWrite(InboundConnectionMetadata md, String? atKey) {
     if (atKey == null || !isWritingVerb()) return;
     if (canonicalAtKey(atKey) != AtConstants.atPkamPublicKey) return;
     if (isCramConnection(md) && getVerb() is Update) {
@@ -240,6 +240,15 @@ abstract class AbstractVerbHandler implements VerbHandler {
       return;
     }
     throw UnAuthorizedException(flatCredentialWriteRefusal);
+  }
+
+  // Refuses any verb that would write, delete or notify the telemetry signing
+  // key or its public record, whatever the connection, CRAM included. Only
+  // the atServer writes them, through its own keystore.
+  void refuseTelemetryKeyMutation(String? atKey) {
+    if (atKey == null || !isMutatingVerb()) return;
+    if (!AtServerTelemetryKeyGuard.isTelemetryKey(atKey)) return;
+    throw UnAuthorizedException(AtServerTelemetryKeyGuard.refusal);
   }
 
   /// What [refuseFlatCredentialWrite] says.
