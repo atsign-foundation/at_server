@@ -1,18 +1,24 @@
+import 'dart:io';
+
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as p;
 
 import 'at_server_telemetry_http_exporter.dart';
+import 'at_server_telemetry_outbox.dart';
 import 'at_server_telemetry_signing_key.dart';
 
 // Builds the signed OTLP/HTTP exporter for this server, creating the signing
-// key, or returns null after logging why when telemetry is off or cannot be
-// set up. endpoint is host:port (https is assumed) or a full URL.
+// key and opening the outbox, or returns null after logging why when
+// telemetry is off or cannot be set up. endpoint is host:port (https is
+// assumed) or a full URL. The outbox lives in storageRoot/telemetry/outbox.
 Future<AtServerTelemetryHttpExporter?> createAtServerTelemetryExporter({
   required String? endpoint,
   required String atSign,
   required String bootId,
   required AtKeyValueStore<String, AtData, AtMetaData?> keyStore,
+  required String storageRoot,
   http.Client? client,
 }) async {
   final AtSignLogger logger = AtSignLogger('AtServerTelemetry');
@@ -33,12 +39,16 @@ Future<AtServerTelemetryHttpExporter?> createAtServerTelemetryExporter({
   try {
     final AtServerTelemetrySigningKey key =
         await AtServerTelemetrySigningKey.loadOrCreate(keyStore, atSign);
+    final AtServerTelemetryOutbox outbox = await AtServerTelemetryOutbox.open(
+      directory: Directory(p.join(storageRoot, 'telemetry', 'outbox')),
+      bootId: bootId,
+    );
     final AtServerTelemetryHttpExporter exporter =
         AtServerTelemetryHttpExporter(
       endpoint: endpointUri,
       producer: atSign,
-      bootId: bootId,
       key: key,
+      outbox: outbox,
       client: client,
     );
     logger.info('Pushing signed telemetry to ${exporter.endpoint.origin} '

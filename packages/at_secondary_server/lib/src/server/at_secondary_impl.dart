@@ -380,6 +380,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           atSign: currentAtSign.toString(),
           bootId: bootId,
           keyStore: keyValueStore,
+          storageRoot: AtSecondaryConfig.storageRoot,
         );
         if (exporter != null) {
           telemetry.enable(
@@ -387,6 +388,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
             serverId: currentAtSign.toString(),
             bootId: bootId,
             serviceVersion: AtSecondaryConfig.secondaryServerVersion,
+            health: () => exporter.outboxHealth,
           );
         }
       } on Object catch (error) {
