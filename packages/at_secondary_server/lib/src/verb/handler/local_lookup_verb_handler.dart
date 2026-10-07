@@ -78,21 +78,7 @@ class LocalLookupVerbHandler extends AbstractVerbHandler {
           ' is not authorized to llookup key: $key');
     }
 
-    // - If it looks like *.<enrollmentId>.[ard].__e@thisAtsign
-    // - Then fetch the enrollment which forces a check if it's active
-    //
-    // This ensures that expired enrollment keys are in the right place
-    //
-    RegExpMatch? rem = perEnrollmentRegex.firstMatch(key);
-    if (rem != null) {
-      String enId = rem.namedGroup('EnId')!;
-      try {
-        await enMgr.getEnrollmentById(enId);
-      } on KeyNotFoundException {
-        // We don't need to do anything more
-      }
-    }
-
+    await enMgr.refuseLapsedApprovedData(key);
     AtData? atData = await keyStore.get(key);
     var isActive = false;
     isActive = SecondaryUtil.isActiveKey(atData);

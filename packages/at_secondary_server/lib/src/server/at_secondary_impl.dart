@@ -588,8 +588,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     // 'atProtocol/1.0' are handed to the PseudoServerSocket.
     final pseudoServerSocket = PseudoServerSocket(serverSocket);
     HttpServer httpServer = HttpServer.listenOn(pseudoServerSocket);
-    final httpReqHandler =
-        AtServerHttpRequestHandler(currentAtSign, keyValueStore);
+    final httpReqHandler = AtServerHttpRequestHandler(
+        currentAtSign, keyValueStore, enrollmentManager);
     httpServer.listen((HttpRequest req) {
       if (req.uri.path == '/ws') {
         logger.info('Upgraded to WebSocket connection');

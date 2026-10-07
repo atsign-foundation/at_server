@@ -10,6 +10,9 @@
 
 - fix: tighten validation on notify: requests from other atServers
 
+- fix: once an enrollment expires, its data is no longer served by `lookup`,
+  `llookup` or an HTTP GET.
+
 - fix: `notify:all` judges each recipient's key as `notify` does and, when it
   refuses one, notifies nobody. A key that names no sender is sent as the
   atServer's own rather than as `<key>null`.
