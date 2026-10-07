@@ -50,6 +50,7 @@ class EnrollmentManager {
 
   /// The enrollment [enId] names, an elapsed one reported `expired`. Throws
   /// [KeyNotFoundException] when there is no such record.
+  @useResult
   Future<EnrollDataStoreValue> getEnrollmentById(String enId) async {
     return getEnrollmentByFullKey(buildEnrollmentKey(enId));
   }
@@ -652,6 +653,7 @@ class EnrollmentManager {
 
   /// The enrollment stored at [ek], an elapsed one reported `expired` and
   /// left where it is. Throws [KeyNotFoundException] when there is none.
+  @useResult
   Future<EnrollDataStoreValue> getEnrollmentByFullKey(
     String ek,
   ) async {

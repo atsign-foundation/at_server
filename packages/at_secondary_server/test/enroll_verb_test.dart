@@ -3993,6 +3993,7 @@ void main() {
       final newPair = AtChopsUtil.generateAtPkamKeyPair();
       final newPub = newPair.atPublicKey.publicKey;
 
+      // ignore: unused_result
       await etu.evh.enMgr.getEnrollmentById(enId);
 
       final key = etu.evh.enMgr.buildEnrollmentKey(enId);
