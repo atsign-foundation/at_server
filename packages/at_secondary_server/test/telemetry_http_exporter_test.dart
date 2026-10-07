@@ -25,7 +25,7 @@ void main() {
   late Future<http.StreamedResponse> Function(http.BaseRequest request) respond;
   final AtTelemetryResource resource = AtTelemetryResource(
     serviceName: atServerServiceName,
-    attributes: <String, Object?>{AtTelemetryAttributes.atServerId: '$alice'},
+    attributes: AtTelemetryResource.atServer(atServerId: '$alice'),
   );
 
   setUp(() async {

@@ -42,12 +42,11 @@ final class AtServerTelemetry {
     }
     _telemetry = AtTelemetry(
       serviceName: atServerServiceName,
-      resourceAttributes: <String, Object?>{
-        AtTelemetryAttributes.atServerId: serverId,
-        AtTelemetryAttributes.serviceInstanceId: bootId,
-        if (serviceVersion != null)
-          AtTelemetryAttributes.serviceVersion: serviceVersion,
-      },
+      resourceAttributes: AtTelemetryResource.atServer(
+        atServerId: serverId,
+        serviceVersion: serviceVersion,
+        serviceInstanceId: bootId,
+      ),
       exporter: exporter,
       onError: _onError,
     );
