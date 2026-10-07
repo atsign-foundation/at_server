@@ -265,8 +265,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       'encryptedAPKAMSymmetricKey':
           enrollDataStoreValue.encryptedAPKAMSymmetricKey,
       'status': enrollDataStoreValue.approval?.state,
-      'expiresAt': EnrollmentManager.expiresAtField(await enMgr
-          .effectiveExpiryOf(enMgr.buildEnrollmentKey(targetEnrollmentId))),
+      'expiresAt': EnrollmentManager.expiresAtField(
+          await enMgr.effectiveExpiryOf(
+              enMgr.buildEnrollmentKey(targetEnrollmentId))),
       'metadata': enrollDataStoreValue.metadata,
     });
   }
@@ -322,8 +323,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     final inboundConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
 
-    if (AbstractVerbHandler.isCramConnection(
-        atConnection.metaData as InboundConnectionMetadata)) {
+    if (AbstractVerbHandler.isCramConnection(atConnection.metaData as InboundConnectionMetadata)) {
       logger.warning('CRAM-authenticated connection - i.e. initial enrollment;'
           ' will replace the existing initial enrollment, if any');
     } else if (carriesEnrollment(inboundConnectionMetadata)) {
@@ -368,8 +368,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
           enrollParams.apkamKeysExpiryDuration!;
     }
 
-    if (AbstractVerbHandler.isCramConnection(
-        atConnection.metaData as InboundConnectionMetadata)) {
+    if (AbstractVerbHandler.isCramConnection(atConnection.metaData as InboundConnectionMetadata)) {
       enrollNamespaces[EnrollmentConstants.enrollManageNamespace] = 'rw';
       enrollNamespaces[EnrollmentConstants.allNamespaces] = 'rw';
       enrollmentValue.approval = EnrollApproval(EnrollmentStatus.approved.name);
@@ -433,8 +432,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       }
       // Escalation first, so a request naming MORE keeps its own diagnosis.
       verifyNoEscalation(predecessor.namespaces, enrollNamespaces);
-      requireGrantsMatchPredecessor(
-          predecessor.namespaces, enrollParams.namespaces);
+      requireGrantsMatchPredecessor(predecessor.namespaces, enrollParams.namespaces);
       enrollmentValue.namespaces = Map.of(predecessor.namespaces);
 
       enrollmentValue.approval = EnrollApproval(EnrollmentStatus.approved.name);
@@ -442,15 +440,15 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       // ⛔ Not for revocation: the revoke path does NOT walk this edge.
       enrollmentValue.retrofitPredecessorEnrollmentId = predecessorId;
       // A retrofit takes the predecessor's place in the approval graph.
-      enrollmentValue.parentEnrollmentId = predecessor.parentEnrollmentId;
+      enrollmentValue.parentEnrollmentId =
+          predecessor.parentEnrollmentId;
       if (enrollParams.apkamKeysExpiryDuration == null) {
         enrollmentValue.apkamKeysExpiryDuration =
             predecessor.apkamKeysExpiryDuration;
       }
       // NOTE a stated posture may narrow the predecessor's, never widen it;
       // zero and negative both ask for a permanent credential.
-      final predecessorExpiryMs =
-          predecessor.apkamKeysExpiryDuration.inMilliseconds;
+      final predecessorExpiryMs = predecessor.apkamKeysExpiryDuration.inMilliseconds;
       final statedExpiryMs =
           enrollmentValue.apkamKeysExpiryDuration.inMilliseconds;
       if (statedExpiryMs < 0 ||
@@ -546,8 +544,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       final isSpecial = entry.key == EnrollmentConstants.allNamespaces ||
           entry.key == EnrollmentConstants.enrollManageNamespace;
       if (predecessorAccess == null && !isSpecial) {
-        predecessorAccess =
-            predecessorGrants[EnrollmentConstants.allNamespaces];
+        predecessorAccess = predecessorGrants[EnrollmentConstants.allNamespaces];
       }
       final held = predecessorAccess;
       if (held == null ||
@@ -936,9 +933,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (freshRaw != null) {
       try {
         current = EnrollmentStatus.values.asNameMap()[
-            EnrollDataStoreValue.fromJson(jsonDecode(freshRaw))
-                    .approval
-                    ?.state ??
+            EnrollDataStoreValue.fromJson(jsonDecode(freshRaw)).approval?.state ??
                 ''];
       } on FormatException {
         current = null;
@@ -1401,8 +1396,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   Future<void> _refuseKeyHeldByAnotherEnrollment(
       String apkamPublicKey, String? signingAlgo,
       {String? excluding}) async {
-    final (String, EnrollDataStoreValue)? holder =
-        await enMgr.holderOfApkamPublicKey(apkamPublicKey, signingAlgo,
+    final (String, EnrollDataStoreValue)? holder = await enMgr
+        .holderOfApkamPublicKey(apkamPublicKey, signingAlgo,
             excluding: excluding);
     if (holder == null) return;
     final (String holderId, EnrollDataStoreValue value) = holder;

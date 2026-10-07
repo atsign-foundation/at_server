@@ -175,6 +175,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw AtServerException('Verb executor is not initialized');
     }
 
+
     if (useTLS! && serverContext!.securityContext == null) {
       throw AtServerException('Security context is not set');
     }

@@ -178,7 +178,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
     }
     // NOTE the owning id comes out of a caller-supplied atKey, so it is
     // folded to the keystore's own form before comparison.
-    return EnrollmentManager.canonicalEnrollmentId(match.namedGroup('EnId')!) !=
+    return EnrollmentManager.canonicalEnrollmentId(
+            match.namedGroup('EnId')!) !=
         enrollmentId;
   }
 
@@ -229,7 +230,8 @@ abstract class AbstractVerbHandler implements VerbHandler {
   /// except a CRAM connection sending `update`, plain or json; `update:meta`
   /// is refused. Throws [UnAuthorizedException]. Returns for any other key or
   /// non-writing verb.
-  void refuseFlatCredentialWrite(InboundConnectionMetadata md, String? atKey) {
+  void refuseFlatCredentialWrite(
+      InboundConnectionMetadata md, String? atKey) {
     if (atKey == null || !isWritingVerb()) return;
     if (canonicalAtKey(atKey) != AtConstants.atPkamPublicKey) return;
     if (isCramConnection(md) && getVerb() is Update) {
