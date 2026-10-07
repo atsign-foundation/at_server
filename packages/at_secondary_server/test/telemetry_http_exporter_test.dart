@@ -4,9 +4,9 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry_buffer.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_constants.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_http_exporter.dart';
-import 'package:at_secondary/src/telemetry/at_server_telemetry_outbox.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_signing_key.dart';
 import 'package:at_telemetry/at_telemetry.dart';
 import 'package:http/http.dart' as http;
@@ -19,7 +19,6 @@ void main() {
     await verbTestsSetUpAll();
   });
 
-  late Directory outboxDirectory;
   late AtServerTelemetrySigningKey key;
   late List<_Request> requests;
   late Future<http.StreamedResponse> Function(http.BaseRequest request) respond;
@@ -32,34 +31,25 @@ void main() {
     await verbTestsSetUp();
     key =
         await AtServerTelemetrySigningKey.loadOrCreate(keyValueStore, '$alice');
-    outboxDirectory =
-        await Directory.systemTemp.createTemp('telemetry_outbox_test');
     requests = <_Request>[];
     respond = (http.BaseRequest request) async => _status(200);
   });
 
   tearDown(() async {
     await verbTestsTearDown();
-    if (await outboxDirectory.exists()) {
-      await outboxDirectory.delete(recursive: true);
-    }
   });
 
-  Future<AtServerTelemetryOutbox> openOutbox(String bootId,
-      {int maxBytes = AtServerTelemetryOutbox.defaultMaxBytes,
-      Duration maxAge = AtServerTelemetryOutbox.defaultMaxAge,
-      DateTime Function()? now}) {
-    return AtServerTelemetryOutbox.open(
-      directory: outboxDirectory,
-      bootId: bootId,
+  AtServerTelemetryBuffer newBuffer(
+      {String? bootId,
+      int maxBytes = AtServerTelemetryBuffer.defaultMaxBytes}) {
+    return AtServerTelemetryBuffer(
+      bootId: bootId ?? AtTelemetrySequence.newBootId(),
       maxBytes: maxBytes,
-      maxAge: maxAge,
-      now: now,
     );
   }
 
   AtServerTelemetryHttpExporter exporter(
-    AtServerTelemetryOutbox outbox, {
+    AtServerTelemetryBuffer buffer, {
     int maxBatchRecords = 100,
     Duration requestTimeout = const Duration(seconds: 10),
     Duration shutdownTimeout = const Duration(seconds: 10),
@@ -68,7 +58,7 @@ void main() {
       endpoint: Uri.parse('https://collector.example.com'),
       producer: '$alice',
       key: key,
-      outbox: outbox,
+      buffer: buffer,
       client: _CallbackClient((http.BaseRequest request) async {
         requests.add(await _Request.read(request));
         return respond(request);
@@ -92,7 +82,7 @@ void main() {
     test('sends a signed OTLP/JSON POST the collector can verify', () async {
       final String bootId = AtTelemetrySequence.newBootId();
       final AtServerTelemetryHttpExporter subject =
-          exporter(await openOutbox(bootId));
+          exporter(newBuffer(bootId: bootId));
       final Future<bool> delivery = subject.export(heartbeat(), resource);
 
       await subject.flush();
@@ -139,10 +129,9 @@ void main() {
       );
     });
 
-    test('numbers batches in the order they enter the outbox', () async {
-      final AtServerTelemetryHttpExporter subject = exporter(
-          await openOutbox(AtTelemetrySequence.newBootId()),
-          maxBatchRecords: 1);
+    test('numbers batches in the order they enter the buffer', () async {
+      final AtServerTelemetryHttpExporter subject =
+          exporter(newBuffer(), maxBatchRecords: 1);
       for (int index = 0; index < 3; index++) {
         unawaited(subject.export(heartbeat(), resource));
       }
@@ -157,32 +146,32 @@ void main() {
     });
 
     for (final int status in <int>[200, 202, 204, 299]) {
-      test('$status removes the batch from the outbox', () async {
+      test('$status removes the batch from the buffer', () async {
         respond = (http.BaseRequest request) async => _status(status);
-        final AtServerTelemetryOutbox outbox =
-            await openOutbox(AtTelemetrySequence.newBootId());
-        final AtServerTelemetryHttpExporter subject = exporter(outbox);
-        unawaited(subject.export(heartbeat(), resource));
+        final AtServerTelemetryBuffer buffer = newBuffer();
+        final AtServerTelemetryHttpExporter subject = exporter(buffer);
+        final Future<bool> delivery = subject.export(heartbeat(), resource);
 
         await subject.flush();
 
-        expect(outbox.batchCount, 0);
-        expect(outbox.droppedSinceBoot, 0);
+        expect(await delivery, isTrue);
+        expect(buffer.batchCount, 0);
+        expect(buffer.droppedSinceBoot, 0);
       });
     }
 
     for (final int status in <int>[400, 401, 413, 415]) {
       test('$status drops the batch for good', () async {
         respond = (http.BaseRequest request) async => _status(status);
-        final AtServerTelemetryOutbox outbox =
-            await openOutbox(AtTelemetrySequence.newBootId());
-        final AtServerTelemetryHttpExporter subject = exporter(outbox);
-        unawaited(subject.export(heartbeat(), resource));
+        final AtServerTelemetryBuffer buffer = newBuffer();
+        final AtServerTelemetryHttpExporter subject = exporter(buffer);
+        final Future<bool> delivery = subject.export(heartbeat(), resource);
 
         await subject.flush();
         await subject.flush();
 
-        expect(outbox.batchCount, 0);
+        expect(await delivery, isFalse);
+        expect(buffer.batchCount, 0);
         expect(requests, hasLength(1));
       });
     }
@@ -190,18 +179,23 @@ void main() {
     for (final int status in <int>[408, 429, 500, 503]) {
       test('$status keeps the batch, with its sequence, for a retry', () async {
         respond = (http.BaseRequest request) async => _status(status);
-        final AtServerTelemetryOutbox outbox =
-            await openOutbox(AtTelemetrySequence.newBootId());
-        final AtServerTelemetryHttpExporter subject = exporter(outbox);
-        unawaited(subject.export(heartbeat(), resource));
+        final AtServerTelemetryBuffer buffer = newBuffer();
+        final AtServerTelemetryHttpExporter subject = exporter(buffer);
+        bool? delivered;
+        unawaited(subject
+            .export(heartbeat(), resource)
+            .then((bool value) => delivered = value));
 
         await subject.flush();
-        expect(outbox.batchCount, 1);
+        expect(buffer.batchCount, 1);
+        expect(delivered, isNull, reason: 'not delivered yet');
 
         respond = (http.BaseRequest request) async => _status(200);
         await subject.flush();
+        await pumpEventQueue();
 
-        expect(outbox.batchCount, 0);
+        expect(delivered, isTrue);
+        expect(buffer.batchCount, 0);
         expect(requests, hasLength(2));
         expect(requests.first.headers['at-telemetry-sequence'],
             requests.last.headers['at-telemetry-sequence']);
@@ -212,14 +206,13 @@ void main() {
     test('a network error keeps the batch', () async {
       respond = (http.BaseRequest request) async =>
           throw const SocketException('refused');
-      final AtServerTelemetryOutbox outbox =
-          await openOutbox(AtTelemetrySequence.newBootId());
-      final AtServerTelemetryHttpExporter subject = exporter(outbox);
+      final AtServerTelemetryBuffer buffer = newBuffer();
+      final AtServerTelemetryHttpExporter subject = exporter(buffer);
       unawaited(subject.export(heartbeat(), resource));
 
       await subject.flush();
 
-      expect(outbox.batchCount, 1);
+      expect(buffer.batchCount, 1);
     });
 
     test('aborts a request that runs past its deadline', () async {
@@ -229,10 +222,9 @@ void main() {
         aborted.complete();
         throw http.RequestAbortedException(request.url);
       };
-      final AtServerTelemetryOutbox outbox =
-          await openOutbox(AtTelemetrySequence.newBootId());
+      final AtServerTelemetryBuffer buffer = newBuffer();
       final AtServerTelemetryHttpExporter subject = exporter(
-        outbox,
+        buffer,
         requestTimeout: const Duration(milliseconds: 20),
       );
       unawaited(subject.export(heartbeat(), resource));
@@ -240,7 +232,7 @@ void main() {
       await subject.flush();
 
       expect(aborted.isCompleted, isTrue);
-      expect(outbox.batchCount, 1);
+      expect(buffer.batchCount, 1);
     });
 
     test('shutdown returns at its deadline and aborts the request', () async {
@@ -250,14 +242,13 @@ void main() {
         aborted.complete();
         throw http.RequestAbortedException(request.url);
       };
-      final AtServerTelemetryOutbox outbox =
-          await openOutbox(AtTelemetrySequence.newBootId());
+      final AtServerTelemetryBuffer buffer = newBuffer();
       final AtServerTelemetryHttpExporter subject = exporter(
-        outbox,
+        buffer,
         requestTimeout: const Duration(hours: 1),
         shutdownTimeout: const Duration(milliseconds: 50),
       );
-      unawaited(subject.export(heartbeat(), resource));
+      final Future<bool> delivery = subject.export(heartbeat(), resource);
 
       final Stopwatch stopwatch = Stopwatch()..start();
       await subject.shutdown();
@@ -265,37 +256,9 @@ void main() {
 
       expect(stopwatch.elapsed, lessThan(const Duration(seconds: 5)));
       expect(aborted.isCompleted, isTrue);
-      expect(outbox.batchCount, 1, reason: 'kept for the next boot');
+      expect(await delivery, isFalse, reason: 'abandoned at shutdown');
+      expect(buffer.batchCount, 0);
       expect(await subject.export(heartbeat(), resource), isFalse);
-    });
-
-    test('a batch left by an earlier boot keeps its boot id and number',
-        () async {
-      respond = (http.BaseRequest request) async => _status(503);
-      final String firstBoot = AtTelemetrySequence.newBootId();
-      final AtServerTelemetryHttpExporter first =
-          exporter(await openOutbox(firstBoot));
-      unawaited(first.export(heartbeat(), resource));
-      await first.shutdown();
-
-      respond = (http.BaseRequest request) async => _status(200);
-      final String secondBoot = AtTelemetrySequence.newBootId();
-      final AtServerTelemetryOutbox outbox = await openOutbox(secondBoot);
-      expect(outbox.batchCount, 1);
-      final AtServerTelemetryHttpExporter second = exporter(outbox);
-      unawaited(second.export(heartbeat(), resource));
-      await second.flush();
-
-      expect(
-        requests.map(
-            (_Request request) => request.headers['at-telemetry-sequence']),
-        <String>[
-          'boot=$firstBoot;seq=0',
-          'boot=$firstBoot;seq=0',
-          'boot=$secondBoot;seq=0',
-        ],
-      );
-      expect(outbox.batchCount, 0);
     });
 
     test('gives up on a collector that never finishes connecting', () async {
@@ -304,14 +267,13 @@ void main() {
           await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
       final List<Socket> held = <Socket>[];
       silent.listen(held.add);
-      final AtServerTelemetryOutbox outbox =
-          await openOutbox(AtTelemetrySequence.newBootId());
+      final AtServerTelemetryBuffer buffer = newBuffer();
       final AtServerTelemetryHttpExporter subject =
           AtServerTelemetryHttpExporter(
         endpoint: Uri.parse('https://127.0.0.1:${silent.port}'),
         producer: '$alice',
         key: key,
-        outbox: outbox,
+        buffer: buffer,
         flushInterval: const Duration(hours: 1),
         requestTimeout: const Duration(milliseconds: 200),
         initialBackoff: const Duration(hours: 1),
@@ -321,7 +283,7 @@ void main() {
 
       try {
         await subject.flush().timeout(const Duration(seconds: 5));
-        expect(outbox.batchCount, 1, reason: 'kept for a retry');
+        expect(buffer.batchCount, 1, reason: 'kept for a retry');
       } finally {
         await subject.shutdown();
         for (final Socket socket in held) {
@@ -332,8 +294,7 @@ void main() {
     });
 
     test('rejects an endpoint that is not an OTLP base URL', () async {
-      final AtServerTelemetryOutbox outbox =
-          await openOutbox(AtTelemetrySequence.newBootId());
+      final AtServerTelemetryBuffer buffer = newBuffer();
       for (final String endpoint in <String>[
         'ftp://collector.example.com',
         'https://collector.example.com/other',
@@ -345,7 +306,7 @@ void main() {
             endpoint: Uri.parse(endpoint),
             producer: '$alice',
             key: key,
-            outbox: outbox,
+            buffer: buffer,
             client: _CallbackClient((http.BaseRequest _) async => _status(200)),
           ),
           throwsArgumentError,
@@ -355,55 +316,44 @@ void main() {
     });
   });
 
-  group('AtServerTelemetryOutbox', () {
+  group('AtServerTelemetryBuffer', () {
     test('drops the oldest batches past its size limit', () async {
-      final AtServerTelemetryOutbox outbox = await openOutbox(
-        AtTelemetrySequence.newBootId(),
-        maxBytes: 600,
-      );
+      final AtServerTelemetryBuffer buffer = newBuffer(maxBytes: 300);
+      final List<Completer<bool>> deliveries = <Completer<bool>>[];
       for (int index = 0; index < 5; index++) {
-        await outbox.add('{"n":$index,"padding":"${'x' * 100}"}');
+        final Completer<bool> delivery = Completer<bool>();
+        deliveries.add(delivery);
+        buffer.add(
+          utf8.encode('{"n":$index,"padding":"${'x' * 100}"}'),
+          <Completer<bool>>[delivery],
+        );
       }
 
-      expect(outbox.bytes, lessThanOrEqualTo(600));
-      expect(outbox.droppedSinceBoot, greaterThan(0));
-      expect(outbox.batchCount + outbox.droppedSinceBoot, 5);
-      expect(outbox.oldest!.sequence.number, outbox.droppedSinceBoot);
-      expect(outbox.health, <String, Object?>{
-        atServerOutboxBatchesAttribute: outbox.batchCount,
-        atServerOutboxBytesAttribute: outbox.bytes,
-        atServerOutboxDroppedAttribute: outbox.droppedSinceBoot,
+      expect(buffer.bytes, lessThanOrEqualTo(300));
+      expect(buffer.droppedSinceBoot, greaterThan(0));
+      expect(buffer.batchCount + buffer.droppedSinceBoot, 5);
+      expect(buffer.oldest!.sequence.number, buffer.droppedSinceBoot);
+      for (final Completer<bool> delivery
+          in deliveries.take(buffer.droppedSinceBoot)) {
+        expect(await delivery.future, isFalse);
+      }
+      expect(buffer.health, <String, Object?>{
+        atServerBufferBatchesAttribute: buffer.batchCount,
+        atServerBufferBytesAttribute: buffer.bytes,
+        atServerBufferDroppedAttribute: buffer.droppedSinceBoot,
       });
     });
 
-    test('drops batches past its age limit when it opens', () async {
-      DateTime now = DateTime.utc(2024);
-      final AtServerTelemetryOutbox first = await openOutbox(
-        AtTelemetrySequence.newBootId(),
-        now: () => now,
-      );
-      await first.add('{}');
+    test('abandoning reports every record as not delivered', () async {
+      final AtServerTelemetryBuffer buffer = newBuffer();
+      final Completer<bool> delivery = Completer<bool>();
+      buffer.add(utf8.encode('{}'), <Completer<bool>>[delivery]);
 
-      now = DateTime.utc(2024, 1, 9);
-      final AtServerTelemetryOutbox second = await openOutbox(
-        AtTelemetrySequence.newBootId(),
-        now: () => now,
-      );
+      buffer.abandonAll();
 
-      expect(second.batchCount, 0);
-      expect(second.droppedSinceBoot, 1);
-    });
-
-    test('removes unreadable files and leftovers when it opens', () async {
-      await outboxDirectory.create(recursive: true);
-      await File('${outboxDirectory.path}/broken.json').writeAsString('nope');
-      await File('${outboxDirectory.path}/half.json.tmp').writeAsString('{');
-
-      final AtServerTelemetryOutbox outbox =
-          await openOutbox(AtTelemetrySequence.newBootId());
-
-      expect(outbox.batchCount, 0);
-      expect(await outboxDirectory.list().toList(), isEmpty);
+      expect(await delivery.future, isFalse);
+      expect(buffer.batchCount, 0);
+      expect(buffer.bytes, 0);
     });
   });
 
@@ -430,15 +380,14 @@ void main() {
 
         await runZonedGuarded(() async {
           respond = (http.BaseRequest request) => failure.value();
-          final AtServerTelemetryHttpExporter subject =
-              exporter(await openOutbox(AtTelemetrySequence.newBootId()));
+          final AtServerTelemetryHttpExporter subject = exporter(newBuffer());
           telemetry = AtServerTelemetry(
             heartbeatInterval: const Duration(milliseconds: 10),
           )..enable(
               exporter: subject,
               serverId: '$alice',
               bootId: 'boot-1',
-              health: () => subject.outboxHealth,
+              health: () => subject.bufferHealth,
             );
           await Future<void>.delayed(const Duration(milliseconds: 100));
           await telemetry.flush();
@@ -450,26 +399,6 @@ void main() {
         expect(telemetry.isEnabled, isFalse);
       });
     }
-
-    test('an outbox that cannot be written drops records quietly', () async {
-      final List<Object> uncaught = <Object>[];
-      late bool delivered;
-
-      await runZonedGuarded(() async {
-        final AtServerTelemetryOutbox outbox =
-            await openOutbox(AtTelemetrySequence.newBootId());
-        final AtServerTelemetryHttpExporter subject = exporter(outbox);
-        await outboxDirectory.delete(recursive: true);
-        final Future<bool> delivery = subject.export(heartbeat(), resource);
-        await subject.flush();
-        delivered = await delivery;
-        await subject.shutdown();
-      }, (Object error, StackTrace _) => uncaught.add(error));
-
-      expect(delivered, isFalse);
-      expect(requests, isEmpty);
-      expect(uncaught, isEmpty);
-    });
   });
 
   group('AtServerTelemetry', () {
@@ -499,7 +428,7 @@ void main() {
       });
     });
 
-    test('the heartbeat carries uptime and outbox health', () async {
+    test('the heartbeat carries uptime and buffer health', () async {
       final List<(AtTelemetryLogRecord, AtTelemetryResource)> exports =
           <(AtTelemetryLogRecord, AtTelemetryResource)>[];
       final AtServerTelemetry telemetry = AtServerTelemetry(
@@ -509,7 +438,7 @@ void main() {
           serverId: '$alice',
           bootId: 'boot-1',
           health: () => <String, Object?>{
-            atServerOutboxBatchesAttribute: 3,
+            atServerBufferBatchesAttribute: 3,
           },
         );
 
@@ -519,10 +448,10 @@ void main() {
       final AtTelemetryLogRecord heartbeat = exports.first.$1;
       expect(heartbeat.eventName, atServerHeartbeatEventName);
       expect(heartbeat.attributes.keys, <String>[
-        atServerOutboxBatchesAttribute,
+        atServerBufferBatchesAttribute,
         AtTelemetryAttributes.atServerUptimeSeconds,
       ]);
-      expect(heartbeat.attributes[atServerOutboxBatchesAttribute], 3);
+      expect(heartbeat.attributes[atServerBufferBatchesAttribute], 3);
       expect(heartbeat.attributes[AtTelemetryAttributes.atServerUptimeSeconds],
           isA<double>());
     });

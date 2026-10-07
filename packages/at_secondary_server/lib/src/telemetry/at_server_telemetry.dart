@@ -6,7 +6,7 @@ import 'package:at_utils/at_logger.dart';
 import 'at_server_heartbeat_scheduler.dart';
 import 'at_server_telemetry_constants.dart';
 
-// Extra attributes for each heartbeat, such as the outbox's health
+// Extra attributes for each heartbeat, such as the buffer's health
 typedef AtServerTelemetryHealthSource = Map<String, Object?> Function();
 
 // The atServer's telemetry facade. Nothing here throws into the server, and

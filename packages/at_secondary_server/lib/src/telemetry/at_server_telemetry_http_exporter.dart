@@ -9,19 +9,22 @@ import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 
 import 'at_server_telemetry_batch.dart';
+import 'at_server_telemetry_buffer.dart';
 import 'at_server_telemetry_delivery_outcome.dart';
-import 'at_server_telemetry_outbox.dart';
 import 'at_server_telemetry_signing_key.dart';
 
 // Sends the atServer's telemetry to its collector as signed OTLP/JSON over
-// HTTPS. Records are batched, each closed batch is persisted to the outbox
-// with the next sequence number, and the outbox is drained one request at a
-// time, oldest first. Any 2xx removes the batch. 400, 401, 403, 404, 413,
-// 415 and other 4xx drop it, since sending it again would fail the same way.
-// 408, 429, 5xx and network failures keep it and back off. Every request has
-// a deadline that aborts it, connecting included, and shutdown has one too,
-// so nothing here can hold the server up. Nothing here throws or leaves an
-// error unhandled, since an uncaught error stops the atServer.
+// HTTPS, in waves. Records are batched, each closed batch goes into an
+// in-memory buffer with the next sequence number, and the buffer is drained
+// one request at a time, oldest first. Any 2xx removes the batch. 400, 401,
+// 403, 404, 413, 415 and other 4xx drop it, since sending it again would
+// fail the same way. 408, 429, 5xx and network failures keep it and back
+// off. A record's export future completes true once its batch is delivered,
+// and false once it is dropped or abandoned at shutdown. Nothing is kept
+// across restarts. Every request has a deadline that aborts it, connecting
+// included, and shutdown has one too, so nothing here can hold the server
+// up. Nothing here throws or leaves an error unhandled, since an uncaught
+// error stops the atServer.
 final class AtServerTelemetryHttpExporter
     implements AtTelemetryLogRecordExporter {
   static const String logsPath = '/v1/logs';
@@ -38,7 +41,7 @@ final class AtServerTelemetryHttpExporter
   final String audience;
   final String producer;
   final AtServerTelemetrySigningKey _key;
-  final AtServerTelemetryOutbox _outbox;
+  final AtServerTelemetryBuffer _buffer;
   final http.Client _client;
   final bool _ownsClient;
   final int _maxBatchRecords;
@@ -52,12 +55,10 @@ final class AtServerTelemetryHttpExporter
   final List<Completer<bool>> _deliveries = <Completer<bool>>[];
   final Completer<void> _abortAll = Completer<void>();
   AtTelemetryResource? _resource;
-  Future<void> _persisting = Future<void>.value();
   Future<void>? _sending;
   Future<void>? _shutdown;
   Timer? _batchTimer;
   Timer? _retryTimer;
-  DateTime? _retryAt;
   Duration _backoff;
   bool _closed = false;
 
@@ -65,7 +66,7 @@ final class AtServerTelemetryHttpExporter
     required Uri endpoint,
     required this.producer,
     required AtServerTelemetrySigningKey key,
-    required AtServerTelemetryOutbox outbox,
+    required AtServerTelemetryBuffer buffer,
     http.Client? client,
     int maxBatchRecords = defaultMaxBatchRecords,
     Duration flushInterval = defaultFlushInterval,
@@ -77,7 +78,7 @@ final class AtServerTelemetryHttpExporter
   })  : endpoint = logsEndpointFor(endpoint),
         audience = endpoint.host,
         _key = key,
-        _outbox = outbox,
+        _buffer = buffer,
         // The request deadline cannot abort a connect, so the client's own
         // connection timeout bounds it
         _client = client ??
@@ -101,10 +102,6 @@ final class AtServerTelemetryHttpExporter
         shutdownTimeout <= Duration.zero) {
       throw ArgumentError('Intervals, timeouts and backoffs must be positive');
     }
-    // Batches left by an earlier boot go first
-    if (_outbox.batchCount > 0) {
-      unawaited(_send());
-    }
   }
 
   static Uri logsEndpointFor(Uri endpoint) {
@@ -122,7 +119,7 @@ final class AtServerTelemetryHttpExporter
     return endpoint.replace(path: logsPath);
   }
 
-  Map<String, Object?> get outboxHealth => _outbox.health;
+  Map<String, Object?> get bufferHealth => _buffer.health;
 
   @override
   Future<bool> export(
@@ -148,19 +145,17 @@ final class AtServerTelemetryHttpExporter
     return delivery.future;
   }
 
-  // Persists what is batched and makes one pass over the outbox, ignoring
-  // any backoff in force
+  // Closes what is batched and makes one pass over the buffer, ignoring any
+  // backoff in force
   @override
   Future<void> flush() async {
     _closeBatch();
-    await _persisting;
     _retryTimer?.cancel();
     _retryTimer = null;
-    _retryAt = null;
     await _send();
   }
 
-  // Batches still in the outbox stay there for the next boot
+  // Batches still in the buffer are abandoned
   @override
   Future<void> shutdown() => _shutdown ??= _shutdownOnce();
 
@@ -169,8 +164,7 @@ final class AtServerTelemetryHttpExporter
     try {
       await flush().timeout(_shutdownTimeout);
     } on TimeoutException {
-      _logger.warning('Telemetry shutdown timed out after $_shutdownTimeout; '
-          '${_outbox.batchCount} batches stay in the outbox');
+      _logger.warning('Telemetry shutdown timed out after $_shutdownTimeout');
     } on Object catch (error) {
       _logger.warning('Telemetry shutdown failed: $error');
     }
@@ -179,6 +173,7 @@ final class AtServerTelemetryHttpExporter
     if (!_abortAll.isCompleted) {
       _abortAll.complete();
     }
+    _buffer.abandonAll();
     if (_ownsClient) {
       _client.close();
     }
@@ -197,40 +192,23 @@ final class AtServerTelemetryHttpExporter
         List<Completer<bool>>.of(_deliveries);
     _records.clear();
     _deliveries.clear();
-    _persisting = _persisting.then(
-      (void _) => _persist(records, deliveries, resource),
-    );
-    unawaited(_persisting.then((void _) {
-      if (_retryAt == null) {
-        return _send();
-      }
-    }));
-  }
-
-  // Each record learns its outcome once it is on disk, or dropped. Never
-  // fails, so the persisting chain never holds an error.
-  Future<void> _persist(
-    List<AtTelemetryLogRecord> records,
-    List<Completer<bool>> deliveries,
-    AtTelemetryResource resource,
-  ) async {
-    try {
-      await _persistOrThrow(records, deliveries, resource);
-    } on Object catch (error) {
-      _logger.warning('Dropped ${records.length} telemetry records: $error');
-      _complete(deliveries, false);
+    _enqueue(records, deliveries, resource);
+    if (_retryTimer == null) {
+      unawaited(_send());
     }
   }
 
-  Future<void> _persistOrThrow(
+  // Encodes the records into the buffer, splitting any batch over
+  // maxBatchBytes. Never throws.
+  void _enqueue(
     List<AtTelemetryLogRecord> records,
     List<Completer<bool>> deliveries,
     AtTelemetryResource resource,
-  ) async {
-    final String body;
+  ) {
+    final List<int> body;
     try {
-      body = const AtTelemetryLogsCodec()
-          .encodeExportRequest(records, resource: resource);
+      body = utf8.encode(const AtTelemetryLogsCodec()
+          .encodeExportRequest(records, resource: resource));
     } on Object catch (error) {
       _logger.warning('Dropped ${records.length} telemetry records that '
           'could not be encoded: $error');
@@ -238,7 +216,7 @@ final class AtServerTelemetryHttpExporter
       return;
     }
 
-    if (utf8.encode(body).length > maxBatchBytes) {
+    if (body.length > maxBatchBytes) {
       if (records.length == 1) {
         _logger.warning('Dropped a telemetry record larger than '
             '$maxBatchBytes bytes');
@@ -246,20 +224,12 @@ final class AtServerTelemetryHttpExporter
         return;
       }
       final int half = records.length ~/ 2;
-      await _persist(
-          records.sublist(0, half), deliveries.sublist(0, half), resource);
-      await _persist(records.sublist(half), deliveries.sublist(half), resource);
+      _enqueue(records.sublist(0, half), deliveries.sublist(0, half), resource);
+      _enqueue(records.sublist(half), deliveries.sublist(half), resource);
       return;
     }
 
-    try {
-      await _outbox.add(body);
-      _complete(deliveries, true);
-    } on Object catch (error) {
-      _logger.warning('Dropped ${records.length} telemetry records the '
-          'outbox could not store: $error');
-      _complete(deliveries, false);
-    }
+    _buffer.add(body, deliveries);
   }
 
   void _complete(List<Completer<bool>> deliveries, bool outcome) {
@@ -279,7 +249,7 @@ final class AtServerTelemetryHttpExporter
   Future<void> _drain() async {
     try {
       while (!_abortAll.isCompleted) {
-        final AtServerTelemetryBatch? batch = _outbox.oldest;
+        final AtServerTelemetryBatch? batch = _buffer.oldest;
         if (batch == null) {
           return;
         }
@@ -287,9 +257,11 @@ final class AtServerTelemetryHttpExporter
         switch (outcome) {
           case AtServerTelemetryDeliveryOutcome.delivered:
             _backoff = _initialBackoff;
-            await _outbox.remove(batch);
+            _buffer.remove(batch);
+            batch.complete(true);
           case AtServerTelemetryDeliveryOutcome.rejected:
-            await _outbox.remove(batch);
+            _buffer.remove(batch);
+            batch.complete(false);
           case AtServerTelemetryDeliveryOutcome.retry:
             _scheduleRetry();
             return;
@@ -385,11 +357,9 @@ final class AtServerTelemetryHttpExporter
     );
     final Duration doubled = _backoff * 2;
     _backoff = doubled > _maxBackoff ? _maxBackoff : doubled;
-    _retryAt = DateTime.now().add(delay);
     _retryTimer?.cancel();
     _retryTimer = Timer(delay, () {
       _retryTimer = null;
-      _retryAt = null;
       unawaited(_send());
     });
   }
