@@ -35,6 +35,19 @@ class NotificationManager {
   @visibleForTesting
   final StreamController<AtNotification> sent = StreamController.broadcast();
 
+  /// How often expired ephemeral notifications are dropped from memory.
+  @visibleForTesting
+  static Duration ephemeralSweepInterval = const Duration(seconds: 30);
+
+  /// Ephemeral notifications, held in memory and never in the store, until
+  /// they expire.
+  final Map<String, AtNotification> _ephemeral = {};
+
+  /// Ids of queued notifications whose expiry the client set.
+  final Set<String> _explicitExpiry = {};
+
+  Timer? _ephemeralSweep;
+
   NotificationManager(
       this.atSign, this._notifStore, this._notifyConnectionsPool);
 
@@ -43,6 +56,9 @@ class NotificationManager {
       return;
     }
     _closed = true;
+    _ephemeralSweep?.cancel();
+    _ephemeral.clear();
+    _explicitExpiry.clear();
 
     for (final s in senders.values) {
       await s.close();
@@ -102,15 +118,27 @@ class NotificationManager {
     }
   }
 
-  /// Persists the notification and calls [enqueue]
-  Future<void> notify(AtNotification n) async {
+  /// Persists the notification, or holds it only in memory when
+  /// [ephemeral], and calls [enqueue]. [explicitExpiry] marks an expiry the
+  /// client set, which is forwarded as given to atServers that take it.
+  Future<void> notify(AtNotification n,
+      {bool ephemeral = false, bool explicitExpiry = false}) async {
     if (closed) {
       throw StateError('Closed');
     }
 
-    // Persist the notification. `id` is non-null by construction —
-    // AtNotificationBuilder defaults it to a fresh Uuid v4.
-    await _notifStore.put(n.id!, n);
+    // `id` is non-null by construction — AtNotificationBuilder defaults it
+    // to a fresh Uuid v4.
+    if (ephemeral) {
+      _ephemeral[n.id!] = n;
+      _ephemeralSweep ??=
+          Timer.periodic(ephemeralSweepInterval, (_) => _sweepEphemeral());
+    } else {
+      await _notifStore.put(n.id!, n);
+    }
+    if (explicitExpiry && n.type == NotificationType.sent) {
+      _explicitExpiry.add(n.id!);
+    }
 
     // Queue it for delivery
     enqueue(n);
@@ -135,7 +163,7 @@ class NotificationManager {
   Future<(int, int)> removeExpired() async {
     logger.info('removeExpired: maxTtl is ${AtNotification.maxTtl}'
         ' defaultTtl is ${AtNotification.defaultTtl}');
-    int removed = 0;
+    int removed = _sweepEphemeral();
     int failed = 0;
     await for (final k in await notifStore.getExpiredKeys()) {
       try {
@@ -175,24 +203,57 @@ class NotificationManager {
     return senders[atSign]!;
   }
 
-  Future<dynamic> put(key, value) {
+  /// Whether [n] is held only in memory.
+  bool isEphemeral(AtNotification n) => _ephemeral.containsKey(n.id);
+
+  /// Whether [n]'s expiry was set by the client.
+  bool hasExplicitExpiry(AtNotification n) => _explicitExpiry.contains(n.id);
+
+  /// Drops expired ephemeral notifications and returns how many it dropped.
+  int _sweepEphemeral() {
+    final expired = [
+      for (final n in _ephemeral.values)
+        if (n.isExpired()) n.id!
+    ];
+    for (final id in expired) {
+      _ephemeral.remove(id);
+      _explicitExpiry.remove(id);
+    }
+    return expired.length;
+  }
+
+  Future<dynamic> put(key, value) async {
+    if (value is AtNotification &&
+        value.notificationStatus != NotificationStatus.queued) {
+      _explicitExpiry.remove(key);
+    }
+    if (_ephemeral.containsKey(key)) {
+      _ephemeral[key] = value;
+      return null;
+    }
     return _notifStore.put(key, value);
   }
 
   Future<void> remove(String notificationId) {
+    _ephemeral.remove(notificationId);
+    _explicitExpiry.remove(notificationId);
     return _notifStore.remove(notificationId);
   }
 
   Future<bool> isKeyExists(String key) async {
-    return _notifStore.exists(key);
+    return _ephemeral.containsKey(key) || await _notifStore.exists(key);
   }
 
   Future<AtNotification?> get(key) async {
-    return await _notifStore.get(key);
+    return _ephemeral[key] ?? await _notifStore.get(key);
   }
 
   Future<List<String>> getKeys({String? regex}) async {
-    return (await _notifStore.getKeys(regex: regex)).toList();
+    final pattern = RegExp(regex == null || regex.isEmpty ? '.*' : regex);
+    return [
+      ...await _notifStore.getKeys(regex: regex).then((s) => s.toList()),
+      ..._ephemeral.keys.where(pattern.hasMatch),
+    ];
   }
 
   int compareDateTime(AtNotification n1, AtNotification n2) {
@@ -235,6 +296,7 @@ class NotificationManager {
         values.add(n);
       }
     }
+    values.addAll(_ephemeral.values.where(retain));
 
     if (comparator != null) {
       // Sort the list using the provided comparator, if provided
@@ -245,8 +307,12 @@ class NotificationManager {
   }
 
   int defaultTtlnMillis = 15 * 60 * 1000; // 15 mins
+  /// The body of the notify command that delivers [atNotification] to an
+  /// atServer taking [peerFeatures]. `eph` and `eAtn` are sent only to one
+  /// that takes them, so the default, none, is what every atServer takes.
   @visibleForTesting
-  String prepareNotifyCommandBody(AtNotification atNotification) {
+  String prepareNotifyCommandBody(AtNotification atNotification,
+      {Set<String> peerFeatures = const {}}) {
     // [gkc] I really don't like that the command string is being built from
     // the end backwards to the start; it has confused me every time I've
     // looked at this code.
@@ -347,7 +413,16 @@ class NotificationManager {
         commandBody = 'ttl:${atMetaData.ttl}:$commandBody';
       }
     }
-    if (atNotification.ttl == null) {
+    if (isEphemeral(atNotification) &&
+        peerFeatures.contains(InfoFeature.notifyEph)) {
+      commandBody = 'eph:$commandBody';
+    }
+    if (hasExplicitExpiry(atNotification) &&
+        peerFeatures.contains(InfoFeature.notifyEAtn)) {
+      commandBody = 'eAtn:'
+          '${VerbUtil.formatIso8601Micros(atNotification.expiresAt!)}'
+          ':$commandBody';
+    } else if (atNotification.ttl == null) {
       logger.warning('ttln on ${atNotification.id} is null');
       commandBody = 'ttln:$defaultTtlnMillis:$commandBody';
     } else {
@@ -465,7 +540,16 @@ class PerAtSignNotifSender {
         //   get outbound client and send notify command
         var outBoundClient =
             await notifMgr.notifyConnectionsPool.getOutboundClient(atSign);
-        var notifyCommandBody = notifMgr.prepareNotifyCommandBody(n);
+        final peerFeatures = {
+          if (notifMgr.isEphemeral(n) &&
+              await outBoundClient.usePeerFeature(InfoFeature.notifyEph))
+            InfoFeature.notifyEph,
+          if (notifMgr.hasExplicitExpiry(n) &&
+              await outBoundClient.usePeerFeature(InfoFeature.notifyEAtn))
+            InfoFeature.notifyEAtn,
+        };
+        var notifyCommandBody =
+            notifMgr.prepareNotifyCommandBody(n, peerFeatures: peerFeatures);
         var notifyResponse = await outBoundClient.notify(notifyCommandBody);
         // if response was data:success - great, we're done!
         if (notifyResponse == 'data:success') {

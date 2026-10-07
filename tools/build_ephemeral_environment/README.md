@@ -26,6 +26,14 @@ The public DNS record for this hostname points to a private IP (`10.64.64.64`) t
 
 ## Quick start (recommended)
 
+Two published images are available:
+
+- `atsigncompany/ephemeral:latest`, built from the latest production release.
+- `atsigncompany/ephemeral:dev_env`, built from trunk on every merge once the
+  full test suite has passed, like `atsigncompany/virtualenv:dev_env`. Use it
+  to test against atServer features that are not in a production release yet.
+  Its `org.opencontainers.image.revision` label names the commit.
+
 Use docker compose. Copy this into a `docker-compose.yaml`:
 
 ```yaml

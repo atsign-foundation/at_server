@@ -61,6 +61,19 @@ void main() {
       expect(paramsMap[AtConstants.forAtSign], 'bob');
       expect(paramsMap[AtConstants.atSign], 'colin');
     });
+
+    test('notify:multi reaches the notify verb, which refuses it', () {
+      const command = 'notify:multi:@bob,@colin:email@alice:v';
+      expect(
+          NotifyVerbHandler(mockKeyStore, mockNotificationManager)
+              .accept(command),
+          isTrue,
+          reason: 'no other notify verb takes it');
+      expect(() => getVerbParam(Notify().syntax(), command),
+          throwsA(isA<InvalidSyntaxException>()),
+          reason: 'there is no notify:multi verb, so its commands are a '
+              'syntax error rather than notifications');
+    });
   });
 
   group('A group of notify accept tests', () {
@@ -569,17 +582,20 @@ void main() {
 
     test('test to verify notification date time on receiver side', () async {
       atConnection.metaData.isPolAuthenticated = true;
-      (atConnection.metaData as InboundConnectionMetadata).fromAtSign = alice;
+      (atConnection.metaData as InboundConnectionMetadata).fromAtSign = bob;
+      HashMap<String, String> fromBob(HashMap<String, String> params) =>
+          HashMap.of(params)
+            ..[AtConstants.forAtSign] = alice
+            ..[AtConstants.atSign] = bob;
       // process first notification
-      await notifyVerbHandler.processVerb(
-          notifyResponse, firstNotificationVerbParams, atConnection);
+      await notifyVerbHandler.processVerb(notifyResponse,
+          fromBob(firstNotificationVerbParams), atConnection);
       // store current date time to capture the difference
       var currentDateTime = DateTime.now().millisecondsSinceEpoch;
       await Future.delayed(Duration(milliseconds: 50));
       // process second notification
-      secondNotificationVerbParams.putIfAbsent('forAtSign', () => alice);
-      await notifyVerbHandler.processVerb(
-          notifyResponse, secondNotificationVerbParams, atConnection);
+      await notifyVerbHandler.processVerb(notifyResponse,
+          fromBob(secondNotificationVerbParams), atConnection);
       // fetch second notification, as the atSign's own CRAM connection
       atConnection.metaData.isAuthenticated = true;
       atConnection.metaData.authType = AuthType.cram;
@@ -659,11 +675,11 @@ void main() {
         'A test to validate default notification expiry duration is returned when null or 0 is passed',
         () {
       expect(
-          notifyVerbHandler.getNotificationExpiryInMillis(null),
+          NotifyVerbHandler.getNotificationExpiryInMillis(null),
           Duration(minutes: AtSecondaryConfig.notificationExpiryInMins)
               .inMilliseconds);
       expect(
-          notifyVerbHandler.getNotificationExpiryInMillis('0'),
+          NotifyVerbHandler.getNotificationExpiryInMillis('0'),
           Duration(minutes: AtSecondaryConfig.notificationExpiryInMins)
               .inMilliseconds);
     });
@@ -671,20 +687,20 @@ void main() {
     test(
         'A test to validate notification expiry duration positive integer is passed',
         () {
-      expect(notifyVerbHandler.getNotificationExpiryInMillis('30'), 30);
+      expect(NotifyVerbHandler.getNotificationExpiryInMillis('30'), 30);
     });
 
     test(
         'A test to assert exception when negative integer is passed to notification expiry duration ',
         () {
-      expect(() => notifyVerbHandler.getNotificationExpiryInMillis('-30'),
+      expect(() => NotifyVerbHandler.getNotificationExpiryInMillis('-30'),
           throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
 
     test(
         'A test to assert exception when character is passed to notification expiry duration ',
         () {
-      expect(() => notifyVerbHandler.getNotificationExpiryInMillis('abc'),
+      expect(() => NotifyVerbHandler.getNotificationExpiryInMillis('abc'),
           throwsA(predicate((dynamic e) => e is InvalidSyntaxException)));
     });
   });
@@ -926,7 +942,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Connection with enrollment ID $enrollmentId is not authorized to notify key: phone.wavi$alice')));
+                  'Connection with enrollment ID $enrollmentId is not authorized to notify key: @bob:phone.wavi$alice')));
     });
     test(
         'A test to verify notify all is denied on a key with apkam enrollment with no namespace access',
@@ -963,7 +979,7 @@ void main() {
           throwsA(predicate((dynamic e) =>
               e is UnAuthorizedException &&
               e.message ==
-                  'Connection with enrollment ID $enrollmentId is not authorized to notify key: phone.wavi$alice')));
+                  'Connection with enrollment ID $enrollmentId is not authorized to notify key: @bob:phone.wavi$alice')));
     });
   });
   group(
@@ -1478,11 +1494,11 @@ void main() {
     tearDown(() async => await verbTestsTearDown());
 
     test('test getIsEncrypted for MessageType.text', () {
-      expect(notifyVerbHandler.getIsEncrypted(MessageType.text, 'foo', null),
+      expect(NotifyVerbHandler.getIsEncrypted(MessageType.text, 'foo', null),
           false);
-      expect(notifyVerbHandler.getIsEncrypted(MessageType.text, 'foo', 'false'),
+      expect(NotifyVerbHandler.getIsEncrypted(MessageType.text, 'foo', 'false'),
           false);
-      expect(notifyVerbHandler.getIsEncrypted(MessageType.text, 'foo', 'true'),
+      expect(NotifyVerbHandler.getIsEncrypted(MessageType.text, 'foo', 'true'),
           true);
     });
 
@@ -1491,15 +1507,15 @@ void main() {
       // TODO Are there any functional or e2e tests of the same?
       // TODO Could be quite useful in some scenarios.
       expect(
-          notifyVerbHandler.getIsEncrypted(
+          NotifyVerbHandler.getIsEncrypted(
               MessageType.key, 'public:foo.bar$alice', null),
           false);
       expect(
-          notifyVerbHandler.getIsEncrypted(
+          NotifyVerbHandler.getIsEncrypted(
               MessageType.key, 'public:foo.bar$alice', 'false'),
           false);
       expect(
-          notifyVerbHandler.getIsEncrypted(
+          NotifyVerbHandler.getIsEncrypted(
               MessageType.key, 'public:foo.bar$alice', 'true'),
           false);
     });
@@ -1511,18 +1527,18 @@ void main() {
       // The reason is that those broken old clients do not set `isEncrypted`
       // on notifications when they ought to be doing so.
       expect(
-          notifyVerbHandler.getIsEncrypted(
+          NotifyVerbHandler.getIsEncrypted(
               MessageType.key, '@bob:foo.bar$alice', null),
           true);
 
       // This used to return 'true' as well, which is definitively wrong.
       expect(
-          notifyVerbHandler.getIsEncrypted(
+          NotifyVerbHandler.getIsEncrypted(
               MessageType.key, '@bob:foo.bar$alice', 'false'),
           false);
 
       expect(
-          notifyVerbHandler.getIsEncrypted(
+          NotifyVerbHandler.getIsEncrypted(
               MessageType.key, '@bob:foo.bar$alice', 'true'),
           true);
     });
@@ -1554,6 +1570,117 @@ void main() {
       expect(stored.atMetadata, isNotNull);
       expect(stored.atMetadata!.ttr, isNull);
       expect(stored.atMetadata!.isEncrypted, false);
+    });
+  });
+
+  group('A notification from another atServer', () {
+    late NotifyVerbHandler notifyVerbHandler;
+    setUp(() async {
+      await verbTestsSetUp();
+      notifyVerbHandler = NotifyVerbHandler(keyValueStore, notificationManager);
+    });
+    tearDown(() async => await verbTestsTearDown());
+
+    /// Runs [command] as [from]'s atServer delivering a notification.
+    Future<Response> deliver(String command, {Atsign? from}) {
+      inboundConnection.metadata
+        ..isAuthenticated = false
+        ..isPolAuthenticated = true
+        ..fromAtSign = from ?? bob;
+      return notifyVerbHandler.processInternal(command, inboundConnection);
+    }
+
+    Matcher refused(String why) => throwsA(isA<UnAuthorizedException>()
+        .having((e) => e.message, 'message', contains(why)));
+
+    test('of a key it shares, for this atSign, is stored and cached',
+        () async {
+      await deliver('notify:id:own-1:update:messageType:key:ttr:100000'
+          ':$alice:phone.wavi$bob:v');
+      expect(await notificationManager.get('own-1'), isNotNull);
+      expect(await keyValueStore.exists('cached:$alice:phone.wavi$bob'),
+          isTrue);
+    });
+
+    test('of a key another atSign shares is refused, and nothing stored or '
+        'cached', () async {
+      await expectLater(
+          deliver('notify:id:spoof-1:update:messageType:key:ttr:100000'
+              ':$alice:phone.wavi@eve:v'),
+          refused('@eve is not authorized to send notification as @bob'));
+      expect(await notificationManager.get('spoof-1'), isNull);
+      expect(await keyValueStore.exists('cached:$alice:phone.wavi@eve'),
+          isFalse,
+          reason: 'a peer must not write a cached copy of another atSign\'s '
+              'key');
+    });
+
+    test('deleting a key another atSign shares is refused, and its cached '
+        'copy kept', () async {
+      const delete = 'notify:id:spoof-2:delete:messageType:key'
+          ':@alice:phone.wavi@eve';
+      await deliver(
+          'notify:id:eve-1:update:messageType:key:ttr:100000:ccd:true'
+          ':$alice:phone.wavi@eve:v',
+          from: '@eve'.toAtsign());
+      expect(await keyValueStore.exists('cached:$alice:phone.wavi@eve'),
+          isTrue);
+
+      await expectLater(deliver(delete),
+          refused('@eve is not authorized to send notification as @bob'));
+      expect(await notificationManager.get('spoof-2'), isNull);
+      expect(await keyValueStore.exists('cached:$alice:phone.wavi@eve'),
+          isTrue,
+          reason: 'a peer must not delete a cached copy of another atSign\'s '
+              'key');
+
+      await deliver(delete, from: '@eve'.toAtsign());
+      expect(await keyValueStore.exists('cached:$alice:phone.wavi@eve'),
+          isFalse,
+          reason: 'control: the sharing atSign\'s delete removes it');
+    });
+
+    test('of a key with no sharedBy is refused', () async {
+      await expectLater(
+          deliver('notify:id:spoof-3:update:messageType:key:$alice:phone.wavi'),
+          refused('with no sharedBy'));
+      expect(await notificationManager.get('spoof-3'), isNull);
+    });
+
+    for (final (name, messageType, key) in [
+      ('key', 'key', 'phone.wavi$bob:v'),
+      ('text', 'text', 'hello'),
+    ]) {
+      test('of a $name for another atSign is refused, and nothing stored',
+          () async {
+        await expectLater(
+            deliver('notify:id:spoof-4:update:messageType:$messageType'
+                ':@colin:$key'),
+            refused('is for @colin'));
+        expect(await notificationManager.get('spoof-4'), isNull);
+        expect(await notifStore.iterate().toList(), isEmpty);
+      });
+    }
+
+    test('of a public key, which names no recipient, is refused', () async {
+      await expectLater(
+          deliver('notify:id:spoof-5:update:messageType:key:ttr:100000'
+              ':public:phone.wavi$bob:v'),
+          refused('is for no atSign'));
+      expect(await notificationManager.get('spoof-5'), isNull);
+    });
+
+    test('of text, which has no sharedBy, is stored', () async {
+      await deliver('notify:id:text-1:update:messageType:text:$alice:hello');
+      expect(await notificationManager.get('text-1'), isNotNull);
+    });
+
+    test('compares normalised atSigns', () async {
+      await deliver('notify:id:norm-1:update:messageType:key:ttr:100000'
+          ':@Al.ice:phone.wavi@B.o.B:v');
+      expect(await notificationManager.get('norm-1'), isNotNull);
+      expect(await keyValueStore.exists('cached:$alice:phone.wavi$bob'),
+          isTrue);
     });
   });
 }

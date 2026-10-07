@@ -43,19 +43,12 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
     int ttbMillis;
     int? ttrMillis;
     bool? isCascade;
-    var atSign = verbParams[AtConstants.atSign];
-    if (atSign.isNotNullOrEmpty) {
-      atSign = AtUtils.fixAtSign(atSign!);
-    }
-    var key = verbParams[AtConstants.atKey]!;
-    var inboundConnectionMetadata =
-        atConnection.metaData as InboundConnectionMetadata;
-    var isAuthorized = await super
-        .isAuthorized(inboundConnectionMetadata, atKey: '$key$atSign');
-    if (!isAuthorized) {
+    final currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+    final atSign =
+        AtUtils.fixAtSign(verbParams[AtConstants.atSign] ?? currentAtSign);
+    if (atSign != currentAtSign) {
       throw UnAuthorizedException(
-          'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'
-          ' is not authorized to notify key: $key$atSign');
+          '$atSign is not authorized to send notification as $currentAtSign');
     }
     var messageType =
         SecondaryUtil.getMessageType(verbParams[AtConstants.messageType]);
@@ -65,8 +58,23 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
 
     // If messageType is key, append the atSign to key. For messageType text,
     // atSign is not appended to the key.
+    var key = verbParams[AtConstants.atKey]!;
     if (messageType == MessageType.key) {
       key = '$key$atSign';
+    }
+
+    final recipients = _recipients(verbParams[AtConstants.forAtSign]);
+    final inboundConnectionMetadata =
+        atConnection.metaData as InboundConnectionMetadata;
+    // NOTE each recipient's key is judged whole, as notify judges it, and
+    // every one before any is stored, so a refusal stores nothing.
+    for (final forAtSign in recipients) {
+      final recipientKey = '$forAtSign:$key';
+      if (!await isAuthorized(inboundConnectionMetadata, atKey: recipientKey)) {
+        throw UnAuthorizedException(
+            'Connection with enrollment ID ${inboundConnectionMetadata.enrollmentId}'
+            ' is not authorized to notify key: $recipientKey');
+      }
     }
 
     try {
@@ -85,35 +93,43 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
     var resultMap = <String, String?>{};
     var dataSignature = SecondaryUtil.signChallenge(
         key, AtSecondaryServerImpl.getInstance().signingKey);
-    var forAtSignList = verbParams[AtConstants.forAtSign]
-        ?.replaceAll('[', '')
-        .replaceAll(']', '');
-    if (forAtSignList != null && forAtSignList.isNotEmpty) {
-      List forAtSigns = forAtSignList.split(',');
-      var forAtSignsSet = forAtSigns.toSet();
-      for (var forAtSign in forAtSignsSet) {
-        var updatedKey = '$forAtSign:$key';
-        var atMetadata = AtMetaData()
-          ..ttl = ttlMillis
-          ..ttb = ttbMillis
-          ..ttr = ttrMillis
-          ..isCascade = isCascade
-          ..dataSignature = dataSignature;
-        var atNotification = (AtNotificationBuilder()
-              ..type = NotificationType.sent
-              ..fromAtSign = atSign
-              ..toAtSign = forAtSign
-              ..notification = updatedKey
-              ..opType = operation
-              ..messageType = messageType
-              ..atValue = value
-              ..atMetaData = atMetadata)
-            .build();
+    for (final forAtSign in recipients) {
+      final isSelf = forAtSign == currentAtSign;
+      var updatedKey = '$forAtSign:$key';
+      var atMetadata = AtMetaData()
+        ..ttl = ttlMillis
+        ..ttb = ttbMillis
+        ..ttr = ttrMillis
+        ..isCascade = isCascade
+        ..dataSignature = dataSignature;
+      var atNotification = (AtNotificationBuilder()
+            ..type = isSelf ? NotificationType.received : NotificationType.sent
+            ..notificationStatus = isSelf
+                ? NotificationStatus.delivered
+                : NotificationStatus.queued
+            ..fromAtSign = currentAtSign
+            ..toAtSign = forAtSign
+            ..notification = updatedKey
+            ..notificationDateTime = DateTime.now().toUtcMillisecondsPrecision()
+            ..opType = operation
+            ..messageType = messageType
+            ..atValue = value
+            ..atMetaData = atMetadata)
+          .build();
 
-        await notificationManager.notify(atNotification);
-        resultMap[forAtSign] = atNotification.id;
-      }
+      await notificationManager.notify(atNotification);
+      resultMap[forAtSign] = atNotification.id;
     }
     response.data = json.encode(resultMap);
   }
+
+  /// The atSigns [forAtSignList] names, each normalised and named once, in
+  /// the order first named. Empty tokens name nobody.
+  static Set<String> _recipients(String? forAtSignList) => {
+        for (final token in (forAtSignList ?? '')
+            .replaceAll('[', '')
+            .replaceAll(']', '')
+            .split(','))
+          if (token.isNotEmpty) AtUtils.fixAtSign(token)
+      };
 }

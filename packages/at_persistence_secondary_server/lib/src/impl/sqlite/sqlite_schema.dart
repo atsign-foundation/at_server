@@ -67,8 +67,10 @@ CREATE TABLE IF NOT EXISTS commit_log (
 
   /// Monotonic allocators. `last_commit_id` is bumped in the same
   /// transaction as each synced write, giving a dense, gapless commit id
-  /// per database. (A `MAX(commit_log.commit_id)` allocator is unsafe:
-  /// expiry purges a key's commit row and could reissue the max id.)
+  /// per database. It holds the highest id ever issued, -1 before the
+  /// first, so the first id is 0 on this backend as on Hive. (A
+  /// `MAX(commit_log.commit_id)` allocator is unsafe: expiry purges a key's
+  /// commit row and could reissue the max id.)
   static const String counters = '''
 CREATE TABLE IF NOT EXISTS counters (
   name  TEXT PRIMARY KEY NOT NULL,
@@ -77,7 +79,7 @@ CREATE TABLE IF NOT EXISTS counters (
 ''';
 
   static const String seedCounters =
-      "INSERT OR IGNORE INTO counters (name, value) VALUES ('last_commit_id', 0);";
+      "INSERT OR IGNORE INTO counters (name, value) VALUES ('last_commit_id', -1);";
 
   /// Durable notification delivery queue + inbox. `payload` is the
   /// canonical `AtNotification` JSON; the other columns are indexed

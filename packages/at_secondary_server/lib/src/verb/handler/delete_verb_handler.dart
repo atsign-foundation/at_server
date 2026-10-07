@@ -71,10 +71,11 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     if (verbParams[AtConstants.atKey] != AtConstants.atCramSecret) {
       deleteKey = '$deleteKey$atSign';
     }
-    protectedKeys ??= _getProtectedKeys(atSign);
-    if (_isProtectedKey(deleteKey!, isCached: verbParams['isCached'])) {
+    protectedKeys ??= _getProtectedKeys();
+    final canonicalKey = canonicalAtKey(deleteKey!);
+    if (_isProtectedKey(canonicalKey, isCached: verbParams['isCached'])) {
       throw UnAuthorizedException(
-          'Cannot delete protected key: \'$deleteKey\'');
+          'Cannot delete protected key: \'$canonicalKey\'');
     }
     await super.processVerb(response, verbParams, atConnection);
     if (verbParams[AtConstants.forAtSign] != null) {
@@ -198,13 +199,13 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     await notificationManager.notify(atNotification);
   }
 
-  Set<String> _getProtectedKeys(String? atsign) {
-    atsign ??= AtSecondaryServerImpl.getInstance().currentAtSign;
-    Set<String> protectedKeys = {};
-    for (var key in AtSecondaryConfig.protectedKeys) {
-      protectedKeys.add(key.replaceFirst('<@atsign>', atsign));
-    }
-    return protectedKeys;
+  /// The atServer's own protected keys, folded as the keystore folds keys.
+  Set<String> _getProtectedKeys() {
+    final atSign = AtSecondaryServerImpl.getInstance().currentAtSign;
+    return {
+      for (final key in AtSecondaryConfig.protectedKeys)
+        canonicalAtKey(key.replaceFirst('<@atsign>', atSign))
+    };
   }
 
   bool _isProtectedKey(String key, {String? isCached}) {

@@ -1,3 +1,80 @@
+# 3.17.0
+- feat: a notification can be ephemeral (`eph`): no atServer stores it,
+  it lives at most two minutes, and an atServer restart loses it. A client can
+  also set when a notification expires (`eAtn`). An atServer passes both on,
+  as given, to an atServer whose `info` lists them with any status but
+  `Retired`, and logs a warning when that status is not `GA`. `info` now lists
+  `features`, among them `notify.eph` and `notify.eAtn`.
+
+- fix: a monitor is no longer sent a notification that has already expired.
+
+- fix: tighten validation on notify: requests from other atServers
+
+- fix: `notify:all` judges each recipient's key as `notify` does and, when it
+  refuses one, notifies nobody. A key that names no sender is sent as the
+  atServer's own rather than as `<key>null`.
+
+- feat: `notify:all` is deprecated; send a `notify` to each recipient instead.
+  `info` lists it as `notify.all` with status `Deprecated`.
+
+# 3.16.6
+- fix: `notify:all` stores each recipient as an atSign and notifies it once
+  however it is spelt, notifies the atServer's own atSign as `notify` does,
+  no longer fails for a text notification, refuses a key another atSign owns
+  as `notify` does, and stores the time in UTC. Its reply is keyed by the
+  normalised atSign
+  ([#2832](https://github.com/atsign-foundation/at_server/issues/2832),
+  [#2833](https://github.com/atsign-foundation/at_server/issues/2833),
+  [#2834](https://github.com/atsign-foundation/at_server/issues/2834),
+  [#2835](https://github.com/atsign-foundation/at_server/issues/2835),
+  [#2838](https://github.com/atsign-foundation/at_server/issues/2838)).
+
+- fix: a client that writes a second command without waiting for the first
+  one's response now gets two responses. The inbound buffer dispatched
+  everything it held as a single command, so two commands landing in one read
+  event — a client writing them back to back, or one TLS record carrying both
+  — reached the verb layer as one string with a terminator in the middle,
+  which no verb syntax matches. Commands are now framed one per terminator and
+  dispatched one at a time, in arrival order.
+
+  The case this was found on is `monitor` immediately followed by `noop:0`, as
+  a notification connection carrying its own heartbeat does. The client got a
+  single `error:AT0003` frame, the monitor was never registered and the
+  `noop:0` never ran, on a connection that stayed open — a client reporting
+  itself as listening while the atServer had no monitor for it. Note that
+  `monitor:multiplexed` is still accepted and ignored, so a notification can
+  still be written between a command on a monitor connection and its reply.
+
+  A read that carries no bytes no longer closes the connection.
+
+- perf: the inbound buffer copies half as many bytes for a command that
+  arrives in one read, and no longer copies the whole buffer on every read of
+  one that arrives in many; an 8 MiB command in 64 KiB reads was copying
+  524 MiB.
+
+- fix: the atServer's own encryption and signing keys can no longer be
+  deleted, which was possible after onboarding or by naming them in mixed case
+  ([#2825](https://github.com/atsign-foundation/at_server/issues/2825)).
+
+- fix: a commit id is never issued twice, and `stats:3` with no regex or
+  namespace restriction reports the last commit id issued: it no longer goes
+  down when the newest entry is purged, and is -1 rather than null for an
+  empty log
+  ([#2827](https://github.com/atsign-foundation/at_server/issues/2827),
+  [#2828](https://github.com/atsign-foundation/at_server/issues/2828)). On
+  the SQLite backend, commit ids now start at 0, as on Hive
+  ([#2826](https://github.com/atsign-foundation/at_server/issues/2826)).
+
+- feat: a connection to another atServer now opens with `to:`, falling back
+  to the legacy lookup when the peer doesn't understand it. Set
+  `toVerbOutboundEnabled=false` to send only the legacy lookup.
+
+- fix: on a namespace-restricted enrollment, `stats:3` counts by the rule
+  `sync:from` sends by: the enrollment's own reserved keys, `__atserver` keys
+  and multi-segment namespaces now count, and `__manage` keys no longer do.
+  Concurrent `stats` requests no longer get each other's regex
+  ([#2840](https://github.com/atsign-foundation/at_server/issues/2840)).
+
 # 3.16.5
 - fix: `plookup:all:publickey@<atSign>` and `plookup:meta:publickey@<atSign>`
   report `ttr` -1 with no `ttl`, instead of `ttl` 86400000 with no `ttr`. The

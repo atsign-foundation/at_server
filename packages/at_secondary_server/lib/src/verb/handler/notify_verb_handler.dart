@@ -70,6 +70,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       var atConnectionMetadata =
           atConnection.metaData as InboundConnectionMetadata;
       _validateNotifyVerbParams(verbParams);
+      refuseConflictingLifetime(verbParams);
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
       // If '@' is missing before an atSign, the formatAtSign method prefixes '@' before atSign.
       if (verbParams[AtConstants.forAtSign] != null) {
@@ -92,7 +93,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       // the notification. Store the notification to the keystore.
       else if (atConnectionMetadata.isPolAuthenticated) {
         await _handlePolAuthenticatedConnection(
-            verbParams, atConnectionMetadata, response);
+            currentAtSign, verbParams, atConnectionMetadata, response);
       } else {
         throw UnAuthenticatedException(
             'Notify command cannot be executed without authentication');
@@ -103,12 +104,16 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   }
 
   Future<void> _handlePolAuthenticatedConnection(
+      Atsign currentAtSign,
       HashMap<String, String?> verbParams,
       InboundConnectionMetadata polConnectionMetadata,
       Response response) async {
     if (logger.isLoggable('info')) {
       logger.info('Processing notification id ${verbParams[AtConstants.id]}');
     }
+    _refuseForeignAtSigns(verbParams,
+        currentAtSign: currentAtSign,
+        fromAtSign: polConnectionMetadata.fromAtSign!);
 
     var atNotificationBuilder = _populateNotificationBuilder(verbParams,
         fromAtSign: polConnectionMetadata.fromAtSign!.toAtsign());
@@ -143,7 +148,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     }
 
     // Store and send the notification
-    await notifMgr.notify(n);
+    await notifMgr.notify(n, ephemeral: isEphemeral(verbParams));
 
     // Everything after here is to do with auto-caching based on notifications
     // First of all, caching is only relevant when ttr is set
@@ -224,6 +229,29 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     return;
   }
 
+  /// Refuses, with [UnAuthorizedException], a notification [fromAtSign]'s
+  /// atServer delivers whose sharedWith is not [currentAtSign], or, for a
+  /// key notification, whose sharedBy is not [fromAtSign].
+  static void _refuseForeignAtSigns(HashMap<String, String?> verbParams,
+      {required Atsign currentAtSign, required Atsign fromAtSign}) {
+    final sharedWith = verbParams[AtConstants.forAtSign]?.toAtsign();
+    if (sharedWith != currentAtSign) {
+      throw UnAuthorizedException(
+          'Notification from $fromAtSign is for ${sharedWith ?? 'no atSign'},'
+          ' not $currentAtSign');
+    }
+    if (SecondaryUtil.getMessageType(verbParams[AtConstants.messageType]) !=
+        MessageType.key) {
+      return;
+    }
+    final sharedBy = verbParams[AtConstants.atSign]?.toAtsign();
+    if (sharedBy != fromAtSign) {
+      throw UnAuthorizedException(sharedBy == null
+          ? 'Notification from $fromAtSign is of a key with no sharedBy'
+          : '$sharedBy is not authorized to send notification as $fromAtSign');
+    }
+  }
+
   /// The sender-asserted timestamps carried by this notification's
   /// :cAt/:uAt/:eAt/:aAt params, or null when none were transmitted.
   ///
@@ -288,9 +316,14 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     }
 
     AtNotification n = atNotificationBuilder.build();
-    await notifMgr.notify(n);
     response.data = n.id;
-    return;
+    // NOTE an expiry already past is accepted, and the notification dropped.
+    if (n.isExpired()) {
+      return;
+    }
+    await notifMgr.notify(n,
+        ephemeral: isEphemeral(verbParams),
+        explicitExpiry: verbParams[AtConstants.notificationExpiresAt] != null);
   }
 
   /// Create (or) update the cached key.
@@ -381,12 +414,16 @@ class NotifyVerbHandler extends AbstractVerbHandler {
           verbParams[AtConstants.priority])
       ..messageType = getMessageType(verbParams[AtConstants.messageType])
       ..notificationStatus = NotificationStatus.queued
-      ..atMetaData = _getAtMetadataForNotification(verbParams)
+      ..atMetaData = _metadataFromParams(verbParams)
       ..type = _getNotificationType(
           AtUtils.fixAtSign(verbParams[AtConstants.forAtSign] ?? ''),
           AtSecondaryServerImpl.getInstance().currentAtSign)
       ..ttl =
           getNotificationExpiryInMillis(verbParams[AtConstants.ttlNotification])
+      ..expiresAt = setsOwnExpiry(verbParams)
+          ? notificationExpiresAt(
+              verbParams, atNotificationBuilder.notificationDateTime!)
+          : null
       ..atValue = verbParams[AtConstants.atValue];
     atNotificationBuilder.strategy =
         _getStrategy(verbParams[AtConstants.strategy]);
@@ -402,18 +439,18 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     return atNotificationBuilder;
   }
 
-  /// Gets the metadata from the verbParams
-  AtMetaData _getAtMetadataForNotification(
-      HashMap<String, String?> verbParams) {
+  /// The metadata a notify command's [verbParams] give the notification, and
+  /// so the recipient.
+  static AtMetaData _metadataFromParams(HashMap<String, String?> verbParams) {
     var atMetadata = AtMetaData()
       ..createdBy = AtSecondaryServerImpl.getInstance().currentAtSign;
     // If operation type is update, set value and ttr to cache a key
     // If operation type is delete, set ttr when not null to delete the cached key.
     int? ttrMillis = _getTimeToRefresh(verbParams[AtConstants.ttr]);
-    if (getOperationType(verbParams[AtConstants.operation]) ==
+    if (SecondaryUtil.getOperationType(verbParams[AtConstants.operation]) ==
                 OperationType.update &&
             (ttrMillis != null && verbParams[AtConstants.atValue] != null) ||
-        getOperationType(verbParams[AtConstants.operation]) ==
+        SecondaryUtil.getOperationType(verbParams[AtConstants.operation]) ==
                 OperationType.delete &&
             ttrMillis != null) {
       atMetadata.ttr = ttrMillis;
@@ -484,7 +521,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
           'invalid ${AtConstants.appMetadata}: ${e.message}');
     }
     atMetadata.isEncrypted = getIsEncrypted(
-        getMessageType(verbParams[AtConstants.messageType]),
+        SecondaryUtil.getMessageType(verbParams[AtConstants.messageType]),
         verbParams[AtConstants.atKey]!,
         verbParams[AtConstants.isEncrypted]);
     return atMetadata;
@@ -533,6 +570,57 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     return notifier!;
   }
 
+  /// How long from its creation an ephemeral notification may live.
+  static const ephemeralMaxLifetime = Duration(minutes: 2);
+
+  /// Whether [verbParams] ask for an ephemeral notification, one no atServer
+  /// stores.
+  static bool isEphemeral(HashMap<String, String?> verbParams) =>
+      verbParams[AtConstants.ephemeral] != null;
+
+  /// Whether [verbParams] set the notification's expiry, through `eAtn` or
+  /// `eph`, rather than leaving the builder to derive it from `ttln`.
+  static bool setsOwnExpiry(HashMap<String, String?> verbParams) =>
+      verbParams[AtConstants.notificationExpiresAt] != null ||
+      isEphemeral(verbParams);
+
+  /// Refuses, naming the fields, `eAtn` with `ttln`, and `eph` with `ttr` or
+  /// `ccd`, which would make a recipient keep a cached copy, or with
+  /// `delete`, which keeps recipients' cached copies consistent and so must
+  /// be stored and retried.
+  static void refuseConflictingLifetime(HashMap<String, String?> verbParams) {
+    if (verbParams[AtConstants.notificationExpiresAt] != null &&
+        verbParams[AtConstants.ttlNotification] != null) {
+      throw InvalidSyntaxException('eAtn and ttln cannot both be given');
+    }
+    if (isEphemeral(verbParams)) {
+      if (SecondaryUtil.getOperationType(verbParams[AtConstants.operation]) ==
+          OperationType.delete) {
+        throw InvalidSyntaxException('eph does not take delete');
+      }
+      for (final field in [AtConstants.ttr, AtConstants.ccd]) {
+        if (verbParams[field] != null) {
+          throw InvalidSyntaxException('eph does not take $field');
+        }
+      }
+    }
+  }
+
+  /// When a notification [verbParams] describe expires: `eAtn` as given,
+  /// else [createdAt] plus `ttln`, and no more than [ephemeralMaxLifetime]
+  /// after [createdAt] when `eph` is set.
+  static DateTime notificationExpiresAt(
+      HashMap<String, String?> verbParams, DateTime createdAt) {
+    final eAtn = verbParams[AtConstants.notificationExpiresAt];
+    final expiresAt = eAtn != null
+        ? DateTime.parse(eAtn)
+        : createdAt.add(Duration(
+            milliseconds: getNotificationExpiryInMillis(
+                verbParams[AtConstants.ttlNotification])));
+    final cap = createdAt.add(ephemeralMaxLifetime);
+    return isEphemeral(verbParams) && expiresAt.isAfter(cap) ? cap : expiresAt;
+  }
+
   /// Returns the notification expiry duration in milliseconds
   ///
   /// Accepts the string representation and converts to integer
@@ -541,8 +629,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   /// that contains other than numbers is passed
   ///
   /// If null or empty string is passed, defaults [AtSecondaryConfig.notificationExpiryInMins]
-  @visibleForTesting
-  int getNotificationExpiryInMillis(String? notificationExpiryDuration) {
+  static int getNotificationExpiryInMillis(String? notificationExpiryDuration) {
     int notificationExpiryMillis = 0;
     if (notificationExpiryDuration == null ||
         notificationExpiryDuration == '0') {
@@ -554,14 +641,14 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     return AtMetadataUtil.validateTTL(notificationExpiryDuration);
   }
 
-  int? _getTimeToRefresh(String? ttr) {
+  static int? _getTimeToRefresh(String? ttr) {
     if (ttr == null || ttr.isEmpty) {
       return null;
     }
     return AtMetadataUtil.validateTTR(int.parse(ttr));
   }
 
-  bool? _getCascadeDelete(String? cascadeDelete, int? ttrMillis) {
+  static bool? _getCascadeDelete(String? cascadeDelete, int? ttrMillis) {
     if (ttrMillis != null) {
       return AtMetadataUtil.validateCascadeDelete(
           ttrMillis, AtMetadataUtil.getBoolVerbParams(cascadeDelete));
@@ -577,7 +664,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   }
 
   @visibleForTesting
-  bool getIsEncrypted(
+  static bool getIsEncrypted(
       MessageType messageType, String key, String? isEncryptedStr) {
     if (messageType == MessageType.key && key.startsWith('public')) {
       return false;

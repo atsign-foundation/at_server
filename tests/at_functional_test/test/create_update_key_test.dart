@@ -30,6 +30,11 @@ void main() {
   });
 
   group('A group of tests to assert on metadata of a key', () {
+    Future<Map<String, dynamic>> metadataOf(String k) async =>
+        jsonDecode((await firstAtSignConnection
+                .sendRequestToServer('llookup:all:public:$k$firstAtSign'))
+            .replaceAll('data:', ''))['metaData'] as Map<String, dynamic>;
+
     // The test asserts the following on creation of a key
     // 1. The version of the key should be set to 0
     // 2. The createdAt should be populated with DateTime .
@@ -37,24 +42,28 @@ void main() {
     test(
         'A test to assert of default fields in metadata are populated on creation of a key',
         () async {
+      String marker = 'marker-$uniqueId';
+      await firstAtSignConnection.sendRequestToServer(
+          'update:public:$marker$firstAtSign marker-value');
+      final markerCreatedAt =
+          DateTime.parse((await metadataOf(marker))['createdAt']);
+
       // Insert a new key. To ensure the key is always new append UUID.
-      var keyCreationDateTime = DateTime.now().toUtc();
       String key = 'newkey-$uniqueId';
       var response = await firstAtSignConnection
           .sendRequestToServer('update:public:$key$firstAtSign new-value');
       assert((!response.contains('Invalid syntax')) &&
           (!response.contains('null')));
-      response = (await firstAtSignConnection
-              .sendRequestToServer('llookup:all:public:$key$firstAtSign'))
-          .replaceAll('data:', '');
-      var atData = jsonDecode(response);
-      expect(atData['metaData']['version'], 0);
-      expect(
-          DateTime.parse(atData['metaData']['createdAt'])
-                  .millisecondsSinceEpoch >=
-              keyCreationDateTime.millisecondsSinceEpoch,
-          true);
-      expect(atData['metaData']['createdBy'], firstAtSign);
+      final metaData = await metadataOf(key);
+      expect(metaData['version'], 0);
+      expect(metaData['createdAt'], isNotNull);
+      expect(DateTime.parse(metaData['createdAt']).isBefore(markerCreatedAt),
+          false,
+          reason: 'createdAt is stamped when the key is created, so it is no '
+              'earlier than the atServer\'s stamp on a key created before it. '
+              'The bound comes from the atServer\'s clock, not the test '
+              'process\'s');
+      expect(metaData['createdBy'], firstAtSign);
     });
 
     test(
@@ -69,12 +78,6 @@ void main() {
       // Every comparison here is between two values the SERVER produced, one
       // per update.
       String key = 'newkey-$uniqueId';
-
-      Future<Map<String, dynamic>> metadataOf(String k) async =>
-          jsonDecode((await firstAtSignConnection
-                      .sendRequestToServer('llookup:all:public:$k$firstAtSign'))
-                  .replaceAll('data:', ''))['metaData']
-              as Map<String, dynamic>;
 
       await firstAtSignConnection
           .sendRequestToServer('update:public:$key$firstAtSign new-value');

@@ -40,6 +40,13 @@ abstract class AtCommitLog implements Compactable {
   /// `(commitId, atKey, operation)`.
   Future<void> replay(CommitEntry entry);
 
+  /// Raise [lastCommittedSequenceNumber] to at least [commitId], so
+  /// [commit] never issues [commitId] or any id below it. Migration uses it
+  /// to carry the source's last commit id across: the source's newest
+  /// entries may have been purged, so the entries it replays do not show
+  /// it.
+  Future<void> raiseLastCommittedSequenceNumber(int commitId);
+
   /// Iterate every commit entry in `commitId` order. If
   /// [fromCommitId] is provided, yields only entries with
   /// `commitId >= fromCommitId`. If [where] is provided, only
@@ -66,7 +73,10 @@ abstract class AtCommitLog implements Compactable {
     int? latestCommitId,
   });
 
-  /// Latest assigned `commitId`, or `null` if the log is empty.
+  /// The highest `commitId` this log has ever issued, or -1 if it has
+  /// issued none. It never goes down: purging the newest entry, compaction
+  /// and restarts leave it where it is, because a sync client may already
+  /// hold that id.
   int? lastCommittedSequenceNumber();
 
   /// Smallest `commitId` still retained in the log, or `null` if

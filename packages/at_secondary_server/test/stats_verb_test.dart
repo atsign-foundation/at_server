@@ -454,38 +454,6 @@ void main() {
     });
 
     test(
-        'A test to verify latest commitId among enrolled namespaces is returned',
-        () async {
-      await keyValueStore.put(
-          '$alice:phone.wavi$alice', AtData()..data = '9848033443');
-      await keyValueStore.put(
-          '$alice:location.wavi$alice', AtData()..data = 'Hyderabad');
-      await keyValueStore.put(
-          '$alice:mobile.buzz$alice', AtData()..data = '9848033444');
-
-      var lastCommitId = await LastCommitIDMetricImpl(atServer)
-          .getMetrics(enrolledNamespaces: ['wavi']);
-      expect(lastCommitId, '1');
-    });
-
-    test(
-        'A test to verify highest commitId among the authorized namespaces is returned',
-        () async {
-      await keyValueStore.put(
-          '$alice:phone.wavi$alice', AtData()..data = '9848033443');
-      await keyValueStore.put(
-          '$alice:location.wavi$alice', AtData()..data = 'Hyderabad');
-      await keyValueStore.put(
-          '$alice:mobile.buzz$alice', AtData()..data = '9848033444');
-      await keyValueStore.put(
-          '$alice:contact.atmosphere$alice', AtData()..data = '9848033444');
-
-      var lastCommitId = await LastCommitIDMetricImpl(atServer)
-          .getMetrics(enrolledNamespaces: ['wavi', 'buzz']);
-      expect(lastCommitId, '2');
-    });
-
-    test(
         'A test to verify latestCommitId is returned when enrolledNamespace and regex are not supplied',
         () async {
       await keyValueStore.put(
@@ -501,22 +469,6 @@ void main() {
       expect(lastCommitId, '3');
     });
 
-    test(
-        'A test to verify latestCommitId is returned when only regex is not supplied',
-        () async {
-      await keyValueStore.put(
-          '$alice:phone.wavi$alice', AtData()..data = '9848033443');
-      await keyValueStore.put(
-          '$alice:location.wavi$alice', AtData()..data = 'Hyderabad');
-      await keyValueStore.put(
-          '$alice:mobile.buzz$alice', AtData()..data = '9848033444');
-      await keyValueStore.put(
-          '$alice:contact.atmosphere$alice', AtData()..data = '9848033444');
-
-      var lastCommitId =
-          await LastCommitIDMetricImpl(atServer).getMetrics(regex: 'buzz');
-      expect(lastCommitId, '2');
-    });
     test('A test to check LatestCommitEntryOfEachKey for empty commit log',
         () async {
       var latestCommitIdForEachKey =

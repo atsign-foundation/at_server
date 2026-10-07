@@ -956,6 +956,37 @@ void main() {
       await verbTestsTearDown();
     });
   });
+
+  group('monitors', () {
+    test('are never given an expired notification', () async {
+      inboundConnection.metaData
+        ..isAuthenticated = true
+        ..authType = AuthType.cram;
+      final monitor = MonitorVerbHandler(keyValueStore, notificationManager);
+      await monitor.processVerb(Response(), HashMap(), inboundConnection);
+      AtNotification received(String id, DateTime expiresAt) =>
+          (AtNotificationBuilder()
+                ..id = id
+                ..fromAtSign = bob
+                ..toAtSign = alice
+                ..notification = 'phone.wavi'
+                ..type = NotificationType.received
+                ..expiresAt = expiresAt)
+              .build();
+
+      await monitor.processAtNotification(inboundConnection,
+          received('live', DateTime.now().add(const Duration(minutes: 1))));
+      expect(inboundConnection.lastWrittenData, contains('"id":"live"'),
+          reason: 'control: an unexpired notification is written');
+
+      inboundConnection.lastWrittenData = null;
+      await monitor.processAtNotification(
+          inboundConnection,
+          received(
+              'stale', DateTime.now().subtract(const Duration(seconds: 1))));
+      expect(inboundConnection.lastWrittenData, isNull);
+    });
+  });
 }
 
 Future<String> setEnrollmentKey(String namespace) async {
