@@ -63,10 +63,8 @@ final class AtServerHeartbeatScheduler {
     _telemetry.emitEvent(
       atServerHeartbeatEventName,
       attributes: <String, Object?>{
-        ..._telemetry.healthAttributes(),
         AtTelemetryAttributes.atServerUptimeSeconds:
             _uptime.elapsedMicroseconds / Duration.microsecondsPerSecond,
-        AtTelemetryAttributes.telemetryClasses: atServerEnabledTelemetryClasses,
       },
     );
   }

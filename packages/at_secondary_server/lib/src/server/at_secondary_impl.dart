@@ -26,7 +26,6 @@ import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/persistence_backend.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
-import 'package:at_secondary/src/telemetry/at_server_telemetry_constants.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_exporter.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_http_exporter.dart';
 import 'package:at_telemetry/at_telemetry.dart' show AtTelemetrySequence;
@@ -379,7 +378,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         atSign: currentAtSign.toString(),
         bootId: bootId,
         keyStore: keyValueStore,
-        storageRoot: AtSecondaryConfig.storageRoot,
       );
       if (exporter != null) {
         telemetry.enable(
@@ -387,9 +385,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
           serverId: currentAtSign.toString(),
           bootId: bootId,
           serviceVersion: AtSecondaryConfig.secondaryServerVersion,
-          health: () => exporter.outboxHealth,
         );
-        telemetry.emitEvent(atServerStartedEventName);
       }
     }
 
@@ -807,7 +803,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
       // Stops the heartbeat, flushes pending events and closes the exporter
       logger.info('Shutting down telemetry');
-      telemetry.emitEvent(atServerStoppedEventName);
       await telemetry.shutdown(timeout: _telemetryFlushTimeout);
 
       _isRunning = false;
