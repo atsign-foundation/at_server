@@ -292,7 +292,9 @@ void main() {
       }
     }
 
-    test('Test lookup per-enrollment data of expired', () async {
+    test(
+        'The expired-keys pass moves an expired enrollment\'s per-enrollment '
+        'data, values intact, from a.__e to d.__e', () async {
       final int ttl = 150;
       String enId =
           (await etu.createEnrollments(n: 1, m: 1, ttl: ttl)).$1.first;
@@ -315,7 +317,9 @@ void main() {
           values);
     });
 
-    test('Test lookup per-enrollment data of revoked', () async {
+    test(
+        'Revoking an enrollment moves its per-enrollment data, values intact, '
+        'from a.__e to r.__e', () async {
       String enId = (await etu.createEnrollments(n: 1)).$1.first;
 
       var (keys, values) = await etu.createSomePerEnrollmentData(enId);
@@ -335,7 +339,9 @@ void main() {
           values);
     });
 
-    test('Test lookup per-enrollment data of deleted', () async {
+    test(
+        'Deleting a revoked enrollment moves its per-enrollment data, values '
+        'intact, to d.__e', () async {
       String enId = (await etu.createEnrollments(n: 1)).$1.first;
 
       var (keys, values) = await etu.createSomePerEnrollmentData(enId);
