@@ -93,7 +93,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       // the notification. Store the notification to the keystore.
       else if (atConnectionMetadata.isPolAuthenticated) {
         await _handlePolAuthenticatedConnection(
-            verbParams, atConnectionMetadata, response);
+            currentAtSign, verbParams, atConnectionMetadata, response);
       } else {
         throw UnAuthenticatedException(
             'Notify command cannot be executed without authentication');
@@ -104,12 +104,16 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   }
 
   Future<void> _handlePolAuthenticatedConnection(
+      Atsign currentAtSign,
       HashMap<String, String?> verbParams,
       InboundConnectionMetadata polConnectionMetadata,
       Response response) async {
     if (logger.isLoggable('info')) {
       logger.info('Processing notification id ${verbParams[AtConstants.id]}');
     }
+    _refuseForeignAtSigns(verbParams,
+        currentAtSign: currentAtSign,
+        fromAtSign: polConnectionMetadata.fromAtSign!);
 
     var atNotificationBuilder = _populateNotificationBuilder(verbParams,
         fromAtSign: polConnectionMetadata.fromAtSign!.toAtsign());
@@ -223,6 +227,29 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     }
     response.data = 'data:success';
     return;
+  }
+
+  /// Refuses, with [UnAuthorizedException], a notification [fromAtSign]'s
+  /// atServer delivers whose sharedWith is not [currentAtSign], or, for a
+  /// key notification, whose sharedBy is not [fromAtSign].
+  static void _refuseForeignAtSigns(HashMap<String, String?> verbParams,
+      {required Atsign currentAtSign, required Atsign fromAtSign}) {
+    final sharedWith = verbParams[AtConstants.forAtSign]?.toAtsign();
+    if (sharedWith != currentAtSign) {
+      throw UnAuthorizedException(
+          'Notification from $fromAtSign is for ${sharedWith ?? 'no atSign'},'
+          ' not $currentAtSign');
+    }
+    if (SecondaryUtil.getMessageType(verbParams[AtConstants.messageType]) !=
+        MessageType.key) {
+      return;
+    }
+    final sharedBy = verbParams[AtConstants.atSign]?.toAtsign();
+    if (sharedBy != fromAtSign) {
+      throw UnAuthorizedException(sharedBy == null
+          ? 'Notification from $fromAtSign is of a key with no sharedBy'
+          : '$sharedBy is not authorized to send notification as $fromAtSign');
+    }
   }
 
   /// The sender-asserted timestamps carried by this notification's

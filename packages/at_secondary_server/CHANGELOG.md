@@ -8,6 +8,8 @@
 
 - fix: a monitor is no longer sent a notification that has already expired.
 
+- fix: tighten validation on notify: requests from other atServers
+
 - fix: `notify:all` judges each recipient's key as `notify` does and, when it
   refuses one, notifies nobody. A key that names no sender is sent as the
   atServer's own rather than as `<key>null`.
