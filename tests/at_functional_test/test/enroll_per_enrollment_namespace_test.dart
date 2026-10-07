@@ -102,6 +102,96 @@ void main() {
     });
 
     test(
+        'revoking an enrollment moves its per-enrollment data to r.__e, and '
+        'deleting it moves the data to d.__e', () async {
+      await firstAtSignConnection.authenticateConnection(
+          authType: AuthType.cram);
+      var primaryJson = jsonDecode((await firstAtSignConnection.sendRequestToServer(
+              'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${mintApkamKeys().publicKey}"}\n'))
+          .replaceAll('data:', ''));
+      expect(primaryJson['status'], 'approved');
+
+      String otp = (await firstAtSignConnection.sendRequestToServer('otp:get'))
+          .replaceFirst('data:', '')
+          .trim();
+      OutboundConnectionFactory secondConnection =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
+      ApkamKeys secondKeys = mintApkamKeys();
+      var secondJson = jsonDecode((await secondConnection.sendRequestToServer(
+              'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otp","apkamPublicKey":"${secondKeys.publicKey}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"}\n'))
+          .replaceAll('data:', ''));
+      expect(secondJson['status'], 'pending');
+      String secondEnrollmentId = secondJson['enrollmentId'];
+      var approveJson = jsonDecode((await firstAtSignConnection.sendRequestToServer(
+              'enroll:approve:{"enrollmentId":"$secondEnrollmentId","encryptedDefaultEncryptionPrivateKey":"${apkamEncryptedKeysMap["encryptedDefaultEncPrivateKey"]}","encryptedDefaultSelfEncryptionKey":"${apkamEncryptedKeysMap["encryptedSelfEncKey"]}"}'))
+          .replaceAll('data:', ''));
+      expect(approveJson['status'], 'approved');
+
+      String publicKey(String state) =>
+          'pub.$secondEnrollmentId.$state.__e$firstAtSign';
+      String selfKey(String state) =>
+          '$firstAtSign:secret.$secondEnrollmentId.$state.__e$firstAtSign';
+
+      await secondConnection.authenticateConnection(
+          authType: AuthType.apkam,
+          enrollmentId: secondEnrollmentId,
+          privateKey: secondKeys.privateKey);
+      for (final update in [
+        'update:public:${publicKey('a')} publicvalue',
+        'update:${selfKey('a')} selfvalue',
+      ]) {
+        expect(await secondConnection.sendRequestToServer(update),
+            startsWith('data:'),
+            reason: update);
+      }
+      await secondConnection.close();
+
+      OutboundConnectionFactory unauthConnection =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
+
+      /// Expects the public and self key to hold their values in [present]
+      /// and to be gone from [absent].
+      Future<void> expectDataIn(String present,
+          {required String absent}) async {
+        expect(
+            await unauthConnection
+                .sendRequestToServer('lookup:${publicKey(present)}'),
+            'data:publicvalue');
+        expect(
+            await firstAtSignConnection
+                .sendRequestToServer('llookup:${selfKey(present)}'),
+            'data:selfvalue');
+        expect(
+            await unauthConnection
+                .sendRequestToServer('lookup:${publicKey(absent)}'),
+            contains('does not exist in keystore'));
+        expect(
+            await firstAtSignConnection
+                .sendRequestToServer('llookup:${selfKey(absent)}'),
+            contains('does not exist in keystore'));
+      }
+
+      await expectDataIn('a', absent: 'r');
+
+      expect(
+          await firstAtSignConnection.sendRequestToServer(
+              'enroll:revoke:{"enrollmentId":"$secondEnrollmentId"}'),
+          startsWith('data:'));
+      await expectDataIn('r', absent: 'a');
+
+      var deleteJson = jsonDecode(
+          (await firstAtSignConnection.sendRequestToServer(
+                  'enroll:delete:{"enrollmentId":"$secondEnrollmentId"}'))
+              .replaceAll('data:', ''));
+      expect(deleteJson['status'], 'deleted');
+      await expectDataIn('d', absent: 'r');
+
+      await unauthConnection.close();
+    });
+
+    test(
         'a *:rw + __manage primary cannot read another enrollment\'s per-enrollment (a.__e) data',
         () async {
       await firstAtSignConnection.authenticateConnection(authType: AuthType.cram);
