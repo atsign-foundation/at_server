@@ -370,22 +370,27 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     // Enabling telemetry also starts the heartbeat. `stop()` shuts telemetry
     // down, so every start after a stop is a new boot with a fresh exporter.
+    // Telemetry failing to start must never stop the server starting
     if (!telemetry.isEnabled) {
-      final String bootId = AtTelemetrySequence.newBootId();
-      final AtServerTelemetryHttpExporter? exporter =
-          await createAtServerTelemetryExporter(
-        endpoint: serverContext!.telemetryEndpoint,
-        atSign: currentAtSign.toString(),
-        bootId: bootId,
-        keyStore: keyValueStore,
-      );
-      if (exporter != null) {
-        telemetry.enable(
-          exporter: exporter,
-          serverId: currentAtSign.toString(),
+      try {
+        final String bootId = AtTelemetrySequence.newBootId();
+        final AtServerTelemetryHttpExporter? exporter =
+            await createAtServerTelemetryExporter(
+          endpoint: serverContext!.telemetryEndpoint,
+          atSign: currentAtSign.toString(),
           bootId: bootId,
-          serviceVersion: AtSecondaryConfig.secondaryServerVersion,
+          keyStore: keyValueStore,
         );
+        if (exporter != null) {
+          telemetry.enable(
+            exporter: exporter,
+            serverId: currentAtSign.toString(),
+            bootId: bootId,
+            serviceVersion: AtSecondaryConfig.secondaryServerVersion,
+          );
+        }
+      } on Object catch (error) {
+        logger.warning('Telemetry is off: it could not be started: $error');
       }
     }
 

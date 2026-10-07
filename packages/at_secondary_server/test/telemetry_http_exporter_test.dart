@@ -208,6 +208,37 @@ void main() {
       expect(await subject.export(heartbeat(), resource), isFalse);
     });
 
+    test('gives up on a collector that never finishes connecting', () async {
+      // Accepts the TCP connection but never answers the TLS handshake
+      final ServerSocket silent =
+          await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final List<Socket> held = <Socket>[];
+      silent.listen(held.add);
+      final AtServerTelemetryHttpExporter subject =
+          AtServerTelemetryHttpExporter(
+        endpoint: Uri.parse('https://127.0.0.1:${silent.port}'),
+        producer: '$alice',
+        bootId: AtTelemetrySequence.newBootId(),
+        key: key,
+        requestTimeout: const Duration(milliseconds: 200),
+      );
+
+      try {
+        expect(
+          await subject
+              .export(heartbeat(), resource)
+              .timeout(const Duration(seconds: 5)),
+          isFalse,
+        );
+      } finally {
+        await subject.shutdown();
+        for (final Socket socket in held) {
+          socket.destroy();
+        }
+        await silent.close();
+      }
+    });
+
     test('rejects an endpoint that is not an OTLP base URL', () async {
       for (final String endpoint in <String>[
         'ftp://collector.example.com',
@@ -228,6 +259,48 @@ void main() {
         );
       }
     });
+  });
+
+  // The atServer runs inside a zone that stops the server on any uncaught
+  // error other than a SocketException, so telemetry must never let one out
+  group('a failing collector never reaches the zone', () {
+    final Map<String, Future<http.StreamedResponse> Function()> failures =
+        <String, Future<http.StreamedResponse> Function()>{
+      'a 500': () async => _status(500),
+      'a 401': () async => _status(401),
+      'a SocketException': () async => throw const SocketException('refused'),
+      'a HandshakeException': () async =>
+          throw const HandshakeException('bad certificate'),
+      'a StateError': () async => throw StateError('broken client'),
+      'a response stream that fails': () async => http.StreamedResponse(
+          Stream<List<int>>.error(const HttpException('reset')), 200),
+    };
+
+    for (final MapEntry<String,
+        Future<http.StreamedResponse> Function()> failure in failures.entries) {
+      test('on ${failure.key}', () async {
+        final List<Object> uncaught = <Object>[];
+        late AtServerTelemetry telemetry;
+
+        await runZonedGuarded(() async {
+          respond = (http.BaseRequest request) => failure.value();
+          telemetry = AtServerTelemetry(
+            heartbeatInterval: const Duration(milliseconds: 10),
+          )..enable(
+              exporter: exporter(AtTelemetrySequence.newBootId()),
+              serverId: '$alice',
+              bootId: 'boot-1',
+            );
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+          await telemetry.shutdown(timeout: const Duration(seconds: 5));
+        }, (Object error, StackTrace _) => uncaught.add(error));
+
+        expect(requests.length, greaterThan(1),
+            reason: 'heartbeats keep going after a failure');
+        expect(uncaught, isEmpty);
+        expect(telemetry.isEnabled, isFalse);
+      });
+    }
   });
 
   group('AtServerTelemetry', () {

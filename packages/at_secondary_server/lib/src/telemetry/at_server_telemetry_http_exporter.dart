@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:at_telemetry/at_telemetry.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 
 import 'at_server_telemetry_signing_key.dart';
 
@@ -12,8 +14,10 @@ import 'at_server_telemetry_signing_key.dart';
 // in the order their sequence numbers were taken, so the collector sees them
 // in order. Any 2xx means delivered. Anything else, or a network failure, is
 // logged and the record dropped; the collector sees the gap in the sequence.
-// Every request has a deadline that aborts it, and shutdown has one too, so
-// nothing here can hold the server up.
+// Every request has a deadline that aborts it, connecting included, and
+// shutdown has one too, so nothing here can hold the server up. Nothing here
+// throws or leaves an error unhandled, since an uncaught error stops the
+// atServer.
 final class AtServerTelemetryHttpExporter
     implements AtTelemetryLogRecordExporter {
   static const String logsPath = '/v1/logs';
@@ -47,7 +51,10 @@ final class AtServerTelemetryHttpExporter
   })  : endpoint = logsEndpointFor(endpoint),
         audience = endpoint.host,
         _key = key,
-        _client = client ?? http.Client(),
+        // The request deadline cannot abort a connect, so the client's own
+        // connection timeout bounds it
+        _client = client ??
+            IOClient(HttpClient()..connectionTimeout = requestTimeout),
         _ownsClient = client == null,
         _requestTimeout = requestTimeout,
         _shutdownTimeout = shutdownTimeout {
@@ -83,7 +90,8 @@ final class AtServerTelemetryHttpExporter
         AtTelemetrySequence(bootId: bootId, number: _nextNumber++);
     final Future<bool> delivery =
         _sending.then((void _) => _send(logRecord, resource, sequence));
-    _sending = delivery.then((bool _) {});
+    // Never holds an error, so one failed send cannot stop the next
+    _sending = delivery.then((bool _) {}, onError: (Object _) {});
     return delivery;
   }
 
@@ -111,6 +119,19 @@ final class AtServerTelemetryHttpExporter
   }
 
   Future<bool> _send(
+    AtTelemetryLogRecord logRecord,
+    AtTelemetryResource resource,
+    AtTelemetrySequence sequence,
+  ) async {
+    try {
+      return await _sendOrThrow(logRecord, resource, sequence);
+    } on Object catch (error) {
+      _logger.warning('Dropped telemetry $sequence: $error');
+      return false;
+    }
+  }
+
+  Future<bool> _sendOrThrow(
     AtTelemetryLogRecord logRecord,
     AtTelemetryResource resource,
     AtTelemetrySequence sequence,

@@ -74,6 +74,8 @@ final class AtServerTelemetry {
     } on ArgumentError catch (error) {
       _logger.warning('Ignoring invalid telemetry event $name: '
           '${error.name} ${error.message}');
+    } on Object catch (error) {
+      _logger.warning('Dropped telemetry event $name: $error');
     }
   }
 
