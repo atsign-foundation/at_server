@@ -47,8 +47,17 @@ class GlobalExceptionHandler {
           InvalidSyntaxException(HttpRequestWithoutAlpnException.message),
           atConnection);
       _closeConnection(atConnection);
-    } else if (exception is InvalidSyntaxException ||
-        exception is InvalidAtKeyException ||
+    } else if (exception is InvalidSyntaxException) {
+      // This is normal behaviour, log as INFO. An authenticated client keeps
+      // its connection after a typo; on any other connection it is answered,
+      // then closed, rather than left open to keep sending what isn't the
+      // atProtocol.
+      logger.info(exception.toString());
+      await _sendResponseForException(exception, atConnection);
+      if (atConnection != null && !_isAuthenticated(atConnection)) {
+        _closeConnection(atConnection);
+      }
+    } else if (exception is InvalidAtKeyException ||
         exception is IllegalArgumentException) {
       // This is normal behaviour, log as INFO
       logger.info(exception.toString());
@@ -107,6 +116,12 @@ class GlobalExceptionHandler {
   void _closeConnection(AtConnection? atConnection) async {
     await atConnection?.close();
   }
+
+  /// Whether [atConnection] has authenticated, as the atSign's own client or
+  /// by pol as another atServer.
+  bool _isAuthenticated(AtConnection atConnection) =>
+      atConnection.metaData.isAuthenticated ||
+      atConnection.metaData.isPolAuthenticated;
 
   Future<void> _handleInternalException(
       AtException exception, AtConnection? atConnection) async {

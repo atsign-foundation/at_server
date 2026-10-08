@@ -5,6 +5,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/inbound/connection_util.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_message_listener.dart';
+import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/exception/http_request_without_alpn_exception.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -782,12 +783,80 @@ void main() async {
       expect(client.closeCount, 1);
     });
 
-    test('control: an invalid verb is answered and left open', () async {
+    test('control: an invalid verb is answered as one, then closed', () async {
       await send('bogus\n');
       expect(client.writes, [
         'error:AT0003-Exception: Received invalid verb that does not match '
             'protocol spec\n@'
       ]);
+      expect(client.closeCount, 1);
+    });
+  });
+
+  group('Bad syntax on a connection', () {
+    setUp(() {
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
+    });
+
+    /// Feeds [data] to a listener over [client] and waits for the reply.
+    Future<void> send(FakeInboundConnection client, String data) async {
+      InboundMessageListener(client).listen(callback, streamCallBack);
+      client.socket.addData(data);
+      await Future.delayed(const Duration(milliseconds: 60));
+    }
+
+    test('unauthenticated, is answered once and the connection closed',
+        () async {
+      // NOTE the validator throws on the first command, so the drain bins the
+      // rest of what arrived with it: one answer, however many lines follow.
+      final client =
+          FakeInboundConnection(FakeSocket(), InboundConnectionMetadata());
+      await send(client, 'zz:a\nzz:b\nzz:c\n');
+      expect(client.writes, hasLength(1), reason: '${client.writes}');
+      expect(client.writes.single, startsWith('error:AT0003'));
+      expect(client.closeCount, 1);
+    });
+
+    test('authenticated, is answered and the connection left open', () async {
+      final client = FakeInboundConnection(
+          FakeSocket(), InboundConnectionMetadata()..isAuthenticated = true);
+      await send(client, 'zz:a\n');
+      expect(client.writes.single, startsWith('error:AT0003'));
+      expect(client.closeCount, 0,
+          reason: 'a typo does not cost the client its session');
+    });
+
+    test('from a verb handler, unauthenticated, closes the connection',
+        () async {
+      // A handler whose syntax does not match throws the same exception the
+      // validator does, and is treated the same way.
+      final client =
+          FakeInboundConnection(FakeSocket(), InboundConnectionMetadata());
+      await GlobalExceptionHandler.getInstance().handle(
+          InvalidSyntaxException('Syntax Exception'),
+          atConnection: client);
+      expect(client.writes.single, startsWith('error:AT0003'));
+      expect(client.closeCount, 1);
+    });
+
+    test('from a verb handler, pol-authenticated, leaves the connection open',
+        () async {
+      final client = FakeInboundConnection(
+          FakeSocket(), InboundConnectionMetadata()..isPolAuthenticated = true);
+      await GlobalExceptionHandler.getInstance().handle(
+          InvalidSyntaxException('Syntax Exception'),
+          atConnection: client);
+      expect(client.writes.single, startsWith('error:AT0003'));
+      expect(client.closeCount, 0);
+    });
+
+    test('control: an invalid atKey, unauthenticated, leaves it open',
+        () async {
+      final client =
+          FakeInboundConnection(FakeSocket(), InboundConnectionMetadata());
+      await GlobalExceptionHandler.getInstance()
+          .handle(InvalidAtKeyException('bad key'), atConnection: client);
+      expect(client.writes, hasLength(1));
       expect(client.closeCount, 0);
     });
   });
