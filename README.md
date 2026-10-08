@@ -27,7 +27,7 @@ is a personal, secure server that contains a person's data and their
 permissions and terms under which they wish to share with others. The server
 is written in Dart and is incredibly efficient. It has the ability to
 securely sync data with other instances in the cloud or on other devices.
-It also serves its atSign's public keys over HTTPS; see
+It also serves its atSign's `public:` records over HTTPS; see
 [docs/http-interface.md](./docs/http-interface.md).
 
 ### core dependencies
