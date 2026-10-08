@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/compaction/at_compaction_stats_service_impl.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
@@ -263,6 +264,32 @@ void main() {
               'timer');
     });
 
+    test('a compaction still running when its timer is replaced is not '
+        'overlapped', () async {
+      final AtSecondaryServerImpl server = AtSecondaryServerImpl.getInstance();
+      final _BlockingCompactable resource = _BlockingCompactable();
+      final AtCompactionStatsService stats =
+          AtCompactionStatsService(keyValueStore);
+      addTearDown(() {
+        resource.release();
+        server.compactionTimers['blocking']?.cancel();
+      });
+      const Duration period = Duration(milliseconds: 10);
+
+      server.scheduleCompaction(resource, period, 'blocking', stats);
+      await resource.firstStarted.future;
+      server.scheduleCompaction(resource, period, 'blocking', stats);
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      expect(resource.passes, 1,
+          reason: 'the new timer must not start a pass while the old '
+              'timer\'s pass is still running');
+      resource.release();
+      await Future.delayed(const Duration(milliseconds: 100));
+      expect(resource.passes, greaterThan(1),
+          reason: 'once that pass ends, the new timer compacts again');
+    });
+
     test('control: values a config can take are applied', () async {
       for (final setting in ['inboundMaxLimit=7', 'autoNotify=false']) {
         final (thrown, uncaught) = await set(setting);
@@ -281,4 +308,22 @@ void main() {
           'false');
     });
   });
+}
+
+/// A resource whose every compaction pass waits until [release] is called.
+class _BlockingCompactable implements Compactable {
+  final Completer<void> firstStarted = Completer<void>();
+  final Completer<void> _released = Completer<void>();
+  int passes = 0;
+
+  void release() {
+    if (!_released.isCompleted) _released.complete();
+  }
+
+  @override
+  Stream<Object> compact(bool dryRun) async* {
+    passes++;
+    if (!firstStarted.isCompleted) firstStarted.complete();
+    await _released.future;
+  }
 }

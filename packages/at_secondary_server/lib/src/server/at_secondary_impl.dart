@@ -113,6 +113,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   Map<String, Timer> get compactionTimers =>
       Map.unmodifiable(_compactionTimers);
 
+  /// The labels of the resources being compacted now. Kept here rather than
+  /// per timer, so a compaction still running when its timer is replaced is
+  /// not overlapped by the new one.
+  final Set<String> _compacting = {};
+
   /// One-shot timer driving [runHousekeepingSweep], re-armed after every
   /// sweep so the server sleeps until the next key expires.
   Timer? _keyExpiryTimer;
@@ -204,7 +209,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     final statsService = AtCompactionStatsService(keyValueStore);
     if (AtSecondaryConfig.enableCommitLogCompactor) {
-      _scheduleCompaction(
+      scheduleCompaction(
         commitLog,
         Duration(minutes: AtSecondaryConfig.commitLogCompactionFrequencyMins),
         'commitLog',
@@ -212,7 +217,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       );
     }
     if (AtSecondaryConfig.enableAccessLogCompactor) {
-      _scheduleCompaction(
+      scheduleCompaction(
         accessLog,
         Duration(minutes: AtSecondaryConfig.accessLogCompactionFrequencyMins),
         'accessLog',
@@ -220,7 +225,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       );
     }
     if (AtSecondaryConfig.enableNotificationCompactor) {
-      _scheduleCompaction(
+      scheduleCompaction(
         notificationKeystore,
         Duration(
             minutes:
@@ -390,7 +395,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   ) async {
     logger.finest(
         'Received new frequency for $label compaction: ${newFrequency.inMinutes}m');
-    _scheduleCompaction(resource, newFrequency, label, statsService);
+    scheduleCompaction(resource, newFrequency, label, statsService);
   }
 
   /// Everything the keystore needs done before a client can connect, in the
@@ -467,17 +472,16 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// Schedules a periodic compaction tick for [resource]. The tick drains
   /// `compact(false)` with an overlap guard and records the pass via
   /// [statsService].
-  void _scheduleCompaction(
+  @visibleForTesting
+  void scheduleCompaction(
     Compactable resource,
     Duration period,
     String label,
     AtCompactionStatsService statsService,
   ) {
-    bool running = false;
     _compactionTimers[label]?.cancel();
     _compactionTimers[label] = Timer.periodic(period, (_) async {
-      if (running) return;
-      running = true;
+      if (!_compacting.add(label)) return;
       try {
         final start = DateTime.timestamp();
         var count = 0;
@@ -496,7 +500,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       } catch (e, st) {
         logger.warning('compaction failed for $label: $e\n$st');
       } finally {
-        running = false;
+        _compacting.remove(label);
       }
     });
   }
