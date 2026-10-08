@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/caching/cache_refresh_job.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_utils/at_logger.dart';
@@ -33,6 +34,24 @@ void main() {
           job.refreshNow(pauseAfterFinishing: Duration(milliseconds: 10)));
       expect(job.running, true);
       await expectLater(job.refreshNow(), throwsA(isA<StateError>()));
+    });
+
+    test('a refresh requested while one is running is skipped, not thrown',
+        () async {
+      AtCacheRefreshJob job = AtCacheRefreshJob(alice, cacheManager);
+      unawaited(
+          job.refreshNow(pauseAfterFinishing: Duration(milliseconds: 10)));
+      expect(job.running, true);
+      await expectLater(job.refreshNowIfIdle(), completes);
+    });
+
+    test('a requested refresh that fails is logged, not thrown', () async {
+      final failing = _MockAtCacheManager();
+      when(() => failing.getKeyNamesToRefresh())
+          .thenThrow(StateError('injected'));
+      AtCacheRefreshJob job = AtCacheRefreshJob(alice, failing);
+      await expectLater(job.refreshNowIfIdle(), completes);
+      expect(job.running, false);
     });
 
     test('Ensure scheduled only once', () async {
@@ -239,3 +258,5 @@ void main() {
     });
   });
 }
+
+class _MockAtCacheManager extends Mock implements AtCacheManager {}

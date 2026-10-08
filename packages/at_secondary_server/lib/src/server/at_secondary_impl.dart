@@ -265,7 +265,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     AtSecondaryConfig.subscribe(ModifiableConfigs.doCacheRefreshNow)
         ?.listen((newValue) async {
       if (newValue.toString() == 'true') {
-        unawaited(atRefreshJob.refreshNow());
+        unawaited(atRefreshJob.refreshNowIfIdle());
       }
     });
 

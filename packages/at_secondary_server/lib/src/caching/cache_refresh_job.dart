@@ -94,6 +94,20 @@ class AtCacheRefreshJob {
     };
   }
 
+  /// Runs [refreshNow] unless a refresh is already running, logging a
+  /// failure rather than throwing it, for callers that do not await it.
+  Future<void> refreshNowIfIdle() async {
+    if (running) {
+      logger.info('Cache refresh requested while one is running; skipping');
+      return;
+    }
+    try {
+      logger.info('Requested cache refresh completed: ${await refreshNow()}');
+    } catch (e, st) {
+      logger.severe('Requested cache refresh failed: $e\n$st');
+    }
+  }
+
   /// Schedule an execution of [refreshNow] at [runJobHour]:00
   void scheduleRefreshJob(int runJobHour) {
     if (cron != null) {
