@@ -21,9 +21,25 @@ void main() {
           '\\x00\\x7f\\x85\\x9b\xa0');
     });
 
-    test('truncates before it escapes', () {
-      expect(sanitiseForLogging('\n\n\n\n', cutOffAfter: 2),
+    test('escapes a backslash, so that every escape is unambiguous', () {
+      expect(sanitiseForLogging(r'a\nb'), r'a\\nb');
+      expect(sanitiseForLogging('a\nb'), r'a\nb');
+    });
+
+    test('cuts what it has escaped, not what it was given', () {
+      // 525 escapes of four characters each fill the 2100 exactly.
+      expect(sanitiseForLogging('\x1b' * 4000),
+          '${r'\x1b' * 525} [truncated, 3475 more chars]');
+    });
+
+    test('cuts between escapes, never inside one', () {
+      expect(sanitiseForLogging('\n\n\n\n', cutOffAfter: 3),
           r'\n\n [truncated, 2 more chars]');
+    });
+
+    test('cuts plain text at the limit', () {
+      expect(sanitiseForLogging('abcdef', cutOffAfter: 4),
+          'abcd [truncated, 2 more chars]');
     });
   });
 }

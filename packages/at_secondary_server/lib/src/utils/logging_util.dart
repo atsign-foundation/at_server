@@ -2,25 +2,39 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
 
-/// The C0 and C1 control characters, and DEL.
-final RegExp _controlCharacters = RegExp(r'[\x00-\x1f\x7f-\x9f]');
-
-/// [toLog] cut to [cutOffAfter] characters, with every control character
-/// written as a visible escape (`\r`, `\x1b`), so that each log record
-/// stays on one line of printable text.
+/// [toLog] with every control character (C0, DEL, C1) written as a visible
+/// escape (`\r`, `\x1b`) and every backslash as `\\`, so that each log
+/// record stays on one line of printable text and an escape in it always
+/// means the character it names. At most [cutOffAfter] characters of the
+/// escaped text are kept, never splitting an escape.
 String sanitiseForLogging(String toLog, {int cutOffAfter = 2100}) {
-  if (toLog.length > cutOffAfter) {
-    toLog =
-        '${toLog.substring(0, cutOffAfter)} [truncated, ${toLog.length - cutOffAfter} more chars]';
+  if (toLog.length <= cutOffAfter && !toLog.codeUnits.any(_isEscaped)) {
+    return toLog;
   }
-  return toLog.replaceAllMapped(
-      _controlCharacters, (m) => _escape(m[0]!.codeUnitAt(0)));
+  final StringBuffer sanitised = StringBuffer();
+  int taken = 0;
+  while (taken < toLog.length && sanitised.length < cutOffAfter) {
+    final int codeUnit = toLog.codeUnitAt(taken++);
+    sanitised.write(_isEscaped(codeUnit)
+        ? _escape(codeUnit)
+        : String.fromCharCode(codeUnit));
+  }
+  if (taken < toLog.length) {
+    sanitised.write(' [truncated, ${toLog.length - taken} more chars]');
+  }
+  return sanitised.toString();
 }
+
+bool _isEscaped(int codeUnit) =>
+    codeUnit < 0x20 ||
+    (codeUnit >= 0x7f && codeUnit <= 0x9f) ||
+    codeUnit == 0x5c;
 
 String _escape(int codeUnit) => switch (codeUnit) {
       0x09 => r'\t',
       0x0a => r'\n',
       0x0d => r'\r',
+      0x5c => r'\\',
       _ => '\\x${codeUnit.toRadixString(16).padLeft(2, '0')}',
     };
 
