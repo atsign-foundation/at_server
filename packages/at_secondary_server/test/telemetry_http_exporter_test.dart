@@ -103,7 +103,7 @@ void main() {
       );
       expect(signature.keyId, key.keyId);
       expect(signature.producer, '$alice');
-      expect(signature.audience, 'collector.example.com');
+      expect(signature.audience, 'collector.example.com:443');
       expect(
           signature.sequence, AtTelemetrySequence(bootId: bootId, number: 0));
       expect(signature.matchesBody(request.body), isTrue);
@@ -311,6 +311,25 @@ void main() {
           throwsArgumentError,
           reason: endpoint,
         );
+      }
+    });
+
+    test('names the endpoint port in the audience', () async {
+      for (final (String endpoint, String audience) in <(String, String)>[
+        ('https://collector.example.com:2777', 'collector.example.com:2777'),
+        ('https://collector.example.com:443', 'collector.example.com:443'),
+        ('http://collector.example.com', 'collector.example.com:80'),
+      ]) {
+        final AtServerTelemetryHttpExporter subject =
+            AtServerTelemetryHttpExporter(
+          endpoint: Uri.parse(endpoint),
+          producer: '$alice',
+          key: key,
+          buffer: newBuffer(),
+          client: _CallbackClient((http.BaseRequest _) async => _status(200)),
+        );
+        expect(subject.audience, audience, reason: endpoint);
+        await subject.shutdown();
       }
     });
   });

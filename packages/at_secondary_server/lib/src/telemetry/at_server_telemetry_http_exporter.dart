@@ -76,7 +76,9 @@ final class AtServerTelemetryHttpExporter
     Duration shutdownTimeout = defaultShutdownTimeout,
     Random? random,
   })  : endpoint = logsEndpointFor(endpoint),
-        audience = endpoint.host,
+        // Always names the port, the scheme's default included, so
+        // collectors sharing a host name cannot accept each other's requests
+        audience = '${endpoint.host}:${endpoint.port}',
         _key = key,
         _buffer = buffer,
         // The request deadline cannot abort a connect, so the client's own
