@@ -15,7 +15,6 @@ final class AtServerTelemetry {
   /// the heartbeat off.
   final Duration? heartbeatInterval;
   final AtSignLogger _logger = AtSignLogger('AtServerTelemetry');
-  final Stopwatch _uptime = Stopwatch();
   AtTelemetry? _telemetry;
   AtServerHeartbeatScheduler? _heartbeat;
 
@@ -47,9 +46,6 @@ final class AtServerTelemetry {
       exporter: exporter,
       onError: _onError,
     );
-    _uptime
-      ..reset()
-      ..start();
     emitEvent(atServerStartedEventName);
     final Duration? interval = heartbeatInterval;
     if (interval != null) {
@@ -58,14 +54,6 @@ final class AtServerTelemetry {
         interval: interval,
       )..start();
     }
-  }
-
-  /// The uptime, as the heartbeat and stopped events carry it.
-  Map<String, Object?> lifecycleAttributes() {
-    return <String, Object?>{
-      AtTelemetryAttributes.atServerUptimeSeconds:
-          _uptime.elapsedMicroseconds / Duration.microsecondsPerSecond,
-    };
   }
 
   /// Sends the event [name], which must be in the atServer's namespace, or
@@ -114,8 +102,7 @@ final class AtServerTelemetry {
     }
     _heartbeat?.stop();
     _heartbeat = null;
-    emitEvent(atServerStoppedEventName, attributes: lifecycleAttributes());
-    _uptime.stop();
+    emitEvent(atServerStoppedEventName);
     _telemetry = null;
     return telemetry.shutdown(timeout: timeout);
   }

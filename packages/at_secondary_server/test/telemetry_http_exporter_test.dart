@@ -509,7 +509,7 @@ void main() {
       });
     });
 
-    test('the heartbeat carries only the uptime', () async {
+    test('the heartbeat carries no attributes', () async {
       final List<(AtTelemetryLogRecord, AtTelemetryResource)> exports =
           <(AtTelemetryLogRecord, AtTelemetryResource)>[];
       final AtServerTelemetry telemetry = AtServerTelemetry(
@@ -527,11 +527,7 @@ void main() {
           .firstWhere(((AtTelemetryLogRecord, AtTelemetryResource) export) =>
               export.$1.eventName == atServerHeartbeatEventName)
           .$1;
-      expect(heartbeat.attributes.keys, <String>[
-        AtTelemetryAttributes.atServerUptimeSeconds,
-      ]);
-      expect(heartbeat.attributes[AtTelemetryAttributes.atServerUptimeSeconds],
-          isA<double>());
+      expect(heartbeat.attributes, isEmpty);
     });
 
     test(
@@ -560,12 +556,8 @@ void main() {
           <String>[atServerStartedEventName, atServerStoppedEventName]);
       expect(exporter.exportsAtShutdown, 2,
           reason: 'stopped must reach the exporter before it shuts down');
-      final AtTelemetryLogRecord stopped = exports.last.$1;
-      expect(stopped.attributes.keys, <String>[
-        AtTelemetryAttributes.atServerUptimeSeconds,
-      ]);
-      expect(stopped.attributes[AtTelemetryAttributes.atServerUptimeSeconds],
-          isA<double>());
+      expect(exports.first.$1.attributes, isEmpty);
+      expect(exports.last.$1.attributes, isEmpty);
     });
 
     test('ignores events outside atsign.atserver', () async {

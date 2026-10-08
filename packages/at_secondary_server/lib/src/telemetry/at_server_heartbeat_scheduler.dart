@@ -59,10 +59,7 @@ final class AtServerHeartbeatScheduler {
   }
 
   void _sendHeartbeat() {
-    _telemetry.emitEvent(
-      atServerHeartbeatEventName,
-      attributes: _telemetry.lifecycleAttributes(),
-    );
+    _telemetry.emitEvent(atServerHeartbeatEventName);
   }
 
   static Duration _randomOffset(Duration interval, Random random) {
