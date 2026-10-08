@@ -156,7 +156,6 @@ void main() {
 
         expect(await delivery, isTrue);
         expect(buffer.batchCount, 0);
-        expect(buffer.droppedSinceBoot, 0);
       });
     }
 
@@ -329,19 +328,16 @@ void main() {
         );
       }
 
+      // Each body is 120 bytes, so only the newest two fit under 300
       expect(buffer.bytes, lessThanOrEqualTo(300));
-      expect(buffer.droppedSinceBoot, greaterThan(0));
-      expect(buffer.batchCount + buffer.droppedSinceBoot, 5);
-      expect(buffer.oldest!.sequence.number, buffer.droppedSinceBoot);
-      for (final Completer<bool> delivery
-          in deliveries.take(buffer.droppedSinceBoot)) {
+      expect(buffer.batchCount, 2);
+      expect(buffer.oldest!.sequence.number, 3);
+      for (final Completer<bool> delivery in deliveries.take(3)) {
         expect(await delivery.future, isFalse);
       }
-      expect(buffer.health, <String, Object?>{
-        atServerBufferBatchesAttribute: buffer.batchCount,
-        atServerBufferBytesAttribute: buffer.bytes,
-        atServerBufferDroppedAttribute: buffer.droppedSinceBoot,
-      });
+      for (final Completer<bool> delivery in deliveries.skip(3)) {
+        expect(delivery.isCompleted, isFalse);
+      }
     });
 
     test('abandoning reports every record as not delivered', () async {
@@ -387,7 +383,6 @@ void main() {
               exporter: subject,
               serverId: '$alice',
               bootId: 'boot-1',
-              health: () => subject.bufferHealth,
             );
           await Future<void>.delayed(const Duration(milliseconds: 100));
           await telemetry.flush();
@@ -428,7 +423,7 @@ void main() {
       });
     });
 
-    test('the heartbeat carries uptime and buffer health', () async {
+    test('the heartbeat carries only the uptime', () async {
       final List<(AtTelemetryLogRecord, AtTelemetryResource)> exports =
           <(AtTelemetryLogRecord, AtTelemetryResource)>[];
       final AtServerTelemetry telemetry = AtServerTelemetry(
@@ -437,9 +432,6 @@ void main() {
           exporter: _RecordingExporter(exports),
           serverId: '$alice',
           bootId: 'boot-1',
-          health: () => <String, Object?>{
-            atServerBufferBatchesAttribute: 3,
-          },
         );
 
       await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -448,10 +440,8 @@ void main() {
       final AtTelemetryLogRecord heartbeat = exports.first.$1;
       expect(heartbeat.eventName, atServerHeartbeatEventName);
       expect(heartbeat.attributes.keys, <String>[
-        atServerBufferBatchesAttribute,
         AtTelemetryAttributes.atServerUptimeSeconds,
       ]);
-      expect(heartbeat.attributes[atServerBufferBatchesAttribute], 3);
       expect(heartbeat.attributes[AtTelemetryAttributes.atServerUptimeSeconds],
           isA<double>());
     });

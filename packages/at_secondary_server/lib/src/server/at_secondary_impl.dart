@@ -387,7 +387,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
             serverId: currentAtSign.toString(),
             bootId: bootId,
             serviceVersion: AtSecondaryConfig.secondaryServerVersion,
-            health: () => exporter.bufferHealth,
           );
         }
       } on Object catch (error) {

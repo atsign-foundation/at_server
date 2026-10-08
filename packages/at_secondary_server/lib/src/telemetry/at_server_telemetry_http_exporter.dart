@@ -119,8 +119,6 @@ final class AtServerTelemetryHttpExporter
     return endpoint.replace(path: logsPath);
   }
 
-  Map<String, Object?> get bufferHealth => _buffer.health;
-
   @override
   Future<bool> export(
     AtTelemetryLogRecord logRecord,

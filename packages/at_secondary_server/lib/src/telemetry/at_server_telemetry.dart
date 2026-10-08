@@ -6,9 +6,6 @@ import 'package:at_utils/at_logger.dart';
 import 'at_server_heartbeat_scheduler.dart';
 import 'at_server_telemetry_constants.dart';
 
-// Extra attributes for each heartbeat, such as the buffer's health
-typedef AtServerTelemetryHealthSource = Map<String, Object?> Function();
-
 // The atServer's telemetry facade. Nothing here throws into the server, and
 // flush and shutdown always return within their timeouts.
 final class AtServerTelemetry {
@@ -20,7 +17,6 @@ final class AtServerTelemetry {
   final AtSignLogger _logger = AtSignLogger('AtServerTelemetry');
   AtTelemetry? _telemetry;
   AtServerHeartbeatScheduler? _heartbeat;
-  AtServerTelemetryHealthSource? _health;
 
   AtServerTelemetry({
     this.heartbeatInterval = AtServerHeartbeatScheduler.defaultInterval,
@@ -35,7 +31,6 @@ final class AtServerTelemetry {
     required String serverId,
     required String bootId,
     String? serviceVersion,
-    AtServerTelemetryHealthSource? health,
   }) {
     if (_telemetry != null) {
       throw StateError('Telemetry is already enabled');
@@ -50,26 +45,12 @@ final class AtServerTelemetry {
       exporter: exporter,
       onError: _onError,
     );
-    _health = health;
     final Duration? interval = heartbeatInterval;
     if (interval != null) {
       _heartbeat = AtServerHeartbeatScheduler(
         telemetry: this,
         interval: interval,
       )..start();
-    }
-  }
-
-  Map<String, Object?> healthAttributes() {
-    final AtServerTelemetryHealthSource? health = _health;
-    if (health == null) {
-      return const <String, Object?>{};
-    }
-    try {
-      return health();
-    } on Object catch (error) {
-      _logger.warning('Could not read telemetry health: ${error.runtimeType}');
-      return const <String, Object?>{};
     }
   }
 
@@ -114,7 +95,6 @@ final class AtServerTelemetry {
       return Future<void>.value();
     }
     _telemetry = null;
-    _health = null;
     _heartbeat?.stop();
     _heartbeat = null;
     return telemetry.shutdown(timeout: timeout);

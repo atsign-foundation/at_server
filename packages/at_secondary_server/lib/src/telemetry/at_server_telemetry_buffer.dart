@@ -5,7 +5,6 @@ import 'package:at_telemetry/at_telemetry.dart';
 import 'package:at_utils/at_logger.dart';
 
 import 'at_server_telemetry_batch.dart';
-import 'at_server_telemetry_constants.dart';
 
 // Closed batches waiting to be sent, held in memory only, so whatever is
 // still here when the server stops is lost. Over its size limit the oldest
@@ -20,7 +19,6 @@ final class AtServerTelemetryBuffer {
       Queue<AtServerTelemetryBatch>();
   int _nextNumber = 0;
   int _bytes = 0;
-  int _dropped = 0;
 
   AtServerTelemetryBuffer({
     required this.bootId,
@@ -35,16 +33,8 @@ final class AtServerTelemetryBuffer {
 
   int get bytes => _bytes;
 
-  int get droppedSinceBoot => _dropped;
-
   AtServerTelemetryBatch? get oldest =>
       _batches.isEmpty ? null : _batches.first;
-
-  Map<String, Object?> get health => <String, Object?>{
-        atServerBufferBatchesAttribute: batchCount,
-        atServerBufferBytesAttribute: bytes,
-        atServerBufferDroppedAttribute: droppedSinceBoot,
-      };
 
   // Takes the next sequence number for this boot
   AtServerTelemetryBatch add(
@@ -92,7 +82,6 @@ final class AtServerTelemetryBuffer {
     if (dropped.isEmpty) {
       return;
     }
-    _dropped += dropped.length;
     _logger.warning('Telemetry buffer is over $maxBytes bytes; dropped '
         '${dropped.length} batches: '
         '${dropped.map((AtServerTelemetryBatch batch) => batch.sequence).join(', ')}');
