@@ -54,7 +54,7 @@ class GlobalExceptionHandler {
       // This is normal behaviour, log as INFO. An authenticated client keeps
       // its connection after a typo; on any other connection it is answered,
       // then closed, rather than left open to keep sending what isn't the
-      // atProtocol.
+      // Atsign Protocol.
       logger.info(loggable);
       await _sendResponseForException(exception, atConnection);
       if (atConnection != null && !_isAuthenticated(atConnection)) {

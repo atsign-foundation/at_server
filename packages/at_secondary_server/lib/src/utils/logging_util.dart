@@ -5,8 +5,9 @@ import 'package:at_utils/at_logger.dart';
 /// [toLog] with every control character (C0, DEL, C1) written as a visible
 /// escape (`\r`, `\x1b`) and every backslash as `\\`, so that each log
 /// record stays on one line of printable text and an escape in it always
-/// means the character it names. At most [cutOffAfter] characters of the
-/// escaped text are kept, never splitting an escape.
+/// means the character it names. The escaped text is cut once it reaches
+/// [cutOffAfter] characters; an escape begun before the cut is finished, so
+/// up to 3 more may be kept.
 String sanitiseForLogging(String toLog, {int cutOffAfter = 2100}) {
   if (toLog.length <= cutOffAfter && !toLog.codeUnits.any(_isEscaped)) {
     return toLog;
