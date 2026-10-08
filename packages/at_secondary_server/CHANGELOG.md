@@ -15,6 +15,9 @@
 
 - fix: tighten handling of requests for `/ws`
 
+- fix: `config:set` refuses a value its setting can't take, naming what it
+  takes.
+
 - fix: once an enrollment expires, its data is no longer served by `lookup`,
   `llookup` or an HTTP GET.
 

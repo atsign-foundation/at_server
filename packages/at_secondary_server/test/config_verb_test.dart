@@ -1,8 +1,15 @@
+import 'dart:async';
+
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/config_verb_handler.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:test/test.dart';
 import 'package:at_commons/at_commons.dart';
@@ -160,6 +167,78 @@ void main() {
           ConfigVerbHandler(mockKeyStore, commitLog: atCommitLog);
       expect(
           () => handler.parse(command), throwsA(isA<InvalidSyntaxException>()));
+    });
+  });
+
+  group('config:set', () {
+    /// Every error that escaped to the zone the atServer's own config
+    /// listeners were registered in.
+    late List<Object> uncaught;
+
+    setUpAll(() async => await verbTestsSetUpAll());
+    setUp(() async {
+      await verbTestsSetUp();
+      final AtSecondaryServerImpl server = AtSecondaryServerImpl.getInstance();
+      server.inboundConnectionManager =
+          InboundConnectionManager(serverAtSign: alice, poolSize: 5);
+      uncaught = [];
+      await runZonedGuarded(
+          () async => await server.initDynamicConfigListeners(),
+          (e, _) => uncaught.add(e));
+    });
+    tearDown(() async => await verbTestsTearDown());
+
+    /// Sends `config:set:<setting>` on a CRAM connection and returns what
+    /// the handler threw with what escaped to the listeners' zone so far.
+    Future<(Object?, List<Object>)> set(String setting) async {
+      final connection = DummyInboundConnection()
+        ..metadata.isAuthenticated = true
+        ..metadata.authType = AuthType.cram;
+      Object? thrown;
+      try {
+        await ConfigVerbHandler(keyValueStore, commitLog: atCommitLog)
+            .process('config:set:$setting', connection);
+      } catch (e) {
+        thrown = e;
+      }
+      await Future.delayed(const Duration(milliseconds: 100));
+      return (thrown, uncaught);
+    }
+
+    for (final (config, value, takes) in [
+      (ModifiableConfigs.inboundMaxLimit, 'abc', 'an integer'),
+      (ModifiableConfigs.commitLogCompactionFrequencyMins, '1.5', 'an integer'),
+      (ModifiableConfigs.maxRequestsPerTimeFrame, '', 'an integer'),
+      (ModifiableConfigs.autoNotify, 'yes', 'true or false'),
+    ]) {
+      test('refuses ${config.name}=$value, and no listener sees it', () async {
+        final Object? before = AtSecondaryConfig.getLatestConfigValue(config);
+        final (thrown, uncaught) = await set('${config.name}=$value');
+        expect(
+            thrown,
+            isA<InvalidSyntaxException>().having(
+                (e) => e.message, 'message', '${config.name} takes $takes'));
+        expect(uncaught, isEmpty);
+        expect(AtSecondaryConfig.getLatestConfigValue(config), before);
+      });
+    }
+
+    test('control: values a config can take are applied', () async {
+      for (final setting in ['inboundMaxLimit=7', 'autoNotify=false']) {
+        final (thrown, uncaught) = await set(setting);
+        expect(thrown, isNull, reason: setting);
+        expect(uncaught, isEmpty, reason: setting);
+      }
+      expect(
+          AtSecondaryServerImpl.getInstance()
+              .inboundConnectionManager
+              .pool
+              .getCapacity(),
+          7);
+      expect(
+          AtSecondaryConfig.getLatestConfigValue(ModifiableConfigs.autoNotify)
+              .toString(),
+          'false');
     });
   });
 }
