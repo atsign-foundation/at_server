@@ -8,11 +8,11 @@ import 'package:at_utils/at_logger.dart';
 
 import 'at_server_telemetry_key_guard.dart';
 
-// The atServer's own Ed25519 key for signing telemetry. The secret is its
-// 32-byte seed in base64 under a reserved privatekey: name, so llookup cannot
-// address it, scan strips it and the commit log never records it. The public
-// half is a hidden public:_<name>.__atserver record that an unauthenticated
-// lookup still serves.
+/// The atServer's own Ed25519 key for signing telemetry. The secret is its
+/// 32-byte seed in base64 under a reserved `privatekey:` name, so llookup
+/// cannot address it, scan strips it and the commit log never records it. The
+/// public half is a hidden `public:_<name>.__atserver` record that an
+/// unauthenticated lookup still serves.
 final class AtServerTelemetrySigningKey {
   static final AtSignLogger _logger =
       AtSignLogger('AtServerTelemetrySigningKey');
@@ -22,8 +22,8 @@ final class AtServerTelemetrySigningKey {
 
   AtServerTelemetrySigningKey._(this.signer, this.publicKeyRecord);
 
-  // Creates the key on first use, and rewrites the public record whenever it
-  // does not match the secret
+  /// Loads the key, creating it on first use, and rewrites the public record
+  /// whenever it does not match the secret.
   static Future<AtServerTelemetrySigningKey> loadOrCreate(
     AtKeyValueStore<String, AtData, AtMetaData?> keyStore,
     String atSign, {

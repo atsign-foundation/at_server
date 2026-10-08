@@ -116,7 +116,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// sweep so the server sleeps until the next key expires.
   Timer? _keyExpiryTimer;
 
-  // an object that simplifies telemetry exporting for atServers
+  /// The atServer's telemetry, off unless an endpoint is set.
   final AtServerTelemetry telemetry = AtServerTelemetry();
 
   // the maximum amount of time to wait to send all telemetry when `stop()` is called. Once the timeout passes, pending telemetry is abandoned so `stop()` never blocks on it

@@ -6,11 +6,11 @@ import 'at_server_telemetry_buffer.dart';
 import 'at_server_telemetry_http_exporter.dart';
 import 'at_server_telemetry_signing_key.dart';
 
-// Builds the signed OTLP/HTTP exporter for this server, creating the signing
-// key, or returns null after logging why when telemetry is off or cannot be
-// set up. endpoint is host:port (https is assumed) or a full URL, and plain
-// http only to a loopback collector. No key is created for an endpoint that
-// is refused.
+/// Builds the signed OTLP/HTTP exporter for this server, creating the signing
+/// key, or returns null after logging why when telemetry is off or cannot be
+/// set up. [endpoint] is host:port (https is assumed) or a full URL, and plain
+/// http only to a loopback collector. No key is created for an endpoint that
+/// is refused.
 Future<AtServerTelemetryHttpExporter?> createAtServerTelemetryExporter({
   required String? endpoint,
   required String atSign,

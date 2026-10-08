@@ -244,9 +244,9 @@ abstract class AbstractVerbHandler implements VerbHandler {
     throw UnAuthorizedException(flatCredentialWriteRefusal);
   }
 
-  // Refuses any verb that would write, delete or notify the telemetry signing
-  // key or its public record, whatever the connection, CRAM included. Only
-  // the atServer writes them, through its own keystore.
+  /// Refuses any verb that would write, delete or notify the telemetry signing
+  /// key or its public record, whatever the connection, CRAM included. Only
+  /// the atServer writes them, through its own keystore.
   void refuseTelemetryKeyMutation(String? atKey) {
     if (atKey == null || !isMutatingVerb()) return;
     if (!AtServerTelemetryKeyGuard.isTelemetryKey(atKey)) return;

@@ -13,18 +13,18 @@ import 'at_server_telemetry_buffer.dart';
 import 'at_server_telemetry_delivery_outcome.dart';
 import 'at_server_telemetry_signing_key.dart';
 
-// Sends the atServer's telemetry to its collector as signed OTLP/JSON over
-// HTTPS, in waves. Records are batched, each closed batch goes into an
-// in-memory buffer with the next sequence number, and the buffer is drained
-// one request at a time, oldest first. Any 2xx removes the batch. 400, 401,
-// 403, 404, 413, 415 and other 4xx drop it, since sending it again would
-// fail the same way. 408, 429, 5xx and network failures keep it and back
-// off. A record's export future completes true once its batch is delivered,
-// and false once it is dropped or abandoned at shutdown. Nothing is kept
-// across restarts. Every request has a deadline that aborts it, connecting
-// included, and shutdown has one too, so nothing here can hold the server
-// up. Nothing here throws or leaves an error unhandled, since an uncaught
-// error stops the atServer.
+/// Sends the atServer's telemetry to its collector as signed OTLP/JSON over
+/// HTTPS, in waves. Records are batched, each closed batch goes into an
+/// in-memory buffer with the next sequence number, and the buffer is drained
+/// one request at a time, oldest first. Any 2xx removes the batch. 400, 401,
+/// 403, 404, 413, 415 and other 4xx drop it, since sending it again would
+/// fail the same way. 408, 429, 5xx and network failures keep it and back
+/// off. A record's export future completes true once its batch is delivered,
+/// and false once it is dropped or abandoned at shutdown. Nothing is kept
+/// across restarts. Every request has a deadline that aborts it, connecting
+/// included, and shutdown has one too, so nothing here can hold the server
+/// up. Nothing here throws or leaves an error unhandled, since an uncaught
+/// error stops the atServer.
 final class AtServerTelemetryHttpExporter
     implements AtTelemetryLogRecordExporter {
   static const String logsPath = '/v1/logs';
@@ -109,6 +109,8 @@ final class AtServerTelemetryHttpExporter
     }
   }
 
+  /// The logs URL for [endpoint]. Throws [ArgumentError] for an endpoint the
+  /// exporter will not send to.
   static Uri logsEndpointFor(Uri endpoint) {
     if (!endpoint.hasAuthority ||
         endpoint.host.isEmpty ||
@@ -164,8 +166,8 @@ final class AtServerTelemetryHttpExporter
     return delivery.future;
   }
 
-  // Closes what is batched and makes one pass over the buffer, ignoring any
-  // backoff in force
+  /// Closes what is batched and makes one pass over the buffer, ignoring any
+  /// backoff in force.
   @override
   Future<void> flush() async {
     _closeBatch();
@@ -174,7 +176,7 @@ final class AtServerTelemetryHttpExporter
     await _send();
   }
 
-  // Batches still in the buffer are abandoned
+  /// A last flush, after which batches still in the buffer are abandoned.
   @override
   Future<void> shutdown() => _shutdown ??= _shutdownOnce();
 
