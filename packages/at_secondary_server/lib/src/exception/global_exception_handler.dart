@@ -5,6 +5,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/exception/http_request_without_alpn_exception.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:version/version.dart';
@@ -28,21 +29,23 @@ class GlobalExceptionHandler {
       {AtConnection? atConnection,
       dynamic clientSocket,
       StackTrace? stackTrace}) async {
+    // NOTE an exception's message can include request text.
+    final String loggable = sanitiseForLogging(exception.toString());
     if (exception is InvalidAtSignException ||
         exception is BufferOverFlowException ||
         exception is ConnectionInvalidException) {
-      logger.shout(exception.toString());
+      logger.shout(loggable);
       await _sendResponseForException(exception, atConnection);
       _closeConnection(atConnection);
     } else if (exception is BlockedConnectionException) {
       // log as INFO and close the connection
-      logger.info(exception.toString());
+      logger.info(loggable);
       await _sendResponseForException(exception, atConnection);
       _closeConnection(atConnection);
     } else if (exception is HttpRequestWithoutAlpnException) {
       // NOTE answered as InvalidSyntaxException, whose AT0003 error code is
       // looked up by exact type.
-      logger.info(exception.toString());
+      logger.info(loggable);
       await _sendResponseForException(
           InvalidSyntaxException(HttpRequestWithoutAlpnException.message),
           atConnection);
@@ -52,7 +55,7 @@ class GlobalExceptionHandler {
       // its connection after a typo; on any other connection it is answered,
       // then closed, rather than left open to keep sending what isn't the
       // atProtocol.
-      logger.info(exception.toString());
+      logger.info(loggable);
       await _sendResponseForException(exception, atConnection);
       if (atConnection != null && !_isAuthenticated(atConnection)) {
         _closeConnection(atConnection);
@@ -60,10 +63,10 @@ class GlobalExceptionHandler {
     } else if (exception is InvalidAtKeyException ||
         exception is IllegalArgumentException) {
       // This is normal behaviour, log as INFO
-      logger.info(exception.toString());
+      logger.info(loggable);
       await _sendResponseForException(exception, atConnection);
     } else if (exception is DataStoreException) {
-      logger.shout(exception.toString());
+      logger.shout(loggable);
       await _sendResponseForException(exception, atConnection);
       _closeConnection(atConnection);
     } else if (exception is InboundConnectionLimitException) {
@@ -71,7 +74,7 @@ class GlobalExceptionHandler {
         logger.severe('handling InboundConnectionLimitException,'
             ' but clientSocket parameter was null');
       } else {
-        logger.info(exception.toString());
+        logger.info(loggable);
         var errorCode = getErrorCode(exception);
         var errorDescription = getErrorDescription(errorCode);
         clientSocket.add('error:$errorCode-$errorDescription\n'.codeUnits);
@@ -96,14 +99,14 @@ class GlobalExceptionHandler {
         exception is AtTimeoutException ||
         exception is AtThrottleLimitExceeded ||
         exception is IllegalStateException) {
-      logger.info(exception.toString());
+      logger.info(loggable);
       await _sendResponseForException(exception, atConnection);
     } else if (exception is InternalServerError) {
-      logger.severe('$exception - stack trace $stackTrace');
+      logger.severe('$loggable - stack trace $stackTrace');
       await _handleInternalException(exception, atConnection);
     } else {
-      logger.shout(
-          "Unexpected exception '${exception.toString()}' - stack trace $stackTrace");
+      logger
+          .shout("Unexpected exception '$loggable' - stack trace $stackTrace");
       await _handleInternalException(
           InternalServerException(exception.toString()), atConnection);
       _closeConnection(atConnection);

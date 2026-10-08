@@ -861,6 +861,31 @@ void main() async {
     });
   });
 
+  group('GlobalExceptionHandler', () {
+    test('logs an exception message with its control characters escaped',
+        () async {
+      // Several handlers include request text in the message.
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
+      final AtSignLogger handlerLogger = logger;
+      final Level prior = handlerLogger.logger.level;
+      handlerLogger.level = 'finest';
+      final records = <LogRecord>[];
+      final sub = handlerLogger.logger.onRecord.listen(records.add);
+      try {
+        await GlobalExceptionHandler.getInstance().handle(
+            InvalidAtKeyException('k\r\x1b[2J\nyy'),
+            atConnection: FakeInboundConnection(FakeSocket(),
+                InboundConnectionMetadata()..isAuthenticated = true));
+      } finally {
+        await sub.cancel();
+        handlerLogger.logger.level = prior;
+      }
+      expect(records.single.message, contains(r'k\r\x1b[2J\nyy'));
+      expect(records.single.message,
+          isNot(matches(RegExp(r'[\x00-\x1f\x7f-\x9f]'))));
+    });
+  });
+
   group('An invalid verb', () {
     test('is logged at finer, with its control characters escaped', () {
       final AtSignLogger logger = InboundCommandValidator.logger;
