@@ -101,8 +101,8 @@ class SecondaryServerBootStrapper {
     ArgResults results,
     Map<String, String> environment,
   ) {
-    if (results.wasParsed('telemetry-endpoint')) {
-      final String fromFlag = (results['telemetry-endpoint'] as String).trim();
+    if (results.wasParsed('telemetry_endpoint')) {
+      final String fromFlag = (results['telemetry_endpoint'] as String).trim();
       return fromFlag.isEmpty ? null : fromFlag;
     }
     final String fromEnvironment =

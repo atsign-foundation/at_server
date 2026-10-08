@@ -26,7 +26,7 @@ void main() {
       expect(results.arguments[5], 'cde445tsfg');
 
       expect(results['training'], false);
-      expect(results['telemetry-endpoint'], '');
+      expect(results['telemetry_endpoint'], '');
     });
 
     test('parse the telemetry endpoint', () {
@@ -37,11 +37,11 @@ void main() {
         '6400',
         '--shared_secret',
         'cde445tsfg',
-        '--telemetry-endpoint',
+        '--telemetry_endpoint',
         'collector.example.com:443'
       ];
       var results = CommandLineParser().getParserResults(arguments);
-      expect(results['telemetry-endpoint'], 'collector.example.com:443');
+      expect(results['telemetry_endpoint'], 'collector.example.com:443');
     });
 
     test('parse all the arguments including optional flags', () {
@@ -139,7 +139,7 @@ void main() {
     test('the flag wins over the environment variable', () {
       expect(
           endpointFor(
-              <String>['--telemetry-endpoint', 'flag.example.com:443'],
+              <String>['--telemetry_endpoint', 'flag.example.com:443'],
               environment),
           'flag.example.com:443');
     });
@@ -150,7 +150,7 @@ void main() {
 
     test('an empty flag turns telemetry off even if the variable is set', () {
       expect(
-          endpointFor(<String>['--telemetry-endpoint', ''], environment), null);
+          endpointFor(<String>['--telemetry_endpoint', ''], environment), null);
     });
 
     test('telemetry is off when neither is set', () {
