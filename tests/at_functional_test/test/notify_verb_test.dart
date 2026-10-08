@@ -161,27 +161,30 @@ void main() {
   group('A group of tests to verify notification date time', () {
     test('A test to verify two notification to self has correct date time',
         () async {
-      // Sending first notification
-      String response = await firstAtSignConnection.sendRequestToServer(
+      /// The server's notificationDateTime for the notification [command]
+      /// creates.
+      Future<DateTime> notifiedAt(String command) async {
+        final String id =
+            (await firstAtSignConnection.sendRequestToServer(command))
+                .replaceFirst('data:', '')
+                .trim();
+        final Map fetched = jsonDecode((await firstAtSignConnection
+                .sendRequestToServer('notify:fetch:$id'))
+            .replaceFirst('data:', ''));
+        expect(fetched['id'], id);
+        return DateTime.parse(fetched['notificationDateTime']);
+      }
+
+      final DateTime first = await notifiedAt(
           'notify:$firstAtSign:phone-$uniqueId.me$firstAtSign');
-      await (Future.delayed(Duration(milliseconds: 5)));
-      var dateTimeAfterFirstNotification = DateTime.now();
-      await (Future.delayed(Duration(milliseconds: 5)));
-      // Sending second notification
-      String notificationId = await firstAtSignConnection.sendRequestToServer(
+      // NOTE the server stamps to the millisecond, so the two are sent
+      // further apart than that.
+      await Future.delayed(const Duration(milliseconds: 10));
+      final DateTime second = await notifiedAt(
           'notify:$firstAtSign:about-$uniqueId.me$firstAtSign');
-      notificationId = notificationId.replaceFirst('data:', '');
-      response = await firstAtSignConnection
-          .sendRequestToServer('notify:fetch:$notificationId');
-      response = response.replaceFirst('data:', '');
-      var atNotificationMap = jsonDecode(response);
-      expect(atNotificationMap['id'], notificationId.trim());
-      // the date time of the second notification should be greater than the current Date Time
-      expect(
-          DateTime.parse(atNotificationMap['notificationDateTime'])
-                  .microsecondsSinceEpoch >
-              dateTimeAfterFirstNotification.microsecondsSinceEpoch,
-          true);
+      expect(second.isAfter(first), isTrue,
+          reason: 'both are the server\'s own times, so no other clock is '
+              'compared: first $first, second $second');
     });
   });
 

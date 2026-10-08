@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:at_commons/at_commons.dart' show AtServerException;
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_utils/at_logger.dart';
-import 'package:at_server_spec/at_server_spec.dart';
 import 'package:cron/cron.dart';
 import 'package:meta/meta.dart';
 
@@ -26,7 +26,7 @@ class AtCertificateValidationJob {
   String restartFilePath;
 
   /// The secondary server we are going to pause, stop and start
-  AtSecondaryServer secondaryServer;
+  AtSecondaryServerImpl secondaryServer;
 
   /// When true, server will be restarted immediately regardless of whether or not a request is currently being handled.
   bool forceRestart;
@@ -77,11 +77,13 @@ class AtCertificateValidationJob {
 
     _checkInProgress = true;
     logger.info('checkAndRestartIfRequired called');
+    bool restarting = false;
     try {
       logger.info('Checking if restart is required');
       bool shouldRestart = await isRestartRequired();
       if (shouldRestart) {
         logger.info('Restart is required');
+        restarting = true;
         if (forceRestart || forceRestartThisTime) {
           logger.info('forceRestart is true - will restart in 3 seconds');
           AtSecondaryServerImpl.getInstance().pause();
@@ -95,6 +97,17 @@ class AtCertificateValidationJob {
         await restartServer();
       } else {
         logger.info('Restart is NOT required. Check complete.');
+      }
+    } catch (e, st) {
+      logger.severe('Certificate check failed'
+          '${restarting ? ' while restarting' : ''}: $e\n$st');
+      // NOTE a server paused or stopped by a failed restart cannot serve, so
+      // the error goes to the zone the server runs in, which stops it. That
+      // zone spares a SocketException, so one is wrapped.
+      if (restarting) {
+        Zone.current.handleUncaughtError(
+            e is SocketException ? AtServerException('Restart failed: $e') : e,
+            st);
       }
     } finally {
       _checkInProgress = false;
@@ -115,7 +128,7 @@ class AtCertificateValidationJob {
     await secondaryServer.stop();
 
     logger.info("calling secondaryServer.start()");
-    secondaryServer.start();
+    await secondaryServer.start();
   }
 
   @visibleForTesting

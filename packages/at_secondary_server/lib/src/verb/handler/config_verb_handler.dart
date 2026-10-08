@@ -119,13 +119,8 @@ class ConfigVerbHandler extends AbstractVerbHandler {
           if (!privileged) {
             throw UnAuthorizedException('Unauthorized');
           }
-          try {
-            AtSecondaryConfig.broadcastConfigChange(
-                setConfigName!, int.parse(setConfigValue!));
-          } catch (e) {
-            AtSecondaryConfig.broadcastConfigChange(
-                setConfigName!, setConfigValue!);
-          }
+          AtSecondaryConfig.broadcastConfigChange(
+              setConfigName!, _valueFor(setConfigName!, setConfigValue!));
           result = 'ok';
           break;
         case 'reset':
@@ -146,6 +141,24 @@ class ConfigVerbHandler extends AbstractVerbHandler {
     }
     response.data = result?.toString();
   }
+}
+
+/// [raw] as the value [config] takes: a positive integer where its default is
+/// an integer, or `true` or `false` where its default is a boolean, passed on
+/// as that string. Throws [InvalidSyntaxException] naming what it takes.
+Object _valueFor(ModifiableConfigs config, String raw) {
+  final Object defaultValue = AtSecondaryConfig.getDefaultValue(config);
+  if (defaultValue is int) {
+    final int? value = int.tryParse(raw);
+    if (value == null || value < 1) {
+      throw InvalidSyntaxException('${config.name} takes a positive integer');
+    }
+    return value;
+  }
+  if (defaultValue is bool && raw != 'true' && raw != 'false') {
+    throw InvalidSyntaxException('${config.name} takes true or false');
+  }
+  return raw;
 }
 
 /// Returns atsigns set.

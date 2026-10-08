@@ -47,10 +47,10 @@ class SecondaryServerBootStrapper {
       }, (error, StackTrace stackTrace) {
         logger.shout('Uncaught error: $error ;'
             ' StackTrace follows: $stackTrace');
-        if (error is SocketException) {
-          logger.shout('Will not terminate server for $error');
-        } else {
+        if (stopsServer(error)) {
           handleTerminateSignal(ProcessSignal.sigstop);
+        } else {
+          logger.shout('Will not terminate server for $error');
         }
       }));
       ProcessSignal.sigterm.watch().listen(handleTerminateSignal);
@@ -61,6 +61,11 @@ class SecondaryServerBootStrapper {
       rethrow;
     }
   }
+
+  /// Whether [error], reaching the zone the server runs in, stops the server.
+  /// A [SocketException] does not, as one usually concerns a single client
+  /// connection.
+  static bool stopsServer(Object error) => error is! SocketException;
 
   void handleTerminateSignal(event) async {
     try {
