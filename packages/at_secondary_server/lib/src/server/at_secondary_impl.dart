@@ -460,8 +460,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   Future<void> onExpirySweepTimerFired() async {
     try {
       await runHousekeepingSweep();
-    } on Exception catch (e) {
-      logger.warning('Key expiry sweep failed: $e');
+    } catch (e, st) {
+      logger.warning('Key expiry sweep failed: $e\n$st');
     }
   }
 

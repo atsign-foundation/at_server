@@ -1,5 +1,6 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
@@ -50,5 +51,17 @@ void main() {
     expect(await keyValueStore.exists(key), isFalse,
         reason: 'what the timer fires is what reaps; a callback that no '
             'longer ran the sweep would leave every expiry unwatched');
+  });
+
+  test('the expiry timer\'s callback survives an Error from the sweep',
+      () async {
+    final failing = MockAtKeyValueStore();
+    when(() => failing.deleteExpiredKeys()).thenThrow(StateError('injected'));
+    AtSecondaryServerImpl.getInstance().keyValueStore = failing;
+
+    await expectLater(
+        AtSecondaryServerImpl.getInstance().onExpirySweepTimerFired(),
+        completes,
+        reason: 'what escapes the callback escapes the timer');
   });
 }
