@@ -220,6 +220,29 @@ void telemetryKeyGuardTests() {
       }
     }
 
+    test('are refused even when the stored value names the enrollment',
+        () async {
+      final String enrollmentId = await bindEnrollment(
+          <String, String>{'*': 'rw', '__manage': 'rw'});
+      final String planted = jsonEncode(<String, Object?>{
+        AtConstants.enrollmentId: enrollmentId,
+        'value': 'planted',
+      });
+      await keyValueStore.put(secretKey, AtData()..data = planted,
+          skipCommit: true);
+
+      for (final String operation in <String>['get', 'delete']) {
+        await expectLater(
+          KeysVerbHandler(keyValueStore, enMgr, alice).process(
+              'keys:$operation:keyName:$secretKey', inboundConnection),
+          throwsA(isA<UnAuthorizedException>()),
+          reason: 'keys:$operation trusts an enrollmentId in a JSON value, '
+              'so only the guard on the name refuses it',
+        );
+      }
+      expect((await keyValueStore.get(secretKey))!.data, planted);
+    });
+
     test('keys:delete of the public record is refused', () async {
       await bindEnrollment(<String, String>{'*': 'rw', '__manage': 'rw'});
 
@@ -270,6 +293,10 @@ void telemetryKeyGuardTests() {
 
           expect(inboundConnection.lastWrittenData ?? '',
               isNot(contains(storedSecret)));
+          expect(inboundConnection.lastWrittenData ?? '',
+              isNot(contains(secretKey)),
+              reason: 'scan and stats print key names, never values, so '
+                  'only the name shows whether they reach the secret');
         });
       }
 
