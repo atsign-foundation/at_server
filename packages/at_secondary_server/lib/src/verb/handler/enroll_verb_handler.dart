@@ -11,6 +11,7 @@ import 'package:at_secondary/src/enroll/enrollment_revocation_event.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry_key_guard.dart';
 import 'package:at_secondary/src/utils/apkam_signature_verifier.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
@@ -640,6 +641,14 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       throw IllegalArgumentException(
           'Failed to approve enrollment id: $enId. It holds no namespaces, '
           'and an approved enrollment granting nothing must not exist');
+    }
+    // A request naming __atserver is refused on arrival; this catches one
+    // stored before that refusal existed
+    if (operation == 'approve' &&
+        enVal!.namespaces.keys
+            .any(AtServerTelemetryKeyGuard.isAtServerNamespace)) {
+      throw UnAuthorizedException('Failed to approve enrollment id: $enId. '
+          '${AtServerTelemetryKeyGuard.namespaceRefusal}');
     }
 
     // NOTE a target holding NO namespaces passes the loop below vacuously,
@@ -1448,6 +1457,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         // The one place a spelling the server will not act on can be kept
         // out of the store. See [EnrollmentAccess].
         enrollParams.namespaces?.forEach((namespace, access) {
+          // Refused for every connection, CRAM included
+          if (AtServerTelemetryKeyGuard.isAtServerNamespace(namespace)) {
+            throw UnAuthorizedException(
+                AtServerTelemetryKeyGuard.namespaceRefusal);
+          }
           if (EnrollmentAccess.canonicalise(access) == null) {
             throw IllegalArgumentException(
                 'Invalid access "$access" for namespace "$namespace" in '

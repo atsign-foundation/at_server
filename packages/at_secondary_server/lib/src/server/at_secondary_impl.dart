@@ -25,6 +25,10 @@ import 'package:at_secondary/src/server/at_certificate_validation.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/persistence_backend.dart';
 import 'package:at_secondary/src/server/server_context.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry_exporter.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry_http_exporter.dart';
+import 'package:at_telemetry/at_telemetry.dart' show AtTelemetrySequence;
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_update_verb_handler.dart';
@@ -121,6 +125,12 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// One-shot timer driving [runHousekeepingSweep], re-armed after every
   /// sweep so the server sleeps until the next key expires.
   Timer? _keyExpiryTimer;
+
+  /// The atServer's telemetry, off unless an endpoint is set.
+  final AtServerTelemetry telemetry = AtServerTelemetry();
+
+  // the maximum amount of time to wait to send all telemetry when `stop()` is called. Once the timeout passes, pending telemetry is abandoned so `stop()` never blocks on it
+  static const Duration _telemetryFlushTimeout = Duration(seconds: 15);
 
   /// Floor for the expiry-sweep sleep.
   static const Duration _minExpirySleep = Duration(seconds: 10);
@@ -366,6 +376,33 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.severe('AtSecondaryServer().start : ${e.toString()}');
       logger.severe(stacktrace);
       throw AtServerException(e.toString());
+    }
+
+    // Enabling telemetry sends the started event and starts the heartbeat.
+    // `stop()` shuts telemetry down, so every start after a stop is a new
+    // boot with a fresh exporter.
+    // Telemetry failing to start must never stop the server starting
+    if (!telemetry.isEnabled) {
+      try {
+        final String bootId = AtTelemetrySequence.newBootId();
+        final AtServerTelemetryHttpExporter? exporter =
+            await createAtServerTelemetryExporter(
+          endpoint: serverContext!.telemetryEndpoint,
+          atSign: currentAtSign.toString(),
+          bootId: bootId,
+          keyStore: keyValueStore,
+        );
+        if (exporter != null) {
+          telemetry.enable(
+            exporter: exporter,
+            serverId: currentAtSign.toString(),
+            bootId: bootId,
+            serviceVersion: AtSecondaryConfig.secondaryServerVersion,
+          );
+        }
+      } on Object catch (error) {
+        logger.warning('Telemetry is off: it could not be started: $error');
+      }
     }
 
     if (serverContext!.trainingMode) {
@@ -814,6 +851,12 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         t.cancel();
       }
       _compactionTimers.clear();
+
+      // Sends the stopped event, flushes pending events and closes the
+      // exporter
+      logger.info('Shutting down telemetry');
+      await telemetry.shutdown(timeout: _telemetryFlushTimeout);
+
       _isRunning = false;
     } on Exception catch (e) {
       throw AtServerException(
