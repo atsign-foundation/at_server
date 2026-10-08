@@ -16,6 +16,7 @@ import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:basic_utils/basic_utils.dart';
 import 'package:uuid/uuid.dart';
+import 'package:version/version.dart';
 
 class FromVerbHandler extends AbstractVerbHandler {
   static From from = From();
@@ -43,6 +44,17 @@ class FromVerbHandler extends AbstractVerbHandler {
       ? sanitiseForLogging(value, cutOffAfter: _maxClientConfigFieldLength)
       : null;
 
+  /// Whether [value] parses as a version. GlobalExceptionHandler parses the
+  /// client version to choose how it formats an error.
+  static bool _isVersion(String value) {
+    try {
+      Version.parse(value);
+      return true;
+    } on FormatException {
+      return false;
+    }
+  }
+
   @override
   bool accept(String command) =>
       command.startsWith('${getName(VerbEnum.from)}:');
@@ -69,7 +81,7 @@ class FromVerbHandler extends AbstractVerbHandler {
       var decodedClientConfig =
           jsonDecode(verbParams[AtConstants.clientConfig]!);
       final clientVersion = decodedClientConfig[AtConstants.version];
-      if (clientVersion is String) {
+      if (clientVersion is String && _isVersion(clientVersion)) {
         atConnectionMetadata.clientVersion = clientVersion;
       }
       atConnectionMetadata

@@ -236,6 +236,14 @@ void main() async {
       expect(metadata.platform, isNull);
     });
 
+    test('a version that does not parse is ignored', () async {
+      // GlobalExceptionHandler parses it to format an error, and would throw.
+      final metadata =
+          await metadataAfter({AtConstants.version: 'not-a-version'});
+      expect(metadata.clientVersion,
+          AtConnectionMetaData.clientVersionNotAvailable);
+    });
+
     test('without a version leaves the version not available', () async {
       final metadata = await metadataAfter({AtConstants.clientId: 'c'});
       expect(metadata.clientVersion,
