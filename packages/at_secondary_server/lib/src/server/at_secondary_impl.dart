@@ -568,16 +568,23 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     });
   }
 
-  webSocketListener(WebSocket ws) async {
+  /// Serves the atProtocol on [ws]. An unexpected error closes only [ws].
+  Future<void> webSocketListener(WebSocket ws) async {
     InboundConnection? connection;
     try {
-      connection = inboundConnectionManager.createWebSocketConnection(ws,
-          sessionId: SecondaryUtil.makeSessionId());
-      connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
-      await connection.write('@');
-    } on InboundConnectionLimitException catch (e) {
-      await GlobalExceptionHandler.getInstance()
-          .handle(e, atConnection: connection, clientSocket: ws);
+      try {
+        connection = inboundConnectionManager.createWebSocketConnection(ws,
+            sessionId: SecondaryUtil.makeSessionId());
+        connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
+        await connection.write('@');
+      } on InboundConnectionLimitException catch (e) {
+        await GlobalExceptionHandler.getInstance()
+            .handle(e, atConnection: connection, clientSocket: ws);
+      }
+    } catch (e, st) {
+      logger
+          .warning('Closed a new WebSocket after an unexpected error: $e\n$st');
+      ws.close().ignore();
     }
   }
 
@@ -610,7 +617,20 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         .listen((HttpRequest req) => routeHttpRequest(req, httpReqHandler));
 
     logger.finer('serverSocket _listen : ${serverSocket.runtimeType}');
-    serverSocket.listen(((clientSocket) async {
+    serverSocket.listen(
+        (clientSocket) => acceptSocket(clientSocket, pseudoServerSocket),
+        onError: (error) {
+      logger.warning("ServerSocket.listen called onError with '$error'");
+    });
+  }
+
+  /// Serves the atProtocol on [clientSocket], or hands it to
+  /// [pseudoServerSocket] when it negotiated another ALPN protocol. An
+  /// unexpected error closes only [clientSocket].
+  @visibleForTesting
+  Future<void> acceptSocket(
+      SecureSocket clientSocket, PseudoServerSocket pseudoServerSocket) async {
+    try {
       if (logger.isLoggable('finer')) {
         logger.finer(
             'New client socket: selectedProtocol ${clientSocket.selectedProtocol}');
@@ -636,9 +656,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         logger.info('Transferring socket to HttpServer for handling');
         pseudoServerSocket.add(clientSocket);
       }
-    }), onError: (error) {
-      logger.warning("ServerSocket.listen called onError with '$error'");
-    });
+    } catch (e, st) {
+      logger.warning(
+          'Closed a new connection after an unexpected error: $e\n$st');
+      clientSocket.destroy();
+    }
   }
 
   /// Starts the secondary server in secure mode and listens on its socket.
