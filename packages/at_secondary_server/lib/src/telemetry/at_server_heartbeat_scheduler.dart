@@ -58,8 +58,6 @@ final class AtServerHeartbeatScheduler {
     _timer = null;
   }
 
-  // Carries no attributes. The backend works out uptime from the boot's
-  // started event, or its oldest record, and the newest heartbeat.
   void _sendHeartbeat() {
     _telemetry.emitEvent(atServerHeartbeatEventName);
   }
