@@ -1,3 +1,27 @@
+# 3.18.0
+- feat: an atServer can push signed telemetry to a collector. Set
+  `--telemetry-endpoint`, or the `AT_TELEMETRY_ENDPOINT` environment variable
+  when the flag is absent, to `host:port` (https is assumed) or a full `http`
+  or `https` URL. Telemetry is off when neither is set, and
+  `--telemetry-endpoint ''` turns it off even when the variable is set. Once
+  on, the atServer sends a heartbeat carrying its uptime every 60 seconds, as
+  OTLP/JSON logs POSTed to `/v1/logs` with an at-telemetry-v1 HTTP message
+  signature. The signing key is Ed25519, generated on the first start with
+  telemetry on and reused after; its public half is served as
+  `public:_at_telemetry_signing_publickey.__atserver@<atSign>` so a collector
+  can verify it. Telemetry never blocks or stops the atServer: batches the
+  collector has not taken are held in memory, at most 8 MB with the oldest
+  dropped first, retried with backoff, and lost when the atServer stops.
+
+- feat: only the atServer writes its telemetry signing key and its public
+  record. Any verb that would write, delete or notify either one is refused,
+  over CRAM too, and `keys` refuses to get, put or delete them. An enrollment
+  request naming the `__atserver` namespace is refused, as is approving one
+  stored earlier, and `keys:put` into `__atserver` is refused.
+
+- build: `at_commons` 5.20.0, and new dependencies on `at_telemetry` 0.1.0 and
+  `http` 1.6.0.
+
 # 3.17.0
 - feat: a notification can be ephemeral (`eph`): no atServer stores it,
   it lives at most two minutes, and an atServer restart loses it. A client can
