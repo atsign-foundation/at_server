@@ -8,6 +8,8 @@ import 'package:at_secondary/src/connection/inbound/inbound_message_listener.dar
 import 'package:at_secondary/src/exception/http_request_without_alpn_exception.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:at_utils/at_logger.dart';
+import 'package:logging/logging.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
@@ -787,6 +789,32 @@ void main() async {
             'protocol spec\n@'
       ]);
       expect(client.closeCount, 0);
+    });
+  });
+
+  group('An invalid verb', () {
+    test('is logged at finer, with its control characters escaped', () {
+      final AtSignLogger logger = InboundCommandValidator.logger;
+      final Level prior = logger.logger.level;
+      logger.level = 'finest';
+      final records = <LogRecord>[];
+      final sub = logger.logger.onRecord.listen(records.add);
+      try {
+        expect(
+            () => InboundCommandValidator.validate(
+                utf8.encode('zz:\x1b[2J\ryy'),
+                FakeInboundConnection(
+                    FakeSocket(), InboundConnectionMetadata())),
+            throwsA(isA<InvalidSyntaxException>()));
+      } finally {
+        unawaited(sub.cancel());
+        logger.logger.level = prior;
+      }
+      expect(records.map((r) => r.level), [Level.FINER],
+          reason: 'an unrecognised verb is routine; it is not for an operator');
+      expect(records.single.message, contains(r'zz:\x1b[2J\ryy'));
+      expect(records.single.message, isNot(contains('\r')));
+      expect(records.single.message, isNot(contains('\x1b')));
     });
   });
 }
