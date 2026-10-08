@@ -43,23 +43,29 @@ void main() {
       await verbTestsTearDown();
     });
 
-    /// Binds an approved `*:rw` enrollment (NO `__manage`) and returns its id.
-    Future<String> bindWildcardEnrollment() async {
-      inboundConnection.metadata.isAuthenticated = true;
-      final enrollId = Uuid().v4();
-      inboundConnection.metadata.enrollmentId = enrollId;
-      inboundConnection.metadata.authType = AuthType.apkam;
+    /// Stores an approved enrollment [enrollId] granting [namespaces].
+    Future<void> putApprovedEnrollment(
+        String enrollId, Map<String, String> namespaces) async {
       final enrollJson = {
         'sessionId': '123',
         'appName': 'wavi',
         'deviceName': 'pixel',
-        'namespaces': {'*': 'rw'}, // wildcard, but NO __manage
+        'namespaces': namespaces,
         'apkamPublicKey': 'testPublicKeyValue',
         'requestType': 'newEnrollment',
         'approval': {'state': 'approved'}
       };
       await keyValueStore.put('$enrollId.new.enrollments.__manage$alice',
           AtData()..data = jsonEncode(enrollJson));
+    }
+
+    /// Binds an approved `*:rw` enrollment (NO `__manage`) and returns its id.
+    Future<String> bindWildcardEnrollment() async {
+      inboundConnection.metadata.isAuthenticated = true;
+      final enrollId = Uuid().v4();
+      inboundConnection.metadata.enrollmentId = enrollId;
+      inboundConnection.metadata.authType = AuthType.apkam;
+      await putApprovedEnrollment(enrollId, {'*': 'rw'});
       return enrollId;
     }
 
@@ -221,6 +227,7 @@ void main() {
       // keep working.
       await bindWildcardEnrollment();
       final foreignEnId = Uuid().v4();
+      await putApprovedEnrollment(foreignEnId, {'wavi': 'rw'});
       final foreignKey = 'public:_apsk.$foreignEnId.a.__e$alice';
       await keyValueStore.put(foreignKey, AtData()..data = 'thevictimskey');
 

@@ -292,7 +292,9 @@ void main() {
       }
     }
 
-    test('Test lookup per-enrollment data of expired', () async {
+    test(
+        'The expired-keys pass moves an expired enrollment\'s per-enrollment '
+        'data, values intact, from a.__e to d.__e', () async {
       final int ttl = 150;
       String enId =
           (await etu.createEnrollments(n: 1, m: 1, ttl: ttl)).$1.first;
@@ -315,7 +317,9 @@ void main() {
           values);
     });
 
-    test('Test lookup per-enrollment data of revoked', () async {
+    test(
+        'Revoking an enrollment moves its per-enrollment data, values intact, '
+        'from a.__e to r.__e', () async {
       String enId = (await etu.createEnrollments(n: 1)).$1.first;
 
       var (keys, values) = await etu.createSomePerEnrollmentData(enId);
@@ -335,7 +339,9 @@ void main() {
           values);
     });
 
-    test('Test lookup per-enrollment data of deleted', () async {
+    test(
+        'Deleting a revoked enrollment moves its per-enrollment data, values '
+        'intact, to d.__e', () async {
       String enId = (await etu.createEnrollments(n: 1)).$1.first;
 
       var (keys, values) = await etu.createSomePerEnrollmentData(enId);
@@ -355,6 +361,97 @@ void main() {
                   '${EnrollmentConstants.perEnrollmentDeleted}@'))
               .toList(),
           values);
+    });
+
+    group('of an expired enrollment, before the expired-keys pass moves it,',
+        () {
+      const int ttl = 1000;
+      late String enId;
+      late List<String> keys;
+      late List<String> values;
+
+      setUp(() async {
+        enId = (await etu.createEnrollments(n: 1, m: 1, ttl: ttl)).$1.first;
+        (keys, values) = await etu.createSomePerEnrollmentData(enId);
+      });
+
+      DummyInboundConnection cram() => DummyInboundConnection()
+        ..metadata.isAuthenticated = true
+        ..metadata.authType = AuthType.cram;
+
+      /// Reads of the enrollment's first public, self and shared key: each
+      /// command, the connection it runs on, and the key it reads.
+      List<(String, DummyInboundConnection, String)> reads() {
+        final [public, self, shared, ...] = keys;
+        String bare(String key) => key.substring(key.lastIndexOf(':') + 1);
+        return [
+          ('lookup:${bare(public)}', DummyInboundConnection(), public),
+          (
+            'lookup:${bare(public).toUpperCase()}',
+            DummyInboundConnection(),
+            public
+          ),
+          (
+            'lookup:${bare(shared)}',
+            DummyInboundConnection()
+              ..metadata.isPolAuthenticated = true
+              ..metadata.fromAtSign = bob,
+            shared
+          ),
+          ('lookup:${bare(self)}', cram(), self),
+          ('llookup:$public', cram(), public),
+          ('llookup:$self', cram(), self),
+          ('llookup:$shared', cram(), shared),
+        ];
+      }
+
+      Future<String?> run(String command, DummyInboundConnection c) async {
+        final AbstractVerbHandler handler =
+            command.startsWith('llookup:') ? etu.llvh : etu.lvh;
+        final Response response = Response();
+        await handler.processVerb(response, handler.parse(command), c);
+        return response.data;
+      }
+
+      test('is served while the enrollment is live', () async {
+        for (final (command, connection, key) in reads()) {
+          expect(await run(command, connection), values[keys.indexOf(key)],
+              reason: command);
+        }
+      });
+
+      test('reads as absent once the enrollment has expired', () async {
+        await Future.delayed(const Duration(milliseconds: ttl + 1));
+        await verifyKeysExist(keys, values);
+
+        for (final (command, connection, key) in reads()) {
+          await expectLater(
+              run(command, connection),
+              throwsA(isA<KeyNotFoundException>().having((e) => e.message,
+                  'message', '$key does not exist in keystore')),
+              reason: command);
+        }
+      });
+
+      test('is the only data refused', () async {
+        await Future.delayed(const Duration(milliseconds: ttl + 1));
+        final String live = etu.primaryEnId;
+        for (final (key, refused) in [
+          ('public:x.my_app.$enId.a.__e$alice', true),
+          ('PUBLIC:X.MY_APP.${enId.toUpperCase()}.A.__E$alice', true),
+          ('public:x.my_app.no-such-enrollment.a.__e$alice', true),
+          ('public:x.my_app.$live.a.__e$alice', false),
+          ('public:x.my_app.$enId.r.__e$alice', false),
+          ('public:x.my_app.$enId.a.__e$bob', false),
+          ('cached:public:x.my_app.$enId.a.__e$bob', false),
+          ('cached:$alice:x.my_app.$enId.a.__e$bob', false),
+          ('public:x.my_app$alice', false),
+        ]) {
+          await expectLater(enMgr.refuseLapsedApprovedData(key),
+              refused ? throwsA(isA<KeyNotFoundException>()) : completes,
+              reason: key);
+        }
+      });
     });
   });
 
@@ -3902,6 +3999,7 @@ void main() {
       final newPair = AtChopsUtil.generateAtPkamKeyPair();
       final newPub = newPair.atPublicKey.publicKey;
 
+      // ignore: unused_result
       await etu.evh.enMgr.getEnrollmentById(enId);
 
       final key = etu.evh.enMgr.buildEnrollmentKey(enId);

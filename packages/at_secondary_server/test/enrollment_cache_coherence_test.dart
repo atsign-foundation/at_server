@@ -164,7 +164,10 @@ void main() {
     test('CONTROL: removing one enrollment does not drop another', () async {
       final String kept = await _putApprovedEnrollment();
       final String removed = await _putApprovedEnrollment();
+      // NOTE both reads only fill the cache the removal is measured against.
+      // ignore: unused_result
       await enMgr.getEnrollmentById(kept);
+      // ignore: unused_result
       await enMgr.getEnrollmentById(removed);
 
       final int hitsBefore = EnrollmentManager.cacheHits;

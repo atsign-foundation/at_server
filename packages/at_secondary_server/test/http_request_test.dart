@@ -9,6 +9,7 @@ import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
+import 'enrollment_test_utils.dart';
 import 'sync_unit_test.dart';
 import 'test_utils.dart';
 
@@ -72,7 +73,7 @@ void main() async {
 
   setUp(() async {
     await verbTestsSetUp();
-    handler = AtServerHttpRequestHandler(alice, keyValueStore);
+    handler = AtServerHttpRequestHandler(alice, keyValueStore, enMgr);
     handler.logger.level = 'warning';
     await putText(keyFoo, keyFoo);
     await putText(keyFooBar, keyFooBar);
@@ -392,6 +393,32 @@ void main() async {
         key: b.toString(),
       );
     });
+  });
+
+  test(
+      'an expired enrollment\'s public data is 404 before the expired-keys '
+      'pass moves it', () async {
+    const int ttl = 1000;
+    final etu = ETU();
+    await etu.init();
+    final String enId =
+        (await etu.createEnrollments(n: 1, m: 1, ttl: ttl)).$1.first;
+    final (keys, values) = await etu.createSomePerEnrollmentData(enId);
+    final String path =
+        keys.first.replaceFirst('public:', '').replaceFirst(alice, '');
+
+    var request = createRequest('GET', path);
+    await handler.handle(request);
+    expect(request.response.statusCode, HttpStatus.ok);
+    expect(request.response.bodyAsString, values.first);
+
+    await Future.delayed(const Duration(milliseconds: ttl + 1));
+    expect(await keyValueStore.exists(keys.first), isTrue,
+        reason: 'the expired-keys pass has not run');
+    request = createRequest('GET', path);
+    await handler.handle(request);
+    expect(request.response.statusCode, HttpStatus.notFound);
+    expect(request.response.bodyAsString, '404 Not Found');
   });
 }
 
