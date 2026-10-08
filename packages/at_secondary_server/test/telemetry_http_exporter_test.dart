@@ -10,6 +10,7 @@ import 'package:at_secondary/src/telemetry/at_server_telemetry_http_exporter.dar
 import 'package:at_secondary/src/telemetry/at_server_telemetry_signing_key.dart';
 import 'package:at_telemetry/at_telemetry.dart';
 import 'package:http/http.dart' as http;
+import 'package:logging/logging.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
@@ -212,6 +213,43 @@ void main() {
       await subject.flush();
 
       expect(buffer.batchCount, 1);
+    });
+
+    test('warns on the first failure after a success, and logs repeats at info',
+        () async {
+      final AtServerTelemetryHttpExporter subject = exporter(newBuffer());
+      subject.logger.level = 'info';
+      final List<LogRecord> records = <LogRecord>[];
+      final StreamSubscription<LogRecord> subscription =
+          subject.logger.logger.onRecord.listen(records.add);
+      addTearDown(subscription.cancel);
+      List<String> logged(Level level) => <String>[
+            for (final LogRecord record in records)
+              if (record.level == level) record.message,
+          ];
+      respond = (http.BaseRequest request) async =>
+          throw const SocketException('collector unreachable');
+
+      unawaited(subject.export(heartbeat(), resource));
+      await subject.flush();
+      await subject.flush();
+      respond = (http.BaseRequest request) async => _status(200);
+      await subject.flush();
+      respond = (http.BaseRequest request) async =>
+          throw const SocketException('collector unreachable');
+      unawaited(subject.export(heartbeat(), resource));
+      await subject.flush();
+
+      expect(logged(Level.WARNING), hasLength(2),
+          reason: 'one for each run of failures');
+      expect(logged(Level.WARNING),
+          everyElement(contains('collector unreachable')));
+      expect(
+          logged(Level.INFO),
+          containsAll(<Matcher>[
+            contains('collector unreachable'),
+            contains('Telemetry sending recovered'),
+          ]));
     });
 
     test('aborts a request that runs past its deadline', () async {

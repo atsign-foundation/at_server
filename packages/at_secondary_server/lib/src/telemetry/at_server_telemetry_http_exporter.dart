@@ -36,7 +36,7 @@ final class AtServerTelemetryHttpExporter
   static const Duration defaultShutdownTimeout = Duration(seconds: 10);
   static const int maxBatchBytes = 1024 * 1024;
 
-  final AtSignLogger _logger = AtSignLogger('AtServerTelemetryHttpExporter');
+  final AtSignLogger logger = AtSignLogger('AtServerTelemetryHttpExporter');
   final Uri endpoint;
   final String audience;
   final String producer;
@@ -63,6 +63,7 @@ final class AtServerTelemetryHttpExporter
   Timer? _retryTimer;
   Duration _backoff;
   bool _closed = false;
+  bool _failing = false;
 
   AtServerTelemetryHttpExporter({
     required Uri endpoint,
@@ -182,9 +183,9 @@ final class AtServerTelemetryHttpExporter
     try {
       await flush().timeout(_shutdownTimeout);
     } on TimeoutException {
-      _logger.warning('Telemetry shutdown timed out after $_shutdownTimeout');
+      logger.warning('Telemetry shutdown timed out after $_shutdownTimeout');
     } on Object catch (error) {
-      _logger.warning('Telemetry shutdown failed: $error');
+      logger.warning('Telemetry shutdown failed: $error');
     }
     _batchTimer?.cancel();
     _retryTimer?.cancel();
@@ -230,7 +231,7 @@ final class AtServerTelemetryHttpExporter
       body = utf8.encode(const AtTelemetryLogsCodec()
           .encodeExportRequest(records, resource: resource));
     } on Object catch (error) {
-      _logger.warning('Dropped ${records.length} telemetry records that '
+      logger.warning('Dropped ${records.length} telemetry records that '
           'could not be encoded: $error');
       _complete(deliveries, false);
       return;
@@ -238,7 +239,7 @@ final class AtServerTelemetryHttpExporter
 
     if (body.length > maxBatchBytes) {
       if (records.length == 1) {
-        _logger.warning('Dropped a telemetry record larger than '
+        logger.warning('Dropped a telemetry record larger than '
             '$maxBatchBytes bytes');
         _complete(deliveries, false);
         return;
@@ -276,6 +277,10 @@ final class AtServerTelemetryHttpExporter
         final AtServerTelemetryDeliveryOutcome outcome = await _post(batch);
         switch (outcome) {
           case AtServerTelemetryDeliveryOutcome.delivered:
+            if (_failing) {
+              _failing = false;
+              logger.info('Telemetry sending recovered');
+            }
             _backoff = _initialBackoff;
             _buffer.remove(batch);
             batch.complete(true);
@@ -288,7 +293,7 @@ final class AtServerTelemetryHttpExporter
         }
       }
     } on Object catch (error) {
-      _logger.warning('Telemetry sending failed: $error; will retry');
+      logger.warning('Telemetry sending failed: $error; will retry');
       _scheduleRetry();
     }
   }
@@ -316,7 +321,7 @@ final class AtServerTelemetryHttpExporter
         ..headers.addAll(signature.headers)
         ..bodyBytes = batch.body;
     } on Object catch (error) {
-      _logger.warning('Dropped telemetry batch ${batch.sequence} that could '
+      logger.warning('Dropped telemetry batch ${batch.sequence} that could '
           'not be signed: $error');
       return AtServerTelemetryDeliveryOutcome.rejected;
     }
@@ -337,12 +342,12 @@ final class AtServerTelemetryHttpExporter
       await response.stream.drain<void>();
       return _classify(response.statusCode, batch);
     } on http.RequestAbortedException {
-      _logger.info('Telemetry batch ${batch.sequence} timed out after '
+      _logRetry('Telemetry batch ${batch.sequence} timed out after '
           '$_requestTimeout; will retry');
       return AtServerTelemetryDeliveryOutcome.retry;
     } on Object catch (error) {
-      _logger.info('Telemetry batch ${batch.sequence} not sent: '
-          '${error.runtimeType}; will retry');
+      _logRetry('Telemetry batch ${batch.sequence} not sent: $error; '
+          'will retry');
       return AtServerTelemetryDeliveryOutcome.retry;
     } finally {
       deadline.cancel();
@@ -356,13 +361,24 @@ final class AtServerTelemetryHttpExporter
       return AtServerTelemetryDeliveryOutcome.delivered;
     }
     if (status == 408 || status == 429 || status >= 500) {
-      _logger.info('Collector answered $status for telemetry batch '
+      _logRetry('Collector answered $status for telemetry batch '
           '${batch.sequence}; will retry');
       return AtServerTelemetryDeliveryOutcome.retry;
     }
-    _logger.warning('Collector rejected telemetry batch ${batch.sequence} '
+    logger.warning('Collector rejected telemetry batch ${batch.sequence} '
         'with $status; dropping it');
     return AtServerTelemetryDeliveryOutcome.rejected;
+  }
+
+  // The first failure after a success is a warning, so a mistake in the
+  // endpoint shows; repeats are info, so an outage does not flood the log
+  void _logRetry(String message) {
+    if (_failing) {
+      logger.info(message);
+      return;
+    }
+    _failing = true;
+    logger.warning(message);
   }
 
   // Capped exponential backoff with full jitter
