@@ -206,7 +206,8 @@ void main() {
     }
 
     for (final (config, value, takes) in [
-      (ModifiableConfigs.inboundMaxLimit, 'abc', 'an integer'),
+      (ModifiableConfigs.inboundMaxLimit, 'abc', 'a positive integer'),
+      (ModifiableConfigs.inboundMaxLimit, '0', 'a positive integer'),
       (
         ModifiableConfigs.commitLogCompactionFrequencyMins,
         '1.5',
@@ -222,7 +223,9 @@ void main() {
         '-5',
         'a positive integer'
       ),
-      (ModifiableConfigs.maxRequestsPerTimeFrame, '', 'an integer'),
+      (ModifiableConfigs.maxRequestsPerTimeFrame, '', 'a positive integer'),
+      (ModifiableConfigs.maxRequestsPerTimeFrame, '-1', 'a positive integer'),
+      (ModifiableConfigs.timeFrameInMillis, '0', 'a positive integer'),
       (ModifiableConfigs.autoNotify, 'yes', 'true or false'),
     ]) {
       test('refuses ${config.name}=$value, and no listener sees it', () async {
