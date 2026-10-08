@@ -422,11 +422,6 @@ void main() {
       for (final Completer<bool> delivery in deliveries.skip(3)) {
         expect(delivery.isCompleted, isFalse);
       }
-      expect(buffer.health, <String, Object?>{
-        atServerBufferBatchesAttribute: 2,
-        atServerBufferBytesAttribute: buffer.bytes,
-        atServerBufferDroppedAttribute: 3,
-      });
     });
 
     test('abandoning reports every record as not delivered', () async {
@@ -472,7 +467,6 @@ void main() {
               exporter: subject,
               serverId: '$alice',
               bootId: 'boot-1',
-              health: () => subject.bufferHealth,
             );
           await Future<void>.delayed(const Duration(milliseconds: 100));
           await telemetry.flush();
@@ -515,7 +509,7 @@ void main() {
       });
     });
 
-    test('the heartbeat carries uptime and buffer health', () async {
+    test('the heartbeat carries only the uptime', () async {
       final List<(AtTelemetryLogRecord, AtTelemetryResource)> exports =
           <(AtTelemetryLogRecord, AtTelemetryResource)>[];
       final AtServerTelemetry telemetry = AtServerTelemetry(
@@ -524,9 +518,6 @@ void main() {
           exporter: _RecordingExporter(exports),
           serverId: '$alice',
           bootId: 'boot-1',
-          health: () => <String, Object?>{
-            atServerBufferBatchesAttribute: 3,
-          },
         );
 
       await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -537,10 +528,8 @@ void main() {
               export.$1.eventName == atServerHeartbeatEventName)
           .$1;
       expect(heartbeat.attributes.keys, <String>[
-        atServerBufferBatchesAttribute,
         AtTelemetryAttributes.atServerUptimeSeconds,
       ]);
-      expect(heartbeat.attributes[atServerBufferBatchesAttribute], 3);
       expect(heartbeat.attributes[AtTelemetryAttributes.atServerUptimeSeconds],
           isA<double>());
     });
@@ -557,9 +546,6 @@ void main() {
               exporter: exporter,
               serverId: '$alice',
               bootId: 'boot-1',
-              health: () => <String, Object?>{
-                atServerBufferDroppedAttribute: 2,
-              },
             );
       List<String?> names() => exports
           .map(((AtTelemetryLogRecord, AtTelemetryResource) export) =>
@@ -575,7 +561,9 @@ void main() {
       expect(exporter.exportsAtShutdown, 2,
           reason: 'stopped must reach the exporter before it shuts down');
       final AtTelemetryLogRecord stopped = exports.last.$1;
-      expect(stopped.attributes[atServerBufferDroppedAttribute], 2);
+      expect(stopped.attributes.keys, <String>[
+        AtTelemetryAttributes.atServerUptimeSeconds,
+      ]);
       expect(stopped.attributes[AtTelemetryAttributes.atServerUptimeSeconds],
           isA<double>());
     });

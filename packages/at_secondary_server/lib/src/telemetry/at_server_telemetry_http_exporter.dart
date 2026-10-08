@@ -140,8 +140,6 @@ final class AtServerTelemetryHttpExporter
       host == 'localhost' ||
       (InternetAddress.tryParse(host)?.isLoopback ?? false);
 
-  Map<String, Object?> get bufferHealth => _buffer.health;
-
   @override
   Future<bool> export(
     AtTelemetryLogRecord logRecord,

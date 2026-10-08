@@ -6,10 +6,6 @@ import 'package:at_utils/at_logger.dart';
 import 'at_server_heartbeat_scheduler.dart';
 import 'at_server_telemetry_constants.dart';
 
-/// Extra attributes for the heartbeat and stopped events, such as the
-/// buffer's health.
-typedef AtServerTelemetryHealthSource = Map<String, Object?> Function();
-
 /// The atServer's telemetry facade. Nothing here throws into the server, and
 /// flush and shutdown always return within their timeouts.
 final class AtServerTelemetry {
@@ -22,7 +18,6 @@ final class AtServerTelemetry {
   final Stopwatch _uptime = Stopwatch();
   AtTelemetry? _telemetry;
   AtServerHeartbeatScheduler? _heartbeat;
-  AtServerTelemetryHealthSource? _health;
 
   AtServerTelemetry({
     this.heartbeatInterval = AtServerHeartbeatScheduler.defaultInterval,
@@ -38,7 +33,6 @@ final class AtServerTelemetry {
     required String serverId,
     required String bootId,
     String? serviceVersion,
-    AtServerTelemetryHealthSource? health,
   }) {
     if (_telemetry != null) {
       throw StateError('Telemetry is already enabled');
@@ -53,7 +47,6 @@ final class AtServerTelemetry {
       exporter: exporter,
       onError: _onError,
     );
-    _health = health;
     _uptime
       ..reset()
       ..start();
@@ -67,27 +60,12 @@ final class AtServerTelemetry {
     }
   }
 
-  /// The uptime and the buffer's health, as the heartbeat and stopped events
-  /// carry them.
+  /// The uptime, as the heartbeat and stopped events carry it.
   Map<String, Object?> lifecycleAttributes() {
     return <String, Object?>{
-      ..._healthAttributes(),
       AtTelemetryAttributes.atServerUptimeSeconds:
           _uptime.elapsedMicroseconds / Duration.microsecondsPerSecond,
     };
-  }
-
-  Map<String, Object?> _healthAttributes() {
-    final AtServerTelemetryHealthSource? health = _health;
-    if (health == null) {
-      return const <String, Object?>{};
-    }
-    try {
-      return health();
-    } on Object catch (error) {
-      _logger.warning('Could not read telemetry health: ${error.runtimeType}');
-      return const <String, Object?>{};
-    }
   }
 
   /// Sends the event [name], which must be in the atServer's namespace, or
@@ -139,7 +117,6 @@ final class AtServerTelemetry {
     emitEvent(atServerStoppedEventName, attributes: lifecycleAttributes());
     _uptime.stop();
     _telemetry = null;
-    _health = null;
     return telemetry.shutdown(timeout: timeout);
   }
 
