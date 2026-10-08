@@ -123,7 +123,8 @@ class InboundWebSocketConnection implements InboundConnection {
   Future<void> write(String data) async {
     ws.add(data);
     if (logger.isLoggable('info')) {
-      logger.info(logger.getAtConnectionLogMessage(metaData, 'SENT: $data'));
+      logger.info(logger.getAtConnectionLogMessage(
+          metaData, 'SENT: ${sanitiseForLogging(data)}'));
     }
   }
 

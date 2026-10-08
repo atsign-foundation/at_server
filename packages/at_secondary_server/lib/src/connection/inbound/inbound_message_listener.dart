@@ -4,7 +4,6 @@ import 'dart:typed_data';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_commons/at_commons.dart' as at_commons;
-import 'package:at_secondary/src/connection/base_connection.dart';
 import 'package:at_secondary/src/connection/inbound/connection_util.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -94,8 +93,8 @@ class InboundMessageListener {
       }
       final command = utf8.decode(commandBytes).trim();
       if (logger.logger.isLoggable(Level.INFO)) {
-        logger.info(logger.getAtConnectionLogMessage(connection.metaData,
-            'RCVD: ${BaseSocketConnection.truncateForLogging(command)}'));
+        logger.info(logger.getAtConnectionLogMessage(
+            connection.metaData, 'RCVD: ${sanitiseForLogging(command)}'));
       }
       // if command is '@exit', close the connection.
       if (command == '@exit') {

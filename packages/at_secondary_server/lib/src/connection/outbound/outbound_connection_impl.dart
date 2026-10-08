@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:at_secondary/src/connection/base_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
@@ -96,7 +95,7 @@ class OutboundConnectionImpl<T extends Socket>
     await super.write(data);
     if (logger.isLoggable('info')) {
       logger.info(logger.getAtConnectionLogMessage(
-          metaData, 'SENT: ${BaseSocketConnection.truncateForLogging(data)}'));
+          metaData, 'SENT: ${sanitiseForLogging(data)}'));
     }
   }
 }

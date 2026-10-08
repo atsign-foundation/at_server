@@ -8,6 +8,7 @@ import 'package:at_secondary/src/config/at_config.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -15,6 +16,7 @@ import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:basic_utils/basic_utils.dart';
 import 'package:uuid/uuid.dart';
+import 'package:version/version.dart';
 
 class FromVerbHandler extends AbstractVerbHandler {
   static From from = From();
@@ -30,6 +32,28 @@ class FromVerbHandler extends AbstractVerbHandler {
   }
 
   late AtConfig atConfigInstance;
+
+  /// How much of a clientConfig field is kept: a clientId is a UUID, and the
+  /// others are names and version numbers.
+  static const int _maxClientConfigFieldLength = 64;
+
+  /// [value], a clientConfig field, when it is a string, cut and with its
+  /// control characters escaped. These fields are written into the prefix of
+  /// every log line for the connection.
+  static String? _loggable(Object? value) => value is String
+      ? sanitiseForLogging(value, cutOffAfter: _maxClientConfigFieldLength)
+      : null;
+
+  /// Whether [value] parses as a version. GlobalExceptionHandler parses the
+  /// client version to choose how it formats an error.
+  static bool _isVersion(String value) {
+    try {
+      Version.parse(value);
+      return true;
+    } on FormatException {
+      return false;
+    }
+  }
 
   @override
   bool accept(String command) =>
@@ -56,12 +80,15 @@ class FromVerbHandler extends AbstractVerbHandler {
         verbParams[AtConstants.clientConfig]!.isNotEmpty) {
       var decodedClientConfig =
           jsonDecode(verbParams[AtConstants.clientConfig]!);
+      final clientVersion = decodedClientConfig[AtConstants.version];
+      if (clientVersion is String && _isVersion(clientVersion)) {
+        atConnectionMetadata.clientVersion = clientVersion;
+      }
       atConnectionMetadata
-        ..clientVersion = decodedClientConfig[AtConstants.version]
-        ..clientId = decodedClientConfig[AtConstants.clientId]
-        ..appName = decodedClientConfig[AtConstants.appName]
-        ..appVersion = decodedClientConfig[AtConstants.appVersion]
-        ..platform = decodedClientConfig[AtConstants.platform];
+        ..clientId = _loggable(decodedClientConfig[AtConstants.clientId])
+        ..appName = _loggable(decodedClientConfig[AtConstants.appName])
+        ..appVersion = _loggable(decodedClientConfig[AtConstants.appVersion])
+        ..platform = _loggable(decodedClientConfig[AtConstants.platform]);
     }
 
     var keyPrefix = (fromAtSign == currentAtSign) ? 'private:' : 'public:';

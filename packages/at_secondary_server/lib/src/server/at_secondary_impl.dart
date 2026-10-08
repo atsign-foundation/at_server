@@ -764,7 +764,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       String command, InboundConnection connection) async {
     if (logger.isLoggable('finer')) {
       logger.finer(logger.getAtConnectionLogMessage(
-          connection.metaData, 'inside _executeVerbCallBack: $command'));
+          connection.metaData,
+          'inside _executeVerbCallBack:'
+          ' ${sanitiseForLogging(command)}'));
     }
     try {
       if (_isPaused) {

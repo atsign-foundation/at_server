@@ -50,12 +50,4 @@ abstract class BaseSocketConnection<T extends Socket> extends AtConnection {
       throw AtIOException(e.toString());
     }
   }
-
-  static String truncateForLogging(String toLog, {int cutOffAfter = 2100}) {
-    if (toLog.length > cutOffAfter) {
-      toLog =
-          '${toLog.substring(0, cutOffAfter)} [truncated, ${toLog.length - cutOffAfter} more chars]';
-    }
-    return toLog;
-  }
 }
