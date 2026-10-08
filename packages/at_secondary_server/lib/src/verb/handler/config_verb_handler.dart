@@ -143,12 +143,24 @@ class ConfigVerbHandler extends AbstractVerbHandler {
   }
 }
 
-/// [raw] as the value [config] takes, the type of its default: an integer, or
-/// `true` or `false`. Throws [InvalidSyntaxException] naming what it takes.
+/// The settings whose value is a frequency, and so must be positive.
+const Set<ModifiableConfigs> _frequencies = {
+  ModifiableConfigs.commitLogCompactionFrequencyMins,
+  ModifiableConfigs.accessLogCompactionFrequencyMins,
+  ModifiableConfigs.notificationKeyStoreCompactionFrequencyMins,
+};
+
+/// [raw] as the value [config] takes, the type of its default: an integer
+/// (positive for a frequency), or `true` or `false`. Throws
+/// [InvalidSyntaxException] naming what it takes.
 Object _valueFor(ModifiableConfigs config, String raw) {
   final Object defaultValue = AtSecondaryConfig.getDefaultValue(config);
   if (defaultValue is int) {
-    return int.tryParse(raw) ??
+    final int? value = int.tryParse(raw);
+    if (_frequencies.contains(config) && (value == null || value < 1)) {
+      throw InvalidSyntaxException('${config.name} takes a positive integer');
+    }
+    return value ??
         (throw InvalidSyntaxException('${config.name} takes an integer'));
   }
   if (defaultValue is bool && raw != 'true' && raw != 'false') {

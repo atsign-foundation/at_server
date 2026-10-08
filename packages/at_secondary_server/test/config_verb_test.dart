@@ -207,7 +207,21 @@ void main() {
 
     for (final (config, value, takes) in [
       (ModifiableConfigs.inboundMaxLimit, 'abc', 'an integer'),
-      (ModifiableConfigs.commitLogCompactionFrequencyMins, '1.5', 'an integer'),
+      (
+        ModifiableConfigs.commitLogCompactionFrequencyMins,
+        '1.5',
+        'a positive integer'
+      ),
+      (
+        ModifiableConfigs.accessLogCompactionFrequencyMins,
+        '0',
+        'a positive integer'
+      ),
+      (
+        ModifiableConfigs.notificationKeyStoreCompactionFrequencyMins,
+        '-5',
+        'a positive integer'
+      ),
       (ModifiableConfigs.maxRequestsPerTimeFrame, '', 'an integer'),
       (ModifiableConfigs.autoNotify, 'yes', 'true or false'),
     ]) {
@@ -222,6 +236,29 @@ void main() {
         expect(AtSecondaryConfig.getLatestConfigValue(config), before);
       });
     }
+
+    test('changing one compaction frequency leaves the others scheduled',
+        () async {
+      final AtSecondaryServerImpl server = AtSecondaryServerImpl.getInstance();
+      addTearDown(() {
+        for (final t in server.compactionTimers.values) {
+          t.cancel();
+        }
+      });
+      for (final setting in [
+        'commitLogCompactionFrequencyMins=5',
+        'accessLogCompactionFrequencyMins=7',
+      ]) {
+        final (thrown, uncaught) = await set(setting);
+        expect(thrown, isNull, reason: setting);
+        expect(uncaught, isEmpty, reason: setting);
+      }
+      expect(server.compactionTimers.keys,
+          containsAll(['commitLog', 'accessLog']));
+      expect(server.compactionTimers.values.every((t) => t.isActive), isTrue,
+          reason: 'the second change must not cancel the first resource\'s '
+              'timer');
+    });
 
     test('control: values a config can take are applied', () async {
       for (final setting in ['inboundMaxLimit=7', 'autoNotify=false']) {

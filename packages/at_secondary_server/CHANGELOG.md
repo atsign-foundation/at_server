@@ -18,6 +18,9 @@
 - fix: `config:set` refuses a value its setting can't take, naming what it
   takes.
 
+- fix: changing one compaction frequency with `config:set` no longer stops
+  compaction of the other resources.
+
 - fix: once an enrollment expires, its data is no longer served by `lookup`,
   `llookup` or an HTTP GET.
 

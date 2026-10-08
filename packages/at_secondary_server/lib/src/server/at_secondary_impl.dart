@@ -105,8 +105,13 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       StatsNotificationService();
 
   /// Timers driving the per-resource compaction cron, each on its own
-  /// configured frequency.
-  final List<Timer> _compactionTimers = [];
+  /// configured frequency, by resource label.
+  final Map<String, Timer> _compactionTimers = {};
+
+  /// The compaction timers, by resource label.
+  @visibleForTesting
+  Map<String, Timer> get compactionTimers =>
+      Map.unmodifiable(_compactionTimers);
 
   /// One-shot timer driving [runHousekeepingSweep], re-armed after every
   /// sweep so the server sleeps until the next key expires.
@@ -385,12 +390,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   ) async {
     logger.finest(
         'Received new frequency for $label compaction: ${newFrequency.inMinutes}m');
-    // NOTE timers are not indexed by label, so all are cancelled and the one
-    // being changed is re-scheduled.
-    for (final t in _compactionTimers) {
-      t.cancel();
-    }
-    _compactionTimers.clear();
     _scheduleCompaction(resource, newFrequency, label, statsService);
   }
 
@@ -475,7 +474,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     AtCompactionStatsService statsService,
   ) {
     bool running = false;
-    _compactionTimers.add(Timer.periodic(period, (_) async {
+    _compactionTimers[label]?.cancel();
+    _compactionTimers[label] = Timer.periodic(period, (_) async {
       if (running) return;
       running = true;
       try {
@@ -498,7 +498,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       } finally {
         running = false;
       }
-    }));
+    });
   }
 
   Future<void> initDynamicConfigListeners() async {
@@ -796,7 +796,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
       logger.shout("Stopping scheduled tasks");
       atRefreshJob.close();
-      for (final t in _compactionTimers) {
+      for (final t in _compactionTimers.values) {
         t.cancel();
       }
       _compactionTimers.clear();
