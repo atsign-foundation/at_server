@@ -4,6 +4,8 @@
   `InfoFeatures` for their names, statuses and how to read them. The `Notify`
   dartdoc describes `eAtn` and `eph`, and the `NotifyAll` dartdoc says
   `notify:all` is deprecated: send a `notify` to each recipient instead.
+- docs: the `Notify` and `NotifyAll` dartdocs say `messageType:text` is
+  refused, and that `info` lists `notify.text` as Retired.
 - build: `at_commons` to `^5.19.0`, which lists `enroll:infons` and defines
   `eAtn`, `eph` and the `info` features. The `Enroll` verb takes its syntax
   from at_commons unchanged again; the local insertion of `infons` is gone.

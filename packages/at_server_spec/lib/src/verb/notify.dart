@@ -7,12 +7,13 @@ import 'package:at_commons/at_commons.dart';
 ///
 /// Syntax: notify:notifier:<notifier-id>:<atsign to notify>:<key to notify>@<sender AtSign>
 /// Optionally, following preferences can be set on the notification:
-/// messageType: KEY, TEXT
+/// messageType: KEY
 ///   This field indicates the type of notification. This is an optional field. Defaults to Key.
 ///   KEY: To notify a key
 ///     Example: notify:messageType:key:@colin:phone@kevin
-///   TEXT: To notify a message.
-///     Example: notify:messageType:text:@colin:hi
+///   TEXT is refused: an atServer answers a client's text notification with
+///   AT0003, answers another atServer's with success and drops it, and lists
+///   `notify.text` in its `info` response as Retired.
 /// priority: LOW, MEDIUM, HIGH
 ///   This fields indicates the priority of the notification. Defaults to low priority.
 ///   Example: notify:priority:low:@murali:key1@sitaram

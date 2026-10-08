@@ -1,4 +1,10 @@
 # 3.17.0
+- ⚠️ BREAKING: text notifications are retired. A client's `notify` or
+  `notify:all` with `messageType:text` is refused with AT0003 (`messageType:text
+  is no longer supported`); one from another atServer is accepted and dropped.
+  `info` lists `notify.text` as `Retired`. Text notifications already stored
+  still list and fetch.
+
 - feat: a notification can be ephemeral (`eph`): no atServer stores it,
   it lives at most two minutes, and an atServer restart loses it. A client can
   also set when a notification expires (`eAtn`). An atServer passes both on,

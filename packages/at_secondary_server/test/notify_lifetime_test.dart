@@ -537,8 +537,11 @@ void main() {
     expect(features.statusOf('notify.eph'), 'GA');
     expect(features.statusOf('notify.eAtn'), 'GA');
     expect(features.statusOf('notify.all'), 'Deprecated');
+    expect(features.statusOf('notify.text'), 'Retired');
     expect(['notify.eph', 'notify.eAtn', 'notify.all'].every(features.has),
         isTrue);
+    expect(features.has('notify.text'), isFalse,
+        reason: 'a retired feature reads as absent');
   });
 
   test('info lists notify.eph and notify.eAtn', () async {

@@ -13,6 +13,7 @@ import 'package:at_utils/at_utils.dart';
 
 import '../verb_enum.dart';
 import 'abstract_verb_handler.dart';
+import 'notify_verb_handler.dart';
 
 /// class to handle notify:list verb
 class NotifyAllVerbHandler extends AbstractVerbHandler {
@@ -52,16 +53,13 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
     }
     var messageType =
         SecondaryUtil.getMessageType(verbParams[AtConstants.messageType]);
+    if (messageType == MessageType.text) {
+      throw InvalidSyntaxException(NotifyVerbHandler.textNotSupported);
+    }
     var operation =
         SecondaryUtil.getOperationType(verbParams[AtConstants.operation]);
     var value = verbParams[AtConstants.atValue];
-
-    // If messageType is key, append the atSign to key. For messageType text,
-    // atSign is not appended to the key.
-    var key = verbParams[AtConstants.atKey]!;
-    if (messageType == MessageType.key) {
-      key = '$key$atSign';
-    }
+    var key = '${verbParams[AtConstants.atKey]!}$atSign';
 
     final recipients = _recipients(verbParams[AtConstants.forAtSign]);
     final inboundConnectionMetadata =
