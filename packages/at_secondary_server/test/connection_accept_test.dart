@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_utils.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
@@ -37,6 +38,8 @@ void main() {
     verbTestsSetUpLogging();
     registerFallbackValue(_FakeSecureSocket());
     registerFallbackValue(_FakeWebSocket());
+    registerFallbackValue((String _, InboundConnection __) {});
+    registerFallbackValue((List<int> _, InboundConnection __) {});
   });
 
   setUp(() {
@@ -65,6 +68,24 @@ void main() {
 
     expect(uncaught, isEmpty);
     expect(socket.destroyed, isTrue);
+  });
+
+  test('an unexpected error once the connection is pooled closes the connection',
+      () async {
+    final MockInboundConnection connection = MockInboundConnection();
+    when(() => connection.acceptRequests(any(), any()))
+        .thenThrow(StateError('injected'));
+    when(() => connection.close()).thenAnswer((_) async {});
+    when(() => manager.createSocketConnection(any(),
+        sessionId: any(named: 'sessionId'))).thenReturn(connection);
+    final socket = _FakeSecureSocket();
+
+    final uncaught = await uncaughtFrom(() =>
+        AtSecondaryServerImpl.getInstance().acceptSocket(
+            socket, PseudoServerSocket(_FakeSecureServerSocket())));
+
+    expect(uncaught, isEmpty);
+    verify(() => connection.close()).called(1);
   });
 
   test('an unexpected error setting up a WebSocket closes only that WebSocket',

@@ -636,6 +636,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   @visibleForTesting
   Future<void> acceptSocket(
       SecureSocket clientSocket, PseudoServerSocket pseudoServerSocket) async {
+    InboundConnection? connection;
     try {
       if (logger.isLoggable('finer')) {
         logger.finer(
@@ -643,7 +644,6 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       }
       if (clientSocket.selectedProtocol == 'atProtocol/1.0' ||
           clientSocket.selectedProtocol == null) {
-        InboundConnection? connection;
         try {
           if (logger.isLoggable('finer')) {
             logger.finer(
@@ -665,7 +665,13 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     } catch (e, st) {
       logger.warning(
           'Closed a new connection after an unexpected error: $e\n$st');
-      clientSocket.destroy();
+      // NOTE a pooled connection is closed rather than its socket destroyed,
+      // so the pool reaps it with the next connection.
+      if (connection == null) {
+        clientSocket.destroy();
+      } else {
+        await connection.close();
+      }
     }
   }
 
