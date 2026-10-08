@@ -13,11 +13,18 @@
 
 - fix: a connection that has not authenticated is closed after it is answered
   `AT0003` (invalid syntax), rather than left open to keep sending. An
-  authenticated connection is left open, as before.
+  authenticated connection is left open, as before. **SDK maintainers:** a
+  client that sends a malformed request before authenticating - a `lookup:`
+  that does not match the verb's syntax, say - now has to reconnect after
+  each one.
 
 - fix: an invalid verb is logged at `finer`, not `warning`, and every log line
-  carrying what a peer sent writes its control characters as escapes (`\r`,
-  `\x1b`).
+  carrying what a peer sent writes its control characters and backslashes as
+  escapes (`\r`, `\x1b`, `\\`), cut to the same length as before. That
+  includes the `clientId`, `appName`, `appVersion` and `platform` a `from:`
+  sends in its `clientConfig`, which prefix every log line for the
+  connection, and are now kept to 64 characters. A `clientConfig` field that
+  is not a string is ignored rather than failing the `from:`.
 
 - fix: tighten validation on notify: requests from other atServers
 
