@@ -69,10 +69,10 @@ packages:
     dependency: "direct main"
     description:
       name: at_commons
-      sha256: b392e16b9d03d7e6be27f7c9bdebd6675039391013399acd81e583bcb5c339b5
+      sha256: "1c43b22f46fa8613c5342ebc6c29607c631dd2f0cc058e2faaffb2fdd9562000"
       url: "https://pub.dev"
     source: hosted
-    version: "5.19.0"
+    version: "5.20.0"
   at_lookup:
     dependency: "direct main"
     description:
@@ -95,6 +95,14 @@ packages:
       relative: true
     source: path
     version: "5.3.0"
+  at_telemetry:
+    dependency: "direct main"
+    description:
+      name: at_telemetry
+      sha256: bdda9de5a6204d6809c0f7dff509c1878ff7e795dedc6e91cf77085e3088f98e
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.1.0"
   at_utf7:
     dependency: transitive
     description:
@@ -368,7 +376,7 @@ packages:
     source: hosted
     version: "2.2.3"
   http:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: http
       sha256: "87721a4a50b19c7f1d49001e51409bddc46303966ce89a65af4f4e6004896412"

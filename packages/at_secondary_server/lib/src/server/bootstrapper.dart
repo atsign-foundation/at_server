@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:args/args.dart';
 import 'package:at_secondary/src/arg_utils.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -35,6 +36,8 @@ class SecondaryServerBootStrapper {
         secondaryContext.securityContext = AtSecurityContextImpl();
       }
       secondaryContext.trainingMode = results['training'];
+      secondaryContext.telemetryEndpoint =
+          telemetryEndpointFrom(results, Platform.environment);
 
       // Start the secondary server
       secondaryServerInstance.setServerContext(secondaryContext);
@@ -95,5 +98,24 @@ class SecondaryServerBootStrapper {
           .info("Somehow made it to the finally block - exiting with status 1");
       exit(1);
     }
+  }
+
+  /// The telemetry endpoint, or null when telemetry is off. The command line
+  /// flag wins over the environment variable, and passing the flag with an
+  /// empty value turns telemetry off even if the variable is set.
+  static String? telemetryEndpointFrom(
+    ArgResults results,
+    Map<String, String> environment,
+  ) {
+    if (results.wasParsed('telemetry_endpoint')) {
+      final String fromFlag = (results['telemetry_endpoint'] as String).trim();
+      return fromFlag.isEmpty ? null : fromFlag;
+    }
+    final String fromEnvironment =
+        (environment['AT_TELEMETRY_ENDPOINT'] ?? '').trim();
+    if (fromEnvironment.isNotEmpty) {
+      return fromEnvironment;
+    }
+    return null;
   }
 }

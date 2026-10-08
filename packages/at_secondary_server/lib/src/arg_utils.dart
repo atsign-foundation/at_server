@@ -22,6 +22,12 @@ class CommandLineParser {
         negatable: false,
         help:
             'Training mode - will exit immediately after fully starting the server');
+    // Has a default so it stays optional with the options count check below
+    parser.addOption('telemetry_endpoint',
+        defaultsTo: '',
+        help: 'Telemetry collector as host:port or a full URL. '
+            'Falls back to the AT_TELEMETRY_ENDPOINT environment variable. '
+            'Telemetry is off when neither is set');
 
     try {
       if (arguments != null && arguments.isNotEmpty) {

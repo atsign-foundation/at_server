@@ -31,6 +31,20 @@
 - feat: `notify:all` is deprecated; send a `notify` to each recipient instead.
   `info` lists it as `notify.all` with status `Deprecated`.
 
+- feat: an atServer can send signed telemetry (started, stopped, and a
+  heartbeat every 60 seconds) to a collector. Set `--telemetry_endpoint`, or
+  `AT_TELEMETRY_ENDPOINT`, to `host:port` for https or to a full URL; plain
+  `http` is accepted only for a loopback collector. Telemetry is off when
+  neither is set, and `--telemetry_endpoint ''` turns it off even when the
+  variable is set.
+
+- feat: no connection, CRAM included, can change the atServer's telemetry
+  signing key or its public record, and neither an enrollment request nor
+  `keys:put` can name the `__atserver` namespace.
+
+- build: `at_commons` 5.20.0, and new dependencies on `at_telemetry` 0.1.0 and
+  `http` 1.6.0.
+
 # 3.16.6
 - fix: `notify:all` stores each recipient as an atSign and notifies it once
   however it is spelt, notifies the atServer's own atSign as `notify` does,

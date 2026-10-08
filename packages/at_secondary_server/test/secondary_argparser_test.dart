@@ -1,5 +1,6 @@
 import 'package:args/args.dart';
 import 'package:at_secondary/src/arg_utils.dart';
+import 'package:at_secondary/src/server/bootstrapper.dart';
 import 'package:test/test.dart';
 import 'test_utils.dart';
 
@@ -25,6 +26,22 @@ void main() {
       expect(results.arguments[5], 'cde445tsfg');
 
       expect(results['training'], false);
+      expect(results['telemetry_endpoint'], '');
+    });
+
+    test('parse the telemetry endpoint', () {
+      var arguments = [
+        '--at_sign',
+        alice,
+        '--server_port',
+        '6400',
+        '--shared_secret',
+        'cde445tsfg',
+        '--telemetry_endpoint',
+        'collector.example.com:443'
+      ];
+      var results = CommandLineParser().getParserResults(arguments);
+      expect(results['telemetry_endpoint'], 'collector.example.com:443');
     });
 
     test('parse all the arguments including optional flags', () {
@@ -96,6 +113,47 @@ void main() {
       var arguments = ['--at_sign', 'alice', '--s', '6400'];
       expect(() => CommandLineParser().getParserResults(arguments),
           throwsA(predicate((dynamic e) => e is ArgParserException)));
+    });
+  });
+
+  group('Telemetry endpoint tests', () {
+    const List<String> required = <String>[
+      '--at_sign',
+      '@alice',
+      '--server_port',
+      '6400',
+      '--shared_secret',
+      'cde445tsfg'
+    ];
+    const Map<String, String> environment = <String, String>{
+      'AT_TELEMETRY_ENDPOINT': 'env.example.com:443'
+    };
+
+    String? endpointFor(List<String> extra, Map<String, String> environment) {
+      final ArgResults results =
+          CommandLineParser().getParserResults(<String>[...required, ...extra]);
+      return SecondaryServerBootStrapper.telemetryEndpointFrom(
+          results, environment);
+    }
+
+    test('the flag wins over the environment variable', () {
+      expect(
+          endpointFor(<String>['--telemetry_endpoint', 'flag.example.com:443'],
+              environment),
+          'flag.example.com:443');
+    });
+
+    test('the environment variable is used when the flag is absent', () {
+      expect(endpointFor(<String>[], environment), 'env.example.com:443');
+    });
+
+    test('an empty flag turns telemetry off even if the variable is set', () {
+      expect(
+          endpointFor(<String>['--telemetry_endpoint', ''], environment), null);
+    });
+
+    test('telemetry is off when neither is set', () {
+      expect(endpointFor(<String>[], <String, String>{}), null);
     });
   });
 }

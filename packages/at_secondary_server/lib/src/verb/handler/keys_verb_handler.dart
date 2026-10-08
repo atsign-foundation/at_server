@@ -7,6 +7,7 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/telemetry/at_server_telemetry_key_guard.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
@@ -68,6 +69,16 @@ class KeysVerbHandler extends AbstractVerbHandler {
       AtConstants.enrollmentId: enrollIdFromMetadata
     };
     final operation = verbParams[AtConstants.operation];
+    final keyName = verbParams[AtConstants.keyName];
+    if (keyName != null && AtServerTelemetryKeyGuard.isTelemetryKey(keyName)) {
+      throw UnAuthorizedException(AtServerTelemetryKeyGuard.refusal);
+    }
+    final namespace = verbParams[AtConstants.namespace];
+    if (operation == 'put' &&
+        namespace != null &&
+        AtServerTelemetryKeyGuard.isAtServerNamespace(namespace)) {
+      throw UnAuthorizedException(AtServerTelemetryKeyGuard.namespaceRefusal);
+    }
 
     switch (operation) {
       case 'put':
