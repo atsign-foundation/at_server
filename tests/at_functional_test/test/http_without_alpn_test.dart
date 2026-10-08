@@ -18,6 +18,7 @@ void main() {
       'an HTTP request without ALPN is told ALPN http/1.1 is required, '
       'and the connection is closed', () async {
     final SecureSocket socket = await SecureSocket.connect(host, port);
+    addTearDown(socket.destroy);
     final StringBuffer received = StringBuffer();
     final Completer<void> closed = Completer<void>();
     void markClosed() => closed.isCompleted ? null : closed.complete();
@@ -30,7 +31,6 @@ void main() {
             'received: $received'));
     expect(received.toString(),
         '@error:AT0003-Exception: HTTP requests must negotiate ALPN http/1.1\n@');
-    socket.destroy();
   });
 
   test('control: the same request with ALPN http/1.1 gets an HTTP response',

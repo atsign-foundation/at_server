@@ -741,11 +741,15 @@ void main() async {
       client = FakeInboundConnection(FakeSocket(), InboundConnectionMetadata());
     });
 
-    /// Sends [data], waits for the reply, then long enough for a close that
-    /// follows it to land.
-    Future<void> send(String data) async {
+    /// Sends [data], [pieceLength] bytes at a time when given, waits for the
+    /// reply, then long enough for a close that follows it to land.
+    Future<void> send(String data, {int? pieceLength}) async {
       InboundMessageListener(client).listen(callback, streamCallBack);
-      client.socket.addData(data);
+      final int step = pieceLength ?? data.length;
+      for (int i = 0; i < data.length; i += step) {
+        client.socket.addData(
+            data.substring(i, i + step < data.length ? i + step : data.length));
+      }
       final giveUp = DateTime.now().add(const Duration(seconds: 1));
       while (client.writes.isEmpty && DateTime.now().isBefore(giveUp)) {
         await Future.delayed(const Duration(milliseconds: 10));
@@ -761,6 +765,15 @@ void main() async {
       expect(client.closeCount, 1,
           reason: 'an HTTP client waits for a response it will never get '
               'until the connection closes');
+    });
+
+    test('arriving a few bytes at a time is refused before its line ends',
+        () async {
+      await send('GET /publickey HTTP/1.1', pieceLength: 3);
+      expect(client.writes, [
+        'error:AT0003-Exception: HTTP requests must negotiate ALPN http/1.1\n@'
+      ]);
+      expect(client.closeCount, 1);
     });
 
     test('control: an invalid verb is answered and left open', () async {
