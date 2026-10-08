@@ -368,8 +368,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw AtServerException(e.toString());
     }
 
-    // Enabling telemetry also starts the heartbeat. `stop()` shuts telemetry
-    // down, so every start after a stop is a new boot with a fresh exporter.
+    // Enabling telemetry sends the started event and starts the heartbeat.
+    // `stop()` shuts telemetry down, so every start after a stop is a new
+    // boot with a fresh exporter.
     // Telemetry failing to start must never stop the server starting
     if (!telemetry.isEnabled) {
       try {
@@ -387,6 +388,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
             serverId: currentAtSign.toString(),
             bootId: bootId,
             serviceVersion: AtSecondaryConfig.secondaryServerVersion,
+            health: () => exporter.bufferHealth,
           );
         }
       } on Object catch (error) {
@@ -806,7 +808,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       }
       _compactionTimers.clear();
 
-      // Stops the heartbeat, flushes pending events and closes the exporter
+      // Sends the stopped event, flushes pending events and closes the
+      // exporter
       logger.info('Shutting down telemetry');
       await telemetry.shutdown(timeout: _telemetryFlushTimeout);
 

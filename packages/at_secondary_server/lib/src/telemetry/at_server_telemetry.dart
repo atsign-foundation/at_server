@@ -6,6 +6,10 @@ import 'package:at_utils/at_logger.dart';
 import 'at_server_heartbeat_scheduler.dart';
 import 'at_server_telemetry_constants.dart';
 
+// Extra attributes for the heartbeat and stopped events, such as the
+// buffer's health
+typedef AtServerTelemetryHealthSource = Map<String, Object?> Function();
+
 // The atServer's telemetry facade. Nothing here throws into the server, and
 // flush and shutdown always return within their timeouts.
 final class AtServerTelemetry {
@@ -15,8 +19,10 @@ final class AtServerTelemetry {
   // the heartbeat off.
   final Duration? heartbeatInterval;
   final AtSignLogger _logger = AtSignLogger('AtServerTelemetry');
+  final Stopwatch _uptime = Stopwatch();
   AtTelemetry? _telemetry;
   AtServerHeartbeatScheduler? _heartbeat;
+  AtServerTelemetryHealthSource? _health;
 
   AtServerTelemetry({
     this.heartbeatInterval = AtServerHeartbeatScheduler.defaultInterval,
@@ -25,12 +31,13 @@ final class AtServerTelemetry {
   bool get isEnabled => _telemetry != null;
 
   // serverId is the atSign and bootId the per-start id that also prefixes
-  // every batch's sequence
+  // every batch's sequence. Sends the started event.
   void enable({
     required AtTelemetryLogRecordExporter exporter,
     required String serverId,
     required String bootId,
     String? serviceVersion,
+    AtServerTelemetryHealthSource? health,
   }) {
     if (_telemetry != null) {
       throw StateError('Telemetry is already enabled');
@@ -45,12 +52,40 @@ final class AtServerTelemetry {
       exporter: exporter,
       onError: _onError,
     );
+    _health = health;
+    _uptime
+      ..reset()
+      ..start();
+    emitEvent(atServerStartedEventName);
     final Duration? interval = heartbeatInterval;
     if (interval != null) {
       _heartbeat = AtServerHeartbeatScheduler(
         telemetry: this,
         interval: interval,
       )..start();
+    }
+  }
+
+  // The uptime and the buffer's health, as the heartbeat and stopped events
+  // carry them
+  Map<String, Object?> lifecycleAttributes() {
+    return <String, Object?>{
+      ..._healthAttributes(),
+      AtTelemetryAttributes.atServerUptimeSeconds:
+          _uptime.elapsedMicroseconds / Duration.microsecondsPerSecond,
+    };
+  }
+
+  Map<String, Object?> _healthAttributes() {
+    final AtServerTelemetryHealthSource? health = _health;
+    if (health == null) {
+      return const <String, Object?>{};
+    }
+    try {
+      return health();
+    } on Object catch (error) {
+      _logger.warning('Could not read telemetry health: ${error.runtimeType}');
+      return const <String, Object?>{};
     }
   }
 
@@ -87,6 +122,7 @@ final class AtServerTelemetry {
     return telemetry.flush(timeout: timeout);
   }
 
+  // Sends the stopped event, then shuts the exporter down
   Future<void> shutdown({
     Duration timeout = AtTelemetry.defaultShutdownTimeout,
   }) {
@@ -94,9 +130,12 @@ final class AtServerTelemetry {
     if (telemetry == null) {
       return Future<void>.value();
     }
-    _telemetry = null;
     _heartbeat?.stop();
     _heartbeat = null;
+    emitEvent(atServerStoppedEventName, attributes: lifecycleAttributes());
+    _uptime.stop();
+    _telemetry = null;
+    _health = null;
     return telemetry.shutdown(timeout: timeout);
   }
 

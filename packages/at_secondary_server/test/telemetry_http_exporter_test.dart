@@ -382,6 +382,11 @@ void main() {
       for (final Completer<bool> delivery in deliveries.skip(3)) {
         expect(delivery.isCompleted, isFalse);
       }
+      expect(buffer.health, <String, Object?>{
+        atServerBufferBatchesAttribute: 2,
+        atServerBufferBytesAttribute: buffer.bytes,
+        atServerBufferDroppedAttribute: 3,
+      });
     });
 
     test('abandoning reports every record as not delivered', () async {
@@ -427,6 +432,7 @@ void main() {
               exporter: subject,
               serverId: '$alice',
               bootId: 'boot-1',
+              health: () => subject.bufferHealth,
             );
           await Future<void>.delayed(const Duration(milliseconds: 100));
           await telemetry.flush();
@@ -457,7 +463,9 @@ void main() {
       await telemetry.shutdown();
 
       final (AtTelemetryLogRecord record, AtTelemetryResource resource) =
-          exports.single;
+          exports.singleWhere(
+              ((AtTelemetryLogRecord, AtTelemetryResource) export) =>
+                  export.$1.eventName == atServerHeartbeatEventName);
       expect(record.eventName, 'atsign.atserver.lifecycle.heartbeat');
       expect(resource.attributes, <String, Object?>{
         AtTelemetryAttributes.serviceName: atServerServiceName,
@@ -467,7 +475,7 @@ void main() {
       });
     });
 
-    test('the heartbeat carries only the uptime', () async {
+    test('the heartbeat carries uptime and buffer health', () async {
       final List<(AtTelemetryLogRecord, AtTelemetryResource)> exports =
           <(AtTelemetryLogRecord, AtTelemetryResource)>[];
       final AtServerTelemetry telemetry = AtServerTelemetry(
@@ -476,17 +484,58 @@ void main() {
           exporter: _RecordingExporter(exports),
           serverId: '$alice',
           bootId: 'boot-1',
+          health: () => <String, Object?>{
+            atServerBufferBatchesAttribute: 3,
+          },
         );
 
       await Future<void>.delayed(const Duration(milliseconds: 50));
       await telemetry.shutdown();
 
-      final AtTelemetryLogRecord heartbeat = exports.first.$1;
-      expect(heartbeat.eventName, atServerHeartbeatEventName);
+      final AtTelemetryLogRecord heartbeat = exports
+          .firstWhere(((AtTelemetryLogRecord, AtTelemetryResource) export) =>
+              export.$1.eventName == atServerHeartbeatEventName)
+          .$1;
       expect(heartbeat.attributes.keys, <String>[
+        atServerBufferBatchesAttribute,
         AtTelemetryAttributes.atServerUptimeSeconds,
       ]);
+      expect(heartbeat.attributes[atServerBufferBatchesAttribute], 3);
       expect(heartbeat.attributes[AtTelemetryAttributes.atServerUptimeSeconds],
+          isA<double>());
+    });
+
+    test('sends started when enabled, and stopped before the exporter shuts '
+        'down', () async {
+      final List<(AtTelemetryLogRecord, AtTelemetryResource)> exports =
+          <(AtTelemetryLogRecord, AtTelemetryResource)>[];
+      final _RecordingExporter exporter = _RecordingExporter(exports);
+      final AtServerTelemetry telemetry =
+          AtServerTelemetry(heartbeatInterval: null)
+            ..enable(
+              exporter: exporter,
+              serverId: '$alice',
+              bootId: 'boot-1',
+              health: () => <String, Object?>{
+                atServerBufferDroppedAttribute: 2,
+              },
+            );
+      List<String?> names() => exports
+          .map(((AtTelemetryLogRecord, AtTelemetryResource) export) =>
+              export.$1.eventName)
+          .toList();
+
+      expect(names(), <String>[atServerStartedEventName]);
+
+      await telemetry.shutdown();
+
+      expect(names(),
+          <String>[atServerStartedEventName, atServerStoppedEventName]);
+      expect(exporter.exportsAtShutdown, 2,
+          reason: 'stopped must reach the exporter before it shuts down');
+      final AtTelemetryLogRecord stopped = exports.last.$1;
+      expect(stopped.attributes[atServerBufferDroppedAttribute], 2);
+      expect(stopped.attributes[AtTelemetryAttributes.atServerUptimeSeconds],
           isA<double>());
     });
 
@@ -505,7 +554,10 @@ void main() {
       telemetry.emitEvent('atsign.atserver.');
       await telemetry.shutdown();
 
-      expect(exports, isEmpty);
+      expect(
+          exports.map(((AtTelemetryLogRecord, AtTelemetryResource) export) =>
+              export.$1.eventName),
+          <String>[atServerStartedEventName, atServerStoppedEventName]);
     });
 
     test('shutdown returns at its deadline when the exporter hangs', () async {
@@ -560,6 +612,7 @@ final class _CallbackClient extends http.BaseClient {
 
 final class _RecordingExporter implements AtTelemetryLogRecordExporter {
   final List<(AtTelemetryLogRecord, AtTelemetryResource)> exports;
+  int? exportsAtShutdown;
 
   _RecordingExporter(this.exports);
 
@@ -576,7 +629,9 @@ final class _RecordingExporter implements AtTelemetryLogRecordExporter {
   Future<void> flush() async {}
 
   @override
-  Future<void> shutdown() async {}
+  Future<void> shutdown() async {
+    exportsAtShutdown = exports.length;
+  }
 }
 
 final class _HangingExporter implements AtTelemetryLogRecordExporter {

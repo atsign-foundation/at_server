@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:at_telemetry/at_telemetry.dart';
-
 import 'at_server_telemetry.dart';
 import 'at_server_telemetry_constants.dart';
 
@@ -13,7 +11,6 @@ final class AtServerHeartbeatScheduler {
   final AtServerTelemetry _telemetry;
   final Duration interval;
   final Duration offset;
-  final Stopwatch _uptime = Stopwatch();
   Timer? _timer;
 
   AtServerHeartbeatScheduler({
@@ -46,7 +43,6 @@ final class AtServerHeartbeatScheduler {
     if (_timer != null) {
       return;
     }
-    _uptime.start();
     _timer = Timer(offset, () {
       _sendHeartbeat();
       _timer = Timer.periodic(interval, (Timer _) => _sendHeartbeat());
@@ -56,16 +52,12 @@ final class AtServerHeartbeatScheduler {
   void stop() {
     _timer?.cancel();
     _timer = null;
-    _uptime.stop();
   }
 
   void _sendHeartbeat() {
     _telemetry.emitEvent(
       atServerHeartbeatEventName,
-      attributes: <String, Object?>{
-        AtTelemetryAttributes.atServerUptimeSeconds:
-            _uptime.elapsedMicroseconds / Duration.microsecondsPerSecond,
-      },
+      attributes: _telemetry.lifecycleAttributes(),
     );
   }
 
