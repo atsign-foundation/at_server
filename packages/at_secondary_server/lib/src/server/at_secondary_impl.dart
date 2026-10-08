@@ -109,8 +109,18 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       StatsNotificationService();
 
   /// Timers driving the per-resource compaction cron, each on its own
-  /// configured frequency.
-  final List<Timer> _compactionTimers = [];
+  /// configured frequency, by resource label.
+  final Map<String, Timer> _compactionTimers = {};
+
+  /// The compaction timers, by resource label.
+  @visibleForTesting
+  Map<String, Timer> get compactionTimers =>
+      Map.unmodifiable(_compactionTimers);
+
+  /// The labels of the resources being compacted now. Kept here rather than
+  /// per timer, so a compaction still running when its timer is replaced is
+  /// not overlapped by the new one.
+  final Set<String> _compacting = {};
 
   /// One-shot timer driving [runHousekeepingSweep], re-armed after every
   /// sweep so the server sleeps until the next key expires.
@@ -209,7 +219,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     final statsService = AtCompactionStatsService(keyValueStore);
     if (AtSecondaryConfig.enableCommitLogCompactor) {
-      _scheduleCompaction(
+      scheduleCompaction(
         commitLog,
         Duration(minutes: AtSecondaryConfig.commitLogCompactionFrequencyMins),
         'commitLog',
@@ -217,7 +227,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       );
     }
     if (AtSecondaryConfig.enableAccessLogCompactor) {
-      _scheduleCompaction(
+      scheduleCompaction(
         accessLog,
         Duration(minutes: AtSecondaryConfig.accessLogCompactionFrequencyMins),
         'accessLog',
@@ -225,7 +235,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       );
     }
     if (AtSecondaryConfig.enableNotificationCompactor) {
-      _scheduleCompaction(
+      scheduleCompaction(
         notificationKeystore,
         Duration(
             minutes:
@@ -275,7 +285,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     AtSecondaryConfig.subscribe(ModifiableConfigs.doCacheRefreshNow)
         ?.listen((newValue) async {
       if (newValue.toString() == 'true') {
-        unawaited(atRefreshJob.refreshNow());
+        unawaited(atRefreshJob.refreshNowIfIdle());
       }
     });
 
@@ -422,13 +432,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   ) async {
     logger.finest(
         'Received new frequency for $label compaction: ${newFrequency.inMinutes}m');
-    // NOTE timers are not indexed by label, so all are cancelled and the one
-    // being changed is re-scheduled.
-    for (final t in _compactionTimers) {
-      t.cancel();
-    }
-    _compactionTimers.clear();
-    _scheduleCompaction(resource, newFrequency, label, statsService);
+    scheduleCompaction(resource, newFrequency, label, statsService);
   }
 
   /// Everything the keystore needs done before a client can connect, in the
@@ -497,24 +501,26 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   Future<void> onExpirySweepTimerFired() async {
     try {
       await runHousekeepingSweep();
-    } on Exception catch (e) {
-      logger.warning('Key expiry sweep failed: $e');
+    } on Exception catch (e, st) {
+      logger.warning('Key expiry sweep failed: $e\n$st');
+    } catch (e, st) {
+      logger.severe('Key expiry sweep failed: $e\n$st');
     }
   }
 
   /// Schedules a periodic compaction tick for [resource]. The tick drains
   /// `compact(false)` with an overlap guard and records the pass via
   /// [statsService].
-  void _scheduleCompaction(
+  @visibleForTesting
+  void scheduleCompaction(
     Compactable resource,
     Duration period,
     String label,
     AtCompactionStatsService statsService,
   ) {
-    bool running = false;
-    _compactionTimers.add(Timer.periodic(period, (_) async {
-      if (running) return;
-      running = true;
+    _compactionTimers[label]?.cancel();
+    _compactionTimers[label] = Timer.periodic(period, (_) async {
+      if (!_compacting.add(label)) return;
       try {
         final start = DateTime.timestamp();
         var count = 0;
@@ -533,9 +539,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       } catch (e, st) {
         logger.warning('compaction failed for $label: $e\n$st');
       } finally {
-        running = false;
+        _compacting.remove(label);
       }
-    }));
+    });
   }
 
   Future<void> initDynamicConfigListeners() async {
@@ -605,17 +611,40 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     });
   }
 
-  webSocketListener(WebSocket ws) async {
+  /// Serves the atProtocol on [ws]. An unexpected error closes only [ws].
+  Future<void> webSocketListener(WebSocket ws) async {
     InboundConnection? connection;
     try {
-      connection = inboundConnectionManager.createWebSocketConnection(ws,
-          sessionId: SecondaryUtil.makeSessionId());
-      connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
-      await connection.write('@');
-    } on InboundConnectionLimitException catch (e) {
-      await GlobalExceptionHandler.getInstance()
-          .handle(e, atConnection: connection, clientSocket: ws);
+      try {
+        connection = inboundConnectionManager.createWebSocketConnection(ws,
+            sessionId: SecondaryUtil.makeSessionId());
+        connection.acceptRequests(_executeVerbCallBack, _streamCallBack);
+        await connection.write('@');
+      } on InboundConnectionLimitException catch (e) {
+        await GlobalExceptionHandler.getInstance()
+            .handle(e, atConnection: connection, clientSocket: ws);
+      }
+    } catch (e, st) {
+      logger
+          .warning('Closed a new WebSocket after an unexpected error: $e\n$st');
+      ws.close().ignore();
     }
+  }
+
+  /// Upgrades a request for `/ws` to a WebSocket carrying the atProtocol, and
+  /// hands any other request to [httpReqHandler]. A `/ws` request that is not
+  /// a WebSocket upgrade is answered `400` and logged.
+  @visibleForTesting
+  void routeHttpRequest(
+      HttpRequest req, AtServerHttpRequestHandler httpReqHandler) {
+    if (req.uri.path != '/ws') {
+      httpReqHandler.handle(req);
+      return;
+    }
+    WebSocketTransformer.upgrade(req).then((WebSocket ws) {
+      logger.info('Upgraded to WebSocket connection');
+      return webSocketListener(ws);
+    }, onError: (Object e) => logger.info('Refused WebSocket upgrade: $e'));
   }
 
   /// Listens on the secondary server socket and creates an inbound connection
@@ -627,25 +656,31 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     HttpServer httpServer = HttpServer.listenOn(pseudoServerSocket);
     final httpReqHandler = AtServerHttpRequestHandler(
         currentAtSign, keyValueStore, enrollmentManager);
-    httpServer.listen((HttpRequest req) {
-      if (req.uri.path == '/ws') {
-        logger.info('Upgraded to WebSocket connection');
-        WebSocketTransformer.upgrade(req)
-            .then((WebSocket ws) => webSocketListener(ws));
-      } else {
-        httpReqHandler.handle(req);
-      }
-    });
+    httpServer
+        .listen((HttpRequest req) => routeHttpRequest(req, httpReqHandler));
 
     logger.finer('serverSocket _listen : ${serverSocket.runtimeType}');
-    serverSocket.listen(((clientSocket) async {
+    serverSocket.listen(
+        (clientSocket) => acceptSocket(clientSocket, pseudoServerSocket),
+        onError: (error) {
+      logger.warning("ServerSocket.listen called onError with '$error'");
+    });
+  }
+
+  /// Serves the atProtocol on [clientSocket], or hands it to
+  /// [pseudoServerSocket] when it negotiated another ALPN protocol. An
+  /// unexpected error closes only [clientSocket].
+  @visibleForTesting
+  Future<void> acceptSocket(
+      SecureSocket clientSocket, PseudoServerSocket pseudoServerSocket) async {
+    InboundConnection? connection;
+    try {
       if (logger.isLoggable('finer')) {
         logger.finer(
             'New client socket: selectedProtocol ${clientSocket.selectedProtocol}');
       }
       if (clientSocket.selectedProtocol == 'atProtocol/1.0' ||
           clientSocket.selectedProtocol == null) {
-        InboundConnection? connection;
         try {
           if (logger.isLoggable('finer')) {
             logger.finer(
@@ -664,9 +699,17 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
         logger.info('Transferring socket to HttpServer for handling');
         pseudoServerSocket.add(clientSocket);
       }
-    }), onError: (error) {
-      logger.warning("ServerSocket.listen called onError with '$error'");
-    });
+    } catch (e, st) {
+      logger.warning(
+          'Closed a new connection after an unexpected error: $e\n$st');
+      // NOTE a pooled connection is closed rather than its socket destroyed,
+      // so the pool reaps it with the next connection.
+      if (connection == null) {
+        clientSocket.destroy();
+      } else {
+        await connection.close();
+      }
+    }
   }
 
   /// Starts the secondary server in secure mode and listens on its socket.
@@ -802,7 +845,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
       logger.shout("Stopping scheduled tasks");
       atRefreshJob.close();
-      for (final t in _compactionTimers) {
+      for (final t in _compactionTimers.values) {
         t.cancel();
       }
       _compactionTimers.clear();

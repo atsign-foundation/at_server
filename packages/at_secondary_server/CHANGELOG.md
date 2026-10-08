@@ -8,7 +8,18 @@
 
 - fix: a monitor is no longer sent a notification that has already expired.
 
+- fix: an HTTP request that did not negotiate ALPN `http/1.1` is told
+  `HTTP requests must negotiate ALPN http/1.1`, and its connection closed.
+
 - fix: tighten validation on notify: requests from other atServers
+
+- fix: tighten handling of requests for `/ws`
+
+- fix: `config:set` refuses a value its setting can't take, naming what it
+  takes.
+
+- fix: changing one compaction frequency with `config:set` no longer stops
+  compaction of the other resources.
 
 - fix: once an enrollment expires, its data is no longer served by `lookup`,
   `llookup` or an HTTP GET.
