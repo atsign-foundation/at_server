@@ -3,10 +3,10 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:at_commons/at_commons.dart';
-import 'package:at_secondary/src/connection/base_connection.dart';
 import 'package:at_secondary/src/exception/http_request_without_alpn_exception.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/server_context.dart';
+import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart' show AtSignLogger;
 
@@ -307,7 +307,7 @@ class InboundCommandValidator {
       // something for an operator to act on.
       if (logger.isLoggable('finer')) {
         logger.finer('$exMsg. command:'
-            ' ${BaseSocketConnection.sanitiseForLogging(command)}');
+            ' ${sanitiseForLogging(command)}');
       }
       throw InvalidSyntaxException(exMsg);
     }

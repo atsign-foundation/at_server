@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
-import 'package:at_secondary/src/connection/base_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
@@ -188,8 +187,8 @@ class OutboundMessageListener {
       return;
     }
     if (logger.logger.isLoggable(Level.INFO)) {
-      logger.info(logger.getAtConnectionLogMessage(_connection!.metaData,
-          'RCVD: ${BaseSocketConnection.sanitiseForLogging(result)}'));
+      logger.info(logger.getAtConnectionLogMessage(
+          _connection!.metaData, 'RCVD: ${sanitiseForLogging(result)}'));
     }
     _queue.add(result);
   }

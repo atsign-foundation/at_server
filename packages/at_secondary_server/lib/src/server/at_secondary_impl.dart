@@ -11,7 +11,6 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/caching/cache_refresh_job.dart';
 import 'package:at_secondary/src/compaction/at_compaction_stats_service_impl.dart';
-import 'package:at_secondary/src/connection/base_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart'
     show OutboundConnectionFactory, DefaultOutboundConnectionFactory;
@@ -730,7 +729,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.finer(logger.getAtConnectionLogMessage(
           connection.metaData,
           'inside _executeVerbCallBack:'
-          ' ${BaseSocketConnection.sanitiseForLogging(command)}'));
+          ' ${sanitiseForLogging(command)}'));
     }
     try {
       if (_isPaused) {
