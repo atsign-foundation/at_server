@@ -222,8 +222,8 @@ void telemetryKeyGuardTests() {
 
     test('are refused even when the stored value names the enrollment',
         () async {
-      final String enrollmentId = await bindEnrollment(
-          <String, String>{'*': 'rw', '__manage': 'rw'});
+      final String enrollmentId =
+          await bindEnrollment(<String, String>{'*': 'rw', '__manage': 'rw'});
       final String planted = jsonEncode(<String, Object?>{
         AtConstants.enrollmentId: enrollmentId,
         'value': 'planted',
@@ -233,8 +233,8 @@ void telemetryKeyGuardTests() {
 
       for (final String operation in <String>['get', 'delete']) {
         await expectLater(
-          KeysVerbHandler(keyValueStore, enMgr, alice).process(
-              'keys:$operation:keyName:$secretKey', inboundConnection),
+          KeysVerbHandler(keyValueStore, enMgr, alice)
+              .process('keys:$operation:keyName:$secretKey', inboundConnection),
           throwsA(isA<UnAuthorizedException>()),
           reason: 'keys:$operation trusts an enrollmentId in a JSON value, '
               'so only the guard on the name refuses it',

@@ -507,7 +507,8 @@ void main() {
           isA<double>());
     });
 
-    test('sends started when enabled, and stopped before the exporter shuts '
+    test(
+        'sends started when enabled, and stopped before the exporter shuts '
         'down', () async {
       final List<(AtTelemetryLogRecord, AtTelemetryResource)> exports =
           <(AtTelemetryLogRecord, AtTelemetryResource)>[];

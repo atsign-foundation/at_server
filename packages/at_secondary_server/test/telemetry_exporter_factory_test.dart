@@ -31,11 +31,8 @@ void main() {
   }
 
   group('createAtServerTelemetryExporter', () {
-    for (final (String endpoint, String logsUrl, String audience) in <(
-      String,
-      String,
-      String
-    )>[
+    for (final (String endpoint, String logsUrl, String audience)
+        in <(String, String, String)>[
       (
         'collector.example.com:2777',
         'https://collector.example.com:2777/v1/logs',

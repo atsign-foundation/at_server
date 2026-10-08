@@ -138,8 +138,7 @@ void main() {
 
     test('the flag wins over the environment variable', () {
       expect(
-          endpointFor(
-              <String>['--telemetry_endpoint', 'flag.example.com:443'],
+          endpointFor(<String>['--telemetry_endpoint', 'flag.example.com:443'],
               environment),
           'flag.example.com:443');
     });
