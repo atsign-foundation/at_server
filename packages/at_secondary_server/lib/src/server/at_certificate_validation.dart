@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:at_commons/at_commons.dart' show AtServerException;
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:cron/cron.dart';
@@ -101,9 +102,12 @@ class AtCertificateValidationJob {
       logger.severe('Certificate check failed'
           '${restarting ? ' while restarting' : ''}: $e\n$st');
       // NOTE a server paused or stopped by a failed restart cannot serve, so
-      // the error goes to the zone the server runs in, which stops it.
+      // the error goes to the zone the server runs in, which stops it. That
+      // zone spares a SocketException, so one is wrapped.
       if (restarting) {
-        Zone.current.handleUncaughtError(e, st);
+        Zone.current.handleUncaughtError(
+            e is SocketException ? AtServerException('Restart failed: $e') : e,
+            st);
       }
     } finally {
       _checkInProgress = false;
