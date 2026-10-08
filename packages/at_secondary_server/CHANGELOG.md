@@ -11,6 +11,14 @@
 - fix: an HTTP request that did not negotiate ALPN `http/1.1` is told
   `HTTP requests must negotiate ALPN http/1.1`, and its connection closed.
 
+- fix: a connection that has not authenticated is closed after it is answered
+  `AT0003` (invalid syntax), rather than left open to keep sending. An
+  authenticated connection is left open, as before.
+
+- fix: an invalid verb is logged at `finer`, not `warning`, and every log line
+  carrying what a peer sent writes its control characters as escapes (`\r`,
+  `\x1b`).
+
 - fix: tighten validation on notify: requests from other atServers
 
 - fix: tighten handling of requests for `/ws`
