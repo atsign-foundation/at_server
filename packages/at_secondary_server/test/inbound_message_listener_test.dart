@@ -198,8 +198,8 @@ void main() async {
       expect(
         () => InboundCommandValidator.validate(
             utf8.encode('${'a' * 65}:rest\n').toList(), connection),
-        throwsA(isA<InvalidSyntaxException>().having(
-            (e) => e.message, 'message', contains('invalid length'))),
+        throwsA(isA<InvalidSyntaxException>()
+            .having((e) => e.message, 'message', contains('invalid length'))),
         reason: 'refused by the length check, not by the verb lookup',
       );
     });

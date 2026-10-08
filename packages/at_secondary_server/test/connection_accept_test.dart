@@ -70,7 +70,8 @@ void main() {
     expect(socket.destroyed, isTrue);
   });
 
-  test('an unexpected error once the connection is pooled closes the connection',
+  test(
+      'an unexpected error once the connection is pooled closes the connection',
       () async {
     final MockInboundConnection connection = MockInboundConnection();
     when(() => connection.acceptRequests(any(), any()))

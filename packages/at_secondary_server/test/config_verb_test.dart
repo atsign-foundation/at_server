@@ -264,7 +264,8 @@ void main() {
               'timer');
     });
 
-    test('a compaction still running when its timer is replaced is not '
+    test(
+        'a compaction still running when its timer is replaced is not '
         'overlapped', () async {
       final AtSecondaryServerImpl server = AtSecondaryServerImpl.getInstance();
       final _BlockingCompactable resource = _BlockingCompactable();

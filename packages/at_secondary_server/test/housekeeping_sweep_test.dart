@@ -62,7 +62,7 @@ void main() {
     when(() => failing.deleteExpiredKeys()).thenThrow(failure);
     final AtSecondaryServerImpl server = AtSecondaryServerImpl.getInstance();
     server.keyValueStore = failing;
-    final Level? prior = server.logger.logger.level;
+    final Level prior = server.logger.logger.level;
     server.logger.level = 'warning';
     final List<Level> levels = [];
     final sub = server.logger.logger.onRecord.listen((LogRecord r) {
@@ -78,7 +78,8 @@ void main() {
     return levels;
   }
 
-  test('the expiry timer\'s callback survives an Error from the sweep, and '
+  test(
+      'the expiry timer\'s callback survives an Error from the sweep, and '
       'logs it at severe', () async {
     expect(await sweepLogLevels(StateError('injected')), [Level.SEVERE],
         reason: 'an Error is a bug, not a passing failure');
