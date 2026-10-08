@@ -239,10 +239,13 @@ class InboundCommandValidator {
     }
   }
 
-  /// This function validates a command on a connection. The criteria is the following:
-  /// 1. checks if connection is invalid, closing the connection if requires
-  /// 2. if verb length is > 64, which doesn't exist, we'll close the connection
-  /// 3. verifies verb meets connection type ie: unauthenticated client running update fails
+  /// Validates the command in [bytes] for [connection], throwing
+  /// [ConnectionInvalidException] when the connection is invalid,
+  /// [HttpRequestWithoutAlpnException] when the command is not a verb but
+  /// starts like an HTTP request, [InvalidSyntaxException] for any other
+  /// unknown verb or one longer than 64 characters, and
+  /// [UnAuthenticatedException] when the verb needs an authenticated
+  /// connection that [connection] is not.
   static void validate(List<int> bytes, AtConnection connection) {
     // If connection is invalid, throws ConnectionInvalidException and closes the connection
     if (connection.isInValid()) {
