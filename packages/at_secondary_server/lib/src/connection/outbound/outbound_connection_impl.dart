@@ -96,7 +96,7 @@ class OutboundConnectionImpl<T extends Socket>
     await super.write(data);
     if (logger.isLoggable('info')) {
       logger.info(logger.getAtConnectionLogMessage(
-          metaData, 'SENT: ${BaseSocketConnection.truncateForLogging(data)}'));
+          metaData, 'SENT: ${BaseSocketConnection.sanitiseForLogging(data)}'));
     }
   }
 }

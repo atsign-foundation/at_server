@@ -95,7 +95,7 @@ class InboundMessageListener {
       final command = utf8.decode(commandBytes).trim();
       if (logger.logger.isLoggable(Level.INFO)) {
         logger.info(logger.getAtConnectionLogMessage(connection.metaData,
-            'RCVD: ${BaseSocketConnection.truncateForLogging(command)}'));
+            'RCVD: ${BaseSocketConnection.sanitiseForLogging(command)}'));
       }
       // if command is '@exit', close the connection.
       if (command == '@exit') {

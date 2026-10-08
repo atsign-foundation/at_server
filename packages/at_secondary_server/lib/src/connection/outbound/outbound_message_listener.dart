@@ -188,9 +188,8 @@ class OutboundMessageListener {
       return;
     }
     if (logger.logger.isLoggable(Level.INFO)) {
-      logger.info(logger.getAtConnectionLogMessage(
-          _connection!.metaData,
-          'RCVD: ${BaseSocketConnection.truncateForLogging(result)}'));
+      logger.info(logger.getAtConnectionLogMessage(_connection!.metaData,
+          'RCVD: ${BaseSocketConnection.sanitiseForLogging(result)}'));
     }
     _queue.add(result);
   }

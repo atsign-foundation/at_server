@@ -131,7 +131,7 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
     if (metaData is InboundConnectionMetadata) {
       if (logger.isLoggable('info')) {
         logger.info(logger.getAtConnectionLogMessage(metaData,
-            'SENT: ${BaseSocketConnection.truncateForLogging(data)}'));
+            'SENT: ${BaseSocketConnection.sanitiseForLogging(data)}'));
       }
     }
   }

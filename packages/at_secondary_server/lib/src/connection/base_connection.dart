@@ -51,11 +51,25 @@ abstract class BaseSocketConnection<T extends Socket> extends AtConnection {
     }
   }
 
-  static String truncateForLogging(String toLog, {int cutOffAfter = 2100}) {
+  /// The C0 and C1 control characters, and DEL.
+  static final RegExp _controlCharacters = RegExp(r'[\x00-\x1f\x7f-\x9f]');
+
+  /// [toLog] cut to [cutOffAfter] characters, with every control character
+  /// written as a visible escape (`\r`, `\x1b`), so that each log record
+  /// stays on one line of printable text.
+  static String sanitiseForLogging(String toLog, {int cutOffAfter = 2100}) {
     if (toLog.length > cutOffAfter) {
       toLog =
           '${toLog.substring(0, cutOffAfter)} [truncated, ${toLog.length - cutOffAfter} more chars]';
     }
-    return toLog;
+    return toLog.replaceAllMapped(
+        _controlCharacters, (m) => _escape(m[0]!.codeUnitAt(0)));
   }
+
+  static String _escape(int codeUnit) => switch (codeUnit) {
+        0x09 => r'\t',
+        0x0a => r'\n',
+        0x0d => r'\r',
+        _ => '\\x${codeUnit.toRadixString(16).padLeft(2, '0')}',
+      };
 }
