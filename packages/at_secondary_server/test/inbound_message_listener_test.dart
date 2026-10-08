@@ -5,6 +5,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/inbound/connection_util.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_message_listener.dart';
+import 'package:at_secondary/src/exception/http_request_without_alpn_exception.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:mocktail/mocktail.dart';
@@ -335,6 +336,41 @@ void main() async {
             connection),
         throwsA(isA<UnAuthenticatedException>()),
       );
+    });
+
+    test('an HTTP request is refused as one', () {
+      when(() => connection.metaData).thenReturn(unAuthenticatedMetadata);
+      for (final request in [
+        'GET /publickey HTTP/1.1',
+        'HEAD / HTTP/1.1',
+        'POST /x HTTP/1.1',
+        'DELETE /x HTTP/1.1',
+        'GET /public:phone.wavi@alice HTTP/1.1',
+        'GET /${'a/' * 40}index.html HTTP/1.1',
+        'PRI * HTTP/2.0',
+      ]) {
+        expect(
+            () => InboundCommandValidator.validate(
+                utf8.encode('$request\r\n'), connection),
+            throwsA(isA<HttpRequestWithoutAlpnException>()),
+            reason: request);
+      }
+    });
+
+    test('control: what is not an HTTP request is not refused as one', () {
+      when(() => connection.metaData).thenReturn(unAuthenticatedMetadata);
+      for (final command in [
+        'get / HTTP/1.1',
+        'GETTER /x HTTP/1.1',
+        'DELETE:phone@alice',
+        'bogus',
+      ]) {
+        expect(
+            () => InboundCommandValidator.validate(
+                utf8.encode('$command\n'), connection),
+            throwsA(isNot(isA<HttpRequestWithoutAlpnException>())),
+            reason: command);
+      }
     });
   });
 
@@ -695,6 +731,45 @@ void main() async {
       expect(buffer.getData(), before,
           reason: 'takeCommand throws before it changes the buffer, so the '
               'caller decides what happens to what it holds');
+    });
+  });
+
+  group('An HTTP request on an atProtocol connection', () {
+    late FakeInboundConnection client;
+    setUp(() {
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
+      client = FakeInboundConnection(FakeSocket(), InboundConnectionMetadata());
+    });
+
+    /// Sends [data], waits for the reply, then long enough for a close that
+    /// follows it to land.
+    Future<void> send(String data) async {
+      InboundMessageListener(client).listen(callback, streamCallBack);
+      client.socket.addData(data);
+      final giveUp = DateTime.now().add(const Duration(seconds: 1));
+      while (client.writes.isEmpty && DateTime.now().isBefore(giveUp)) {
+        await Future.delayed(const Duration(milliseconds: 10));
+      }
+      await Future.delayed(const Duration(milliseconds: 50));
+    }
+
+    test('is answered with the ALPN requirement, then closed', () async {
+      await send('GET /publickey HTTP/1.1\r\nHost: alice\r\n\r\n');
+      expect(client.writes, [
+        'error:AT0003-Exception: HTTP requests must negotiate ALPN http/1.1\n@'
+      ]);
+      expect(client.closeCount, 1,
+          reason: 'an HTTP client waits for a response it will never get '
+              'until the connection closes');
+    });
+
+    test('control: an invalid verb is answered and left open', () async {
+      await send('bogus\n');
+      expect(client.writes, [
+        'error:AT0003-Exception: Received invalid verb that does not match '
+            'protocol spec\n@'
+      ]);
+      expect(client.closeCount, 0);
     });
   });
 }

@@ -8,6 +8,9 @@
 
 - fix: a monitor is no longer sent a notification that has already expired.
 
+- fix: an HTTP request that did not negotiate ALPN `http/1.1` is told
+  `HTTP requests must negotiate ALPN http/1.1`, and its connection closed.
+
 - fix: tighten validation on notify: requests from other atServers
 
 - fix: once an enrollment expires, its data is no longer served by `lookup`,

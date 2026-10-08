@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:at_commons/at_commons.dart';
+import 'package:at_secondary/src/exception/http_request_without_alpn_exception.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -225,6 +226,19 @@ class InboundCommandValidator {
   static final Utf8Decoder _allowMalformedUtf8 =
       Utf8Decoder(allowMalformed: true);
 
+  /// The start of an HTTP/1.x request line, or the HTTP/2 connection
+  /// preface. No atProtocol command starts this way: verbs are lower case.
+  static final RegExp _httpRequestStart = RegExp(
+      r'^(?:(?:GET|HEAD|POST|PUT|DELETE|OPTIONS|PATCH|TRACE|CONNECT) |PRI \* HTTP/2\.0)');
+
+  /// Throws [HttpRequestWithoutAlpnException] when [command], which is not an
+  /// atProtocol command, starts the way an HTTP request does.
+  static void _refuseHttpRequest(String command) {
+    if (_httpRequestStart.hasMatch(command)) {
+      throw HttpRequestWithoutAlpnException();
+    }
+  }
+
   /// This function validates a command on a connection. The criteria is the following:
   /// 1. checks if connection is invalid, closing the connection if requires
   /// 2. if verb length is > 64, which doesn't exist, we'll close the connection
@@ -275,6 +289,7 @@ class InboundCommandValidator {
     //
     // this constraint also catches the junk > 64, which we'll catch before trying to parse the verb
     if (rawVerb.length > 64) {
+      _refuseHttpRequest(command);
       throw InvalidSyntaxException(
           'Received verb with invalid length, closing connection.');
     }
@@ -282,6 +297,7 @@ class InboundCommandValidator {
     // what verb is this?
     final AtVerb? verb = AtVerb.tryParse(rawVerb);
     if (verb == null) {
+      _refuseHttpRequest(command);
       String exMsg = 'Received invalid verb that does not match protocol spec';
       logger.warning('$exMsg. rawVerb: $rawVerb command: $command');
       throw InvalidSyntaxException(exMsg);

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/exception/http_request_without_alpn_exception.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_utils/at_logger.dart';
@@ -37,6 +38,14 @@ class GlobalExceptionHandler {
       // log as INFO and close the connection
       logger.info(exception.toString());
       await _sendResponseForException(exception, atConnection);
+      _closeConnection(atConnection);
+    } else if (exception is HttpRequestWithoutAlpnException) {
+      // NOTE answered as InvalidSyntaxException, whose AT0003 error code is
+      // looked up by exact type.
+      logger.info(exception.toString());
+      await _sendResponseForException(
+          InvalidSyntaxException(HttpRequestWithoutAlpnException.message),
+          atConnection);
       _closeConnection(atConnection);
     } else if (exception is InvalidSyntaxException ||
         exception is InvalidAtKeyException ||
