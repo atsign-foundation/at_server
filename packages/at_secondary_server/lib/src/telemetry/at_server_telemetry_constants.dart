@@ -1,5 +1,6 @@
 const String atServerServiceName = 'at_secondary_server';
 const String atServerTelemetryEventPrefix = 'atsign.atserver';
-// The one event sent so far
+
+// events
 const String atServerHeartbeatEventName =
-    '$atServerTelemetryEventPrefix.lifecycle.heartbeat';
+  '$atServerTelemetryEventPrefix.lifecycle.heartbeat';
