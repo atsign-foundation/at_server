@@ -50,8 +50,39 @@ class EnrollmentManager {
 
   /// The enrollment [enId] names, an elapsed one reported `expired`. Throws
   /// [KeyNotFoundException] when there is no such record.
+  @useResult
   Future<EnrollDataStoreValue> getEnrollmentById(String enId) async {
     return getEnrollmentByFullKey(buildEnrollmentKey(enId));
+  }
+
+  /// Throws the [KeyNotFoundException] a read of an absent [key] throws, when
+  /// [key] is this atSign's data in an approved enrollment's namespace
+  /// (`<enrollmentId>.a.__e`) and that enrollment no longer reads as
+  /// approved: elapsed but not yet moved by the expired-keys pass, or with no
+  /// record at all.
+  Future<void> refuseLapsedApprovedData(String key) async {
+    final String folded = canonicalAtKey(key);
+    if (!folded.endsWith(atSign)) {
+      return;
+    }
+    final RegExpMatch? match = reForPerEnrollmentNamespaces.firstMatch(folded);
+    if (match == null ||
+        !match[0]!.endsWith('.${EnrollmentConstants.perEnrollmentApproved}@')) {
+      return;
+    }
+    try {
+      final EnrollDataStoreValue enrollment =
+          await getEnrollmentById(match.namedGroup('EnId')!);
+      if (enrollment.approval?.state == EnrollmentStatus.approved.name) {
+        return;
+      }
+    } on KeyNotFoundException {
+      // NOTE no record is refused like an elapsed one.
+    }
+    throw KeyNotFoundException(
+        '${key.toLowerCase()} does not exist in keystore',
+        intent: Intent.fetchData,
+        exceptionScenario: ExceptionScenario.keyNotFound);
   }
 
   /// An enrollment id in the form the keystore holds it in.
@@ -622,6 +653,7 @@ class EnrollmentManager {
 
   /// The enrollment stored at [ek], an elapsed one reported `expired` and
   /// left where it is. Throws [KeyNotFoundException] when there is none.
+  @useResult
   Future<EnrollDataStoreValue> getEnrollmentByFullKey(
     String ek,
   ) async {

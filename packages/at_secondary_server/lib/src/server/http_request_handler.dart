@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:mime/mime.dart' as mime;
@@ -12,9 +13,11 @@ const String paramNameContentType = 'at_ct';
 class AtServerHttpRequestHandler {
   final String currentAtSign;
   final AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore;
+  final EnrollmentManager enrollmentManager;
   final logger = AtSignLogger('Http Request Handler');
 
-  AtServerHttpRequestHandler(this.currentAtSign, this.keyValueStore);
+  AtServerHttpRequestHandler(
+      this.currentAtSign, this.keyValueStore, this.enrollmentManager);
 
   Future<void> handle(HttpRequest request) async {
     try {
@@ -40,6 +43,7 @@ class AtServerHttpRequestHandler {
 
         AtData? atData;
         try {
+          await enrollmentManager.refuseLapsedApprovedData(lookupKey);
           atData = (await keyValueStore.get(lookupKey))!;
         } catch (error) {
           request.response.statusCode = HttpStatus.notFound;
