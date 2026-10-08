@@ -29,6 +29,20 @@ void main() {
   });
 
   group('A group of negative tests of notify verb', () {
+    test('a text notification is refused', () async {
+      String control = await firstAtSignConnection.sendRequestToServer(
+          'notify:update:messageType:key:$firstAtSign:phone-$uniqueId$firstAtSign');
+      expect(control, startsWith('data:'),
+          reason: 'control: a key notification is accepted');
+
+      String response = await firstAtSignConnection.sendRequestToServer(
+          'notify:update:messageType:text:$firstAtSign:hello-$uniqueId');
+      var errorMap = jsonDecode(response.replaceFirst('error:', ''));
+      expect(errorMap['errorCode'], 'AT0003');
+      expect(errorMap['errorDescription'],
+          'Invalid syntax : messageType:text is no longer supported');
+    });
+
     test('notify verb without giving message type value', () async {
       /// NOTIFY VERB
       String response = await firstAtSignConnection.sendRequestToServer(

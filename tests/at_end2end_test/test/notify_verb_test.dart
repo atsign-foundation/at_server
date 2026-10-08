@@ -238,31 +238,6 @@ void main() {
             '"key":"$atSign_1:fav-city$atSign_2","value":"$value","operation":"update"'));
   });
 
-  test('notify verb for notifying a text update to another atsign', () async {
-    //   /// NOTIFY VERB
-    var value = '$lastValue-Hey,Hello!';
-    await sh2.writeCommand(
-        'notify:update:messageType:text:notifier:chat:ttr:-1:$atSign_1:$value');
-    String response = await sh2.read();
-    logger.info('notify verb response : $response');
-    String notificationId = response.replaceAll('data:', '');
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
-
-    // notify status
-    response = await getNotifyStatus(sh2, notificationId,
-        returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-    logger.info('notify status response : $response');
-    expect(response, contains('data:delivered'));
-
-    ///notify:list verb
-    await sh1.writeCommand('notify:list');
-    response = await sh1.read();
-    logger.info('notify list verb response : $response');
-    expect(response,
-        contains('"key":"$atSign_1:$value","value":null,"operation":"update"'));
-  });
-
   test('notify verb for deleting a key for other atsign', () async {
     //   /// NOTIFY VERB
     await sh1.writeCommand(
@@ -289,29 +264,6 @@ void main() {
           contains(
               '"key":"$atSign_2:email$atSign_1","value":null,"operation":"delete"'));
     }
-  });
-
-  test('notify verb with messageType text', () async {
-    //   /// NOTIFY VERB
-    await sh1.writeCommand('notify:update:messageType:text:$atSign_2:Hello!');
-    String response = await sh1.read();
-    logger.info('notify verb response : $response');
-    String notificationId = response.replaceAll('data:', '');
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
-
-    // notify status
-    response = await getNotifyStatus(sh1, notificationId,
-        returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-    logger.info('notify status response : $response');
-    expect(response, contains('data:delivered'));
-
-    String keyRequired =
-        '"key":"$atSign_2:Hello!","value":null,"operation":"update"';
-    response = await retryCommandUntilMatchOrTimeout(
-        sh2, 'notify:list', keyRequired, 15000);
-    logger.info('notify list response for text $response');
-    expect(response, contains(keyRequired));
   });
 
   test('notify verb with space in the value', () async {
@@ -430,38 +382,6 @@ void main() {
   });
 
   // this test needs an notification to be sent to another atsign
-  test('notify verb with notification expiry with messageType text', () async {
-    //   /// NOTIFY VERB
-    int ttln = 11000;
-    await sh2.writeCommand(
-        'notify:update:messageType:text:ttln:$ttln:ttr:-1:$atSign_1:Hello!');
-    String response = await sh2.read();
-    logger.info('notify verb response : $response');
-    String notificationId = response.replaceAll('data:', '');
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
-
-    int willExpireAt = DateTime.now().millisecondsSinceEpoch + ttln;
-
-    // notify status before ttln expiry time
-    response = await getNotifyStatus(sh2, notificationId,
-        returnWhenStatusIn: ['delivered'], timeOutMillis: 10000);
-    logger.info('notify status response : $response');
-    expect(response, contains('data:delivered'));
-
-    // Wait until ttln has been reached
-    int now = DateTime.now().millisecondsSinceEpoch;
-    if (now < willExpireAt) {
-      await Future.delayed(Duration(milliseconds: willExpireAt - now));
-    }
-
-    /// notify status after ttln expiry time
-    response = await getNotifyStatus(sh2, notificationId,
-        returnWhenStatusIn: ['expired'], timeOutMillis: 1000);
-    logger.info('notify status response : $response');
-    expect(response, contains('data:expired'));
-  });
-
   test('Test to verify the update and delete caching of key', () async {
     var key = 'testcachedkey-$lastValue';
     // Sending the update notification from the sender side
@@ -783,74 +703,6 @@ void main() {
           response,
           contains(
               '"key":"$atSign_1:no_ttr_key$atSign_2","value":null,"operation":"update"'));
-    });
-
-    test(
-        'notify verb without ttr for messageType-text and operation type - update',
-        () async {
-      // The notify ephemeral changes are not into Canary and production.
-      // So, no point in running against and Canary and Prod servers.`
-      if (atSign2ServerVersion < Version(3, 0, 36)) {
-        return;
-      }
-
-      /// NOTIFY VERB
-      await sh2.writeCommand(
-          'notify:update:messageType:text:$atSign_1:hello_world$atSign_2');
-      String response = await sh2.read();
-      logger.info('notify verb response : $response');
-      assert((!response.contains('Invalid syntax')) &&
-          (!response.contains('null')));
-      String notificationId = response.replaceAll('data:', '');
-
-      // notify status
-      response = await getNotifyStatus(sh2, notificationId,
-          returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-      logger.info('notify status response : $response');
-      assert(response.contains('data:delivered'));
-
-      ///notify:list verb
-      await sh1.writeCommand('notify:list');
-      response = await sh1.read();
-      logger.info('notify list verb response : $response');
-      expect(
-          response,
-          contains(
-              '"key":"$atSign_1:hello_world","value":null,"operation":"update"'));
-    });
-
-    test(
-        'notify verb without ttr for messageType-text and operation type - delete',
-        () async {
-      // The notify ephemeral changes are not into Canary and production.
-      // So, no point in running against and Canary and Prod servers.`
-      if (atSign2ServerVersion < Version(3, 0, 36)) {
-        return;
-      }
-
-      /// NOTIFY VERB
-      await sh2.writeCommand(
-          'notify:delete:messageType:text:$atSign_1:hello_world$atSign_2');
-      String response = await sh2.read();
-      logger.info('notify verb response : $response');
-      assert((!response.contains('Invalid syntax')) &&
-          (!response.contains('null')));
-      String notificationId = response.replaceAll('data:', '');
-
-      // notify status
-      response = await getNotifyStatus(sh2, notificationId,
-          returnWhenStatusIn: ['delivered'], timeOutMillis: 15000);
-      logger.info('notify status response : $response');
-      assert(response.contains('data:delivered'));
-
-      ///notify:list verb
-      await sh1.writeCommand('notify:list');
-      response = await sh1.read();
-      logger.info('notify list verb response : $response');
-      expect(
-          response,
-          contains(
-              '"key":"$atSign_1:hello_world","value":null,"operation":"delete"'));
     });
 
     test('notify verb without ttr for operation type delete', () async {
