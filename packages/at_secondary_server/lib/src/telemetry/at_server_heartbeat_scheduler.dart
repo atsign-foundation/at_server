@@ -4,6 +4,8 @@ import 'dart:math';
 import 'at_server_telemetry.dart';
 import 'at_server_telemetry_constants.dart';
 
+/// Sends the heartbeat event every [interval], the first after a random
+/// [offset] so that atServers started together don't send together.
 final class AtServerHeartbeatScheduler {
   static const Duration defaultInterval = Duration(seconds: 60);
   static const Duration _minimumInterval = Duration(milliseconds: 1);
@@ -39,6 +41,7 @@ final class AtServerHeartbeatScheduler {
 
   bool get isRunning => _timer != null;
 
+  /// Starts the heartbeat; does nothing if it is already running.
   void start() {
     if (_timer != null) {
       return;
@@ -49,13 +52,12 @@ final class AtServerHeartbeatScheduler {
     });
   }
 
+  /// Stops the heartbeat.
   void stop() {
     _timer?.cancel();
     _timer = null;
   }
 
-  // Carries no attributes. The backend works out uptime from the boot's
-  // started event, or its oldest record, and the newest heartbeat.
   void _sendHeartbeat() {
     _telemetry.emitEvent(atServerHeartbeatEventName);
   }

@@ -6,9 +6,9 @@ import 'package:at_utils/at_logger.dart';
 
 import 'at_server_telemetry_batch.dart';
 
-// Closed batches waiting to be sent, held in memory only, so whatever is
-// still here when the server stops is lost. Over its size limit the oldest
-// batches go first, with a warning naming them.
+/// Closed batches waiting to be sent, held in memory only, so whatever is
+/// still here when the server stops is lost. Over its size limit the oldest
+/// batches go first, with a warning naming them.
 final class AtServerTelemetryBuffer {
   static const int defaultMaxBytes = 8 * 1024 * 1024;
 
@@ -36,7 +36,7 @@ final class AtServerTelemetryBuffer {
   AtServerTelemetryBatch? get oldest =>
       _batches.isEmpty ? null : _batches.first;
 
-  // Takes the next sequence number for this boot
+  /// Adds a batch, which takes the next sequence number for this boot.
   AtServerTelemetryBatch add(
     List<int> body,
     List<Completer<bool>> deliveries,
@@ -52,13 +52,14 @@ final class AtServerTelemetryBuffer {
     return batch;
   }
 
+  /// Removes [batch], if it is still here.
   void remove(AtServerTelemetryBatch batch) {
     if (_batches.remove(batch)) {
       _bytes -= batch.sizeInBytes;
     }
   }
 
-  // Drops every batch, reporting each record as not delivered
+  /// Drops every batch, reporting each record as not delivered.
   void abandonAll() {
     if (_batches.isEmpty) {
       return;

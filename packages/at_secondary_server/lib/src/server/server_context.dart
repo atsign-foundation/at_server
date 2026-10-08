@@ -52,6 +52,6 @@ class AtSecondaryContext extends AtServerContext {
   // after fully starting up.
   bool trainingMode = false;
 
-  // Where to push telemetry. Null means telemetry is off.
+  /// Where to push telemetry. Null means telemetry is off.
   String? telemetryEndpoint;
 }

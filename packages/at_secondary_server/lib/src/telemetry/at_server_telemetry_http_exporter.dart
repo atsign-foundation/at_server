@@ -13,18 +13,18 @@ import 'at_server_telemetry_buffer.dart';
 import 'at_server_telemetry_delivery_outcome.dart';
 import 'at_server_telemetry_signing_key.dart';
 
-// Sends the atServer's telemetry to its collector as signed OTLP/JSON over
-// HTTPS, in waves. Records are batched, each closed batch goes into an
-// in-memory buffer with the next sequence number, and the buffer is drained
-// one request at a time, oldest first. Any 2xx removes the batch. 400, 401,
-// 403, 404, 413, 415 and other 4xx drop it, since sending it again would
-// fail the same way. 408, 429, 5xx and network failures keep it and back
-// off. A record's export future completes true once its batch is delivered,
-// and false once it is dropped or abandoned at shutdown. Nothing is kept
-// across restarts. Every request has a deadline that aborts it, connecting
-// included, and shutdown has one too, so nothing here can hold the server
-// up. Nothing here throws or leaves an error unhandled, since an uncaught
-// error stops the atServer.
+/// Sends the atServer's telemetry to its collector as signed OTLP/JSON over
+/// HTTPS, in waves. Records are batched, each closed batch goes into an
+/// in-memory buffer with the next sequence number, and the buffer is drained
+/// one request at a time, oldest first. Any 2xx removes the batch. 400, 401,
+/// 403, 404, 413, 415 and other 4xx drop it, since sending it again would
+/// fail the same way. 408, 429, 5xx and network failures keep it and back
+/// off. A record's export future completes true once its batch is delivered,
+/// and false once it is dropped or abandoned at shutdown. Nothing is kept
+/// across restarts. Every request has a deadline that aborts it, connecting
+/// included, and shutdown has one too, so nothing here can hold the server
+/// up. Nothing here throws or leaves an error unhandled, since an uncaught
+/// error stops the atServer.
 final class AtServerTelemetryHttpExporter
     implements AtTelemetryLogRecordExporter {
   static const String logsPath = '/v1/logs';
@@ -36,7 +36,7 @@ final class AtServerTelemetryHttpExporter
   static const Duration defaultShutdownTimeout = Duration(seconds: 10);
   static const int maxBatchBytes = 1024 * 1024;
 
-  final AtSignLogger _logger = AtSignLogger('AtServerTelemetryHttpExporter');
+  final AtSignLogger logger = AtSignLogger('AtServerTelemetryHttpExporter');
   final Uri endpoint;
   final String audience;
   final String producer;
@@ -53,7 +53,9 @@ final class AtServerTelemetryHttpExporter
   final Random _random;
   final List<AtTelemetryLogRecord> _records = <AtTelemetryLogRecord>[];
   final List<Completer<bool>> _deliveries = <Completer<bool>>[];
-  final Completer<void> _abortAll = Completer<void>();
+  // The request in flight, if any; requests go one at a time
+  Completer<void>? _inFlightAbort;
+  bool _aborted = false;
   AtTelemetryResource? _resource;
   Future<void>? _sending;
   Future<void>? _shutdown;
@@ -61,6 +63,7 @@ final class AtServerTelemetryHttpExporter
   Timer? _retryTimer;
   Duration _backoff;
   bool _closed = false;
+  bool _failing = false;
 
   AtServerTelemetryHttpExporter({
     required Uri endpoint,
@@ -106,6 +109,8 @@ final class AtServerTelemetryHttpExporter
     }
   }
 
+  /// The logs URL for [endpoint]. Throws [ArgumentError] for an endpoint the
+  /// exporter will not send to.
   static Uri logsEndpointFor(Uri endpoint) {
     if (!endpoint.hasAuthority ||
         endpoint.host.isEmpty ||
@@ -118,8 +123,22 @@ final class AtServerTelemetryHttpExporter
             endpoint.path != logsPath)) {
       throw ArgumentError.value(endpoint, 'endpoint', 'invalid OTLP endpoint');
     }
+    // NOTE the signed audience is host:port, which cannot carry an IPv6
+    // address, so every request to one would fail to sign
+    if (endpoint.host.contains(':')) {
+      throw ArgumentError.value(endpoint, 'endpoint',
+          'an IPv6 address cannot be signed as the audience; use a host name');
+    }
+    if (endpoint.scheme == 'http' && !_isLoopback(endpoint.host)) {
+      throw ArgumentError.value(endpoint, 'endpoint',
+          'plain http is allowed only to a loopback collector');
+    }
     return endpoint.replace(path: logsPath);
   }
+
+  static bool _isLoopback(String host) =>
+      host == 'localhost' ||
+      (InternetAddress.tryParse(host)?.isLoopback ?? false);
 
   @override
   Future<bool> export(
@@ -145,8 +164,8 @@ final class AtServerTelemetryHttpExporter
     return delivery.future;
   }
 
-  // Closes what is batched and makes one pass over the buffer, ignoring any
-  // backoff in force
+  /// Closes what is batched and makes one pass over the buffer, ignoring any
+  /// backoff in force.
   @override
   Future<void> flush() async {
     _closeBatch();
@@ -155,7 +174,7 @@ final class AtServerTelemetryHttpExporter
     await _send();
   }
 
-  // Batches still in the buffer are abandoned
+  /// A last flush, after which batches still in the buffer are abandoned.
   @override
   Future<void> shutdown() => _shutdown ??= _shutdownOnce();
 
@@ -164,14 +183,16 @@ final class AtServerTelemetryHttpExporter
     try {
       await flush().timeout(_shutdownTimeout);
     } on TimeoutException {
-      _logger.warning('Telemetry shutdown timed out after $_shutdownTimeout');
+      logger.warning('Telemetry shutdown timed out after $_shutdownTimeout');
     } on Object catch (error) {
-      _logger.warning('Telemetry shutdown failed: $error');
+      logger.warning('Telemetry shutdown failed: $error');
     }
     _batchTimer?.cancel();
     _retryTimer?.cancel();
-    if (!_abortAll.isCompleted) {
-      _abortAll.complete();
+    _aborted = true;
+    final Completer<void>? inFlightAbort = _inFlightAbort;
+    if (inFlightAbort != null && !inFlightAbort.isCompleted) {
+      inFlightAbort.complete();
     }
     _buffer.abandonAll();
     if (_ownsClient) {
@@ -210,7 +231,7 @@ final class AtServerTelemetryHttpExporter
       body = utf8.encode(const AtTelemetryLogsCodec()
           .encodeExportRequest(records, resource: resource));
     } on Object catch (error) {
-      _logger.warning('Dropped ${records.length} telemetry records that '
+      logger.warning('Dropped ${records.length} telemetry records that '
           'could not be encoded: $error');
       _complete(deliveries, false);
       return;
@@ -218,7 +239,7 @@ final class AtServerTelemetryHttpExporter
 
     if (body.length > maxBatchBytes) {
       if (records.length == 1) {
-        _logger.warning('Dropped a telemetry record larger than '
+        logger.warning('Dropped a telemetry record larger than '
             '$maxBatchBytes bytes');
         _complete(deliveries, false);
         return;
@@ -248,7 +269,7 @@ final class AtServerTelemetryHttpExporter
   // error
   Future<void> _drain() async {
     try {
-      while (!_abortAll.isCompleted) {
+      while (!_aborted) {
         final AtServerTelemetryBatch? batch = _buffer.oldest;
         if (batch == null) {
           return;
@@ -256,6 +277,10 @@ final class AtServerTelemetryHttpExporter
         final AtServerTelemetryDeliveryOutcome outcome = await _post(batch);
         switch (outcome) {
           case AtServerTelemetryDeliveryOutcome.delivered:
+            if (_failing) {
+              _failing = false;
+              logger.info('Telemetry sending recovered');
+            }
             _backoff = _initialBackoff;
             _buffer.remove(batch);
             batch.complete(true);
@@ -268,7 +293,7 @@ final class AtServerTelemetryHttpExporter
         }
       }
     } on Object catch (error) {
-      _logger.warning('Telemetry sending failed: $error; will retry');
+      logger.warning('Telemetry sending failed: $error; will retry');
       _scheduleRetry();
     }
   }
@@ -296,21 +321,20 @@ final class AtServerTelemetryHttpExporter
         ..headers.addAll(signature.headers)
         ..bodyBytes = batch.body;
     } on Object catch (error) {
-      _logger.warning('Dropped telemetry batch ${batch.sequence} that could '
+      logger.warning('Dropped telemetry batch ${batch.sequence} that could '
           'not be signed: $error');
       return AtServerTelemetryDeliveryOutcome.rejected;
     }
+    if (_aborted) {
+      return AtServerTelemetryDeliveryOutcome.retry;
+    }
 
+    _inFlightAbort = abort;
     final Timer deadline = Timer(_requestTimeout, () {
       if (!abort.isCompleted) {
         abort.complete();
       }
     });
-    unawaited(_abortAll.future.then((void _) {
-      if (!abort.isCompleted) {
-        abort.complete();
-      }
-    }));
 
     try {
       final http.StreamedResponse response = await _client.send(request);
@@ -318,15 +342,16 @@ final class AtServerTelemetryHttpExporter
       await response.stream.drain<void>();
       return _classify(response.statusCode, batch);
     } on http.RequestAbortedException {
-      _logger.info('Telemetry batch ${batch.sequence} timed out after '
+      _logRetry('Telemetry batch ${batch.sequence} timed out after '
           '$_requestTimeout; will retry');
       return AtServerTelemetryDeliveryOutcome.retry;
     } on Object catch (error) {
-      _logger.info('Telemetry batch ${batch.sequence} not sent: '
-          '${error.runtimeType}; will retry');
+      _logRetry('Telemetry batch ${batch.sequence} not sent: $error; '
+          'will retry');
       return AtServerTelemetryDeliveryOutcome.retry;
     } finally {
       deadline.cancel();
+      _inFlightAbort = null;
     }
   }
 
@@ -336,13 +361,24 @@ final class AtServerTelemetryHttpExporter
       return AtServerTelemetryDeliveryOutcome.delivered;
     }
     if (status == 408 || status == 429 || status >= 500) {
-      _logger.info('Collector answered $status for telemetry batch '
+      _logRetry('Collector answered $status for telemetry batch '
           '${batch.sequence}; will retry');
       return AtServerTelemetryDeliveryOutcome.retry;
     }
-    _logger.warning('Collector rejected telemetry batch ${batch.sequence} '
+    logger.warning('Collector rejected telemetry batch ${batch.sequence} '
         'with $status; dropping it');
     return AtServerTelemetryDeliveryOutcome.rejected;
+  }
+
+  // The first failure after a success is a warning, so a mistake in the
+  // endpoint shows; repeats are info, so an outage does not flood the log
+  void _logRetry(String message) {
+    if (_failing) {
+      logger.info(message);
+      return;
+    }
+    _failing = true;
+    logger.warning(message);
   }
 
   // Capped exponential backoff with full jitter

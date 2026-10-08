@@ -6,9 +6,11 @@ import 'at_server_telemetry_buffer.dart';
 import 'at_server_telemetry_http_exporter.dart';
 import 'at_server_telemetry_signing_key.dart';
 
-// Builds the signed OTLP/HTTP exporter for this server, creating the signing
-// key, or returns null after logging why when telemetry is off or cannot be
-// set up. endpoint is host:port (https is assumed) or a full URL.
+/// Builds the signed OTLP/HTTP exporter for this server, creating the signing
+/// key, or returns null after logging why when telemetry is off or cannot be
+/// set up. [endpoint] is host:port (https is assumed) or a full URL, and plain
+/// http only to a loopback collector. No key is created for an endpoint that
+/// is refused.
 Future<AtServerTelemetryHttpExporter?> createAtServerTelemetryExporter({
   required String? endpoint,
   required String atSign,
@@ -25,9 +27,14 @@ Future<AtServerTelemetryHttpExporter?> createAtServerTelemetryExporter({
 
   final Uri? endpointUri =
       Uri.tryParse(endpoint.contains('://') ? endpoint : 'https://$endpoint');
-  if (endpointUri == null || endpointUri.host.isEmpty) {
-    logger.warning(
-        'Not pushing telemetry anywhere: invalid telemetry endpoint $endpoint');
+  try {
+    if (endpointUri == null) {
+      throw ArgumentError.value(endpoint, 'endpoint', 'not a URL');
+    }
+    AtServerTelemetryHttpExporter.logsEndpointFor(endpointUri);
+  } on ArgumentError catch (error) {
+    logger.warning('Not pushing telemetry anywhere: invalid telemetry '
+        'endpoint $endpoint: ${error.message}');
     return null;
   }
 

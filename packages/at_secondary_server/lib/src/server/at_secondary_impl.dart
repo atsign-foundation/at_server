@@ -116,7 +116,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   /// sweep so the server sleeps until the next key expires.
   Timer? _keyExpiryTimer;
 
-  // an object that simplifies telemetry exporting for atServers
+  /// The atServer's telemetry, off unless an endpoint is set.
   final AtServerTelemetry telemetry = AtServerTelemetry();
 
   // the maximum amount of time to wait to send all telemetry when `stop()` is called. Once the timeout passes, pending telemetry is abandoned so `stop()` never blocks on it
@@ -368,8 +368,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       throw AtServerException(e.toString());
     }
 
-    // Enabling telemetry also starts the heartbeat. `stop()` shuts telemetry
-    // down, so every start after a stop is a new boot with a fresh exporter.
+    // Enabling telemetry sends the started event and starts the heartbeat.
+    // `stop()` shuts telemetry down, so every start after a stop is a new
+    // boot with a fresh exporter.
     // Telemetry failing to start must never stop the server starting
     if (!telemetry.isEnabled) {
       try {
@@ -806,7 +807,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       }
       _compactionTimers.clear();
 
-      // Stops the heartbeat, flushes pending events and closes the exporter
+      // Sends the stopped event, flushes pending events and closes the
+      // exporter
       logger.info('Shutting down telemetry');
       await telemetry.shutdown(timeout: _telemetryFlushTimeout);
 

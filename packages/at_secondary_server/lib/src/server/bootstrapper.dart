@@ -95,14 +95,15 @@ class SecondaryServerBootStrapper {
     }
   }
 
-  // The command line flag wins over the environment variable. Passing the
-  // flag with an empty value turns telemetry off even if the variable is set.
+  /// The telemetry endpoint, or null when telemetry is off. The command line
+  /// flag wins over the environment variable, and passing the flag with an
+  /// empty value turns telemetry off even if the variable is set.
   static String? telemetryEndpointFrom(
     ArgResults results,
     Map<String, String> environment,
   ) {
-    if (results.wasParsed('telemetry-endpoint')) {
-      final String fromFlag = (results['telemetry-endpoint'] as String).trim();
+    if (results.wasParsed('telemetry_endpoint')) {
+      final String fromFlag = (results['telemetry_endpoint'] as String).trim();
       return fromFlag.isEmpty ? null : fromFlag;
     }
     final String fromEnvironment =

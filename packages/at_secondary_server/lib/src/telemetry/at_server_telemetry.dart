@@ -6,13 +6,13 @@ import 'package:at_utils/at_logger.dart';
 import 'at_server_heartbeat_scheduler.dart';
 import 'at_server_telemetry_constants.dart';
 
-// The atServer's telemetry facade. Nothing here throws into the server, and
-// flush and shutdown always return within their timeouts.
+/// The atServer's telemetry facade. Nothing here throws into the server, and
+/// flush and shutdown always return within their timeouts.
 final class AtServerTelemetry {
   static const String _eventNamePrefix = '$atServerTelemetryEventPrefix.';
 
-  // How often the heartbeat is sent while telemetry is enabled. Null turns
-  // the heartbeat off.
+  /// How often the heartbeat is sent while telemetry is enabled. Null turns
+  /// the heartbeat off.
   final Duration? heartbeatInterval;
   final AtSignLogger _logger = AtSignLogger('AtServerTelemetry');
   AtTelemetry? _telemetry;
@@ -24,8 +24,9 @@ final class AtServerTelemetry {
 
   bool get isEnabled => _telemetry != null;
 
-  // serverId is the atSign and bootId the per-start id that also prefixes
-  // every batch's sequence
+  /// Starts sending telemetry, beginning with the started event. [serverId]
+  /// is the atSign and [bootId] the per-start id that also prefixes every
+  /// batch's sequence.
   void enable({
     required AtTelemetryLogRecordExporter exporter,
     required String serverId,
@@ -45,6 +46,7 @@ final class AtServerTelemetry {
       exporter: exporter,
       onError: _onError,
     );
+    emitEvent(atServerStartedEventName);
     final Duration? interval = heartbeatInterval;
     if (interval != null) {
       _heartbeat = AtServerHeartbeatScheduler(
@@ -54,6 +56,8 @@ final class AtServerTelemetry {
     }
   }
 
+  /// Sends the event [name], which must be in the atServer's namespace, or
+  /// logs why it was dropped.
   void emitEvent(String name, {Map<String, Object?> attributes = const {}}) {
     final AtTelemetry? telemetry = _telemetry;
     if (telemetry == null) {
@@ -79,6 +83,7 @@ final class AtServerTelemetry {
     }
   }
 
+  /// Sends what is batched, returning within [timeout].
   Future<void> flush({Duration timeout = AtTelemetry.defaultFlushTimeout}) {
     final AtTelemetry? telemetry = _telemetry;
     if (telemetry == null) {
@@ -87,6 +92,7 @@ final class AtServerTelemetry {
     return telemetry.flush(timeout: timeout);
   }
 
+  /// Sends the stopped event, then shuts the exporter down.
   Future<void> shutdown({
     Duration timeout = AtTelemetry.defaultShutdownTimeout,
   }) {
@@ -94,9 +100,10 @@ final class AtServerTelemetry {
     if (telemetry == null) {
       return Future<void>.value();
     }
-    _telemetry = null;
     _heartbeat?.stop();
     _heartbeat = null;
+    emitEvent(atServerStoppedEventName);
+    _telemetry = null;
     return telemetry.shutdown(timeout: timeout);
   }
 

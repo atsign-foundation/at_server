@@ -10,6 +10,7 @@ import 'package:at_secondary/src/telemetry/at_server_telemetry_http_exporter.dar
 import 'package:at_secondary/src/telemetry/at_server_telemetry_signing_key.dart';
 import 'package:at_telemetry/at_telemetry.dart';
 import 'package:http/http.dart' as http;
+import 'package:logging/logging.dart';
 import 'package:test/test.dart';
 
 import 'test_utils.dart';
@@ -214,6 +215,43 @@ void main() {
       expect(buffer.batchCount, 1);
     });
 
+    test('warns on the first failure after a success, and logs repeats at info',
+        () async {
+      final AtServerTelemetryHttpExporter subject = exporter(newBuffer());
+      subject.logger.level = 'info';
+      final List<LogRecord> records = <LogRecord>[];
+      final StreamSubscription<LogRecord> subscription =
+          subject.logger.logger.onRecord.listen(records.add);
+      addTearDown(subscription.cancel);
+      List<String> logged(Level level) => <String>[
+            for (final LogRecord record in records)
+              if (record.level == level) record.message,
+          ];
+      respond = (http.BaseRequest request) async =>
+          throw const SocketException('collector unreachable');
+
+      unawaited(subject.export(heartbeat(), resource));
+      await subject.flush();
+      await subject.flush();
+      respond = (http.BaseRequest request) async => _status(200);
+      await subject.flush();
+      respond = (http.BaseRequest request) async =>
+          throw const SocketException('collector unreachable');
+      unawaited(subject.export(heartbeat(), resource));
+      await subject.flush();
+
+      expect(logged(Level.WARNING), hasLength(2),
+          reason: 'one for each run of failures');
+      expect(logged(Level.WARNING),
+          everyElement(contains('collector unreachable')));
+      expect(
+          logged(Level.INFO),
+          containsAll(<Matcher>[
+            contains('collector unreachable'),
+            contains('Telemetry sending recovered'),
+          ]));
+    });
+
     test('aborts a request that runs past its deadline', () async {
       final Completer<void> aborted = Completer<void>();
       respond = (http.BaseRequest request) async {
@@ -260,6 +298,31 @@ void main() {
       expect(await subject.export(heartbeat(), resource), isFalse);
     });
 
+    test('keeps no hold on a request once it has finished', () async {
+      final List<Future<void>> abortTriggers = <Future<void>>[];
+      respond = (http.BaseRequest request) async {
+        abortTriggers.add((request as http.Abortable).abortTrigger!);
+        return _status(200);
+      };
+      final AtServerTelemetryHttpExporter subject =
+          exporter(newBuffer(), maxBatchRecords: 1);
+      for (int index = 0; index < 3; index++) {
+        expect(await subject.export(heartbeat(), resource), isTrue);
+      }
+      int fired = 0;
+      for (final Future<void> trigger in abortTriggers) {
+        unawaited(trigger.whenComplete(() => fired++));
+      }
+
+      await subject.shutdown();
+      await pumpEventQueue();
+
+      expect(abortTriggers, hasLength(3));
+      expect(fired, 0,
+          reason: 'shutdown reaching a finished request means the exporter '
+              'still holds it, and so everything sent since boot');
+    });
+
     test('gives up on a collector that never finishes connecting', () async {
       // Accepts the TCP connection but never answers the TLS handshake
       final ServerSocket silent =
@@ -299,6 +362,8 @@ void main() {
         'https://collector.example.com/other',
         'https://user@collector.example.com',
         'https://collector.example.com?x=1',
+        'http://collector.example.com',
+        'https://[2001:db8::1]',
       ]) {
         expect(
           () => AtServerTelemetryHttpExporter(
@@ -318,7 +383,7 @@ void main() {
       for (final (String endpoint, String audience) in <(String, String)>[
         ('https://collector.example.com:2777', 'collector.example.com:2777'),
         ('https://collector.example.com:443', 'collector.example.com:443'),
-        ('http://collector.example.com', 'collector.example.com:80'),
+        ('http://localhost', 'localhost:80'),
       ]) {
         final AtServerTelemetryHttpExporter subject =
             AtServerTelemetryHttpExporter(
@@ -432,7 +497,9 @@ void main() {
       await telemetry.shutdown();
 
       final (AtTelemetryLogRecord record, AtTelemetryResource resource) =
-          exports.single;
+          exports.singleWhere(
+              ((AtTelemetryLogRecord, AtTelemetryResource) export) =>
+                  export.$1.eventName == atServerHeartbeatEventName);
       expect(record.eventName, 'atsign.atserver.lifecycle.heartbeat');
       expect(resource.attributes, <String, Object?>{
         AtTelemetryAttributes.serviceName: atServerServiceName,
@@ -456,9 +523,41 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 50));
       await telemetry.shutdown();
 
-      final AtTelemetryLogRecord heartbeat = exports.first.$1;
-      expect(heartbeat.eventName, atServerHeartbeatEventName);
+      final AtTelemetryLogRecord heartbeat = exports
+          .firstWhere(((AtTelemetryLogRecord, AtTelemetryResource) export) =>
+              export.$1.eventName == atServerHeartbeatEventName)
+          .$1;
       expect(heartbeat.attributes, isEmpty);
+    });
+
+    test(
+        'sends started when enabled, and stopped before the exporter shuts '
+        'down', () async {
+      final List<(AtTelemetryLogRecord, AtTelemetryResource)> exports =
+          <(AtTelemetryLogRecord, AtTelemetryResource)>[];
+      final _RecordingExporter exporter = _RecordingExporter(exports);
+      final AtServerTelemetry telemetry =
+          AtServerTelemetry(heartbeatInterval: null)
+            ..enable(
+              exporter: exporter,
+              serverId: '$alice',
+              bootId: 'boot-1',
+            );
+      List<String?> names() => exports
+          .map(((AtTelemetryLogRecord, AtTelemetryResource) export) =>
+              export.$1.eventName)
+          .toList();
+
+      expect(names(), <String>[atServerStartedEventName]);
+
+      await telemetry.shutdown();
+
+      expect(names(),
+          <String>[atServerStartedEventName, atServerStoppedEventName]);
+      expect(exporter.exportsAtShutdown, 2,
+          reason: 'stopped must reach the exporter before it shuts down');
+      expect(exports.first.$1.attributes, isEmpty);
+      expect(exports.last.$1.attributes, isEmpty);
     });
 
     test('ignores events outside atsign.atserver', () async {
@@ -476,7 +575,10 @@ void main() {
       telemetry.emitEvent('atsign.atserver.');
       await telemetry.shutdown();
 
-      expect(exports, isEmpty);
+      expect(
+          exports.map(((AtTelemetryLogRecord, AtTelemetryResource) export) =>
+              export.$1.eventName),
+          <String>[atServerStartedEventName, atServerStoppedEventName]);
     });
 
     test('shutdown returns at its deadline when the exporter hangs', () async {
@@ -531,6 +633,7 @@ final class _CallbackClient extends http.BaseClient {
 
 final class _RecordingExporter implements AtTelemetryLogRecordExporter {
   final List<(AtTelemetryLogRecord, AtTelemetryResource)> exports;
+  int? exportsAtShutdown;
 
   _RecordingExporter(this.exports);
 
@@ -547,7 +650,9 @@ final class _RecordingExporter implements AtTelemetryLogRecordExporter {
   Future<void> flush() async {}
 
   @override
-  Future<void> shutdown() async {}
+  Future<void> shutdown() async {
+    exportsAtShutdown = exports.length;
+  }
 }
 
 final class _HangingExporter implements AtTelemetryLogRecordExporter {

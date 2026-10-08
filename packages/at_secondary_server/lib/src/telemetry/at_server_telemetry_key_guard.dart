@@ -1,13 +1,14 @@
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 
-// Decides which keys and namespaces belong to the atServer's telemetry
-// signing key. Only the atServer itself writes them, straight through its
-// keystore, so every verb that would mutate one is refused, for CRAM too.
+/// Decides which keys and namespaces belong to the atServer's telemetry
+/// signing key. Only the atServer itself writes them, straight through its
+/// keystore, so every verb that would mutate one is refused, for CRAM too.
 final class AtServerTelemetryKeyGuard {
   // ignore: experimental_member_use
   static const String secretKey = AtConstants.atTelemetrySigningPrivateKey;
-  // Followed by the atSign
+
+  /// Followed by the atSign.
   static const String publicRecordName =
       // ignore: experimental_member_use
       AtConstants.atTelemetrySigningPublicKey;
@@ -21,18 +22,21 @@ final class AtServerTelemetryKeyGuard {
 
   const AtServerTelemetryKeyGuard._();
 
-  // atKey in any spelling the keystore folds to one of the two records
+  /// Whether [atKey], in any spelling the keystore folds to one of the two
+  /// records, is the secret or the public record.
   static bool isTelemetryKey(String atKey) {
     final String key = canonicalAtKey(atKey);
     return key == secretKey || _publicRecordPattern.hasMatch(key);
   }
 
-  // __atserver itself, or any namespace ending in it
+  /// Whether [namespace] is `__atserver` itself, or any namespace ending in
+  /// it.
   static bool isAtServerNamespace(String namespace) {
     final String folded = canonicalAtKey(namespace);
     return folded == AtConstants.atServerReservedNamespace ||
         folded.endsWith('.${AtConstants.atServerReservedNamespace}');
   }
 
+  /// The public record's key for [atSign].
   static String publicRecordKey(String atSign) => '$publicRecordName$atSign';
 }
