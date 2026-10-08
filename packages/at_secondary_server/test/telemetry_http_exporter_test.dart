@@ -324,6 +324,8 @@ void main() {
         'https://collector.example.com/other',
         'https://user@collector.example.com',
         'https://collector.example.com?x=1',
+        'http://collector.example.com',
+        'https://[2001:db8::1]',
       ]) {
         expect(
           () => AtServerTelemetryHttpExporter(
@@ -343,7 +345,7 @@ void main() {
       for (final (String endpoint, String audience) in <(String, String)>[
         ('https://collector.example.com:2777', 'collector.example.com:2777'),
         ('https://collector.example.com:443', 'collector.example.com:443'),
-        ('http://collector.example.com', 'collector.example.com:80'),
+        ('http://localhost', 'localhost:80'),
       ]) {
         final AtServerTelemetryHttpExporter subject =
             AtServerTelemetryHttpExporter(

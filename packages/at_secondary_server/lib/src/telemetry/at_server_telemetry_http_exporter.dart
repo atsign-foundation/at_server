@@ -120,8 +120,22 @@ final class AtServerTelemetryHttpExporter
             endpoint.path != logsPath)) {
       throw ArgumentError.value(endpoint, 'endpoint', 'invalid OTLP endpoint');
     }
+    // NOTE the signed audience is host:port, which cannot carry an IPv6
+    // address, so every request to one would fail to sign
+    if (endpoint.host.contains(':')) {
+      throw ArgumentError.value(endpoint, 'endpoint',
+          'an IPv6 address cannot be signed as the audience; use a host name');
+    }
+    if (endpoint.scheme == 'http' && !_isLoopback(endpoint.host)) {
+      throw ArgumentError.value(endpoint, 'endpoint',
+          'plain http is allowed only to a loopback collector');
+    }
     return endpoint.replace(path: logsPath);
   }
+
+  static bool _isLoopback(String host) =>
+      host == 'localhost' ||
+      (InternetAddress.tryParse(host)?.isLoopback ?? false);
 
   Map<String, Object?> get bufferHealth => _buffer.health;
 
