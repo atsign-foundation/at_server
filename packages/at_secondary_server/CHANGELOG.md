@@ -24,7 +24,8 @@
   includes the `clientId`, `appName`, `appVersion` and `platform` a `from:`
   sends in its `clientConfig`, which prefix every log line for the
   connection, and are now kept to 64 characters. A `clientConfig` field that
-  is not a string is ignored rather than failing the `from:`.
+  is not a string is ignored rather than failing the `from:`, and so is a
+  `version` that does not parse.
 
 - fix: tighten validation on notify: requests from other atServers
 
