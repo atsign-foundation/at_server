@@ -260,6 +260,31 @@ void main() {
       expect(await subject.export(heartbeat(), resource), isFalse);
     });
 
+    test('keeps no hold on a request once it has finished', () async {
+      final List<Future<void>> abortTriggers = <Future<void>>[];
+      respond = (http.BaseRequest request) async {
+        abortTriggers.add((request as http.Abortable).abortTrigger!);
+        return _status(200);
+      };
+      final AtServerTelemetryHttpExporter subject =
+          exporter(newBuffer(), maxBatchRecords: 1);
+      for (int index = 0; index < 3; index++) {
+        expect(await subject.export(heartbeat(), resource), isTrue);
+      }
+      int fired = 0;
+      for (final Future<void> trigger in abortTriggers) {
+        unawaited(trigger.whenComplete(() => fired++));
+      }
+
+      await subject.shutdown();
+      await pumpEventQueue();
+
+      expect(abortTriggers, hasLength(3));
+      expect(fired, 0,
+          reason: 'shutdown reaching a finished request means the exporter '
+              'still holds it, and so everything sent since boot');
+    });
+
     test('gives up on a collector that never finishes connecting', () async {
       // Accepts the TCP connection but never answers the TLS handshake
       final ServerSocket silent =

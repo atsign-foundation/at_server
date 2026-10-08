@@ -53,7 +53,9 @@ final class AtServerTelemetryHttpExporter
   final Random _random;
   final List<AtTelemetryLogRecord> _records = <AtTelemetryLogRecord>[];
   final List<Completer<bool>> _deliveries = <Completer<bool>>[];
-  final Completer<void> _abortAll = Completer<void>();
+  // The request in flight, if any; requests go one at a time
+  Completer<void>? _inFlightAbort;
+  bool _aborted = false;
   AtTelemetryResource? _resource;
   Future<void>? _sending;
   Future<void>? _shutdown;
@@ -170,8 +172,10 @@ final class AtServerTelemetryHttpExporter
     }
     _batchTimer?.cancel();
     _retryTimer?.cancel();
-    if (!_abortAll.isCompleted) {
-      _abortAll.complete();
+    _aborted = true;
+    final Completer<void>? inFlightAbort = _inFlightAbort;
+    if (inFlightAbort != null && !inFlightAbort.isCompleted) {
+      inFlightAbort.complete();
     }
     _buffer.abandonAll();
     if (_ownsClient) {
@@ -248,7 +252,7 @@ final class AtServerTelemetryHttpExporter
   // error
   Future<void> _drain() async {
     try {
-      while (!_abortAll.isCompleted) {
+      while (!_aborted) {
         final AtServerTelemetryBatch? batch = _buffer.oldest;
         if (batch == null) {
           return;
@@ -300,17 +304,16 @@ final class AtServerTelemetryHttpExporter
           'not be signed: $error');
       return AtServerTelemetryDeliveryOutcome.rejected;
     }
+    if (_aborted) {
+      return AtServerTelemetryDeliveryOutcome.retry;
+    }
 
+    _inFlightAbort = abort;
     final Timer deadline = Timer(_requestTimeout, () {
       if (!abort.isCompleted) {
         abort.complete();
       }
     });
-    unawaited(_abortAll.future.then((void _) {
-      if (!abort.isCompleted) {
-        abort.complete();
-      }
-    }));
 
     try {
       final http.StreamedResponse response = await _client.send(request);
@@ -327,6 +330,7 @@ final class AtServerTelemetryHttpExporter
       return AtServerTelemetryDeliveryOutcome.retry;
     } finally {
       deadline.cancel();
+      _inFlightAbort = null;
     }
   }
 
