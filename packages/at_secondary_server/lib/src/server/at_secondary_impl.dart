@@ -581,6 +581,22 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     }
   }
 
+  /// Upgrades a request for `/ws` to a WebSocket carrying the atProtocol, and
+  /// hands any other request to [httpReqHandler]. A `/ws` request that is not
+  /// a WebSocket upgrade is answered `400` and logged.
+  @visibleForTesting
+  void routeHttpRequest(
+      HttpRequest req, AtServerHttpRequestHandler httpReqHandler) {
+    if (req.uri.path != '/ws') {
+      httpReqHandler.handle(req);
+      return;
+    }
+    WebSocketTransformer.upgrade(req).then((WebSocket ws) {
+      logger.info('Upgraded to WebSocket connection');
+      return webSocketListener(ws);
+    }, onError: (Object e) => logger.info('Refused WebSocket upgrade: $e'));
+  }
+
   /// Listens on the secondary server socket and creates an inbound connection
   /// for each client socket. Throws [SocketException] for socket errors.
   void _listen(final serverSocket) {
@@ -590,15 +606,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     HttpServer httpServer = HttpServer.listenOn(pseudoServerSocket);
     final httpReqHandler = AtServerHttpRequestHandler(
         currentAtSign, keyValueStore, enrollmentManager);
-    httpServer.listen((HttpRequest req) {
-      if (req.uri.path == '/ws') {
-        logger.info('Upgraded to WebSocket connection');
-        WebSocketTransformer.upgrade(req)
-            .then((WebSocket ws) => webSocketListener(ws));
-      } else {
-        httpReqHandler.handle(req);
-      }
-    });
+    httpServer
+        .listen((HttpRequest req) => routeHttpRequest(req, httpReqHandler));
 
     logger.finer('serverSocket _listen : ${serverSocket.runtimeType}');
     serverSocket.listen(((clientSocket) async {

@@ -13,6 +13,8 @@
 
 - fix: tighten validation on notify: requests from other atServers
 
+- fix: tighten handling of requests for `/ws`
+
 - fix: once an enrollment expires, its data is no longer served by `lookup`,
   `llookup` or an HTTP GET.
 
