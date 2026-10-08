@@ -106,7 +106,7 @@ void main() async {
       );
     });
 
-    test('validate a failed verb (length > 32)', () {
+    test('validate a failed verb (not a verb name)', () {
       when(() => connection.metaData).thenReturn(authenticatedMetadata);
       expect(
         () => InboundCommandValidator.validate(
@@ -198,7 +198,9 @@ void main() async {
       expect(
         () => InboundCommandValidator.validate(
             utf8.encode('${'a' * 65}:rest\n').toList(), connection),
-        throwsA(isA<InvalidSyntaxException>()),
+        throwsA(isA<InvalidSyntaxException>().having(
+            (e) => e.message, 'message', contains('invalid length'))),
+        reason: 'refused by the length check, not by the verb lookup',
       );
     });
 
@@ -207,7 +209,9 @@ void main() async {
       expect(
         () => InboundCommandValidator.validate(
             utf8.encode('${'a' * 64}:rest\n').toList(), connection),
-        throwsA(isA<InvalidSyntaxException>()),
+        throwsA(isA<InvalidSyntaxException>().having((e) => e.message,
+            'message', contains('does not match protocol spec'))),
+        reason: '64 is within the length check, so the verb lookup refuses it',
       );
     });
 
