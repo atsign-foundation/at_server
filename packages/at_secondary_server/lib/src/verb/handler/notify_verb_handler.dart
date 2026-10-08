@@ -20,6 +20,9 @@ enum Type { sent, received }
 
 class NotifyVerbHandler extends AbstractVerbHandler {
   static Notify notify = Notify();
+
+  /// Why a client's `messageType:text` notification is refused.
+  static const textNotSupported = 'messageType:text is no longer supported';
   final int _maxKeyLength = 255;
 
   final NotificationManager notifMgr;
@@ -29,18 +32,6 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   AtNotificationBuilder atNotificationBuilder = AtNotificationBuilder();
 
   Mutex processNotificationMutex = Mutex();
-
-  /// A hashmap which holds the AtMetadata objects.
-  /// The key represents if the notification text is encrypted or not
-  /// The value represents the AtMetadata object where isEncrypted flag set to appropriate state.
-  final Map<bool, AtMetaData> _atMetadataPool = {
-    true: AtMetaData()
-      ..isEncrypted = true
-      ..createdBy = AtSecondaryServerImpl.getInstance().currentAtSign,
-    false: AtMetaData()
-      ..isEncrypted = false
-      ..createdBy = AtSecondaryServerImpl.getInstance().currentAtSign
-  };
 
   @override
   bool accept(String command) =>
@@ -111,22 +102,19 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     if (logger.isLoggable('info')) {
       logger.info('Processing notification id ${verbParams[AtConstants.id]}');
     }
+    if (_isText(verbParams)) {
+      logger.warning('Dropped text notification ${verbParams[AtConstants.id]}'
+          ' from ${polConnectionMetadata.fromAtSign}'
+          ' for ${verbParams[AtConstants.forAtSign]}: $textNotSupported');
+      response.data = 'data:success';
+      return;
+    }
     _refuseForeignAtSigns(verbParams,
         currentAtSign: currentAtSign,
         fromAtSign: polConnectionMetadata.fromAtSign!);
 
     var atNotificationBuilder = _populateNotificationBuilder(verbParams,
         fromAtSign: polConnectionMetadata.fromAtSign!.toAtsign());
-
-    // If messageType is key, atMetadata is set in "_populateNotificationBuilder"
-    // When messageType is text, atNotificationBuilder.atMetadata fields are
-    // not applicable except "atMetadata.isEncrypted".
-    // So "atNotificationBuilder.atMetadata" will be overwritten
-    // "atMetadata.isEncrypted" represents if the message is encrypted or not.
-    if (atNotificationBuilder.messageType == MessageType.text) {
-      atNotificationBuilder.atMetaData = _atMetadataPool[
-          SecondaryUtil.getBoolFromString(verbParams[AtConstants.isEncrypted])];
-    }
 
     AtNotification n = atNotificationBuilder.build();
 
@@ -240,10 +228,6 @@ class NotifyVerbHandler extends AbstractVerbHandler {
           'Notification from $fromAtSign is for ${sharedWith ?? 'no atSign'},'
           ' not $currentAtSign');
     }
-    if (SecondaryUtil.getMessageType(verbParams[AtConstants.messageType]) !=
-        MessageType.key) {
-      return;
-    }
     final sharedBy = verbParams[AtConstants.atSign]?.toAtsign();
     if (sharedBy != fromAtSign) {
       throw UnAuthorizedException(sharedBy == null
@@ -290,10 +274,12 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       HashMap<String, String?> verbParams,
       InboundConnectionMetadata inboundConnectionMetadata,
       Response response) async {
-    // When messageType is 'text', by syntax sharedBy is not populated, so set it to currentAtSign.
+    if (_isText(verbParams)) {
+      throw InvalidSyntaxException(textNotSupported);
+    }
+    // NOTE a key named without its owner is this atSign's.
     verbParams[AtConstants.atSign] ??= currentAtSign;
-    var keyToNotify = _getFullFormedAtKey(
-        getMessageType(verbParams[AtConstants.messageType]), verbParams);
+    var keyToNotify = _getFullFormedAtKey(verbParams);
     // Check whether the sharedBy atSign is currentAtSign and whether the connection has namespace access for APKAM. If yes allow to send notifications
     // else throw UnAuthorizedException
     bool isAuthorized = await _isAuthorizedToSendNotification(
@@ -384,6 +370,10 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     }
   }
 
+  static bool _isText(HashMap<String, String?> verbParams) =>
+      SecondaryUtil.getMessageType(verbParams[AtConstants.messageType]) ==
+      MessageType.text;
+
   /// Performs the validations on the notification verb params
   void _validateNotifyVerbParams(HashMap<String, String?> verbParams) {
     if (verbParams[AtConstants.strategy] == 'latest' &&
@@ -407,8 +397,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       ..toAtSign = AtUtils.fixAtSign(verbParams[AtConstants.forAtSign] ?? '')
       ..fromAtSign = fromAtSign
       ..notificationDateTime = DateTime.now().toUtcMillisecondsPrecision()
-      ..notification = _getFullFormedAtKey(
-          getMessageType(verbParams[AtConstants.messageType]), verbParams)
+      ..notification = _getFullFormedAtKey(verbParams)
       ..opType = getOperationType(verbParams[AtConstants.operation])
       ..priority = SecondaryUtil.getNotificationPriority(
           verbParams[AtConstants.priority])
@@ -669,9 +658,6 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     if (messageType == MessageType.key && key.startsWith('public')) {
       return false;
     }
-    if (messageType == MessageType.text) {
-      return SecondaryUtil.getBoolFromString(isEncryptedStr);
-    }
     // respect the 'false' value if one was supplied
     if (isEncryptedStr != null && isEncryptedStr.toLowerCase() == 'false') {
       return false;
@@ -680,13 +666,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     return true;
   }
 
-  String _getFullFormedAtKey(
-      MessageType messageType, HashMap<String, String?> verbParam) {
-    // If message type text do not concatenate fromAtSign (currentAtSign)
-    if (messageType == MessageType.text) {
-      return '${verbParam[AtConstants.forAtSign]}:${verbParam[AtConstants.atKey]}';
-    }
-    // If message type is key, concatenate the atSign's
+  String _getFullFormedAtKey(HashMap<String, String?> verbParam) {
     // In the notify regex, although, "public" and "forAtSign" are mutually exclusive
     // for the "publicScope" named group.
     //

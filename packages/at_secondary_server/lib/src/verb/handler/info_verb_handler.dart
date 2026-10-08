@@ -33,6 +33,11 @@ class InfoVerbHandler extends AbstractVerbHandler {
       'status': InfoFeatureStatus.deprecated,
       'description': 'notify:all: send a notify to each recipient instead',
     },
+    {
+      'name': 'notify.text',
+      'status': InfoFeatureStatus.retired,
+      'description': 'messageType:text: send a key notification instead',
+    },
   ];
   static int? approximateStartTimeMillis;
 

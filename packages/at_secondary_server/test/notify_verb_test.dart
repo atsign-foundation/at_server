@@ -14,6 +14,7 @@ import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/info_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_all_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_fetch_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_list_verb_handler.dart';
@@ -268,7 +269,7 @@ void main() {
       var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
       var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
 
-      var command = 'notify:update:messagetype:text:@bob:hello';
+      var command = 'notify:update:messagetype:key:@bob:phone.wavi@alice';
       var regex = verb.syntax();
 
       var notifyVerbHandler =
@@ -410,34 +411,6 @@ void main() {
       expect(notifyData[0][AtConstants.operation], 'delete');
     });
 
-    test(
-        'A test to verify notify verb params are populated when message type is text',
-        () async {
-      var verb = Notify();
-      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
-
-      var inBoundSessionId = '_6665436c-29ff-481b-8dc6-129e89199718';
-      var atConnection = InboundConnectionImpl(mockSocket, inBoundSessionId);
-      atConnection.metaData.isAuthenticated = true;
-      atConnection.metaData.authType = AuthType.cram;
-
-      var command = 'notify:update:messagetype:text:@bob:hello';
-      var regex = verb.syntax();
-
-      var notifyVerbHandler =
-          NotifyVerbHandler(keyValueStore, notificationManager);
-      var notifyResponse = Response();
-      var notifyVerbParams = getVerbParam(regex, command);
-      await notifyVerbHandler.processVerb(
-          notifyResponse, notifyVerbParams, atConnection);
-
-      AtNotification? atNotification =
-          await notifStore.get(notifyResponse.data!);
-      expect(atNotification?.toAtSign, '@bob');
-      expect(atNotification?.fromAtSign, alice);
-      expect(atNotification?.notification, '@bob:hello');
-      expect(atNotification?.type, NotificationType.sent);
-    });
     test('test for max key length check for cached key', () async {
       AtSecondaryServerImpl.getInstance().currentAtSign = alice;
       var notifyVerb = NotifyVerbHandler(keyValueStore, notificationManager);
@@ -1493,15 +1466,6 @@ void main() {
 
     tearDown(() async => await verbTestsTearDown());
 
-    test('test getIsEncrypted for MessageType.text', () {
-      expect(NotifyVerbHandler.getIsEncrypted(MessageType.text, 'foo', null),
-          false);
-      expect(NotifyVerbHandler.getIsEncrypted(MessageType.text, 'foo', 'false'),
-          false);
-      expect(NotifyVerbHandler.getIsEncrypted(MessageType.text, 'foo', 'true'),
-          true);
-    });
-
     test('test getIsEncrypted for public key notifications', () {
       // TODO Is there any use currently of notifications on 'public' keys?
       // TODO Are there any functional or e2e tests of the same?
@@ -1647,20 +1611,15 @@ void main() {
       expect(await notificationManager.get('spoof-3'), isNull);
     });
 
-    for (final (name, messageType, key) in [
-      ('key', 'key', 'phone.wavi$bob:v'),
-      ('text', 'text', 'hello'),
-    ]) {
-      test('of a $name for another atSign is refused, and nothing stored',
-          () async {
-        await expectLater(
-            deliver('notify:id:spoof-4:update:messageType:$messageType'
-                ':@colin:$key'),
-            refused('is for @colin'));
-        expect(await notificationManager.get('spoof-4'), isNull);
-        expect(await notifStore.iterate().toList(), isEmpty);
-      });
-    }
+    test('of a key for another atSign is refused, and nothing stored',
+        () async {
+      await expectLater(
+          deliver('notify:id:spoof-4:update:messageType:key'
+              ':@colin:phone.wavi$bob:v'),
+          refused('is for @colin'));
+      expect(await notificationManager.get('spoof-4'), isNull);
+      expect(await notifStore.iterate().toList(), isEmpty);
+    });
 
     test('of a public key, which names no recipient, is refused', () async {
       await expectLater(
@@ -1670,10 +1629,17 @@ void main() {
       expect(await notificationManager.get('spoof-5'), isNull);
     });
 
-    test('of text, which has no sharedBy, is stored', () async {
-      await deliver('notify:id:text-1:update:messageType:text:$alice:hello');
-      expect(await notificationManager.get('text-1'), isNotNull);
-    });
+    for (final recipient in ['$alice', '@colin']) {
+      test('of text for $recipient is answered with success, and nothing '
+          'stored', () async {
+        final response = await deliver(
+            'notify:id:text-1:update:messageType:text:$recipient:hello');
+        expect(response.data, 'data:success',
+            reason: 'a sender that still sends text must not retry it');
+        expect(await notificationManager.get('text-1'), isNull);
+        expect(await notifStore.iterate().toList(), isEmpty);
+      });
+    }
 
     test('compares normalised atSigns', () async {
       await deliver('notify:id:norm-1:update:messageType:key:ttr:100000'
@@ -1682,5 +1648,49 @@ void main() {
       expect(await keyValueStore.exists('cached:$alice:phone.wavi$bob'),
           isTrue);
     });
+  });
+
+  group('A text notification from a client', () {
+    late NotifyVerbHandler notifyVerbHandler;
+    setUp(() async {
+      await verbTestsSetUp();
+      notifyVerbHandler = NotifyVerbHandler(keyValueStore, notificationManager);
+      inboundConnection.metadata
+        ..isAuthenticated = true
+        ..authType = AuthType.cram;
+    });
+    tearDown(() async => await verbTestsTearDown());
+
+    test('is refused, and nothing stored', () async {
+      final control = await notifyVerbHandler.processInternal(
+          'notify:id:key-1:update:messageType:key:@bob:phone.wavi$alice:v',
+          inboundConnection);
+      expect(control.data, 'key-1', reason: 'control: a key notification');
+
+      await expectLater(
+          notifyVerbHandler.processInternal(
+              'notify:id:text-1:update:messageType:text:@bob:hello',
+              inboundConnection),
+          throwsA(isA<InvalidSyntaxException>().having((e) => e.message,
+              'message', 'messageType:text is no longer supported')));
+      expect(await notificationManager.get('text-1'), isNull);
+    });
+  });
+
+  group('info', () {
+    setUp(() async => await verbTestsSetUp());
+    tearDown(() async => await verbTestsTearDown());
+
+    for (final command in ['info', 'info:brief']) {
+      test('$command lists notify.text as Retired', () async {
+        final response = await InfoVerbHandler(keyValueStore)
+          .processInternal(command, inboundConnection);
+      final List features = jsonDecode(response.data!)['features'];
+      // FROZEN: the name and status a client or peer reads to learn
+      // messageType:text is refused.
+      expect(features.where((f) => f['name'] == 'notify.text').single['status'],
+          'Retired');
+      });
+    }
   });
 }
