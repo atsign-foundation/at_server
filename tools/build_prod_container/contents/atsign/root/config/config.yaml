@@ -1,0 +1,13 @@
+server:
+  # The port on which root server runs.
+  port: 64
+  # The port on which to have an https server listening
+  httpsPort: 443
+  # Whether to enable an https server
+  httpsEnabled: true
+log:
+  debug: false
+security:
+  useSSL: true
+  certificateChainLocation: 'certs/fullchain.pem'
+  privateKeyLocation: 'certs/privkey.pem'
