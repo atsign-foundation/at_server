@@ -46,10 +46,29 @@ Feature: Namespace rules, and who sets them
       | lookup:status.chat@alice          |
       | lookup:all:status.chat@alice      |
 
+  Scenario: Another atServer cannot open a stream
+    Given @chuck's atServer has a pol-authenticated connection to @alice's atServer
+    When @chuck's atServer sends "stream:init@alice namespace:invitations.chat 1 photo.jpg 1024"
+    Then @alice's atServer answers with the invalid-syntax error, AT0003
+
   Scenario: A closed namespace accepts an atSign it has admitted
     Given namespace "chat" on @alice's atServer is closed, admitting only @bob
     When @bob's atServer sends "notify:id:2:@alice:msg.chat@bob"
     Then @alice's atServer answers "data:success"
+
+  Scenario: A value reference resolves only into a namespace where the atSign is admitted
+    Given @bob is admitted in "chat" and in no other namespace on @alice's atServer
+    And @alice's atServer holds "@bob:card.chat@alice" with the value "atsign://photo.photos@alice"
+    And @alice's atServer holds "@bob:photo.photos@alice"
+    When @bob's atServer sends "lookup:card.chat@alice"
+    Then @alice's atServer answers "data:null"
+
+  Scenario: A value reference into a namespace where the atSign is admitted resolves as today
+    Given @bob is admitted in "chat" and in "photos" on @alice's atServer
+    And @alice's atServer holds "@bob:card.chat@alice" with the value "atsign://photo.photos@alice"
+    And @alice's atServer holds "@bob:photo.photos@alice"
+    When @bob's atServer sends "lookup:card.chat@alice"
+    Then @alice's atServer answers with the value of "@bob:photo.photos@alice"
 
   Scenario: An open namespace refuses an atSign denied there
     Given namespace "photos" on @alice's atServer is open, with @chuck denied

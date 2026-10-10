@@ -82,11 +82,6 @@ Feature: Exchanges with no namespace
     When @dave's atServer sends "lookup:location@alice"
     Then @alice's atServer answers with the not-accepted error
 
-  Scenario: A stream with no namespace is refused, even from an admitted atSign
-    Given @dave is admitted in "chat" on @alice's atServer
-    When @dave's atServer opens a stream to @alice with no namespace
-    Then @alice's atServer answers with the not-accepted error
-
   Scenario: @alice's lookup of a shared key goes out only to an atSign admitted somewhere
     Given @dave is admitted nowhere on @alice's atServer
     When @alice's client sends "lookup:shared_key@dave"

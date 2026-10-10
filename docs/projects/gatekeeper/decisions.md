@@ -8,8 +8,11 @@ say.
 
 *2026-10-10, gkc.*
 
-Inbound, it covers notify, lookup, scan, notify:list and stream on a
-pol-authenticated connection. Outbound, @alice's atServer applies @alice's
+Inbound, it covers notify, lookup, scan and notify:list on a
+pol-authenticated connection. (As first ruled, this included stream. No wire
+connection can reach the stream verb, which `ConnectionUtil.validate` refuses
+as an invalid verb, and stream is being deprecated, so gkc took it out of scope
+on 2026-10-10.) Outbound, @alice's atServer applies @alice's
 rules to notification delivery (explicit notifies and auto-notify), remote
 lookup and scan, and cache refresh. Public data (`plookup`) stays outside the
 gate.
@@ -64,8 +67,9 @@ atSign-wide admitted set:
 - text notifications, until they are retired.
 
 Every other exchange with no namespace is refused once the gate applies. That
-covers namespace-less keys other than `shared_key`, and streams with no
-namespace. Being quarantined somewhere does not count as admitted. The
+covers namespace-less keys other than `shared_key`. (Streams with no
+namespace were listed here too, until stream left the gate's scope; see D1.)
+Being quarantined somewhere does not count as admitted. The
 atSign-wide blocklist still overrides everything.
 
 As first ruled, D4 permitted *every* exchange with no namespace on the same
@@ -181,15 +185,15 @@ the question gave; gkc confirmed it on 2026-10-10 when agreeing
   to admitted namespaces.)
 - So the first inbound exchange of any kind from an atSign in none of the sets
   makes it quarantined in that namespace, because counting needs a counter.
-- A stream from an atSign that is not admitted is refused.
+- (As first ruled, a stream from an atSign that is not admitted was refused
+  here. Stream has since left the gate's scope; see D1.)
 
 **Why:** reads are what a badly written application's mistaken shares are
 exposed through (D1), so a sender that is not admitted pays for them out of the
 same small allowance as its notifications.
 
 That a lookup quarantines an atSign in none of the sets follows from the
-ruling. That streams are refused came from the recommended option the ruling
-did not pick. gkc confirmed both on 2026-10-10 when agreeing
+ruling, and gkc confirmed it on 2026-10-10 when agreeing
 `features/quarantine.feature`.
 
 ## D9 Every gate refusal is final, and says which of three it is
@@ -465,7 +469,29 @@ functional and e2e packs prove the scenarios that need two real atServers. All
 three live packs run before the PR. The table is in [design.md, section 10](design.md#10-tests).
 
 **Why:** most of the spec is one atServer's answer to one command, which a unit
-test proves fastest and most precisely. D18's tail, an older atServer retrying a
-refusal, is proven on the recipient's side only, by a unit test with a retrying
-double, since no pack runs a released atServer against the branch, and building
-such a rig was not judged worth it.
+test proves fastest and most precisely.
+
+*Correction, the same day:* the ruling also said that D18's tail, an older
+atServer retrying a refusal, is proven on the recipient's side only, since no
+pack runs a released atServer against the branch. That premise was false. In
+CI, `end2end_test_34` pairs @cicd3 on the branch's image with @cicd4 on
+`atsigncompany/secondary:prod`, and `end2end_test_56` pairs @cicd5 on `:prod`
+with @cicd6 on the branch (`tools/cicd1x64/update_image.sh`,
+`tools/cicd2x64/update_image.sh`). Asked again with that corrected, gkc kept the
+unit test only: an e2e test of the tail would stop meaning anything once
+`:prod` itself carries D18.
+
+## D23 A value reference resolves only into an admitted namespace
+
+*2026-10-10, gkc.*
+
+When a lookup from another atSign answers a value holding an `atsign://`
+reference, the reference resolves only to a key in a namespace where that
+atSign is admitted. A reference into any other namespace is treated as a key
+that is not there, so an unresolved reference is answered null, as it is today.
+Nothing is counted across namespaces (as D14). References to `public:` keys are
+unchanged, since public data is outside the gate (D1).
+
+**Why:** `resolveValueReference` looks a reference up in any namespace, so
+without this an atSign admitted in one namespace could read a key shared with
+it in another.

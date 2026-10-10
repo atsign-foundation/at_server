@@ -26,10 +26,9 @@ Inbound, on a pol-authenticated connection:
 | Path | What it asks |
 |---|---|
 | `NotifyVerbHandler._handlePolAuthenticatedConnection` | admit, count and cap the notification, and suppress ttr effects when quarantined (D7.6) |
-| `LookupVerbHandler._handlePolAuthConnection` | admit or count the lookup (D8), and apply D4 to `shared_key` |
+| `LookupVerbHandler._handlePolAuthConnection` | admit or count the lookup (D8), apply D4 to `shared_key`, and resolve a value reference only into a namespace where the asker is admitted (D23), since `resolveValueReference` looks up `@<from>:<ref>` in any namespace |
 | `ScanVerbHandler`, pol branch | filter entries to namespaces where the atSign is admitted (D14) |
 | `NotifyListVerbHandler`, pol branch | the same filter (D14) |
-| `StreamVerbHandler`, `init` | refuse a stream from an atSign not admitted (D8), or with no namespace (D4) |
 
 Outbound, on @alice's own behalf:
 
@@ -37,10 +36,12 @@ Outbound, on @alice's own behalf:
 |---|---|
 | `NotifyVerbHandler._handleAuthenticatedConnection` | refuse before queueing (D9.4) |
 | `AbstractUpdateVerbHandler` and `DeleteVerbHandler` auto-notify | refuse locally, so nothing is queued (D13) |
-| `NotifyAllVerbHandler`, and the stream's notification | the same, per recipient |
+| `NotifyAllVerbHandler` | the same, per recipient |
 | `PerAtSignNotifSender.send` | check again at each delivery attempt (D12), and on a gate refusal from the recipient, mark the notification `refused` and stop (D9.1) |
 | `LookupVerbHandler`, remote branch, and `ScanVerbHandler`, remote branch | refuse before connecting, and filter a remote scan's answer (`outbound.feature`) |
-| `AtCacheManager.remoteLookUp` | refuse a refresh before connecting, delete the cached copy on refusal (D12), and skip the write if admission was lost while the refresh was in flight ([section 4](#4-concurrency)) |
+| `AtCacheManager.remoteLookUp` | refuse before connecting, except for `cached:public:` keys, which are `plookup`'s path and outside the gate (D1) |
+| `AtCacheRefreshJob` | it calls `remoteLookUp` with `maintainCache: false` and writes the refreshed copy itself, so the job deletes the cached copy on a refusal (D12) and skips its write if admission was lost while the refresh was in flight ([section 4](#4-concurrency)) |
+| `NotificationManager.reEnqueueUndelivered`, at startup | nothing of its own; the delivery re-check covers what it re-queues |
 
 Never consulted: `PolVerbHandler`'s verification lookups (D1), `plookup` and
 other public reads (D1), and notifications whose type is `self`.
@@ -75,6 +76,10 @@ refused, beside `refuseTelemetryKeyMutation` in `AbstractVerbHandler`, and
 admits a `local:` key are `llookup` and `notify`, since their `atKey` allows a
 colon, and `update:json`, which takes its key from the document. The plain
 `update`, `update:meta` and `delete` patterns exclude a colon from the key.
+Two more verbs reach a `local:` key without that grammar: `lookup` on an
+owner connection looks up a key containing a colon as given, and `keys:get` and
+`keys:delete` take any key name and never call `isAuthorized`. The guard
+therefore sits in those handlers as well as beside `refuseTelemetryKeyMutation`.
 `batch` hands each of its commands to that verb's own handler
 (`verbHandlerManager.getVerbHandler`), so it meets the same guard. The guard
 tests the key the handler finally resolves, so `update:json` meets it too.
@@ -105,6 +110,10 @@ Decided in D21.
   each attempt (D12). An admission lost between the check and the write to the
   socket can let one notification through. That window is the length of one
   send, and it is accepted.
+- A soft restart builds a new `VerbHandlerManager`, and with it new handlers
+  (`AtSecondaryServerImpl`). The `Gatekeeper` and its mutex are owned by the
+  server instance instead, and reload their state from the `local:` records
+  when it starts.
 - Whether the mutex should split per namespace is for the bench ([section 9](#9-performance)) to show.
 
 ## 5. Wire changes
@@ -114,7 +123,9 @@ Decided in D21.
 A new verb, `gate:` (D19), with the grammar `rules.feature` gives. The verb is accepted only on a connection the owner
 authenticated (PKAM or CRAM), and its authorisation is D5's: `rw` on the
 namespace to change it, `r` to read it, and a root enrollment for the default
-and the atSign-wide admitted set.
+and the atSign-wide admitted set. `gate` joins `at_server_spec`'s `AtVerb`
+with `requiresAuth: true`, since `ConnectionUtil.validate` refuses any verb the
+enum does not list before a handler sees it.
 
 ### 5.2 Error codes
 
@@ -128,7 +139,14 @@ the highest code in use:
 | AT0035 | `QuarantineSizeException` | the command exceeds the size cap |
 
 A sending atServer treats exactly these three as final (D9.1). Every other error
-keeps today's retry.
+keeps today's retry. Two consequences:
+
+- `GlobalExceptionHandler` answers an exception type it does not list as
+  `InternalServerException` and closes the connection, so the three join the
+  list it answers on an open connection (D9.3).
+- The sending atServer decodes an `error:` reply through at_commons'
+  `AtExceptionUtils.get` (`OutboundMessageListener`), so it needs an at_commons
+  that knows the three codes.
 
 ### 5.3 Notification status
 
@@ -141,7 +159,10 @@ keeps today's retry.
 `notify:list` and `notify:fetch`. Without it, a quarantined notification is
 left out, or for `notify:fetch` answered as for no such notification
 (`quarantine.feature`). The flag widens what is returned only within the
-namespaces the enrollment may already read.
+namespaces the enrollment may already read. An older atServer does not refuse
+the flag; it misreads it (`notify:list:quarantined` takes `quarantined` as the
+regex, `notify:fetch:<id>:quarantined` as part of the id, and only `monitor`
+answers invalid syntax). So a client sends it only when `info` lists `gate`.
 
 ### 5.5 Advertising the gate
 
@@ -178,7 +199,9 @@ record holding it, so the change pins the byte with a raw-literal test.
   `refused` status. A released client sees no change until a rule binds it.
   Then its notify can be answered with AT0033. `AtExceptionUtils.get`
   turns a code it does not know into a plain `AtException` carrying the
-  description (read on at_commons trunk, not on each released version).
+  description (read on at_commons trunk, not on each released version). A
+  released client polling `notify:status` stops on `refused` as it stops on
+  `errored` or `expired` today, without calling back (`_getFinalNotificationStatus`).
 - **Every atServer implementation** carries the same verb, codes, status and
   flags. at_commons carries the grammar and the error codes.
 
@@ -210,6 +233,8 @@ outline's title.
 | e2e pack, `tests/at_end2end_test` | the same cross-atServer subset, across separate hosts in CI |
 | Onboarding-CLI pack | no scenario of its own; it runs before the PR, because the keystore and notification storage change |
 
-D18's tail, an older atServer retrying a refusal, is proven on the
-recipient's side only, by a unit test with a retrying double. No pack runs a
-released atServer against the branch.
+In CI, two of the e2e pairs run the branch against a released atServer:
+`end2end_test_34` (@cicd3 on the branch, @cicd4 on
+`atsigncompany/secondary:prod`) and `end2end_test_56` (@cicd5 on `:prod`, @cicd6
+on the branch). D18's tail is still proven by the unit test alone (D22), since
+an e2e test of it would stop meaning anything once `:prod` carries D18.

@@ -174,11 +174,6 @@ Feature: Quarantine in open namespaces
     When @chuck's atServer sends "notify:id:20:@alice:inv20.invitations.chat@chuck"
     Then @alice's atServer answers with the not-accepted error
 
-  Scenario: A stream from an atSign not admitted is refused
-    Given @chuck is quarantined in "invitations.chat"
-    When @chuck's atServer opens a stream to @alice in "invitations.chat"
-    Then @alice's atServer answers with the not-accepted error
-
   Scenario: A scan answers only entries in namespaces where the atSign is admitted
     Given @bob is admitted in "chat" and quarantined in "invitations.chat"
     And @alice's atServer holds "@bob:status.chat@alice" and "@bob:profile.invitations.chat@alice"

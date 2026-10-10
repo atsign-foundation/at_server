@@ -14,10 +14,10 @@ No spec question is open. The spec was agreed file by file:
 
 | File | State |
 |---|---|
-| [rules.feature](features/rules.feature) | agreed 2026-10-10, with D20's addition |
-| [namespace_less.feature](features/namespace_less.feature) | agreed 2026-10-10 |
+| [rules.feature](features/rules.feature) | agreed 2026-10-10, with the additions from D20 and D23, and stream's removal |
+| [namespace_less.feature](features/namespace_less.feature) | agreed 2026-10-10, less the stream scenario |
 | [outbound.feature](features/outbound.feature) | agreed 2026-10-10 |
-| [quarantine.feature](features/quarantine.feature) | agreed 2026-10-10, with D20's two additions |
+| [quarantine.feature](features/quarantine.feature) | agreed 2026-10-10, with D20's two additions, less the stream scenario |
 | [refusals.feature](features/refusals.feature) | agreed 2026-10-10 |
 
 ## Design

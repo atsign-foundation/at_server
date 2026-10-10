@@ -58,7 +58,9 @@ What follows was read at at_server trunk `7f003a6a` on 2026-10-10.
   closed. Nothing consults it on the way out, so @alice's atServer still
   delivers notifications to a blocked atSign and looks up its keys.
 - **Inbound exchanges.** The verb handlers that branch on a pol-authenticated
-  connection are lookup, scan, notify, notify:list and stream.
+  connection are lookup, scan, notify, notify:list and stream. Stream cannot be
+  reached on any wire connection: `ConnectionUtil.validate` refuses it as an
+  invalid verb, since `at_server_spec`'s `AtVerb` does not list it.
 - **Outbound exchanges.** For its own clients, @alice's atServer delivers
   notifications, looks up and scans another atSign's keys, and proxies
   `plookup` through `OutboundClientManager`. It also does work of its own:
