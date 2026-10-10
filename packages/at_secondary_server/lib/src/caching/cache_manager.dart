@@ -126,6 +126,7 @@ class AtCacheManager {
   /// Note: This method will always use the lookup operation 'all', so that it can fully update the cache.
   Future<AtData?> remoteLookUp(String cachedKeyName,
       {bool maintainCache = false}) async {
+    cachedKeyName = canonicalAtKey(cachedKeyName);
     logger.info("remoteLookUp: $cachedKeyName");
     if (!cachedKeyName.startsWith('cached:')) {
       throw IllegalArgumentException(
@@ -229,10 +230,12 @@ class AtCacheManager {
   /// Whether [cachedKeyName] is a copy this atServer no longer keeps: a copy
   /// of another atSign's public record that carries no ttr, or a ttr of 0,
   /// other than its encryption public key.
-  static bool isCopyNotKept(String cachedKeyName, AtMetaData? metaData) =>
-      cachedKeyName.startsWith('cached:public:') &&
-      !cachedKeyName.startsWith('cached:public:publickey@') &&
-      (metaData?.ttr == null || metaData?.ttr == 0);
+  static bool isCopyNotKept(String cachedKeyName, AtMetaData? metaData) {
+    final String name = canonicalAtKey(cachedKeyName);
+    return name.startsWith('cached:public:') &&
+        !name.startsWith('cached:public:publickey@') &&
+        (metaData?.ttr == null || metaData?.ttr == 0);
+  }
 
   /// Fetch the currently cached value, if any.
   /// * If [applyMetadataRules] is false, return whatever is found in the [keyStore]
@@ -305,6 +308,7 @@ class AtCacheManager {
   /// If the cached key name starts with 'cached:public:publickey@' then it
   /// has special handling logic - see [putCachedPublicKey]
   Future<CacheUpdateResult> put(String cachedKeyName, AtData atData) async {
+    cachedKeyName = canonicalAtKey(cachedKeyName);
     logger.info("put: $cachedKeyName");
     if (!cachedKeyName.startsWith('cached:')) {
       throw IllegalArgumentException(

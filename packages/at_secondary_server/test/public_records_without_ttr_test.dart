@@ -99,14 +99,34 @@ void main() {
         .called(1);
   });
 
-  test('Another atSign\'s encryption public key is still kept indefinitely',
-      () async {
-    bobAnswers('publickey$bob', bobsRecord('bobs public key'));
+  group('Another atSign\'s encryption public key is still kept indefinitely',
+      () {
+    test('plookup:all:publickey@bob', () async {
+      bobAnswers('publickey$bob', bobsRecord('bobs public key'));
 
-    await plookup.process('plookup:all:publickey$bob', inboundConnection);
+      await plookup.process('plookup:all:publickey$bob', inboundConnection);
 
-    final AtData? copy = await keyValueStore.get(cachedBobsPublicKeyName);
-    expect(copy?.metaData?.ttr, -1);
+      final AtData? copy = await keyValueStore.get(cachedBobsPublicKeyName);
+      expect(copy?.metaData?.ttr, -1);
+    });
+
+    test('and a plookup spelling it in another case keeps it too', () async {
+      bobAnswers('publickey$bob', bobsRecord('bobs public key'));
+      bobAnswers('PublicKey$bob', bobsRecord('bobs public key'));
+      await plookup.process('plookup:all:publickey$bob', inboundConnection);
+      expect(await keyValueStore.exists(cachedBobsPublicKeyName), true);
+
+      await plookup.process(
+          'plookup:bypassCache:true:all:PublicKey$bob', inboundConnection);
+
+      expect(await keyValueStore.exists(cachedBobsPublicKeyName), true,
+          reason: 'the kept copy survives a plookup spelling it otherwise');
+      expect((await keyValueStore.get(cachedBobsPublicKeyName))?.metaData?.ttr,
+          -1);
+      expect(
+          atCommitLog.getLatestCommitEntry(cachedBobsPublicKeyName)?.operation,
+          isNot(CommitOp.DELETE));
+    });
   });
 
   group('A leftover copy goes the next time the record is looked up', () {
