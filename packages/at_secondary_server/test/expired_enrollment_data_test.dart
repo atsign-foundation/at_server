@@ -215,6 +215,21 @@ void main() {
     }
   });
 
+  test('a lookup moves nothing for a record not yet available', () async {
+    final String enId = (await etu.createEnrollments(n: 1)).$1.first;
+    final String ek = enMgr.buildEnrollmentKey(enId);
+    await keyValueStore.putMeta(ek, AtMetaData()..ttb = 60000);
+    expect((await enMgr.getEnrollmentById(enId)).approval?.state,
+        EnrollmentStatus.expired.name,
+        reason: 'the read labels a record that is not yet available expired');
+
+    await enMgr.moveExpiredEnrollmentData('x.$enId.a.__e$alice');
+
+    expect(await keyValueStore.exists(ek), true,
+        reason: 'only a record whose expiry has passed is removed, as the '
+            'expired-keys pass removes it');
+  });
+
   test('A lookup and the expiry sweep reach an expired enrollment at once',
       () async {
     final (enId, keys, values) = await expiredEnrollment();
@@ -278,6 +293,9 @@ class _ParkAfterRemove extends Mock
 
   @override
   Future<AtData?> get(String key) => inner.get(key);
+
+  @override
+  Future<AtMetaData?> getMeta(String key) => inner.getMeta(key);
 
   @override
   Future<int?> put(String key, AtData value,

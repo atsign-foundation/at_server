@@ -57,7 +57,8 @@ class EnrollmentManager {
 
   /// Removes the enrollment whose per-enrollment namespace holds [key], as
   /// the expired-keys pass would, when [key] is this atSign's data and that
-  /// enrollment has expired; its data is then at `perEnrollmentDeleted`.
+  /// enrollment's expiry has passed; its data is then at
+  /// `perEnrollmentDeleted`.
   ///
   /// Only lookups of an enrollment's own data call this, never the
   /// enrollment reads every verb makes. The data moves in [preRemoveHook],
@@ -79,13 +80,17 @@ class EnrollmentManager {
     }
   }
 
+  /// Whether enrollment [enId]'s record is stored and its expiry has passed,
+  /// which is what the expired-keys pass removes it on.
   Future<bool> _hasExpired(String enId) async {
+    final AtMetaData? metaData;
     try {
-      return (await getEnrollmentById(enId)).approval?.state ==
-          EnrollmentStatus.expired.name;
+      metaData = await keyStore.getMeta(buildEnrollmentKey(enId));
     } on KeyNotFoundException {
       return false;
     }
+    final DateTime? expiresAt = metaData?.expiresAt;
+    return expiresAt != null && !expiresAt.isAfter(DateTime.now().toUtc());
   }
 
   /// Throws the [KeyNotFoundException] a read of an absent [key] throws, when
