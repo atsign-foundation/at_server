@@ -61,6 +61,14 @@ void main() {
     return (manager, store);
   }
 
+  /// Each of [keys] was written to d.__e exactly once.
+  void expectEachMovedOnce(_ParkAfterRemove store, List<String> keys) {
+    expect(store.puts, {
+      for (final String key in keys)
+        at(key, EnrollmentConstants.perEnrollmentDeleted): 1
+    });
+  }
+
   group('removing an enrollment', () {
     test('moves its data to d.__e and commits nothing for it', () async {
       const int ttl = 150;
@@ -243,24 +251,32 @@ void main() {
     await Future.wait([lookup, sweep]);
 
     await expectRemovedAsBySweep(enId, keys, values);
+    expectEachMovedOnce(store, keys);
   });
 
   test('Two lookups reach an expired enrollment at once', () async {
     final (enId, keys, values) = await expiredEnrollment();
     final (manager, store) = parkedAfterRemoving(keys.first);
 
-    final Future<void> first = manager.moveExpiredEnrollmentData(keys.first);
+    /// What a lookup does before it reads: move, then refuse lapsed data.
+    Future<void> lookUp() async {
+      await manager.moveExpiredEnrollmentData(keys.first);
+      await manager.refuseLapsedApprovedData(keys.first);
+    }
+
+    final Future<void> first = lookUp();
     await store.parked.future;
-    final Future<void> second = manager.moveExpiredEnrollmentData(keys.first);
+    final Future<void> second = lookUp();
     await Future.delayed(const Duration(milliseconds: 100));
     store.release();
-    await Future.wait([first, second]);
 
+    await Future.wait([
+      for (final Future<void> each in [first, second])
+        expectLater(each, throwsA(isA<KeyNotFoundException>()),
+            reason: 'each lookup is told the a.__e key does not exist'),
+    ]);
     await expectRemovedAsBySweep(enId, keys, values);
-    await expectLater(
-        manager.refuseLapsedApprovedData(keys.first),
-        throwsA(isA<KeyNotFoundException>()),
-        reason: 'both lookups are told the a.__e key does not exist');
+    expectEachMovedOnce(store, keys);
   });
 }
 
@@ -297,12 +313,16 @@ class _ParkAfterRemove extends Mock
   @override
   Future<AtMetaData?> getMeta(String key) => inner.getMeta(key);
 
+  /// How many times each key was written through this store.
+  final Map<String, int> puts = {};
+
   @override
   Future<int?> put(String key, AtData value,
-          {bool skipCommit = false,
-          AtAssertedTimestamps? assertedTimestamps}) =>
-      inner.put(key, value,
-          skipCommit: skipCommit, assertedTimestamps: assertedTimestamps);
+      {bool skipCommit = false, AtAssertedTimestamps? assertedTimestamps}) {
+    puts[key] = (puts[key] ?? 0) + 1;
+    return inner.put(key, value,
+        skipCommit: skipCommit, assertedTimestamps: assertedTimestamps);
+  }
 
   @override
   Future<bool> exists(String key) => inner.exists(key);
