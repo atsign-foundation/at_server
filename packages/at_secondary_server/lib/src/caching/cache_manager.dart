@@ -206,8 +206,7 @@ class AtCacheManager {
             atData.metaData!.ttr = -1;
           } else {
             shouldCache = false;
-            if (cachedKeyName.startsWith('cached:public:') &&
-                await keyStore.exists(cachedKeyName)) {
+            if (cachedKeyName.startsWith('cached:public:')) {
               await delete(cachedKeyName);
             }
           }
@@ -273,12 +272,16 @@ class AtCacheManager {
     return null;
   }
 
-  /// Delete cached record
+  /// Delete cached record, if there is one; nothing is committed when there
+  /// is not
   Future<void> delete(String cachedKeyName) async {
     logger.info("delete: $cachedKeyName");
     if (!cachedKeyName.startsWith('cached:')) {
       throw IllegalArgumentException(
           'AtCacheManager.delete called with invalid cachedKeyName $cachedKeyName');
+    }
+    if (!await keyStore.exists(cachedKeyName)) {
+      return;
     }
 
     try {
