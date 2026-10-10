@@ -404,7 +404,8 @@ class EnrollmentManager {
       RegExp(EnrollmentConstants.regexForPerEnrollmentNamespaces);
 
   /// Moves everything in `<enId>.[ard].__e` to [to], and returns the keys
-  /// that were moved.
+  /// that were moved. A move to `perEnrollmentDeleted` commits nothing: no
+  /// client of a removed enrollment syncs again.
   @visibleForTesting
   Future<List<String>> movePerEnrollmentData(
     String enId, {
@@ -427,6 +428,7 @@ class EnrollmentManager {
       case EnrollmentConstants.perEnrollmentDeleted:
       case EnrollmentConstants.perEnrollmentApproved:
         List<String> moved = [];
+        final bool skipCommit = to == EnrollmentConstants.perEnrollmentDeleted;
         final RegExp perEnrollmentRegex =
             RegExp(EnrollmentConstants.regexForPerEnrollmentNamespaces);
         await for (final String fromKey in await keyStore.getKeys(
@@ -447,8 +449,8 @@ class EnrollmentManager {
           }
 
           AtData data = (await keyStore.get(fromKey))!;
-          await keyStore.put(toKey, data, skipCommit: false);
-          await keyStore.remove(fromKey);
+          await keyStore.put(toKey, data, skipCommit: skipCommit);
+          await keyStore.remove(fromKey, skipCommit: skipCommit);
           moved.add(fromKey);
         }
         return moved;
@@ -481,10 +483,12 @@ class EnrollmentManager {
   final RegExp ekRegex = RegExp(EnrollmentConstants.regexForEnrollmentKey);
 
   /// Moves an enrollment's per-enrollment data to `perEnrollmentDeleted`,
-  /// called before any key in the keystore is removed.
+  /// called before any key in the keystore is removed. Runs inside
+  /// [serialiseMutation], so two removals of one enrollment move its data
+  /// once.
   Future preRemoveHook(String key, {required bool skipCommit}) async {
     if (ekRegex.hasMatch(key)) {
-      await _preRemove(ek: key);
+      await serialiseMutation(() => _preRemove(ek: key));
     }
   }
 
