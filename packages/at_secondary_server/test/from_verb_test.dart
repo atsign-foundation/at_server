@@ -219,6 +219,42 @@ void main() async {
       expect(connection.metaData.fromAtSign, isNull);
     });
 
+    group(
+        'A from: naming the atSign the connection proved is answered as before',
+        () {
+      test('on an owner connection', () async {
+        connection.metaData
+          ..self = true
+          ..isAuthenticated = true;
+
+        await verbHandler.process('from:@alice', connection);
+
+        expect(connection.lastWrittenData, startsWith('data:'));
+        expect(connection.closed, isFalse);
+        expect(connection.metaData.isAuthenticated, isTrue);
+      });
+
+      test('on a pol connection', () async {
+        connection.metaData
+          ..from = true
+          ..fromAtSign = '@chuck'.toAtsign()
+          ..isPolAuthenticated = true;
+
+        try {
+          await verbHandler.process('from:@chuck', connection);
+        } on SecondaryNotFoundException {
+          // NOTE with clientCertificateRequired, the certificate check that
+          // follows has no directory entry for @chuck in this harness.
+        }
+
+        expect(connection.lastWrittenData ?? '',
+            isNot(startsWith('error:AT0009')));
+        expect(connection.closed, isFalse);
+        expect(connection.metaData.fromAtSign, '@chuck'.toAtsign());
+        expect(connection.metaData.isPolAuthenticated, isTrue);
+      });
+    });
+
     test('a from: before authentication may be sent again', () async {
       await verbHandler.process('from:@alice', connection);
       await verbHandler.process('from:@alice', connection);
