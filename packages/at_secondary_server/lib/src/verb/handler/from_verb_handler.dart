@@ -64,11 +64,44 @@ class FromVerbHandler extends AbstractVerbHandler {
     return from;
   }
 
+  /// Whether [atConnection] has authenticated, by PKAM, CRAM or pol.
+  static bool _hasAuthenticated(InboundConnection atConnection) =>
+      atConnection.metaData.isAuthenticated ||
+      atConnection.metaData.isPolAuthenticated;
+
+  /// What a `from:` on a connection that has authenticated is answered with.
+  static const String alreadyAuthenticatedRefusal =
+      'from: is not accepted on a connection that has authenticated';
+
+  /// Answers a `from:` on a connection that has authenticated with AT0009 and
+  /// closes the connection; processes any other `from:` as usual.
+  @override
+  Future<void> process(String command, InboundConnection atConnection) async {
+    if (!_hasAuthenticated(atConnection)) {
+      return super.process(command, atConnection);
+    }
+    logger.warning('Closing session ${atConnection.metaData.sessionID}:'
+        ' $alreadyAuthenticatedRefusal');
+    final response = Response()
+      ..isError = true
+      ..errorCode = 'AT0009'
+      ..errorMessage = alreadyAuthenticatedRefusal;
+    await responseManager
+        .getResponseHandler(getVerb())
+        .process(atConnection, response);
+    await atConnection.close();
+  }
+
   @override
   Future<void> processVerb(
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
+    // NOTE a connection stays bound to the atSign it authenticated as, so this
+    // refusal comes before anything is written to the connection.
+    if (_hasAuthenticated(atConnection)) {
+      throw UnAuthorizedException(alreadyAuthenticatedRefusal);
+    }
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     atConfigInstance = AtConfig(keyStore, currentAtSign);
     atConnection.initiatedBy = currentAtSign;

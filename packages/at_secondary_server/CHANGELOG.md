@@ -27,6 +27,9 @@
   client that already synced its data keeps its copy), and an enrollment
   removed by two things at once no longer fails one of them.
 
+- fix: a `from:` on a connection that has already authenticated is answered
+  with AT0009, and the connection is closed.
+
 # 3.17.0
 - feat: a notification can be ephemeral (`eph`): no atServer stores it,
   it lives at most two minutes, and an atServer restart loses it. A client can
