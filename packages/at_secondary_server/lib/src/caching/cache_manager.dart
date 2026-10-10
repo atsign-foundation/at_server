@@ -118,7 +118,10 @@ class AtCacheManager {
   /// If [maintainCache] is set to true, then remoteLookUp will update the cache as required:
   ///   * If we get a KeyNotFoundException or a 'null' response, delete from the cache
   ///     (except for encryption public keys e.g. publickey@alice)
-  ///   * If we get a valid response, update the cache
+  ///   * If we get a valid response with a ttr, update the cache
+  ///   * If we get a valid response with no ttr, or a ttr of 0, cache nothing and
+  ///     delete any `cached:public:` copy (except for encryption public keys,
+  ///     which are cached with a ttr of -1)
   ///
   /// Note: This method will always use the lookup operation 'all', so that it can fully update the cache.
   Future<AtData?> remoteLookUp(String cachedKeyName,
@@ -196,17 +199,16 @@ class AtCacheManager {
           logger.severe(
               'No metadata in remote response for $remoteKeyName - will not cache');
         } else if (atData.metaData!.ttr == 0 || atData.metaData!.ttr == null) {
-          // ttr of zero or null means 'do not cache' according to the spec
-          shouldCache = false;
-          if (cachedKeyName.startsWith('cached:public:')) {
-            // HOWEVER: publickey@atSign should be cached with ttr of -1 (cache indefinitely)
-            if (cachedKeyName.startsWith('cached:public:publickey@')) {
-              shouldCache = true;
-              atData.metaData!.ttr = -1;
-            } else {
-              // AND: for backwards compatibility, we will temporarily cache other public data with a ttl of 24 hours
-              shouldCache = true;
-              atData.metaData!.ttl = 24 * 60 * 60 * 1000;
+          // ttr of zero or null means 'do not cache' according to the spec,
+          // except for another atSign's encryption public key
+          if (cachedKeyName.startsWith('cached:public:publickey@')) {
+            shouldCache = true;
+            atData.metaData!.ttr = -1;
+          } else {
+            shouldCache = false;
+            if (cachedKeyName.startsWith('cached:public:') &&
+                await keyStore.exists(cachedKeyName)) {
+              await delete(cachedKeyName);
             }
           }
         } else {

@@ -105,27 +105,6 @@ void main() {
     expect(response, contains('data:2-unicorn-emojis'));
   }, timeout: Timeout(Duration(seconds: 120)));
 
-  test('cached key creation when we do a lookup for a public key', () async {
-    ///UPDATE VERB
-    await sh1.writeCommand('update:public:key-1$atSign_1 9102');
-    String response = await sh1.read();
-    print('update verb response $response');
-    assert(
-        (!response.contains('Invalid syntax')) && (!response.contains('null')));
-
-    ///PLOOKUP VERB
-    await sh2.writeCommand('plookup:key-1$atSign_1');
-    response = await sh2.read();
-    print('plookup verb response $response');
-    expect(response, contains('data:9102'));
-
-    /// SCAN VERB
-    await sh2.writeCommand('scan');
-    response = await sh2.read();
-    print('scan verb response $response');
-    assert(response.contains('cached:public:key-1$atSign_1'));
-  }, timeout: Timeout(Duration(seconds: 120)));
-
   test('plookup verb with public key -updating same key multiple times',
       () async {
     /// UPDATE VERB
