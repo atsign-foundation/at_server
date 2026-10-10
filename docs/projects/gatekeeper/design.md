@@ -2,12 +2,11 @@
 
 The agreed behaviour is in [features/](features/), and the rulings behind it
 are in [decisions.md](decisions.md). This document says how the atServer
-delivers that behaviour. A section marked **proposed** is not yet agreed;
-[open-questions.md](open-questions.md) lists the forks still to settle.
+delivers that behaviour. gkc agreed it on 2026-10-10.
 
 ## 1. One gatekeeper, consulted by every exchange
 
-**Proposed.** A single `Gatekeeper` in `at_secondary_server` (`lib/src/gate/`)
+A single `Gatekeeper` in `at_secondary_server` (`lib/src/gate/`)
 owns the gate's state and answers one question for every exchange: given this
 atSign, this key or namespace, this direction and this kind of exchange, is it
 admitted, quarantined (and so counted and capped), or refused, and with which
@@ -57,7 +56,7 @@ keystore (D17). Both commit-log backends skip `local:` keys
 (`hive_at_commit_log.dart`, `sqlite_at_commit_log.dart`), so the records never
 sync.
 
-**Proposed** record layout, one record per namespace with a rule, plus three
+The record layout is one record per namespace with a rule, plus three
 atSign-wide records:
 
 | Record | Holds |
@@ -103,9 +102,10 @@ Decided in D21.
   (`rules.feature`, `@race`).
 - **A cache refresh in flight** (`refusals.feature`, `@race`): each
   (namespace, atSign) pair carries a generation that a loss of admission
-  increments. `AtCacheManager.remoteLookUp` reads the generation before it
-  connects, and writes the refreshed copy only if the generation is unchanged,
-  checking and writing under the mutex.
+  increments. Whatever writes a fetched copy into the cache, whether
+  `AtCacheRefreshJob` or `AtCacheManager.remoteLookUp` maintaining the cache,
+  reads the generation before it connects, and writes only if the generation is
+  unchanged, checking and writing under the mutex.
 - **A queued notification** is checked again by `PerAtSignNotifSender.send` at
   each attempt (D12). An admission lost between the check and the write to the
   socket can let one notification through. That window is the length of one
@@ -129,8 +129,8 @@ enum does not list before a handler sees it.
 
 ### 5.2 Error codes
 
-**Proposed**, as three exceptions in at_commons' `error_codes`, after AT0032,
-the highest code in use:
+Three exceptions in at_commons' `error_codes`, after AT0032, the highest code
+in use:
 
 | Code | Exception | Meaning |
 |---|---|---|
@@ -154,8 +154,8 @@ keeps today's retry. Two consequences:
 
 ### 5.4 Asking for quarantined notifications
 
-**Proposed**, by the precedent of monitor's `strict`, `selfNotifications` and
-`multiplexed` flags. `monitor` gains a `:quarantined` flag, and so do
+By the precedent of monitor's `strict`, `selfNotifications` and `multiplexed`
+flags, `monitor` gains a `:quarantined` flag, and so do
 `notify:list` and `notify:fetch`. Without it, a quarantined notification is
 left out, or for `notify:fetch` answered as for no such notification
 (`quarantine.feature`). The flag widens what is returned only within the
@@ -166,8 +166,8 @@ answers invalid syntax). So a client sends it only when `info` lists `gate`.
 
 ### 5.5 Advertising the gate
 
-**Proposed**, by the precedent of `InfoFeature.notifyEph` and
-`InfoFeature.notifyEAtn`. `info` lists a `gate` feature, so a client can tell
+By the precedent of `InfoFeature.notifyEph` and `InfoFeature.notifyEAtn`,
+`info` lists a `gate` feature, so a client can tell
 whether its atServer enforces the gate before it sets rules.
 
 ### 5.6 The notification mark
@@ -214,7 +214,7 @@ existing notification settings in `AtSecondaryConfig`.
 
 ## 9. Performance
 
-**Proposed.** The gatekeeper adds a check to every exchange between atSigns.
+The gatekeeper adds a check to every exchange between atSigns.
 The claim that it costs no storage read ([section 3](#3-state-and-its-records)) is a hypothesis until it is
 measured. Before the gate is built, a bench measures notify and lookup
 throughput between two atServers, and it runs again with the gate in place.

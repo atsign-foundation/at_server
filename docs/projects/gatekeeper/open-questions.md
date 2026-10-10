@@ -23,7 +23,14 @@ No spec question is open. The spec was agreed file by file:
 ## Design
 
 Q11 became D17, Q14 became D18, Q23 became D19, Q13 became D20, Q12 became D21 and Q15 became D22. No design fork is
-open. [design.md](design.md) is to be agreed as a whole.
+open, and gkc agreed [design.md](design.md) as a whole on 2026-10-10.
+
+## Next
+
+Implementation has not started. It follows spec-anchored step 4: the bench in
+[design.md, section 9](design.md#9-performance) comes first, then each scenario's proving test, then the
+code. It spans at_commons (in at_client_sdk), at_server, at_client, and every
+atServer implementation.
 
 The three checks this list held are answered in design.md: the SQLite codec
 decodes an unknown status as `null`, a client turns an unknown error code into a

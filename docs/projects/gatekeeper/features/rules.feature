@@ -5,7 +5,7 @@ Feature: Namespace rules, and who sets them
   quarantined, or closed, so that only its admitted set may. The atSign's
   default decides every namespace without a rule.
 
-  Commands spelled "gate:..." are provisional, and design settles them:
+  The gate verb's grammar (decision D19; design.md, section 5.1):
     gate:default                             the atSign's default
     gate:default:ungated | gate:default:closed
                                              switch the default

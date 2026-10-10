@@ -10,8 +10,8 @@ Feature: Quarantine in open namespaces
   every one of these, within limits the atServer operator sets: a ceiling for
   each, and a floor for W, since a shorter window is the more generous. The
   operator also sets an atSign-wide total of quarantined bytes held. Quarantined
-  notifications are marked, and reach only clients that ask for them. Commands
-  spelled "gate:..." are provisional (rules.feature).
+  notifications are marked, and reach only clients that ask for them. The gate
+  verb's grammar is in rules.feature.
 
   Race: two exchanges at the limit at once accept exactly one, and two
   atSigns seen for the first time competing for the last place admit exactly one

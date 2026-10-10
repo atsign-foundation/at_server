@@ -4,8 +4,8 @@ Feature: @alice's own outbound exchanges
   open namespace it reaches any atSign not denied there; in a closed one, only
   atSigns admitted there. Nothing @alice sends, looks up or scans changes
   another atSign's standing: an atSign @alice contacts first, and whose
-  replies should arrive unquarantined, is admitted by the application. Commands
-  spelled "gate:..." are provisional (rules.feature).
+  replies should arrive unquarantined, is admitted by the application. The gate
+  verb's grammar is in rules.feature.
 
   Race: a notification queued before its recipient lost admission is checked
   again at delivery (refusals.feature). Because sending changes no standing,

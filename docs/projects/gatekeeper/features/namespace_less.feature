@@ -7,7 +7,7 @@ Feature: Exchanges with no namespace
   notifications until they are retired. Every other exchange with no namespace
   is refused. Being quarantined somewhere does not count as admitted. Under the
   ungated default, namespace-less traffic passes as it does today
-  (rules.feature). Commands spelled "gate:..." are provisional (rules.feature).
+  (rules.feature). The gate verb's grammar is in rules.feature.
 
   Race: the standing read here is the one rules.feature changes, from the next
   exchange.

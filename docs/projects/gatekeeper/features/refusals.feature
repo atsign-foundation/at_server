@@ -12,7 +12,7 @@ Feature: Refusals, and losing admission
   the owner switches the default to closed, or when it is blocklisted. Keys
   shared with it and notifications already stored from it stay. Cached copies
   of its keys go, and a notification queued for it is checked again at
-  delivery. Commands spelled "gate:..." are provisional (rules.feature).
+  delivery. The gate verb's grammar is in rules.feature.
 
   Race: a notification queued before its recipient lost admission is checked
   again at delivery, and a cache refresh that completes after admission was
