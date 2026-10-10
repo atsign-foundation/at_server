@@ -1,4 +1,5 @@
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/caching/cache_refresh_job.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/proxy_lookup_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart' show AuthType;
@@ -133,5 +134,39 @@ void main() {
             reason: 'the removal is committed, so clients drop their copy');
       });
     }
+  });
+
+  test('The nightly refresh removes a leftover nobody looks up', () async {
+    final String record = 'phone.wavi$bob';
+    final String cached = 'cached:public:$record';
+    await keyValueStore.put(cached, AtData()..data = 'left over');
+    expect(await cacheManager.getKeyNamesToRefresh(), contains(cached),
+        reason: 'the refresh has to reach the leftover for this to mean '
+            'anything');
+    bobAnswers(record, bobsRecord('bobs current value'));
+
+    await AtCacheRefreshJob(alice, cacheManager).refreshNow();
+
+    expect(await keyValueStore.exists(cached), false);
+    expect(atCommitLog.getLatestCommitEntry(cached)?.operation,
+        CommitOp.DELETE);
+    verifyNever(() => mockOutboundConnection.write('lookup:all:$record\n'));
+  });
+
+  test('The nightly refresh leaves a shared copy alone', () async {
+    final String cached = 'cached:$alice:phone$bob';
+    await keyValueStore.put(cached, AtData()..data = 'shared before');
+    when(() => mockOutboundConnection.write('lookup:all:phone$bob\n'))
+        .thenAnswer((_) async {
+      final String json = SecondaryUtil.prepareResponseData(
+          'all', bobsRecord('shared now'),
+          key: '$alice:phone$bob')!;
+      socketOnDataFn('data:$json\n$alice@'.codeUnits);
+    });
+
+    await AtCacheRefreshJob(alice, cacheManager).refreshNow();
+
+    expect((await keyValueStore.get(cached))?.data, 'shared now',
+        reason: 'a shared copy is refreshed as before, not deleted');
   });
 }

@@ -206,7 +206,7 @@ class AtCacheManager {
             atData.metaData!.ttr = -1;
           } else {
             shouldCache = false;
-            if (cachedKeyName.startsWith('cached:public:')) {
+            if (isCopyNotKept(cachedKeyName, atData.metaData)) {
               await delete(cachedKeyName);
             }
           }
@@ -225,6 +225,14 @@ class AtCacheManager {
 
     return atData;
   }
+
+  /// Whether [cachedKeyName] is a copy this atServer no longer keeps: a copy
+  /// of another atSign's public record that carries no ttr, or a ttr of 0,
+  /// other than its encryption public key.
+  static bool isCopyNotKept(String cachedKeyName, AtMetaData? metaData) =>
+      cachedKeyName.startsWith('cached:public:') &&
+      !cachedKeyName.startsWith('cached:public:publickey@') &&
+      (metaData?.ttr == null || metaData?.ttr == 0);
 
   /// Fetch the currently cached value, if any.
   /// * If [applyMetadataRules] is false, return whatever is found in the [keyStore]

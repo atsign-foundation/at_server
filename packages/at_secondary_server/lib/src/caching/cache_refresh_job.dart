@@ -34,6 +34,7 @@ class AtCacheRefreshJob {
     int valueChanged = 0;
     int deletedByRemote = 0;
     int exceptionFromRemote = 0;
+    int leftoversDeleted = 0;
     try {
       var keysToRefresh = await cacheManager.getKeyNamesToRefresh();
 
@@ -42,6 +43,14 @@ class AtCacheRefreshJob {
         keysChecked++;
 
         var cachedKeyName = itr.current;
+        AtData? oldValue =
+            await cacheManager.get(cachedKeyName, applyMetadataRules: false);
+        if (AtCacheManager.isCopyNotKept(cachedKeyName, oldValue?.metaData)) {
+          await cacheManager.delete(cachedKeyName);
+          leftoversDeleted++;
+          continue;
+        }
+
         AtData? newValue;
 
         try {
@@ -64,20 +73,21 @@ class AtCacheRefreshJob {
           continue;
         }
 
-        // If old value and new value are equal, then do not update;
-        // Continue for next key.
-        AtData? oldValue =
-            await cacheManager.get(cachedKeyName, applyMetadataRules: false);
-        if (oldValue?.data == newValue.data) {
-          logger.finer(
-              '$cachedKeyName cached value is same as looked-up value. Not updating the cached key');
-          valueUnchanged++;
+        if (AtCacheManager.isCopyNotKept(cachedKeyName, newValue.metaData)) {
+          await cacheManager.delete(cachedKeyName);
+          leftoversDeleted++;
           continue;
         }
 
+        // Written whether or not the value changed, so that the copy's
+        // refreshAt moves on and it is served again
         await cacheManager.put(cachedKeyName, newValue);
-        valueChanged++;
-        logger.finer('Updated $cachedKeyName with $newValue');
+        if (oldValue?.data == newValue.data) {
+          valueUnchanged++;
+        } else {
+          valueChanged++;
+          logger.finer('Updated $cachedKeyName with $newValue');
+        }
       }
     } finally {
       if (pauseAfterFinishing != null) {
@@ -90,7 +100,8 @@ class AtCacheRefreshJob {
       "valueUnchanged": valueUnchanged,
       "valueChanged": valueChanged,
       "deletedByRemote": deletedByRemote,
-      "exceptionFromRemote": exceptionFromRemote
+      "exceptionFromRemote": exceptionFromRemote,
+      "leftoversDeleted": leftoversDeleted
     };
   }
 
