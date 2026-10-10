@@ -1,8 +1,11 @@
 # 3.17.1
 - fix: looking up another atSign's public record no longer leaves a copy on
-  this atServer unless the record has a `ttr`, and copies kept before are
-  removed. **App authors:** `cached:public:` finds nothing for such a record;
-  look the record up instead.
+  this atServer unless the record has a `ttr`, and the 24-hour copies kept
+  before are removed. **App authors:** `cached:public:` finds nothing for such
+  a record; look the record up instead.
+
+- fix: a `plookup` that spells `publickey` in another case no longer changes
+  this atServer's copy of another atSign's encryption public key.
 
 - fix: looking up a record that does not exist no longer adds an entry to
   every client's sync.
@@ -12,14 +15,17 @@
 
 - fix: the daily cache refresh runs at `runRefreshJobHour` (or
   `refreshJob.runJobHour` in config.yaml) when it is set, and otherwise at a
-  random hour; the shipped config.yaml no longer sets it to 3.
+  random hour; the shipped config.yaml no longer sets it to 3. **Operators:**
+  a config.yaml copied from an earlier shipped one still sets
+  `runJobHour: 3`, which now takes effect; remove it to get the random hour.
 
 - fix: the first `lookup`, `llookup` or HTTP GET of an expired enrollment's
   data moves that data to `.d.__e`, as the expired-keys pass does, rather than
   waiting for the pass.
 
-- fix: removing an enrollment no longer adds its data to clients' sync, and
-  an enrollment removed by two things at once no longer fails one of them.
+- fix: removing an enrollment no longer adds its data to clients' sync (a
+  client that already synced its data keeps its copy), and an enrollment
+  removed by two things at once no longer fails one of them.
 
 # 3.17.0
 - feat: a notification can be ephemeral (`eph`): no atServer stores it,
