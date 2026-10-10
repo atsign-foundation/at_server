@@ -41,7 +41,15 @@ class AtServerHttpRequestHandler {
         final String lookupKey = getKeyToLookup(decodedPath);
         logger.info('Key to look up: $lookupKey');
 
-        await enrollmentManager.moveExpiredEnrollmentData(lookupKey);
+        try {
+          await enrollmentManager.moveExpiredEnrollmentData(lookupKey);
+        } catch (error) {
+          logger.warning('Failed to move expired enrollment data for'
+              ' $lookupKey : $error');
+          request.response.statusCode = HttpStatus.internalServerError;
+          await request.response.close();
+          return;
+        }
         AtData? atData;
         try {
           await enrollmentManager.refuseLapsedApprovedData(lookupKey);

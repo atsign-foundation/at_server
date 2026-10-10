@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:at_base2e15/at_base2e15.dart';
 import 'package:at_commons/at_commons.dart' hide StringBuffer;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/server/http_request_handler.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:mocktail/mocktail.dart';
@@ -420,6 +421,25 @@ void main() async {
     expect(request.response.statusCode, HttpStatus.notFound);
     expect(request.response.bodyAsString, '404 Not Found');
   });
+
+  test('a failure moving an expired enrollment\'s data answers 500', () async {
+    final request = createRequest(
+        'GET', 'pub.0bf5a3c2-1111-4222-8333-944455556666.a.__e');
+
+    await AtServerHttpRequestHandler(alice, keyValueStore, _MoveFails())
+        .handle(request);
+
+    expect(request.response.statusCode, HttpStatus.internalServerError);
+  });
+}
+
+/// An EnrollmentManager whose move of an expired enrollment's data fails.
+class _MoveFails extends EnrollmentManager {
+  _MoveFails() : super(keyValueStore, alice);
+
+  @override
+  Future<void> moveExpiredEnrollmentData(String key) =>
+      throw DataStoreException('a move that fails');
 }
 
 class FakeHttpHeaders extends Fake implements HttpHeaders {
