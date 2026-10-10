@@ -37,6 +37,7 @@ class AtCacheRefreshJob {
     int deletedByRemote = 0;
     int exceptionFromRemote = 0;
     int leftoversDeleted = 0;
+    int writeFailed = 0;
     try {
       var keysToRefresh = await cacheManager.getKeyNamesToRefresh();
 
@@ -47,7 +48,10 @@ class AtCacheRefreshJob {
         var cachedKeyName = itr.current;
         AtData? oldValue =
             await cacheManager.get(cachedKeyName, applyMetadataRules: false);
-        if (AtCacheManager.isCopyNotKept(cachedKeyName, oldValue?.metaData)) {
+        if (oldValue == null) {
+          continue;
+        }
+        if (AtCacheManager.isCopyNotKept(cachedKeyName, oldValue.metaData)) {
           await cacheManager.delete(cachedKeyName);
           leftoversDeleted++;
           continue;
@@ -81,14 +85,20 @@ class AtCacheRefreshJob {
           continue;
         }
 
-        final bool unchanged = oldValue?.data == newValue.data;
+        final bool unchanged = oldValue.data == newValue.data;
         // An unchanged copy is written only when its ttr lets it be served,
         // so that its refreshAt moves on and it is served again
         if (unchanged && !_servable(newValue.metaData)) {
           valueUnchanged++;
           continue;
         }
-        await cacheManager.put(cachedKeyName, newValue);
+        try {
+          await cacheManager.put(cachedKeyName, newValue);
+        } catch (e) {
+          logger.warning('Failed to write the refreshed $cachedKeyName : $e');
+          writeFailed++;
+          continue;
+        }
         if (unchanged) {
           valueUnchanged++;
         } else {
@@ -108,7 +118,8 @@ class AtCacheRefreshJob {
       "valueChanged": valueChanged,
       "deletedByRemote": deletedByRemote,
       "exceptionFromRemote": exceptionFromRemote,
-      "leftoversDeleted": leftoversDeleted
+      "leftoversDeleted": leftoversDeleted,
+      "writeFailed": writeFailed
     };
   }
 
