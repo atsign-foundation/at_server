@@ -9,9 +9,9 @@ import 'test_utils.dart';
 /// What the cache REPORTS about another atSign's encryption public key when
 /// the remote answers "do not cache" (`ttr` of 0 or null).
 ///
-/// Every other public value in that case is given a 24-hour ttl as a
-/// backwards-compatibility measure. An encryption public key is the carve-out:
-/// it is kept indefinitely, spelled `ttr = -1` with no ttl.
+/// Every other public value in that case is not cached at all. An encryption
+/// public key is the carve-out: it is kept indefinitely, spelled `ttr = -1`
+/// with no ttl.
 ///
 /// The distinction that matters here is between what is STORED and what is
 /// RETURNED. Storage is unaffected by the guard: `OutboundClient.connect`
@@ -97,20 +97,21 @@ void main() {
           reason: 'an expiry is what would actually evict the record');
     });
 
-    test('any OTHER public value is still reported with the 24h ttl', () async {
+    test('any OTHER public value is reported as sent, and not cached',
+        () async {
       // The control, and it has to stay green while the assertions above go
-      // red: it is the branch the encryption public key was wrongly falling
-      // into, so it proves the carve-out was narrowed to publickey@ rather
-      // than widened to everything under cached:public:.
+      // red: it proves the carve-out is narrowed to publickey@ rather than
+      // widened to everything under cached:public:.
       const String cachedName = 'cached:public:some_other_key.wavi@bob';
       peerAnswers('some_other_key.wavi@bob', remoteValue('some value'));
 
       final AtData? returned =
           await cacheManager.remoteLookUp(cachedName, maintainCache: true);
 
-      expect(returned!.metaData!.ttl, 24 * 60 * 60 * 1000,
-          reason: 'unchanged: only an encryption public key is exempt');
+      expect(returned!.metaData!.ttl, isNull,
+          reason: 'only an encryption public key is given a lifetime here');
       expect(returned.metaData!.ttr, isNull);
+      expect(await keyValueStore.exists(cachedName), false);
     });
   });
 }

@@ -78,6 +78,7 @@ class LocalLookupVerbHandler extends AbstractVerbHandler {
           ' is not authorized to llookup key: $key');
     }
 
+    await enMgr.moveExpiredEnrollmentData(key);
     await enMgr.refuseLapsedApprovedData(key);
     AtData? atData = await keyStore.get(key);
     var isActive = false;

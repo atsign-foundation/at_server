@@ -55,6 +55,40 @@ class EnrollmentManager {
     return getEnrollmentByFullKey(buildEnrollmentKey(enId));
   }
 
+  /// Removes the enrollment whose per-enrollment namespace holds [key], as
+  /// the expired-keys pass would, when [key] is this atSign's data and that
+  /// enrollment's expiry has passed; its data is then at
+  /// `perEnrollmentDeleted`.
+  ///
+  /// Only lookups of an enrollment's own data call this, never the
+  /// enrollment reads every verb makes. The data moves in [preRemoveHook],
+  /// inside [serialiseMutation], so a lookup overlapping the expired-keys
+  /// pass or another lookup moves it once. A live or absent enrollment is
+  /// read but neither locked nor written.
+  Future<void> moveExpiredEnrollmentData(String key) async {
+    final String folded = canonicalAtKey(key);
+    if (!folded.endsWith(atSign)) {
+      return;
+    }
+    final RegExpMatch? match = reForPerEnrollmentNamespaces.firstMatch(folded);
+    if (match == null) {
+      return;
+    }
+    final String enId = match.namedGroup('EnId')!;
+    if (await _hasExpired(enId)) {
+      await remove(enId: enId);
+    }
+  }
+
+  /// Whether enrollment [enId]'s record is stored and its expiry has passed,
+  /// which is what the expired-keys pass removes it on.
+  Future<bool> _hasExpired(String enId) async {
+    final AtMetaData? metaData =
+        await keyStore.getMeta(buildEnrollmentKey(enId));
+    final DateTime? expiresAt = metaData?.expiresAt;
+    return expiresAt != null && !expiresAt.isAfter(DateTime.now().toUtc());
+  }
+
   /// Throws the [KeyNotFoundException] a read of an absent [key] throws, when
   /// [key] is this atSign's data in an approved enrollment's namespace
   /// (`<enrollmentId>.a.__e`) and that enrollment no longer reads as
@@ -404,7 +438,8 @@ class EnrollmentManager {
       RegExp(EnrollmentConstants.regexForPerEnrollmentNamespaces);
 
   /// Moves everything in `<enId>.[ard].__e` to [to], and returns the keys
-  /// that were moved.
+  /// that were moved. A move to `perEnrollmentDeleted` commits nothing: no
+  /// client of a removed enrollment syncs again.
   @visibleForTesting
   Future<List<String>> movePerEnrollmentData(
     String enId, {
@@ -427,6 +462,7 @@ class EnrollmentManager {
       case EnrollmentConstants.perEnrollmentDeleted:
       case EnrollmentConstants.perEnrollmentApproved:
         List<String> moved = [];
+        final bool skipCommit = to == EnrollmentConstants.perEnrollmentDeleted;
         final RegExp perEnrollmentRegex =
             RegExp(EnrollmentConstants.regexForPerEnrollmentNamespaces);
         await for (final String fromKey in await keyStore.getKeys(
@@ -447,8 +483,8 @@ class EnrollmentManager {
           }
 
           AtData data = (await keyStore.get(fromKey))!;
-          await keyStore.put(toKey, data, skipCommit: false);
-          await keyStore.remove(fromKey);
+          await keyStore.put(toKey, data, skipCommit: skipCommit);
+          await keyStore.remove(fromKey, skipCommit: skipCommit);
           moved.add(fromKey);
         }
         return moved;
@@ -481,10 +517,12 @@ class EnrollmentManager {
   final RegExp ekRegex = RegExp(EnrollmentConstants.regexForEnrollmentKey);
 
   /// Moves an enrollment's per-enrollment data to `perEnrollmentDeleted`,
-  /// called before any key in the keystore is removed.
+  /// called before any key in the keystore is removed. Runs inside
+  /// [serialiseMutation], so two removals of one enrollment move its data
+  /// once.
   Future preRemoveHook(String key, {required bool skipCommit}) async {
     if (ekRegex.hasMatch(key)) {
-      await _preRemove(ek: key);
+      await serialiseMutation(() => _preRemove(ek: key));
     }
   }
 
