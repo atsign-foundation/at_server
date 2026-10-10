@@ -81,10 +81,15 @@ class AtCacheRefreshJob {
           continue;
         }
 
-        // Written whether or not the value changed, so that the copy's
-        // refreshAt moves on and it is served again
+        final bool unchanged = oldValue?.data == newValue.data;
+        // An unchanged copy is written only when its ttr lets it be served,
+        // so that its refreshAt moves on and it is served again
+        if (unchanged && !_servable(newValue.metaData)) {
+          valueUnchanged++;
+          continue;
+        }
         await cacheManager.put(cachedKeyName, newValue);
-        if (oldValue?.data == newValue.data) {
+        if (unchanged) {
           valueUnchanged++;
         } else {
           valueChanged++;
@@ -105,6 +110,13 @@ class AtCacheRefreshJob {
       "exceptionFromRemote": exceptionFromRemote,
       "leftoversDeleted": leftoversDeleted
     };
+  }
+
+  /// Whether a copy with [metaData] is ever served: only one whose ttr is -1,
+  /// or positive and so gives it a refreshAt.
+  static bool _servable(AtMetaData? metaData) {
+    final int? ttr = metaData?.ttr;
+    return ttr != null && (ttr == -1 || ttr > 0);
   }
 
   /// Runs [refreshNow] unless a refresh is already running, logging a

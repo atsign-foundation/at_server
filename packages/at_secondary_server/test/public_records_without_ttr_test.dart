@@ -153,20 +153,40 @@ void main() {
     verifyNever(() => mockOutboundConnection.write('lookup:all:$record\n'));
   });
 
-  test('The nightly refresh leaves a shared copy alone', () async {
-    final String cached = 'cached:$alice:phone$bob';
-    await keyValueStore.put(cached, AtData()..data = 'shared before');
-    when(() => mockOutboundConnection.write('lookup:all:phone$bob\n'))
-        .thenAnswer((_) async {
-      final String json = SecondaryUtil.prepareResponseData(
-          'all', bobsRecord('shared now'),
-          key: '$alice:phone$bob')!;
-      socketOnDataFn('data:$json\n$alice@'.codeUnits);
+  group('The nightly refresh leaves a shared copy alone', () {
+    const String cached = 'cached:@alice:phone@bob';
+
+    void bobSharesNow(String value) {
+      when(() => mockOutboundConnection.write('lookup:all:phone$bob\n'))
+          .thenAnswer((_) async {
+        final String json = SecondaryUtil.prepareResponseData(
+            'all', bobsRecord(value),
+            key: '$alice:phone$bob')!;
+        socketOnDataFn('data:$json\n$alice@'.codeUnits);
+      });
+    }
+
+    test('a changed value is written, as before', () async {
+      await keyValueStore.put(cached, AtData()..data = 'shared before');
+      bobSharesNow('shared now');
+
+      await AtCacheRefreshJob(alice, cacheManager).refreshNow();
+
+      expect((await keyValueStore.get(cached))?.data, 'shared now',
+          reason: 'a shared copy is refreshed as before, not deleted');
     });
 
-    await AtCacheRefreshJob(alice, cacheManager).refreshNow();
+    test('an unchanged value with no ttr is not written', () async {
+      await keyValueStore.put(cached, AtData()..data = 'shared same');
+      final int? before = atCommitLog.getLatestCommitEntry(cached)?.commitId;
+      bobSharesNow('shared same');
 
-    expect((await keyValueStore.get(cached))?.data, 'shared now',
-        reason: 'a shared copy is refreshed as before, not deleted');
+      await AtCacheRefreshJob(alice, cacheManager).refreshNow();
+
+      expect((await keyValueStore.get(cached))?.data, 'shared same');
+      expect(atCommitLog.getLatestCommitEntry(cached)?.commitId, before,
+          reason: 'a copy with no ttr is never served, so re-writing it '
+              'would only commit it again every night');
+    });
   });
 }
