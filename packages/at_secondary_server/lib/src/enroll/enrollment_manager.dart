@@ -83,12 +83,8 @@ class EnrollmentManager {
   /// Whether enrollment [enId]'s record is stored and its expiry has passed,
   /// which is what the expired-keys pass removes it on.
   Future<bool> _hasExpired(String enId) async {
-    final AtMetaData? metaData;
-    try {
-      metaData = await keyStore.getMeta(buildEnrollmentKey(enId));
-    } on KeyNotFoundException {
-      return false;
-    }
+    final AtMetaData? metaData =
+        await keyStore.getMeta(buildEnrollmentKey(enId));
     final DateTime? expiresAt = metaData?.expiresAt;
     return expiresAt != null && !expiresAt.isAfter(DateTime.now().toUtc());
   }
