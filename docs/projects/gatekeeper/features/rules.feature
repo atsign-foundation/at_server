@@ -28,7 +28,8 @@ Feature: Namespace rules, and who sets them
   effect.
   Replay: the gate decides on the atSign that pol authenticated, never on one
   named inside a command, and another atSign cannot change @alice's gate.
-  DoS: a refusal stores nothing and opens no connection (refusals.feature).
+  DoS: a refusal stores nothing and opens no connection (refusals.feature), and
+  the operator caps how many open namespaces an atSign may have.
 
   Background:
     Given @alice's atSign has the closed default
@@ -213,6 +214,15 @@ Feature: Namespace rules, and who sets them
     When @alice's chat client sends "gate:rule:chat:closed:admit:@bob"
     Then @bob is admitted in "chat"
     And @carol is not admitted in "chat"
+
+  @dos
+  Scenario: Opening a namespace beyond the atSign's cap is refused
+    Given @alice's atServer allows an atSign 50 open namespaces
+    And @alice's atSign has 50 open namespaces
+    And @alice's client is enrolled with "chat:rw" only
+    When the client sends "gate:rule:x51.chat:open"
+    Then @alice's atServer answers with the illegal-argument error, AT0022
+    And namespace "x51.chat" on @alice's atServer has no rule
 
   @race
   Scenario: Two admissions in one namespace at once both take effect

@@ -87,7 +87,7 @@ behind it. Text notifications are being retired.
   of the data notification. When the recipient holds the sender in quarantine,
   that notification is refused. A sender that discards refusals at once (R4.4)
   loses nothing. A released sender retries it for its 15-minute life, and
-  `PerAtSignNotifSender` holds the notification behind it until then (Q14).
+  `PerAtSignNotifSender` holds the notification behind it until then (D18).
 - A quarantined atSign's notification without `sharedKeyEnc` cannot be
   decrypted, because the recipient's fallback `lookup:shared_key@<sender>` is
   refused on the way out. Current clients always send `sharedKeyEnc`.
@@ -158,7 +158,7 @@ quarantine, and accepting means the chat application admits @dave in `chat`.
 4. The size cap measures the whole notify command as received: key, value and
    metadata. The default is 15 KB = 15,360 bytes (R4.3).
 5. *N*, *W* and the size cap are set per open namespace by its holders (D5).
-   Whether the operator bounds them is Q13.
+   The operator's bounds on them are D20.
 6. A quarantined notification never creates a cached key, and a quarantined
    delete never removes one (R4.1).
 
@@ -333,10 +333,12 @@ rather than evicting, means nothing already held is lost silently, and the
 sender learns of it (D9). The holders know their application's traffic, and the
 operator's ceilings keep any one application from claiming the atServer.
 
-That operator ceilings also bound D7's *N*, *W* and size cap (Q13 asked, and
-this ruling implies it), and that a value set above its ceiling is refused
-rather than clamped: gkc confirmed both on 2026-10-10 when agreeing
-`features/quarantine.feature`.
+That the operator also bounds D7's *N*, *W* and size cap (Q13 asked, and this
+ruling implies it), and that a value set beyond its bound is refused rather
+than clamped: gkc confirmed both on 2026-10-10 when agreeing
+`features/quarantine.feature`. For *W* the protective bound is a floor, not a
+ceiling, because a longer window is stricter. (As first written, this said
+"operator ceilings also bound D7's *N*, *W* and size cap".)
 
 ## D16 A namespace's deny overrides the atSign-wide admitted set
 
@@ -348,3 +350,122 @@ atSign-wide admitted set.
 **Why:** the namespace's deny is the more specific decision, as with P1, and it
 lets an application refuse a trusted atSign in its own namespace. The owner can
 still undo the deny from a root connection, which holds `*`.
+
+## D17 Gate state is server-only, in `local:` records
+
+*2026-10-10, gkc. Design.*
+
+Rules, the admitted, denied and quarantined sets, the atSign-wide admitted set,
+the default and the window counters are `local:` records in the atServer's
+keystore. Both commit-log backends already skip `local:` keys, so these records
+never enter the commit log and never sync, with no flag to remember. On the
+atServer, `local:` means the atServer's own records: it refuses every client
+verb that names a `local:` key, and scan hides them. The gate verb is the only
+way to read or change gate state. The atServer holds it in memory and writes
+through, so checking an exchange reads no storage, and a counted exchange costs
+one write.
+
+As first ruled, these were records in a reserved namespace, written with
+`skipCommit` as the blocklist is. `local:` replaced that the same day.
+
+**Why:** a record that synced could be edited in a client's local store and
+pushed, and refusing that push leaves the client retrying it every sync round
+(D13). No atServer code and no client writes `local:` keys on the atServer
+today, so a blanket refusal breaks nothing, and the prefix already means "stays
+in this store" on a client. The atServer's existing reserved namespace,
+`__atserver`, was considered and not chosen: every enrollment reads it, and its
+event records sync, which is the opposite of what this state needs.
+
+**Gaps the change closes:** scan's hidden-key filter (`_isPrivateKeyForAtSign`)
+does not hide `local:`, and `llookup`'s grammar accepts a `local:` key. [design.md,
+section 3](design.md#3-state-and-its-records) lists the verbs that can name one.
+
+## D18 Senders learn to discard refusals no later than the gate ships
+
+*2026-10-10, gkc. Design.*
+
+Every atServer implementation ships the sending side of D9, which discards a
+refused notification and marks it `refused`, in a release no later than the
+one that enforces the gate. An atServer still on an older release retries a
+refusal every 10 seconds until the notification expires (15 minutes by
+default, 8 days at most), holding back its own later notifications to that
+recipient. The recipient answers each retry with one rule check and stores
+nothing.
+
+**Why:** nothing is refused until an application sets a rule or an owner
+switches to `closed` (D11), and both need client releases, so by then senders
+have had the change for at least one release. Answering older senders with
+`data:success` and dropping the notification was considered and rejected: they
+would record as delivered notifications that never were.
+
+## D19 The gate verb is `gate:`
+
+*2026-10-10, gkc. Design.*
+
+The gate is managed through a new verb, `gate:`, with its own handler and its
+grammar in at_commons. `config` is left as it is.
+
+**Why:** the verb gets one authorisation regime, D5's, instead of a third one
+inside `config`, which already mixes the blocklist with runtime settings and
+answers `config:print` on any connection. The name is short, it matches the
+project's vocabulary, and no protocol verb uses it. (at_client's
+`PqStartupGates` is an unrelated identifier.)
+
+## D20 Bound values, and two atSign-wide caps
+
+*2026-10-10, gkc. Design.*
+
+Per open namespace, the operator's defaults and limits are:
+
+| Setting | Default | Operator limit |
+|---|---|---|
+| *N*, exchanges per window | 10 | at most 100 |
+| *W*, the window | 24 hours | at least 1 hour |
+| size cap | 15,360 bytes | at most 65,536 bytes |
+| quarantined atSigns | 100 | at most 1,000 |
+| quarantined bytes held | 1 MiB | at most 16 MiB |
+
+Across namespaces, the operator also sets:
+
+- a cap on how many open namespaces one atSign may have, 50 by default;
+- an atSign-wide total of quarantined bytes held, 64 MiB by default, which
+  refuses further quarantined notifications with the quarantine-limit error
+  once reached.
+
+**Why:** the per-namespace bounds alone multiply with every namespace an
+application opens, and D5 lets it open as many as it holds. The namespace cap
+stops that growth, and the total bounds storage outright. The total gives up
+part of D15's isolation, because one namespace can fill it.
+
+*Spec consequence:* both caps are new refusals, so their scenarios are added to
+the spec; gkc agreed them the same day.
+
+## D21 One gate-wide mutex for writes; reads take no lock
+
+*2026-10-10, gkc. Design.*
+
+Every write to gate state runs under one mutex in the gatekeeper, which updates
+the in-memory state and its `local:` record together. Checks that only read take
+no lock. No lock is held across a network call.
+
+**Why:** in the atServer's single isolate a synchronous read cannot interleave
+with a write, so only writes need serialising, and notify, the bulk of
+quarantined traffic, is already serialised by `NotifyVerbHandler`. One mutex
+per namespace was considered. Whether to split is for the bench to show, rather
+than a guess about performance made before anything is measured.
+
+## D22 Which layer proves which scenario
+
+*2026-10-10, gkc. Design.*
+
+Unit tests in `at_secondary_server` prove every scenario whose observable is
+one atServer's answers, with doubles for the other side. Unit tests in
+`at_persistence_secondary_server` pin the at-rest changes as raw literals. The
+functional and e2e packs prove the scenarios that need two real atServers. All
+three live packs run before the PR. The table is in [design.md, section 10](design.md#10-tests).
+
+**Why:** most of the spec is one atServer's answer to one command, which a unit
+test proves fastest and most precisely. D18's tail, an older atServer retrying a
+refusal, is proven on the recipient's side only, by a unit test with a retrying
+double, since no pack runs a released atServer against the branch, and building
+such a rig was not judged worth it.

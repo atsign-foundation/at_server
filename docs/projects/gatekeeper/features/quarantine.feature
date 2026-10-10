@@ -7,7 +7,9 @@ Feature: Quarantine in open namespaces
   15,360 bytes, the whole notify command as received), and it never touches a
   cached key. Each open namespace also bounds how many atSigns it holds in
   quarantine and how many bytes of quarantined notifications. Its holders set
-  every one of these, up to a ceiling the atServer operator sets. Quarantined
+  every one of these, within limits the atServer operator sets: a ceiling for
+  each, and a floor for W, since a shorter window is the more generous. The
+  operator also sets an atSign-wide total of quarantined bytes held. Quarantined
   notifications are marked, and reach only clients that ask for them. Commands
   spelled "gate:..." are provisional (rules.feature).
 
@@ -17,7 +19,8 @@ Feature: Quarantine in open namespaces
   Replay: a repeated notification id is answered "data:success", stored once and
   counted once.
   DoS: every quarantined exchange is bounded per atSign by N, W and the size cap,
-  and every open namespace by its two bounds; counts survive a restart.
+  every open namespace by its two bounds, and the atSign by its total of
+  quarantined bytes; counts survive a restart.
 
   Background:
     Given @alice's atSign has the closed default
@@ -153,6 +156,12 @@ Feature: Quarantine in open namespaces
       | maxQuarantined      | 1000     | 1001     |
       | maxQuarantinedBytes | 16777216 | 16777217 |
 
+  Scenario: A window shorter than the operator's floor is refused
+    Given the operator's floor for "window" on @alice's atServer is 3600 seconds
+    When @alice's chat client sends "gate:rule:invitations.chat:open:window:3599"
+    Then @alice's atServer answers with the illegal-argument error, AT0022
+    And the rule for "invitations.chat" is unchanged
+
   Scenario: Admitting an atSign ends its counting
     Given @chuck is quarantined in "invitations.chat", with 10 exchanges counted in the last 24 hours
     And @alice's chat client has sent "gate:admit:invitations.chat:@chuck"
@@ -251,6 +260,13 @@ Feature: Quarantine in open namespaces
     Given @alice's chat client has sent "gate:rule:invitations.chat:open:maxQuarantined:2"
     And @chuck and @dave are quarantined in "invitations.chat"
     When @erin's atServer sends "notify:id:26:@alice:inv26.invitations.chat@erin"
+    Then @alice's atServer answers with the quarantine-limit error
+
+  @dos
+  Scenario: Quarantined notifications held across the atSign up to its total refuse the next one
+    Given the quarantined notifications held across all of @alice's namespaces have reached the atSign-wide total
+    And namespace "photos" on @alice's atServer is open, with @erin quarantined in it under every limit of its own
+    When @erin's atServer sends "notify:id:30:@alice:pic.photos@erin"
     Then @alice's atServer answers with the quarantine-limit error
 
   @dos

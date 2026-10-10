@@ -14,18 +14,17 @@ No spec question is open. The spec was agreed file by file:
 
 | File | State |
 |---|---|
-| [rules.feature](features/rules.feature) | agreed 2026-10-10 |
+| [rules.feature](features/rules.feature) | agreed 2026-10-10, with D20's addition |
 | [namespace_less.feature](features/namespace_less.feature) | agreed 2026-10-10 |
 | [outbound.feature](features/outbound.feature) | agreed 2026-10-10 |
-| [quarantine.feature](features/quarantine.feature) | agreed 2026-10-10 |
+| [quarantine.feature](features/quarantine.feature) | agreed 2026-10-10, with D20's two additions |
 | [refusals.feature](features/refusals.feature) | agreed 2026-10-10 |
 
 ## Design
 
-| # | Question | Depends on |
-|---|---|---|
-| Q11 | Where rules, quarantine state and counters are stored; whether they sync | D2, D3, D5 |
-| Q12 | Concurrency: counters under parallel connections, rule changes during an exchange | Q11 |
-| Q13 | Bound values: operator defaults and ceilings for D7's limits and D15's bounds | D7, D15, Q11 |
-| Q14 | Compatibility with released senders, which retry a refusal until it expires and hold later notifications to the same atSign behind it (D4's first consequence is one case) | Q8 |
-| Q15 | Which test pack proves each scenario | the agreed spec |
+Q11 became D17, Q14 became D18, Q23 became D19, Q13 became D20, Q12 became D21 and Q15 became D22. No design fork is
+open. [design.md](design.md) is to be agreed as a whole.
+
+The three checks this list held are answered in design.md: the SQLite codec
+decodes an unknown status as `null`, a client turns an unknown error code into a
+plain `AtException`, and `batch` and `update:json` meet the `local:` guard.
