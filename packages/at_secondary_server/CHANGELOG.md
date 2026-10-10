@@ -30,6 +30,9 @@
 - fix: a `from:` naming another atSign on a connection that has already
   authenticated is answered with AT0009, and the connection is closed.
 
+- fix: an HTTP request's path and query parameters are logged with control
+  characters escaped.
+
 # 3.17.0
 - feat: a notification can be ephemeral (`eph`): no atServer stores it,
   it lives at most two minutes, and an atServer restart loses it. A client can

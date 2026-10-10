@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
+import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:mime/mime.dart' as mime;
@@ -20,6 +21,8 @@ class AtServerHttpRequestHandler {
       this.currentAtSign, this.keyValueStore, this.enrollmentManager);
 
   Future<void> handle(HttpRequest request) async {
+    // NOTE request text reaches the log lines in this class, so each one
+    // passes through sanitiseForLogging.
     try {
       // Reject malformed (too long to be keyValueStore keys) requests
       if (request.uri.toString().length > 1000) {
@@ -29,23 +32,23 @@ class AtServerHttpRequestHandler {
       }
 
       if (request.method.toUpperCase() != 'GET') {
-        logger.info('Ignoring ${request.method}'
-            ' ${Uri.decodeComponent(request.uri.path)}');
+        logger.info(sanitiseForLogging('Ignoring ${request.method}'
+            ' ${Uri.decodeComponent(request.uri.path)}'));
         request.response.statusCode = HttpStatus.methodNotAllowed;
         await request.response.close();
       } else {
         final String decodedPath = Uri.decodeComponent(request.uri.path);
-        logger.info('Path: $decodedPath'
-            ' params: ${request.uri.queryParameters}');
+        logger.info(sanitiseForLogging('Path: $decodedPath'
+            ' params: ${request.uri.queryParameters}'));
 
         final String lookupKey = getKeyToLookup(decodedPath);
-        logger.info('Key to look up: $lookupKey');
+        logger.info(sanitiseForLogging('Key to look up: $lookupKey'));
 
         try {
           await enrollmentManager.moveExpiredEnrollmentData(lookupKey);
         } catch (error) {
-          logger.warning('Failed to move expired enrollment data for'
-              ' $lookupKey : $error');
+          logger.warning(sanitiseForLogging(
+              'Failed to move expired enrollment data for $lookupKey : $error'));
           request.response.statusCode = HttpStatus.internalServerError;
           await request.response.close();
           return;
@@ -75,7 +78,8 @@ class AtServerHttpRequestHandler {
           );
         }
         if (responseContentType != null) {
-          logger.info('Setting response content-type to $responseContentType');
+          logger.info(sanitiseForLogging(
+              'Setting response content-type to $responseContentType'));
           request.response.headers.contentType = responseContentType;
         }
 
@@ -92,7 +96,8 @@ class AtServerHttpRequestHandler {
         await request.response.close();
       }
     } catch (e, st) {
-      logger.warning('Exception $e handling http request $request');
+      logger.warning(
+          sanitiseForLogging('Exception $e handling http request $request'));
       logger.warning(st);
       try {
         await request.response.close();
@@ -124,7 +129,8 @@ class AtServerHttpRequestHandler {
       decodedPath =
           decodedPath.substring(0, decodedPath.length - currentAtSign.length);
     }
-    logger.finer('un-prefixed un-suffixed path $decodedPath');
+    logger
+        .finer(sanitiseForLogging('un-prefixed un-suffixed path $decodedPath'));
     List<String> pathParts = decodedPath.split('/');
     StringBuffer sb = StringBuffer();
     for (String part in pathParts.reversed) {
@@ -137,7 +143,8 @@ class AtServerHttpRequestHandler {
       sb.write(part);
     }
     String lookupKey = sb.toString();
-    logger.finer('un-prefixed un-suffixed key to look up: $lookupKey');
+    logger.finer(sanitiseForLogging(
+        'un-prefixed un-suffixed key to look up: $lookupKey'));
 
     if (!lookupKey.startsWith('public:')) {
       lookupKey = 'public:$lookupKey';
@@ -165,14 +172,14 @@ class AtServerHttpRequestHandler {
           'application/octet-stream';
       final cts = '$mimeType; charset=utf-8';
       final ct = ContentType.parse(cts);
-      logger.finer('Got content-type $ct from $cts');
+      logger.finer(sanitiseForLogging('Got content-type $ct from $cts'));
       return ct;
     } else {
       String mimeType =
           queryParams[paramNameContentType] ?? inferredMimeType ?? 'text/plain';
       final cts = '$mimeType; charset=utf-8';
       final ct = ContentType.parse(cts);
-      logger.finer('Got content-type $ct from $cts');
+      logger.finer(sanitiseForLogging('Got content-type $ct from $cts'));
       return ct;
     }
   }
