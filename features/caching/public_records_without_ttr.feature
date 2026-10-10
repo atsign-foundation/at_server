@@ -16,8 +16,8 @@ Feature: A reader's atServer keeps no copy of a public record that has no ttr
   outside this feature.
 
   Races: a plookup and the nightly refresh can reach the same leftover at
-  once. Both delete it, so whichever is second finds nothing, and neither
-  writes a copy.
+  once. Each deletes it if it is there, so both may delete it and commit a
+  DELETE, which leaves the same result, and neither writes a copy.
   Replay: a plookup carries no challenge, nonce or signature, and repeating
   one writes nothing.
   DoS: a plookup of a record with no ttr stores nothing and commits nothing,

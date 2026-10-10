@@ -9,8 +9,9 @@ Feature: Cache upkeep on a reader's atServer commits only real changes
   atServers.
 
   Races: a plookup miss and the nightly refresh can reach the same copy at
-  once. Each deletes it only if it is there, so the second finds nothing
-  to do, and both follow a not-found from the owner.
+  once. Each deletes it if it is there, so both may delete it and commit a
+  DELETE, which leaves the same result; both follow a not-found from the
+  owner.
   Replay: no challenge, nonce or signature is involved.
   DoS: a plookup of a record that does not exist commits nothing, so
   repeating one cannot grow the reader's commit log or its clients' sync.
