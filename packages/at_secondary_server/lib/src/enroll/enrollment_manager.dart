@@ -55,6 +55,39 @@ class EnrollmentManager {
     return getEnrollmentByFullKey(buildEnrollmentKey(enId));
   }
 
+  /// Removes the enrollment whose per-enrollment namespace holds [key], as
+  /// the expired-keys pass would, when [key] is this atSign's data and that
+  /// enrollment has expired; its data is then at `perEnrollmentDeleted`.
+  ///
+  /// Only lookups of an enrollment's own data call this, never the
+  /// enrollment reads every verb makes. The data moves in [preRemoveHook],
+  /// inside [serialiseMutation], so a lookup overlapping the expired-keys
+  /// pass or another lookup moves it once. A live or absent enrollment is
+  /// read but neither locked nor written.
+  Future<void> moveExpiredEnrollmentData(String key) async {
+    final String folded = canonicalAtKey(key);
+    if (!folded.endsWith(atSign)) {
+      return;
+    }
+    final RegExpMatch? match = reForPerEnrollmentNamespaces.firstMatch(folded);
+    if (match == null) {
+      return;
+    }
+    final String enId = match.namedGroup('EnId')!;
+    if (await _hasExpired(enId)) {
+      await remove(enId: enId);
+    }
+  }
+
+  Future<bool> _hasExpired(String enId) async {
+    try {
+      return (await getEnrollmentById(enId)).approval?.state ==
+          EnrollmentStatus.expired.name;
+    } on KeyNotFoundException {
+      return false;
+    }
+  }
+
   /// Throws the [KeyNotFoundException] a read of an absent [key] throws, when
   /// [key] is this atSign's data in an approved enrollment's namespace
   /// (`<enrollmentId>.a.__e`) and that enrollment no longer reads as

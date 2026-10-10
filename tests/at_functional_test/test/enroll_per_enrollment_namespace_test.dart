@@ -192,20 +192,21 @@ void main() {
       await unauthConnection.close();
     });
 
-    test(
-        'an expired enrollment\'s per-enrollment data reads as absent before '
-        'the expired-keys pass moves it', () async {
+    group('The first lookup after an enrollment expires moves its data', () {
       const int expiryMillis = 5000;
-      await firstAtSignConnection.authenticateConnection(
-          authType: AuthType.cram);
-      var primaryJson = jsonDecode((await firstAtSignConnection.sendRequestToServer(
-              'enroll:request:{"appName":"wavi-${Uuid().v4().hashCode}","deviceName":"pixel","namespaces":{"wavi":"rw"},"apkamPublicKey":"${mintApkamKeys().publicKey}"}\n'))
-          .replaceAll('data:', ''));
-      expect(primaryJson['status'], 'approved');
+      late OutboundConnectionFactory unauthConnection;
 
-      OutboundConnectionFactory unauthConnection =
-          await OutboundConnectionFactory().initiateConnectionWithListener(
-              firstAtSign, firstAtSignHost, firstAtSignPort);
+      setUp(() async {
+        await firstAtSignConnection.authenticateConnection(
+            authType: AuthType.cram);
+        unauthConnection = await OutboundConnectionFactory()
+            .initiateConnectionWithListener(
+                firstAtSign, firstAtSignHost, firstAtSignPort);
+      });
+
+      tearDown(() async {
+        await unauthConnection.close();
+      });
 
       /// GETs [path] over HTTP, which an atServer serves on its atProtocol
       /// port to a client that offers `http/1.1` by ALPN.
@@ -228,7 +229,7 @@ void main() {
       }
 
       /// The enrollment's status as `enroll:fetch` reports it, or null once
-      /// the expired-keys pass has removed it.
+      /// its record has been removed.
       Future<String?> statusOf(String enrollmentId) async {
         final String response = await firstAtSignConnection.sendRequestToServer(
             'enroll:fetch:{"enrollmentId":"$enrollmentId"}');
@@ -237,11 +238,14 @@ void main() {
             : null;
       }
 
-      /// Enrols with [expiryMillis], writes a public and a self key in the
-      /// enrollment's a.__e namespace, and reads both once it has expired.
-      /// Returns false when the expired-keys pass removed the enrollment or
-      /// moved its data around the reads, which would make absence its doing.
-      Future<bool> readsAbsentOnceExpired() async {
+      String publicKey(String enrollmentId, String state) =>
+          'pub.$enrollmentId.$state.__e$firstAtSign';
+      String selfKey(String enrollmentId, String state) =>
+          '$firstAtSign:secret.$enrollmentId.$state.__e$firstAtSign';
+
+      /// Enrols, with [expiryMillis] when [expiring], and writes a public and
+      /// a self key in the enrollment's a.__e namespace. Returns its id.
+      Future<String> enrollmentWithData({required bool expiring}) async {
         String otp =
             (await firstAtSignConnection.sendRequestToServer('otp:get'))
                 .replaceFirst('data:', '')
@@ -250,8 +254,10 @@ void main() {
             await OutboundConnectionFactory().initiateConnectionWithListener(
                 firstAtSign, firstAtSignHost, firstAtSignPort);
         ApkamKeys secondKeys = mintApkamKeys();
+        final String expiry =
+            expiring ? ',"apkamKeysExpiryInMillis":$expiryMillis' : '';
         var secondJson = jsonDecode((await secondConnection.sendRequestToServer(
-                'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otp","apkamPublicKey":"${secondKeys.publicKey}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}","apkamKeysExpiryInMillis":$expiryMillis}\n'))
+                'enroll:request:{"appName":"buzz","deviceName":"pixel-${Uuid().v4().hashCode}","namespaces":{"buzz":"rw"},"otp":"$otp","apkamPublicKey":"${secondKeys.publicKey}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}"$expiry}\n'))
             .replaceAll('data:', ''));
         expect(secondJson['status'], 'pending');
         String enrollmentId = secondJson['enrollmentId'];
@@ -261,40 +267,28 @@ void main() {
                 .replaceAll('data:', ''));
         expect(approveJson['status'], 'approved');
 
-        String publicKey(String state) =>
-            'pub.$enrollmentId.$state.__e$firstAtSign';
-        String selfKey(String state) =>
-            '$firstAtSign:secret.$enrollmentId.$state.__e$firstAtSign';
-        String path = 'pub.$enrollmentId.a.__e';
-
         await secondConnection.authenticateConnection(
             authType: AuthType.apkam,
             enrollmentId: enrollmentId,
             privateKey: secondKeys.privateKey);
         for (final update in [
-          'update:public:${publicKey('a')} publicvalue',
-          'update:${selfKey('a')} selfvalue',
+          'update:public:${publicKey(enrollmentId, 'a')} publicvalue',
+          'update:${selfKey(enrollmentId, 'a')} selfvalue',
         ]) {
           expect(await secondConnection.sendRequestToServer(update),
               startsWith('data:'),
               reason: update);
         }
         await secondConnection.close();
+        return enrollmentId;
+      }
 
-        const String live = 'the enrollment must still be live here; raise '
-            'expiryMillis if setup outlasts it';
-        expect(
-            await unauthConnection
-                .sendRequestToServer('lookup:${publicKey('a')}'),
-            'data:publicvalue',
-            reason: live);
-        expect(
-            await firstAtSignConnection
-                .sendRequestToServer('llookup:${selfKey('a')}'),
-            'data:selfvalue',
-            reason: live);
-        expect(await httpGet(path), (200, 'publicvalue'), reason: live);
-
+      /// An enrollment with data whose ttl has elapsed and whose record the
+      /// expired-keys pass has not yet removed, or null when the pass got
+      /// there first.
+      Future<String?> expiredEnrollmentWithData() async {
+        final String enrollmentId =
+            await enrollmentWithData(expiring: true);
         final DateTime giveUp = DateTime.now()
             .add(const Duration(milliseconds: expiryMillis + 10000));
         String? status;
@@ -305,47 +299,64 @@ void main() {
         if (status != 'expired') {
           expect(status, isNull,
               reason: 'the enrollment never expired: status $status');
-          return false;
+          return null;
         }
+        return enrollmentId;
+      }
 
-        final String lookup = await unauthConnection
-            .sendRequestToServer('lookup:${publicKey('a')}');
-        final String llookup = await firstAtSignConnection
-            .sendRequestToServer('llookup:${selfKey('a')}');
-        final (int, String) get = await httpGet(path);
-
-        // NOTE the pass moves the data before it removes the record, and
-        // neither is undone, so both checks come after the reads.
-        if (await statusOf(enrollmentId) != 'expired') return false;
-        for (final key in [selfKey('d'), 'public:${publicKey('d')}']) {
-          if (!(await firstAtSignConnection.sendRequestToServer('llookup:$key'))
-              .contains('does not exist in keystore')) {
-            return false;
+      for (final String row in ['lookup', 'llookup', 'HTTP GET']) {
+        test(row, () async {
+          String? found;
+          for (int attempt = 1;
+              (found = await expiredEnrollmentWithData()) == null;
+              attempt++) {
+            expect(attempt, lessThan(3),
+                reason: 'the expired-keys pass removed the enrollment '
+                    'before every attempt\'s read');
           }
-        }
+          final String id = found!;
 
-        expect({
-          'lookup': lookup.contains('does not exist in keystore'),
-          'llookup': llookup.contains('does not exist in keystore'),
-          'HTTP GET': get == (404, '404 Not Found'),
-        }, {
-          'lookup': true,
-          'llookup': true,
-          'HTTP GET': true
-        },
-            reason: 'each read must answer as absent; got\n'
-                'lookup: $lookup\nllookup: $llookup\nHTTP GET: $get');
-        return true;
+          final String answer = switch (row) {
+            'lookup' => await unauthConnection
+                .sendRequestToServer('lookup:${publicKey(id, 'a')}'),
+            'llookup' => await firstAtSignConnection
+                .sendRequestToServer('llookup:${selfKey(id, 'a')}'),
+            _ => '${await httpGet('pub.$id.a.__e')}',
+          };
+
+          expect(
+              answer,
+              row == 'HTTP GET'
+                  ? '(404, 404 Not Found)'
+                  : contains('does not exist in keystore'));
+          expect(await statusOf(id), isNull,
+              reason: 'the record is gone, exactly as after the sweep');
+          expect(
+              await firstAtSignConnection
+                  .sendRequestToServer('llookup:${selfKey(id, 'd')}'),
+              'data:selfvalue');
+          expect(
+              await unauthConnection
+                  .sendRequestToServer('lookup:${publicKey(id, 'd')}'),
+              'data:publicvalue',
+              reason: 'a lookup of the d.__e key straight after finds it');
+        });
       }
 
-      const int attempts = 3;
-      for (int attempt = 1; !await readsAbsentOnceExpired(); attempt++) {
-        expect(attempt, lessThan(attempts),
-            reason: 'the expired-keys pass removed the enrollment around the '
-                'reads on all $attempts attempts');
-        print('expired-keys pass interfered with attempt $attempt; retrying');
-      }
-      await unauthConnection.close();
+      test('A lookup of a live enrollment\'s data moves nothing', () async {
+        final String id = await enrollmentWithData(expiring: false);
+
+        expect(
+            await unauthConnection
+                .sendRequestToServer('lookup:${publicKey(id, 'a')}'),
+            'data:publicvalue');
+
+        expect(await statusOf(id), 'approved');
+        expect(
+            await firstAtSignConnection
+                .sendRequestToServer('llookup:${selfKey(id, 'a')}'),
+            'data:selfvalue');
+      });
     });
 
     test(
