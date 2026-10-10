@@ -1,12 +1,16 @@
+import 'dart:math';
+
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_refresh_job.dart';
+import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/proxy_lookup_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 import 'package:at_utils/at_logger.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
+import 'package:yaml/yaml.dart';
 
 import 'test_utils.dart';
 
@@ -140,4 +144,76 @@ void main() {
     expect(committed?.commitId, greaterThan(committedBefore!),
         reason: 'the re-written copy is committed, as a lookup\'s re-write is');
   });
+
+  group('the hour the refresh runs at', () {
+    late YamlMap? shippedConfig;
+    final List<String> warnings = [];
+
+    setUp(() {
+      shippedConfig = AtSecondaryConfig.configYamlMap;
+      warnings.clear();
+    });
+
+    tearDown(() {
+      AtSecondaryConfig.configYamlMap = shippedConfig;
+    });
+
+    int hourFrom(String? configured, {int Function(int max)? pick}) =>
+        AtCacheRefreshJob.runJobHourFrom(configured,
+            random: _PickingRandom(pick ?? (max) => 0), warn: warnings.add);
+
+    test('The refresh runs at the hour runRefreshJobHour sets', () {
+      AtSecondaryConfig.configYamlMap = YamlMap.wrap({
+        'refreshJob': {'runJobHour': 5}
+      });
+
+      expect(AtSecondaryConfig.runRefreshJobHour, '5');
+      expect(hourFrom(AtSecondaryConfig.runRefreshJobHour), 5);
+      expect(warnings, isEmpty);
+    });
+
+    test('With no runRefreshJobHour the refresh runs at a random hour', () {
+      expect(AtSecondaryConfig.runRefreshJobHour, isNull,
+          reason: 'the shipped config.yaml sets no refresh hour');
+
+      final List<int> maxes = [];
+      expect(
+          hourFrom(null, pick: (max) {
+            maxes.add(max);
+            return max - 1;
+          }),
+          23,
+          reason: 'every hour from 00 to 23 can be picked');
+      expect(maxes, [24]);
+      expect(hourFrom(null, pick: (max) => 0), 0);
+      expect(warnings, isEmpty);
+    });
+
+    group('A runRefreshJobHour that is not an hour is ignored with a warning',
+        () {
+      for (final String value in ['24', '-1', 'three']) {
+        test(value, () {
+          expect(hourFrom(value, pick: (max) => 17), 17);
+          expect(warnings, hasLength(1));
+          expect(warnings.single, contains(value));
+        });
+      }
+    });
+  });
+}
+
+/// A [Random] whose [nextInt] answers what [pick] returns for its bound.
+class _PickingRandom implements Random {
+  final int Function(int max) pick;
+
+  _PickingRandom(this.pick);
+
+  @override
+  int nextInt(int max) => pick(max);
+
+  @override
+  bool nextBool() => throw UnimplementedError();
+
+  @override
+  double nextDouble() => throw UnimplementedError();
 }

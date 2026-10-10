@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
@@ -117,6 +119,23 @@ class AtCacheRefreshJob {
     } catch (e, st) {
       logger.severe('Requested cache refresh failed: $e\n$st');
     }
+  }
+
+  /// The hour to run the daily refresh at: [configured] when it is an hour
+  /// from 0 to 23, otherwise one picked with [random], which spreads the
+  /// refresh load across atServers. A [configured] value that is not an hour
+  /// is reported to [warn].
+  static int runJobHourFrom(String? configured,
+      {required Random random, required void Function(String) warn}) {
+    if (configured != null) {
+      final int? hour = int.tryParse(configured.trim());
+      if (hour != null && hour >= 0 && hour <= 23) {
+        return hour;
+      }
+      warn('runRefreshJobHour "$configured" is not an hour from 0 to 23;'
+          ' the cache refresh will run at a random hour');
+    }
+    return random.nextInt(24);
   }
 
   /// Schedule an execution of [refreshNow] at [runJobHour]:00
