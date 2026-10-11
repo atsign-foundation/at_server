@@ -1,3 +1,7 @@
+# 3.17.1
+- perf: a lookup or notification between atServers no longer waits about
+  10 ms for the reply to be noticed.
+
 # 3.17.0
 - feat: a notification can be ephemeral (`eph`): no atServer stores it,
   it lives at most two minutes, and an atServer restart loses it. A client can
