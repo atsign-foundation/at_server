@@ -57,12 +57,12 @@ keystore (D17). Both commit-log backends skip `local:` keys
 (`hive_at_commit_log.dart`, `sqlite_at_commit_log.dart`), so the records never
 sync.
 
-The record layout is one record per namespace with a rule, plus three
-atSign-wide records:
+The records are a rule record per namespace with a rule or recorded admissions
+(D24), a quarantine record per open namespace, and two atSign-wide records:
 
 | Record | Holds |
 |---|---|
-| `local:<ns>.rule.gate@<atSign>` | mode, the admitted and denied sets, the limits (*N*, *W*, size cap) and bounds, as set by the holders |
+| `local:<ns>.rule.gate@<atSign>` | mode (`none` for admissions recorded without a rule, D25), the admitted and denied sets, the limits (*N*, *W*, size cap) and bounds, as set by the holders |
 | `local:<ns>.quarantine.gate@<atSign>` | the quarantined set, each atSign with the times of its counted exchanges in the current window, and the bytes of quarantined notifications held |
 | `local:admitted.gate@<atSign>` | the atSign-wide admitted set (D3) |
 | `local:default.gate@<atSign>` | `ungated` or `closed` (D11) |
@@ -124,16 +124,23 @@ Decided in D21.
 
 A new verb, `gate:` (D19), with the grammar `rules.feature` gives. The verb is accepted only on a connection the owner
 authenticated (PKAM or CRAM), and its authorisation is D5's: `rw` on the
-namespace to change it, `r` to read it, and a root enrollment for the default
-and the atSign-wide admitted set. `gate` joins `at_server_spec`'s `AtVerb`
+namespace to change it, `r` to read it, and a root enrollment to switch the
+default and for the atSign-wide admitted set. Any authenticated enrollment
+reads the default (D26). The atServer lower-cases each namespace the verb names
+(D26). `gate` joins `at_server_spec`'s `AtVerb`
 with `requiresAuth: true`, since `ConnectionUtil.validate` refuses any verb the
 enum does not list before a handler sees it.
 
-Its answers, reads and bounds are D24's. An open namespace's `gate:show`
+Its answers, reads and bounds are D24's, as D25 and D26 amend them. An open
+namespace's `gate:show`
 answer, for example:
 `{"namespace":"invitations.chat","mode":"open","settings":{"limit":10,"window":86400,"size":15360,"maxQuarantined":100,"maxQuarantinedBytes":1048576},"admitted":["@bob"],"denied":["@chuck"],"quarantined":[{"atSign":"@dave","counted":3,"bytes":2048,"firstContact":"2026-10-11T09:30:00.000Z"}]}`.
-A closed namespace answers its mode, settings and admitted set, and one with no
-rule its mode `none`, the default and its admitted set. `gate:check` answers
+A closed namespace answers its mode, settings, admitted set and the denied set
+it keeps for reopening (D25), and one with no rule its mode `none`, the default
+and its recorded admissions:
+`{"namespace":"invitations.chat","mode":"none","default":"closed","admitted":[],"governedBy":"chat"}`,
+`governedBy` appearing only when a rule on a broader namespace decides it
+(D26). `gate:check` answers
 `{"namespace":"chat","atSign":"@bob","verdict":"admitted"}`, `gate:show:*`
 `{"namespace":"*","admitted":[...]}`, and `gate:list` a sorted JSON array of
 namespaces.
@@ -158,6 +165,25 @@ keeps today's retry. Two consequences:
 - The sending atServer decodes an `error:` reply through at_commons'
   `AtExceptionUtils.get` (`OutboundMessageListener`), so it needs an at_commons
   that knows the three codes.
+
+Every refused change answers AT0022, `IllegalArgumentException`, with one of
+these messages, so that a client can tell them apart (D26). `<…>` stands for
+the value in force:
+
+| Refusal | Message |
+|---|---|
+| a setting above its ceiling | `<setting> may be at most <ceiling> on this atServer` |
+| a setting below its floor | `<setting> must be at least <floor> on this atServer` |
+| one open namespace too many | `This atSign already has <n> open namespaces, the most it may have` |
+| one namespace with a rule or recorded admissions too many | `This atSign already has <n> namespaces with a rule or recorded admissions, the most it may have` |
+| a full admitted set | `<ns> already admits <n> atSigns, the most it may` |
+| a full denied set | `<ns> already denies <n> atSigns, the most it may` |
+| a full atSign-wide admitted set | `The atSign-wide admitted set already holds <n> atSigns, the most it may` |
+| `deny` where the namespace is not open, or `*` | `Only an open namespace denies; <ns> is not open` |
+
+On an authenticated connection they reach the client as
+`error:AT0022-Illegal arguments : <message>`, or the JSON form a newer client
+asks for.
 
 ### 5.3 Notification status
 
