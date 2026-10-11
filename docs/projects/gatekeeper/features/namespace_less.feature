@@ -14,6 +14,11 @@ Feature: Exchanges with no namespace
   Replay: shared_key's value is what a lookup already returns to that atSign,
   so nothing here hands over what could not otherwise be had.
   DoS: an atSign admitted nowhere gets no namespace-less exchange at all.
+  Forgery: a shared-key notification is accepted only for the sending atSign's
+  own key, so an atSign admitted somewhere cannot replace @alice's cached copy
+  of another atSign's shared key (the scenario tagged @forgery).
+  Impersonation: standing is read for the atSign that pol authenticated, as in
+  rules.feature, and authentication itself is never gated.
 
   Background:
     Given @alice's atSign has the closed default
@@ -59,6 +64,14 @@ Feature: Exchanges with no namespace
     When @chuck's atServer sends "notify:id:3:update:ttr:3888000:@alice:shared_key@chuck:<encrypted key>"
     Then @alice's atServer answers with the not-accepted error
     And @alice's atServer holds no "cached:@alice:shared_key@chuck"
+
+  @forgery
+  Scenario: A shared-key notification for another atSign's key is refused, even from an admitted atSign
+    Given @chuck is admitted in "chat" on @alice's atServer
+    And @alice's atServer holds "cached:@alice:shared_key@dave"
+    When @chuck's atServer sends "notify:id:7:update:ttr:3888000:@alice:shared_key@dave:<encrypted key>"
+    Then @alice's atServer answers with the unauthorized error, AT0009
+    And "cached:@alice:shared_key@dave" on @alice's atServer keeps its earlier value
 
   Scenario: A text notification from an atSign admitted somewhere is accepted
     Given @dave is admitted in "chat" on @alice's atServer
