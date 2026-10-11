@@ -268,10 +268,16 @@ bound the operator has since tightened counts as the bound (D30).
 
 ## 9. Performance
 
-The gatekeeper adds a check to every exchange between atSigns.
-The claim that it costs no storage read ([section 3](#3-state-and-its-records)) is a hypothesis until it is
-measured. Before the gate is built, a bench measures notify and lookup
-throughput between two atServers, and it runs again with the gate in place.
+The gatekeeper adds a check to every exchange between atSigns, and the check
+reads no storage ([section 3](#3-state-and-its-records)). A bench measures
+notify and lookup throughput between two atServers in one virtualenv, with
+1 and 8 clients. On 2026-10-11 it ran three arms interleaved, twice each: the
+server without the gate (`57c59915`), the gate with no rules (`20347489`), and
+the gate with a closed default admitting the other atSign. Every gate arm's
+median throughput was within 5% of the arm without it, in both directions,
+for llookup, lookup and notify; the llookup control, which the gate does not
+touch, moved by as much, so that is the bench's resolution. Counting
+quarantined exchanges, which writes a record each time, was not measured.
 
 ## 10. Tests
 
@@ -284,7 +290,7 @@ outline's title.
 | Unit, `at_secondary_server/test/gate/` | the `Gatekeeper` decision table, and every scenario whose observable is one atServer's answers, with doubles for the other side: all of `rules.feature`; `namespace_less.feature` except "Authentication is never gated"; all of `quarantine.feature`, the restart scenario by reopening the store; `outbound.feature`'s refusals before connecting, through a recording outbound-client double; `refusals.feature`'s recipient side, D12's deletions, the queued re-check, the refresh race and the `@dos` retry |
 | Unit, `at_persistence_secondary_server/test` | raw-literal pins for Hive field 18 and status byte 4, and for the SQLite payload key and status name; the commit-log skip of `local:` on both backends; a downgrade read of each |
 | Functional pack, `tests/at_functional_test` | the scenarios that need two real atServers: the sender's discard and `refused` status, the invitation flow, D10's marking through monitor, D13, D12's refused refresh deleting the holder's copy, and "Authentication is never gated" |
-| e2e pack, `tests/at_end2end_test` | the same cross-atServer subset, across separate hosts in CI |
+| e2e pack, `tests/at_end2end_test` | the same cross-atServer subset across separate hosts in CI, less "Authentication is never gated", which needs a closed default the shared cicd atSigns cannot be given; each scenario runs only where its atServers answer `gate:`, and each test removes the rules it sets |
 | Onboarding-CLI pack | no scenario of its own; it runs before the PR, because the keystore and notification storage change |
 
 In CI, two of the e2e pairs run the branch against a released atServer:
