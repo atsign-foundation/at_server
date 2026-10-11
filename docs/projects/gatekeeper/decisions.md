@@ -495,3 +495,43 @@ unchanged, since public data is outside the gate (D1).
 **Why:** `resolveValueReference` looks a reference up in any namespace, so
 without this an atSign admitted in one namespace could read a key shared with
 it in another.
+
+## D24 The gate verb's answers, reads and bounds
+
+*2026-10-11, gkc. Agreed in design section 5.1, then re-opened the same day from
+a review on the client API's side as Q24 to Q30, and ruled as below.*
+
+- `gate:show:<ns>` answers `data:` and a JSON object: the namespace's mode
+  (`open`, `closed`, or `none` with the default when it has no rule), its
+  settings in force (defaults included, `window` in seconds) and its sorted
+  admitted set. An open namespace also answers its sorted denied set and its
+  quarantined set, each entry with the exchanges `counted` in the current
+  window, the quarantined notification `bytes` held and its `firstContact`,
+  ordered by first contact. A namespace with no rule answers its admitted set
+  as well. `gate:default` answers the mode, and a change answers `success`.
+- Re-issuing `gate:rule:<ns>:open[:<setting>:<value>]` keeps the rule's sets and
+  settings and changes only the setting given; `:<setting>:default` returns a
+  setting to the operator's default. Closing a namespace keeps its denied set,
+  ignored while it is closed and back in force when it reopens, and drops its
+  quarantined set and counts. Quarantined notifications already held stay,
+  marked (D10, D12).
+- `admit` and `remove` record into a namespace's admitted set whether it has a
+  rule or not, without creating one. The default decides how a namespace with
+  no rule behaves, so under `closed` it lets in exactly that set, and a rule set
+  later starts from it. `deny` needs an open namespace.
+- Reads: `gate:check:<ns>:<atSign>` answers the verdict an exchange from that
+  atSign in that namespace would get now (`admitted`, `quarantined` or
+  `notAccepted`), and takes `r` on the namespace. `gate:show:*` answers the
+  atSign-wide admitted set to a root connection. `gate:list` answers the
+  namespaces with a rule or recorded admissions: all of them to a root
+  connection, and those it holds to any other.
+- Bounds, set by the operator and refused with AT0022: 10,000 admitted and
+  10,000 denied atSigns per namespace, 10,000 in the atSign-wide admitted set,
+  and 1,000 namespaces with a rule or recorded admissions.
+
+**Why:** a reopened namespace must not let back in what it denied; an
+application must be able to record an admission before it claims a namespace,
+or switching the default to closed cuts off its contacts; an application can ask
+whether an atSign reaches it in a namespace without seeing the owner's
+atSign-wide trusted list; and every answer, record and set the gate keeps is
+bounded.

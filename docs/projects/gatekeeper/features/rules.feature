@@ -5,13 +5,14 @@ Feature: Namespace rules, and who sets them
   quarantined, or closed, so that only its admitted set may. The atSign's
   default decides every namespace without a rule.
 
-  The gate verb's grammar (decision D19; design.md, section 5.1):
+  The gate verb's grammar (decisions D19 and D24; design.md, section 5.1):
     gate:default                             the atSign's default
     gate:default:ungated | gate:default:closed
                                              switch the default
     gate:rule:<ns>:open[:<setting>:<value>]  make <ns> open; settings: limit,
                                              window, size, maxQuarantined,
-                                             maxQuarantinedBytes
+                                             maxQuarantinedBytes; a value of
+                                             "default" follows the operator's
     gate:rule:<ns>:closed[:admit:<atSign>]   make <ns> closed, admitting only
                                              the atSigns named
     gate:admit:<ns>:<atSign>                 admit in <ns>; <ns> "*" means the
@@ -19,7 +20,11 @@ Feature: Namespace rules, and who sets them
     gate:deny:<ns>:<atSign>                  deny in an open <ns>
     gate:remove:<ns>:<atSign>                take out of <ns>'s admitted or
                                              denied set
-    gate:show:<ns>                           <ns>'s rule and sets
+    gate:show:<ns>                           <ns>'s rule and sets; "*" the
+                                             atSign-wide admitted set
+    gate:check:<ns>:<atSign>                 the verdict <atSign> gets in <ns>
+    gate:list                                the namespaces with a rule or
+                                             recorded admissions
   Notify commands between atServers are abbreviated to the fields a scenario
   turns on. A root enrollment holds "*:rw" and "__manage:rw".
 
