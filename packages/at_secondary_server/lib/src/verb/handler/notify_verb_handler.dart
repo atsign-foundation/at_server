@@ -326,8 +326,12 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       Response response) async {
     // When messageType is 'text', by syntax sharedBy is not populated, so set it to currentAtSign.
     verbParams[AtConstants.atSign] ??= currentAtSign;
-    var keyToNotify = _getFullFormedAtKey(
-        getMessageType(verbParams[AtConstants.messageType]), verbParams);
+    final MessageType messageType =
+        getMessageType(verbParams[AtConstants.messageType]);
+    if (messageType == MessageType.key) {
+      AbstractVerbHandler.refuseServerOnlyKey(verbParams[AtConstants.atKey]);
+    }
+    var keyToNotify = _getFullFormedAtKey(messageType, verbParams);
     // Check whether the sharedBy atSign is currentAtSign and whether the connection has namespace access for APKAM. If yes allow to send notifications
     // else throw UnAuthorizedException
     bool isAuthorized = await _isAuthorizedToSendNotification(

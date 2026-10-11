@@ -7,8 +7,11 @@ import 'package:at_secondary/src/gate/gate_store.dart';
 import 'package:at_secondary/src/gate/gatekeeper.dart';
 import 'package:at_secondary/src/gate/quarantine.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/config_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/gate_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/keys_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
@@ -559,6 +562,37 @@ void main() {
     expect(gate().ruleFor('chat')!.admitted, {bob, dave});
     expect((await GateStore(keyValueStore, alice).load()).rules['chat']!.admitted,
         {bob, dave});
+  });
+
+  group('A gate record cannot be changed except through the gate verb', () {
+    for (final String command in [
+      'keys:delete:keyName:local:chat.rule.gate@alice',
+      'notify:update:@alice:local:chat.rule.gate@alice:{}',
+    ]) {
+      test(command, () async {
+        await gate().setRule('chat', GateMode.closed, admit: bob);
+        await asRoot();
+        final AbstractVerbHandler verb = command.startsWith('keys:')
+            ? KeysVerbHandler(keyValueStore, enMgr, alice)
+            : NotifyVerbHandler(keyValueStore, notificationManager);
+        Exception? refused;
+        try {
+          await verb.processInternal(command, inboundConnection);
+        } on Exception catch (e) {
+          refused = e;
+        }
+        expect(refused, isNotNull, reason: '"$command" was not refused');
+        expect(GlobalExceptionHandler.getInstance().getErrorCode(refused!),
+            'AT0009');
+        for (final Gatekeeper after in [
+          gate(),
+          await Gatekeeper.load(GateStore(keyValueStore, alice)),
+        ]) {
+          expect(after.ruleFor('chat')!.mode, GateMode.closed);
+          expect(after.ruleFor('chat')!.admitted, {bob});
+        }
+      });
+    }
   });
 
   test("Another atSign may not change @alice's gate", () async {

@@ -236,7 +236,8 @@ class ScanVerbHandler extends AbstractVerbHandler {
     return key.startsWith('private:') ||
         key.startsWith('privatekey:') ||
         key.startsWith('public:_') ||
-        key.startsWith('_');
+        key.startsWith('_') ||
+        AbstractVerbHandler.isServerOnlyKey(key);
   }
 
   /// [localKeysList] narrowed to what the connection's enrollment may read:
