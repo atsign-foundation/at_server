@@ -168,6 +168,20 @@ Feature: Quarantine in open namespaces
     Then @alice's atServer answers with the illegal-argument error, AT0022, "window must be at least 3600 on this atServer"
     And the rule for "invitations.chat" is unchanged
 
+  Scenario: A setting above a ceiling the operator has since lowered counts as the ceiling
+    Given @alice's chat client has sent "gate:rule:invitations.chat:open:limit:50"
+    And the operator's ceiling for "limit" on @alice's atServer has since been lowered to 20
+    And @chuck is quarantined in "invitations.chat", with 20 exchanges counted in the last 24 hours
+    When @chuck's atServer sends "notify:id:32:@alice:inv32.invitations.chat@chuck"
+    Then @alice's atServer answers with the quarantine-limit error
+
+  Scenario: A setting held at a lowered ceiling is back in force when the ceiling is raised again
+    Given @alice's chat client has sent "gate:rule:invitations.chat:open:limit:50"
+    And the operator's ceiling for "limit" on @alice's atServer was lowered to 20, then raised to 100
+    And @chuck is quarantined in "invitations.chat", with 20 exchanges counted in the last 24 hours
+    When @chuck's atServer sends "notify:id:33:@alice:inv33.invitations.chat@chuck"
+    Then @alice's atServer answers "data:success"
+
   Scenario: Admitting an atSign ends its counting
     Given @chuck is quarantined in "invitations.chat", with 10 exchanges counted in the last 24 hours
     And @alice's chat client has sent "gate:admit:invitations.chat:@chuck"
