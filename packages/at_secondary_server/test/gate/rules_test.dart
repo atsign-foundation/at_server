@@ -5,6 +5,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/gate/gate_store.dart';
 import 'package:at_secondary/src/gate/gatekeeper.dart';
+import 'package:at_secondary/src/gate/quarantine.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/config_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/gate_verb_handler.dart';
@@ -580,6 +581,13 @@ class _PreloadedStore extends Fake implements GateStore {
 
   @override
   Future<void> deleteRule(String namespace) async {}
+
+  @override
+  Future<void> putQuarantine(
+      String namespace, Map<Atsign, QuarantineEntry> entries) async {}
+
+  @override
+  Future<void> deleteQuarantine(String namespace) async {}
 
   @override
   Future<void> putAdmittedEverywhere(Set<Atsign> atSigns) async {}

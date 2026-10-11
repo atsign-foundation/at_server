@@ -2,6 +2,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/gate/gate_store.dart';
 import 'package:at_secondary/src/gate/gatekeeper.dart';
+import 'package:at_secondary/src/gate/quarantine.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
@@ -170,6 +171,14 @@ class _FailingStore extends Fake implements GateStore {
 
   @override
   Future<void> deleteRule(String namespace) => _write();
+
+  @override
+  Future<void> putQuarantine(
+          String namespace, Map<Atsign, QuarantineEntry> entries) =>
+      _write();
+
+  @override
+  Future<void> deleteQuarantine(String namespace) => _write();
 
   @override
   Future<void> putAdmittedEverywhere(Set<Atsign> atSigns) => _write();

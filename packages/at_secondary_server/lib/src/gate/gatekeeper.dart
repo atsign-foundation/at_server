@@ -1,5 +1,7 @@
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/gate/gate_store.dart';
+import 'package:at_secondary/src/gate/quarantine.dart';
+import 'package:clock/clock.dart';
 import 'package:mutex/mutex.dart';
 
 /// How an atSign's gate treats a namespace that has no rule: as today, or
@@ -41,6 +43,10 @@ class GateLimits {
   /// How many atSigns the atSign-wide admitted set may hold.
   final int maxAdmittedEverywhere;
 
+  /// How many bytes of quarantined notifications the atSign may accept across
+  /// its namespaces, each in its own window.
+  final int maxQuarantinedBytesEverywhere;
+
   const GateLimits({
     this.defaults = const {
       GateSetting.limit: 10,
@@ -67,6 +73,7 @@ class GateLimits {
     this.maxAdmitted = 10000,
     this.maxDenied = 10000,
     this.maxAdmittedEverywhere = 10000,
+    this.maxQuarantinedBytesEverywhere = 64 * 1024 * 1024,
   });
 }
 
@@ -110,6 +117,7 @@ class Gatekeeper {
   GateDefault _default;
   final Map<String, GateRule> _rules = {};
   final Set<Atsign> _admittedEverywhere = {};
+  final Map<String, Map<Atsign, QuarantineEntry>> _quarantine = {};
   final Mutex _writes = Mutex();
 
   Gatekeeper(
@@ -131,6 +139,7 @@ class Gatekeeper {
         store: store);
     gate._rules.addAll(records.rules);
     gate._admittedEverywhere.addAll(records.admittedEverywhere);
+    gate._quarantine.addAll(records.quarantines);
     return gate;
   }
 
@@ -174,6 +183,84 @@ class Gatekeeper {
         ? GateVerdict.admitted
         : GateVerdict.notAccepted;
   }
+
+  /// Decides an exchange from [other] about the key named [keyName] as
+  /// [inbound] does, and counts it when [other] is quarantined. [bytes] is the
+  /// size of a notification, null for a lookup.
+  ///
+  /// Throws [QuarantineSizeException] when the notification is over the
+  /// namespace's size cap, and [QuarantineLimitException] when the exchange
+  /// would pass the atSign's count in the window or a bound on the quarantine;
+  /// nothing is counted then.
+  Future<GateVerdict> count(Atsign other, String keyName,
+          {bool onShortList = false, int? bytes}) =>
+      _writes.protect(() async {
+        final GateVerdict verdict =
+            inbound(other, keyName, onShortList: onShortList);
+        if (verdict != GateVerdict.quarantined) {
+          return verdict;
+        }
+        final String namespace =
+            _ruleCovering(keyName.substring(keyName.indexOf('.') + 1))!;
+        final GateRule rule = _rules[namespace]!;
+        if (bytes != null && bytes > settingOf(rule, GateSetting.size)) {
+          throw QuarantineSizeException(
+              'The notification is larger than this atServer quarantines');
+        }
+        final DateTime now = clock.now();
+        final Map<Atsign, QuarantineEntry> entries =
+            _quarantinedAt(namespace, now);
+        final QuarantineEntry? entry = entries[other];
+        final bool full = entry == null
+            ? entries.length >= settingOf(rule, GateSetting.maxQuarantined)
+            : entry.counted.length >= settingOf(rule, GateSetting.limit);
+        final int added = bytes ?? 0;
+        if (full ||
+            _bytes(entries) + added >
+                settingOf(rule, GateSetting.maxQuarantinedBytes) ||
+            _bytesEverywhere(now, namespace, entries) + added >
+                limits.maxQuarantinedBytesEverywhere) {
+          throw QuarantineLimitException(
+              "This atServer's quarantine has no room for the exchange");
+        }
+        entries[other] = (entry ?? QuarantineEntry(now))
+            .plus(CountedExchange(now, added));
+        await _putQuarantine(namespace, entries);
+        return verdict;
+      });
+
+  /// The atSigns quarantined in [namespace] now, each with the exchanges
+  /// counted in its window.
+  Map<Atsign, QuarantineEntry> quarantinedIn(String namespace) =>
+      Map.unmodifiable(_quarantinedAt(namespace, clock.now()));
+
+  /// [namespace]'s quarantined atSigns as of [now]: each with only the
+  /// exchanges in the window, and without those that have none left.
+  Map<Atsign, QuarantineEntry> _quarantinedAt(String namespace, DateTime now) {
+    final GateRule? rule = _rules[namespace];
+    if (rule?.mode != GateMode.open) {
+      return {};
+    }
+    final DateTime start =
+        now.subtract(Duration(seconds: settingOf(rule!, GateSetting.window)));
+    return {
+      for (final MapEntry<Atsign, QuarantineEntry> e
+          in (_quarantine[namespace] ?? const {}).entries)
+        if (e.value.since(start) case final QuarantineEntry kept) e.key: kept
+    };
+  }
+
+  static int _bytes(Map<Atsign, QuarantineEntry> entries) =>
+      entries.values.fold(0, (sum, entry) => sum + entry.bytes);
+
+  /// The quarantined bytes accepted in every namespace's window, with
+  /// [entries] standing for [namespace]'s.
+  int _bytesEverywhere(DateTime now, String namespace,
+          Map<Atsign, QuarantineEntry> entries) =>
+      _quarantine.keys
+          .where((other) => other != namespace)
+          .fold(_bytes(entries),
+              (sum, other) => sum + _bytes(_quarantinedAt(other, now)));
 
   /// Throws [NotAcceptedException] when [verdict] refuses the exchange.
   static void refuseIfNotAccepted(GateVerdict verdict) {
@@ -284,8 +371,23 @@ class Gatekeeper {
       },
       'admitted': _sorted(rule!.admitted),
       'denied': _sorted(rule.denied),
-      if (mode == GateMode.open) 'quarantined': <Map<String, Object?>>[],
+      if (mode == GateMode.open) 'quarantined': _showQuarantined(namespace),
     };
+  }
+
+  List<Map<String, Object?>> _showQuarantined(String namespace) {
+    final List<MapEntry<Atsign, QuarantineEntry>> entries =
+        quarantinedIn(namespace).entries.toList()
+          ..sort((a, b) => a.value.firstContact.compareTo(b.value.firstContact));
+    return [
+      for (final MapEntry<Atsign, QuarantineEntry> e in entries)
+        {
+          'atSign': '${e.key}',
+          'counted': e.value.counted.length,
+          'bytes': e.value.bytes,
+          'firstContact': e.value.firstContact.toUtc().toIso8601String(),
+        }
+    ];
   }
 
   /// Switches the default for namespaces with no rule.
@@ -329,6 +431,11 @@ class Gatekeeper {
           _addAdmitted(namespace, rule, admit);
         }
         await _putRule(namespace, rule);
+        if (mode == GateMode.closed) {
+          await _dropQuarantine(namespace);
+        } else if (admit != null) {
+          await _endCounting(namespace, admit);
+        }
       });
 
   /// Takes [namespace]'s rule away, keeping its admitted set as admissions
@@ -342,9 +449,11 @@ class Gatekeeper {
         if (existing!.admitted.isEmpty) {
           await _store?.deleteRule(namespace);
           _rules.remove(namespace);
-          return;
+        } else {
+          await _putRule(
+              namespace, GateRule(null, admitted: {...existing.admitted}));
         }
-        await _putRule(namespace, GateRule(null, admitted: {...existing.admitted}));
+        await _dropQuarantine(namespace);
       });
 
   /// Admits [other] in [namespace], or in every open namespace when
@@ -363,12 +472,16 @@ class Gatekeeper {
                 ' ${limits.maxAdmittedEverywhere} atSigns, the most it may');
           }
           await _putAdmittedEverywhere({..._admittedEverywhere, other});
+          for (final String quarantined in [..._quarantine.keys]) {
+            await _endCounting(quarantined, other);
+          }
           return;
         }
         final GateRule rule =
             _rules[namespace]?.copy() ?? _newEntry(namespace);
         _addAdmitted(namespace, rule, other);
         await _putRule(namespace, rule);
+        await _endCounting(namespace, other);
       });
 
   /// Denies [other] in the open [namespace].
@@ -391,6 +504,7 @@ class Gatekeeper {
         rule.denied.add(other);
         rule.admitted.remove(other);
         await _putRule(namespace, rule);
+        await _endCounting(namespace, other);
       });
 
   /// Takes [other] out of [namespace]'s admitted and denied sets, or out of
@@ -444,6 +558,34 @@ class Gatekeeper {
   Future<void> _putRule(String namespace, GateRule rule) async {
     await _store?.putRule(namespace, rule);
     _rules[namespace] = rule;
+  }
+
+  Future<void> _putQuarantine(
+      String namespace, Map<Atsign, QuarantineEntry> entries) async {
+    if (entries.isEmpty) {
+      await _dropQuarantine(namespace);
+      return;
+    }
+    await _store?.putQuarantine(namespace, entries);
+    _quarantine[namespace] = entries;
+  }
+
+  Future<void> _dropQuarantine(String namespace) async {
+    if (!_quarantine.containsKey(namespace)) {
+      return;
+    }
+    await _store?.deleteQuarantine(namespace);
+    _quarantine.remove(namespace);
+  }
+
+  /// Ends the counting of [other] in [namespace], when it is quarantined
+  /// there.
+  Future<void> _endCounting(String namespace, Atsign other) async {
+    final Map<Atsign, QuarantineEntry>? entries = _quarantine[namespace];
+    if (entries == null || !entries.containsKey(other)) {
+      return;
+    }
+    await _putQuarantine(namespace, {...entries}..remove(other));
   }
 
   Future<void> _putAdmittedEverywhere(Set<Atsign> atSigns) async {
