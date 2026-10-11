@@ -204,9 +204,16 @@ class Gatekeeper {
   List<String> get namespaces => _rules.keys.toList()..sort();
 
   /// The value of [setting] in force for [rule]: its own, or the operator's
-  /// default.
-  int settingOf(GateRule rule, GateSetting setting) =>
-      rule.settings[setting] ?? limits.defaults[setting]!;
+  /// default, held within the operator's current floor and ceiling.
+  int settingOf(GateRule rule, GateSetting setting) {
+    final int value = rule.settings[setting] ?? limits.defaults[setting]!;
+    final int? ceiling = limits.ceilings[setting];
+    if (ceiling != null && value > ceiling) {
+      return ceiling;
+    }
+    final int floor = limits.floors[setting] ?? 0;
+    return value < floor ? floor : value;
+  }
 
   /// The verdict for an exchange from [other] about the key named [keyName],
   /// given without its owner. [onShortList] says whether an exchange with no

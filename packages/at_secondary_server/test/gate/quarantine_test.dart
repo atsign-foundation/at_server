@@ -313,6 +313,55 @@ void main() {
     expect(gate().show(inv), before);
   });
 
+  /// Restarts @alice's atServer with the operator's ceiling for the count
+  /// limit at [ceiling].
+  Future<void> restartedWithLimitCeiling(int ceiling) async =>
+      AtSecondaryServerImpl.getInstance().gatekeeper = await Gatekeeper.load(
+          GateStore(keyValueStore, alice),
+          limits: GateLimits(ceilings: {
+            ...const GateLimits().ceilings,
+            GateSetting.limit: ceiling,
+          }));
+
+  test(
+      'A setting above a ceiling the operator has since lowered counts as the'
+      ' ceiling', () async {
+    await gate().setRule(inv, GateMode.open,
+        setting: GateSetting.limit, value: 50);
+    await restartedWithLimitCeiling(20);
+    await countedAlready(chuck, 20);
+    expect(
+        await refusalCode(
+            chuck, 'notify:id:32:@alice:inv32.invitations.chat@chuck'),
+        'AT0034');
+  });
+
+  test(
+      'A setting held at a lowered ceiling is back in force when the ceiling'
+      ' is raised again', () async {
+    await gate().setRule(inv, GateMode.open,
+        setting: GateSetting.limit, value: 50);
+    await restartedWithLimitCeiling(20);
+    await restartedWithLimitCeiling(100);
+    await countedAlready(chuck, 20);
+    expect(await sends(chuck, 'notify:id:33:@alice:inv33.invitations.chat@chuck'),
+        'data:success');
+  });
+
+  test(
+      'Given a limit of 50, when the ceiling is lowered to 20, then gate:show'
+      ' answers 20 and the record keeps 50', () async {
+    await gate().setRule(inv, GateMode.open,
+        setting: GateSetting.limit, value: 50);
+    await restartedWithLimitCeiling(20);
+    expect((gate().show(inv)['settings'] as Map)['limit'], 20);
+    expect(
+        (await GateStore(keyValueStore, alice).load())
+            .rules[inv]!
+            .settings[GateSetting.limit],
+        50);
+  });
+
   test('Admitting an atSign ends its counting', () async {
     await countedAlready(chuck, 10);
     await gate().admit(inv, chuck);

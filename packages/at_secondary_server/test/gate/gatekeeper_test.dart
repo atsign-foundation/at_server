@@ -481,6 +481,20 @@ void main() {
     });
 
     test(
+        'when a recorded setting lies beyond a bound since tightened, then the'
+        ' bound is in force and the rule keeps the setting', () {
+      final Gatekeeper gate = Gatekeeper(
+          limits: const GateLimits(
+              ceilings: {GateSetting.limit: 20},
+              floors: {GateSetting.window: 7200}));
+      final GateRule rule = GateRule(GateMode.open,
+          settings: {GateSetting.limit: 50, GateSetting.window: 3600});
+      expect(gate.settingOf(rule, GateSetting.limit), 20);
+      expect(gate.settingOf(rule, GateSetting.window), 7200);
+      expect(rule.settings, {GateSetting.limit: 50, GateSetting.window: 3600});
+    });
+
+    test(
         'when an atSign at its cap of open namespaces opens another, then it'
         ' is refused and that namespace has no rule', () async {
       final Gatekeeper gate =
