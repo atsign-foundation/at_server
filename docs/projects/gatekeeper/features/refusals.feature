@@ -23,6 +23,11 @@ Feature: Refusals, and losing admission
   DoS: a refusal stores nothing and opens no connection. An atServer that does
   not yet discard refusals retries one every 10 seconds until it expires, and
   each retry costs @alice's atServer one rule check.
+  Forgery: the "refused" status is set by the sending atServer itself, from
+  the reply to its own command; no other party sets it.
+  Impersonation: since a refusal is final, the sender takes it only as the
+  reply from the recipient's atServer, reached where the atDirectory says,
+  over TLS, which this feature leaves as it is.
 
   Background:
     Given @alice's atSign has the closed default
