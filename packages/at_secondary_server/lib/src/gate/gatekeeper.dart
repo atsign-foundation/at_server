@@ -1,4 +1,5 @@
 import 'package:at_commons/at_commons.dart';
+import 'package:at_secondary/src/gate/gate_store.dart';
 import 'package:mutex/mutex.dart';
 
 /// How an atSign's gate treats a namespace that has no rule: as today, or
@@ -70,17 +71,23 @@ class GateRule {
       : admitted = admitted ?? <Atsign>{},
         denied = denied ?? <Atsign>{},
         settings = settings ?? <GateSetting, int>{};
+
+  /// A rule equal to this one that changes independently of it.
+  GateRule copy() => GateRule(mode,
+      admitted: {...admitted}, denied: {...denied}, settings: {...settings});
 }
 
 /// An atSign's gate: its default, a rule per namespace, and an atSign-wide
 /// admitted set, deciding every exchange with another atSign.
 ///
-/// Every change runs under one mutex; a check only reads, and takes none.
+/// Every change runs under one mutex and is written to the [GateStore], when
+/// there is one, before it takes effect; a check only reads, and takes none.
 class Gatekeeper {
   /// The namespace a change to the atSign-wide admitted set names.
   static const String everyNamespace = '*';
 
   final GateLimits limits;
+  final GateStore? _store;
   GateDefault _default;
   final Map<String, GateRule> _rules = {};
   final Set<Atsign> _admittedEverywhere = {};
@@ -88,8 +95,25 @@ class Gatekeeper {
 
   Gatekeeper(
       {GateDefault defaultMode = GateDefault.ungated,
-      this.limits = const GateLimits()})
-      : _default = defaultMode;
+      this.limits = const GateLimits(),
+      GateStore? store})
+      : _default = defaultMode,
+        _store = store;
+
+  /// The gate [store] last wrote, with [startingDefault] as its default when
+  /// none has been written.
+  static Future<Gatekeeper> load(GateStore store,
+      {GateDefault startingDefault = GateDefault.ungated,
+      GateLimits limits = const GateLimits()}) async {
+    final GateRecords records = await store.load();
+    final Gatekeeper gate = Gatekeeper(
+        defaultMode: records.defaultMode ?? startingDefault,
+        limits: limits,
+        store: store);
+    gate._rules.addAll(records.rules);
+    gate._admittedEverywhere.addAll(records.admittedEverywhere);
+    return gate;
+  }
 
   GateDefault get defaultMode => _default;
 
@@ -183,8 +207,10 @@ class Gatekeeper {
   }
 
   /// Switches the default for namespaces with no rule.
-  Future<void> setDefault(GateDefault mode) =>
-      _writes.protect(() async => _default = mode);
+  Future<void> setDefault(GateDefault mode) => _writes.protect(() async {
+        await _store?.putDefault(mode);
+        _default = mode;
+      });
 
   /// Gives [namespace] the rule [mode], keeping its sets and settings, setting
   /// [setting] to [value] when given, and admitting [admit] when given.
@@ -207,8 +233,7 @@ class Gatekeeper {
               'This atSign already has ${limits.maxOpenNamespaces} open'
               ' namespaces, the most it may have');
         }
-        final GateRule rule =
-            _rules.putIfAbsent(namespace, () => GateRule(mode));
+        final GateRule rule = existing?.copy() ?? GateRule(mode);
         rule.mode = mode;
         if (mode == GateMode.closed) {
           rule.denied.clear();
@@ -220,6 +245,7 @@ class Gatekeeper {
           rule.admitted.add(admit);
           rule.denied.remove(admit);
         }
+        await _putRule(namespace, rule);
       });
 
   /// Admits [other] in [namespace], or in every open namespace when
@@ -229,12 +255,13 @@ class Gatekeeper {
   Future<void> admit(String namespace, Atsign other) =>
       _writes.protect(() async {
         if (namespace == everyNamespace) {
-          _admittedEverywhere.add(other);
+          await _putAdmittedEverywhere({..._admittedEverywhere, other});
           return;
         }
-        final GateRule rule = _requireRule(namespace);
+        final GateRule rule = _requireRule(namespace).copy();
         rule.admitted.add(other);
         rule.denied.remove(other);
+        await _putRule(namespace, rule);
       });
 
   /// Denies [other] in the open [namespace].
@@ -243,13 +270,14 @@ class Gatekeeper {
   /// [everyNamespace] never has, or is closed.
   Future<void> deny(String namespace, Atsign other) =>
       _writes.protect(() async {
-        final GateRule rule = _requireRule(namespace);
+        final GateRule rule = _requireRule(namespace).copy();
         if (rule.mode != GateMode.open) {
           throw IllegalArgumentException(
               'Only an open namespace denies; $namespace is closed');
         }
         rule.denied.add(other);
         rule.admitted.remove(other);
+        await _putRule(namespace, rule);
       });
 
   /// Takes [other] out of [namespace]'s admitted and denied sets, or out of
@@ -259,13 +287,27 @@ class Gatekeeper {
   Future<void> remove(String namespace, Atsign other) =>
       _writes.protect(() async {
         if (namespace == everyNamespace) {
-          _admittedEverywhere.remove(other);
+          await _putAdmittedEverywhere(
+              {..._admittedEverywhere}..remove(other));
           return;
         }
-        final GateRule rule = _requireRule(namespace);
+        final GateRule rule = _requireRule(namespace).copy();
         rule.admitted.remove(other);
         rule.denied.remove(other);
+        await _putRule(namespace, rule);
       });
+
+  Future<void> _putRule(String namespace, GateRule rule) async {
+    await _store?.putRule(namespace, rule);
+    _rules[namespace] = rule;
+  }
+
+  Future<void> _putAdmittedEverywhere(Set<Atsign> atSigns) async {
+    await _store?.putAdmittedEverywhere(atSigns);
+    _admittedEverywhere
+      ..clear()
+      ..addAll(atSigns);
+  }
 
   GateRule _requireRule(String namespace) {
     final GateRule? rule = _rules[namespace];
