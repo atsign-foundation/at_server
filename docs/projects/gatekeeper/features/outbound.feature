@@ -13,6 +13,13 @@ Feature: @alice's own outbound exchanges
   Replay: an outbound refusal is decided on @alice's own authenticated
   connection, before anything crosses the wire.
   DoS: a refused outbound exchange queues nothing and opens no connection.
+  Forgery: a reply gains nothing from the exchange it answers, so a
+  notification cannot claim standing by naming one of @alice's invitations,
+  and a remote scan's answer is judged on the atSign scanned, never on the
+  owner its keys name (the scenarios tagged @forgery).
+  Impersonation: outbound checks run on @alice's own authenticated
+  connections, and @alice's atServer reaches each atSign at the atServer the
+  atDirectory names, which this feature leaves as it is.
 
   Background:
     Given @alice's atSign has the closed default
@@ -70,6 +77,15 @@ Feature: @alice's own outbound exchanges
     When @alice's client sends "scan:@chuck"
     Then @alice's atServer answers ["pic.photos@chuck"]
 
+  @forgery
+  Scenario: A remote scan's answer is judged on the atSign scanned, not on the owner a key names
+    Given namespace "chat" on @alice's atServer is closed, admitting only @bob
+    And namespace "photos" on @alice's atServer is open
+    And @chuck's atServer answers a scan from @alice with ["msg.chat@bob", "pic.photos@chuck"]
+    When @alice's client sends "scan:@chuck"
+    Then @alice's atServer answers ["pic.photos@chuck"]
+
+  @forgery
   Scenario: The reply to an invitation arrives in quarantine
     Given namespace "chat" is closed and "invitations.chat" is open, on both @alice's and @dave's atServers
     And @alice's client has sent "notify:@dave:inv1.invitations.chat@alice"
