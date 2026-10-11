@@ -282,8 +282,8 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     cacheManager = AtCacheManager(serverContext!.currentAtSign!, keyValueStore,
         outboundClientManager, notificationManager);
-    gatekeeper.onChange = () => cacheManager.deleteCopiesNotReached(
-        gatekeeper, AtConfig(keyValueStore, currentAtSign).checkInBlockList);
+    gatekeeper.onChange =
+        () => cacheManager.deleteCopiesNotReached(gatekeeper);
     notificationManager.gatekeeper = gatekeeper;
 
     final int runRefreshJobHour = AtCacheRefreshJob.runJobHourFrom(
@@ -882,17 +882,21 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     throw Exception("AtSecondaryServer.getMetrics() is obsolete");
   }
 
-  /// The gate [store] holds, under the operator's limits. With no default
-  /// recorded, an activated atSign starts `ungated` and any other with the
-  /// operator's starting default.
+  /// The gate [store] holds, under the operator's limits and holding the
+  /// owner's blocklist. With no default recorded, an activated atSign starts
+  /// `ungated` and any other with the operator's starting default.
   @visibleForTesting
   static Future<Gatekeeper> loadGatekeeper(
-          GateStore store, EnrollmentManager enrollments) =>
-      Gatekeeper.load(store,
-          startingDefault: () async => await isActivated(enrollments)
-              ? GateDefault.ungated
-              : AtSecondaryConfig.gateStartingDefault,
-          limits: AtSecondaryConfig.gateLimits);
+      GateStore store, EnrollmentManager enrollments) async {
+    final Gatekeeper gate = await Gatekeeper.load(store,
+        startingDefault: () async => await isActivated(enrollments)
+            ? GateDefault.ungated
+            : AtSecondaryConfig.gateStartingDefault,
+        limits: AtSecondaryConfig.gateLimits);
+    await gate.blocklistChanged(
+        await AtConfig(store.keyStore, '${store.atSign}').getBlockedAtSigns());
+    return gate;
+  }
 
   /// Whether the atSign has been activated: it has deleted its CRAM secret,
   /// or holds the flat PKAM key or any enrollment.

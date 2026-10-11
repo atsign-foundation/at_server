@@ -135,6 +135,7 @@ class Gatekeeper {
   GateDefault _default;
   final Map<String, GateRule> _rules = {};
   final Set<Atsign> _admittedEverywhere = {};
+  final Set<Atsign> _blocked = {};
   final Map<String, Map<Atsign, QuarantineEntry>> _quarantine = {};
   final Mutex _writes = Mutex();
   int _changes = 0;
@@ -188,9 +189,18 @@ class Gatekeeper {
         return true;
       });
 
-  /// Runs [onChange] under the gate's lock, for a change made outside the
-  /// gate that can end an admission, such as the blocklist's.
-  Future<void> admissionsChanged() => _writes.protect(_changed);
+  /// The atSigns on the owner's blocklist.
+  Set<Atsign> get blocked => Set.unmodifiable(_blocked);
+
+  /// Holds [atSigns] as the owner's blocklist, and runs [onChange] under the
+  /// gate's lock.
+  Future<void> blocklistChanged(Iterable<Atsign> atSigns) =>
+      _writes.protect(() async {
+        _blocked
+          ..clear()
+          ..addAll(atSigns);
+        await _changed();
+      });
 
   /// The atSigns admitted in every open namespace and wherever the closed
   /// default decides.
@@ -332,10 +342,13 @@ class Gatekeeper {
 
   /// Whether @alice may reach [other] about the key [key], on the way out: in
   /// an open namespace any atSign not denied there, in a closed one only those
-  /// admitted, and where the default decides, those it lets in. [key] may
-  /// carry a prefix and its owner; a [text] notification belongs to no
-  /// namespace and is on the short list.
+  /// admitted, and where the default decides, those it lets in; never an
+  /// atSign on the owner's blocklist. [key] may carry a prefix and its owner;
+  /// a [text] notification belongs to no namespace and is on the short list.
   bool reaches(Atsign other, String key, {bool text = false}) {
+    if (_blocked.contains(other)) {
+      return false;
+    }
     final String name = keyNameOf(key);
     final GateVerdict verdict = text
         ? namespaceLess(other, onShortList: true)

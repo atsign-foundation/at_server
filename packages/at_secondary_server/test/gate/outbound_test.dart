@@ -4,9 +4,12 @@ import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dar
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/gate/gatekeeper.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/config_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/proxy_lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/scan_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart' show AuthType;
@@ -275,5 +278,80 @@ void main() {
           await refusalCode(notifyHandler(), 'notify:@chuck:pic.photos@alice'),
           'AT0033');
     });
+  });
+
+  /// Sends "config:block:[operation]:[other]" from @alice's root client.
+  Future<void> blocklist(String operation, Atsign other) async =>
+      await ConfigVerbHandler(keyValueStore, commitLog: atCommitLog)
+          .processInternal('config:block:$operation:$other', ownClient());
+
+  /// Namespace "chat" closed, admitting @bob and @chuck.
+  Future<void> chatAdmittingBobAndChuck() async {
+    await gate().setRule('chat', GateMode.closed, admit: bob);
+    await gate().admit('chat', chuck);
+  }
+
+  test(
+      'A notification to a blocklisted atSign is never sent, whatever its'
+      ' namespace admits', () async {
+    await chatAdmittingBobAndChuck();
+    await blocklist('add', chuck);
+    expect(await refusalCode(notifyHandler(), 'notify:@chuck:msg.chat@alice'),
+        'AT0033');
+    expect(await heldFor(chuck), isEmpty);
+    noConnectionTo(chuck);
+  });
+
+  test("A lookup of a blocklisted atSign's key is never sent", () async {
+    await chatAdmittingBobAndChuck();
+    await blocklist('add', chuck);
+    expect(await refusalCode(lookupHandler(), 'lookup:status.chat@chuck'),
+        'AT0033');
+    noConnectionTo(chuck);
+  });
+
+  test('A key shared with a blocklisted atSign is stored, and not notified',
+      () async {
+    await chatAdmittingBobAndChuck();
+    await blocklist('add', chuck);
+    expect(
+        int.tryParse((await clientSends(
+            updateHandler(), 'update:@chuck:status.chat@alice v'))!),
+        isNotNull);
+    expect(await keyValueStore.exists('@chuck:status.chat$alice'), isTrue);
+    expect(await heldFor(chuck), isEmpty);
+  });
+
+  test("A public lookup of a blocklisted atSign's record is answered as before",
+      () async {
+    await blocklist('add', chuck);
+    final DateTime now = DateTime.now().toUtc();
+    final MockOutboundClient client = MockOutboundClient();
+    when(() => client.lookUp(any(), handshake: any(named: 'handshake')))
+        .thenAnswer((_) async =>
+            'data:${SecondaryUtil.prepareResponseData('all', AtData()
+              ..data = 'chucks public key'
+              ..metaData = (AtMetaData()
+                ..createdAt = now
+                ..updatedAt = now), key: 'public:publickey$chuck')}');
+    when(() => mockOutboundClientManager.getClient('$chuck', any(),
+            handshakeRequired: any(named: 'handshakeRequired')))
+        .thenAnswer((_) async => client);
+    expect(
+        await clientSends(
+            ProxyLookupVerbHandler(
+                keyValueStore, mockOutboundClientManager, cacheManager,
+                accessLog: atAccessLog),
+            'plookup:publickey@chuck'),
+        'chucks public key');
+  });
+
+  test('An atSign taken off the blocklist is reached again', () async {
+    await chatAdmittingBobAndChuck();
+    await blocklist('add', chuck);
+    await blocklist('remove', chuck);
+    final String? id =
+        await clientSends(notifyHandler(), 'notify:@chuck:msg.chat@alice');
+    expect((await heldFor(chuck)).map((n) => n.id), [id]);
   });
 }

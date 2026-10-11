@@ -1,5 +1,6 @@
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/config/at_config.dart';
 import 'package:at_secondary/src/gate/gate_store.dart';
 import 'package:at_secondary/src/gate/gatekeeper.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
@@ -274,6 +275,22 @@ gate:
       // NOTE operators set this by name, so the name is pinned as written.
       expect(AtSecondaryConfig.gateEnvVar('startingDefault'),
           'gateStartingDefault');
+    });
+  });
+
+  group('Given a blocklist in the keystore', () {
+    setUpAll(() async => await verbTestsSetUpAll());
+    setUp(() async => await verbTestsSetUp());
+    tearDown(() async => await verbTestsTearDown());
+
+    test(
+        'when the atServer loads its gate, then the gate holds its atSigns and'
+        ' leaves out an entry that is not one', () async {
+      await AtConfig(keyValueStore, '$alice')
+          .addToBlockList({'@chuck', 'not an atSign'});
+      final Gatekeeper gate = await AtSecondaryServerImpl.loadGatekeeper(
+          GateStore(keyValueStore, alice), enMgr);
+      expect(gate.blocked, {'@chuck'.toAtsign()});
     });
   });
 }

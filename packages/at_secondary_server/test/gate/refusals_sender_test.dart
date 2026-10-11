@@ -51,6 +51,12 @@ void main() {
   Future<AtNotification> settled(String id) =>
       stored.putIfAbsent(id, () => Completer()).future;
 
+  /// Makes a notification the gate lets through settle as delivered, so a
+  /// check that fails shows as its status rather than as a timeout.
+  void deliveredIfSent() =>
+      when(() => client.notify(any(), handshake: any(named: 'handshake')))
+          .thenAnswer((_) async => 'data:success');
+
   test('A sending atServer discards a refused notification at once',
       () async {
     when(() => client.notify(any(), handshake: true))
@@ -85,6 +91,7 @@ void main() {
     await alicesGate.setRule('chat', GateMode.closed, admit: bob.toAtsign());
     manager.gatekeeper = alicesGate;
     await alicesGate.remove('chat', bob.toAtsign());
+    deliveredIfSent();
     manager.enqueue((AtNotificationBuilder()
           ..id = '21'
           ..type = NotificationType.sent
@@ -93,6 +100,30 @@ void main() {
           ..notification = '$bob:msg.chat$alice')
         .build());
     expect((await settled('21')).notificationStatus,
+        NotificationStatus.refused);
+    verifyNever(
+        () => client.notify(any(), handshake: any(named: 'handshake')));
+  });
+
+  test(
+      'A notification queued before its recipient was blocklisted is never'
+      ' delivered', () async {
+    manager = NotificationManager(
+        alice, manager.notifStore, manager.notifyConnectionsPool);
+    final Gatekeeper alicesGate = Gatekeeper(defaultMode: GateDefault.closed);
+    await alicesGate.setRule('chat', GateMode.closed, admit: bob.toAtsign());
+    await alicesGate.admit('chat', chuck);
+    manager.gatekeeper = alicesGate;
+    await alicesGate.blocklistChanged({chuck});
+    deliveredIfSent();
+    manager.enqueue((AtNotificationBuilder()
+          ..id = '41'
+          ..type = NotificationType.sent
+          ..toAtSign = '$chuck'
+          ..fromAtSign = alice
+          ..notification = '$chuck:msg.chat$alice')
+        .build());
+    expect((await settled('41')).notificationStatus,
         NotificationStatus.refused);
     verifyNever(
         () => client.notify(any(), handshake: any(named: 'handshake')));

@@ -304,12 +304,9 @@ class AtCacheManager {
     return null;
   }
 
-  /// Delete cached record, if there is one; nothing is committed when there
-  /// is not
   /// Deletes each cached copy of another atSign's key that [gate] no longer
-  /// lets this atSign reach, or whose owner [isBlocked]; answers how many.
-  Future<int> deleteCopiesNotReached(
-      Gatekeeper gate, Future<bool> Function(String atSign) isBlocked) async {
+  /// lets this atSign reach; answers how many.
+  Future<int> deleteCopiesNotReached(Gatekeeper gate) async {
     final String prefix = 'cached:$atSign:';
     int deleted = 0;
     for (final String key in await (await keyStore
@@ -317,7 +314,7 @@ class AtCacheManager {
         .toList()) {
       final String keyName = key.substring(prefix.length);
       final String owner = keyName.substring(keyName.lastIndexOf('@'));
-      if (!gate.reaches(owner.toAtsign(), keyName) || await isBlocked(owner)) {
+      if (!gate.reaches(owner.toAtsign(), keyName)) {
         await delete(key);
         deleted++;
       }
@@ -325,6 +322,8 @@ class AtCacheManager {
     return deleted;
   }
 
+  /// Delete cached record, if there is one; nothing is committed when there
+  /// is not
   Future<void> delete(String cachedKeyName) async {
     logger.info("delete: $cachedKeyName");
     if (!cachedKeyName.startsWith('cached:')) {

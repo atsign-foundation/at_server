@@ -15,6 +15,10 @@
 
 - feat: no client verb reads or writes a `local:` key.
 
+- feat: an atSign on the blocklist (`config:block`) is now blocked both ways:
+  notifications to it are refused and lookups of its keys are not sent.
+  Public lookups are unchanged.
+
 - fix: an `atsign://` reference resolves to the copy shared with the asker
   before the public one.
 
