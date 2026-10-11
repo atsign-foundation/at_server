@@ -659,3 +659,32 @@ does. Removing or expiring a notification frees nothing. D15, D20 and D24 said
 **Why:** it follows D7's "removing notifications does not free a place", needs
 no hooks into the paths that remove or expire notifications, and survives a
 restart because the record already holds it.
+
+## D29 An atSign is new until it is activated, judged when its gate first loads
+
+*2026-10-11, gkc. Q35, raised when building the operator's starting default.*
+
+The first time an atServer loads its gate and finds no default recorded, it
+records one: `ungated` when the atSign has been activated, and the operator's
+starting default when it has not. An atSign has been activated when it has
+deleted its CRAM secret, or holds the flat PKAM key or any enrollment, expired
+ones included. A brand-new atServer, a reset atSign and one provisioned but not
+yet activated therefore start with the operator's default. A recorded default
+changes only through `gate:default` on a root connection, so a later change to
+the operator's setting reaches only atServers that have not yet loaded their
+gate. The operator's setting is `startingDefault` in the `gate` section of the
+atServer's config, `ungated` when unset.
+
+Deciding at activation, in the CRAM paths that install the first key, and at
+the atServer's first start, when it plants its CRAM secret, were considered.
+
+**Why:** the decision is made once, in one place, before the atSign is
+activated. Every way of activating leaves one of those marks, and an atSign
+provisioned but not yet activated is new to its owner. Before this, a gate with
+no default recorded used the starting default in memory and recorded nothing,
+so an existing atSign would have followed any later change to the operator's
+setting.
+
+*Spec consequence:* rules.feature gains a scenario for an atSign activated
+before its atServer had the gate, and one for a change to the operator's
+setting.
