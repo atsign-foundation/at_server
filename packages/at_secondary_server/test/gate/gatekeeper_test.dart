@@ -150,15 +150,25 @@ void main() {
     });
 
     test(
-        'when it is closed, then its denied set goes and only its admitted'
-        ' atSigns get in', () async {
+        'when it is closed, then only its admitted atSigns get in and its'
+        ' denied set is kept', () async {
       await gate.admit('photos', bob);
       await gate.deny('photos', chuck);
       await gate.setRule('photos', GateMode.closed);
-      expect(gate.ruleFor('photos')!.denied, isEmpty);
+      expect(gate.ruleFor('photos')!.denied, {chuck});
       expect(gate.inbound(bob, 'pic.photos'), GateVerdict.admitted);
       expect(gate.inbound(chuck, 'pic.photos'), GateVerdict.notAccepted);
       expect(gate.inbound(dave, 'pic.photos'), GateVerdict.notAccepted);
+    });
+
+    test(
+        'when it is closed and opened again, then the atSigns it denied are'
+        ' refused', () async {
+      await gate.deny('photos', chuck);
+      await gate.setRule('photos', GateMode.closed);
+      await gate.setRule('photos', GateMode.open);
+      expect(gate.inbound(chuck, 'pic.photos'), GateVerdict.notAccepted);
+      expect(gate.inbound(dave, 'pic.photos'), GateVerdict.quarantined);
     });
 
     test('when two atSigns are admitted at once, then both are admitted',
@@ -169,15 +179,129 @@ void main() {
   });
 
   group('Given a namespace with no rule', () {
-    test('when an atSign is admitted, denied or removed in it, then it is'
-        ' refused as an illegal argument', () {
-      final Gatekeeper gate = Gatekeeper();
-      expect(() => gate.admit('chat', bob),
-          throwsA(isA<IllegalArgumentException>()));
-      expect(() => gate.deny('chat', bob),
-          throwsA(isA<IllegalArgumentException>()));
-      expect(() => gate.remove('chat', bob),
-          throwsA(isA<IllegalArgumentException>()));
+    late Gatekeeper gate;
+    setUp(() => gate = Gatekeeper());
+
+    test(
+        'when an atSign is admitted in it, then the admission is recorded'
+        ' without a rule', () async {
+      await gate.admit('chat', bob);
+      expect(gate.ruleFor('chat')!.mode, isNull);
+      expect(gate.ruleFor('chat')!.admitted, {bob});
+      expect(gate.namespaces, ['chat']);
+    });
+
+    test(
+        'when an atSign is denied in it, then it is refused as an illegal'
+        ' argument and nothing is recorded', () async {
+      await expectLater(
+          gate.deny('chat', bob), throwsA(isA<IllegalArgumentException>()));
+      expect(gate.ruleFor('chat'), isNull);
+    });
+
+    test('when an atSign is removed from it, then nothing is recorded',
+        () async {
+      await gate.remove('chat', bob);
+      expect(gate.ruleFor('chat'), isNull);
+    });
+
+    test(
+        'when the last admission recorded in it is removed, then the namespace'
+        ' is forgotten', () async {
+      await gate.admit('chat', bob);
+      await gate.admit('chat', dave);
+      await gate.remove('chat', bob);
+      expect(gate.ruleFor('chat')!.admitted, {dave});
+      await gate.remove('chat', dave);
+      expect(gate.ruleFor('chat'), isNull);
+      expect(gate.namespaces, isEmpty);
+    });
+
+    test('when a rule is set on it, then the rule starts from its admissions',
+        () async {
+      await gate.admit('chat', bob);
+      await gate.setRule('chat', GateMode.open);
+      expect(gate.ruleFor('chat')!.mode, GateMode.open);
+      expect(gate.ruleFor('chat')!.admitted, {bob});
+    });
+  });
+
+  group('Given admissions recorded without a rule, under the closed default',
+      () {
+    late Gatekeeper gate;
+    setUp(() async {
+      gate = Gatekeeper(defaultMode: GateDefault.closed);
+      await gate.admit('chat', bob);
+    });
+
+    test('when an atSign recorded there reaches it, then it is admitted', () {
+      expect(gate.inbound(bob, 'msg.chat'), GateVerdict.admitted);
+    });
+
+    test('when another atSign reaches it, then it is not accepted', () {
+      expect(gate.inbound(chuck, 'msg.chat'), GateVerdict.notAccepted);
+    });
+
+    test(
+        'when a namespace beneath it with no rule is reached, then its'
+        ' admissions decide', () {
+      expect(gate.inbound(bob, 'msg.group.chat'), GateVerdict.admitted);
+      expect(gate.inbound(chuck, 'msg.group.chat'), GateVerdict.notAccepted);
+    });
+
+    test(
+        'when a more specific namespace has admissions recorded too, then'
+        ' those decide', () async {
+      await gate.admit('invitations.chat', dave);
+      expect(gate.inbound(dave, 'inv1.invitations.chat'), GateVerdict.admitted);
+      expect(gate.inbound(bob, 'inv1.invitations.chat'),
+          GateVerdict.notAccepted);
+    });
+
+    test('when a rule covers a namespace beneath it, then the rule decides',
+        () async {
+      await gate.setRule('invitations.chat', GateMode.open);
+      expect(gate.inbound(chuck, 'inv1.invitations.chat'),
+          GateVerdict.quarantined);
+    });
+
+    test(
+        'when an atSign recorded there sends a namespace-less exchange on the'
+        ' short list, then it is admitted', () {
+      expect(gate.inbound(bob, 'shared_key', onShortList: true),
+          GateVerdict.admitted);
+    });
+  });
+
+  group('Given admissions recorded beneath a closed rule', () {
+    for (final GateDefault defaultMode in GateDefault.values) {
+      test(
+          'when the default is ${defaultMode.name} and an atSign recorded'
+          ' beneath reaches it, then the rule decides', () async {
+        final Gatekeeper gate = Gatekeeper(defaultMode: defaultMode);
+        await gate.setRule('chat', GateMode.closed, admit: bob);
+        await gate.admit('invitations.chat', dave);
+        expect(gate.inbound(dave, 'inv1.invitations.chat'),
+            GateVerdict.notAccepted);
+        expect(gate.inbound(chuck, 'inv1.invitations.chat'),
+            GateVerdict.notAccepted);
+        expect(gate.inbound(bob, 'inv1.invitations.chat'),
+            GateVerdict.admitted);
+      });
+    }
+  });
+
+  group('Given a gate to check', () {
+    test(
+        'when an atSign admitted atSign-wide is checked in an open namespace,'
+        ' then it answers admitted', () async {
+      final Gatekeeper gate = Gatekeeper(defaultMode: GateDefault.closed);
+      await gate.setRule('photos', GateMode.open);
+      await gate.admit(Gatekeeper.everyNamespace, bob);
+      expect(gate.check('photos', bob), GateVerdict.admitted);
+      expect(gate.check('photos', chuck), GateVerdict.quarantined);
+      expect(gate.check('group.photos', chuck), GateVerdict.quarantined);
+      expect(gate.check('sshnp', bob), GateVerdict.notAccepted);
     });
   });
 
@@ -193,8 +317,8 @@ void main() {
 
   group('Given the atSign-wide set', () {
     test('when an atSign is denied in it, then it is refused as an illegal'
-        ' argument', () {
-      expect(() => Gatekeeper().deny(Gatekeeper.everyNamespace, bob),
+        ' argument', () async {
+      await expectLater(Gatekeeper().deny(Gatekeeper.everyNamespace, bob),
           throwsA(isA<IllegalArgumentException>()));
     });
 
@@ -223,6 +347,25 @@ void main() {
       expect(gate.settingOf(rule, GateSetting.limit), 3);
       expect(gate.settingOf(rule, GateSetting.size), 1024);
       expect(gate.settingOf(rule, GateSetting.window), 24 * 60 * 60);
+    });
+
+    test(
+        "when a setting is returned to the default, then it follows the"
+        " operator's", () async {
+      await gate.setRule('invitations.chat', GateMode.open,
+          setting: GateSetting.limit);
+      final GateRule rule = gate.ruleFor('invitations.chat')!;
+      expect(rule.settings, isEmpty);
+      expect(gate.settingOf(rule, GateSetting.limit), 10);
+      final Gatekeeper later = Gatekeeper(
+          limits: const GateLimits(defaults: {
+        GateSetting.limit: 20,
+        GateSetting.window: 24 * 60 * 60,
+        GateSetting.size: 15360,
+        GateSetting.maxQuarantined: 100,
+        GateSetting.maxQuarantinedBytes: 1024 * 1024,
+      }));
+      expect(later.settingOf(rule, GateSetting.limit), 20);
     });
 
     test('when it is closed and opened again, then its settings are kept',
@@ -273,23 +416,105 @@ void main() {
       await gate.setRule('c.chat', GateMode.closed);
       expect(gate.ruleFor('c.chat')!.mode, GateMode.closed);
     });
+
+    test(
+        'when an atSign at its cap of namespaces with a rule or recorded'
+        ' admissions adds another, then it is refused and nothing changes',
+        () async {
+      final Gatekeeper gate =
+          Gatekeeper(limits: const GateLimits(maxNamespaces: 2));
+      await gate.setRule('a.chat', GateMode.closed);
+      await gate.admit('b.chat', bob);
+      await expectLater(gate.admit('c.chat', bob),
+          throwsA(isA<IllegalArgumentException>()));
+      await expectLater(gate.setRule('c.chat', GateMode.closed),
+          throwsA(isA<IllegalArgumentException>()));
+      expect(gate.namespaces, ['a.chat', 'b.chat']);
+      await gate.setRule('b.chat', GateMode.open);
+      await gate.admit('a.chat', dave);
+      expect(gate.ruleFor('b.chat')!.admitted, {bob});
+    });
+
+    test(
+        'when a full set is added to, then it is refused and nothing changes;'
+        ' re-adding a member succeeds', () async {
+      final Gatekeeper gate = Gatekeeper(
+          limits: const GateLimits(
+              maxAdmitted: 1, maxDenied: 1, maxAdmittedEverywhere: 1));
+      await gate.setRule('chat', GateMode.open, admit: bob);
+      await gate.deny('chat', chuck);
+      await gate.admit(Gatekeeper.everyNamespace, bob);
+      for (final Future<void> Function() change in [
+        () => gate.admit('chat', dave),
+        () => gate.setRule('chat', GateMode.closed, admit: dave),
+        () => gate.admit('chat', chuck),
+        () => gate.deny('chat', dave),
+        () => gate.deny('chat', bob),
+        () => gate.admit(Gatekeeper.everyNamespace, dave),
+      ]) {
+        await expectLater(change(), throwsA(isA<IllegalArgumentException>()));
+      }
+      expect(gate.ruleFor('chat')!.admitted, {bob});
+      expect(gate.ruleFor('chat')!.denied, {chuck});
+      expect(gate.ruleFor('chat')!.mode, GateMode.open);
+      expect(gate.admittedEverywhere, {bob});
+      await gate.admit('chat', bob);
+      await gate.deny('chat', chuck);
+      await gate.admit(Gatekeeper.everyNamespace, bob);
+    });
   });
 
   group('Given a gate to show', () {
-    test('when a namespace has no rule, then it shows its mode as none and the'
-        ' default', () {
-      expect(Gatekeeper(defaultMode: GateDefault.closed).show('photos'),
-          {'namespace': 'photos', 'mode': 'none', 'default': 'closed'});
+    test('when a namespace has no rule, then it shows its mode as none, the'
+        ' default and the admissions recorded there', () async {
+      final Gatekeeper gate = Gatekeeper(defaultMode: GateDefault.closed);
+      expect(gate.show('photos'), {
+        'namespace': 'photos',
+        'mode': 'none',
+        'default': 'closed',
+        'admitted': <String>[],
+      });
+      await gate.admit('photos', dave);
+      await gate.admit('photos', bob);
+      expect(gate.show('photos'), {
+        'namespace': 'photos',
+        'mode': 'none',
+        'default': 'closed',
+        'admitted': ['@bob', '@dave'],
+      });
     });
 
-    test('when a namespace is closed, then it shows only its admitted set',
+    test(
+        'when a namespace is closed, then it shows its settings and both its'
+        ' sets', () async {
+      final Gatekeeper gate = Gatekeeper();
+      await gate.setRule('photos', GateMode.open,
+          setting: GateSetting.limit, value: 3);
+      await gate.admit('photos', bob);
+      await gate.deny('photos', chuck);
+      await gate.setRule('photos', GateMode.closed);
+      expect(gate.show('photos'), {
+        'namespace': 'photos',
+        'mode': 'closed',
+        'settings': {
+          'limit': 3,
+          'window': 86400,
+          'size': 15360,
+          'maxQuarantined': 100,
+          'maxQuarantinedBytes': 1048576,
+        },
+        'admitted': ['@bob'],
+        'denied': ['@chuck'],
+      });
+    });
+
+    test('when the atSign-wide set is shown, then it shows its members sorted',
         () async {
       final Gatekeeper gate = Gatekeeper();
-      await gate.setRule('chat', GateMode.closed, admit: dave);
-      await gate.admit('chat', bob);
-      expect(gate.show('chat'), {
-        'namespace': 'chat',
-        'mode': 'closed',
+      await gate.admit(Gatekeeper.everyNamespace, dave);
+      await gate.admit(Gatekeeper.everyNamespace, bob);
+      expect(gate.show(Gatekeeper.everyNamespace), {
+        'namespace': '*',
         'admitted': ['@bob', '@dave'],
       });
     });

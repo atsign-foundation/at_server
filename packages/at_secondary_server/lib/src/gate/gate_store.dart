@@ -19,6 +19,9 @@ class GateRecords {
 class GateStore {
   static const String _ruleSuffix = '.rule.gate';
 
+  /// The mode recorded for a namespace that has no rule, only admissions.
+  static const String _noRule = 'none';
+
   final AtKeyValueStore<String, AtData, AtMetaData?> keyStore;
   final Atsign atSign;
 
@@ -33,7 +36,7 @@ class GateStore {
 
   Future<void> putRule(String namespace, GateRule rule) =>
       _put(_ruleKey(namespace), {
-        'mode': rule.mode.name,
+        'mode': rule.mode?.name ?? _noRule,
         'admitted': [for (final Atsign a in rule.admitted) '$a'],
         'denied': [for (final Atsign a in rule.denied) '$a'],
         'settings': {
@@ -41,6 +44,9 @@ class GateStore {
             s.key.name: s.value
         },
       });
+
+  Future<void> deleteRule(String namespace) =>
+      keyStore.remove(_ruleKey(namespace));
 
   Future<void> putAdmittedEverywhere(Set<Atsign> atSigns) =>
       _put(_admittedKey, {
@@ -69,8 +75,9 @@ class GateStore {
       final String namespace =
           key.substring(prefix.length, key.length - suffix.length);
       final Map<String, dynamic> record = (await _get(key))!;
+      final String mode = record['mode'] as String;
       rules[namespace] = GateRule(
-        GateMode.values.byName(record['mode'] as String),
+        mode == _noRule ? null : GateMode.values.byName(mode),
         admitted: _atSigns(record['admitted']),
         denied: _atSigns(record['denied']),
         settings: {

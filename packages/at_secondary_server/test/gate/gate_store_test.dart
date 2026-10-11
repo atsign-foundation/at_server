@@ -97,6 +97,20 @@ void main() {
             GateVerdict.notAccepted);
       });
 
+      test(
+          'when admissions are recorded without a rule and then removed, then'
+          ' they read back and then the record is gone', () async {
+        final Gatekeeper gate = await Gatekeeper.load(store);
+        await gate.admit('chat', bob);
+        GateRecords records = await store.load();
+        expect(records.rules['chat']!.mode, isNull);
+        expect(records.rules['chat']!.admitted, {bob});
+        await gate.remove('chat', bob);
+        records = await store.load();
+        expect(records.rules, isEmpty);
+        expect(await keyValueStore.exists('local:chat.rule.gate$alice'), isFalse);
+      });
+
       test('when nothing was written, then the gate loads with the starting'
           ' default', () async {
         final Gatekeeper gate = await Gatekeeper.load(store,
@@ -127,6 +141,13 @@ void main() {
       await expectLater(gate.deny('chat', chuck), throwsStateError);
       expect(gate.ruleFor('chat')!.admitted, isEmpty);
       expect(gate.ruleFor('chat')!.denied, isEmpty);
+
+      store.failing = false;
+      await gate.admit('photos', bob);
+      store.failing = true;
+      await expectLater(gate.remove('photos', bob), throwsStateError);
+      expect(gate.ruleFor('photos')!.admitted, {bob});
+      await gate.remove('sshnp', bob);
     });
   });
 }
@@ -146,6 +167,9 @@ class _FailingStore extends Fake implements GateStore {
 
   @override
   Future<void> putRule(String namespace, GateRule rule) => _write();
+
+  @override
+  Future<void> deleteRule(String namespace) => _write();
 
   @override
   Future<void> putAdmittedEverywhere(Set<Atsign> atSigns) => _write();

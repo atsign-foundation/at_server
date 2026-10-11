@@ -28,6 +28,19 @@ class GateLimits {
   /// How many open namespaces one atSign may have.
   final int maxOpenNamespaces;
 
+  /// How many namespaces one atSign may have with a rule or recorded
+  /// admissions.
+  final int maxNamespaces;
+
+  /// How many atSigns one namespace may admit.
+  final int maxAdmitted;
+
+  /// How many atSigns one namespace may deny.
+  final int maxDenied;
+
+  /// How many atSigns the atSign-wide admitted set may hold.
+  final int maxAdmittedEverywhere;
+
   const GateLimits({
     this.defaults = const {
       GateSetting.limit: 10,
@@ -50,16 +63,22 @@ class GateLimits {
       GateSetting.maxQuarantinedBytes: 1,
     },
     this.maxOpenNamespaces = 50,
+    this.maxNamespaces = 1000,
+    this.maxAdmitted = 10000,
+    this.maxDenied = 10000,
+    this.maxAdmittedEverywhere = 10000,
   });
 }
 
-/// A namespace's rule: its mode, the atSigns admitted and denied in it, and
-/// the settings its holders have set.
+/// What the gate holds for one namespace: its rule's mode, the atSigns
+/// admitted and denied in it, and the settings its holders have set.
 ///
-/// A closed namespace holds only an admitted set; its settings are kept for
-/// when it is opened again.
+/// A closed namespace admits only its admitted set, and keeps its denied set
+/// and settings for when it is opened again.
 class GateRule {
-  GateMode mode;
+  /// The rule's mode, or null when the namespace has no rule and holds only
+  /// the admissions recorded there.
+  GateMode? mode;
   final Set<Atsign> admitted;
   final Set<Atsign> denied;
   final Map<GateSetting, int> settings;
@@ -120,8 +139,12 @@ class Gatekeeper {
   /// The atSigns admitted in every open namespace.
   Set<Atsign> get admittedEverywhere => Set.unmodifiable(_admittedEverywhere);
 
-  /// The rule set for exactly [namespace], or null.
+  /// What the gate holds for exactly [namespace]: its rule, or the admissions
+  /// recorded there, or null.
   GateRule? ruleFor(String namespace) => _rules[namespace];
+
+  /// The namespaces with a rule or recorded admissions, sorted.
+  List<String> get namespaces => _rules.keys.toList()..sort();
 
   /// The value of [setting] in force for [rule]: its own, or the operator's
   /// default.
@@ -133,7 +156,8 @@ class Gatekeeper {
   /// namespace is one that admission anywhere lets through.
   GateVerdict inbound(Atsign other, String keyName,
       {bool onShortList = false}) {
-    if (!keyName.contains('.')) {
+    final int dot = keyName.indexOf('.');
+    if (dot < 0) {
       if (_default == GateDefault.ungated) {
         return GateVerdict.admitted;
       }
@@ -141,13 +165,27 @@ class Gatekeeper {
           ? GateVerdict.admitted
           : GateVerdict.notAccepted;
     }
-    final GateRule? rule = ruleCovering(keyName);
+    return check(keyName.substring(dot + 1), other);
+  }
+
+  /// The verdict an exchange from [other] in [namespace] gets now.
+  ///
+  /// The most specific rule covering [namespace] decides. Where none does, the
+  /// default decides, and under `closed` admits exactly the atSigns recorded
+  /// on the most specific covering namespace that has admissions recorded.
+  GateVerdict check(String namespace, Atsign other) {
+    final GateRule? rule =
+        _mostSpecific(namespace, (rule) => rule.mode != null);
     if (rule == null) {
-      return _default == GateDefault.ungated
+      if (_default == GateDefault.ungated) {
+        return GateVerdict.admitted;
+      }
+      final GateRule? recorded = _mostSpecific(namespace, (_) => true);
+      return recorded != null && recorded.admitted.contains(other)
           ? GateVerdict.admitted
           : GateVerdict.notAccepted;
     }
-    switch (rule.mode) {
+    switch (rule.mode!) {
       case GateMode.closed:
         return rule.admitted.contains(other)
             ? GateVerdict.admitted
@@ -166,13 +204,23 @@ class Gatekeeper {
   /// The most specific rule covering the key named [keyName]: the rule for
   /// the longest namespace that ends the key's name, or null.
   GateRule? ruleCovering(String keyName) {
-    int dot = keyName.indexOf('.');
-    while (dot >= 0) {
-      final GateRule? rule = _rules[keyName.substring(dot + 1)];
-      if (rule != null) {
+    final int dot = keyName.indexOf('.');
+    return dot < 0
+        ? null
+        : _mostSpecific(keyName.substring(dot + 1), (rule) => rule.mode != null);
+  }
+
+  /// The entry [test] accepts for [namespace] or the nearest namespace above
+  /// it, by P1's suffix match.
+  GateRule? _mostSpecific(String namespace, bool Function(GateRule) test) {
+    String? candidate = namespace;
+    while (candidate != null) {
+      final GateRule? rule = _rules[candidate];
+      if (rule != null && test(rule)) {
         return rule;
       }
-      dot = keyName.indexOf('.', dot + 1);
+      final int dot = candidate.indexOf('.');
+      candidate = dot < 0 ? null : candidate.substring(dot + 1);
     }
     return null;
   }
@@ -183,26 +231,32 @@ class Gatekeeper {
       _admittedEverywhere.contains(other) ||
       _rules.values.any((rule) => rule.admitted.contains(other));
 
-  /// [namespace]'s rule and sets, as `gate:show` answers them.
+  /// [namespace]'s rule and sets, or the atSign-wide admitted set when
+  /// [namespace] is [everyNamespace], as `gate:show` answers them.
   Map<String, Object?> show(String namespace) {
-    final GateRule? rule = _rules[namespace];
-    if (rule == null) {
-      return {'namespace': namespace, 'mode': 'none', 'default': _default.name};
+    if (namespace == everyNamespace) {
+      return {'namespace': namespace, 'admitted': _sorted(_admittedEverywhere)};
     }
-    final List<String> admitted = _sorted(rule.admitted);
-    if (rule.mode == GateMode.closed) {
-      return {'namespace': namespace, 'mode': 'closed', 'admitted': admitted};
+    final GateRule? rule = _rules[namespace];
+    final GateMode? mode = rule?.mode;
+    if (mode == null) {
+      return {
+        'namespace': namespace,
+        'mode': 'none',
+        'default': _default.name,
+        'admitted': _sorted(rule?.admitted ?? const {}),
+      };
     }
     return {
       'namespace': namespace,
-      'mode': 'open',
+      'mode': mode.name,
       'settings': {
         for (final GateSetting setting in GateSetting.values)
-          setting.name: settingOf(rule, setting)
+          setting.name: settingOf(rule!, setting)
       },
-      'admitted': admitted,
+      'admitted': _sorted(rule!.admitted),
       'denied': _sorted(rule.denied),
-      'quarantined': <Map<String, Object?>>[],
+      if (mode == GateMode.open) 'quarantined': <Map<String, Object?>>[],
     };
   }
 
@@ -213,17 +267,18 @@ class Gatekeeper {
       });
 
   /// Gives [namespace] the rule [mode], keeping its sets and settings, setting
-  /// [setting] to [value] when given, and admitting [admit] when given.
-  /// Closing a namespace drops its denied set.
+  /// [setting] to [value] when given, or back to the operator's default when
+  /// [value] is null, and admitting [admit] when given. A rule set where
+  /// admissions are recorded starts from them.
   ///
   /// Throws [IllegalArgumentException] when [value] is outside the operator's
-  /// bounds, or when opening [namespace] would pass the atSign's cap on open
-  /// namespaces; nothing changes then.
+  /// bounds, or when the change would pass one of the atSign's caps; nothing
+  /// changes then.
   Future<void> setRule(String namespace, GateMode mode,
           {GateSetting? setting, int? value, Atsign? admit}) =>
       _writes.protect(() async {
-        if (setting != null) {
-          _checkBounds(setting, value!);
+        if (setting != null && value != null) {
+          _checkBounds(setting, value);
         }
         final GateRule? existing = _rules[namespace];
         if (mode == GateMode.open &&
@@ -233,47 +288,61 @@ class Gatekeeper {
               'This atSign already has ${limits.maxOpenNamespaces} open'
               ' namespaces, the most it may have');
         }
-        final GateRule rule = existing?.copy() ?? GateRule(mode);
+        final GateRule rule = existing?.copy() ?? _newEntry(namespace);
         rule.mode = mode;
-        if (mode == GateMode.closed) {
-          rule.denied.clear();
-        }
         if (setting != null) {
-          rule.settings[setting] = value!;
+          if (value == null) {
+            rule.settings.remove(setting);
+          } else {
+            rule.settings[setting] = value;
+          }
         }
         if (admit != null) {
-          rule.admitted.add(admit);
-          rule.denied.remove(admit);
+          _addAdmitted(namespace, rule, admit);
         }
         await _putRule(namespace, rule);
       });
 
   /// Admits [other] in [namespace], or in every open namespace when
-  /// [namespace] is [everyNamespace].
+  /// [namespace] is [everyNamespace]. Where [namespace] has no rule, the
+  /// admission is recorded there without creating one.
   ///
-  /// Throws [IllegalArgumentException] when [namespace] has no rule.
+  /// Throws [IllegalArgumentException] when the admission would pass one of
+  /// the atSign's caps.
   Future<void> admit(String namespace, Atsign other) =>
       _writes.protect(() async {
         if (namespace == everyNamespace) {
+          if (!_admittedEverywhere.contains(other) &&
+              _admittedEverywhere.length >= limits.maxAdmittedEverywhere) {
+            throw IllegalArgumentException(
+                'The atSign-wide admitted set already holds'
+                ' ${limits.maxAdmittedEverywhere} atSigns, the most it may');
+          }
           await _putAdmittedEverywhere({..._admittedEverywhere, other});
           return;
         }
-        final GateRule rule = _requireRule(namespace).copy();
-        rule.admitted.add(other);
-        rule.denied.remove(other);
+        final GateRule rule =
+            _rules[namespace]?.copy() ?? _newEntry(namespace);
+        _addAdmitted(namespace, rule, other);
         await _putRule(namespace, rule);
       });
 
   /// Denies [other] in the open [namespace].
   ///
-  /// Throws [IllegalArgumentException] when [namespace] has no rule, which
-  /// [everyNamespace] never has, or is closed.
+  /// Throws [IllegalArgumentException] when [namespace] is not open, which
+  /// [everyNamespace] never is, or when its denied set is full.
   Future<void> deny(String namespace, Atsign other) =>
       _writes.protect(() async {
-        final GateRule rule = _requireRule(namespace).copy();
-        if (rule.mode != GateMode.open) {
+        final GateRule? existing = _rules[namespace];
+        if (existing?.mode != GateMode.open) {
           throw IllegalArgumentException(
-              'Only an open namespace denies; $namespace is closed');
+              'Only an open namespace denies; $namespace is not open');
+        }
+        final GateRule rule = existing!.copy();
+        if (!rule.denied.contains(other) &&
+            rule.denied.length >= limits.maxDenied) {
+          throw IllegalArgumentException('$namespace already denies'
+              ' ${limits.maxDenied} atSigns, the most it may');
         }
         rule.denied.add(other);
         rule.admitted.remove(other);
@@ -281,9 +350,8 @@ class Gatekeeper {
       });
 
   /// Takes [other] out of [namespace]'s admitted and denied sets, or out of
-  /// the atSign-wide admitted set when [namespace] is [everyNamespace].
-  ///
-  /// Throws [IllegalArgumentException] when [namespace] has no rule.
+  /// the atSign-wide admitted set when [namespace] is [everyNamespace]. A
+  /// namespace with no rule whose last recorded admission goes is forgotten.
   Future<void> remove(String namespace, Atsign other) =>
       _writes.protect(() async {
         if (namespace == everyNamespace) {
@@ -291,11 +359,43 @@ class Gatekeeper {
               {..._admittedEverywhere}..remove(other));
           return;
         }
-        final GateRule rule = _requireRule(namespace).copy();
+        final GateRule? existing = _rules[namespace];
+        if (existing == null) {
+          return;
+        }
+        final GateRule rule = existing.copy();
         rule.admitted.remove(other);
         rule.denied.remove(other);
+        if (rule.mode == null && rule.admitted.isEmpty) {
+          await _store?.deleteRule(namespace);
+          _rules.remove(namespace);
+          return;
+        }
         await _putRule(namespace, rule);
       });
+
+  /// A new entry for [namespace], which has none.
+  ///
+  /// Throws [IllegalArgumentException] when the atSign already has its cap of
+  /// namespaces with a rule or recorded admissions.
+  GateRule _newEntry(String namespace) {
+    if (_rules.length >= limits.maxNamespaces) {
+      throw IllegalArgumentException(
+          'This atSign already has ${limits.maxNamespaces} namespaces with a'
+          ' rule or recorded admissions, the most it may have');
+    }
+    return GateRule(null);
+  }
+
+  void _addAdmitted(String namespace, GateRule rule, Atsign other) {
+    if (!rule.admitted.contains(other) &&
+        rule.admitted.length >= limits.maxAdmitted) {
+      throw IllegalArgumentException('$namespace already admits'
+          ' ${limits.maxAdmitted} atSigns, the most it may');
+    }
+    rule.admitted.add(other);
+    rule.denied.remove(other);
+  }
 
   Future<void> _putRule(String namespace, GateRule rule) async {
     await _store?.putRule(namespace, rule);
@@ -307,14 +407,6 @@ class Gatekeeper {
     _admittedEverywhere
       ..clear()
       ..addAll(atSigns);
-  }
-
-  GateRule _requireRule(String namespace) {
-    final GateRule? rule = _rules[namespace];
-    if (rule == null) {
-      throw IllegalArgumentException('$namespace has no rule');
-    }
-    return rule;
   }
 
   void _checkBounds(GateSetting setting, int value) {
