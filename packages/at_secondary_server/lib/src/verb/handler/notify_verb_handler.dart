@@ -173,6 +173,9 @@ class NotifyVerbHandler extends AbstractVerbHandler {
           onShortList: onShortList,
           bytes: int.parse(verbParams[_commandBytes]!));
       Gatekeeper.refuseIfNotAccepted(standing);
+      if (standing == GateVerdict.quarantined) {
+        n = (atNotificationBuilder..quarantined = true).build();
+      }
     }
 
     // Store and send the notification

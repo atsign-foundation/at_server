@@ -34,6 +34,7 @@ class SqliteNotificationCodec {
         'atValue': n.atValue,
         'atMetadata': n.atMetadata?.toJson(),
         'ttl': n.ttl,
+        if (n.quarantined) 'quarantined': true,
       });
 
   static AtNotification decode(String payloadJson) {
@@ -57,7 +58,8 @@ class SqliteNotificationCodec {
       ..expiresAt = _parseDate(m['expiresAt'])
       ..atValue = m['atValue'] as String?
       ..atMetaData = _decodeAtMetadata(m['atMetadata'] as Map?)
-      ..ttl = m['ttl'] as int?;
+      ..ttl = m['ttl'] as int?
+      ..quarantined = m['quarantined'] == true;
     return builder.build();
   }
 
@@ -92,7 +94,8 @@ class SqliteNotificationCodec {
   /// The `type` extract (`sent` / `received` / `self`).
   static String typeExtract(AtNotification n) => n.type?.name ?? '';
 
-  /// The `status` extract (`delivered` / `errored` / `queued` / `expired`).
+  /// The `status` extract (`delivered` / `errored` / `queued` / `expired` /
+  /// `refused`).
   static String statusExtract(AtNotification n) =>
       n.notificationStatus?.name ?? '';
 
