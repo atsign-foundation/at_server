@@ -14,6 +14,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_persistence_secondary_server/hive.dart';
 import 'package:at_persistence_secondary_server/sqlite.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
+import 'package:at_secondary/src/config/at_config.dart';
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
@@ -399,8 +400,11 @@ verbTestsSetUp(
   keyValueStore.preRemoveHooks.add(enMgr.preRemoveHook);
   keyValueStore.postRemoveHooks.add(enMgr.postRemoveHook);
 
-  AtSecondaryServerImpl.getInstance().gatekeeper =
+  final Gatekeeper gatekeeper = AtSecondaryServerImpl.getInstance().gatekeeper =
       Gatekeeper(store: GateStore(keyValueStore, alice));
+  gatekeeper.onChange = () => cacheManager.deleteCopiesNotReached(
+      gatekeeper, AtConfig(keyValueStore, alice).checkInBlockList);
+  notificationManager.gatekeeper = gatekeeper;
 
   DateTime now = DateTime.now().toUtcMillisecondsPrecision();
   bobOriginalPublicKeyAtData = AtData();

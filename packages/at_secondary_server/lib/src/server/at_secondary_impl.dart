@@ -9,6 +9,7 @@ import 'package:at_lookup/at_lookup.dart';
 import 'package:at_persistence_secondary_server/hive.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
+import 'package:at_secondary/src/config/at_config.dart';
 import 'package:at_secondary/src/caching/cache_refresh_job.dart';
 import 'package:at_secondary/src/compaction/at_compaction_stats_service_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
@@ -281,6 +282,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     cacheManager = AtCacheManager(serverContext!.currentAtSign!, keyValueStore,
         outboundClientManager, notificationManager);
+    gatekeeper.onChange = () => cacheManager.deleteCopiesNotReached(
+        gatekeeper, AtConfig(keyValueStore, currentAtSign).checkInBlockList);
+    notificationManager.gatekeeper = gatekeeper;
 
     final int runRefreshJobHour = AtCacheRefreshJob.runJobHourFrom(
         AtSecondaryConfig.runRefreshJobHour,

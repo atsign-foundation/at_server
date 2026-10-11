@@ -102,6 +102,31 @@ void main() {
     });
 
     test(
+        "when @bob's atServer refuses @alice's lookup of a key she holds a"
+        ' copy of, then the copy goes', () async {
+      await keyValueStore.put(
+          'cached:$alice:status.chat$bob',
+          AtData()
+            ..data = 'old'
+            ..metaData = (AtMetaData()..ttr = 1));
+      await Future.delayed(const Duration(milliseconds: 1100));
+      final MockOutboundClient client = MockOutboundClient();
+      when(() => client.lookUp(any(), handshake: any(named: 'handshake')))
+          .thenThrow(NotAcceptedException('not accepted'));
+      when(() => mockOutboundClientManager.getClient(bob, any(),
+              handshakeRequired: any(named: 'handshakeRequired')))
+          .thenAnswer((_) async => client);
+      await expectLater(
+          LookupVerbHandler(keyValueStore, mockOutboundClientManager,
+                  cacheManager, enMgr,
+                  accessLog: atAccessLog)
+              .processInternal('lookup:status.chat$bob', ownClient()),
+          throwsA(isA<NotAcceptedException>()));
+      expect(
+          await keyValueStore.exists('cached:$alice:status.chat$bob'), isFalse);
+    });
+
+    test(
         'when the cache manager is asked for a key of @chuck in it, then it'
         ' refuses before connecting', () async {
       await expectLater(

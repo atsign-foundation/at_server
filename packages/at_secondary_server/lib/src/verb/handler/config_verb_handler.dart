@@ -84,6 +84,9 @@ class ConfigVerbHandler extends AbstractVerbHandler {
           if (nonCurrentAtSignList.isNotEmpty) {
             result =
                 await atConfigInstance.addToBlockList(nonCurrentAtSignList);
+            await AtSecondaryServerImpl.getInstance()
+                .gatekeeper
+                .admissionsChanged();
           } else {
             ///if list contains only currentAtSign
             result = 'success';

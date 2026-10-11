@@ -5,6 +5,10 @@ import 'package:at_secondary/src/gate/gatekeeper.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/lookup_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
+import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
+import 'package:at_secondary/src/verb/handler/update_verb_handler.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
+import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
 import '../test_utils.dart';
@@ -177,5 +181,54 @@ void main() {
     await gate().setRule('chat', GateMode.closed, admit: dave);
     await keyValueStore.put('@dave:location$alice', AtData()..data = 'here');
     expect(await refusalCode(dave, 'lookup:location@alice'), 'AT0033');
+  });
+
+  DummyInboundConnection ownClient() => DummyInboundConnection()
+    ..metadata.isAuthenticated = true
+    ..metadata.authType = AuthType.cram;
+
+  test(
+      "@alice's lookup of a shared key goes out only to an atSign admitted"
+      ' somewhere', () async {
+    Exception? refused;
+    try {
+      await lookupHandler.processInternal('lookup:shared_key@dave', ownClient());
+    } on Exception catch (e) {
+      refused = e;
+    }
+    expect(GlobalExceptionHandler.getInstance().getErrorCode(refused!),
+        'AT0033');
+    verifyNever(() => mockOutboundClientManager.getClient('$dave', any(),
+        handshakeRequired: any(named: 'handshakeRequired')));
+  });
+
+  test(
+      "@alice's legacy shared-key copy for an atSign admitted nowhere is"
+      ' stored, not notified', () async {
+    final String? commitId = (await UpdateVerbHandler(keyValueStore,
+                statsNotificationService, notificationManager, alice)
+            .processInternal(
+                'update:ttr:3888000:@dave:shared_key@alice encrypted',
+                ownClient()))
+        .data;
+    expect(int.tryParse(commitId!), isNotNull);
+    expect(await keyValueStore.exists('@dave:shared_key$alice'), isTrue);
+    expect([
+      for (final n in await notifStore.iterate().toList())
+        if (n.toAtSign == '$dave') n
+    ], isEmpty);
+  });
+
+  test('A cached shared key goes when its atSign is admitted nowhere any more',
+      () async {
+    await gate().setRule('chat', GateMode.closed, admit: dave);
+    await keyValueStore.put(
+        'cached:$alice:shared_key$dave',
+        AtData()
+          ..data = 'encrypted'
+          ..metaData = (AtMetaData()..ttr = -1));
+    await gate().remove('chat', dave);
+    expect(
+        await keyValueStore.exists('cached:$alice:shared_key$dave'), isFalse);
   });
 }

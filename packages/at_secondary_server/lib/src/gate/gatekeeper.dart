@@ -1,6 +1,7 @@
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/gate/gate_store.dart';
 import 'package:at_secondary/src/gate/quarantine.dart';
+import 'package:at_utils/at_logger.dart';
 import 'package:clock/clock.dart';
 import 'package:mutex/mutex.dart';
 
@@ -112,6 +113,8 @@ class Gatekeeper {
   /// The namespace a change to the atSign-wide admitted set names.
   static const String everyNamespace = '*';
 
+  static final AtSignLogger _logger = AtSignLogger('Gatekeeper');
+
   final GateLimits limits;
   final GateStore? _store;
   GateDefault _default;
@@ -119,6 +122,11 @@ class Gatekeeper {
   final Set<Atsign> _admittedEverywhere = {};
   final Map<String, Map<Atsign, QuarantineEntry>> _quarantine = {};
   final Mutex _writes = Mutex();
+  int _changes = 0;
+
+  /// Called under the gate's lock after each change to its default, a rule or
+  /// a set, to remove what the change no longer admits.
+  Future<void> Function()? onChange;
 
   Gatekeeper(
       {GateDefault defaultMode = GateDefault.ungated,
@@ -144,6 +152,24 @@ class Gatekeeper {
   }
 
   GateDefault get defaultMode => _default;
+
+  /// How many changes to its default, rules and sets the gate has had.
+  int get changes => _changes;
+
+  /// Runs [action] under the gate's lock, but only when the gate has had no
+  /// change since it had [seen] changes; answers whether it ran.
+  Future<bool> ifUnchangedSince(int seen, Future<void> Function() action) =>
+      _writes.protect(() async {
+        if (_changes != seen) {
+          return false;
+        }
+        await action();
+        return true;
+      });
+
+  /// Runs [onChange] under the gate's lock, for a change made outside the
+  /// gate that can end an admission, such as the blocklist's.
+  Future<void> admissionsChanged() => _writes.protect(_changed);
 
   /// The atSigns admitted in every open namespace and wherever the closed
   /// default decides.
@@ -434,6 +460,7 @@ class Gatekeeper {
   Future<void> setDefault(GateDefault mode) => _writes.protect(() async {
         await _store?.putDefault(mode);
         _default = mode;
+        await _changed();
       });
 
   /// Gives [namespace] the rule [mode], keeping its sets and settings, setting
@@ -476,6 +503,7 @@ class Gatekeeper {
         } else if (admit != null) {
           await _endCounting(namespace, admit);
         }
+        await _changed();
       });
 
   /// Takes [namespace]'s rule away, keeping its admitted set as admissions
@@ -494,6 +522,7 @@ class Gatekeeper {
               namespace, GateRule(null, admitted: {...existing.admitted}));
         }
         await _dropQuarantine(namespace);
+        await _changed();
       });
 
   /// Admits [other] in [namespace], or in every open namespace when
@@ -515,6 +544,7 @@ class Gatekeeper {
           for (final String quarantined in [..._quarantine.keys]) {
             await _endCounting(quarantined, other);
           }
+          _changes++;
           return;
         }
         final GateRule rule =
@@ -522,6 +552,7 @@ class Gatekeeper {
         _addAdmitted(namespace, rule, other);
         await _putRule(namespace, rule);
         await _endCounting(namespace, other);
+        _changes++;
       });
 
   /// Denies [other] in the open [namespace].
@@ -545,6 +576,7 @@ class Gatekeeper {
         rule.admitted.remove(other);
         await _putRule(namespace, rule);
         await _endCounting(namespace, other);
+        await _changed();
       });
 
   /// Takes [other] out of [namespace]'s admitted and denied sets, or out of
@@ -555,6 +587,7 @@ class Gatekeeper {
         if (namespace == everyNamespace) {
           await _putAdmittedEverywhere(
               {..._admittedEverywhere}..remove(other));
+          await _changed();
           return;
         }
         final GateRule? existing = _rules[namespace];
@@ -567,10 +600,22 @@ class Gatekeeper {
         if (rule.mode == null && rule.admitted.isEmpty) {
           await _store?.deleteRule(namespace);
           _rules.remove(namespace);
-          return;
+        } else {
+          await _putRule(namespace, rule);
         }
-        await _putRule(namespace, rule);
+        await _changed();
       });
+
+  /// Counts a change to the gate and runs [onChange]. The change is already
+  /// made and written, so a failure here is logged, never thrown.
+  Future<void> _changed() async {
+    _changes++;
+    try {
+      await onChange?.call();
+    } catch (e) {
+      _logger.warning('Removing what a gate change no longer admits failed: $e');
+    }
+  }
 
   /// A new entry for [namespace], which has none.
   ///

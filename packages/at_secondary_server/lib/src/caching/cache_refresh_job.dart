@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
+import 'package:at_secondary/src/gate/gatekeeper.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_utils/at_logger.dart';
 import 'package:cron/cron.dart';
 import 'package:meta/meta.dart';
@@ -38,7 +40,10 @@ class AtCacheRefreshJob {
     int exceptionFromRemote = 0;
     int leftoversDeleted = 0;
     int writeFailed = 0;
+    int refusedDeleted = 0;
+    int gateChanged = 0;
     try {
+      final Gatekeeper gate = AtSecondaryServerImpl.getInstance().gatekeeper;
       var keysToRefresh = await cacheManager.getKeyNamesToRefresh();
 
       var itr = keysToRefresh.iterator;
@@ -58,10 +63,15 @@ class AtCacheRefreshJob {
         }
 
         AtData? newValue;
+        final int seen = gate.changes;
 
         try {
           newValue = await cacheManager.remoteLookUp(cachedKeyName,
               maintainCache: false);
+        } on NotAcceptedException {
+          await cacheManager.delete(cachedKeyName);
+          refusedDeleted++;
+          continue;
         } on KeyNotFoundException {
           await cacheManager.delete(cachedKeyName);
           deletedByRemote++;
@@ -93,7 +103,13 @@ class AtCacheRefreshJob {
           continue;
         }
         try {
-          await cacheManager.put(cachedKeyName, newValue);
+          if (cachedKeyName.startsWith('cached:public:')) {
+            await cacheManager.put(cachedKeyName, newValue);
+          } else if (!await gate.ifUnchangedSince(
+              seen, () => cacheManager.put(cachedKeyName, newValue!))) {
+            gateChanged++;
+            continue;
+          }
         } catch (e) {
           logger.warning('Failed to write the refreshed $cachedKeyName : $e');
           writeFailed++;
@@ -119,7 +135,9 @@ class AtCacheRefreshJob {
       "deletedByRemote": deletedByRemote,
       "exceptionFromRemote": exceptionFromRemote,
       "leftoversDeleted": leftoversDeleted,
-      "writeFailed": writeFailed
+      "writeFailed": writeFailed,
+      "refusedDeleted": refusedDeleted,
+      "gateChanged": gateChanged
     };
   }
 
