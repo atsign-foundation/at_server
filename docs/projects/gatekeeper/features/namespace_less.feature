@@ -123,8 +123,9 @@ Feature: Exchanges with no namespace
     Then @alice's atServer no longer holds "cached:@alice:shared_key@dave"
 
   Scenario: Authentication is never gated
-    Given @dave is admitted nowhere on @alice's atServer
+    Given @alice's atSign has the closed default
+    And @dave is admitted nowhere on @alice's atServer
     And @dave's atServer has sent "from:@dave" to @alice's atServer
     When @dave's atServer sends "pol"
     Then @alice's atServer looks up @dave's signed challenge on @dave's atServer
-    And answers "pol:@dave@"
+    And answers "@dave@"
