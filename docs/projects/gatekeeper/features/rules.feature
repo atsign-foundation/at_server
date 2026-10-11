@@ -26,10 +26,18 @@ Feature: Namespace rules, and who sets them
   Race: a rule or set change applies from the next exchange, on a connection
   already open too, and two changes to one namespace's sets at once both take
   effect.
-  Replay: the gate decides on the atSign that pol authenticated, never on one
-  named inside a command, and another atSign cannot change @alice's gate.
+  Replay: none arises; the gate issues nothing a peer could capture and send
+  again, and decides each exchange afresh on the atSign its connection
+  authenticated.
   DoS: a refusal stores nothing and opens no connection (refusals.feature), and
   the operator caps how many open namespaces an atSign may have.
+  Forgery: the gate takes the other atSign from the one pol authenticated,
+  never from one named inside a command, and gate state changes only through
+  the gate verb (the scenarios tagged @forgery).
+  Impersonation: the gate rests on pol's proof of the other atSign, which this
+  feature leaves as it is. Another atSign cannot change @alice's gate, and an
+  enrollment changes only the gates its namespaces, or a root enrollment,
+  allow (the scenarios tagged @impersonation).
 
   Background:
     Given @alice's atSign has the closed default
@@ -151,6 +159,7 @@ Feature: Namespace rules, and who sets them
     Then @alice's atServer answers success
     And namespace "invitations.chat" on @alice's atServer is open
 
+  @impersonation
   Scenario Outline: An application may not change a gate it does not hold
     Given @alice's client is enrolled with "<enrolled>" only
     When the client sends "<command>"
@@ -167,6 +176,7 @@ Feature: Namespace rules, and who sets them
     When the client sends "gate:show:chat"
     Then @alice's atServer answers with the rule and sets of "chat"
 
+  @impersonation
   Scenario: An enrollment holding "*" without "__manage" may not change the atSign-wide admitted set
     Given @alice's client is enrolled with "*:rw" only
     When the client sends "gate:admit:*:@dave"
@@ -208,6 +218,7 @@ Feature: Namespace rules, and who sets them
     When @chuck's atServer sends "notify:id:14:messageType:text:@alice:hello"
     Then @alice's atServer answers with the not-accepted error
 
+  @impersonation
   Scenario: Only a root connection switches the default
     Given @alice's atSign has the ungated default
     And @alice's client is enrolled with "chat:rw" only
@@ -257,13 +268,26 @@ Feature: Namespace rules, and who sets them
     When @chuck's atServer sends "notify:id:15:@alice:pic.photos@chuck" on that connection
     Then @alice's atServer answers with the not-accepted error
 
-  @replay
+  @forgery
   Scenario: The gate decides on the authenticated atSign, not one named in the command
     Given namespace "chat" on @alice's atServer is closed, admitting only @bob
     When @chuck's atServer sends "notify:id:16:@alice:msg.chat@bob"
     Then @alice's atServer answers with the unauthorized error, AT0009
 
-  @replay
+  @forgery
+  Scenario Outline: A gate record cannot be changed except through the gate verb
+    Given namespace "chat" on @alice's atServer is closed, admitting only @bob
+    And @alice's client holds a root enrollment
+    When the client sends "<command>"
+    Then @alice's atServer answers with the unauthorized error, AT0009
+    And namespace "chat" on @alice's atServer is still closed, admitting only @bob
+
+    Examples:
+      | command                                            |
+      | keys:delete:keyName:local:chat.rule.gate@alice     |
+      | notify:update:@alice:local:chat.rule.gate@alice:{} |
+
+  @impersonation
   Scenario: Another atSign may not change @alice's gate
     Given @chuck's atServer has a pol-authenticated connection to @alice's atServer
     When @chuck's atServer sends "gate:admit:chat:@chuck"

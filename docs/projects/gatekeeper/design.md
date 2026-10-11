@@ -16,7 +16,8 @@ line to get wrong.
 
 The decision is taken from the atSign that pol authenticated
 (`InboundConnectionMetadata.fromAtSign`) and never from an atSign named in the
-command (`rules.feature`, `@replay`).
+command (`rules.feature`, `@forgery`). Every atSign is canonicalised before it
+is stored in a set or compared with one.
 
 ## 2. Where the gatekeeper is consulted
 
@@ -82,6 +83,7 @@ therefore sits in those handlers as well as beside `refuseTelemetryKeyMutation`.
 `batch` hands each of its commands to that verb's own handler
 (`verbHandlerManager.getVerbHandler`), so it meets the same guard. The guard
 tests the key the handler finally resolves, so `update:json` meets it too.
+`rules.feature`'s `@forgery` outline pins it for `keys:delete` and `notify`.
 
 ## 4. Concurrency
 
