@@ -46,11 +46,12 @@ open.
 
 Implementation follows spec-anchored step 4. On one atServer, the gate verb,
 inbound gating, the quarantine, outbound gating, final refusals, the `local:`
-guard and the operator's configuration are built, each scenario with its
-proving test. What remains is the functional and end-to-end packs for the
-scenarios that need two atServers, the bench run with the gate in place, and
-the client API. The work spans at_commons (in at_client_sdk), at_server,
-at_client, and every atServer implementation.
+guard, the operator's configuration and the blocklist on the way out are
+built, every scenario with its proving test, those needing two atServers in the
+functional and end-to-end packs too. The bench has run with the gate in place
+(design.md, section 9). What remains is the client API and at_commons'
+release. The work spans at_commons (in at_client_sdk), at_server, at_client,
+and every atServer implementation.
 
 The three checks this list held are answered in design.md: the SQLite codec
 decodes an unknown status as `null`, a client turns an unknown error code into a
