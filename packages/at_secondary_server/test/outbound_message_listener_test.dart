@@ -1,15 +1,20 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:logging/logging.dart' as logging;
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_message_listener.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:fake_async/fake_async.dart';
 import 'package:test/test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'test_utils.dart';
@@ -38,6 +43,8 @@ void main() async {
         .thenReturn(mockOutboundConnection);
     when(() => mockOutboundConnection.metaData)
         .thenReturn(mockAtConnectionMetaData);
+    when(() => mockOutboundConnection.closed)
+        .thenAnswer((_) => Completer<void>().future);
     when(() => mockAtConnectionMetaData.isStale).thenReturn(false);
     when(() => mockAtConnectionMetaData.isClosed).thenReturn(false);
   });
@@ -599,4 +606,386 @@ void main() async {
           throwsA(predicate((dynamic e) => e is AtTimeoutException)));
     });
   });
+
+  /// These run the real client, connection and listener over an
+  /// [InjectableSocket], on a fake clock, so "with no time passing" means the
+  /// clock did not move at all between the event and read settling.
+  group('Given read is waiting for a response', () {
+    setUp(_useLongOutboundIdleTime);
+
+    test('when the response arrives, then read returns it with no time passing',
+        () {
+      fakeAsync((async) {
+        var socket = InjectableSocket();
+        var read = _Settled(_clientOn(socket).messageListener.read());
+        async.flushMicrotasks();
+        expect(read.done, false, reason: 'nothing has arrived yet');
+
+        socket.emit('data:ANSWER\n@alice@');
+        async.flushMicrotasks();
+
+        expect(read.value, 'data:ANSWER');
+        expect(async.elapsed, Duration.zero);
+      });
+    });
+
+    test(
+        'when an error response arrives, then read throws its exception with no'
+        ' time passing', () {
+      fakeAsync((async) {
+        var socket = InjectableSocket();
+        var read = _Settled(_clientOn(socket).messageListener.read());
+        async.flushMicrotasks();
+        expect(read.done, false, reason: 'nothing has arrived yet');
+
+        socket.emit('error:{"errorCode":"AT0015","errorDescription":"no such'
+            ' key"}\n@alice@');
+        async.flushMicrotasks();
+
+        expect(read.error, isA<KeyNotFoundException>());
+        expect(async.elapsed, Duration.zero);
+      });
+    });
+
+    test(
+        'when the peer closes the connection, then read throws'
+        ' AtConnectException with no time passing', () {
+      fakeAsync((async) {
+        var socket = InjectableSocket();
+        var read = _Settled(_clientOn(socket).messageListener.read());
+        async.flushMicrotasks();
+        expect(read.done, false, reason: 'nothing has arrived yet');
+
+        socket.emitDone();
+        async.flushMicrotasks();
+
+        expect(read.error, isA<AtConnectException>());
+        expect(async.elapsed, Duration.zero);
+      });
+    });
+
+    test(
+        'when this side closes the connection, then read throws'
+        ' AtConnectException with no time passing', () {
+      fakeAsync((async) {
+        var socket = InjectableSocket();
+        var client = _clientOn(socket);
+        var read = _Settled(client.messageListener.read());
+        async.flushMicrotasks();
+        expect(read.done, false, reason: 'nothing has arrived yet');
+
+        client.close();
+        async.flushMicrotasks();
+
+        expect(read.error, isA<AtConnectException>());
+        expect(async.elapsed, Duration.zero);
+      });
+    });
+
+    test('when the peer answers and then closes, then read returns the answer',
+        () {
+      fakeAsync((async) {
+        var socket = InjectableSocket();
+        var read = _Settled(_clientOn(socket).messageListener.read());
+        async.flushMicrotasks();
+
+        socket.emit('data:ANSWERED\n');
+        socket.emitDone();
+        async.elapse(Duration(milliseconds: 50));
+
+        expect(read.value, 'data:ANSWERED',
+            reason: 'the peer answered before hanging up, so the close must'
+                ' not be reported over the top of the answer');
+      });
+    });
+
+    test(
+        'when a chunk arrives that does not complete a response, then read'
+        ' keeps waiting', () {
+      fakeAsync((async) {
+        var socket = InjectableSocket();
+        var read = _Settled(_clientOn(socket).messageListener.read());
+        async.flushMicrotasks();
+
+        socket.emit('data:PART');
+        async.elapse(Duration(milliseconds: 100));
+        expect(read.done, false,
+            reason: 'half a response is not an answer to return');
+
+        socket.emit('IAL\n@alice@');
+        async.flushMicrotasks();
+        expect(read.value, 'data:PARTIAL');
+      });
+    });
+
+    test(
+        'when nothing arrives for the inter-chunk budget, then read throws'
+        ' AtTimeoutException as the budget passes', () {
+      fakeAsync((async) {
+        var socket = InjectableSocket();
+        var read = _Settled(_clientOn(socket).messageListener.read(
+            maxWaitMilliSeconds: 10000, transientWaitTimeMillis: 300));
+        async.flushMicrotasks();
+
+        async.elapse(Duration(milliseconds: 300));
+        expect(read.done, false, reason: 'the budget has not yet passed');
+        async.elapse(Duration(milliseconds: 2));
+
+        expect(read.error, isA<AtTimeoutException>());
+        expect('${read.error}', contains('Nothing received for 300 millis'));
+      });
+    });
+
+    test(
+        'when the whole exchange outlasts its total budget, then read throws'
+        ' AtTimeoutException as the budget passes', () {
+      fakeAsync((async) {
+        var socket = InjectableSocket();
+        var read = _Settled(_clientOn(socket).messageListener.read(
+            maxWaitMilliSeconds: 500, transientWaitTimeMillis: 300));
+        async.flushMicrotasks();
+
+        async.elapse(Duration(milliseconds: 200));
+        socket.emit('data:STILL');
+        async.elapse(Duration(milliseconds: 200));
+        socket.emit('COMING');
+        async.elapse(Duration(milliseconds: 100));
+        expect(read.done, false, reason: 'the budget has not yet passed');
+        async.elapse(Duration(milliseconds: 2));
+
+        expect(read.error, isA<AtTimeoutException>());
+        expect('${read.error}', contains('No response after 500 millis'));
+      });
+    });
+  });
+
+  group('Given a response arrived before read was called', () {
+    setUp(_useLongOutboundIdleTime);
+
+    test(
+        'when read is called, then it returns that response with no time'
+        ' passing', () {
+      fakeAsync((async) {
+        var socket = InjectableSocket();
+        var client = _clientOn(socket);
+        socket.emit('data:EARLY\n@alice@');
+        async.flushMicrotasks();
+
+        var read = _Settled(client.messageListener.read());
+        async.flushMicrotasks();
+
+        expect(read.value, 'data:EARLY');
+        expect(async.elapsed, Duration.zero);
+      });
+    });
+  });
+
+  group('Given a peer that misbehaves while read waits', () {
+    setUp(_useLongOutboundIdleTime);
+
+    test(
+        'when a reply trickles in one byte at a time inside the inter-chunk'
+        ' budget, then read returns it whole when its last byte arrives', () {
+      fakeAsync((async) {
+        var socket = InjectableSocket();
+        var read = _Settled(_clientOn(socket)
+            .messageListener
+            .read(maxWaitMilliSeconds: 10000, transientWaitTimeMillis: 300));
+        async.flushMicrotasks();
+
+        var bytes = utf8.encode('data:TRICKLED\n@alice@');
+        // The reply is complete once the newline and the `@` after it are in.
+        var lastNeeded = bytes.indexOf(10) + 1;
+        for (var i = 0; i <= lastNeeded; i++) {
+          async.elapse(Duration(milliseconds: 200));
+          expect(read.done, false,
+              reason: 'only $i of the reply\'s bytes had arrived');
+          socket.emitBytes([bytes[i]]);
+          async.flushMicrotasks();
+        }
+
+        expect(read.value, 'data:TRICKLED');
+        expect(async.elapsed,
+            Duration(milliseconds: 200 * (lastNeeded + 1)),
+            reason: 'read returns as the last byte arrives, not later');
+      });
+    });
+
+    test(
+        'when a reply stalls part way for longer than the inter-chunk budget,'
+        ' then read throws AtTimeoutException as the budget passes', () {
+      fakeAsync((async) {
+        var socket = InjectableSocket();
+        var read = _Settled(_clientOn(socket)
+            .messageListener
+            .read(maxWaitMilliSeconds: 10000, transientWaitTimeMillis: 300));
+        async.elapse(Duration(milliseconds: 100));
+        socket.emit('data:HAL');
+
+        async.elapse(Duration(milliseconds: 300));
+        expect(read.done, false,
+            reason: 'the budget runs from the last chunk, 300 ms ago');
+        async.elapse(Duration(milliseconds: 2));
+
+        expect(read.error, isA<AtTimeoutException>());
+        expect('${read.error}', contains('Nothing received for 300 millis'));
+      });
+    });
+
+    test(
+        'when the peer hangs up part way through a reply, then read throws'
+        ' AtConnectException with no time passing', () {
+      fakeAsync((async) {
+        var socket = InjectableSocket();
+        var read = _Settled(_clientOn(socket).messageListener.read());
+        socket.emit('data:HALF');
+        async.flushMicrotasks();
+        expect(read.done, false, reason: 'half a reply is not an answer');
+
+        socket.emitDone();
+        async.flushMicrotasks();
+
+        expect(read.error, isA<AtConnectException>());
+        expect(async.elapsed, Duration.zero);
+      });
+    });
+
+    test(
+        'when the socket errors, then read throws AtConnectException with no'
+        ' time passing', () {
+      fakeAsync((async) {
+        var socket = InjectableSocket();
+        var read = _Settled(_clientOn(socket).messageListener.read());
+        async.flushMicrotasks();
+
+        socket.emitError(SocketException('Connection reset by peer'));
+        async.flushMicrotasks();
+
+        expect(read.error, isA<AtConnectException>());
+        expect(async.elapsed, Duration.zero);
+      });
+    });
+
+    test(
+        'when the peer sends bytes that are not UTF-8, then read throws'
+        ' AtConnectException with no time passing', () {
+      fakeAsync((async) {
+        var socket = InjectableSocket();
+        var read = _Settled(_clientOn(socket).messageListener.read());
+        async.flushMicrotasks();
+
+        socket.emitBytes([...utf8.encode('data:'), 0xff, 0x0a, 0x40]);
+        async.flushMicrotasks();
+
+        expect(read.error, isA<AtConnectException>());
+        expect(async.elapsed, Duration.zero);
+      });
+    });
+  });
+
+  group('Given read timed out waiting for a reply', () {
+    setUp(_useLongOutboundIdleTime);
+
+    test('when the reply arrives late, then it does not answer the next exchange',
+        () {
+      fakeAsync((async) {
+        var socket = _ReplyInFlightAtCloseSocket('data:LATE\n@alice@');
+        var listener = _clientOn(socket).messageListener;
+        var first = _Settled(
+            listener.read(maxWaitMilliSeconds: 10000, transientWaitTimeMillis: 300));
+        async.elapse(Duration(milliseconds: 302));
+        expect(first.error, isA<AtTimeoutException>());
+        expect(socket.destroyed, true,
+            reason: 'timing out closes the connection, which is when the reply'
+                ' in flight is delivered');
+
+        async.flushMicrotasks();
+        var next = _Settled(listener.read());
+        async.flushMicrotasks();
+
+        expect(next.value, isNull,
+            reason: 'the late reply answered a request nobody is waiting on');
+        expect(next.error, isA<AtConnectException>());
+      });
+    });
+  });
+
+  group('Given a connection that has carried many exchanges', () {
+    setUp(_useLongOutboundIdleTime);
+
+    test(
+        'when a thousand replies have each been read, then no timer is left'
+        ' pending', () {
+      fakeAsync((async) {
+        var socket = InjectableSocket();
+        var listener = _clientOn(socket).messageListener;
+        for (var i = 0; i < 1000; i++) {
+          var read = _Settled(listener.read());
+          async.flushMicrotasks();
+          socket.emit('data:R$i\n@alice@');
+          async.flushMicrotasks();
+          expect(read.value, 'data:R$i');
+        }
+
+        expect(async.pendingTimers, isEmpty,
+            reason: 'each wait must leave nothing behind once it is answered');
+      });
+    });
+  });
+}
+
+/// Long, so nothing under test is invalidated by going idle.
+void _useLongOutboundIdleTime() {
+  var serverContext = AtSecondaryContext();
+  serverContext.unauthenticatedOutboundIdleTimeMillis = 60000;
+  AtSecondaryServerImpl.getInstance().serverContext = serverContext;
+}
+
+/// A client wired to [socket] with its listener attached, as `connect()`
+/// would leave it.
+OutboundClient _clientOn(InjectableSocket socket) {
+  var client = OutboundClient(
+    InboundConnectionImpl(FakeSocket(), 'alice'),
+    'alice',
+    AtSecondaryServerImpl.getInstance().secondaryAddressFinder,
+    false,
+    DefaultOutboundConnectionFactory(clientCertificateRequired: false),
+  )..outboundConnection = OutboundConnectionImpl(socket, 'alice');
+  client.messageListener = OutboundMessageListener(client);
+  client.messageListener.listen();
+  return client;
+}
+
+/// A socket with a reply still in flight when this side destroys it, so the
+/// reply is delivered after the close, as already-queued socket events are.
+class _ReplyInFlightAtCloseSocket extends InjectableSocket {
+  final String inFlight;
+
+  _ReplyInFlightAtCloseSocket(this.inFlight);
+
+  @override
+  void destroy() {
+    if (!destroyed) {
+      emit(inFlight);
+    }
+    super.destroy();
+  }
+}
+
+/// How a future settled, recorded as it happens, so a test on a fake clock
+/// can ask whether it has settled yet.
+class _Settled<T> {
+  bool done = false;
+  T? value;
+  Object? error;
+
+  _Settled(Future<T> future) {
+    future.then((v) {
+      value = v;
+      done = true;
+    }, onError: (Object e) {
+      error = e;
+      done = true;
+    });
+  }
 }

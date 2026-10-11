@@ -295,6 +295,8 @@ verbTestsSetUp(
   });
 
   final outboundConnection = mockOutboundConnection = MockOutboundConnection();
+  when(() => outboundConnection.closed)
+      .thenAnswer((_) => Completer<void>().future);
   final outboundConnectionFactory =
       mockOutboundConnectionFactory = MockOutboundConnectionFactory();
   when(() => outboundConnectionFactory.createOutboundConnection(
@@ -652,3 +654,78 @@ const List<String> representativeListenerCommands = [
   'stats\n',
   'config:block:add:@mallory\n',
 ];
+
+/// A socket whose every fault can be injected: what it delivers, when, whether
+/// it errors, and whether it ends.
+///
+/// The rest of the outbound tests drive [OutboundMessageListener.messageHandler]
+/// directly, which cannot reach `onDone`, `onError`, or anything about timing.
+/// These go through `listen()` so the whole path is exercised as the runtime
+/// wires it.
+class InjectableSocket extends Fake implements Socket {
+  final _controller = StreamController<Uint8List>();
+  final Completer<void> _doneCompleter = Completer<void>();
+
+  /// Everything the server wrote to this socket, in order.
+  final List<String> written = [];
+
+  /// How many times the server destroyed this socket. A count rather than a
+  /// flag, so a double-close is visible.
+  int destroyCount = 0;
+  bool get destroyed => destroyCount > 0;
+
+  void emit(String data) =>
+      _controller.add(Uint8List.fromList(utf8.encode(data)));
+
+  void emitBytes(List<int> bytes) =>
+      _controller.add(Uint8List.fromList(bytes));
+
+  void emitError(Object error) => _controller.addError(error);
+
+  /// The peer hangs up.
+  Future<void> emitDone() => _controller.close();
+
+  @override
+  Future get done => _doneCompleter.future;
+
+  @override
+  void destroy() {
+    destroyCount++;
+    // A real Socket.destroy() tears down the read side too, so the close the
+    // server performs comes back to it as onDone. Without this the double
+    // exercises only half of what the runtime does on every close path.
+    if (!_controller.isClosed) _controller.close();
+    if (!_doneCompleter.isCompleted) _doneCompleter.complete();
+  }
+
+  /// Delivers [data] and destroys in the same turn -- the one production route
+  /// to bytes arriving after a close, since already-queued events still
+  /// dispatch after the controller is closed.
+  void emitThenDestroy(String data) {
+    emit(data);
+    destroy();
+  }
+
+  @override
+  void write(Object? obj) => written.add(obj.toString());
+
+  @override
+  InternetAddress get remoteAddress => InternetAddress('127.0.0.1');
+  @override
+  int get remotePort => 9999;
+  @override
+  InternetAddress get address => InternetAddress('127.0.0.1');
+  @override
+  int get port => 5555;
+  @override
+  bool setOption(SocketOption option, bool enabled) => true;
+
+  @override
+  StreamSubscription<Uint8List> listen(void Function(Uint8List)? onData,
+          {Function? onError, void Function()? onDone, bool? cancelOnError}) =>
+      _controller.stream.listen(onData,
+          onError: onError, onDone: onDone, cancelOnError: cancelOnError);
+
+  @override
+  Future<void> close() async {}
+}
