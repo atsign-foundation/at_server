@@ -229,8 +229,16 @@ void main() {
 
     test(
         '@chuck is quarantined in open "invitations.chat", at its limit of'
-        ' exchanges in the window', () async {},
-        skip: 'quarantine counting is not built yet');
+        ' exchanges in the window', () async {
+      await gate().setRule('invitations.chat', GateMode.open);
+      final Atsign chuck = '@chuck'.toAtsign();
+      for (int i = 0; i < 10; i++) {
+        await gate().count(chuck, 'x.invitations.chat');
+      }
+      await expectLater(gate().count(chuck, 'x.invitations.chat'),
+          throwsA(isA<QuarantineLimitException>()));
+      await checks('invitations.chat', chuck, 'quarantined');
+    });
   });
 
   test('Any enrollment reads the default', () async {
