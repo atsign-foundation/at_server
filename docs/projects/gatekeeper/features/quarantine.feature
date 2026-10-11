@@ -21,6 +21,11 @@ Feature: Quarantine in open namespaces
   DoS: every quarantined exchange is bounded per atSign by N, W and the size cap,
   every open namespace by its two bounds, and the atSign by its total of
   quarantined bytes; counts survive a restart.
+  Forgery: the mark comes from @alice's own sets when a notification is
+  accepted, and no field of the notify command sets it; a quarantined
+  notification never touches a cached key.
+  Impersonation: counts and standing are kept for the atSign that pol
+  authenticated (rules.feature), so one atSign cannot spend another's count.
 
   Background:
     Given @alice's atSign has the closed default
