@@ -276,8 +276,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     cacheManager = AtCacheManager(serverContext!.currentAtSign!, keyValueStore,
         outboundClientManager, notificationManager);
 
-    var random = Random();
-    var runRefreshJobHour = random.nextInt(23);
+    final int runRefreshJobHour = AtCacheRefreshJob.runJobHourFrom(
+        AtSecondaryConfig.runRefreshJobHour,
+        random: Random(),
+        warn: logger.warning);
     atRefreshJob =
         AtCacheRefreshJob(serverContext!.currentAtSign!, cacheManager);
     atRefreshJob.scheduleRefreshJob(runRefreshJobHour);
