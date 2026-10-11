@@ -2,16 +2,20 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/connection_util.dart';
+import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/gate/gate_store.dart';
 import 'package:at_secondary/src/gate/gatekeeper.dart';
 import 'package:at_secondary/src/gate/quarantine.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/verb/executor/default_verb_executor.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/config_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/gate_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/keys_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
+import 'package:at_secondary/src/verb/manager/verb_handler_manager.dart';
 import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
@@ -593,6 +597,47 @@ void main() {
         }
       });
     }
+  });
+
+  DummyInboundConnection fromChucksAtServer() => DummyInboundConnection()
+    ..metadata.isPolAuthenticated = true
+    ..metadata.fromAtSign = chuck;
+
+  const String streamInit =
+      'stream:init@alice namespace:invitations.chat 1 photo.jpg 1024';
+
+  test('Another atServer cannot open a stream', () async {
+    Exception? refused;
+    try {
+      InboundCommandValidator.validate(
+          utf8.encode(streamInit), fromChucksAtServer());
+    } on Exception catch (e) {
+      refused = e;
+    }
+    expect(refused, isNotNull, reason: 'the stream command was not refused');
+    expect(GlobalExceptionHandler.getInstance().getErrorCode(refused!),
+        'AT0003');
+  });
+
+  test(
+      'Given a connection from another atServer, when it sends a batch'
+      ' holding stream:init, then the batch is refused and nothing is'
+      ' queued', () async {
+    final String batch = 'batch:${jsonEncode([
+      {'id': 1, 'command': 'stream:init@dave namespace:chat 1 photo.jpg 1024'}
+    ])}';
+    final DummyInboundConnection connection = fromChucksAtServer();
+    InboundCommandValidator.validate(utf8.encode(batch), connection);
+    await expectLater(
+        DefaultVerbExecutor().execute(
+            batch,
+            connection,
+            DefaultVerbHandlerManager(keyValueStore, mockOutboundClientManager,
+                cacheManager, statsNotificationService, notificationManager,
+                enMgr, '$alice',
+                commitLog: atCommitLog, accessLog: atAccessLog)),
+        throwsA(isA<UnAuthenticatedException>()));
+    expect(await notifStore.iterate().toList(), isEmpty);
   });
 
   test("Another atSign may not change @alice's gate", () async {
