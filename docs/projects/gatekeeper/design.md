@@ -70,20 +70,25 @@ The records are a rule record per namespace with a rule or recorded admissions
 The rule and its counters live in separate records, so a counted exchange
 rewrites only the quarantine record, which is small because D15 bounds it.
 
-**Guards.** On the atServer, every client verb that names a `local:` key is
-refused, beside `refuseTelemetryKeyMutation` in `AbstractVerbHandler`, and
-`_isPrivateKeyForAtSign` hides `local:` from scan. The verbs whose grammar
-admits a `local:` key are `llookup` and `notify`, since their `atKey` allows a
-colon, and `update:json`, which takes its key from the document. The plain
-`update`, `update:meta` and `delete` patterns exclude a colon from the key.
-Two more verbs reach a `local:` key without that grammar: `lookup` on an
-owner connection looks up a key containing a colon as given, and `keys:get` and
-`keys:delete` take any key name and never call `isAuthorized`. The guard
-therefore sits in those handlers as well as beside `refuseTelemetryKeyMutation`.
-`batch` hands each of its commands to that verb's own handler
-(`verbHandlerManager.getVerbHandler`), so it meets the same guard. The guard
-tests the key the handler finally resolves, so `update:json` meets it too.
-`rules.feature`'s `@forgery` outline pins it for `keys:delete` and `notify`.
+**Guards.** A `local:` key is one whose name begins `local:`, as both commit
+logs judge it. On the atServer, every client verb that names one is refused,
+and `_isPrivateKeyForAtSign` hides them from scan. The verbs whose grammar
+admits a `local:` key are `llookup`, `lookup` and `notify`, since their `atKey`
+allows a colon, and `update:json`, which takes its key from the document. The
+plain `update`, `update:meta`, `delete` and `notify:all` patterns exclude a
+colon from the key, and `plookup` reads only `public:` keys and their cached
+copies. `llookup`, `lookup` and `update:json` pass the key they resolve to
+`isAuthorized`, where the guard sits beside `refuseTelemetryKeyMutation` in
+`AbstractVerbHandler`. `notify` puts the recipient in front of the key it
+stores, so its guard tests the key a key notification names; a text
+notification names no key. `keys:get` and `keys:delete` take any key name and
+never call `isAuthorized`, so the guard sits in that handler too, and a `local:`
+key answers the same refusal whether it exists or not. `batch` hands each of its
+commands to that verb's own handler (`verbHandlerManager.getVerbHandler`), so it
+meets the same guards. `notify:list` and `monitor` call `isAuthorized` for each
+stored notification and never trip the guard, since the atServer builds no
+notification key that begins `local:`. `rules.feature`'s `@forgery` outline pins
+the guard for `keys:delete` and `notify`.
 
 ## 4. Concurrency
 
