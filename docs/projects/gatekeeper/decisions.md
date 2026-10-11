@@ -627,3 +627,18 @@ namespaces. A check that answered the blocklist would disclose it, and one
 that answered a passing limit would be stale at once. Switching the default to
 closed should cut off strangers, not the owner's trusted contacts. And a
 namespace written two ways must not become two rules.
+
+## D27 The value-reference resolver is fixed with the gate
+
+*2026-10-11, gkc. Q33, raised when D23's second scenario failed against the
+resolver.*
+
+A lookup resolving an `atsign://` reference takes the copy shared with the
+asker, falls back to the public copy only when the shared one is missing, and
+answers `data:null` when neither is held. Before, it always went on to the
+public copy, so it failed when that was missing and preferred it when both
+were held, and D23's "resolves as today" scenario could not hold. The fix
+ships with the gate rather than as a change of its own.
+
+**Why:** the agreed scenario says what a reference should do, and the
+resolver did not do it.
