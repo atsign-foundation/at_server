@@ -268,10 +268,16 @@ bound the operator has since tightened counts as the bound (D30).
 
 ## 9. Performance
 
-The gatekeeper adds a check to every exchange between atSigns.
-The claim that it costs no storage read ([section 3](#3-state-and-its-records)) is a hypothesis until it is
-measured. Before the gate is built, a bench measures notify and lookup
-throughput between two atServers, and it runs again with the gate in place.
+The gatekeeper adds a check to every exchange between atSigns, and the check
+reads no storage ([section 3](#3-state-and-its-records)). A bench measures
+notify and lookup throughput between two atServers in one virtualenv, with
+1 and 8 clients. On 2026-10-11 it ran three arms interleaved, twice each: the
+server without the gate (`57c59915`), the gate with no rules (`20347489`), and
+the gate with a closed default admitting the other atSign. Every gate arm's
+median throughput was within 5% of the arm without it, in both directions,
+for llookup, lookup and notify; the llookup control, which the gate does not
+touch, moved by as much, so that is the bench's resolution. Counting
+quarantined exchanges, which writes a record each time, was not measured.
 
 ## 10. Tests
 
