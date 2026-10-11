@@ -217,8 +217,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.info('Removed orphaned APKAM encryption keys: $deletedKeys');
     }
 
-    gatekeeper =
-        await Gatekeeper.load(GateStore(keyValueStore, currentAtSign));
+    gatekeeper = await loadGatekeeper(GateStore(keyValueStore, currentAtSign));
 
     await prepareStoreForFirstConnection();
 
@@ -881,6 +880,11 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   ConnectionMetrics getMetrics() {
     throw Exception("AtSecondaryServer.getMetrics() is obsolete");
   }
+
+  /// The gate [store] holds, under the operator's limits.
+  @visibleForTesting
+  static Future<Gatekeeper> loadGatekeeper(GateStore store) =>
+      Gatekeeper.load(store, limits: AtSecondaryConfig.gateLimits);
 
   /// Plants the CRAM activation secret into [keyValueStore] for first-time
   /// activation, only when it has not been deleted, is not already present,

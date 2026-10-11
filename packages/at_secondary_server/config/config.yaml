@@ -217,3 +217,42 @@ enrollment:
   # If the duration between the last received invalid OTP and the current date-time
   # exceeds the delayIntervalThreshold, trigger a reset to the default value.
   delayIntervalThreshold: 55
+
+# The gate. An open namespace's quarantine settings take these defaults until
+# an application sets them, and an application may set each no higher than
+# its max and no lower than its min. Each value can be overridden by an
+# environment variable named after its path, e.g. gateLimitMax or
+# gateMaxOpenNamespaces.
+gate:
+  quarantine:
+    # Exchanges one quarantined atSign may have in the window.
+    limit:
+      default: 10
+      max: 100
+    # The window, in seconds.
+    window:
+      default: 86400
+      min: 3600
+    # The most bytes one quarantined exchange may carry.
+    size:
+      default: 15360
+      max: 65536
+    # How many atSigns one namespace may hold in quarantine.
+    maxQuarantined:
+      default: 100
+      max: 1000
+    # The quarantined bytes one namespace accepts in the window.
+    maxQuarantinedBytes:
+      default: 1048576
+      max: 16777216
+  # How many open namespaces one atSign may have.
+  maxOpenNamespaces: 50
+  # The quarantined bytes one atSign accepts in the window, across its namespaces.
+  maxQuarantinedBytesEverywhere: 67108864
+  # How many namespaces one atSign may have with a rule or recorded admissions.
+  maxNamespaces: 1000
+  # How many atSigns one namespace may admit, and may deny.
+  maxAdmitted: 10000
+  maxDenied: 10000
+  # How many atSigns the atSign-wide admitted set may hold.
+  maxAdmittedEverywhere: 10000

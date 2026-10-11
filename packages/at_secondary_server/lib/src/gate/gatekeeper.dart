@@ -76,6 +76,21 @@ class GateLimits {
     this.maxAdmittedEverywhere = 10000,
     this.maxQuarantinedBytesEverywhere = 64 * 1024 * 1024,
   });
+
+  /// Throws an [ArgumentError] naming the first setting whose default lies
+  /// below its floor or above its ceiling.
+  void check() {
+    for (final GateSetting setting in GateSetting.values) {
+      final int value = defaults[setting]!;
+      final int floor = floors[setting] ?? 0;
+      final int? ceiling = ceilings[setting];
+      if (value < floor || (ceiling != null && value > ceiling)) {
+        throw ArgumentError('The gate\'s default ${setting.name}, $value,'
+            ' is not between its floor, $floor, and its ceiling,'
+            ' ${ceiling ?? 'none'}');
+      }
+    }
+  }
 }
 
 /// What the gate holds for one namespace: its rule's mode, the atSigns

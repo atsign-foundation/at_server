@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/conf/config_util.dart';
+import 'package:at_secondary/src/gate/gatekeeper.dart';
 import 'package:meta/meta.dart';
 import 'package:yaml/yaml.dart';
 
@@ -770,6 +771,60 @@ class AtSecondaryConfig {
       return _enrollmentResponseDelayIntervalInSeconds;
     }
   }
+
+  /// The gate's quarantine defaults and bounds and its atSign-wide caps, from
+  /// the `gate` section, each overridden by the environment variable
+  /// [gateEnvVar] names. Throws an [ArgumentError] when a default lies outside
+  /// its bounds.
+  static GateLimits get gateLimits {
+    const GateLimits builtIn = GateLimits();
+    int? quarantine(GateSetting setting, String bound) =>
+        _getIntEnvVar(gateEnvVar(setting.name, bound)) ??
+        getNullableIntFromYaml(['gate', 'quarantine', setting.name, bound]);
+    int cap(String name, int builtInValue) =>
+        _getIntEnvVar(gateEnvVar(name)) ??
+        getNullableIntFromYaml(['gate', name]) ??
+        builtInValue;
+    final Map<GateSetting, int> ceilings = {};
+    for (final GateSetting setting in GateSetting.values) {
+      final int? ceiling =
+          quarantine(setting, 'max') ?? builtIn.ceilings[setting];
+      if (ceiling != null) {
+        ceilings[setting] = ceiling;
+      }
+    }
+    final GateLimits limits = GateLimits(
+      defaults: {
+        for (final GateSetting setting in GateSetting.values)
+          setting:
+              quarantine(setting, 'default') ?? builtIn.defaults[setting]!,
+      },
+      ceilings: ceilings,
+      floors: {
+        for (final GateSetting setting in GateSetting.values)
+          setting: quarantine(setting, 'min') ?? builtIn.floors[setting]!,
+      },
+      maxOpenNamespaces:
+          cap('maxOpenNamespaces', builtIn.maxOpenNamespaces),
+      maxNamespaces: cap('maxNamespaces', builtIn.maxNamespaces),
+      maxAdmitted: cap('maxAdmitted', builtIn.maxAdmitted),
+      maxDenied: cap('maxDenied', builtIn.maxDenied),
+      maxAdmittedEverywhere:
+          cap('maxAdmittedEverywhere', builtIn.maxAdmittedEverywhere),
+      maxQuarantinedBytesEverywhere: cap('maxQuarantinedBytesEverywhere',
+          builtIn.maxQuarantinedBytesEverywhere),
+    );
+    limits.check();
+    return limits;
+  }
+
+  /// The environment variable for the gate value [name], with [bound]
+  /// (`default`, `min` or `max`) for a quarantine setting.
+  static String gateEnvVar(String name, [String bound = '']) =>
+      'gate${_capitalised(name)}${_capitalised(bound)}';
+
+  static String _capitalised(String word) =>
+      word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1)}';
 
   // The stream subscribers listen on for config:set updates.
   static Stream<dynamic>? subscribe(ModifiableConfigs configName) {
