@@ -4,6 +4,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/wire_param_names.dart';
+import 'package:at_secondary/src/gate/gatekeeper.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -19,6 +20,8 @@ import 'package:mutex/mutex.dart';
 enum Type { sent, received }
 
 class NotifyVerbHandler extends AbstractVerbHandler {
+  static const String _sharedKeyName = 'shared_key';
+
   static Notify notify = Notify();
   final int _maxKeyLength = 255;
 
@@ -117,6 +120,15 @@ class NotifyVerbHandler extends AbstractVerbHandler {
 
     var atNotificationBuilder = _populateNotificationBuilder(verbParams,
         fromAtSign: polConnectionMetadata.fromAtSign!.toAtsign());
+
+    final Atsign from = polConnectionMetadata.fromAtSign!.toAtsign();
+    final Gatekeeper gate = AtSecondaryServerImpl.getInstance().gatekeeper;
+    final String keyName = verbParams[AtConstants.atKey]!.toLowerCase();
+    Gatekeeper.refuseIfNotAccepted(
+        atNotificationBuilder.messageType == MessageType.text
+            ? gate.namespaceLess(from, onShortList: true)
+            : gate.inbound(from, keyName,
+                onShortList: keyName == _sharedKeyName));
 
     // If messageType is key, atMetadata is set in "_populateNotificationBuilder"
     // When messageType is text, atNotificationBuilder.atMetadata fields are

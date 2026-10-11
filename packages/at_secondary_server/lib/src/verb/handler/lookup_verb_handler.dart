@@ -7,6 +7,8 @@ import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
+import 'package:at_secondary/src/gate/gatekeeper.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
@@ -16,6 +18,8 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_utils/at_utils.dart';
 
 class LookupVerbHandler extends AbstractVerbHandler {
+  static const String _sharedKeyName = 'shared_key';
+
   static Lookup lookup = Lookup();
   static final depthOfResolution = AtSecondaryConfig.lookup_depth_of_resolution;
   final OutboundClientManager outboundClientManager;
@@ -134,6 +138,11 @@ class LookupVerbHandler extends AbstractVerbHandler {
         atConnectionMetadata.fromAtSign!.isEmpty) {
       throw AtLookUpException('AT0013', 'fromAtSign cannot be null or empty');
     }
+    final Atsign from = atConnectionMetadata.fromAtSign!.toAtsign();
+    final String keyName = _withoutOwner(keyAtAtSign);
+    Gatekeeper.refuseIfNotAccepted(AtSecondaryServerImpl.getInstance()
+        .gatekeeper
+        .inbound(from, keyName, onShortList: keyName == _sharedKeyName));
     // In case of a pol authenticated connection, the request originates from a different
     // 'atSign'. In this scenario, set the lookupKey prefix to the requesting 'atSign'.
     var lookupKey = '${atConnectionMetadata.fromAtSign}:$keyAtAtSign';
@@ -150,7 +159,8 @@ class LookupVerbHandler extends AbstractVerbHandler {
     if (response.data != null &&
         response.data!.contains(AtConstants.atValueReference)) {
       response.data = await resolveValueReference(
-          response.data!, atConnectionMetadata.fromAtSign!);
+          response.data!, atConnectionMetadata.fromAtSign!,
+          gatedFor: from);
     }
     //Omit all keys starting with '_' to record in access log
     if (!keyAtAtSign.startsWith('_')) {
@@ -280,7 +290,10 @@ class LookupVerbHandler extends AbstractVerbHandler {
   /// else null is returned.
   /// @param - value : The reference value to be resolved.
   /// @param - keyPrefix : The prefix for the key: `<atsign>` or `public`.
-  Future<String?> resolveValueReference(String value, String keyPrefix) async {
+  /// With [gatedFor], a reference resolves only into a namespace where that
+  /// atSign is admitted; any other answers null.
+  Future<String?> resolveValueReference(String value, String keyPrefix,
+      {Atsign? gatedFor}) async {
     var resolutionCount = 1;
 
     // TODO Is this feature used anywhere?
@@ -289,6 +302,13 @@ class LookupVerbHandler extends AbstractVerbHandler {
         resolutionCount <= depthOfResolution!) {
       var index = value.indexOf('/');
       var keyToResolve = value.substring(index + 2, value.length);
+      if (gatedFor != null &&
+          AtSecondaryServerImpl.getInstance()
+                  .gatekeeper
+                  .inbound(gatedFor, _withoutOwner(keyToResolve)) !=
+              GateVerdict.admitted) {
+        return null;
+      }
       if (!keyPrefix.endsWith(':')) {
         keyPrefix = '$keyPrefix:';
       }
@@ -310,5 +330,11 @@ class LookupVerbHandler extends AbstractVerbHandler {
     } on KeyNotFoundException {
       return null;
     }
+  }
+
+  /// [key]'s name without the atSign that owns it, lower-cased.
+  static String _withoutOwner(String key) {
+    final int at = key.lastIndexOf('@');
+    return (at > 0 ? key.substring(0, at) : key).toLowerCase();
   }
 }

@@ -91,6 +91,9 @@ class GlobalExceptionHandler {
         exception is HandShakeException ||
         exception is UnAuthenticatedException ||
         exception is UnAuthorizedException ||
+        exception is NotAcceptedException ||
+        exception is QuarantineLimitException ||
+        exception is QuarantineSizeException ||
         exception is AtEnrollmentException ||
         exception is OutBoundConnectionInvalidException ||
         exception is KeyNotFoundException ||

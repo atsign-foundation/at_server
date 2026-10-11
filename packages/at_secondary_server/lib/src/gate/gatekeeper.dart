@@ -158,15 +158,28 @@ class Gatekeeper {
   GateVerdict inbound(Atsign other, String keyName,
       {bool onShortList = false}) {
     final int dot = keyName.indexOf('.');
-    if (dot < 0) {
-      if (_default == GateDefault.ungated) {
-        return GateVerdict.admitted;
-      }
-      return onShortList && isAdmittedSomewhere(other)
-          ? GateVerdict.admitted
-          : GateVerdict.notAccepted;
+    return dot < 0
+        ? namespaceLess(other, onShortList: onShortList)
+        : check(keyName.substring(dot + 1), other);
+  }
+
+  /// The verdict for an exchange from [other] that belongs to no namespace.
+  /// [onShortList] says whether it is one that admission anywhere lets
+  /// through.
+  GateVerdict namespaceLess(Atsign other, {required bool onShortList}) {
+    if (_default == GateDefault.ungated) {
+      return GateVerdict.admitted;
     }
-    return check(keyName.substring(dot + 1), other);
+    return onShortList && isAdmittedSomewhere(other)
+        ? GateVerdict.admitted
+        : GateVerdict.notAccepted;
+  }
+
+  /// Throws [NotAcceptedException] when [verdict] refuses the exchange.
+  static void refuseIfNotAccepted(GateVerdict verdict) {
+    if (verdict == GateVerdict.notAccepted) {
+      throw NotAcceptedException('This atServer does not accept the exchange');
+    }
   }
 
   /// The standing [other] has in [namespace] now: the verdict an exchange
