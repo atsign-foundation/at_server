@@ -136,7 +136,8 @@ class Gatekeeper {
 
   GateDefault get defaultMode => _default;
 
-  /// The atSigns admitted in every open namespace.
+  /// The atSigns admitted in every open namespace and wherever the closed
+  /// default decides.
   Set<Atsign> get admittedEverywhere => Set.unmodifiable(_admittedEverywhere);
 
   /// What the gate holds for exactly [namespace]: its rule, or the admissions
@@ -168,23 +169,23 @@ class Gatekeeper {
     return check(keyName.substring(dot + 1), other);
   }
 
-  /// The verdict an exchange from [other] in [namespace] gets now.
+  /// The standing [other] has in [namespace] now: the verdict an exchange
+  /// from it there gets.
   ///
   /// The most specific rule covering [namespace] decides. Where none does, the
-  /// default decides, and under `closed` admits exactly the atSigns recorded
-  /// on the most specific covering namespace that has admissions recorded.
+  /// default decides, and under `closed` admits the atSigns recorded on any
+  /// namespace covering [namespace] and the atSign-wide admitted set.
   GateVerdict check(String namespace, Atsign other) {
-    final GateRule? rule =
-        _mostSpecific(namespace, (rule) => rule.mode != null);
-    if (rule == null) {
-      if (_default == GateDefault.ungated) {
+    final String? ruled = _ruleCovering(namespace);
+    if (ruled == null) {
+      if (_default == GateDefault.ungated ||
+          _admittedEverywhere.contains(other) ||
+          _covering(namespace).any((n) => _rules[n]!.admitted.contains(other))) {
         return GateVerdict.admitted;
       }
-      final GateRule? recorded = _mostSpecific(namespace, (_) => true);
-      return recorded != null && recorded.admitted.contains(other)
-          ? GateVerdict.admitted
-          : GateVerdict.notAccepted;
+      return GateVerdict.notAccepted;
     }
+    final GateRule rule = _rules[ruled]!;
     switch (rule.mode!) {
       case GateMode.closed:
         return rule.admitted.contains(other)
@@ -205,31 +206,43 @@ class Gatekeeper {
   /// the longest namespace that ends the key's name, or null.
   GateRule? ruleCovering(String keyName) {
     final int dot = keyName.indexOf('.');
-    return dot < 0
-        ? null
-        : _mostSpecific(keyName.substring(dot + 1), (rule) => rule.mode != null);
+    final String? ruled =
+        dot < 0 ? null : _ruleCovering(keyName.substring(dot + 1));
+    return ruled == null ? null : _rules[ruled];
   }
 
-  /// The entry [test] accepts for [namespace] or the nearest namespace above
-  /// it, by P1's suffix match.
-  GateRule? _mostSpecific(String namespace, bool Function(GateRule) test) {
-    String? candidate = namespace;
-    while (candidate != null) {
-      final GateRule? rule = _rules[candidate];
-      if (rule != null && test(rule)) {
-        return rule;
+  /// The nearest namespace at or above [namespace], by P1's suffix match,
+  /// that has a rule, or null.
+  String? _ruleCovering(String namespace) {
+    for (final String candidate in _covering(namespace)) {
+      if (_rules[candidate]!.mode != null) {
+        return candidate;
       }
-      final int dot = candidate.indexOf('.');
-      candidate = dot < 0 ? null : candidate.substring(dot + 1);
     }
     return null;
   }
 
-  /// Whether [other] is in some namespace's admitted set or the atSign-wide
-  /// one.
+  /// The namespaces at or above [namespace], by P1's suffix match, that the
+  /// gate holds an entry for, the most specific first.
+  Iterable<String> _covering(String namespace) sync* {
+    String? candidate = namespace;
+    while (candidate != null) {
+      if (_rules.containsKey(candidate)) {
+        yield candidate;
+      }
+      final int dot = candidate.indexOf('.');
+      candidate = dot < 0 ? null : candidate.substring(dot + 1);
+    }
+  }
+
+  /// Whether [other] is admitted somewhere the admission takes effect: in a
+  /// rule's admitted set, among the admissions recorded on a namespace no rule
+  /// covers, or in the atSign-wide admitted set.
   bool isAdmittedSomewhere(Atsign other) =>
       _admittedEverywhere.contains(other) ||
-      _rules.values.any((rule) => rule.admitted.contains(other));
+      _rules.entries.any((entry) =>
+          entry.value.admitted.contains(other) &&
+          (entry.value.mode != null || _ruleCovering(entry.key) == null));
 
   /// [namespace]'s rule and sets, or the atSign-wide admitted set when
   /// [namespace] is [everyNamespace], as `gate:show` answers them.
@@ -240,11 +253,13 @@ class Gatekeeper {
     final GateRule? rule = _rules[namespace];
     final GateMode? mode = rule?.mode;
     if (mode == null) {
+      final String? governedBy = _ruleCovering(namespace);
       return {
         'namespace': namespace,
         'mode': 'none',
         'default': _default.name,
         'admitted': _sorted(rule?.admitted ?? const {}),
+        if (governedBy != null) 'governedBy': governedBy,
       };
     }
     return {
@@ -301,6 +316,22 @@ class Gatekeeper {
           _addAdmitted(namespace, rule, admit);
         }
         await _putRule(namespace, rule);
+      });
+
+  /// Takes [namespace]'s rule away, keeping its admitted set as admissions
+  /// recorded there; its denied set and settings go. A namespace with no rule
+  /// is left as it is.
+  Future<void> removeRule(String namespace) => _writes.protect(() async {
+        final GateRule? existing = _rules[namespace];
+        if (existing?.mode == null) {
+          return;
+        }
+        if (existing!.admitted.isEmpty) {
+          await _store?.deleteRule(namespace);
+          _rules.remove(namespace);
+          return;
+        }
+        await _putRule(namespace, GateRule(null, admitted: {...existing.admitted}));
       });
 
   /// Admits [other] in [namespace], or in every open namespace when
