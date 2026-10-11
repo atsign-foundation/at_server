@@ -190,4 +190,131 @@ void main() {
           throwsA(isA<IllegalArgumentException>()));
     });
   });
+
+  group('Given the atSign-wide set', () {
+    test('when an atSign is denied in it, then it is refused as an illegal'
+        ' argument', () {
+      expect(() => Gatekeeper().deny(Gatekeeper.everyNamespace, bob),
+          throwsA(isA<IllegalArgumentException>()));
+    });
+
+    test('when an atSign is admitted and then removed, then it is admitted'
+        ' nowhere', () async {
+      final Gatekeeper gate = Gatekeeper();
+      await gate.admit(Gatekeeper.everyNamespace, bob);
+      await gate.remove(Gatekeeper.everyNamespace, bob);
+      expect(gate.admittedEverywhere, isEmpty);
+    });
+  });
+
+  group('Given an open namespace with settings', () {
+    late Gatekeeper gate;
+    setUp(() async {
+      gate = Gatekeeper();
+      await gate.setRule('invitations.chat', GateMode.open,
+          setting: GateSetting.limit, value: 3);
+    });
+
+    test('when another setting is set, then the first keeps its value',
+        () async {
+      await gate.setRule('invitations.chat', GateMode.open,
+          setting: GateSetting.size, value: 1024);
+      final GateRule rule = gate.ruleFor('invitations.chat')!;
+      expect(gate.settingOf(rule, GateSetting.limit), 3);
+      expect(gate.settingOf(rule, GateSetting.size), 1024);
+      expect(gate.settingOf(rule, GateSetting.window), 24 * 60 * 60);
+    });
+
+    test('when it is closed and opened again, then its settings are kept',
+        () async {
+      await gate.setRule('invitations.chat', GateMode.closed);
+      await gate.setRule('invitations.chat', GateMode.open);
+      expect(
+          gate.settingOf(gate.ruleFor('invitations.chat')!, GateSetting.limit),
+          3);
+    });
+  });
+
+  group("Given the operator's bounds", () {
+    test(
+        'when a setting is set above its ceiling or below its floor, then it'
+        ' is refused as an illegal argument and the rule is unchanged',
+        () async {
+      final Gatekeeper gate = Gatekeeper();
+      await gate.setRule('invitations.chat', GateMode.open);
+      for (final (GateSetting setting, int value) in [
+        (GateSetting.limit, 101),
+        (GateSetting.size, 65537),
+        (GateSetting.maxQuarantined, 1001),
+        (GateSetting.maxQuarantinedBytes, 16 * 1024 * 1024 + 1),
+        (GateSetting.window, 3599),
+      ]) {
+        await expectLater(
+            gate.setRule('invitations.chat', GateMode.open,
+                setting: setting, value: value),
+            throwsA(isA<IllegalArgumentException>()),
+            reason: '${setting.name} $value');
+        expect(gate.ruleFor('invitations.chat')!.settings, isEmpty);
+      }
+    });
+
+    test(
+        'when an atSign at its cap of open namespaces opens another, then it'
+        ' is refused and that namespace has no rule', () async {
+      final Gatekeeper gate =
+          Gatekeeper(limits: const GateLimits(maxOpenNamespaces: 2));
+      await gate.setRule('a.chat', GateMode.open);
+      await gate.setRule('b.chat', GateMode.open);
+      await expectLater(gate.setRule('c.chat', GateMode.open),
+          throwsA(isA<IllegalArgumentException>()));
+      expect(gate.ruleFor('c.chat'), isNull);
+      await gate.setRule('a.chat', GateMode.open,
+          setting: GateSetting.limit, value: 5);
+      await gate.setRule('c.chat', GateMode.closed);
+      expect(gate.ruleFor('c.chat')!.mode, GateMode.closed);
+    });
+  });
+
+  group('Given a gate to show', () {
+    test('when a namespace has no rule, then it shows its mode as none and the'
+        ' default', () {
+      expect(Gatekeeper(defaultMode: GateDefault.closed).show('photos'),
+          {'namespace': 'photos', 'mode': 'none', 'default': 'closed'});
+    });
+
+    test('when a namespace is closed, then it shows only its admitted set',
+        () async {
+      final Gatekeeper gate = Gatekeeper();
+      await gate.setRule('chat', GateMode.closed, admit: dave);
+      await gate.admit('chat', bob);
+      expect(gate.show('chat'), {
+        'namespace': 'chat',
+        'mode': 'closed',
+        'admitted': ['@bob', '@dave'],
+      });
+    });
+
+    test('when a namespace is open, then it shows its settings in force and'
+        ' its sets', () async {
+      final Gatekeeper gate = Gatekeeper();
+      await gate.setRule('invitations.chat', GateMode.open,
+          setting: GateSetting.limit, value: 3);
+      await gate.admit('invitations.chat', bob);
+      await gate.deny('invitations.chat', chuck);
+      expect(gate.show('invitations.chat'), {
+        'namespace': 'invitations.chat',
+        'mode': 'open',
+        'settings': {
+          'limit': 3,
+          'window': 86400,
+          'size': 15360,
+          'maxQuarantined': 100,
+          'maxQuarantinedBytes': 1048576,
+        },
+        'admitted': ['@bob'],
+        'denied': ['@chuck'],
+        'quarantined': <Object>[],
+      });
+    });
+  });
 }
