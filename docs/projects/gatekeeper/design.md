@@ -259,7 +259,8 @@ beside the existing notification settings, and each can be overridden by an
 environment variable named after its path (`gateLimitMax`,
 `gateMaxOpenNamespaces`). Each quarantine setting has a `default`, a `max` and
 a `min`, and the shipped file states D20's values. A default outside its own
-bounds is refused when the limits are read.
+bounds is refused when the limits are read, and a recorded setting beyond a
+bound the operator has since tightened counts as the bound (D30).
 
 ## 9. Performance
 

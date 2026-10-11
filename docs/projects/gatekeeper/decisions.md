@@ -688,3 +688,25 @@ setting.
 *Spec consequence:* rules.feature gains a scenario for an atSign activated
 before its atServer had the gate, and one for a change to the operator's
 setting.
+
+## D30 A setting beyond a bound the operator has since tightened counts as the bound
+
+*2026-10-11, gkc. Q36, raised when the operator's bounds became configuration.*
+
+The gate holds every quarantine setting within the operator's current floor and
+ceiling when it reads it. At each exchange and in `gate:show`, a recorded value
+above the ceiling counts as the ceiling, and one below the floor as the floor.
+The record keeps the value the application set, so it is in force again if the
+operator restores the bound. A change to the operator's bounds takes effect
+when the atServer next starts. The atSign-wide caps need no such rule: lowering
+one refuses growth past it and leaves what is there.
+
+Applying the bounds only when a setting is set, and rewriting each
+out-of-bounds record at start-up, were considered.
+
+**Why:** an operator lowers a ceiling to bound what the quarantine accepts, and
+that bound holds only if it reaches the namespaces already set. Keeping the
+application's value costs nothing and undoes cleanly.
+
+*Spec consequence:* quarantine.feature gains a scenario for a ceiling the
+operator lowers, and one for a ceiling raised again.
