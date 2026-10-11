@@ -331,10 +331,11 @@ means one command never has to be counted across several namespaces' windows.
 
 ## D15 Quarantine bounds, set by the namespace's holders under operator ceilings
 
-*2026-10-10, gkc.*
+*2026-10-10, gkc; amended 2026-10-11 by D28.*
 
 - Each open namespace has two bounds: how many atSigns it holds in quarantine,
-  and how many bytes of quarantined notifications it holds. Its holders set
+  and how many bytes of quarantined notifications it has accepted in the last
+  *W* (D28; as first ruled, the bytes it holds). Its holders set
   them (D5), up to a ceiling the atServer operator sets, and the operator also
   sets the default for a namespace whose holders set none.
 - At either bound, a further quarantined notification is refused with the
@@ -429,7 +430,7 @@ project's vocabulary, and no protocol verb uses it. (at_client's
 
 ## D20 Bound values, and two atSign-wide caps
 
-*2026-10-10, gkc. Design.*
+*2026-10-10, gkc. Design. Amended 2026-10-11 by D28.*
 
 Per open namespace, the operator's defaults and limits are:
 
@@ -439,12 +440,13 @@ Per open namespace, the operator's defaults and limits are:
 | *W*, the window | 24 hours | at least 1 hour |
 | size cap | 15,360 bytes | at most 65,536 bytes |
 | quarantined atSigns | 100 | at most 1,000 |
-| quarantined bytes held | 1 MiB | at most 16 MiB |
+| quarantined bytes accepted in the window | 1 MiB | at most 16 MiB |
 
 Across namespaces, the operator also sets:
 
 - a cap on how many open namespaces one atSign may have, 50 by default;
-- an atSign-wide total of quarantined bytes held, 64 MiB by default, which
+- an atSign-wide total of quarantined bytes accepted in the window (D28; as
+  first ruled, held), 64 MiB by default, which
   refuses further quarantined notifications with the quarantine-limit error
   once reached.
 
@@ -520,7 +522,7 @@ the same day under Q32 (D25) and by D26.*
     force (defaults included, `window` in seconds), and its sorted admitted
     and denied sets; an open one also its quarantined set, each entry with the
     exchanges `counted` in the current window, the quarantined notification
-    `bytes` held and its `firstContact` (UTC, ISO 8601, to the millisecond),
+    `bytes` accepted in the window (D28) and its `firstContact` (UTC, ISO 8601, to the millisecond),
     ordered by first contact;
   - a namespace with no rule: the mode `none`, the default, and its sorted
     recorded admissions, with no settings;
@@ -642,3 +644,18 @@ ships with the gate rather than as a change of its own.
 
 **Why:** the agreed scenario says what a reference should do, and the
 resolver did not do it.
+
+## D28 Quarantined bytes count while they are in the window
+
+*2026-10-11, gkc. Q34, raised when building the quarantine.*
+
+A namespace's quarantined bytes, and the atSign-wide total, are the sizes of
+the quarantined notifications accepted in each atSign's current window *W*.
+Each counted notification's size is kept beside its time in the quarantine
+record, and leaves the total when its time leaves the window, as its count
+does. Removing or expiring a notification frees nothing. D15, D20 and D24 said
+"held", which nothing defined.
+
+**Why:** it follows D7's "removing notifications does not free a place", needs
+no hooks into the paths that remove or expire notifications, and survives a
+restart because the record already holds it.

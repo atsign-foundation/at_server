@@ -63,7 +63,7 @@ The records are a rule record per namespace with a rule or recorded admissions
 | Record | Holds |
 |---|---|
 | `local:<ns>.rule.gate@<atSign>` | mode (`none` for admissions recorded without a rule, D25), the admitted and denied sets, the limits (*N*, *W*, size cap) and bounds, as set by the holders |
-| `local:<ns>.quarantine.gate@<atSign>` | the quarantined set, each atSign with the times of its counted exchanges in the current window, and the bytes of quarantined notifications held |
+| `local:<ns>.quarantine.gate@<atSign>` | the quarantined set, each atSign with its first contact and the time and size of each exchange counted in the current window, so the quarantined bytes accepted in the window can be summed (D28) |
 | `local:admitted.gate@<atSign>` | the atSign-wide admitted set (D3) |
 | `local:default.gate@<atSign>` | `ungated` or `closed` (D11) |
 
@@ -246,7 +246,7 @@ record holding it, so the change pins the byte with a raw-literal test.
 
 D7 and D15 settle what is bounded and how, and D20 the operator's defaults and
 limits, the cap on open namespaces per atSign and the atSign-wide total of
-quarantined bytes. The operator's values are configuration items beside the
+quarantined bytes accepted in the window (D28). The operator's values are configuration items beside the
 existing notification settings in `AtSecondaryConfig`.
 
 ## 9. Performance
