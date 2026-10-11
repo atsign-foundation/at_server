@@ -118,11 +118,15 @@ class AtCacheManager {
   /// If [maintainCache] is set to true, then remoteLookUp will update the cache as required:
   ///   * If we get a KeyNotFoundException or a 'null' response, delete from the cache
   ///     (except for encryption public keys e.g. publickey@alice)
-  ///   * If we get a valid response, update the cache
+  ///   * If we get a valid response with a ttr, update the cache
+  ///   * If we get a valid response with no ttr, or a ttr of 0, cache nothing and
+  ///     delete any `cached:public:` copy (except for encryption public keys,
+  ///     which are cached with a ttr of -1)
   ///
   /// Note: This method will always use the lookup operation 'all', so that it can fully update the cache.
   Future<AtData?> remoteLookUp(String cachedKeyName,
       {bool maintainCache = false}) async {
+    cachedKeyName = canonicalAtKey(cachedKeyName);
     logger.info("remoteLookUp: $cachedKeyName");
     if (!cachedKeyName.startsWith('cached:')) {
       throw IllegalArgumentException(
@@ -196,17 +200,15 @@ class AtCacheManager {
           logger.severe(
               'No metadata in remote response for $remoteKeyName - will not cache');
         } else if (atData.metaData!.ttr == 0 || atData.metaData!.ttr == null) {
-          // ttr of zero or null means 'do not cache' according to the spec
-          shouldCache = false;
-          if (cachedKeyName.startsWith('cached:public:')) {
-            // HOWEVER: publickey@atSign should be cached with ttr of -1 (cache indefinitely)
-            if (cachedKeyName.startsWith('cached:public:publickey@')) {
-              shouldCache = true;
-              atData.metaData!.ttr = -1;
-            } else {
-              // AND: for backwards compatibility, we will temporarily cache other public data with a ttl of 24 hours
-              shouldCache = true;
-              atData.metaData!.ttl = 24 * 60 * 60 * 1000;
+          // ttr of zero or null means 'do not cache' according to the spec,
+          // except for another atSign's encryption public key
+          if (cachedKeyName.startsWith('cached:public:publickey@')) {
+            shouldCache = true;
+            atData.metaData!.ttr = -1;
+          } else {
+            shouldCache = false;
+            if (isCopyNotKept(cachedKeyName, atData.metaData)) {
+              await delete(cachedKeyName);
             }
           }
         } else {
@@ -223,6 +225,16 @@ class AtCacheManager {
     }
 
     return atData;
+  }
+
+  /// Whether [cachedKeyName] is a copy this atServer no longer keeps: a copy
+  /// of another atSign's public record that carries no ttr, or a ttr of 0,
+  /// other than its encryption public key.
+  static bool isCopyNotKept(String cachedKeyName, AtMetaData? metaData) {
+    final String name = canonicalAtKey(cachedKeyName);
+    return name.startsWith('cached:public:') &&
+        !name.startsWith('cached:public:publickey@') &&
+        (metaData?.ttr == null || metaData?.ttr == 0);
   }
 
   /// Fetch the currently cached value, if any.
@@ -271,12 +283,16 @@ class AtCacheManager {
     return null;
   }
 
-  /// Delete cached record
+  /// Delete cached record, if there is one; nothing is committed when there
+  /// is not
   Future<void> delete(String cachedKeyName) async {
     logger.info("delete: $cachedKeyName");
     if (!cachedKeyName.startsWith('cached:')) {
       throw IllegalArgumentException(
           'AtCacheManager.delete called with invalid cachedKeyName $cachedKeyName');
+    }
+    if (!await keyStore.exists(cachedKeyName)) {
+      return;
     }
 
     try {
@@ -292,6 +308,7 @@ class AtCacheManager {
   /// If the cached key name starts with 'cached:public:publickey@' then it
   /// has special handling logic - see [putCachedPublicKey]
   Future<CacheUpdateResult> put(String cachedKeyName, AtData atData) async {
+    cachedKeyName = canonicalAtKey(cachedKeyName);
     logger.info("put: $cachedKeyName");
     if (!cachedKeyName.startsWith('cached:')) {
       throw IllegalArgumentException(

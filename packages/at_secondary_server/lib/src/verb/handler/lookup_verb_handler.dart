@@ -138,6 +138,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     // 'atSign'. In this scenario, set the lookupKey prefix to the requesting 'atSign'.
     var lookupKey = '${atConnectionMetadata.fromAtSign}:$keyAtAtSign';
     logger.finer('lookupKey in lookupVerbHandler : $lookupKey');
+    await enMgr.moveExpiredEnrollmentData(lookupKey);
     await enMgr.refuseLapsedApprovedData(lookupKey);
     var lookupData = await keyStore.get(lookupKey);
     var isActive = SecondaryUtil.isActiveKey(lookupData);
@@ -175,6 +176,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     // so, set the lookupKey prefix to "public:".
     var lookupKey = 'public:$keyAtAtSign';
     logger.finer('lookupKey in lookupVerbHandler : $lookupKey');
+    await enMgr.moveExpiredEnrollmentData(lookupKey);
     await enMgr.refuseLapsedApprovedData(lookupKey);
     var lookupData = await keyStore.get(lookupKey);
     var isActive = SecondaryUtil.isActiveKey(lookupData);
@@ -247,6 +249,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     } else {
       lookupKey = keyAtAtSign;
     }
+    await enMgr.moveExpiredEnrollmentData(lookupKey);
     await enMgr.refuseLapsedApprovedData(lookupKey);
     var lookupValue = await keyStore.get(lookupKey);
     response.data = SecondaryUtil.prepareResponseData(operation, lookupValue);

@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
@@ -34,6 +36,8 @@ class AtCacheRefreshJob {
     int valueChanged = 0;
     int deletedByRemote = 0;
     int exceptionFromRemote = 0;
+    int leftoversDeleted = 0;
+    int writeFailed = 0;
     try {
       var keysToRefresh = await cacheManager.getKeyNamesToRefresh();
 
@@ -42,6 +46,17 @@ class AtCacheRefreshJob {
         keysChecked++;
 
         var cachedKeyName = itr.current;
+        AtData? oldValue =
+            await cacheManager.get(cachedKeyName, applyMetadataRules: false);
+        if (oldValue == null) {
+          continue;
+        }
+        if (AtCacheManager.isCopyNotKept(cachedKeyName, oldValue.metaData)) {
+          await cacheManager.delete(cachedKeyName);
+          leftoversDeleted++;
+          continue;
+        }
+
         AtData? newValue;
 
         try {
@@ -64,20 +79,32 @@ class AtCacheRefreshJob {
           continue;
         }
 
-        // If old value and new value are equal, then do not update;
-        // Continue for next key.
-        AtData? oldValue =
-            await cacheManager.get(cachedKeyName, applyMetadataRules: false);
-        if (oldValue?.data == newValue.data) {
-          logger.finer(
-              '$cachedKeyName cached value is same as looked-up value. Not updating the cached key');
-          valueUnchanged++;
+        if (AtCacheManager.isCopyNotKept(cachedKeyName, newValue.metaData)) {
+          await cacheManager.delete(cachedKeyName);
+          leftoversDeleted++;
           continue;
         }
 
-        await cacheManager.put(cachedKeyName, newValue);
-        valueChanged++;
-        logger.finer('Updated $cachedKeyName with $newValue');
+        final bool unchanged = oldValue.data == newValue.data;
+        // An unchanged copy is written only when its ttr lets it be served,
+        // so that its refreshAt moves on and it is served again
+        if (unchanged && !_servable(newValue.metaData)) {
+          valueUnchanged++;
+          continue;
+        }
+        try {
+          await cacheManager.put(cachedKeyName, newValue);
+        } catch (e) {
+          logger.warning('Failed to write the refreshed $cachedKeyName : $e');
+          writeFailed++;
+          continue;
+        }
+        if (unchanged) {
+          valueUnchanged++;
+        } else {
+          valueChanged++;
+          logger.finer('Updated $cachedKeyName with $newValue');
+        }
       }
     } finally {
       if (pauseAfterFinishing != null) {
@@ -90,8 +117,17 @@ class AtCacheRefreshJob {
       "valueUnchanged": valueUnchanged,
       "valueChanged": valueChanged,
       "deletedByRemote": deletedByRemote,
-      "exceptionFromRemote": exceptionFromRemote
+      "exceptionFromRemote": exceptionFromRemote,
+      "leftoversDeleted": leftoversDeleted,
+      "writeFailed": writeFailed
     };
+  }
+
+  /// Whether a copy with [metaData] is ever served: only one whose ttr is -1,
+  /// or positive and so gives it a refreshAt.
+  static bool _servable(AtMetaData? metaData) {
+    final int? ttr = metaData?.ttr;
+    return ttr != null && (ttr == -1 || ttr > 0);
   }
 
   /// Runs [refreshNow] unless a refresh is already running, logging a
@@ -106,6 +142,23 @@ class AtCacheRefreshJob {
     } catch (e, st) {
       logger.severe('Requested cache refresh failed: $e\n$st');
     }
+  }
+
+  /// The hour to run the daily refresh at: [configured] when it is an hour
+  /// from 0 to 23, otherwise one picked with [random], which spreads the
+  /// refresh load across atServers. A [configured] value that is not an hour
+  /// is reported to [warn].
+  static int runJobHourFrom(String? configured,
+      {required Random random, required void Function(String) warn}) {
+    if (configured != null) {
+      final int? hour = int.tryParse(configured.trim());
+      if (hour != null && hour >= 0 && hour <= 23) {
+        return hour;
+      }
+      warn('runRefreshJobHour "$configured" is not an hour from 0 to 23;'
+          ' the cache refresh will run at a random hour');
+    }
+    return random.nextInt(24);
   }
 
   /// Schedule an execution of [refreshNow] at [runJobHour]:00

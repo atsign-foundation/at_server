@@ -116,9 +116,11 @@ notification:
   expiryInMins: 15
 
 # At refresh Job to refresh the cached keys.
-refreshJob:
-  # Hour at which the job has to run. Currently runs at 3 A.M. every day.
-  runJobHour: 3
+# refreshJob:
+#   # Hour (0-23) at which the daily cache refresh runs. When it is not set,
+#   # the refresh runs at a random hour, which spreads the load across
+#   # atServers.
+#   runJobHour: 3
 
 certificate_expiry:
   # Force restart secondary server.

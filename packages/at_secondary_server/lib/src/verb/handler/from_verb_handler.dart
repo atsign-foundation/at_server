@@ -64,17 +64,75 @@ class FromVerbHandler extends AbstractVerbHandler {
     return from;
   }
 
+  /// The atSign [atConnection] has authenticated as, by PKAM or CRAM (this
+  /// atServer's own) or by pol, or null when it has not authenticated.
+  static Atsign? _authenticatedAs(InboundConnection atConnection) {
+    final metadata = atConnection.metaData as InboundConnectionMetadata;
+    if (metadata.isAuthenticated) {
+      return AtSecondaryServerImpl.getInstance().currentAtSign;
+    }
+    return metadata.isPolAuthenticated ? metadata.fromAtSign : null;
+  }
+
+  /// Whether a `from:` naming [atSign] on [atConnection] names an atSign
+  /// other than the one the connection has authenticated as.
+  static bool _namesAnotherAtSign(
+      InboundConnection atConnection, Atsign atSign) {
+    final Atsign? authenticatedAs = _authenticatedAs(atConnection);
+    return authenticatedAs != null && authenticatedAs != atSign;
+  }
+
+  /// What such a `from:` is answered with.
+  static const String anotherAtSignRefusal =
+      'from: may not name another atSign on a connection that has'
+      ' authenticated';
+
+  /// The atSign [command] names, or null when it does not parse.
+  Atsign? _atSignIn(String command) {
+    try {
+      return parse(command)[AtConstants.atSign]?.toAtsign();
+    } on Exception {
+      return null;
+    }
+  }
+
+  /// Answers a `from:` naming another atSign on a connection that has
+  /// authenticated with AT0009 and closes the connection; processes any other
+  /// `from:` as usual.
+  @override
+  Future<void> process(String command, InboundConnection atConnection) async {
+    final Atsign? atSign = _atSignIn(command);
+    if (atSign == null || !_namesAnotherAtSign(atConnection, atSign)) {
+      return super.process(command, atConnection);
+    }
+    logger.warning('Closing session ${atConnection.metaData.sessionID}:'
+        ' $anotherAtSignRefusal');
+    final response = Response()
+      ..isError = true
+      ..errorCode = 'AT0009'
+      ..errorMessage = anotherAtSignRefusal;
+    await responseManager
+        .getResponseHandler(getVerb())
+        .process(atConnection, response);
+    await atConnection.close();
+  }
+
   @override
   Future<void> processVerb(
       Response response,
       HashMap<String, String?> verbParams,
       InboundConnection atConnection) async {
+    Atsign fromAtSign = verbParams[AtConstants.atSign]!.toAtsign();
+    // NOTE a connection stays bound to the atSign it authenticated as, so this
+    // refusal comes before anything is written to the connection.
+    if (_namesAnotherAtSign(atConnection, fromAtSign)) {
+      throw UnAuthorizedException(anotherAtSignRefusal);
+    }
     var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
     atConfigInstance = AtConfig(keyStore, currentAtSign);
     atConnection.initiatedBy = currentAtSign;
     var atConnectionMetadata =
         atConnection.metaData as InboundConnectionMetadata;
-    Atsign fromAtSign = verbParams[AtConstants.atSign]!.toAtsign();
 
     if (verbParams[AtConstants.clientConfig] != null &&
         verbParams[AtConstants.clientConfig]!.isNotEmpty) {
