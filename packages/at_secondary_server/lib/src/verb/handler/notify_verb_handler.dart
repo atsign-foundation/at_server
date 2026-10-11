@@ -21,8 +21,6 @@ import 'package:mutex/mutex.dart';
 enum Type { sent, received }
 
 class NotifyVerbHandler extends AbstractVerbHandler {
-  static const String _sharedKeyName = 'shared_key';
-
   /// The verb parameter carrying the size of the command as received.
   static const String _commandBytes = '__commandBytes';
 
@@ -133,7 +131,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     final Atsign from = polConnectionMetadata.fromAtSign!.toAtsign();
     final Gatekeeper gate = AtSecondaryServerImpl.getInstance().gatekeeper;
     final String keyName = verbParams[AtConstants.atKey]!.toLowerCase();
-    final bool onShortList = keyName == _sharedKeyName;
+    final bool onShortList = keyName == Gatekeeper.sharedKeyName;
     GateVerdict standing = atNotificationBuilder.messageType == MessageType.text
         ? gate.namespaceLess(from, onShortList: true)
         : gate.inbound(from, keyName, onShortList: onShortList);

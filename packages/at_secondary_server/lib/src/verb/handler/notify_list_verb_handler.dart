@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart' hide StringBuffer;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/gate/gatekeeper.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -70,11 +72,13 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
     sb.write('[');
     // If connection is authenticated, gets the received notifications of current atsign
     if (atConnectionMetadata.isAuthenticated) {
+      final bool quarantinedAsked = verbParams[AtConstants.quarantined] != null;
       bool first = true;
       for (final k in await notifMgr.getKeys()) {
         AtNotification n = (await notifMgr.get(k))!;
         if (n.type == NotificationType.received &&
             !n.isExpired() &&
+            (!n.quarantined || quarantinedAsked) &&
             (await super
                 .isAuthorized(atConnectionMetadata, atKey: n.notification!)) &&
             _matchesRequestFilters(
@@ -95,11 +99,15 @@ class NotifyListVerbHandler extends AbstractVerbHandler {
     // If authenticated connection from another atSign (polAuthenticated),
     // gets the notifications which were sent to that atSign
     if (atConnectionMetadata.isPolAuthenticated) {
+      final Gatekeeper gate = AtSecondaryServerImpl.getInstance().gatekeeper;
+      final Atsign from = atConnectionMetadata.fromAtSign!.toAtsign();
       bool first = true;
       for (var n in (await notifMgr.getFilteredSorted(
           retain: (n) {
             return n.type == NotificationType.sent &&
                 atConnectionMetadata.fromAtSign! == n.toAtSign &&
+                gate.admits(from, n.notification!,
+                    text: n.messageType == MessageType.text) &&
                 _matchesRequestFilters(
                   n,
                   fromDateInEpoch,

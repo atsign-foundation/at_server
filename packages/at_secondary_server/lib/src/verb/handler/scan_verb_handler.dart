@@ -7,6 +7,7 @@ import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/wire_param_names.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
+import 'package:at_secondary/src/gate/gatekeeper.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -137,6 +138,9 @@ class ScanVerbHandler extends AbstractVerbHandler {
         localKeysList[i] = localKeysList[i]
             .replaceAll('${atConnectionMetadata.fromAtSign}:', '');
       }
+      final Gatekeeper gate = AtSecondaryServerImpl.getInstance().gatekeeper;
+      final Atsign from = atConnectionMetadata.fromAtSign!.toAtsign();
+      localKeysList.removeWhere((key) => !gate.admits(from, key));
       return localKeysList;
     } else {
       localKeysList.removeWhere((key) =>

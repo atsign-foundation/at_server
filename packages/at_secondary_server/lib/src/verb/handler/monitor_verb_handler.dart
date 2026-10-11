@@ -14,6 +14,9 @@ import 'package:meta/meta.dart';
 
 class MonitorConfig {
   RegExp regex = RegExp('.*');
+
+  /// Whether the client asked for notifications from quarantined atSigns.
+  bool quarantined = false;
   StreamSubscription<AtNotification>? received;
   StreamSubscription<AtNotification>? self;
 }
@@ -58,6 +61,7 @@ class MonitorVerbHandler extends AbstractVerbHandler {
       throw InvalidSyntaxException(
           'Invalid regex: ${verbParams[AtConstants.regex]}');
     }
+    mc.quarantined = verbParams[AtConstants.quarantined] != null;
     final selfNotificationsParam =
         verbParams[AtConstants.monitorSelfNotifications];
     mc.received = notifMgr.received.stream
@@ -143,6 +147,9 @@ class MonitorVerbHandler extends AbstractVerbHandler {
     }
 
     MonitorConfig mc = configMap[atConnection]!;
+    if (notification.quarantined && !mc.quarantined) {
+      return;
+    }
     var fromAtSign = notification.fromAtSign?.replaceAll('@', '');
     try {
       if (notification.notification!.contains(mc.regex) ||
@@ -234,6 +241,7 @@ extension MapForClient on AtNotification {
           // The client parses this with Metadata.decodeAppMetadata,
           // which accepts a Map (emitted here) or a base64 string.
           AtConstants.appMetadata: atMetadata?.appMetadata?.toJson(),
-        }
+        },
+        if (quarantined) AtConstants.quarantined: true,
       };
 }

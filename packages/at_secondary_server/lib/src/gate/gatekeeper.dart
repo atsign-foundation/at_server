@@ -264,6 +264,31 @@ class Gatekeeper {
           .fold(_bytes(entries),
               (sum, other) => sum + _bytes(_quarantinedAt(other, now)));
 
+  /// Whether [other] is admitted where the key [key] lives, as a scan or
+  /// notify:list from its atServer is answered. [key] may carry a prefix and
+  /// its owner; a [text] notification belongs to no namespace and is on the
+  /// short list.
+  bool admits(Atsign other, String key, {bool text = false}) {
+    final String name = keyNameOf(key);
+    final GateVerdict verdict = text
+        ? namespaceLess(other, onShortList: true)
+        : inbound(other, name, onShortList: name == sharedKeyName);
+    return verdict == GateVerdict.admitted;
+  }
+
+  /// The name of [key] without any prefix or owner, lower-cased.
+  static String keyNameOf(String key) {
+    String name = key.substring(key.lastIndexOf(':') + 1);
+    final int at = name.lastIndexOf('@');
+    if (at > 0) {
+      name = name.substring(0, at);
+    }
+    return name.toLowerCase();
+  }
+
+  /// The name of the key every pair of atSigns exchanges with no namespace.
+  static const String sharedKeyName = 'shared_key';
+
   /// Throws [NotAcceptedException] when [verdict] refuses the exchange.
   static void refuseIfNotAccepted(GateVerdict verdict) {
     if (verdict == GateVerdict.notAccepted) {

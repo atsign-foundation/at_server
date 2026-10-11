@@ -18,8 +18,6 @@ import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_utils/at_utils.dart';
 
 class LookupVerbHandler extends AbstractVerbHandler {
-  static const String _sharedKeyName = 'shared_key';
-
   static Lookup lookup = Lookup();
   static final depthOfResolution = AtSecondaryConfig.lookup_depth_of_resolution;
   final OutboundClientManager outboundClientManager;
@@ -141,7 +139,7 @@ class LookupVerbHandler extends AbstractVerbHandler {
     final Atsign from = atConnectionMetadata.fromAtSign!.toAtsign();
     final String keyName = _withoutOwner(keyAtAtSign);
     final Gatekeeper gate = AtSecondaryServerImpl.getInstance().gatekeeper;
-    final bool onShortList = keyName == _sharedKeyName;
+    final bool onShortList = keyName == Gatekeeper.sharedKeyName;
     final GateVerdict verdict =
         gate.inbound(from, keyName, onShortList: onShortList);
     Gatekeeper.refuseIfNotAccepted(verdict);
