@@ -6,6 +6,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/wire_param_names.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/handler_util.dart' as hu;
@@ -437,6 +438,13 @@ abstract class AbstractUpdateVerbHandler extends ChangeVerbHandler {
       return null;
     }
     if (forAtSign.toAtsign() == atSign) {
+      return null;
+    }
+    if (!AtSecondaryServerImpl.getInstance()
+        .gatekeeper
+        .reaches(forAtSign.toAtsign(), key!)) {
+      logger.info('$forAtSign:$key$atSign is stored and not notified:'
+          ' this atServer does not reach $forAtSign there');
       return null;
     }
     key = '$forAtSign:$key$atSign';

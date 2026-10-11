@@ -5,6 +5,7 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_utils/at_logger.dart';
@@ -138,6 +139,14 @@ class AtCacheManager {
             await _remoteLookUp('all:$remoteKeyName', handshakeRequired: false);
       } else if (cachedKeyName.startsWith('cached:$atSign')) {
         remoteKeyName = cachedKeyName.replaceAll('cached:$atSign:', '');
+        final String owner =
+            remoteKeyName.substring(remoteKeyName.lastIndexOf('@'));
+        if (!AtSecondaryServerImpl.getInstance()
+            .gatekeeper
+            .reaches(owner.toAtsign(), remoteKeyName)) {
+          throw NotAcceptedException(
+              'This atServer does not look up $remoteKeyName');
+        }
         remoteResponse =
             await _remoteLookUp('all:$remoteKeyName', handshakeRequired: true);
       } else {

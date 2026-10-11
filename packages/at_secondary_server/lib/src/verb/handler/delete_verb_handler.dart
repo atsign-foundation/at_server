@@ -181,6 +181,13 @@ class DeleteVerbHandler extends ChangeVerbHandler {
     if (forAtSign == null) {
       return;
     }
+    if (!AtSecondaryServerImpl.getInstance()
+        .gatekeeper
+        .reaches((forAtSign as String).toAtsign(), key as String)) {
+      logger.info('$forAtSign:$key$atSign is deleted and not notified:'
+          ' this atServer does not reach $forAtSign there');
+      return;
+    }
     key = '$forAtSign:$key$atSign';
     // NOTE a client-asserted :dAt travels as the metadata's updatedAt, and
     // without an assertion no metadata is attached at all.

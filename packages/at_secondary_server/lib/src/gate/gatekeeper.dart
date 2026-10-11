@@ -276,6 +276,19 @@ class Gatekeeper {
     return verdict == GateVerdict.admitted;
   }
 
+  /// Whether @alice may reach [other] about the key [key], on the way out: in
+  /// an open namespace any atSign not denied there, in a closed one only those
+  /// admitted, and where the default decides, those it lets in. [key] may
+  /// carry a prefix and its owner; a [text] notification belongs to no
+  /// namespace and is on the short list.
+  bool reaches(Atsign other, String key, {bool text = false}) {
+    final String name = keyNameOf(key);
+    final GateVerdict verdict = text
+        ? namespaceLess(other, onShortList: true)
+        : inbound(other, name, onShortList: name == sharedKeyName);
+    return verdict != GateVerdict.notAccepted;
+  }
+
   /// The name of [key] without any prefix or owner, lower-cased.
   static String keyNameOf(String key) {
     String name = key.substring(key.lastIndexOf(':') + 1);

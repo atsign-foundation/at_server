@@ -225,6 +225,12 @@ class LookupVerbHandler extends AbstractVerbHandler {
       Response response,
       String? operation,
       String? byPassCacheStr) async {
+    final String owner = keyAtAtSign.substring(keyAtAtSign.lastIndexOf('@'));
+    if (!AtSecondaryServerImpl.getInstance()
+        .gatekeeper
+        .reaches(owner.toAtsign(), keyAtAtSign)) {
+      throw NotAcceptedException('This atServer does not look up $keyAtAtSign');
+    }
     String cachedKeyName =
         '${AtConstants.cached}:$thisServersAtSign:$keyAtAtSign';
     //Get cached value.

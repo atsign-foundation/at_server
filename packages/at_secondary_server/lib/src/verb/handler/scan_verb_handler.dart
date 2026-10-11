@@ -73,8 +73,8 @@ class ScanVerbHandler extends AbstractVerbHandler {
           throw UnAuthenticatedException(
               'Scan to another atSign cannot be performed without auth');
         }
-        response.data =
-            await _getExternalKeys(forAtSign, scanRegex, atConnection);
+        response.data = _reachable(forAtSign,
+            await _getExternalKeys(forAtSign, scanRegex, atConnection));
       } else {
         response.data = jsonEncode(await getLocalKeys(
             atConnectionMetadata, scanRegex, showHiddenKeys, currentAtSign));
@@ -84,6 +84,26 @@ class ScanVerbHandler extends AbstractVerbHandler {
       response.errorMessage = e.toString();
       rethrow;
     }
+  }
+
+  /// The keys in [scanResult], [forAtSign]'s answer to a scan, in namespaces
+  /// where this atSign may reach [forAtSign]. The atSign scanned decides, not
+  /// any owner a key names.
+  String? _reachable(String forAtSign, String? scanResult) {
+    if (scanResult == null) {
+      return null;
+    }
+    const String prefix = 'data:';
+    final bool prefixed = scanResult.startsWith(prefix);
+    final String keys =
+        prefixed ? scanResult.substring(prefix.length) : scanResult;
+    final Gatekeeper gate = AtSecondaryServerImpl.getInstance().gatekeeper;
+    final Atsign other = forAtSign.toAtsign();
+    final String reachable = jsonEncode([
+      for (final dynamic key in jsonDecode(keys) as List)
+        if (gate.reaches(other, key as String)) key
+    ]);
+    return prefixed ? '$prefix$reachable' : reachable;
   }
 
   /// The keys [forAtSign] shares with this atSign, matching [scanRegex],

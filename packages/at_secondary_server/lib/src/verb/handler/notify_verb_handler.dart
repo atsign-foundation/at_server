@@ -344,6 +344,16 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     }
     final atNotificationBuilder =
         _populateNotificationBuilder(verbParams, fromAtSign: currentAtSign);
+    final String? forAtSign = verbParams[AtConstants.forAtSign];
+    if (forAtSign != null &&
+        forAtSign != currentAtSign &&
+        !AtSecondaryServerImpl.getInstance().gatekeeper.reaches(
+            forAtSign.toAtsign(), verbParams[AtConstants.atKey]!,
+            text: getMessageType(verbParams[AtConstants.messageType]) ==
+                MessageType.text)) {
+      throw NotAcceptedException(
+          'This atServer does not send $forAtSign this notification');
+    }
     // If the currentAtSign and forAtSign are same, mark as "delivered"
     if (currentAtSign == verbParams[AtConstants.forAtSign]) {
       atNotificationBuilder.notificationStatus = NotificationStatus.delivered;
