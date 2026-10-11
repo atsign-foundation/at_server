@@ -43,6 +43,10 @@ Outbound, on @alice's own behalf:
 | `AtCacheRefreshJob` | it calls `remoteLookUp` with `maintainCache: false` and writes the refreshed copy itself, so the job deletes the cached copy on a refusal (D12) and skips its write if admission was lost while the refresh was in flight ([section 4](#4-concurrency)) |
 | `NotificationManager.reEnqueueUndelivered`, at startup | nothing of its own; the delivery re-check covers what it re-queues |
 
+Every outbound path asks the gatekeeper's `reaches`, which also answers no for
+an atSign on the blocklist (D31). The gatekeeper holds the blocklist in memory,
+loaded at start-up and updated by `config:block`.
+
 Never consulted: `PolVerbHandler`'s verification lookups (D1), `plookup` and
 other public reads (D1), and notifications whose type is `self`.
 
