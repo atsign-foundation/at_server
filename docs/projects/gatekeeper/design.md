@@ -129,6 +129,27 @@ and the atSign-wide admitted set. `gate` joins `at_server_spec`'s `AtVerb`
 with `requiresAuth: true`, since `ConnectionUtil.validate` refuses any verb the
 enum does not list before a handler sees it.
 
+Its answers and edge cases, agreed by gkc on 2026-10-11:
+
+- `gate:show:<ns>` answers `data:` followed by a JSON object. An open namespace
+  answers its mode, its `settings` in force (defaults included, `window` in
+  seconds), and its sorted `admitted`, `denied` and `quarantined` sets, each
+  quarantined atSign with the exchanges `counted` in the current window and
+  the quarantined notification `bytes` held:
+  `{"namespace":"invitations.chat","mode":"open","settings":{"limit":10,"window":86400,"size":15360,"maxQuarantined":100,"maxQuarantinedBytes":1048576},"admitted":["@bob"],"denied":["@chuck"],"quarantined":[{"atSign":"@dave","counted":3,"bytes":2048}]}`.
+  A closed namespace answers `{"namespace":"chat","mode":"closed","admitted":[...]}`,
+  and one with no rule `{"namespace":"photos","mode":"none","default":"ungated"}`.
+- `gate:default` answers `data:ungated` or `data:closed`, and every change
+  answers `data:success`.
+- Re-issuing `gate:rule:<ns>:open[:<setting>:<value>]` keeps the rule's sets
+  and settings, and a setting given changes only itself. Setting a namespace
+  `closed` drops its denied and quarantined sets and keeps its settings.
+  `closed:admit:<atSign>` adds to the admitted set.
+- `admit`, `deny` and `remove` on a namespace with no rule are refused with the
+  illegal-argument error, AT0022, rather than creating a rule, and so is `deny`
+  on a closed namespace. `*` takes `admit` and `remove`; `gate:deny:*` is
+  refused with AT0022, since the atSign-wide refusal is the blocklist.
+
 ### 5.2 Error codes
 
 Three exceptions in at_commons' `error_codes`, after AT0032, the highest code
