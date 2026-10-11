@@ -284,13 +284,6 @@ class LookupVerbHandler extends AbstractVerbHandler {
     var resolutionCount = 1;
 
     // TODO Is this feature used anywhere?
-    // TODO Pre-existing bug: the public-namespace re-lookup below
-    // (the `keyToResolve.replaceAll(keyPrefix, 'public:')` block) runs
-    // unconditionally and overwrites `value` even when the private-key
-    // lookup already succeeded. The comment says "if the value is null
-    // for a private key, search public" but the code never checks that
-    // the private lookup failed. Left as-is here (out of scope for the
-    // keystore-typing change).
     // Iterates for DEPTH_OF_RESOLUTION times to resolve the value reference.If value is still a reference, returns null.
     while (value.contains(AtConstants.atValueReference) &&
         resolutionCount <= depthOfResolution!) {
@@ -299,15 +292,23 @@ class LookupVerbHandler extends AbstractVerbHandler {
       if (!keyPrefix.endsWith(':')) {
         keyPrefix = '$keyPrefix:';
       }
-      keyToResolve = keyPrefix + keyToResolve;
-      var lookupValue = await keyStore.get(keyToResolve);
-      value = lookupValue?.data ?? value;
-      // If the value is null for a private key, searches on public namespace.
-      keyToResolve = keyToResolve.replaceAll(keyPrefix, 'public:');
-      lookupValue = await keyStore.get(keyToResolve);
-      value = lookupValue?.data ?? value;
+      final String? resolved = await _valueOf(keyPrefix + keyToResolve) ??
+          await _valueOf('public:$keyToResolve');
+      if (resolved == null) {
+        return null;
+      }
+      value = resolved;
       resolutionCount++;
     }
     return value.contains(AtConstants.atValueReference) ? null : value;
+  }
+
+  /// The value [key] holds, or null when the keystore has none.
+  Future<String?> _valueOf(String key) async {
+    try {
+      return (await keyStore.get(key))?.data;
+    } on KeyNotFoundException {
+      return null;
+    }
   }
 }
