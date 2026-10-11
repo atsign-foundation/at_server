@@ -6,12 +6,13 @@ Feature: Quarantine in open namespaces
   lookups alike. A quarantined notification is at most the size cap (default
   15,360 bytes, the whole notify command as received), and it never touches a
   cached key. Each open namespace also bounds how many atSigns it holds in
-  quarantine and how many bytes of quarantined notifications. Its holders set
-  every one of these, within limits the atServer operator sets: a ceiling for
-  each, and a floor for W, since a shorter window is the more generous. The
-  operator also sets an atSign-wide total of quarantined bytes held. Quarantined
-  notifications are marked, and reach only clients that ask for them. The gate
-  verb's grammar is in rules.feature.
+  quarantine and how many bytes of quarantined notifications it accepts in the
+  window. Its holders set every one of these, within limits the atServer
+  operator sets: a ceiling for each, and a floor for W, since a shorter window
+  is the more generous. The operator also sets an atSign-wide total of
+  quarantined bytes accepted in the window. Quarantined notifications are
+  marked, and reach only clients that ask for them. The gate verb's grammar is
+  in rules.feature.
 
   Race: two exchanges at the limit at once accept exactly one, and two
   atSigns seen for the first time competing for the last place admit exactly one
@@ -254,8 +255,8 @@ Feature: Quarantine in open namespaces
     And @erin is still in none of the sets of "invitations.chat"
 
   @dos
-  Scenario: Quarantined notifications held up to the byte bound refuse the next one
-    Given the quarantined notifications held in "invitations.chat" have reached its byte bound
+  Scenario: Quarantined notifications accepted up to the byte bound refuse the next one
+    Given the quarantined notifications accepted in "invitations.chat" in the last 24 hours have reached its byte bound
     And @chuck is quarantined in it, under the count limit
     When @chuck's atServer sends "notify:id:24:@alice:inv24.invitations.chat@chuck"
     Then @alice's atServer answers with the quarantine-limit error
@@ -282,8 +283,8 @@ Feature: Quarantine in open namespaces
     Then @alice's atServer answers with the quarantine-limit error
 
   @dos
-  Scenario: Quarantined notifications held across the atSign up to its total refuse the next one
-    Given the quarantined notifications held across all of @alice's namespaces have reached the atSign-wide total
+  Scenario: Quarantined notifications accepted across the atSign up to its total refuse the next one
+    Given the quarantined notifications accepted across all of @alice's namespaces in their windows have reached the atSign-wide total
     And namespace "photos" on @alice's atServer is open, with @erin quarantined in it under every limit of its own
     When @erin's atServer sends "notify:id:30:@alice:pic.photos@erin"
     Then @alice's atServer answers with the quarantine-limit error

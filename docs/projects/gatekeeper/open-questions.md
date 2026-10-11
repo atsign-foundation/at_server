@@ -35,8 +35,8 @@ The gate verb's answers, re-opened on 2026-10-11 as Q24 to Q30 from a review on
 the client API's side, became D24 the same day. Q31 and Q32, raised while
 writing D24's scenarios, became D25. A second review on the client API's
 side, the same day, became D26, and Q33, raised by D23's second scenario
-failing against the value-reference resolver, became D27. No design fork is
-open.
+failing against the value-reference resolver, became D27, and Q34, on when
+quarantined bytes stop counting, became D28. No design fork is open.
 
 ## Next
 
