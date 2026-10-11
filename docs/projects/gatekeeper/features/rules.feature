@@ -450,6 +450,18 @@ Feature: Namespace rules, and who sets them
     When @erin's atSign is activated
     Then "gate:default" on @erin's atServer answers "data:closed"
 
+  Scenario: An atSign activated before its atServer had the gate keeps the ungated default
+    Given @alice's atSign was activated before its atServer had the gate
+    And @alice's atServer is configured so that a new atSign starts with the closed default
+    When @alice's atServer first runs with the gate
+    Then "gate:default" on @alice's atServer answers "data:ungated"
+
+  Scenario: A change to the operator's default leaves each atSign's default as it was
+    Given @erin's atSign has the closed default
+    And @erin's atServer is now configured so that a new atSign starts with the ungated default
+    When @erin's atServer restarts
+    Then "gate:default" on @erin's atServer answers "data:closed"
+
   Scenario: Setting a rule admits only the atSigns the application names
     Given @alice's atServer holds "@bob:status.chat@alice" and "@carol:status.chat@alice"
     And namespace "chat" on @alice's atServer has no rule, and no admissions are recorded on it

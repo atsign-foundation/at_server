@@ -235,8 +235,10 @@ record holding it, so the change pins the byte with a raw-literal test.
 
 - **Senders** (D18): every atServer implementation ships [section 5.2](#52-error-codes)'s final
   refusals, and D9.1's `refused` status, no later than it enforces the gate.
-- **The default** (D11): `ungated` for existing atSigns. The operator's setting
-  for new atSigns is a new configuration item, `ungated` at first.
+- **The default** (D11, D29): `ungated` for an atSign activated before its
+  atServer first loads the gate. Any other starts with the operator's
+  `startingDefault`, `ungated` until the operator changes it. Either is
+  recorded when the gate first loads, and changes only through `gate:default`.
 - **Clients**: at_client gains the gate API, the `:quarantined` flag and the
   `refused` status. A released client sees no change until a rule binds it.
   Then its notify can be answered with AT0033. `AtExceptionUtils.get`

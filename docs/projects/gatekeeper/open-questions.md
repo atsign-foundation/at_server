@@ -14,7 +14,7 @@ No spec question is open. The spec was agreed file by file:
 
 | File | State |
 |---|---|
-| [rules.feature](features/rules.feature) | agreed 2026-10-10, with the additions from D20 and D23, and stream's removal |
+| [rules.feature](features/rules.feature) | agreed 2026-10-10, with the additions from D20, D23 and D29, and stream's removal |
 | [namespace_less.feature](features/namespace_less.feature) | agreed 2026-10-10, less the stream scenario |
 | [outbound.feature](features/outbound.feature) | agreed 2026-10-10 |
 | [quarantine.feature](features/quarantine.feature) | agreed 2026-10-10, with D20's two additions, less the stream scenario |
@@ -36,15 +36,18 @@ the client API's side, became D24 the same day. Q31 and Q32, raised while
 writing D24's scenarios, became D25. A second review on the client API's
 side, the same day, became D26, and Q33, raised by D23's second scenario
 failing against the value-reference resolver, became D27, and Q34, on when
-quarantined bytes stop counting, became D28. No design fork is open.
+quarantined bytes stop counting, became D28. Q35, on when an atSign counts as
+new for the operator's starting default, became D29. No design fork is open.
 
 ## Next
 
-Implementation has begun, following spec-anchored step 4: the bench's baseline
-is taken, and the gatekeeper's verdicts, settings and `local:` records are built
-and tested. The gate verb comes next, to D24, D25 and D26. The work spans
-at_commons (in at_client_sdk), at_server, at_client, and every atServer
-implementation.
+Implementation follows spec-anchored step 4. On one atServer, the gate verb,
+inbound gating, the quarantine, outbound gating, final refusals, the `local:`
+guard and the operator's configuration are built, each scenario with its
+proving test. What remains is the functional and end-to-end packs for the
+scenarios that need two atServers, the bench run with the gate in place, and
+the client API. The work spans at_commons (in at_client_sdk), at_server,
+at_client, and every atServer implementation.
 
 The three checks this list held are answered in design.md: the SQLite codec
 decodes an unknown status as `null`, a client turns an unknown error code into a
