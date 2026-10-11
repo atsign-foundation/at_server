@@ -1,5 +1,9 @@
 ## 5.4.0
 
+- feat: `AtNotification.quarantined`, set on a notification accepted from a
+  quarantined atSign. An unmarked notification is stored as before.
+- feat: `NotificationStatus.refused`, for a notification the recipient's gate
+  refused. A `switch` over `NotificationStatus` needs a case for it.
 - fix: a commit id is never issued twice, and `lastCommittedSequenceNumber()`
   no longer goes down when the newest entry is purged
   ([#2827](https://github.com/atsign-foundation/at_server/issues/2827),

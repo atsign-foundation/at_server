@@ -1,4 +1,28 @@
 # 3.17.1
+- feat: each atSign has a gate, set and read with the new `gate` verb:
+  per-namespace rules that admit or deny atSigns, quarantine for newcomers to
+  an open namespace, and a default (`ungated`, as today, or `closed`) for
+  namespaces without a rule.
+
+- feat: an exchange the gate refuses is answered with AT0033, AT0034 or
+  AT0035 on an open connection, and the sending atServer marks the
+  notification `refused` rather than retrying it.
+
+- feat: clients see quarantined notifications only when they ask, with
+  `monitor:quarantined` or `notify:list:quarantined`.
+
+- feat: cached copies of an atSign's keys go when it loses admission.
+
+- feat: no client verb reads or writes a `local:` key.
+
+- fix: an `atsign://` reference resolves to the copy shared with the asker
+  before the public one.
+
+- feat: **Operators:** the new `gate` section of config.yaml holds the
+  quarantine limits and `startingDefault`, the default for a new atSign
+  (`ungated` as shipped). Each value has an environment variable named after
+  its path, such as `gateStartingDefault`.
+
 - fix: looking up another atSign's public record no longer leaves a copy on
   this atServer unless the record has a `ttr`, and the 24-hour copies kept
   before are removed. **App authors:** `cached:public:` finds nothing for such
