@@ -270,7 +270,9 @@ jobs:
 
       - name: Run docker container
         # -d: run container in detached mode. --rm: remove container on stop -p: bind ports to host
-        run: docker run -d --rm --name at_virtual_env_cont -e testingMode="true" -e httpsEnabled="true" -p 6379:6379 -p 25000-25099:25000-25099 -p 64:64 -p 443:443 at_virtual_env:trunk
+        # NOTE the atServers in the container reach each other at
+        # vip.ve.atsign.zone, which public DNS does not resolve to the container.
+        run: docker run -d --rm --name at_virtual_env_cont -e testingMode="true" -e httpsEnabled="true" --add-host vip.ve.atsign.zone:127.0.0.1 -p 6379:6379 -p 25000-25099:25000-25099 -p 64:64 -p 443:443 at_virtual_env:trunk
 
       - name: Check docker readiness to load PKAM keys
         working-directory: ${{ env.ftest-working-directory }}

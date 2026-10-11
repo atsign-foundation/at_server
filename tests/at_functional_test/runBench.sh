@@ -63,6 +63,7 @@ trap 'exit 143' TERM
 
 docker run -d --rm --name "$containerName" \
   -e testingMode="true" -e httpsEnabled="true" \
+  --add-host vip.ve.atsign.zone:127.0.0.1 \
   "${veEnvArgs[@]}" "${vePortArgs[@]}" \
   "$veImage" "${veCmd[@]}"
 started=yes
