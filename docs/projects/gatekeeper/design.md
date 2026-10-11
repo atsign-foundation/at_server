@@ -284,7 +284,7 @@ outline's title.
 | Unit, `at_secondary_server/test/gate/` | the `Gatekeeper` decision table, and every scenario whose observable is one atServer's answers, with doubles for the other side: all of `rules.feature`; `namespace_less.feature` except "Authentication is never gated"; all of `quarantine.feature`, the restart scenario by reopening the store; `outbound.feature`'s refusals before connecting, through a recording outbound-client double; `refusals.feature`'s recipient side, D12's deletions, the queued re-check, the refresh race and the `@dos` retry |
 | Unit, `at_persistence_secondary_server/test` | raw-literal pins for Hive field 18 and status byte 4, and for the SQLite payload key and status name; the commit-log skip of `local:` on both backends; a downgrade read of each |
 | Functional pack, `tests/at_functional_test` | the scenarios that need two real atServers: the sender's discard and `refused` status, the invitation flow, D10's marking through monitor, D13, D12's refused refresh deleting the holder's copy, and "Authentication is never gated" |
-| e2e pack, `tests/at_end2end_test` | the same cross-atServer subset, across separate hosts in CI |
+| e2e pack, `tests/at_end2end_test` | the same cross-atServer subset across separate hosts in CI, less "Authentication is never gated", which needs a closed default the shared cicd atSigns cannot be given; each scenario runs only where its atServers answer `gate:`, and each test removes the rules it sets |
 | Onboarding-CLI pack | no scenario of its own; it runs before the PR, because the keystore and notification storage change |
 
 In CI, two of the e2e pairs run the branch against a released atServer:
