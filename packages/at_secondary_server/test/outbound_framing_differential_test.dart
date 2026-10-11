@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -68,6 +69,8 @@ void main() {
     when(() => mockClient.toHost).thenReturn('localhost');
     when(() => mockClient.outboundConnection).thenReturn(mockConnection);
     when(() => mockConnection.metaData).thenReturn(mockMeta);
+    when(() => mockConnection.closed)
+        .thenAnswer((_) => Completer<void>().future);
     when(() => mockMeta.isStale).thenReturn(false);
     when(() => mockMeta.isClosed).thenReturn(false);
   });

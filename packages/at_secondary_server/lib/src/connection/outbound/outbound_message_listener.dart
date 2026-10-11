@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:math' show min;
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
 import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_utils/at_logger.dart';
+import 'package:clock/clock.dart';
 import 'package:logging/logging.dart' show Level;
 import 'package:meta/meta.dart';
 
@@ -30,7 +32,7 @@ class OutboundMessageListener {
 
   /// How long since the peer last sent bytes this listener KEPT.
   ///
-  /// A [Stopwatch] rather than wall-clock timestamps: [DateTime.now] can step
+  /// A stopwatch rather than wall-clock timestamps: [DateTime.now] can step
   /// backwards (an NTP correction), which would make an elapsed-time check
   /// negative and leave [read] spinning while it holds the client's
   /// request/response mutex.
@@ -41,7 +43,12 @@ class OutboundMessageListener {
   /// peer that has stopped answering, and a single total budget cannot tell
   /// them apart — it either cuts off a response that was still coming, or
   /// waits out the full budget on a peer that is never going to reply.
-  final Stopwatch _sinceLastReceived = Stopwatch()..start();
+  final Stopwatch _sinceLastReceived = clock.stopwatch()..start();
+
+  /// Completed to wake a waiting [read] when a message is queued or the
+  /// connection closes. Replaced for each wait, since a [Completer] completes
+  /// once, and null while nobody waits.
+  Completer<void>? _wake;
 
   /// The connection this listener was created for.
   ///
@@ -55,7 +62,17 @@ class OutboundMessageListener {
   final OutboundSocketConnection? _connection;
 
   OutboundMessageListener(this.outboundClient)
-      : _connection = outboundClient.outboundConnection;
+      : _connection = outboundClient.outboundConnection {
+    _connection?.closed.then((_) => _wakeReader());
+  }
+
+  void _wakeReader() {
+    var wake = _wake;
+    _wake = null;
+    if (wake != null && !wake.isCompleted) {
+      wake.complete();
+    }
+  }
 
   /// Listens to the underlying connection's socket if the connection is created.
   /// @throws [AtConnectException] if the connection is not yet created
@@ -175,7 +192,7 @@ class OutboundMessageListener {
       // carry on either: a peer emitting bytes we cannot decode is broken,
       // and leaving the connection up makes every caller queued on this
       // client wait out the whole silence budget for an answer that is never
-      // coming. Close it, and the waiting caller fails on the next poll.
+      // coming. Close it, and the waiting caller fails at once.
       logger.warning('Closing the connection to ${outboundClient.toAtSign}:'
           ' it sent a message that is not valid UTF-8 ($e)');
       _closeOutboundClient();
@@ -191,6 +208,7 @@ class OutboundMessageListener {
           _connection!.metaData, 'RCVD: ${sanitiseForLogging(result)}'));
     }
     _queue.add(result);
+    _wakeReader();
   }
 
   /// Removes a prompt the peer wrote ahead of this response.
@@ -308,8 +326,7 @@ class OutboundMessageListener {
   Future<String> read(
       {int maxWaitMilliSeconds = 30000,
       int transientWaitTimeMillis = 10000}) async {
-    var loopMillis = 10;
-    final sinceStart = Stopwatch()..start();
+    final sinceStart = clock.stopwatch()..start();
     _sinceLastReceived.reset();
 
     while (true) {
@@ -380,7 +397,15 @@ class OutboundMessageListener {
             "Nothing received for $transientWaitTimeMillis millis from remote"
             " secondary ${outboundClient.toAtSign} at ${outboundClient.toHost}:${outboundClient.toPort}");
       }
-      await Future.delayed(Duration(milliseconds: loopMillis));
+      // NOTE both budget checks are strict, so the wait runs 1 ms past the
+      // nearer deadline; waking exactly on it would wait again for nothing.
+      var untilDeadline = min(
+              maxWaitMilliSeconds - sinceStart.elapsedMilliseconds,
+              transientWaitTimeMillis - _sinceLastReceived.elapsedMilliseconds) +
+          1;
+      var wake = _wake ??= Completer<void>();
+      await wake.future
+          .timeout(Duration(milliseconds: untilDeadline), onTimeout: () {});
     }
   }
 
