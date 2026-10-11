@@ -710,3 +710,31 @@ application's value costs nothing and undoes cleanly.
 
 *Spec consequence:* quarantine.feature gains a scenario for a ceiling the
 operator lowers, and one for a ceiling raised again.
+
+## D31 A blocklisted atSign is unreachable both ways
+
+*2026-10-11, gkc. Q37, raised by gkc while agreeing "Authentication is never
+gated".*
+
+The blocklist, which refuses a listed atSign's `from:`, also binds @alice's own
+atServer on the way out: an atSign on her blocklist is one her gate does not
+reach, in every namespace, whatever its rules admit. Her clients'
+notifications to it are refused with the not-accepted error and nothing is
+queued, an update shared with it is stored and not notified, and a lookup of
+its keys is refused, all before any connection is made, so no `to:` is sent to
+its atServer. A notification queued before the atSign was blocklisted is
+refused at delivery. Public lookups are answered as before, since public data
+is outside the gate (D1). The gatekeeper holds the blocklist in memory, loaded
+at start-up and updated by `config:block`, so the check reads no storage.
+
+Reaching a blocklisted atSign as before, and refusing public lookups of it
+too, were considered.
+
+**Why:** an owner who blocks an atSign means to have nothing to do with it, and
+the gate already decides every outbound exchange before connecting; the
+blocklist was the one refusal it did not apply. Public records stay readable,
+as they are for any atSign.
+
+*Spec consequence:* outbound.feature gains scenarios for a blocklisted atSign's
+notifications, lookups and shared keys, a public lookup of it, its removal
+from the blocklist, and a notification queued before it was blocklisted.

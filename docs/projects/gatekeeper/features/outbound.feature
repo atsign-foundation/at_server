@@ -3,7 +3,8 @@ Feature: @alice's own outbound exchanges
   (explicit and auto-notify), remote lookup and scan, and cache refresh. In an
   open namespace it reaches any atSign not denied there; in a closed one, only
   atSigns admitted there; and where no rule covers a namespace, the atSigns
-  the default lets in (rules.feature). Nothing @alice sends, looks up or scans
+  the default lets in (rules.feature). An atSign on @alice's blocklist is
+  reached in no namespace. Nothing @alice sends, looks up or scans
   changes another atSign's standing: an atSign @alice contacts first, and whose
   replies should arrive unquarantined, is admitted by the application. The gate
   verb's grammar is in rules.feature.
@@ -136,3 +137,47 @@ Feature: @alice's own outbound exchanges
       | atSign | outcome                                               |
       | @bob   | @alice's atServer delivers it to @bob's atServer      |
       | @chuck | @alice's atServer answers with the not-accepted error |
+
+  Scenario: A notification to a blocklisted atSign is never sent, whatever its namespace admits
+    Given namespace "chat" on @alice's atServer is closed, admitting @bob and @chuck
+    And @chuck is on @alice's blocklist
+    When @alice's client sends "notify:@chuck:msg.chat@alice"
+    Then @alice's atServer answers with the not-accepted error
+    And @alice's atServer holds no notification for @chuck
+    And no connection is made to @chuck's atServer
+
+  Scenario: A lookup of a blocklisted atSign's key is never sent
+    Given namespace "chat" on @alice's atServer is closed, admitting @bob and @chuck
+    And @chuck is on @alice's blocklist
+    When @alice's client sends "lookup:status.chat@chuck"
+    Then @alice's atServer answers with the not-accepted error
+    And no connection is made to @chuck's atServer
+
+  Scenario: A key shared with a blocklisted atSign is stored, and not notified
+    Given namespace "chat" on @alice's atServer is closed, admitting @bob and @chuck
+    And @chuck is on @alice's blocklist
+    When @alice's client sends "update:@chuck:status.chat@alice <value>"
+    Then @alice's atServer answers with a commit id
+    And @alice's atServer holds "@chuck:status.chat@alice"
+    And @alice's atServer holds no notification for @chuck
+
+  Scenario: A public lookup of a blocklisted atSign's record is answered as before
+    Given @chuck is on @alice's blocklist
+    When @alice's client sends "plookup:publickey@chuck"
+    Then @alice's atServer answers with @chuck's public encryption key
+
+  Scenario: An atSign taken off the blocklist is reached again
+    Given namespace "chat" on @alice's atServer is closed, admitting @bob and @chuck
+    And @chuck was on @alice's blocklist
+    And @alice's root client has sent "config:block:remove:@chuck"
+    When @alice's client sends "notify:@chuck:msg.chat@alice"
+    Then @alice's atServer answers with a notification id
+    And delivers it to @chuck's atServer
+
+  @race
+  Scenario: A notification queued before its recipient was blocklisted is never delivered
+    Given namespace "chat" on @alice's atServer is closed, admitting @bob and @chuck
+    And @alice's atServer has queued notification 41 for @chuck in "chat", not yet delivered
+    When @alice's root client sends "config:block:add:@chuck"
+    Then @alice's atServer never delivers notification 41
+    And "notify:status:41" on @alice's atServer answers "refused"

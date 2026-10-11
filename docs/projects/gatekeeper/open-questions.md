@@ -16,7 +16,7 @@ No spec question is open. The spec was agreed file by file:
 |---|---|
 | [rules.feature](features/rules.feature) | agreed 2026-10-10, with the additions from D20, D23 and D29, and stream's removal |
 | [namespace_less.feature](features/namespace_less.feature) | agreed 2026-10-10, less the stream scenario |
-| [outbound.feature](features/outbound.feature) | agreed 2026-10-10 |
+| [outbound.feature](features/outbound.feature) | agreed 2026-10-10, with D31's additions |
 | [quarantine.feature](features/quarantine.feature) | agreed 2026-10-10, with D20's and D30's two additions each, less the stream scenario |
 | [refusals.feature](features/refusals.feature) | agreed 2026-10-10 |
 
@@ -38,7 +38,8 @@ side, the same day, became D26, and Q33, raised by D23's second scenario
 failing against the value-reference resolver, became D27, and Q34, on when
 quarantined bytes stop counting, became D28. Q35, on when an atSign counts as
 new for the operator's starting default, became D29, and Q36, on a setting
-beyond a bound the operator has since tightened, became D30. No design fork is
+beyond a bound the operator has since tightened, became D30, and Q37, on
+whether the blocklist also binds the way out, became D31. No design fork is
 open.
 
 ## Next
