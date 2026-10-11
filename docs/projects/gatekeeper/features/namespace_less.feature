@@ -1,12 +1,13 @@
 Feature: Exchanges with no namespace
   An exchange that belongs to no namespace follows the pair's standing. It is
-  permitted if the other atSign is admitted somewhere on @alice's atServer, in
-  some namespace's admitted set or in the atSign-wide admitted set, and only
-  for a short list: a lookup of shared_key in any form, update and delete
-  notifications of the legacy copy "@<them>:shared_key@<me>", and text
-  notifications until they are retired. Every other exchange with no namespace
-  is refused. Being quarantined somewhere does not count as admitted. Under the
-  ungated default, namespace-less traffic passes as it does today
+  permitted if the other atSign is admitted somewhere on @alice's atServer
+  where the admission takes effect, in a namespace's admitted set, among the
+  admissions recorded on a namespace no rule covers, or in the atSign-wide
+  admitted set, and only for a short list: a lookup of shared_key in any form,
+  update and delete notifications of the legacy copy "@<them>:shared_key@<me>",
+  and text notifications until they are retired. Every other exchange with no
+  namespace is refused. Being quarantined somewhere does not count as admitted.
+  Under the ungated default, namespace-less traffic passes as it does today
   (rules.feature). The gate verb's grammar is in rules.feature.
 
   Race: the standing read here is the one rules.feature changes, from the next
@@ -22,6 +23,14 @@ Feature: Exchanges with no namespace
 
   Background:
     Given @alice's atSign has the closed default
+
+  Scenario: Admissions recorded beneath a rule do not count as admitted somewhere
+    Given namespace "chat" on @alice's atServer is closed, admitting only @carol
+    And namespace "invitations.chat" has no rule, with @dave admitted
+    And @dave is admitted nowhere else on @alice's atServer
+    And @alice's atServer holds "@dave:shared_key@alice"
+    When @dave's atServer sends "lookup:shared_key@alice"
+    Then @alice's atServer answers with the not-accepted error
 
   Scenario Outline: An atSign admitted somewhere may look up the shared key
     Given @dave is admitted in "chat" on @alice's atServer

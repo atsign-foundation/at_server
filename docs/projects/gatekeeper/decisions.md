@@ -23,14 +23,16 @@ that path open.
 
 ## D2 A namespace is open or closed, and an open one can deny
 
-*2026-10-10, gkc.*
+*2026-10-10, gkc; amended 2026-10-11 under Q24.*
 
 - An **open** namespace holds three sets of atSigns: admitted, quarantined and
   denied. An atSign in none of them is quarantined on first contact. A client
   reviewing a quarantined atSign admits it or denies it, in that namespace
   only.
-- A **closed** namespace holds only an admitted set, and refuses every other
-  atSign.
+- A **closed** namespace admits only its admitted set, and refuses every other
+  atSign. It keeps the denied set it had while open, ignored while it is closed
+  and back in force when it reopens (D24). As first ruled, a closed namespace
+  held only an admitted set, and closing dropped the denied set.
 - The atSign-wide blocklist (`config:block`) stays as it is, checked at
   `from:`, and overrides every namespace.
 
@@ -41,13 +43,14 @@ outbound connection that verifies the caller.
 
 ## D3 Sets are per namespace, plus one atSign-wide admitted set
 
-*2026-10-10, gkc.*
+*2026-10-10, gkc; amended 2026-10-11 (D26).*
 
 - Each namespace's admitted, quarantined and denied sets are its own, so
   admitting @bob in `chat` admits nothing in `photos`.
 - One atSign-wide admitted set sits beside them. An atSign in it is admitted in
-  every **open** namespace, and in no closed one. Changing it needs a root
-  connection.
+  every **open** namespace and wherever the closed default decides, and in no
+  closed one. Changing it needs a root connection. As first ruled, it reached
+  open namespaces only.
 
 **Why:** an application touches only the sets of the namespaces it holds,
 while the owner can still admit a trusted atSign everywhere open with one
@@ -55,11 +58,13 @@ decision instead of one per application.
 
 ## D4 A short list of namespace-less exchanges follows admission anywhere
 
-*2026-10-10, gkc; narrowed the same day under Q18.*
+*2026-10-10, gkc; narrowed the same day under Q18; amended 2026-10-11 (D26).*
 
 These exchanges with no namespace are permitted if and only if the other
-atSign is admitted somewhere, in some namespace's admitted set or in the
-atSign-wide admitted set:
+atSign is admitted somewhere the admission takes effect: in the admitted set
+of a namespace with a rule, among the admissions recorded on a namespace no
+rule covers, or in the atSign-wide admitted set. Admissions recorded beneath a
+rule, which the rule overrides, do not count:
 
 - a lookup of `shared_key` in any form, in either direction, including
   `AtCacheRefreshJob`'s `lookup:all:shared_key@<them>`;
@@ -239,18 +244,22 @@ asks is a design question.
 
 ## D11 A per-atSign default, ungated until the owner closes it
 
-*2026-10-10, gkc.*
+*2026-10-10, gkc; amended 2026-10-11 under Q25 and Q31, and by D26.*
 
 - An atSign's **default** decides every namespace that has no rule. It is
   either `ungated`, which is today's behaviour with namespace-less traffic
   included, or `closed`, which is the target: such namespaces are closed in
-  both directions, and namespace-less traffic follows D4.
+  both directions, admitting only the atSigns recorded on them or on a
+  namespace above them (D25) and the atSign-wide admitted set (D26), and
+  namespace-less traffic follows D4. As first ruled, they were closed to all.
+- Any authenticated enrollment may read the default (D26).
 - A rule binds from the moment an application sets it, whatever the default.
 - Only a root connection switches its atSign's default, either way.
 - The atServer operator configures the default a new atSign starts with:
   `ungated` at first, and `closed` once applications are ready.
 - Setting a rule admits only the atSigns the application names, in the same
-  command. The atServer infers nobody from keys already shared.
+  command or recorded there before (D24). The atServer infers nobody from keys
+  already shared.
 
 **Why:** released applications keep working until their owners close their
 atSigns, and each application claims its namespaces when it is ready. The
@@ -262,21 +271,24 @@ admitted.
 
 ## D12 Losing admission removes cached copies; stored data stays
 
-*2026-10-10, gkc.*
+*2026-10-10, gkc; amended 2026-10-11 (D26).*
 
 An atSign loses admission in a namespace when it is removed from the admitted
-set, when it is denied, when an open namespace is closed, when the owner
-switches the default to `closed`, or when it is added to the blocklist. Then:
+set or the atSign-wide admitted set, when it is denied, when an open namespace
+is closed, when a rule set on a namespace or removed from one leaves it no
+longer able to reach it, when the owner switches the default to `closed`, or
+when it is added to the blocklist. Then:
 
 - keys @alice shared with it, and notifications already stored from it, stay;
 - @alice's atServer deletes its cached copies of that atSign's keys in the
   namespace, and stops refreshing them. Switching the default to `closed`
-  therefore removes every cached key in a namespace without a rule, whoever it
-  came from, since such a namespace is then closed to all, and every cached
-  namespace-less key except the `shared_key` copies of atSigns admitted
+  therefore removes every cached key in a namespace no rule covers, except
+  those of the atSigns recorded on it or above it (D25) and of the atSign-wide
+  admitted set (D26), since such a namespace then admits only those, and every
+  cached namespace-less key except the `shared_key` copies of atSigns admitted
   somewhere (D4). (As first written, this said "in every namespace without a
   rule, from atSigns admitted nowhere", which mixed up D4's condition with a
-  closed namespace's.);
+  closed namespace's. Until D24, it said such a namespace was closed to all.);
 - a notification already queued for that atSign is checked again at delivery,
   and refused (`refused`, D9) if the atSign is no longer admitted;
 - a gated atServer whose cache refresh gets *not accepted* deletes its cached
@@ -499,16 +511,25 @@ it in another.
 ## D24 The gate verb's answers, reads and bounds
 
 *2026-10-11, gkc. Agreed in design section 5.1, then re-opened the same day from
-a review on the client API's side as Q24 to Q30, and ruled as below.*
+a review on the client API's side as Q24 to Q30, and ruled as below; amended
+the same day under Q32 (D25) and by D26.*
 
-- `gate:show:<ns>` answers `data:` and a JSON object: the namespace's mode
-  (`open`, `closed`, or `none` with the default when it has no rule), its
-  settings in force (defaults included, `window` in seconds) and its sorted
-  admitted set. An open namespace also answers its sorted denied set and its
-  quarantined set, each entry with the exchanges `counted` in the current
-  window, the quarantined notification `bytes` held and its `firstContact`,
-  ordered by first contact. A namespace with no rule answers its admitted set
-  as well. `gate:default` answers the mode, and a change answers `success`.
+- `gate:show:<ns>` answers `data:` and a JSON object, every key of its mode
+  always present and an empty set as `[]`:
+  - a namespace with a rule: its mode (`open` or `closed`), its settings in
+    force (defaults included, `window` in seconds), and its sorted admitted
+    and denied sets; an open one also its quarantined set, each entry with the
+    exchanges `counted` in the current window, the quarantined notification
+    `bytes` held and its `firstContact` (UTC, ISO 8601, to the millisecond),
+    ordered by first contact;
+  - a namespace with no rule: the mode `none`, the default, and its sorted
+    recorded admissions, with no settings;
+  - either, when a rule on a broader namespace decides it, `governedBy` naming
+    that namespace (D26).
+
+  As first ruled, only an open namespace answered its denied set.
+  `gate:default` answers the mode to any authenticated enrollment (D26), and a
+  change answers `success`.
 - Re-issuing `gate:rule:<ns>:open[:<setting>:<value>]` keeps the rule's sets and
   settings and changes only the setting given; `:<setting>:default` returns a
   setting to the operator's default. Closing a namespace keeps its denied set,
@@ -517,17 +538,22 @@ a review on the client API's side as Q24 to Q30, and ruled as below.*
   marked (D10, D12).
 - `admit` and `remove` record into a namespace's admitted set whether it has a
   rule or not, without creating one. The default decides how a namespace with
-  no rule behaves, so under `closed` it lets in exactly that set, and a rule set
-  later starts from it. `deny` needs an open namespace.
-- Reads: `gate:check:<ns>:<atSign>` answers the verdict an exchange from that
-  atSign in that namespace would get now (`admitted`, `quarantined` or
-  `notAccepted`), and takes `r` on the namespace. `gate:show:*` answers the
+  no rule behaves, so under `closed` it lets in that set, the sets recorded
+  above it and the atSign-wide set (D25, D26), and a rule set later starts
+  from it. `deny` needs an open namespace. `gate:rule:<ns>:none` removes a rule
+  (D26).
+- Reads: `gate:check:<ns>:<atSign>` answers the standing that atSign has in
+  that namespace now (`admitted`, `quarantined` or `notAccepted`): the gate's
+  verdict alone, before the blocklist and without the quarantine limits, and
+  `admitted` for the owner's own atSign (D26). It takes `r` on the namespace.
+  `gate:show:*` answers the
   atSign-wide admitted set to a root connection. `gate:list` answers the
   namespaces with a rule or recorded admissions: all of them to a root
   connection, and those it holds to any other.
-- Bounds, set by the operator and refused with AT0022: 10,000 admitted and
-  10,000 denied atSigns per namespace, 10,000 in the atSign-wide admitted set,
-  and 1,000 namespaces with a rule or recorded admissions.
+- Bounds, set by the operator and refused with AT0022, each with its own
+  message (design section 5.2): 10,000 admitted and 10,000 denied atSigns per
+  namespace, 10,000 in the atSign-wide admitted set, and 1,000 namespaces with
+  a rule or recorded admissions.
 
 **Why:** a reopened namespace must not let back in what it denied; an
 application must be able to record an admission before it claims a namespace,
@@ -535,3 +561,69 @@ or switching the default to closed cuts off its contacts; an application can ask
 whether an atSign reaches it in a namespace without seeing the owner's
 atSign-wide trusted list; and every answer, record and set the gate keeps is
 bounded.
+
+## D25 Admissions recorded without a rule, and the closed answer
+
+*2026-10-11, gkc. Q31 and Q32, raised while writing D24's scenarios; amended
+the same day by D26.*
+
+- Rules decide first, matched by P1 among rules alone, and an admission
+  recorded in a namespace with no rule never overrides a rule covering it.
+  Where no rule covers a key, the default decides: `ungated` admits as today,
+  and `closed` admits an atSign recorded on any namespace that covers the key,
+  by P1's suffix match, and the atSign-wide admitted set (D26). As first ruled,
+  only the set recorded on the most specific such namespace counted, so that
+  it behaved as the closed rule it would become.
+- A closed namespace's `gate:show` answer includes its sorted denied set, kept
+  for when it reopens (D24). `deny` still needs an open namespace.
+- Admissions recorded in a namespace with no rule are kept in its
+  `local:<ns>.rule.gate` record with the mode `none`, and the record goes when
+  the last of them is removed.
+
+**Why:** letting the most specific namespace decide, whether it holds a rule
+or only admissions, would make one recorded admission ungate everything beneath
+a closed rule under the ungated default. A set that comes back into force when
+a namespace reopens should be readable before then.
+
+## D26 A second review on the client API's side
+
+*2026-10-11, gkc, taking each recommendation from a second review of D24 and
+D25 on the client API's side.*
+
+- **Recorded admissions add up.** Where no rule covers a key, the closed
+  default admits an atSign recorded on any namespace covering it (D25). An
+  admission only ever adds, and setting a rule is the one act that narrows: a
+  rule on `invitations.chat` starts from that namespace's own recorded set, so
+  an atSign recorded only on `chat` loses `invitations.chat`.
+- **The atSign-wide admitted set reaches namespaces no rule covers.** It admits
+  wherever the closed default decides, as well as in every open namespace, and
+  never in a closed one (D3).
+- **`gate:rule:<ns>:none` removes a namespace's rule**, and takes `rw` on it.
+  Its admitted set stays as recorded admissions; its denied set, settings,
+  quarantined set and counts go. With nothing admitted, nothing is recorded.
+- **`gate:show` names what governs.** When a rule on a broader namespace
+  decides `<ns>`, the answer carries `"governedBy":"<that namespace>"`, and
+  nothing else of that rule.
+- **`gate:check` answers standing.** The verdict is the gate's alone, never the
+  quarantine limits and never the blocklist, so a holder of `r` learns nothing
+  of the blocklist. The owner's own atSign answers `admitted`.
+- **Any authenticated enrollment reads the default.** Only a root connection
+  switches it (D11).
+- **D4 counts admissions that take effect**, not those recorded beneath a rule
+  that overrides them.
+- **AT0022 stays the one code for every gate refusal of a change, and each kind
+  has its own message**, listed in design section 5.2.
+- **A namespace is dot-separated labels of word characters and hyphens, none
+  empty**, as at_commons' grammar parses it; anything else fails to parse
+  (AT0003). The atServer lower-cases it, as it does a key.
+- **The client API's `GateVerbBuilder` is written on the client side**, from the
+  final grammar, with raw-literal pins of the commands it builds.
+
+**Why:** an admission that took away another atSign's access would make every
+admit a loss of admission to act on (D12). An application holding only a
+narrow namespace must be able to see that a broader rule governs it. A rule
+needs an undo, for an application that is removed and under the cap on
+namespaces. A check that answered the blocklist would disclose it, and one
+that answered a passing limit would be stale at once. Switching the default to
+closed should cut off strangers, not the owner's trusted contacts. And a
+namespace written two ways must not become two rules.

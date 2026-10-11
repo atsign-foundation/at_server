@@ -2,8 +2,9 @@ Feature: @alice's own outbound exchanges
   @alice's rules bind @alice's own atServer on the way out, for notifications
   (explicit and auto-notify), remote lookup and scan, and cache refresh. In an
   open namespace it reaches any atSign not denied there; in a closed one, only
-  atSigns admitted there. Nothing @alice sends, looks up or scans changes
-  another atSign's standing: an atSign @alice contacts first, and whose
+  atSigns admitted there; and where no rule covers a namespace, the atSigns
+  the default lets in (rules.feature). Nothing @alice sends, looks up or scans
+  changes another atSign's standing: an atSign @alice contacts first, and whose
   replies should arrive unquarantined, is admitted by the application. The gate
   verb's grammar is in rules.feature.
 
@@ -124,3 +125,14 @@ Feature: @alice's own outbound exchanges
     And namespace "photos" on @alice's atServer has no rule
     When @alice's client sends "notify:@chuck:pic.photos@alice"
     Then @alice's atServer delivers it to @chuck's atServer
+
+  Scenario Outline: Under the closed default, @alice reaches only the atSigns the default lets in
+    Given no rule covers "photos" on @alice's atServer, and no admissions are recorded on it
+    And @bob is in @alice's atSign-wide admitted set
+    When @alice's client sends "notify:<atSign>:pic.photos@alice"
+    Then <outcome>
+
+    Examples:
+      | atSign | outcome                                               |
+      | @bob   | @alice's atServer delivers it to @bob's atServer      |
+      | @chuck | @alice's atServer answers with the not-accepted error |

@@ -8,11 +8,13 @@ Feature: Refusals, and losing admission
   one command and leaves the connection open.
 
   An atSign loses admission in a namespace when it is removed from the admitted
-  set, when it is denied, when an open namespace it could reach is closed, when
-  the owner switches the default to closed, or when it is blocklisted. Keys
-  shared with it and notifications already stored from it stay. Cached copies
-  of its keys go, and a notification queued for it is checked again at
-  delivery. The gate verb's grammar is in rules.feature.
+  set or the atSign-wide admitted set, when it is denied, when an open
+  namespace it could reach is closed, when a rule set on a namespace or removed
+  from one leaves it no longer able to reach it, when the owner switches the
+  default to closed, or when it is blocklisted. Keys shared with it and
+  notifications already stored from it stay. Cached copies of its keys go, and
+  a notification queued for it is checked again at delivery. The gate verb's
+  grammar is in rules.feature.
 
   Race: a notification queued before its recipient lost admission is checked
   again at delivery, and a cache refresh that completes after admission was
@@ -99,6 +101,21 @@ Feature: Refusals, and losing admission
     And @alice's atServer holds "cached:@alice:pic.photos@chuck"
     When @alice's root client sends "gate:default:closed"
     Then @alice's atServer no longer holds "cached:@alice:pic.photos@chuck"
+
+  Scenario: Switching the default to closed keeps cached copies from atSigns recorded in a namespace without a rule
+    Given @alice's atSign has the ungated default
+    And namespace "photos" on @alice's atServer has no rule, with @bob admitted
+    And @alice's atServer holds "cached:@alice:pic.photos@bob"
+    When @alice's root client sends "gate:default:closed"
+    Then @alice's atServer still holds "cached:@alice:pic.photos@bob"
+
+  Scenario: Switching the default to closed keeps cached copies from the atSign-wide admitted set
+    Given @alice's atSign has the ungated default
+    And no rule covers "photos" on @alice's atServer, and no admissions are recorded on it
+    And @bob is in @alice's atSign-wide admitted set
+    And @alice's atServer holds "cached:@alice:pic.photos@bob"
+    When @alice's root client sends "gate:default:closed"
+    Then @alice's atServer still holds "cached:@alice:pic.photos@bob"
 
   Scenario: Blocklisting an atSign removes cached copies of its keys
     Given namespace "chat" on @alice's atServer is closed, admitting only @bob

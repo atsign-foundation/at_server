@@ -151,7 +151,7 @@ Feature: Quarantine in open namespaces
   Scenario Outline: A setting above the operator's ceiling is refused
     Given the operator's ceiling for "<setting>" on @alice's atServer is <ceiling>
     When @alice's chat client sends "gate:rule:invitations.chat:open:<setting>:<value>"
-    Then @alice's atServer answers with the illegal-argument error, AT0022
+    Then @alice's atServer answers with the illegal-argument error, AT0022, "<setting> may be at most <ceiling> on this atServer"
     And the rule for "invitations.chat" is unchanged
 
     Examples:
@@ -164,7 +164,7 @@ Feature: Quarantine in open namespaces
   Scenario: A window shorter than the operator's floor is refused
     Given the operator's floor for "window" on @alice's atServer is 3600 seconds
     When @alice's chat client sends "gate:rule:invitations.chat:open:window:3599"
-    Then @alice's atServer answers with the illegal-argument error, AT0022
+    Then @alice's atServer answers with the illegal-argument error, AT0022, "window must be at least 3600 on this atServer"
     And the rule for "invitations.chat" is unchanged
 
   Scenario: Admitting an atSign ends its counting
@@ -225,6 +225,25 @@ Feature: Quarantine in open namespaces
     And @alice's chat client has sent "gate:admit:invitations.chat:@chuck"
     When @alice's client fetches notification 21, asking for quarantined notifications
     Then notification 21 carries "quarantined": true
+
+  Scenario: Closing a namespace ends its quarantine
+    Given @chuck is quarantined in "invitations.chat", with 10 exchanges counted in the last 24 hours
+    And @alice's chat client has sent "gate:rule:invitations.chat:closed" and then "gate:rule:invitations.chat:open"
+    When @chuck's atServer sends "notify:id:31:@alice:inv31.invitations.chat@chuck"
+    Then @alice's atServer answers "data:success"
+    And @chuck has 1 exchange counted in "invitations.chat"
+
+  Scenario: Quarantined notifications already held stay, marked, when a namespace is closed
+    Given @alice's atServer holds notification 21 from @chuck, accepted while @chuck was quarantined
+    When @alice's chat client sends "gate:rule:invitations.chat:closed"
+    Then @alice's atServer still holds notification 21
+    And notification 21 carries "quarantined": true
+
+  Scenario: gate:show answers the quarantined atSigns in order of first contact
+    Given @erin's first exchange in "invitations.chat" came before @dave's
+    And both are quarantined there
+    When @alice's chat client sends "gate:show:invitations.chat"
+    Then the answer's quarantined set lists @erin and then @dave, each with its "firstContact", a UTC time to the millisecond such as "2026-10-11T09:30:00.000Z"
 
   @dos
   Scenario: A full quarantine refuses atSigns seen for the first time
