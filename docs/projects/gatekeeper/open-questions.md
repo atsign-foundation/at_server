@@ -20,6 +20,10 @@ No spec question is open. The spec was agreed file by file:
 | [quarantine.feature](features/quarantine.feature) | agreed 2026-10-10, with D20's two additions, less the stream scenario |
 | [refusals.feature](features/refusals.feature) | agreed 2026-10-10 |
 
+On 2026-10-11 every file gained Forgery and Impersonation lines, agreed file by
+file, and rules.feature, namespace_less.feature and outbound.feature each
+gained a `@forgery` scenario.
+
 ## Design
 
 Q11 became D17, Q14 became D18, Q23 became D19, Q13 became D20, Q12 became D21 and Q15 became D22. No design fork is
