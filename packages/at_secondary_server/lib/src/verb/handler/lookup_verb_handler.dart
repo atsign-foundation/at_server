@@ -140,9 +140,15 @@ class LookupVerbHandler extends AbstractVerbHandler {
     }
     final Atsign from = atConnectionMetadata.fromAtSign!.toAtsign();
     final String keyName = _withoutOwner(keyAtAtSign);
-    Gatekeeper.refuseIfNotAccepted(AtSecondaryServerImpl.getInstance()
-        .gatekeeper
-        .inbound(from, keyName, onShortList: keyName == _sharedKeyName));
+    final Gatekeeper gate = AtSecondaryServerImpl.getInstance().gatekeeper;
+    final bool onShortList = keyName == _sharedKeyName;
+    final GateVerdict verdict =
+        gate.inbound(from, keyName, onShortList: onShortList);
+    Gatekeeper.refuseIfNotAccepted(verdict);
+    if (verdict == GateVerdict.quarantined) {
+      Gatekeeper.refuseIfNotAccepted(
+          await gate.count(from, keyName, onShortList: onShortList));
+    }
     // In case of a pol authenticated connection, the request originates from a different
     // 'atSign'. In this scenario, set the lookupKey prefix to the requesting 'atSign'.
     var lookupKey = '${atConnectionMetadata.fromAtSign}:$keyAtAtSign';

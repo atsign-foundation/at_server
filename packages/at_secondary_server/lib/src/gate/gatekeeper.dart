@@ -207,7 +207,9 @@ class Gatekeeper {
           throw QuarantineSizeException(
               'The notification is larger than this atServer quarantines');
         }
-        final DateTime now = clock.now();
+        final DateTime now = DateTime.fromMillisecondsSinceEpoch(
+            clock.now().millisecondsSinceEpoch,
+            isUtc: true);
         final Map<Atsign, QuarantineEntry> entries =
             _quarantinedAt(namespace, now);
         final QuarantineEntry? entry = entries[other];

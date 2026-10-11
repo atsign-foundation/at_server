@@ -1,4 +1,5 @@
 import 'dart:collection';
+import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
@@ -21,6 +22,9 @@ enum Type { sent, received }
 
 class NotifyVerbHandler extends AbstractVerbHandler {
   static const String _sharedKeyName = 'shared_key';
+
+  /// The verb parameter carrying the size of the command as received.
+  static const String _commandBytes = '__commandBytes';
 
   static Notify notify = Notify();
   final int _maxKeyLength = 255;
@@ -62,6 +66,11 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   /// Throws an [SecondaryNotFoundException] if unable to establish connection to another secondary
   /// Throws an [UnAuthorizedException] if notify if invoked with handshake=true and without a successful handshake
   ///  Throws an [notifyException] if there is exception during notify operation
+  /// The command's parameters, with the size of the command as received.
+  @override
+  HashMap<String, String?> parse(String command) =>
+      super.parse(command)..[_commandBytes] = '${utf8.encode(command).length}';
+
   @override
   Future<void> processVerb(
       Response response,
@@ -124,11 +133,11 @@ class NotifyVerbHandler extends AbstractVerbHandler {
     final Atsign from = polConnectionMetadata.fromAtSign!.toAtsign();
     final Gatekeeper gate = AtSecondaryServerImpl.getInstance().gatekeeper;
     final String keyName = verbParams[AtConstants.atKey]!.toLowerCase();
-    Gatekeeper.refuseIfNotAccepted(
-        atNotificationBuilder.messageType == MessageType.text
-            ? gate.namespaceLess(from, onShortList: true)
-            : gate.inbound(from, keyName,
-                onShortList: keyName == _sharedKeyName));
+    final bool onShortList = keyName == _sharedKeyName;
+    GateVerdict standing = atNotificationBuilder.messageType == MessageType.text
+        ? gate.namespaceLess(from, onShortList: true)
+        : gate.inbound(from, keyName, onShortList: onShortList);
+    Gatekeeper.refuseIfNotAccepted(standing);
 
     // If messageType is key, atMetadata is set in "_populateNotificationBuilder"
     // When messageType is text, atNotificationBuilder.atMetadata fields are
@@ -159,8 +168,20 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       return;
     }
 
+    if (standing == GateVerdict.quarantined) {
+      standing = await gate.count(from, keyName,
+          onShortList: onShortList,
+          bytes: int.parse(verbParams[_commandBytes]!));
+      Gatekeeper.refuseIfNotAccepted(standing);
+    }
+
     // Store and send the notification
     await notifMgr.notify(n, ephemeral: isEphemeral(verbParams));
+
+    if (standing == GateVerdict.quarantined) {
+      response.data = 'data:success';
+      return;
+    }
 
     // Everything after here is to do with auto-caching based on notifications
     // First of all, caching is only relevant when ttr is set
