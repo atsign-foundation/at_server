@@ -251,8 +251,13 @@ record holding it, so the change pins the byte with a raw-literal test.
 
 D7 and D15 settle what is bounded and how, and D20 the operator's defaults and
 limits, the cap on open namespaces per atSign and the atSign-wide total of
-quarantined bytes accepted in the window (D28). The operator's values are configuration items beside the
-existing notification settings in `AtSecondaryConfig`.
+quarantined bytes accepted in the window (D28). The operator's values are the
+`gate` section of the atServer's `config.yaml`, read by `AtSecondaryConfig`
+beside the existing notification settings, and each can be overridden by an
+environment variable named after its path (`gateLimitMax`,
+`gateMaxOpenNamespaces`). Each quarantine setting has a `default`, a `max` and
+a `min`, and the shipped file states D20's values. A default outside its own
+bounds is refused when the limits are read.
 
 ## 9. Performance
 
