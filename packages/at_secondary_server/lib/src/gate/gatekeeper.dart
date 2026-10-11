@@ -150,16 +150,22 @@ class Gatekeeper {
       : _default = defaultMode,
         _store = store;
 
-  /// The gate [store] last wrote, with [startingDefault] as its default when
-  /// none has been written.
+  /// The gate [store] last wrote. When no default has been written,
+  /// [startingDefault] decides one, `ungated` without it, and the store
+  /// records it before the gate is returned.
   static Future<Gatekeeper> load(GateStore store,
-      {GateDefault startingDefault = GateDefault.ungated,
+      {Future<GateDefault> Function()? startingDefault,
       GateLimits limits = const GateLimits()}) async {
     final GateRecords records = await store.load();
-    final Gatekeeper gate = Gatekeeper(
-        defaultMode: records.defaultMode ?? startingDefault,
-        limits: limits,
-        store: store);
+    GateDefault? defaultMode = records.defaultMode;
+    if (defaultMode == null) {
+      defaultMode = startingDefault == null
+          ? GateDefault.ungated
+          : await startingDefault();
+      await store.putDefault(defaultMode);
+    }
+    final Gatekeeper gate =
+        Gatekeeper(defaultMode: defaultMode, limits: limits, store: store);
     gate._rules.addAll(records.rules);
     gate._admittedEverywhere.addAll(records.admittedEverywhere);
     gate._quarantine.addAll(records.quarantines);

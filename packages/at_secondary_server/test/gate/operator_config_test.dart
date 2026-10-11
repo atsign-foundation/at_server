@@ -1,13 +1,18 @@
+import 'package:at_commons/at_commons.dart';
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/gate/gate_store.dart';
 import 'package:at_secondary/src/gate/gatekeeper.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
+import 'package:at_secondary/src/verb/handler/gate_verb_handler.dart';
+import 'package:at_server_spec/at_server_spec.dart' show AuthType;
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
 import '../test_utils.dart';
 
-/// The operator's gate limits, read from the `gate` section of the config.
+/// The operator's gate limits and the default a new atSign starts with, read
+/// from the `gate` section of the config.
 void main() {
   const GateLimits builtIn = GateLimits();
 
@@ -82,7 +87,7 @@ gate:
       addTearDown(verbTestsTearDown);
       configure(everyValueChanged);
       final Gatekeeper gate = await AtSecondaryServerImpl.loadGatekeeper(
-          GateStore(keyValueStore, alice));
+          GateStore(keyValueStore, alice), enMgr);
       expect(gate.limits.maxOpenNamespaces, 51);
       expect(gate.limits.defaults[GateSetting.limit], 11);
     });
@@ -151,5 +156,124 @@ gate:
           'gateMaxOpenNamespaces',
           'gateMaxQuarantinedBytesEverywhere',
         ]);
+  });
+
+  group('Given an atServer whose gate has recorded no default', () {
+    setUpAll(() async => await verbTestsSetUpAll());
+    setUp(() async => await verbTestsSetUp());
+    tearDown(() async => await verbTestsTearDown());
+
+    Future<Gatekeeper> load() => AtSecondaryServerImpl.loadGatekeeper(
+        GateStore(keyValueStore, alice), enMgr);
+
+    Future<GateDefault?> recorded() async =>
+        (await GateStore(keyValueStore, alice).load()).defaultMode;
+
+    /// What `gate:default` answers once the atServer has (re)started.
+    Future<String?> defaultAfterStart() async {
+      AtSecondaryServerImpl.getInstance().gatekeeper = await load();
+      inboundConnection.metadata
+        ..isAuthenticated = true
+        ..authType = AuthType.cram;
+      return (await GateVerbHandler(keyValueStore)
+              .processInternal('gate:default', inboundConnection))
+          .data;
+    }
+
+    test("A new atSign starts with the operator's default", () async {
+      configure('gate:\n  startingDefault: closed');
+      expect(await AtSecondaryServerImpl.isActivated(enMgr), isFalse,
+          reason: 'the store must start as a new atSign\'s does');
+      await load();
+      await enMgr.mintPrimary('a PKAM public key');
+      expect(await AtSecondaryServerImpl.isActivated(enMgr), isTrue);
+      expect(await defaultAfterStart(), 'closed');
+    });
+
+    test(
+        'An atSign activated before its atServer had the gate keeps the'
+        ' ungated default', () async {
+      await enMgr.mintPrimary('a PKAM public key');
+      configure('gate:\n  startingDefault: closed');
+      expect(await defaultAfterStart(), 'ungated');
+    });
+
+    test(
+        "A change to the operator's default leaves each atSign's default as"
+        ' it was', () async {
+      configure('gate:\n  startingDefault: closed');
+      await load();
+      configure('gate:\n  startingDefault: ungated');
+      expect(await defaultAfterStart(), 'closed');
+    });
+
+    test(
+        'when the operator\'s default is closed and the atSign is not yet'
+        ' activated, then the gate records closed', () async {
+      configure('gate:\n  startingDefault: closed');
+      expect((await load()).defaultMode, GateDefault.closed);
+      expect(await recorded(), GateDefault.closed);
+    });
+
+    for (final (String activated, Future<void> Function() activate) in [
+      (
+        'has deleted its CRAM secret',
+        () => keyValueStore.put(
+            AtConstants.atCramSecretDeleted, AtData()..data = 'true')
+      ),
+      (
+        'holds the flat PKAM key',
+        () => keyValueStore.put(
+            AtConstants.atPkamPublicKey, AtData()..data = 'a PKAM public key')
+      ),
+      (
+        'holds only an expired enrollment',
+        () async {
+          await keyValueStore.put(
+              enMgr.buildEnrollmentKey('e1'),
+              AtData()
+                ..data = '{}'
+                ..metaData = (AtMetaData()..ttl = 1));
+          await Future.delayed(const Duration(milliseconds: 20));
+        }
+      ),
+    ]) {
+      test(
+          'when the operator\'s default is closed and the atSign $activated,'
+          ' then the gate records ungated', () async {
+        configure('gate:\n  startingDefault: closed');
+        await activate();
+        expect((await load()).defaultMode, GateDefault.ungated);
+        expect(await recorded(), GateDefault.ungated);
+      });
+    }
+
+  });
+
+  group("Given the operator's starting default", () {
+    test('when it is set, then it is read from gate.startingDefault', () {
+      configure('gate:\n  startingDefault: closed');
+      expect(AtSecondaryConfig.gateStartingDefault, GateDefault.closed);
+    });
+
+    test('when nothing sets it, then it is ungated', () {
+      AtSecondaryConfig.configYamlMap = YamlMap.wrap({});
+      expect(AtSecondaryConfig.gateStartingDefault, GateDefault.ungated);
+    });
+
+    test('when the shipped config is read, then it is ungated', () {
+      expect((shipped!['gate'] as YamlMap)['startingDefault'], 'ungated');
+    });
+
+    test('when it names no default, then it is refused', () {
+      configure('gate:\n  startingDefault: open');
+      expect(() => AtSecondaryConfig.gateStartingDefault, throwsArgumentError);
+    });
+
+    test('when it is set in the environment, then by gateStartingDefault', () {
+      // NOTE operators set this by name, so the name is pinned as written.
+      expect(AtSecondaryConfig.gateEnvVar('startingDefault'),
+          'gateStartingDefault');
+    });
   });
 }

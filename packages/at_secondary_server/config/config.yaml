@@ -224,6 +224,10 @@ enrollment:
 # environment variable named after its path, e.g. gateLimitMax or
 # gateMaxOpenNamespaces.
 gate:
+  # The default an atSign starts with when its atServer first runs the gate
+  # before the atSign is activated: ungated, or closed. An atSign already
+  # activated by then starts ungated.
+  startingDefault: ungated
   quarantine:
     # Exchanges one quarantined atSign may have in the window.
     limit:

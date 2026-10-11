@@ -115,7 +115,7 @@ void main() {
       test('when nothing was written, then the gate loads with the starting'
           ' default', () async {
         final Gatekeeper gate = await Gatekeeper.load(store,
-            startingDefault: GateDefault.closed);
+            startingDefault: () async => GateDefault.closed);
         expect(gate.defaultMode, GateDefault.closed);
       });
     });

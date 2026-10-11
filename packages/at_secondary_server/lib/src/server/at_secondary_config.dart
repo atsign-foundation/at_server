@@ -818,6 +818,15 @@ class AtSecondaryConfig {
     return limits;
   }
 
+  /// The default a new atSign's gate starts with, from `gate.startingDefault`
+  /// or the environment variable [gateEnvVar] names; `ungated` when neither
+  /// is set. Throws an [ArgumentError] for any other value.
+  static GateDefault get gateStartingDefault {
+    final String? name = _getStringEnvVar(gateEnvVar('startingDefault')) ??
+        getStringValueFromYaml(['gate', 'startingDefault']);
+    return name == null ? GateDefault.ungated : GateDefault.values.byName(name);
+  }
+
   /// The environment variable for the gate value [name], with [bound]
   /// (`default`, `min` or `max`) for a quarantine setting.
   static String gateEnvVar(String name, [String bound = '']) =>

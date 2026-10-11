@@ -251,7 +251,7 @@ void main() {
         () async {
       final Gatekeeper gate = await Gatekeeper.load(
           GateStore(keyValueStore, alice),
-          startingDefault: GateDefault.closed);
+          startingDefault: () async => GateDefault.closed);
       await gate.setRule('invitations.chat', GateMode.open);
       for (int i = 0; i < 10; i++) {
         await notify(gate, chuck, bytes: 7);
