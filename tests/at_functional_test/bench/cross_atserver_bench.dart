@@ -77,6 +77,10 @@ Future<void> main(List<String> arguments) async {
   print('options: $options');
 
   final _Connection aliceOwner = await _Connection.authenticated(alice, clock);
+  if (options.gate == 'closed') {
+    await aliceOwner.expectData('gate:default:closed');
+    await aliceOwner.expectData('gate:rule:$_namespace:closed:admit:$_bob');
+  }
   await _checkRemotePath(aliceOwner, bob, clock);
   final int maxClients = options.concurrency.reduce((a, b) => a > b ? a : b);
   final _Connection bobOwner = await _Connection.authenticated(bob, clock);
@@ -422,6 +426,10 @@ class _Options {
   int repeat = 3;
   Duration arrivalTimeout = const Duration(seconds: 120);
 
+  /// `none` leaves @alice's gate as the atServer starts it; `closed` closes
+  /// her default and admits @bob in the bench's namespace.
+  String gate = 'none';
+
   static _Options parse(List<String> arguments) {
     final _Options options = _Options();
     for (int i = 0; i < arguments.length; i += 2) {
@@ -444,6 +452,11 @@ class _Options {
           options.repeat = int.parse(value);
         case '--arrival-timeout':
           options.arrivalTimeout = Duration(seconds: int.parse(value));
+        case '--gate':
+          if (value != 'none' && value != 'closed') {
+            throw ArgumentError('--gate takes none or closed');
+          }
+          options.gate = value;
         default:
           throw ArgumentError('unknown option ${arguments[i]}');
       }
@@ -454,5 +467,5 @@ class _Options {
   @override
   String toString() => 'lookups=$lookups notifies=$notifies '
       'concurrency=${concurrency.join(',')} warmup=$warmup repeat=$repeat '
-      'arrival-timeout=${arrivalTimeout.inSeconds}s';
+      'arrival-timeout=${arrivalTimeout.inSeconds}s gate=$gate';
 }
