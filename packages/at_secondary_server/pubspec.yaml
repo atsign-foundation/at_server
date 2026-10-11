@@ -74,4 +74,4 @@ dependency_overrides:
     git:
       url: https://github.com/atsign-foundation/at_client_sdk.git
       path: packages/at_commons
-      ref: 5e8a890d1c27c4104d65c131192dfd74baaefa85
+      ref: af4cbc45245124110228926aab9a7889ab8bad95
