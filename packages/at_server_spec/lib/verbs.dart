@@ -28,3 +28,4 @@ export 'package:at_server_spec/src/verb/notify_fetch.dart';
 export 'package:at_server_spec/src/verb/enroll.dart';
 export 'package:at_server_spec/src/verb/otp.dart';
 export 'package:at_server_spec/src/verb/keys.dart';
+export 'package:at_server_spec/src/verb/gate.dart';

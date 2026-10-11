@@ -32,6 +32,7 @@ enum AtVerb {
   batch(requiresAuth: true),
   stats(requiresAuth: true),
   config(requiresAuth: true),
+  gate(requiresAuth: true),
 
   // Unauthenticated
   from(requiresAuth: false),

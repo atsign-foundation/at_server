@@ -367,6 +367,12 @@ abstract class AbstractVerbHandler implements VerbHandler {
         enrolledNamespaceAccess: enrolledNamespaceAccess);
   }
 
+  /// The access [enrollDataStoreValue] holds over [namespace], matched as data
+  /// access is, or null when it holds none.
+  String? enrolledAccessFor(
+          EnrollDataStoreValue enrollDataStoreValue, String namespace) =>
+      _checkForNamespaceAuthorization(enrollDataStoreValue, namespace, null).$2;
+
   /// The enrolled namespace covering [namespace], and the access held on it.
   ///
   /// Returns an empty string and `null` when nothing matches.

@@ -18,6 +18,8 @@ import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dar
 import 'package:at_secondary/src/connection/stream_manager.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
+import 'package:at_secondary/src/gate/gate_store.dart';
+import 'package:at_secondary/src/gate/gatekeeper.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
@@ -141,6 +143,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late NotificationManager notificationManager;
   late EnrollmentManager enrollmentManager;
   late InboundConnectionManager inboundConnectionManager;
+  late Gatekeeper gatekeeper;
 
   @override
   void setExecutor(VerbExecutor executor) {
@@ -212,6 +215,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     if (deletedKeys.isNotEmpty) {
       logger.info('Removed orphaned APKAM encryption keys: $deletedKeys');
     }
+
+    gatekeeper =
+        await Gatekeeper.load(GateStore(keyValueStore, currentAtSign));
 
     await prepareStoreForFirstConnection();
 

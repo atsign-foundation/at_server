@@ -11,6 +11,7 @@ import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/enroll_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/from_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/gate_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/to_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/info_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/keys_verb_handler.dart';
@@ -153,6 +154,7 @@ class DefaultVerbHandlerManager implements VerbHandlerManager {
         EnrollVerbHandler(keyStore, enrollmentManager, notificationManager));
     _verbHandlers.add(OtpVerbHandler(keyStore));
     _verbHandlers.add(KeysVerbHandler(keyStore, enrollmentManager, atSign));
+    _verbHandlers.add(GateVerbHandler(keyStore));
     return _verbHandlers;
   }
 }

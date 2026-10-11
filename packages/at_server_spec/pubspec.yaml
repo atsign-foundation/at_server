@@ -14,3 +14,12 @@ dependencies:
 
 dev_dependencies:
   lints: ^5.0.0
+
+dependency_overrides:
+  # The gate's grammar is not in a published at_commons yet. This must be
+  # replaced by the published version before the gate merges.
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_client_sdk.git
+      path: packages/at_commons
+      ref: bbcc8b60e53aae2290a9dac838886ac0c76460a8

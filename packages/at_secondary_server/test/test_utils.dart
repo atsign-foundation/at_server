@@ -23,6 +23,8 @@ import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
+import 'package:at_secondary/src/gate/gate_store.dart';
+import 'package:at_secondary/src/gate/gatekeeper.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
@@ -397,6 +399,9 @@ verbTestsSetUp(
   keyValueStore.preRemoveHooks.add(enMgr.preRemoveHook);
   keyValueStore.postRemoveHooks.add(enMgr.postRemoveHook);
 
+  AtSecondaryServerImpl.getInstance().gatekeeper =
+      Gatekeeper(store: GateStore(keyValueStore, alice));
+
   DateTime now = DateTime.now().toUtcMillisecondsPrecision();
   bobOriginalPublicKeyAtData = AtData();
   bobOriginalPublicKeyAtData.data =
@@ -606,6 +611,7 @@ const List<String> authenticatedTopLevelCommands = [
   'batch:lookup:public:publickey@alice\n',
   'stats\n',
   'config:block:add:@mallory\n',
+  'gate:show:chat\n',
 ];
 
 const List<String> subcommandsAllowedWithoutAuth = [
@@ -653,6 +659,7 @@ const List<String> representativeListenerCommands = [
   'batch:lookup:public:publickey@alice\n',
   'stats\n',
   'config:block:add:@mallory\n',
+  'gate:show:chat\n',
 ];
 
 /// A socket whose every fault can be injected: what it delivers, when, whether
