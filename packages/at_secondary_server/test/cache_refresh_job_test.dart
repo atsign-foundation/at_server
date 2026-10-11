@@ -256,7 +256,83 @@ void main() {
       expect(result['deletedByRemote'], 1);
       expect(result['exceptionFromRemote'], 1);
     });
+
+    test('a copy whose write throws does not stop the rest being refreshed',
+        () async {
+      for (final String key in ['a.key.app@bob', 'b.key.app@bob']) {
+        await keyValueStore.put(
+            'cached:public:$key',
+            AtData()
+              ..data = 'old'
+              ..metaData = (AtMetaData()..ttr = 1));
+        when(() => mockOutboundConnection.write('lookup:all:$key\n'))
+            .thenAnswer((_) async {
+          final String json = SecondaryUtil.prepareResponseData(
+              'all',
+              AtData()
+                ..data = 'new'
+                ..metaData = (AtMetaData()
+                  ..createdAt = DateTime.now().toUtc()
+                  ..updatedAt = DateTime.now().toUtc()
+                  ..ttr = 1),
+              key: 'public:$key')!;
+          socketOnDataFn('data:$json\n@bob@'.codeUnits);
+        });
+      }
+      await Future.delayed(const Duration(milliseconds: 1100));
+      final _PutFails manager = _PutFails('cached:public:a.key.app@bob');
+      expect(await manager.getKeyNamesToRefresh(),
+          containsAll(['cached:public:a.key.app@bob', 'cached:public:b.key.app@bob']));
+
+      final Map result = await AtCacheRefreshJob(alice, manager).refreshNow();
+
+      expect(manager.attempted, isTrue,
+          reason: 'the failing write has to happen for this to mean anything');
+      expect((await keyValueStore.get('cached:public:b.key.app@bob'))?.data,
+          'new');
+      expect(result['writeFailed'], 1);
+    });
+
+    test('a copy gone before it is read is not counted as a leftover',
+        () async {
+      final _ListsAGoneCopy manager = _ListsAGoneCopy();
+
+      final Map result = await AtCacheRefreshJob(alice, manager).refreshNow();
+
+      expect(result['leftoversDeleted'], 0);
+      verifyNever(() => mockOutboundConnection.write(any()));
+    });
   });
 }
 
 class _MockAtCacheManager extends Mock implements AtCacheManager {}
+
+/// Throws from [put] for [failing], and writes every other copy.
+class _PutFails extends AtCacheManager {
+  _PutFails(this.failing)
+      : super(alice, keyValueStore, mockOutboundClientManager,
+            notificationManager);
+
+  final String failing;
+  bool attempted = false;
+
+  @override
+  Future<CacheUpdateResult> put(String cachedKeyName, AtData atData) {
+    if (cachedKeyName == failing) {
+      attempted = true;
+      throw DataStoreException('a write that fails');
+    }
+    return super.put(cachedKeyName, atData);
+  }
+}
+
+/// Lists one cached copy that is no longer in the keystore.
+class _ListsAGoneCopy extends AtCacheManager {
+  _ListsAGoneCopy()
+      : super(alice, keyValueStore, mockOutboundClientManager,
+            notificationManager);
+
+  @override
+  Future<List<String>> getKeyNamesToRefresh() async =>
+      ['cached:public:gone.key.app@bob'];
+}

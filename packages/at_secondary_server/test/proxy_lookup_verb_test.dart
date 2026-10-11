@@ -30,17 +30,8 @@ void main() {
       ///     of another atSign
       ///   * If ttr is greater than zero, then the intent is to invalidate the cache for this record
       ///     every ttr seconds
-      ///   * If ttr is null or 0, then the record should not be cacheable. HOWEVER!
-      ///     * For historical reasons, we have ended up caching data even if the ttr is null or zero
-      ///       1) for other atSign's public encryption keys. These should actually be created with ttr
-      ///          of -1 anyway, so we will explicitly set ttr to -1 for matching keys (public:publickey@atSign)
-      ///       2) for any public keys, we were explicitly setting ttr to -1. This is strictly incorrect.
-      ///          From now on, we will keep ttr as null, but will set a **ttl** of 24 hours on the cached value.
-      ///          i.e. we will not automatically refresh the cache; rather, the item in the cache will expire
-      ///          and be deleted after 24 hours. A subsequent plookup will result in a remote lookup.
-      ///          This seems a reasonable compromise between the old definitely incorrect behaviour where
-      ///          all public data was cached indefinitely, versus immediately starting to strictly enforce
-      ///          the caching rules as intended, likely impacting existing applications' performance.
+      ///   * If ttr is null or 0, the record is not cached, except for another atSign's
+      ///     encryption public key (public:publickey@atSign), which is cached with a ttr of -1
       ///
       /// This test group tests all of the above behaviour
       ///
@@ -90,9 +81,7 @@ void main() {
       // To test various flavours of ttr without repeating a ton of code for each one
       Future<void> lookupAndCache(
           {required int? ttr,
-          required bool expectDifferentMetadata,
-          required int? expectedTtl,
-          required int? expectedTtr}) async {
+          required bool expectCached}) async {
         AtData bobData = createRandomAtData(bob);
         bobData.metaData!.ttr = ttr;
         bobData.metaData!.ttb = null;
@@ -114,25 +103,15 @@ void main() {
         await plookupVerbHandler.process(
             'plookup:all:$keyName', inboundConnection);
 
-        // Even if the ttr is null or zero, our compromise rules for now are that
-        // we will cache the record, keep ttr as null (or zero), but assign a ttl of 24 hours
-        expect(await keyValueStore.exists(cachedKeyName), true);
-        // Cached data should be identical to what was sent by @bob
-        AtData cachedAtData = (await keyValueStore.get(cachedKeyName))!;
-        expect(cachedAtData.data, bobData.data);
-        // The metadata should NOT match, as we have set a ttl
-        if (expectDifferentMetadata) {
-          expect(
-              cachedAtData.metaData!.toCommonsMetadata() ==
-                  bobData.metaData!.toCommonsMetadata(),
-              false);
-          // But if we then set the ttl and/or ttr on the original metaData, the metadata should match exactly
-          bobData.metaData!.ttl = expectedTtl;
-          bobData.metaData!.ttr = expectedTtr;
+        expect(await keyValueStore.exists(cachedKeyName), expectCached);
+        if (expectCached) {
+          // Cached data and metadata should be identical to what was sent by @bob
+          AtData cachedAtData = (await keyValueStore.get(cachedKeyName))!;
+          expect(cachedAtData.data, bobData.data);
+          expect(cachedAtData.metaData!.toCommonsMetadata(),
+              bobData.metaData!.toCommonsMetadata());
+          expect(cachedAtData.key, cachedKeyName);
         }
-        expect(cachedAtData.metaData!.toCommonsMetadata(),
-            bobData.metaData!.toCommonsMetadata());
-        expect(cachedAtData.key, cachedKeyName);
 
         // First plookup:all (when it's not in the cache) will have 'key' in the response of e.g. public:first_name.wavi@bob
         Map mapSentToClient =
@@ -145,36 +124,19 @@ void main() {
         expect(mapSentToClient['key'], 'public:$keyName');
 
         expect(await keyValueStore.exists(keyName), false);
-        expect(await keyValueStore.exists(cachedKeyName), true);
       }
 
       test('plookup - not in cache but exists on remote - ttr null', () async {
-        await lookupAndCache(
-            ttr: null,
-            expectDifferentMetadata: true,
-            expectedTtl: 24 * 60 * 60 * 1000,
-            expectedTtr: null);
+        await lookupAndCache(ttr: null, expectCached: false);
       });
       test('plookup - not in cache but exists on remote - ttr 0', () async {
-        await lookupAndCache(
-            ttr: 0,
-            expectDifferentMetadata: true,
-            expectedTtl: 24 * 60 * 60 * 1000,
-            expectedTtr: 0);
+        await lookupAndCache(ttr: 0, expectCached: false);
       });
       test('plookup - not in cache but exists on remote - ttr 10', () async {
-        await lookupAndCache(
-            ttr: 10,
-            expectDifferentMetadata: false,
-            expectedTtl: null,
-            expectedTtr: 10);
+        await lookupAndCache(ttr: 10, expectCached: true);
       });
       test('plookup - not in cache but exists on remote - ttr -1', () async {
-        await lookupAndCache(
-            ttr: -1,
-            expectDifferentMetadata: false,
-            expectedTtl: null,
-            expectedTtr: -1);
+        await lookupAndCache(ttr: -1, expectCached: true);
       });
 
       test('plookup - in cache and valid', () async {

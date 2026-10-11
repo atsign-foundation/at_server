@@ -6,6 +6,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/hive.dart';
 import 'package:at_secondary/src/config/at_config.dart';
+import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -166,6 +167,102 @@ void main() async {
       expect(connectionMetadata.from, true);
       expect(connectionMetadata.fromAtSign, '@nairobi');
     });*/
+  });
+
+  group('A from verb on a connection that has authenticated', () {
+    late FromVerbHandler verbHandler;
+    late _ClosableConnection connection;
+
+    setUp(() {
+      AtSecondaryServerImpl.getInstance().currentAtSign = alice;
+      verbHandler = FromVerbHandler(keyValueStore,
+          commitLog: atCommitLog, accessLog: atAccessLog);
+      connection = _ClosableConnection();
+    });
+
+    test('A connection stays bound to the atSign it proved', () async {
+      connection.metaData
+        ..from = true
+        ..fromAtSign = '@chuck'.toAtsign()
+        ..isPolAuthenticated = true;
+
+      await verbHandler.process('from:@carol', connection);
+
+      expect(connection.lastWrittenData, startsWith('error:AT0009'));
+      expect(connection.closed, isTrue);
+      expect(connection.metaData.fromAtSign, '@chuck'.toAtsign());
+      expect(connection.metaData.isPolAuthenticated, isTrue);
+    });
+
+    test('An owner connection stays bound to its atSign', () async {
+      connection.metaData
+        ..self = true
+        ..isAuthenticated = true;
+
+      await verbHandler.process('from:@chuck', connection);
+
+      expect(connection.lastWrittenData, startsWith('error:AT0009'));
+      expect(connection.closed, isTrue);
+      expect(connection.metaData.from, isFalse);
+      expect(connection.metaData.fromAtSign, isNull);
+    });
+
+    test('a from: run by another verb, as batch runs it, is refused', () async {
+      connection.metaData.isAuthenticated = true;
+      final verbParams = HashMap<String, String>()
+        ..[AtConstants.atSign] = '@chuck';
+
+      await expectLater(
+          verbHandler.processVerb(Response(), verbParams, connection),
+          throwsA(isA<UnAuthorizedException>()));
+      expect(connection.metaData.from, isFalse);
+      expect(connection.metaData.fromAtSign, isNull);
+    });
+
+    group(
+        'A from: naming the atSign the connection proved is answered as before',
+        () {
+      test('on an owner connection', () async {
+        connection.metaData
+          ..self = true
+          ..isAuthenticated = true;
+
+        await verbHandler.process('from:@alice', connection);
+
+        expect(connection.lastWrittenData, startsWith('data:'));
+        expect(connection.closed, isFalse);
+        expect(connection.metaData.isAuthenticated, isTrue);
+      });
+
+      test('on a pol connection', () async {
+        connection.metaData
+          ..from = true
+          ..fromAtSign = '@chuck'.toAtsign()
+          ..isPolAuthenticated = true;
+
+        try {
+          await verbHandler.process('from:@chuck', connection);
+        } on SecondaryNotFoundException {
+          // NOTE with clientCertificateRequired, the certificate check that
+          // follows has no directory entry for @chuck in this harness.
+        }
+
+        expect(connection.lastWrittenData ?? '',
+            isNot(startsWith('error:AT0009')));
+        expect(connection.closed, isFalse);
+        expect(connection.metaData.fromAtSign, '@chuck'.toAtsign());
+        expect(connection.metaData.isPolAuthenticated, isTrue);
+      });
+    });
+
+    test('a from: before authentication may be sent again', () async {
+      await verbHandler.process('from:@alice', connection);
+      await verbHandler.process('from:@alice', connection);
+
+      expect(connection.lastWrittenData, startsWith('data:'));
+      expect(connection.closed, isFalse);
+      expect(connection.metaData.self, isTrue);
+    });
   });
 
   group('A from verb clientConfig', () {
@@ -343,6 +440,16 @@ void main() async {
 
   if (Directory(storageDir).existsSync()) {
     Directory(storageDir).deleteSync(recursive: true);
+  }
+}
+
+/// A [DummyInboundConnection] that records whether it was closed.
+class _ClosableConnection extends DummyInboundConnection {
+  bool closed = false;
+
+  @override
+  Future<void> close() async {
+    closed = true;
   }
 }
 

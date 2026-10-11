@@ -70,9 +70,6 @@ class AtSecondaryConfig {
   static const int _notificationKeyStoreSizeInKB = -1;
   static const bool _enableNotificationCompactor = true;
 
-  //Refresh Job
-  static const int _runRefreshJobHour = 3;
-
   //Connection
   static const int _inboundMaxLimit = 200;
   static const int _outboundMaxLimit = 200;
@@ -185,15 +182,18 @@ class AtSecondaryConfig {
     }
   }
 
-  static int? get runRefreshJobHour {
-    var result = _getIntEnvVar('runRefreshJobHour');
+  /// The hour an operator set for the daily cache refresh, as given in the
+  /// `runRefreshJobHour` environment variable or the yaml's
+  /// `refreshJob.runJobHour`, or null when neither is set.
+  static String? get runRefreshJobHour {
+    final String? result = _getStringEnvVar('runRefreshJobHour');
     if (result != null) {
       return result;
     }
     try {
-      return getConfigFromYaml(['refreshJob', 'runJobHour']);
+      return getConfigFromYaml(['refreshJob', 'runJobHour']).toString();
     } on ElementNotFoundException {
-      return _runRefreshJobHour;
+      return null;
     }
   }
 
