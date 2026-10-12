@@ -385,13 +385,22 @@ one write.
 As first ruled, these were records in a reserved namespace, written with
 `skipCommit` as the blocklist is. `local:` replaced that the same day.
 
+As first written, the reason below said a blanket refusal "breaks nothing". It
+broke one test: at_client_sdk's functional pack proved a local key never synced
+by looking it up on the atServer and expecting key-not-found. On 2026-10-12
+gkc ruled that the test moves rather than the answer, so it accepts either.
+
 **Why:** a record that synced could be edited in a client's local store and
 pushed, and refusing that push leaves the client retrying it every sync round
-(D13). No atServer code and no client writes `local:` keys on the atServer
-today, so a blanket refusal breaks nothing, and the prefix already means "stays
-in this store" on a client. The atServer's existing reserved namespace,
-`__atserver`, was considered and not chosen: every enrollment reads it, and its
-event records sync, which is the opposite of what this state needs.
+(D13). No atServer code wrote `local:` keys on the atServer before the gate,
+and no client sends one: at_client keeps `get` and `put` of a local key on the
+device, and `delete`'s grammar takes no key with a colon. So the refusal changes
+nothing a client does, and the prefix already means "stays in this store" on a
+client. The only reader is a test, at_client_sdk's functional check that a
+local key never synced, which accepts the refusal as well as key-not-found. The
+atServer's existing reserved namespace, `__atserver`, was considered and not
+chosen: every enrollment reads it, and its event records sync, which is the
+opposite of what this state needs.
 
 **Gaps the change closes:** scan's hidden-key filter (`_isPrivateKeyForAtSign`)
 does not hide `local:`, and `llookup`'s grammar accepts a `local:` key. [design.md,
