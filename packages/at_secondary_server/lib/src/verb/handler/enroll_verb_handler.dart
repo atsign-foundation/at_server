@@ -373,6 +373,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (AbstractVerbHandler.isCramConnection(atConnection.metaData as InboundConnectionMetadata)) {
       enrollNamespaces[EnrollmentConstants.enrollManageNamespace] = 'rw';
       enrollNamespaces[EnrollmentConstants.allNamespaces] = 'rw';
+      // The atSign's root never expires, whatever expiry it asked for.
+      enrollmentValue.apkamKeysExpiryDuration = Duration.zero;
       enrollmentValue.approval = EnrollApproval(EnrollmentStatus.approved.name);
       responseJson['status'] = 'approved';
       final inboundConnectionMetadata =

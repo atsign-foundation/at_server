@@ -56,14 +56,9 @@ void main() {
     return id;
   }
 
-  /// Runs `enroll:<operation>` on [targetId] over a connection authenticated
-  /// as [callerId], or over a CRAM connection when [callerId] is null.
-  Future<Response> decide(
-      String operation, String? callerId, String targetId) async {
-    inboundConnection.metaData
-      ..isAuthenticated = true
-      ..authType = callerId == null ? AuthType.cram : AuthType.apkam;
-    inboundConnection.metadata.enrollmentId = callerId;
+  /// Runs `enroll:<operation>` on [targetId] over [inboundConnection] as it
+  /// stands.
+  Future<Response> send(String operation, String targetId) async {
     final p = EnrollParams()..enrollmentId = targetId;
     if (operation == 'approve') {
       p
@@ -80,6 +75,41 @@ void main() {
         inboundConnection);
     expect(r.isError, false, reason: '${r.errorMessage}');
     return r;
+  }
+
+  /// Runs `enroll:<operation>` on [targetId] over a connection authenticated
+  /// as [callerId], or over a CRAM connection when [callerId] is null.
+  Future<Response> decide(String operation, String? callerId, String targetId) {
+    inboundConnection.metaData
+      ..isAuthenticated = true
+      ..authType = callerId == null ? AuthType.cram : AuthType.apkam;
+    inboundConnection.metadata.enrollmentId = callerId;
+    return send(operation, targetId);
+  }
+
+  /// Sends `enroll:request` over a CRAM connection, asking for [asking], and
+  /// returns the enrollment it creates, which the connection then carries.
+  Future<String> requestOverCram({Duration? asking}) async {
+    inboundConnection.metaData
+      ..isAuthenticated = true
+      ..authType = AuthType.cram
+      ..sessionID = DateTime.now().microsecondsSinceEpoch.toString();
+    inboundConnection.metadata.enrollmentId = null;
+    final ep = EnrollParams()
+      ..appName = 'cram-app'
+      ..deviceName = 'cram-device-${DateTime.now().microsecondsSinceEpoch}'
+      ..apkamPublicKey = 'apkam public key cram'
+      ..encryptedAPKAMSymmetricKey = 'encrypted apkam aes key cram'
+      ..namespaces = {'*': 'rw'}
+      ..apkamKeysExpiryDuration = asking;
+    final r = Response();
+    await etu.evh.processVerb(
+        r,
+        getVerbParam(
+            VerbSyntax.enroll, 'enroll:request:${jsonEncode(ep.toJson())}'),
+        inboundConnection);
+    expect(r.isError, false, reason: '${r.errorMessage}');
+    return jsonDecode(r.data!)['enrollmentId'];
   }
 
   Future<DateTime?> expiryOf(String key) async =>
@@ -214,6 +244,43 @@ void main() {
 
     expect(await statusOf(b), EnrollmentStatus.approved.name);
     expect(await recordExpiry(b), isNull);
+
+    final b2 = await pending('b2');
+    final String root = await requestOverCram(asking: Duration(hours: 1));
+    expect(inboundConnection.metadata.enrollmentId, root,
+        reason: 'precondition: a CRAM connection that has run enroll:request '
+            'carries the enrollment it created');
+
+    await send('approve', b2);
+
+    expect(await statusOf(b2), EnrollmentStatus.approved.name);
+    expect(await recordExpiry(b2), isNull,
+        reason: 'an approval over that connection caps nothing either');
+  });
+
+  test('An enrollment a CRAM connection requests never expires, and says so',
+      () async {
+    final String root = await requestOverCram(asking: Duration(hours: 1));
+
+    expect(await statusOf(root), EnrollmentStatus.approved.name);
+    expect(await recordExpiry(root), isNull);
+
+    final list = Response();
+    await etu.evh.processVerb(list,
+        getVerbParam(VerbSyntax.enroll, 'enroll:list'), inboundConnection);
+    expect(
+        jsonDecode(list.data!)[enMgr.buildEnrollmentKey(root)]
+            ['apkamKeysExpiryInMillis'],
+        0,
+        reason: 'enroll:list');
+    final fetch = Response();
+    await etu.evh.processVerb(
+        fetch,
+        getVerbParam(VerbSyntax.enroll,
+            'enroll:fetch:${jsonEncode({'enrollmentId': root})}'),
+        inboundConnection);
+    expect(jsonDecode(fetch.data!)['apkamKeysExpiryInMillis'], 0,
+        reason: 'enroll:fetch');
   });
 
   test('An enrollment capped at its approver\'s expiry ends with it', () async {

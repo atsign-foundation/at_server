@@ -44,6 +44,10 @@
   the key expiry a request asks for, as `apkamKeysExpiryInMillis` (0 for
   none), as `enroll:list` already did.
 
+- fix: `enroll:list` and `enroll:fetch` report `apkamKeysExpiryInMillis` as 0
+  for an enrollment a CRAM connection requests, which never expires, rather
+  than the expiry the request asked for.
+
 # 3.17.0
 - feat: a notification can be ephemeral (`eph`): no atServer stores it,
   it lives at most two minutes, and an atServer restart loses it. A client can
