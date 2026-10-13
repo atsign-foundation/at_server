@@ -38,15 +38,16 @@ void main() {
   String rotationCommand(String publicKey) =>
       'update:${AtConstants.atPkamPublicKey} $publicKey';
 
-  /// Authenticates the connection with the atSign's CRAM secret.
-  Future<void> authenticateWithCram() async {
-    String fromResponse =
-        await firstAtSignConnection.sendRequestToServer('from:$firstAtSign');
+  /// Authenticates [connection], the test's own by default, with the atSign's
+  /// CRAM secret.
+  Future<void> authenticateWithCram(
+      [OutboundConnectionFactory? connection]) async {
+    final c = connection ?? firstAtSignConnection;
+    String fromResponse = await c.sendRequestToServer('from:$firstAtSign');
     fromResponse = fromResponse.replaceAll('data:', '');
     String cramDigest =
         AuthenticationUtils.getCRAMDigest(firstAtSign, fromResponse);
-    expect(await firstAtSignConnection.sendRequestToServer('cram:$cramDigest'),
-        'data:success');
+    expect(await c.sendRequestToServer('cram:$cramDigest'), 'data:success');
   }
 
   test('pkam authentication using the old syntax', () async {
@@ -114,13 +115,22 @@ void main() {
           'pkam:signingAlgo:ecc_secp256r1:hashingAlgo:sha256:$encodedSignature');
       expect(pkamResult, 'data:success');
     } finally {
-      // Back over CRAM for the same reason: the ECC PKAM connection this test
-      // just proved works is no more entitled to write this key than any
-      // other. Leaving the rig's own keypair behind matters — every other
-      // test in the pack authenticates with it.
-      await authenticateWithCram();
-      await firstAtSignConnection
-          .sendRequestToServer(rotationCommand(pkamPublicKeyMap[firstAtSign]!));
+      // Back over CRAM for the same reason, on a connection of its own: a
+      // cram goes on a connection that has not authenticated, never on this
+      // one, which has. Leaving the rig's own keypair behind matters — every
+      // other test in the pack authenticates with it.
+      final restore = await OutboundConnectionFactory()
+          .initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
+      try {
+        await authenticateWithCram(restore);
+        expect(
+            await restore.sendRequestToServer(
+                rotationCommand(pkamPublicKeyMap[firstAtSign]!)),
+            'data:-1');
+      } finally {
+        await restore.close();
+      }
     }
   });
 }
