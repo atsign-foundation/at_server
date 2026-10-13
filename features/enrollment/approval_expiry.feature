@@ -6,6 +6,8 @@ Feature: An approved enrollment expires no later than the enrollment that approv
   request asked for is kept. No value, zero and a negative value all ask for
   no expiry, and are capped like any other. An approval over a CRAM
   connection, or by an enrollment that never expires, caps nothing.
+  An enrollment a CRAM connection requests is the atSign's root: it never
+  expires, whatever expiry it asks for, and its apkamKeysExpiryInMillis is 0.
 
   The approver's expiry is read from its stored record, which is where a
   bounded replacement's deadline is kept. After approval,
@@ -66,6 +68,12 @@ Feature: An approved enrollment expires no later than the enrollment that approv
     Given enrollment B is pending, asking for no expiry
     When a CRAM-authenticated connection approves B
     Then B never expires
+
+  Scenario: An enrollment a CRAM connection requests never expires, and says so
+    Given a CRAM-authenticated connection to @alice's atServer
+    When it sends enroll:request asking for an apkamKeysExpiryInMillis of 3600000
+    Then the enrollment is approved and never expires
+    And enroll:list and enroll:fetch show its apkamKeysExpiryInMillis as 0
 
   Scenario: An enrollment capped at its approver's expiry ends with it
     Given A expires at T and approved B, which asked for no expiry
