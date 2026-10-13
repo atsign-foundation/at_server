@@ -9,6 +9,9 @@ abstract class OutboundSocketConnection<T extends Socket>
   OutboundSocketConnection(T super.socket);
   bool get authenticated;
   set authenticated(bool b);
+
+  /// Completes once this connection is closed, after its metadata says so.
+  Future<void> get closed;
 }
 
 /// Metadata information for [OutboundSocketConnection]

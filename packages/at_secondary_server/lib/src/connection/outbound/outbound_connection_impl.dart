@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:at_secondary/src/connection/outbound/outbound_connection.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -8,6 +9,11 @@ class OutboundConnectionImpl<T extends Socket>
     extends OutboundSocketConnection {
   @override
   bool authenticated = false;
+
+  final Completer<void> _closed = Completer<void>();
+
+  @override
+  Future<void> get closed => _closed.future;
 
   int get outboundIdleTime {
     if (authenticated) {
@@ -68,6 +74,7 @@ class OutboundConnectionImpl<T extends Socket>
 
     // Some defensive code just in case we accidentally call close multiple times
     if (metaData.isClosed) {
+      _completeClosed();
       return;
     }
 
@@ -87,6 +94,13 @@ class OutboundConnectionImpl<T extends Socket>
       metaData.isStale = true;
     } finally {
       metaData.isClosed = true;
+      _completeClosed();
+    }
+  }
+
+  void _completeClosed() {
+    if (!_closed.isCompleted) {
+      _closed.complete();
     }
   }
 

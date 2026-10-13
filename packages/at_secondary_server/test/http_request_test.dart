@@ -1,11 +1,14 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:at_base2e15/at_base2e15.dart';
 import 'package:at_commons/at_commons.dart' hide StringBuffer;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/server/http_request_handler.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
+import 'package:logging/logging.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
@@ -420,6 +423,78 @@ void main() async {
     expect(request.response.statusCode, HttpStatus.notFound);
     expect(request.response.bodyAsString, '404 Not Found');
   });
+
+  test('a failure moving an expired enrollment\'s data answers 500', () async {
+    final request = createRequest(
+        'GET', 'pub.0bf5a3c2-1111-4222-8333-944455556666.a.__e');
+
+    await AtServerHttpRequestHandler(alice, keyValueStore, _MoveFails())
+        .handle(request);
+
+    expect(request.response.statusCode, HttpStatus.internalServerError);
+  });
+
+  group('An HTTP request is logged with its control characters escaped', () {
+    const String encoded = 'k%0D%1B%5B2J%0Ayy';
+    const String escaped = r'k\r\x1b[2J\nyy';
+
+    /// What [handler] logs, at every level, while it handles [request].
+    Future<List<LogRecord>> logOf(
+        AtServerHttpRequestHandler handler, FakeHttpRequest request) async {
+      final Level prior = handler.logger.logger.level;
+      handler.logger.level = 'finest';
+      final List<LogRecord> records = [];
+      final StreamSubscription<LogRecord> sub =
+          handler.logger.logger.onRecord.listen(records.add);
+      try {
+        await handler.handle(request);
+      } finally {
+        await sub.cancel();
+        handler.logger.logger.level = prior;
+      }
+      return records;
+    }
+
+    void expectEscaped(List<LogRecord> records) {
+      expect(records, isNotEmpty);
+      for (final LogRecord record in records) {
+        expect(record.message, isNot(matches(RegExp(r'[\x00-\x1f\x7f-\x9f]'))),
+            reason: 'logged: ${record.message}');
+      }
+      expect(records.map((r) => r.message).join(' '), contains(escaped));
+    }
+
+    test('in its path', () async {
+      expectEscaped(await logOf(handler, createRequest('GET', encoded)));
+    });
+
+    test('in its query parameters', () async {
+      expectEscaped(
+          await logOf(handler, createRequest('GET', 'key?q=$encoded')));
+    });
+
+    test('when it is not a GET', () async {
+      expectEscaped(await logOf(handler, createRequest('PUT', encoded)));
+    });
+
+    test('when moving expired enrollment data fails', () async {
+      final List<LogRecord> records = await logOf(
+          AtServerHttpRequestHandler(alice, keyValueStore, _MoveFails()),
+          createRequest('GET', encoded));
+      expectEscaped(records);
+      expect(records.map((r) => r.message).join(' '),
+          contains('Failed to move expired enrollment data'));
+    });
+  });
+}
+
+/// An EnrollmentManager whose move of an expired enrollment's data fails.
+class _MoveFails extends EnrollmentManager {
+  _MoveFails() : super(keyValueStore, alice);
+
+  @override
+  Future<void> moveExpiredEnrollmentData(String key) =>
+      throw DataStoreException('a move that fails');
 }
 
 class FakeHttpHeaders extends Fake implements HttpHeaders {
