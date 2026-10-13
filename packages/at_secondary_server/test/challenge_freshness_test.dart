@@ -216,8 +216,8 @@ void main() {
       return r;
     }
 
-    test('a successful cram clears an enrollment id a previous pkam left on '
-        'the connection', () async {
+    test('a successful cram leaves no enrollment id on the connection',
+        () async {
       final (connection, proof) = await issue('_cram-after-pkam');
       (connection.metaData as InboundConnectionMetadata).enrollmentId =
           'left-by-pkam';

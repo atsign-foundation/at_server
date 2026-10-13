@@ -36,6 +36,10 @@
 - perf: a lookup or notification between atServers no longer waits about
   10 ms for the reply to be noticed.
 
+- fix: a `cram:` on a connection that has authenticated with `pkam:` is
+  answered with AT0009, and the connection is closed. A `batch:` answers any
+  `cram:` or `pkam:` among its commands with AT0009 and does not run it.
+
 # 3.17.0
 - feat: a notification can be ephemeral (`eph`): no atServer stores it,
   it lives at most two minutes, and an atServer restart loses it. A client can

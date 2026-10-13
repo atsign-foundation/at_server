@@ -27,6 +27,31 @@ class CramVerbHandler extends AbstractVerbHandler {
     return cram;
   }
 
+  /// What a cram on a connection that has authenticated with pkam is
+  /// answered with.
+  static const String afterPkamRefusal =
+      'cram may not follow a successful pkam on this connection';
+
+  /// Answers a cram on a connection that has authenticated with pkam with
+  /// AT0009 and closes the connection; processes any other cram as usual.
+  @override
+  Future<void> process(String command, InboundConnection atConnection) async {
+    final AuthType? authType = atConnection.metaData.authType;
+    if (authType != AuthType.pkamLegacy && authType != AuthType.apkam) {
+      return super.process(command, atConnection);
+    }
+    logger.warning('Closing session ${atConnection.metaData.sessionID}:'
+        ' $afterPkamRefusal');
+    final response = Response()
+      ..isError = true
+      ..errorCode = 'AT0009'
+      ..errorMessage = afterPkamRefusal;
+    await responseManager
+        .getResponseHandler(getVerb())
+        .process(atConnection, response);
+    await atConnection.close();
+  }
+
   @override
   Future<void> processVerb(
       Response response,
