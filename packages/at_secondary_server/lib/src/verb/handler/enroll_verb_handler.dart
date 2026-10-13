@@ -475,13 +475,15 @@ class EnrollVerbHandler extends AbstractVerbHandler {
               ?.expiresAt
               ?.toUtc();
       if (predecessorExpiresAt != null) {
-        final int remainingMs = predecessorExpiresAt
-            .difference(DateTime.now().toUtc())
-            .inMilliseconds;
+        final DateTime now = DateTime.now().toUtc();
+        final int remainingMs =
+            predecessorExpiresAt.difference(now).inMilliseconds;
         // Zero is the keystore's "never expires".
         final int boundedMs = remainingMs < 1 ? 1 : remainingMs;
         final int statedMs =
             enrollmentValue.apkamKeysExpiryDuration.inMilliseconds;
+        // NOTE carried as an ABSOLUTE either way, from the moment compared
+        // against: a ttl is re-anchored at the write.
         if (statedMs <= 0 || statedMs > boundedMs) {
           logger.warning(
               'Self-enrollment under $predecessorId asked for ${statedMs}ms '
@@ -489,8 +491,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
               '$predecessorExpiresAt; bounding it to ${boundedMs}ms');
           enrollmentValue.apkamKeysExpiryDuration =
               Duration(milliseconds: boundedMs);
-          // Carried as an ABSOLUTE: a ttl is re-anchored at the write.
           boundedDeadline = predecessorExpiresAt;
+        } else {
+          boundedDeadline = now.add(Duration(milliseconds: statedMs));
         }
       }
       // May be absent: a PQ self-enrollment conveys legacy material

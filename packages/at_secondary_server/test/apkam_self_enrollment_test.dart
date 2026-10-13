@@ -797,8 +797,8 @@ void main() {
     });
   });
 
-  /// A successor's term restarts its clock at its OWN write, so an equal term
-  /// always expires later in absolute time than the credential it replaced.
+  /// A successor's record expires no later than its predecessor's, whatever
+  /// term it asks for.
   group('a successor may not outlive its predecessor\'s deadline', () {
     Future<DateTime?> expiryOf(String id) async =>
         (await keyValueStore.get(enMgr.buildEnrollmentKey(id)))
@@ -878,6 +878,36 @@ void main() {
       expect(successorExpiry!.isBefore(rootExpiry!), isTrue,
           reason: 'a successor asking for less than the predecessor has left '
               'keeps its own shorter life');
+    });
+
+    group('Given a predecessor whose record expires at T', () {
+      test(
+          'when it self-enrolls a successor asking for a term that ends '
+          'within a few milliseconds before T, counted from the request, '
+          '150 times, then no successor\'s record expires after T', () async {
+        final List<String> later = [];
+        for (int i = 0; i < 150; i++) {
+          await mintUnder('edge-root-$i', null, ttl: Duration(hours: 1));
+          final DateTime t = (await expiryOf('edge-root-$i'))!;
+          // NOTE a millisecond under the time left as seen here, so the
+          // atServer, comparing a moment later, mostly leaves it uncapped.
+          final int leftMs =
+              t.difference(DateTime.now().toUtc()).inMilliseconds;
+          final r = await selfEnroll(
+              predecessorId: 'edge-root-$i',
+              appName: 'edge-app-$i',
+              deviceName: 'edge-device-$i',
+              apkamKeysExpiryDuration: Duration(milliseconds: leftMs - 1),
+              apsk: {'signingPublicKey': 'k$i', 'signingAlgo': 'mldsa65'});
+          expect(r.isError, false, reason: '${r.errorMessage}');
+          final s = jsonDecode(r.data!)['enrollmentId'] as String;
+          final DateTime st = (await expiryOf(s))!;
+          if (st.isAfter(t)) later.add('$s expires at $st, after $t');
+        }
+        expect(later, isEmpty,
+            reason: 'every successor\'s record expires no later than its '
+                'predecessor\'s');
+      });
     });
   });
 

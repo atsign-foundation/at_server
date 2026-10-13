@@ -48,6 +48,9 @@
   for an enrollment a CRAM connection requests, which never expires, rather
   than the expiry the request asked for.
 
+- fix: a retrofit successor expires no later than its predecessor, whatever
+  term it asks for.
+
 # 3.17.0
 - feat: a notification can be ephemeral (`eph`): no atServer stores it,
   it lives at most two minutes, and an atServer restart loses it. A client can
