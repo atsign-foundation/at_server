@@ -127,10 +127,45 @@ void main() {
         reason: '$what expires at $actual, not $expected');
   }
 
-  /// Checks B's record, both encryption keys stored on approval, and the
-  /// approve response against [expected].
-  Future<void> expectApprovedExpiringAt(
-      String b, Response approval, DateTime expected) async {
+  /// Approves [b] as [a], returning the response and the moments the
+  /// approval began and ended.
+  Future<(Response, DateTime, DateTime)> approveTimed(String a, String b) async {
+    final DateTime start = DateTime.now().toUtc();
+    final Response r = await decide('approve', a, b);
+    return (r, start, DateTime.now().toUtc());
+  }
+
+  /// B's `apkamKeysExpiryInMillis` as [a] reads it through `enroll:list` and
+  /// `enroll:fetch`.
+  Future<List<(String, dynamic)>> termAsRead(String a, String b) async {
+    inboundConnection.metaData
+      ..isAuthenticated = true
+      ..authType = AuthType.apkam;
+    inboundConnection.metadata.enrollmentId = a;
+    final list = Response();
+    await etu.evh.processVerb(
+        list, getVerbParam(VerbSyntax.enroll, 'enroll:list'), inboundConnection);
+    final fetch = Response();
+    await etu.evh.processVerb(
+        fetch,
+        getVerbParam(VerbSyntax.enroll,
+            'enroll:fetch:${jsonEncode({'enrollmentId': b})}'),
+        inboundConnection);
+    return [
+      (
+        'enroll:list',
+        jsonDecode(list.data!)[enMgr.buildEnrollmentKey(b)]
+            ['apkamKeysExpiryInMillis']
+      ),
+      ('enroll:fetch', jsonDecode(fetch.data!)['apkamKeysExpiryInMillis']),
+    ];
+  }
+
+  /// Checks B's record, both encryption keys stored on approval, the approve
+  /// response, and the term [a] reads for B, against [expected], for an
+  /// approval that ran from [start] to [end].
+  Future<void> expectApprovedExpiringAt(String a, String b, Response approval,
+      DateTime expected, DateTime start, DateTime end) async {
     expect(await statusOf(b), EnrollmentStatus.approved.name);
     expectSameMoment(await recordExpiry(b), expected, 'B\'s record');
     expectSameMoment(
@@ -139,6 +174,16 @@ void main() {
         'B\'s self encryption key');
     expect(jsonDecode(approval.data!)['expiresAt'],
         EnrollmentManager.expiresAtField(expected));
+
+    // NOTE a millisecond of slack either way: stored instants are truncated.
+    final int earliest = expected.difference(end).inMilliseconds - 1;
+    final int latest = expected.difference(start).inMilliseconds + 1;
+    for (final (String verb, dynamic term) in await termAsRead(a, b)) {
+      expect(term, isA<int>(), reason: verb);
+      expect(term >= 1 && term >= earliest && term <= latest, isTrue,
+          reason: '$verb shows B\'s apkamKeysExpiryInMillis as $term, not '
+              'the time from its approval to $expected ($earliest..$latest)');
+    }
   }
 
   group('An approval caps the approved enrollment\'s expiry at the approver\'s',
@@ -164,20 +209,19 @@ void main() {
       test(example, () async {
         for (final (int i, Duration? requested) in requests.indexed) {
           final b = await pending('b$i', expiry: requested);
-          final r = await decide('approve', a, b);
-          await expectApprovedExpiringAt(b, r, t);
+          final (r, start, end) = await approveTimed(a, b);
+          await expectApprovedExpiringAt(a, b, r, t, start, end);
         }
       });
     }
 
     test('an expiry earlier than T', () async {
       final b = await pending('b', expiry: Duration(minutes: 10));
+      final (r, start, after) = await approveTimed(a, b);
       // NOTE floored to the millisecond, the precision an expiry is stored at.
       final before = DateTime.fromMillisecondsSinceEpoch(
-          DateTime.now().millisecondsSinceEpoch,
+          start.millisecondsSinceEpoch,
           isUtc: true);
-      final r = await decide('approve', a, b);
-      final after = DateTime.now().toUtc();
 
       final DateTime granted = (await recordExpiry(b))!;
       expect(granted.isBefore(t), isTrue,
@@ -188,7 +232,7 @@ void main() {
           isTrue,
           reason: 'B expires ten minutes after its approval, between '
               '$before and $after plus ten minutes, but at $granted');
-      await expectApprovedExpiringAt(b, r, granted);
+      await expectApprovedExpiringAt(a, b, r, granted, start, after);
     });
   });
 
