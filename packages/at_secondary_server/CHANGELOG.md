@@ -36,6 +36,10 @@
 - perf: a lookup or notification between atServers no longer waits about
   10 ms for the reply to be noticed.
 
+- fix: an approved enrollment expires no later than the enrollment that
+  approved it: the atServer caps its expiry on approval, and the
+  `enroll:approve` response carries `expiresAt`.
+
 # 3.17.0
 - feat: a notification can be ephemeral (`eph`): no atServer stores it,
   it lives at most two minutes, and an atServer restart loses it. A client can

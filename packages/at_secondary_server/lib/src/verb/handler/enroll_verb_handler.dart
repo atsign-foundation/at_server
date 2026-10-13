@@ -755,10 +755,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
     // Read off the connection rather than the request, so an approver cannot
     // name someone else as the admitting party.
+    DateTime? approvedExpiry;
     if (operation == 'approve') {
       final String? approverId = inboundConnectionMetadata.enrollmentId;
       enVal.parentEnrollmentId =
           (approverId != null && approverId.isNotEmpty) ? approverId : null;
+      approvedExpiry = await _settleApprovedExpiry(enMgr, enId, enVal);
     }
 
     AtData atData = AtData()..data = jsonEncode(enVal.toJson());
@@ -773,9 +775,14 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       atData.metaData = emd;
     }
     // NOTE a write that says nothing about expiry must not MOVE expiry, so
-    // the stored absolute is asserted back. `approve` is the exception above.
+    // the stored absolute is asserted back. `approve` asserts the expiry it
+    // settled instead.
     AtAssertedTimestamps? expiryCarry;
-    if (operation != 'approve') {
+    if (operation == 'approve') {
+      if (approvedExpiry != null) {
+        expiryCarry = AtAssertedTimestamps(expiresAt: approvedExpiry);
+      }
+    } else {
       final AtMetaData? stored =
           await keyStore.getMeta(enMgr.buildEnrollmentKey(enId));
       if (stored?.expiresAt != null) {
@@ -791,9 +798,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     }
 
     if (operation == 'approve') {
-      await _storeEncryptionKeys(enId, enrollParams, enVal);
+      await _storeEncryptionKeys(enId, enrollParams, enVal,
+          expiresAt: approvedExpiry);
       // Read off the RECORD, not off these approve params.
       await _publishApskSigningKey(enId, enVal, currentAtSign);
+      responseJson['expiresAt'] = EnrollmentManager.expiresAtField(
+          await enMgr.effectiveExpiryOf(enMgr.buildEnrollmentKey(enId)));
     }
     responseJson['enrollmentId'] = enId;
     // Emitted only when a cascade happened.
@@ -801,6 +811,49 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       responseJson['cascadedEnrollmentIds'] = cascaded;
     }
     return cascadeIds;
+  }
+
+  /// Settles when the approval of [enId] ends it: the expiry its request
+  /// asked for, capped at the expiry stored on the record of the enrollment
+  /// that approved it. Narrows [enVal]'s key-expiry posture to the term
+  /// granted, and returns the moment it ends, or null when it never does.
+  ///
+  /// Reads [EnrollDataStoreValue.parentEnrollmentId], so call it after the
+  /// approver has been recorded there.
+  Future<DateTime?> _settleApprovedExpiry(EnrollmentManager enMgr,
+      String enId, EnrollDataStoreValue enVal) async {
+    final DateTime now = DateTime.now().toUtc();
+    final int requestedMs = enVal.apkamKeysExpiryDuration.inMilliseconds;
+    final String? approverId = enVal.parentEnrollmentId;
+    final DateTime? approverExpiry = approverId == null
+        ? null
+        : (await keyStore.getMeta(enMgr.buildEnrollmentKey(approverId)))
+            ?.expiresAt
+            ?.toUtc();
+
+    // NOTE terms are compared before any deadline is computed, so a term
+    // too long for a DateTime is capped rather than thrown on.
+    DateTime? expiry;
+    if (approverExpiry != null &&
+        (requestedMs <= 0 ||
+            requestedMs >= approverExpiry.difference(now).inMilliseconds)) {
+      logger.info('Enrollment $enId asked for a key expiry of '
+          '${requestedMs}ms; capping it at $approverExpiry, the expiry of '
+          '$approverId, which approved it');
+      expiry = approverExpiry;
+    } else if (requestedMs > 0) {
+      expiry = now.add(enVal.apkamKeysExpiryDuration);
+    }
+
+    if (expiry == null) {
+      enVal.apkamKeysExpiryDuration = Duration.zero;
+      return null;
+    }
+    final int termMs = expiry.difference(now).inMilliseconds;
+    // Zero is the keystore's "never expires".
+    enVal.apkamKeysExpiryDuration =
+        Duration(milliseconds: termMs < 1 ? 1 : termMs);
+    return expiry;
   }
 
   /// Refuses an operation that would make [enId] active while the enrollment
@@ -1039,13 +1092,19 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// Stores the encrypted default encryption private key and the encrypted
   /// self encryption key against the enrollment's `__manage` keys, which an
   /// approving app reads to convey the keys to a new enrolling app.
+  ///
+  /// Both expire at [expiresAt], the moment the approval ends the
+  /// enrollment, or never when it is null.
   Future<void> _storeEncryptionKeys(
     String newEnrollmentId,
     EnrollParams enrollParams,
-    EnrollDataStoreValue enVal,
-  ) async {
+    EnrollDataStoreValue enVal, {
+    required DateTime? expiresAt,
+  }) async {
     AtMetaData atMetaData = AtMetaData();
     atMetaData.ttl = enVal.apkamKeysExpiryDuration.inMilliseconds;
+    final AtAssertedTimestamps? asserted =
+        expiresAt == null ? null : AtAssertedTimestamps(expiresAt: expiresAt);
 
     var privateKeyJson = {};
     privateKeyJson['value'] = enrollParams.encryptedDefaultEncryptionPrivateKey;
@@ -1057,7 +1116,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         AtData()
           ..data = jsonEncode(privateKeyJson)
           ..metaData = atMetaData,
-        skipCommit: true);
+        skipCommit: true,
+        assertedTimestamps: asserted);
 
     var selfKeyJson = {};
     selfKeyJson['value'] = enrollParams.encryptedDefaultSelfEncryptionKey;
@@ -1069,7 +1129,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         AtData()
           ..data = jsonEncode(selfKeyJson)
           ..metaData = atMetaData,
-        skipCommit: true);
+        skipCommit: true,
+        assertedTimestamps: asserted);
   }
 
   /// Refuses a request carrying both `_apsk` shapes, and refuses one whose
