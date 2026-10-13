@@ -42,6 +42,7 @@ Feature: An approved enrollment expires no later than the enrollment that approv
     And B's record expires at <expiry>
     And the encryption keys stored for B on approval expire at <expiry>
     And the approve response carries expiresAt <expiry>
+    And enroll:list and enroll:fetch show B's apkamKeysExpiryInMillis as the time from its approval to <expiry>
 
     Examples:
       | requested                       | expiry                 |
