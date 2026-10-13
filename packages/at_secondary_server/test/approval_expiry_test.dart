@@ -274,4 +274,64 @@ void main() {
 
     expectSameMoment(await recordExpiry(b), t, 'B\'s record');
   });
+
+  group('An approver sees the expiry a pending request asks for', () {
+    Future<dynamic> throughList(String a, String b) async {
+      inboundConnection.metaData
+        ..isAuthenticated = true
+        ..authType = AuthType.apkam;
+      inboundConnection.metadata.enrollmentId = a;
+      final r = Response();
+      await etu.evh.processVerb(
+          r, getVerbParam(VerbSyntax.enroll, 'enroll:list'), inboundConnection);
+      expect(r.isError, false, reason: '${r.errorMessage}');
+      return jsonDecode(r.data!)[enMgr.buildEnrollmentKey(b)]
+          ['apkamKeysExpiryInMillis'];
+    }
+
+    Future<dynamic> throughFetch(String a, String b) async {
+      inboundConnection.metaData
+        ..isAuthenticated = true
+        ..authType = AuthType.apkam;
+      inboundConnection.metadata.enrollmentId = a;
+      final r = Response();
+      await etu.evh.processVerb(
+          r,
+          getVerbParam(VerbSyntax.enroll,
+              'enroll:fetch:${jsonEncode({'enrollmentId': b})}'),
+          inboundConnection);
+      expect(r.isError, false, reason: '${r.errorMessage}');
+      return jsonDecode(r.data!)['apkamKeysExpiryInMillis'];
+    }
+
+    Future<dynamic> throughNotification(String a, String b) async {
+      final String key = '$b.new.enrollments.__manage$alice';
+      for (final id in await (await notifStore.getKeys()).toList()) {
+        final n = await notifStore.get(id);
+        if (n != null && n.notification == key) {
+          return jsonDecode(n.atValue!)['apkamKeysExpiryInMillis'];
+        }
+      }
+      fail('no notification announces $key');
+    }
+
+    for (final (String requested, Duration? expiry, int value) in [
+      ('an expiry of 1 hour', Duration(hours: 1), 3600000),
+      ('no expiry', null, 0),
+    ]) {
+      for (final (String read, Future<dynamic> Function(String, String) via)
+          in [
+        ('enroll:list', throughList),
+        ('enroll:fetch', throughFetch),
+        ('the new.enrollments.__manage notification', throughNotification),
+      ]) {
+        test('$requested, through $read', () async {
+          final a = await approver('a');
+          final b = await pending('b', expiry: expiry);
+
+          expect(await via(a, b), value);
+        });
+      }
+    }
+  });
 }

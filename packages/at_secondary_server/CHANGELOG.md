@@ -40,6 +40,10 @@
   approved it: the atServer caps its expiry on approval, and the
   `enroll:approve` response carries `expiresAt`.
 
+- feat: `enroll:fetch` and the `new.enrollments.__manage` notification carry
+  the key expiry a request asks for, as `apkamKeysExpiryInMillis` (0 for
+  none), as `enroll:list` already did.
+
 # 3.17.0
 - feat: a notification can be ephemeral (`eph`): no atServer stores it,
   it lives at most two minutes, and an atServer restart loses it. A client can

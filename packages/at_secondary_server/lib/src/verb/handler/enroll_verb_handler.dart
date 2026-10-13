@@ -265,6 +265,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       'encryptedAPKAMSymmetricKey':
           enrollDataStoreValue.encryptedAPKAMSymmetricKey,
       'status': enrollDataStoreValue.approval?.state,
+      'apkamKeysExpiryInMillis':
+          enrollDataStoreValue.apkamKeysExpiryDuration.inMilliseconds,
       'expiresAt': EnrollmentManager.expiresAtField(
           await enMgr.effectiveExpiryOf(
               enMgr.buildEnrollmentKey(targetEnrollmentId))),
@@ -523,7 +525,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     responseJson['status'] = 'pending';
     // Every check runs before the notification.
     _validateRecordSize(enrollmentValue);
-    await _storeNotification(enrollmentKey, enrollParams, currentAtSign);
+    await _storeNotification(enrollmentKey, enrollParams, currentAtSign,
+        apkamKeysExpiry: enrollmentValue.apkamKeysExpiryDuration);
     AtData enrollData = AtData()
       ..data = jsonEncode(enrollmentValue.toJson())
       // A pending enrollment expires after the configured limit.
@@ -1342,9 +1345,10 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
   /// Announces a pending enrollment to approver apps as a self notification
   /// keyed `<enrollmentId>.new.enrollments.__manage`, carrying the encrypted
-  /// APKAM symmetric key.
+  /// APKAM symmetric key and the key expiry the request asks for.
   Future<void> _storeNotification(
-      String key, EnrollParams enrollParams, String atSign) async {
+      String key, EnrollParams enrollParams, String atSign,
+      {required Duration apkamKeysExpiry}) async {
     AtNotification? atNotification;
     try {
       var notificationValue = {};
@@ -1356,6 +1360,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       notificationValue[AtConstants.appName] = enrollParams.appName;
       notificationValue[AtConstants.deviceName] = enrollParams.deviceName;
       notificationValue[AtConstants.namespace] = enrollParams.namespaces;
+      notificationValue['apkamKeysExpiryInMillis'] =
+          apkamKeysExpiry.inMilliseconds;
       logger.finer('notificationValue:$notificationValue');
       atNotification = (AtNotificationBuilder()
             ..notification = key
