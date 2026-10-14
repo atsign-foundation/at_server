@@ -115,10 +115,9 @@ void main() {
           'pkam:signingAlgo:ecc_secp256r1:hashingAlgo:sha256:$encodedSignature');
       expect(pkamResult, 'data:success');
     } finally {
-      // Back over CRAM for the same reason, on a connection of its own: a
-      // cram goes on a connection that has not authenticated, never on this
-      // one, which has. Leaving the rig's own keypair behind matters — every
-      // other test in the pack authenticates with it.
+      // NOTE a cram may not follow a pkam on one connection, so the rig's
+      // keypair, which every other test authenticates with, goes back over a
+      // fresh one.
       final restore = await OutboundConnectionFactory()
           .initiateConnectionWithListener(
               firstAtSign, firstAtSignHost, firstAtSignPort);
