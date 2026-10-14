@@ -30,6 +30,10 @@
 - fix: a `from:` naming another atSign on a connection that has already
   authenticated is answered with AT0009, and the connection is closed.
 
+- fix: a `lookup:` from another atServer that has proved itself with `pol`
+  may name only this atServer's atSign as the key's owner. A lookup naming
+  another owner is answered with AT0009, and the connection is closed.
+
 - fix: an HTTP request's path and query parameters are logged with control
   characters escaped.
 
