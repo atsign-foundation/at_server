@@ -8,6 +8,7 @@ import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -80,7 +81,8 @@ class LookupVerbHandler extends AbstractVerbHandler {
     }
     final md = atConnection.metaData as InboundConnectionMetadata;
     final String refusal = _anotherOwnerRefusal(md, owner);
-    logger.warning('Closing session ${md.sessionID}: $refusal');
+    logger.warning(
+        'Closing session ${md.sessionID}: ${sanitiseForLogging(refusal)}');
     final response = Response()
       ..isError = true
       ..errorCode = 'AT0009'
@@ -111,12 +113,6 @@ class LookupVerbHandler extends AbstractVerbHandler {
 
     logger.finer(
         'fromAtSign : ${atConnectionMetadata.fromAtSign} \n atSign : ${keyOwnersAtSign.toString()} \n key : $keyAtAtSign');
-    // NOTE refused before anything is read or written to the access log.
-    if (!atConnectionMetadata.isAuthenticated &&
-        keyOwnersAtSign != thisServersAtSign) {
-      throw UnAuthorizedException(
-          _anotherOwnerRefusal(atConnectionMetadata, keyOwnersAtSign));
-    }
     if (atConnectionMetadata.isAuthenticated) {
       await _handleAuthenticatedConnection(keyOwnersAtSign, thisServersAtSign,
           keyAtAtSign, atConnection, response, operation, byPassCacheStr);

@@ -32,13 +32,25 @@ void main() {
   group(
       'A connection that has not authenticated may look up only the keys of '
       'the atSign it is on', () {
-    for (final (String? first, String lookup) in [
-      ('from:$atSign', 'lookup:public:phone.wavi@bob'),
-      ('from:$atSign', 'lookup:phone.wavi@bob'),
-      ('to:$atSign', 'lookup:public:phone.wavi@bob'),
-      (null, 'lookup:public:phone.wavi@bob'),
+    for (final (String connection, String? first, String lookup) in [
+      (
+        'a client has sent from:$atSign',
+        'from:$atSign',
+        'lookup:public:phone.wavi@bob'
+      ),
+      (
+        'a client has sent from:$atSign',
+        'from:$atSign',
+        'lookup:phone.wavi@bob'
+      ),
+      (
+        'a peer has sent to:$atSign',
+        'to:$atSign',
+        'lookup:public:phone.wavi@bob'
+      ),
+      ('a client has sent nothing yet', null, 'lookup:public:phone.wavi@bob'),
     ]) {
-      test('${first ?? 'nothing sent'} | $lookup', () async {
+      test('$connection | $lookup', () async {
         final (SecureSocket socket, Future<String?> Function() next) =
             await unauthenticated(first);
 

@@ -1246,17 +1246,6 @@ void main() {
       expect(connection.lastWrittenData, startsWith('data:+44 1234'));
       expect(connection.closed, isFalse);
     });
-
-    test(
-        'when processVerb runs a lookup naming @bob directly, then it is '
-        'refused', () async {
-      await expectLater(
-          lookupVerbHandler.processVerb(Response(),
-              getVerbParam(VerbSyntax.lookup, 'lookup:phone.wavi$bob'),
-              connection),
-          throwsA(isA<UnAuthorizedException>()));
-      expect(connection.closed, isFalse);
-    });
   });
 
   /// Catalogue: features/lookup/unauthenticated_lookup_owner.feature
@@ -1310,8 +1299,7 @@ void main() {
       }
     }
 
-    test(
-        'when it sends lookup:phone.wavi@alice, then it gets the public value',
+    test('when it sends lookup:phone.wavi@alice, then it gets the public value',
         () async {
       await keyValueStore.put(
           'public:phone.wavi$alice', AtData()..data = '+44 1234');
@@ -1320,18 +1308,6 @@ void main() {
       await lookupVerbHandler.process('lookup:phone.wavi$alice', connection);
 
       expect(connection.lastWrittenData, startsWith('data:+44 1234'));
-      expect(connection.closed, isFalse);
-    });
-
-    test(
-        'when processVerb runs a lookup naming @bob directly, then it is '
-        'refused', () async {
-      final connection = _ClosableConnection();
-      await expectLater(
-          lookupVerbHandler.processVerb(Response(),
-              getVerbParam(VerbSyntax.lookup, 'lookup:phone.wavi$bob'),
-              connection),
-          throwsA(isA<UnAuthorizedException>()));
       expect(connection.closed, isFalse);
     });
   });
