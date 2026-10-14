@@ -1,7 +1,6 @@
-import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
+import 'package:at_functional_test/connection/answer_reader.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
 import 'package:at_functional_test/utils/auth_utils.dart';
 import 'package:at_lookup/at_lookup.dart';
@@ -53,44 +52,17 @@ void main() {
 
   /// A connection to @xavier's atServer on which @jeremy has proved itself by
   /// pol, presenting the virtualenv's client certificate as every atServer
-  /// in it does to another. Its reader answers null once the atServer has
-  /// closed the connection.
+  /// in it does to another, and the reader of its answers.
   Future<(SecureSocket, Future<String?> Function())> polAsJeremy() async {
     const String certs = '../../tools/build_virtual_environment/ve_base/'
         'contents/atsign/secondary/base/certs/mtls';
-    final SecureSocket socket = await SecureSocket.connect(
-        xavierAddress.host, xavierAddress.port,
-        context: SecurityContext(withTrustedRoots: true)
-          ..useCertificateChain('$certs/fullchain.pem')
-          ..usePrivateKey('$certs/privkey.pem'));
-    final StreamController<String> lines = StreamController<String>();
-    String pending = '';
-    socket.listen((data) {
-      pending += utf8.decode(data);
-      int end;
-      while ((end = pending.indexOf('\n')) != -1) {
-        lines.add(pending.substring(0, end).trim());
-        pending = pending.substring(end + 1);
-      }
-      // NOTE a prompt ends an answer without a newline, and pol's answer is
-      // the prompt it opens.
-      if (RegExp(r'^@?[^\s:@]*@$').hasMatch(pending.trim())) {
-        if (pending.trim() != '@') {
-          lines.add(pending.trim());
-        }
-        pending = '';
-      }
-    }, onDone: lines.close, onError: (_) => lines.close());
-    final StreamIterator<String> answers = StreamIterator(lines.stream);
-    Future<String?> next() async {
-      if (!await answers.moveNext().timeout(const Duration(seconds: 30))) {
-        return null;
-      }
-      final String line = answers.current;
-      return RegExp(r'^@(data|error):').hasMatch(line)
-          ? line.substring(1)
-          : line;
-    }
+    final SecureSocket socket =
+        await SecureSocket.connect(xavierAddress.host, xavierAddress.port,
+            context: SecurityContext(withTrustedRoots: true)
+              ..useCertificateChain('$certs/fullchain.pem')
+              ..usePrivateKey('$certs/privkey.pem'));
+    addTearDown(socket.destroy);
+    final Future<String?> Function() next = answersOf(socket);
 
     final String signingKey =
         (await send(jeremyClient, 'llookup:$jeremy:signing_privatekey$jeremy'))
@@ -101,6 +73,7 @@ void main() {
     final List<String> sessionAndChallenge =
         proof!.substring('data:proof:'.length).split(':');
     final String cookie = 'public:${sessionAndChallenge[0]}';
+    addTearDown(() => send(jeremyClient, 'delete:$cookie'));
     expect(
         await send(
             jeremyClient,
@@ -109,7 +82,6 @@ void main() {
         startsWith('data:'));
     socket.write('pol\n');
     expect(await next(), '$jeremy@');
-    await send(jeremyClient, 'delete:$cookie');
     return (socket, next);
   }
 
@@ -128,10 +100,15 @@ void main() {
 
         final String? reply = await next();
         expect(reply, startsWith('error:AT0009'));
-        expect(reply,
-            contains("Lookup from $jeremy may read only $xavier's keys, not @bob's"));
-        expect(await next(), isNull, reason: 'the connection is closed');
-        await socket.close();
+        expect(
+            reply,
+            contains(
+                "Lookup from $jeremy may read only $xavier's keys, not @bob's"));
+        String? after = await next();
+        if (isPrompt(after)) {
+          after = await next();
+        }
+        expect(after, isNull, reason: 'the connection is closed');
       }, timeout: Timeout(Duration(minutes: 2)));
     }
   });
@@ -140,6 +117,7 @@ void main() {
       'A peer that has proved itself by pol still looks up what the called '
       'atSign shared with it', () async {
     final String key = 'phone${Uuid().v4().substring(0, 8)}.wavi';
+    addTearDown(() => send(xavierClient, 'delete:$jeremy:$key$xavier'));
     expect(await send(xavierClient, 'update:$jeremy:$key$xavier +44 1234'),
         startsWith('data:'));
     final (SecureSocket socket, Future<String?> Function() next) =
@@ -148,7 +126,5 @@ void main() {
     socket.write('lookup:$key$xavier\n');
 
     expect(await next(), 'data:+44 1234');
-    await socket.close();
-    await send(xavierClient, 'delete:$jeremy:$key$xavier');
   }, timeout: Timeout(Duration(minutes: 2)));
 }
