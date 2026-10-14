@@ -3,7 +3,7 @@ Feature: A peer that has proved itself by pol may look up only the called atSign
   A connection that has proved itself as another atSign by pol may look up
   keys owned by the atSign whose atServer it called, and no other atSign's.
   A lookup naming another owner is refused with AT0009 and the connection
-  closed. An unauthenticated lookup is unchanged.
+  closed.
 
   Races: the refusal reads only the request and the connection's own state.
   Replay: nothing is consumed or written before the refusal.
