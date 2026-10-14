@@ -92,8 +92,8 @@ class CramVerbHandler extends AbstractVerbHandler {
     if (digestFromClient == expectedDigest) {
       atConnection.metaData.isAuthenticated = true;
       atConnection.metaData.authType = AuthType.cram;
-      // NOTE a CRAM connection stands over no enrollment, so any id left by an
-      // earlier `pkam:` on this connection is cleared.
+      // NOTE a CRAM connection stands over no enrollment, so any id an earlier
+      // `enroll:request` left on this connection is cleared.
       (atConnection.metaData as InboundConnectionMetadata).enrollmentId = null;
       try {
         await accessLog.insert(atSign, cram.name());

@@ -60,6 +60,8 @@ class BatchVerbHandler extends AbstractVerbHandler {
         try {
           if (verbHandler is CramVerbHandler ||
               verbHandler is PkamVerbHandler) {
+            logger.warning('Refusing entry $batchId of a batch on session '
+                '${atConnection.metaData.sessionID}: $authenticationRefusal');
             throw UnAuthorizedException(authenticationRefusal);
           }
           var response =

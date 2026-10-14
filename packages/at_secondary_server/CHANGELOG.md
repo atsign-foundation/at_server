@@ -30,15 +30,17 @@
 - fix: a `from:` naming another atSign on a connection that has already
   authenticated is answered with AT0009, and the connection is closed.
 
+- fix: a `cram:` on a connection that has authenticated with `pkam:` is
+  answered with AT0009, and the connection is closed. A `batch:` answers any
+  `cram:` or `pkam:` among its commands with AT0009 and does not run it.
+  **App authors:** send a `cram:` on a connection that has not authenticated
+  with `pkam:`.
+
 - fix: an HTTP request's path and query parameters are logged with control
   characters escaped.
 
 - perf: a lookup or notification between atServers no longer waits about
   10 ms for the reply to be noticed.
-
-- fix: a `cram:` on a connection that has authenticated with `pkam:` is
-  answered with AT0009, and the connection is closed. A `batch:` answers any
-  `cram:` or `pkam:` among its commands with AT0009 and does not run it.
 
 # 3.17.0
 - feat: a notification can be ephemeral (`eph`): no atServer stores it,

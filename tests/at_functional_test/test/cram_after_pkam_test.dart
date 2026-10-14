@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:at_commons/at_commons.dart' show AtConstants;
 import 'package:at_demo_data/at_demo_data.dart';
 import 'package:at_functional_test/conf/config_util.dart';
 import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
@@ -55,10 +56,26 @@ void main() {
   /// Whether the atServer has stopped answering on [c].
   Future<bool> isClosed(OutboundConnectionFactory c) async {
     try {
-      return (await c.sendRequestToServer('noop:0', maxWaitMilliSeconds: 5000))
-          .isEmpty;
+      await c.sendRequestToServer('noop:0', maxWaitMilliSeconds: 5000);
+      return false;
     } on Exception {
       return true;
+    }
+  }
+
+  /// Checks that [c] is still authenticated with [auth]: only a cram
+  /// connection may write the legacy pkam key, and a pkam connection refuses
+  /// a cram.
+  Future<void> expectAuthenticatedWith(
+      AuthType auth, OutboundConnectionFactory c) async {
+    if (auth == AuthType.cram) {
+      expect(
+          await c.sendRequestToServer(
+              'update:${AtConstants.atPkamPublicKey} ${pkamPublicKeyMap[atSign]}'),
+          'data:-1');
+    } else {
+      expect(await c.sendRequestToServer('cram:${await proofFor('cram', c)}'),
+          startsWith('error:AT0009'));
     }
   }
 
@@ -94,8 +111,7 @@ void main() {
         expect(entries.single['id'], 1);
         expect(entries.single['response']['error_code'], 'AT0009');
         expect(await isClosed(c), isFalse);
-        expect(await c.sendRequestToServer('scan'), startsWith('data:'),
-            reason: 'still authenticated');
+        await expectAuthenticatedWith(auth, c);
       });
     }
   });

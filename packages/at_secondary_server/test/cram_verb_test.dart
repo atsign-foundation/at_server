@@ -226,8 +226,10 @@ void main() {
         await CramVerbHandler(keyValueStore, accessLog: atAccessLog)
             .process('cram:$digest', connection);
 
-        expect(connection.lastWrittenData,
-            startsWith('error:AT0009:${CramVerbHandler.afterPkamRefusal}'));
+        expect(
+            connection.lastWrittenData,
+            startsWith('error:AT0009:cram may not follow a successful pkam on '
+                'this connection'));
         expect(connection.closed, isTrue);
         expect(connection.metaData.authType, authType);
       });

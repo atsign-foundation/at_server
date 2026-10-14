@@ -218,9 +218,9 @@ void main() {
 
     test('a successful cram leaves no enrollment id on the connection',
         () async {
-      final (connection, proof) = await issue('_cram-after-pkam');
+      final (connection, proof) = await issue('_cram-clears-id');
       (connection.metaData as InboundConnectionMetadata).enrollmentId =
-          'left-by-pkam';
+          'left-by-enroll-request';
 
       final Response r = await digestAttempt(connection, proof);
 
