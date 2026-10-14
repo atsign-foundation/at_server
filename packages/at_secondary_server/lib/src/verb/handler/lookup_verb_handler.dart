@@ -40,17 +40,23 @@ class LookupVerbHandler extends AbstractVerbHandler {
     return lookup;
   }
 
-  /// What a pol-authenticated lookup naming an owner other than this
-  /// atServer's atSign is answered with.
-  static String anotherOwnerRefusal(String? from, String here, String owner) =>
-      "Lookup from $from may read only $here's keys, not $owner's";
+  /// What a lookup naming [owner], an atSign other than this atServer's, is
+  /// answered with on a connection that has not authenticated.
+  String _anotherOwnerRefusal(InboundConnectionMetadata md, String owner) {
+    final String here = cacheManager.atSign;
+    return md.isPolAuthenticated
+        ? "Lookup from ${md.fromAtSign} may read only $here's keys, not "
+            "$owner's"
+        : 'Lookup on a connection that has not authenticated may read only '
+            "$here's keys, not $owner's";
+  }
 
-  /// The owner [command] names when [atConnection] is pol-authenticated and
+  /// The owner [command] names when [atConnection] has not authenticated and
   /// that owner is not this atServer's atSign, or null otherwise.
-  String? _anotherOwnerNamedOverPol(
+  String? _anotherOwnerNamedUnauthenticated(
       String command, InboundConnection atConnection) {
     final md = atConnection.metaData as InboundConnectionMetadata;
-    if (md.isAuthenticated || !md.isPolAuthenticated) {
+    if (md.isAuthenticated) {
       return null;
     }
     final String owner;
@@ -62,17 +68,18 @@ class LookupVerbHandler extends AbstractVerbHandler {
     return owner == cacheManager.atSign ? null : owner;
   }
 
-  /// Answers a pol-authenticated lookup naming another owner with AT0009 and
-  /// closes the connection; processes any other lookup as usual.
+  /// Answers a lookup naming another owner on a connection that has not
+  /// authenticated with AT0009 and closes the connection; processes any other
+  /// lookup as usual.
   @override
   Future<void> process(String command, InboundConnection atConnection) async {
-    final String? owner = _anotherOwnerNamedOverPol(command, atConnection);
+    final String? owner =
+        _anotherOwnerNamedUnauthenticated(command, atConnection);
     if (owner == null) {
       return super.process(command, atConnection);
     }
     final md = atConnection.metaData as InboundConnectionMetadata;
-    final String refusal =
-        anotherOwnerRefusal(md.fromAtSign, cacheManager.atSign, owner);
+    final String refusal = _anotherOwnerRefusal(md, owner);
     logger.warning('Closing session ${md.sessionID}: $refusal');
     final response = Response()
       ..isError = true
@@ -104,12 +111,18 @@ class LookupVerbHandler extends AbstractVerbHandler {
 
     logger.finer(
         'fromAtSign : ${atConnectionMetadata.fromAtSign} \n atSign : ${keyOwnersAtSign.toString()} \n key : $keyAtAtSign');
+    // NOTE refused before anything is read or written to the access log.
+    if (!atConnectionMetadata.isAuthenticated &&
+        keyOwnersAtSign != thisServersAtSign) {
+      throw UnAuthorizedException(
+          _anotherOwnerRefusal(atConnectionMetadata, keyOwnersAtSign));
+    }
     if (atConnectionMetadata.isAuthenticated) {
       await _handleAuthenticatedConnection(keyOwnersAtSign, thisServersAtSign,
           keyAtAtSign, atConnection, response, operation, byPassCacheStr);
     } else if (atConnectionMetadata.isPolAuthenticated) {
       await _handlePolAuthConnection(atConnectionMetadata, keyAtAtSign,
-          response, operation, keyOwnersAtSign, thisServersAtSign);
+          response, operation, keyOwnersAtSign);
     } else {
       await _handleUnAuthenticatedConnection(
           keyAtAtSign, response, keyOwnersAtSign, operation);
@@ -161,28 +174,18 @@ class LookupVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  /// Handles requests from pol-authenticated connections.
-  ///   - In cases where the 'atSign' does not possess ownership of the data,
-  ///     a pol authentication is initiated towards the 'atSign' that does own the data.
-  ///     For instance, when the current "atSign" is "alice" and the request is
-  ///     "lookup:phone.wavi@bob"(from an authenticated connection), an interaction
-  ///     occurs where Alice proves identity to Bob, who subsequently returns the
-  ///     value of the key "@alice:phone.wavi@bob".
+  /// Handles a lookup, from a pol-authenticated connection, of a key this
+  /// atServer's atSign owns: answers the record that atSign shared with the
+  /// connection's atSign.
   Future<void> _handlePolAuthConnection(
       InboundConnectionMetadata atConnectionMetadata,
       String keyAtAtSign,
       Response response,
       String? operation,
-      String keyOwnersAtSign,
-      String thisServersAtSign) async {
+      String keyOwnersAtSign) async {
     if (atConnectionMetadata.fromAtSign == null ||
         atConnectionMetadata.fromAtSign!.isEmpty) {
       throw AtLookUpException('AT0013', 'fromAtSign cannot be null or empty');
-    }
-    // NOTE refused before anything is read or logged.
-    if (keyOwnersAtSign != thisServersAtSign) {
-      throw UnAuthorizedException(anotherOwnerRefusal(
-          atConnectionMetadata.fromAtSign, thisServersAtSign, keyOwnersAtSign));
     }
     // In case of a pol authenticated connection, the request originates from a different
     // 'atSign'. In this scenario, set the lookupKey prefix to the requesting 'atSign'.

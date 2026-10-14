@@ -1208,8 +1208,10 @@ void main() {
     ]) {
       test('when it sends $lookup, then it is refused with AT0009 and closed',
           () async {
-        // NOTE held here, so a lookup that read it would answer with it.
-        await keyValueStore.put('$chuck:phone.wavi$bob', AtData()..data = 'held');
+        // NOTE held where a read of phone.wavi@bob would find it; the
+        // keystore holds no record a read of public:phone.wavi@bob could find.
+        await keyValueStore.put(
+            '$chuck:phone.wavi$bob', AtData()..data = 'held');
 
         await lookupVerbHandler.process(lookup, connection);
 
@@ -1246,8 +1248,85 @@ void main() {
     });
 
     test(
-        'when another verb runs a lookup naming @bob, as batch runs it, then '
-        'it is refused', () async {
+        'when processVerb runs a lookup naming @bob directly, then it is '
+        'refused', () async {
+      await expectLater(
+          lookupVerbHandler.processVerb(Response(),
+              getVerbParam(VerbSyntax.lookup, 'lookup:phone.wavi$bob'),
+              connection),
+          throwsA(isA<UnAuthorizedException>()));
+      expect(connection.closed, isFalse);
+    });
+  });
+
+  /// Catalogue: features/lookup/unauthenticated_lookup_owner.feature
+  group('Given a connection that has not authenticated', () {
+    late LookupVerbHandler lookupVerbHandler;
+
+    setUpAll(() async {
+      await verbTestsSetUpAll();
+    });
+
+    setUp(() async {
+      await verbTestsSetUp();
+      lookupVerbHandler = LookupVerbHandler(
+          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+          accessLog: atAccessLog);
+    });
+
+    tearDown(() async => await verbTestsTearDown());
+
+    final Map<String, void Function(_ClosableConnection)> connections = {
+      'a client has sent from:@alice': (c) => c.metadata.self = true,
+      'a peer has sent to:@alice': (c) => c.metadata.toAtSign = alice,
+      'a client has sent nothing yet': (c) {},
+    };
+
+    for (final MapEntry<String, void Function(_ClosableConnection)> given
+        in connections.entries) {
+      for (final String lookup in [
+        'lookup:public:phone.wavi$bob',
+        'lookup:phone.wavi$bob',
+      ]) {
+        test(
+            'and ${given.key}, when it sends $lookup, then it is refused with '
+            'AT0009 and closed', () async {
+          // NOTE held where a read of phone.wavi@bob would find it; the
+          // keystore holds no record a read of public:phone.wavi@bob could
+          // find.
+          await keyValueStore.put(
+              'public:phone.wavi$bob', AtData()..data = 'held');
+          final connection = _ClosableConnection();
+          given.value(connection);
+
+          await lookupVerbHandler.process(lookup, connection);
+
+          expect(
+              connection.lastWrittenData,
+              startsWith('error:AT0009:Lookup on a connection that has not '
+                  "authenticated may read only @alice's keys, not @bob's"));
+          expect(connection.closed, isTrue);
+        });
+      }
+    }
+
+    test(
+        'when it sends lookup:phone.wavi@alice, then it gets the public value',
+        () async {
+      await keyValueStore.put(
+          'public:phone.wavi$alice', AtData()..data = '+44 1234');
+      final connection = _ClosableConnection()..metadata.self = true;
+
+      await lookupVerbHandler.process('lookup:phone.wavi$alice', connection);
+
+      expect(connection.lastWrittenData, startsWith('data:+44 1234'));
+      expect(connection.closed, isFalse);
+    });
+
+    test(
+        'when processVerb runs a lookup naming @bob directly, then it is '
+        'refused', () async {
+      final connection = _ClosableConnection();
       await expectLater(
           lookupVerbHandler.processVerb(Response(),
               getVerbParam(VerbSyntax.lookup, 'lookup:phone.wavi$bob'),
