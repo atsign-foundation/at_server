@@ -11,6 +11,9 @@ Feature: A connection that has authenticated with pkam may not cram, and a batch
   Replay: each cram answers a single-use challenge, so a captured digest
   answers nothing.
   DoS: the refusal reads one field and closes the connection.
+  Forgery and impersonation: a connection stays bound to the authentication
+  it made; nothing inside a batch can re-authenticate it, and a cram cannot
+  replace a pkam on it.
 
   Scenario: A cram after a successful pkam on the same connection is refused and closes it
     Given a connection to @alice's atServer that has authenticated with pkam
@@ -20,7 +23,7 @@ Feature: A connection that has authenticated with pkam may not cram, and a batch
 
   Scenario Outline: An authentication inside a batch is refused
     Given a connection to @alice's atServer that has authenticated with <auth>
-    When it sends from:@alice and then a batch whose one command is <verb>:<proof>
+    When it sends from:@alice and then a batch whose one command is a valid <verb>
     Then that command's entry in the batch response carries AT0009
     And the connection stays open, authenticated with <auth>
 
