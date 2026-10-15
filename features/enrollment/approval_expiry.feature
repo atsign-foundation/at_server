@@ -60,6 +60,11 @@ Feature: An approved enrollment expires no later than the enrollment that approv
     When A approves B
     Then B's record expires at T
 
+  Scenario: A retrofit successor expires no later than its predecessor
+    Given @alice's enrollment P's record expires at T
+    When P requests its successor S, asking for a term that ends just before T, counted from the request
+    Then S's record expires no later than T
+
   Scenario: An approver that never expires caps nothing
     Given @alice's enrollment A holds __manage and never expires
     And enrollment B is pending, asking for no expiry
