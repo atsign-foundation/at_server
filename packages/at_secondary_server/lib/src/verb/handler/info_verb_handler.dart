@@ -34,7 +34,7 @@ class InfoVerbHandler extends AbstractVerbHandler {
       'description': 'notify:all: send a notify to each recipient instead',
     },
     {
-      'name': 'notify.text',
+      'name': InfoFeature.notifyText,
       'status': InfoFeatureStatus.retired,
       'description': 'messageType:text: send a key notification instead',
     },
