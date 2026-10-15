@@ -229,4 +229,72 @@ void main() {
       expect(value, isNot(contains(hex)), reason: key);
     }
   });
+
+  group('P8 per-passkey namespace _<hex>.<ns>', () {
+    final shapes = <String, String Function()>{
+      'letter-led': () => 'p${lookupHex().substring(0, 15)}',
+      'digit-led': () => '9${lookupHex().substring(0, 31)}',
+    };
+
+    for (final MapEntry(key: shape, value: newNs) in shapes.entries) {
+      group(shape, () {
+        late String ns;
+        late String key;
+
+        setUp(() async {
+          ns = newNs();
+          key = '_${lookupHex()}.$ns$alice';
+          final owner = await connect(alice, alicePort, auth: AuthType.cram);
+          final response = await put(owner, key);
+          print('P8 $shape owner update $ns → $response');
+          expect(response, startsWith('data:'));
+        });
+
+        test('P8a anonymous lookup on the owner server', () async {
+          final anonymous = await connect(alice, alicePort);
+          final response = await anonymous.sendRequestToServer('lookup:$key');
+          print('P8a $shape → $response');
+          expect(response, 'data:$record');
+        });
+
+        test(
+            'P8b enrollment without <ns>: lookup is refused (AT0009), '
+            'llookup:public reads it', () async {
+          final outsider = await enrolled({'wavi': 'rw'});
+          final lookup = await outsider.sendRequestToServer('lookup:$key');
+          final llookup =
+              await outsider.sendRequestToServer('llookup:public:$key');
+          print('P8b $shape lookup → $lookup');
+          print('P8b $shape llookup → $llookup');
+          expect(lookup, startsWith('error:{"errorCode":"AT0009"'));
+          expect(llookup, 'data:$record');
+        });
+
+        test('P8c plookup from another atServer', () async {
+          final reader = await connect(bob, bobPort, auth: AuthType.cram);
+          final response = await reader.sendRequestToServer('plookup:$key');
+          print('P8c $shape → $response');
+          expect(response, 'data:$record');
+        });
+
+        test('P8d enrollment with <ns>:rw writes and deletes; without, refused',
+            () async {
+          final writer = await enrolled({ns: 'rw'});
+          final write = await put(writer, key);
+          print('P8d $shape <ns>:rw update → $write');
+          expect(write, startsWith('data:'));
+
+          final outsider = await enrolled({'wavi': 'rw'});
+          final refused =
+              await outsider.sendRequestToServer('delete:public:$key');
+          print('P8d $shape wavi:rw delete → $refused');
+          expect(refused, startsWith('error:'));
+
+          final delete = await writer.sendRequestToServer('delete:public:$key');
+          print('P8d $shape <ns>:rw delete → $delete');
+          expect(delete, startsWith('data:'));
+        });
+      });
+    }
+  });
 }
