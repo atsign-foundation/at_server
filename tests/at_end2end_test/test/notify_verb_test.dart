@@ -381,7 +381,6 @@ void main() {
     expect(response, contains('data:expired'));
   });
 
-  // this test needs an notification to be sent to another atsign
   test('Test to verify the update and delete caching of key', () async {
     var key = 'testcachedkey-$lastValue';
     // Sending the update notification from the sender side

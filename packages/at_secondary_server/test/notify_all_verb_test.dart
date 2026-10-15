@@ -76,14 +76,6 @@ void main() {
     expect(n.notificationStatus, NotificationStatus.delivered);
   });
 
-  test('a text notify:all is refused, and nothing stored', () async {
-    await expectLater(
-        notifyAll('notify:all:messageType:text:$bob:hello'),
-        throwsA(isA<InvalidSyntaxException>().having((e) => e.message,
-            'message', 'messageType:text is no longer supported')));
-    expect(await stored(), isEmpty);
-  });
-
   test('a key another atSign owns is refused before anything is stored',
       () async {
     await expectLater(

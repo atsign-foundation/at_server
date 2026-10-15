@@ -23,6 +23,7 @@ import 'package:at_secondary/src/verb/handler/notify_status_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/notify_verb_handler.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypton/crypton.dart';
+import 'package:logging/logging.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 import 'package:uuid/uuid.dart';
@@ -1629,17 +1630,31 @@ void main() {
       expect(await notificationManager.get('spoof-5'), isNull);
     });
 
-    for (final recipient in ['$alice', '@colin']) {
-      test('of text for $recipient is answered with success, and nothing '
-          'stored', () async {
-        final response = await deliver(
-            'notify:id:text-1:update:messageType:text:$recipient:hello');
-        expect(response.data, 'data:success',
-            reason: 'a sender that still sends text must not retry it');
-        expect(await notificationManager.get('text-1'), isNull);
-        expect(await notifStore.iterate().toList(), isEmpty);
-      });
-    }
+    group('Another atServer\'s text notification is dropped', () {
+      for (final recipient in ['$alice', '@carol']) {
+        test(recipient, () async {
+          final Level prior = notifyVerbHandler.logger.logger.level;
+          notifyVerbHandler.logger.level = 'warning';
+          addTearDown(() => notifyVerbHandler.logger.logger.level = prior);
+          final warnings = <String>[];
+          final sub = notifyVerbHandler.logger.logger.onRecord
+              .where((r) => r.level == Level.WARNING)
+              .listen((r) => warnings.add(r.message));
+          addTearDown(sub.cancel);
+
+          final response = await deliver(
+              'notify:id:text-1:update:messageType:text:$recipient:hello');
+          expect(response.data, 'data:success',
+              reason: 'a sender that still sends text must not retry it');
+          expect(await notificationManager.get('text-1'), isNull);
+          expect(await notifStore.iterate().toList(), isEmpty);
+          expect(warnings, [
+            'Dropped text notification text-1 from $bob for $recipient: '
+                'messageType:text is no longer supported'
+          ]);
+        });
+      }
+    });
 
     test('compares normalised atSigns', () async {
       await deliver('notify:id:norm-1:update:messageType:key:ttr:100000'
@@ -1650,47 +1665,89 @@ void main() {
     });
   });
 
-  group('A text notification from a client', () {
-    late NotifyVerbHandler notifyVerbHandler;
+  group('A client\'s text notification is refused', () {
     setUp(() async {
       await verbTestsSetUp();
-      notifyVerbHandler = NotifyVerbHandler(keyValueStore, notificationManager);
       inboundConnection.metadata
         ..isAuthenticated = true
         ..authType = AuthType.cram;
     });
     tearDown(() async => await verbTestsTearDown());
 
-    test('is refused, and nothing stored', () async {
-      final control = await notifyVerbHandler.processInternal(
-          'notify:id:key-1:update:messageType:key:@bob:phone.wavi$alice:v',
-          inboundConnection);
-      expect(control.data, 'key-1', reason: 'control: a key notification');
+    final rows = [
+      (
+        'notify:messageType:text:@bob:hello',
+        'notify:messageType:key:@bob:phone.wavi$alice',
+        () => NotifyVerbHandler(keyValueStore, notificationManager),
+      ),
+      (
+        'notify:all:messageType:text:@bob,@carol:hello',
+        'notify:all:messageType:key:@bob,@carol:phone.wavi$alice',
+        () => NotifyAllVerbHandler(keyValueStore, notificationManager),
+      ),
+    ];
+    for (final (command, keyCommand, handler) in rows) {
+      test(command, () async {
+        await expectLater(
+            handler().processInternal(command, inboundConnection),
+            throwsA(isA<InvalidSyntaxException>().having((e) => e.message,
+                'message', 'messageType:text is no longer supported')));
+        expect(await notifStore.iterate().toList(), isEmpty);
 
-      await expectLater(
-          notifyVerbHandler.processInternal(
-              'notify:id:text-1:update:messageType:text:@bob:hello',
-              inboundConnection),
-          throwsA(isA<InvalidSyntaxException>().having((e) => e.message,
-              'message', 'messageType:text is no longer supported')));
-      expect(await notificationManager.get('text-1'), isNull);
-    });
+        await handler().processInternal(keyCommand, inboundConnection);
+        expect(await notifStore.iterate().toList(), isNotEmpty,
+            reason: 'control: the same command with a key is stored');
+      });
+    }
   });
 
-  group('info', () {
+  group('info lists notify.text as Retired', () {
     setUp(() async => await verbTestsSetUp());
     tearDown(() async => await verbTestsTearDown());
 
     for (final command in ['info', 'info:brief']) {
-      test('$command lists notify.text as Retired', () async {
+      test(command, () async {
         final response = await InfoVerbHandler(keyValueStore)
-          .processInternal(command, inboundConnection);
-      final List features = jsonDecode(response.data!)['features'];
-      // FROZEN: the name and status a client or peer reads to learn
-      // messageType:text is refused.
-      expect(features.where((f) => f['name'] == 'notify.text').single['status'],
-          'Retired');
+            .processInternal(command, inboundConnection);
+        final List features = jsonDecode(response.data!)['features'];
+        // FROZEN: the name and status a client or peer reads to learn
+        // messageType:text is refused.
+        expect(
+            features.where((f) => f['name'] == 'notify.text').single['status'],
+            'Retired');
       });
     }
+  });
+
+  test('Text notifications already stored still list and fetch', () async {
+    await verbTestsSetUp();
+    addTearDown(verbTestsTearDown);
+    inboundConnection.metadata
+      ..isAuthenticated = true
+      ..authType = AuthType.cram;
+    final n = (AtNotificationBuilder()
+          ..id = 'text-1'
+          ..type = NotificationType.received
+          ..fromAtSign = '$bob'
+          ..toAtSign = '$alice'
+          ..notification = '$alice:hello'
+          ..opType = OperationType.update
+          ..messageType = MessageType.text
+          ..notificationStatus = NotificationStatus.delivered)
+        .build();
+    await notifStore.put(n.id!, n);
+
+    final list = await NotifyListVerbHandler(keyValueStore, notificationManager)
+        .processInternal('notify:list', inboundConnection);
+    final List listed = jsonDecode(list.data!);
+    expect(listed.map((n) => n['id']), ['text-1']);
+    expect(listed.single['messageType'], 'MessageType.text');
+
+    final fetch =
+        await NotifyFetchVerbHandler(keyValueStore, notificationManager)
+            .processInternal('notify:fetch:text-1', inboundConnection);
+    final fetched = jsonDecode(fetch.data!);
+    expect(fetched['id'], 'text-1');
+    expect(fetched['messageType'], 'MessageType.text');
   });
 }
