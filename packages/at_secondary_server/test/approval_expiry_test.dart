@@ -405,6 +405,42 @@ void main() {
     expectSameMoment(await recordExpiry(b), t, 'B\'s record');
   });
 
+  test('An enrollment moved onto a successor keeps its own expiry', () async {
+    final p = await approver('p', expiry: Duration(hours: 1));
+    final DateTime t = (await recordExpiry(p))!;
+    final c = await pending('c');
+    await decide('approve', p, c);
+    expectSameMoment(await recordExpiry(c), t, 'precondition: C\'s record');
+
+    inboundConnection.metaData
+      ..isAuthenticated = true
+      ..authType = AuthType.apkam
+      ..sessionID = DateTime.now().microsecondsSinceEpoch.toString();
+    inboundConnection.metadata.enrollmentId = p;
+    final ep = EnrollParams()
+      ..appName = 'p-successor'
+      ..deviceName = 'device-p-successor'
+      ..apkamPublicKey = 'apkam public key p-successor'
+      ..apkamKeysExpiryDuration = Duration(minutes: 10);
+    final sr = Response();
+    await etu.evh.processVerb(
+        sr,
+        getVerbParam(
+            VerbSyntax.enroll, 'enroll:request:${jsonEncode(ep.toJson())}'),
+        inboundConnection);
+    expect(sr.isError, false, reason: '${sr.errorMessage}');
+    final String s = jsonDecode(sr.data!)['enrollmentId'];
+    final DateTime t2 = (await recordExpiry(s))!;
+    expect(t2.isBefore(t), isTrue,
+        reason: 'precondition: S ends at $t2, before T');
+
+    await enMgr.settlePredecessorOnFirstAuth(s);
+
+    expect(await enMgr.descendantsOf(s), contains(c),
+        reason: 'precondition: C moved onto S');
+    expectSameMoment(await recordExpiry(c), t, 'C\'s record');
+  });
+
   group('An approver sees the expiry a pending request asks for', () {
     Future<dynamic> throughList(String a, String b) async {
       inboundConnection.metaData

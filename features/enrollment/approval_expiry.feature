@@ -94,6 +94,12 @@ Feature: An approved enrollment expires no later than the enrollment that approv
     When B is revoked and then unrevoked
     Then B's record still expires at T
 
+  Scenario: An enrollment moved onto a successor keeps its own expiry
+    Given @alice's enrollment P expires at T and approved C, capping it at T
+    And P's successor S asked for a term that ends at T2, before T
+    When S authenticates for the first time and C moves onto S
+    Then C's record still expires at T
+
   Scenario Outline: An approver sees the expiry a pending request asks for
     Given enrollment B is pending, asking for <requested>
     When an enrollment holding __manage reads B through <read>
