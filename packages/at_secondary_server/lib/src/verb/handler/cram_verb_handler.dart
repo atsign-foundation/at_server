@@ -69,7 +69,10 @@ class CramVerbHandler extends AbstractVerbHandler {
       atConnection.metaData.authType = AuthType.cram;
       // NOTE a CRAM connection stands over no enrollment, so any id left by an
       // earlier `pkam:` on this connection is cleared.
-      (atConnection.metaData as InboundConnectionMetadata).enrollmentId = null;
+      (atConnection.metaData as InboundConnectionMetadata)
+        ..enrollmentId = null
+        ..enrollmentAppName = null
+        ..enrollmentDeviceName = null;
       try {
         await accessLog.insert(atSign, cram.name());
       } on DataStoreException catch (e) {
@@ -77,6 +80,9 @@ class CramVerbHandler extends AbstractVerbHandler {
       }
 
       response.data = 'success';
+      AtSecondaryServerImpl.getInstance()
+          .connectionTelemetry
+          .authenticated(atConnection);
     } else {
       atConnection.metaData.isAuthenticated = false;
       throw UnAuthenticatedException('Authentication Failed');
