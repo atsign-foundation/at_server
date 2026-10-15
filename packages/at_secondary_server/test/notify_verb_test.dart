@@ -1472,16 +1472,13 @@ void main() {
       // TODO Are there any functional or e2e tests of the same?
       // TODO Could be quite useful in some scenarios.
       expect(
-          NotifyVerbHandler.getIsEncrypted(
-              MessageType.key, 'public:foo.bar$alice', null),
+          NotifyVerbHandler.getIsEncrypted('public:foo.bar$alice', null),
           false);
       expect(
-          NotifyVerbHandler.getIsEncrypted(
-              MessageType.key, 'public:foo.bar$alice', 'false'),
+          NotifyVerbHandler.getIsEncrypted('public:foo.bar$alice', 'false'),
           false);
       expect(
-          NotifyVerbHandler.getIsEncrypted(
-              MessageType.key, 'public:foo.bar$alice', 'true'),
+          NotifyVerbHandler.getIsEncrypted('public:foo.bar$alice', 'true'),
           false);
     });
 
@@ -1492,19 +1489,16 @@ void main() {
       // The reason is that those broken old clients do not set `isEncrypted`
       // on notifications when they ought to be doing so.
       expect(
-          NotifyVerbHandler.getIsEncrypted(
-              MessageType.key, '@bob:foo.bar$alice', null),
+          NotifyVerbHandler.getIsEncrypted('@bob:foo.bar$alice', null),
           true);
 
       // This used to return 'true' as well, which is definitively wrong.
       expect(
-          NotifyVerbHandler.getIsEncrypted(
-              MessageType.key, '@bob:foo.bar$alice', 'false'),
+          NotifyVerbHandler.getIsEncrypted('@bob:foo.bar$alice', 'false'),
           false);
 
       expect(
-          NotifyVerbHandler.getIsEncrypted(
-              MessageType.key, '@bob:foo.bar$alice', 'true'),
+          NotifyVerbHandler.getIsEncrypted('@bob:foo.bar$alice', 'true'),
           true);
     });
 

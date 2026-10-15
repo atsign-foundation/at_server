@@ -510,9 +510,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
           'invalid ${AtConstants.appMetadata}: ${e.message}');
     }
     atMetadata.isEncrypted = getIsEncrypted(
-        SecondaryUtil.getMessageType(verbParams[AtConstants.messageType]),
-        verbParams[AtConstants.atKey]!,
-        verbParams[AtConstants.isEncrypted]);
+        verbParams[AtConstants.atKey]!, verbParams[AtConstants.isEncrypted]);
     return atMetadata;
   }
 
@@ -653,9 +651,8 @@ class NotifyVerbHandler extends AbstractVerbHandler {
   }
 
   @visibleForTesting
-  static bool getIsEncrypted(
-      MessageType messageType, String key, String? isEncryptedStr) {
-    if (messageType == MessageType.key && key.startsWith('public')) {
+  static bool getIsEncrypted(String key, String? isEncryptedStr) {
+    if (key.startsWith('public')) {
       return false;
     }
     // respect the 'false' value if one was supplied
