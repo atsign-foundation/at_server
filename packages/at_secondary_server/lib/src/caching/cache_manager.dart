@@ -5,6 +5,8 @@ import 'package:at_persistence_secondary_server/at_persistence_secondary_server.
 import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
+import 'package:at_secondary/src/gate/gatekeeper.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_utils/at_logger.dart';
@@ -133,6 +135,8 @@ class AtCacheManager {
           'AtCacheManager.remoteLookUp called with invalid cachedKeyName $cachedKeyName');
     }
 
+    final Gatekeeper gate = AtSecondaryServerImpl.getInstance().gatekeeper;
+    final int seen = gate.changes;
     String? remoteResponse;
     String? remoteKeyName;
     try {
@@ -142,12 +146,23 @@ class AtCacheManager {
             await _remoteLookUp('all:$remoteKeyName', handshakeRequired: false);
       } else if (cachedKeyName.startsWith('cached:$atSign')) {
         remoteKeyName = cachedKeyName.replaceAll('cached:$atSign:', '');
+        final String owner =
+            remoteKeyName.substring(remoteKeyName.lastIndexOf('@'));
+        if (!gate.reaches(owner.toAtsign(), remoteKeyName)) {
+          throw NotAcceptedException(
+              'This atServer does not look up $remoteKeyName');
+        }
         remoteResponse =
             await _remoteLookUp('all:$remoteKeyName', handshakeRequired: true);
       } else {
         throw IllegalArgumentException(
             'remoteLookup called with invalid cachedKeyName $cachedKeyName');
       }
+    } on NotAcceptedException {
+      if (maintainCache) {
+        await delete(cachedKeyName);
+      }
+      rethrow;
     } on KeyNotFoundException {
       if (maintainCache) {
         logger.info(
@@ -216,7 +231,13 @@ class AtCacheManager {
           shouldCache = true;
         }
         if (shouldCache) {
-          await put(cachedKeyName, atData);
+          if (cachedKeyName.startsWith('cached:public:')) {
+            await put(cachedKeyName, atData);
+          } else if (!await gate.ifUnchangedSince(
+              seen, () => put(cachedKeyName, atData))) {
+            logger.info('remoteLookUp: the gate changed while $remoteKeyName'
+                ' was looked up, so it is not cached');
+          }
         }
       } else {
         logger.info(
@@ -281,6 +302,24 @@ class AtCacheManager {
       }
     }
     return null;
+  }
+
+  /// Deletes each cached copy of another atSign's key that [gate] no longer
+  /// lets this atSign reach; answers how many.
+  Future<int> deleteCopiesNotReached(Gatekeeper gate) async {
+    final String prefix = 'cached:$atSign:';
+    int deleted = 0;
+    for (final String key in await (await keyStore
+            .getKeys(regex: '^${RegExp.escape(prefix)}'))
+        .toList()) {
+      final String keyName = key.substring(prefix.length);
+      final String owner = keyName.substring(keyName.lastIndexOf('@'));
+      if (!gate.reaches(owner.toAtsign(), keyName)) {
+        await delete(key);
+        deleted++;
+      }
+    }
+    return deleted;
   }
 
   /// Delete cached record, if there is one; nothing is committed when there

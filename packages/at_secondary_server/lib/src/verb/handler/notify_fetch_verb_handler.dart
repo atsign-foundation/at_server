@@ -34,7 +34,9 @@ class NotifyFetchVerbHandler extends AbstractVerbHandler {
       InboundConnection atConnection) async {
     var notificationId = verbParams['notificationId'];
     var atNotification = await notifMgr.get(notificationId);
-    if (atNotification == null) {
+    if (atNotification == null ||
+        (atNotification.quarantined &&
+            verbParams[AtConstants.quarantined] == null)) {
       response.data = jsonEncode({
         'id': notificationId,
         'notificationStatus': NotificationStatus.expired.toString()
@@ -60,7 +62,7 @@ class NotifyFetchVerbHandler extends AbstractVerbHandler {
           SecondaryUtil.removeNulls(atNotification.atMetadata!.toJson());
     }
     for (MapEntry entry in atNotificationJson.entries) {
-      if (entry.value is! String) {
+      if (entry.value is! String && entry.value is! bool) {
         atNotificationJson[entry.key] = entry.value.toString();
       }
     }

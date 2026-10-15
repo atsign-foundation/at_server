@@ -278,6 +278,7 @@ class NotificationsMetricImpl extends MetricProvider {
         "errored": 0,
         "queued": 0,
         "expired": 0,
+        "refused": 0,
       },
       "operations": <String, int>{
         "update": 0,
@@ -317,6 +318,7 @@ class NotificationsMetricImpl extends MetricProvider {
         case NotificationStatus.queued:
         case NotificationStatus.delivered:
         case NotificationStatus.expired:
+        case NotificationStatus.refused:
           metrics['status'][n.notificationStatus!.name]++;
           break;
         case NotificationStatus.errored:

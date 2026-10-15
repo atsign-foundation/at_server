@@ -38,6 +38,7 @@ class AtNotification {
   final String? _atValue;
 
   final AtMetaData? _atMetadata;
+  final bool _quarantined;
 
   final int? _ttl;
 
@@ -59,7 +60,8 @@ class AtNotification {
         _depth = atNotificationBuilder.depth,
         _atValue = atNotificationBuilder.atValue,
         _atMetadata = atNotificationBuilder.atMetaData,
-        _ttl = atNotificationBuilder.ttl;
+        _ttl = atNotificationBuilder.ttl,
+        _quarantined = atNotificationBuilder.quarantined;
 
   String? get id => _id;
 
@@ -92,6 +94,10 @@ class AtNotification {
   /// Time in milliseconds after which the notification will expire
   int? get ttl => _ttl;
 
+  /// Whether the notification was accepted from an atSign quarantined in its
+  /// namespace.
+  bool get quarantined => _quarantined;
+
   Map toJson() => {
         'id': _id,
         'fromAtSign': _fromAtSign,
@@ -110,7 +116,8 @@ class AtNotification {
         'expiresAt': _expiresAt,
         'atValue': _atValue,
         'atMetadata': _atMetadata?.toJson(),
-        'ttl': _ttl
+        'ttl': _ttl,
+        if (_quarantined) 'quarantined': true,
       };
 
   @override
@@ -154,7 +161,7 @@ class AtNotification {
   }
 }
 
-enum NotificationStatus { delivered, errored, queued, expired }
+enum NotificationStatus { delivered, errored, queued, expired, refused }
 
 enum NotificationType { sent, received, self }
 
@@ -201,6 +208,10 @@ class AtNotificationBuilder {
   int? ttl = AtNotification.defaultTtl.inMilliseconds;
 
   AtMetaData? atMetaData;
+
+  /// Whether the notification is accepted from an atSign quarantined in its
+  /// namespace.
+  bool quarantined = false;
 
   /// Applies the following rules, then builds the [AtNotification]
   /// 1. if [expiresAt] is null
@@ -262,6 +273,7 @@ class AtNotificationBuilder {
       ..depth = 1
       ..atValue = null
       ..ttl = AtNotification.defaultTtl.inMilliseconds
-      ..atMetaData = null;
+      ..atMetaData = null
+      ..quarantined = false;
   }
 }

@@ -166,6 +166,7 @@ void main() {
           'errored': 0,
           'queued': 0,
           'expired': 0,
+          'refused': 0,
         },
         'operations': <String, int>{
           'update': 0,

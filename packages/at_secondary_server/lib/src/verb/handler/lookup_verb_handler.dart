@@ -7,6 +7,8 @@ import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
+import 'package:at_secondary/src/gate/gatekeeper.dart';
+import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
@@ -134,6 +136,17 @@ class LookupVerbHandler extends AbstractVerbHandler {
         atConnectionMetadata.fromAtSign!.isEmpty) {
       throw AtLookUpException('AT0013', 'fromAtSign cannot be null or empty');
     }
+    final Atsign from = atConnectionMetadata.fromAtSign!.toAtsign();
+    final String keyName = _withoutOwner(keyAtAtSign);
+    final Gatekeeper gate = AtSecondaryServerImpl.getInstance().gatekeeper;
+    final bool onShortList = keyName == Gatekeeper.sharedKeyName;
+    final GateVerdict verdict =
+        gate.inbound(from, keyName, onShortList: onShortList);
+    Gatekeeper.refuseIfNotAccepted(verdict);
+    if (verdict == GateVerdict.quarantined) {
+      Gatekeeper.refuseIfNotAccepted(
+          await gate.count(from, keyName, onShortList: onShortList));
+    }
     // In case of a pol authenticated connection, the request originates from a different
     // 'atSign'. In this scenario, set the lookupKey prefix to the requesting 'atSign'.
     var lookupKey = '${atConnectionMetadata.fromAtSign}:$keyAtAtSign';
@@ -151,7 +164,8 @@ class LookupVerbHandler extends AbstractVerbHandler {
     if (response.data != null &&
         response.data!.contains(AtConstants.atValueReference)) {
       response.data = await resolveValueReference(
-          response.data!, atConnectionMetadata.fromAtSign!);
+          response.data!, atConnectionMetadata.fromAtSign!,
+          gatedFor: from);
     }
     //Omit all keys starting with '_' to record in access log
     if (!keyAtAtSign.startsWith('_')) {
@@ -213,6 +227,12 @@ class LookupVerbHandler extends AbstractVerbHandler {
       Response response,
       String? operation,
       String? byPassCacheStr) async {
+    final String owner = keyAtAtSign.substring(keyAtAtSign.lastIndexOf('@'));
+    if (!AtSecondaryServerImpl.getInstance()
+        .gatekeeper
+        .reaches(owner.toAtsign(), keyAtAtSign)) {
+      throw NotAcceptedException('This atServer does not look up $keyAtAtSign');
+    }
     String cachedKeyName =
         '${AtConstants.cached}:$thisServersAtSign:$keyAtAtSign';
     //Get cached value.
@@ -283,34 +303,51 @@ class LookupVerbHandler extends AbstractVerbHandler {
   /// else null is returned.
   /// @param - value : The reference value to be resolved.
   /// @param - keyPrefix : The prefix for the key: `<atsign>` or `public`.
-  Future<String?> resolveValueReference(String value, String keyPrefix) async {
+  /// With [gatedFor], a reference resolves only into a namespace where that
+  /// atSign is admitted; any other answers null.
+  Future<String?> resolveValueReference(String value, String keyPrefix,
+      {Atsign? gatedFor}) async {
     var resolutionCount = 1;
 
     // TODO Is this feature used anywhere?
-    // TODO Pre-existing bug: the public-namespace re-lookup below
-    // (the `keyToResolve.replaceAll(keyPrefix, 'public:')` block) runs
-    // unconditionally and overwrites `value` even when the private-key
-    // lookup already succeeded. The comment says "if the value is null
-    // for a private key, search public" but the code never checks that
-    // the private lookup failed. Left as-is here (out of scope for the
-    // keystore-typing change).
     // Iterates for DEPTH_OF_RESOLUTION times to resolve the value reference.If value is still a reference, returns null.
     while (value.contains(AtConstants.atValueReference) &&
         resolutionCount <= depthOfResolution!) {
       var index = value.indexOf('/');
       var keyToResolve = value.substring(index + 2, value.length);
+      if (gatedFor != null &&
+          AtSecondaryServerImpl.getInstance()
+                  .gatekeeper
+                  .inbound(gatedFor, _withoutOwner(keyToResolve)) !=
+              GateVerdict.admitted) {
+        return null;
+      }
       if (!keyPrefix.endsWith(':')) {
         keyPrefix = '$keyPrefix:';
       }
-      keyToResolve = keyPrefix + keyToResolve;
-      var lookupValue = await keyStore.get(keyToResolve);
-      value = lookupValue?.data ?? value;
-      // If the value is null for a private key, searches on public namespace.
-      keyToResolve = keyToResolve.replaceAll(keyPrefix, 'public:');
-      lookupValue = await keyStore.get(keyToResolve);
-      value = lookupValue?.data ?? value;
+      final String? resolved = await _valueOf(keyPrefix + keyToResolve) ??
+          await _valueOf('public:$keyToResolve');
+      if (resolved == null) {
+        return null;
+      }
+      value = resolved;
       resolutionCount++;
     }
     return value.contains(AtConstants.atValueReference) ? null : value;
+  }
+
+  /// The value [key] holds, or null when the keystore has none.
+  Future<String?> _valueOf(String key) async {
+    try {
+      return (await keyStore.get(key))?.data;
+    } on KeyNotFoundException {
+      return null;
+    }
+  }
+
+  /// [key]'s name without the atSign that owns it, lower-cased.
+  static String _withoutOwner(String key) {
+    final int at = key.lastIndexOf('@');
+    return (at > 0 ? key.substring(0, at) : key).toLowerCase();
   }
 }

@@ -74,9 +74,12 @@ jobs:
       # No --rm: the DB snapshot below is taken from the *stopped* container,
       # so it has to survive `docker stop`. The final step removes it.
       - name: Run docker container in DUAL persistence mode
+        # NOTE the atServers in the container reach each other at
+        # vip.ve.atsign.zone, which public DNS does not resolve to the container.
         run: |
           docker run -d --name at_virtual_env_dual_cont \
             -e testingMode="true" -e httpsEnabled="true" -e persistenceBackend="dual" \
+            --add-host vip.ve.atsign.zone:127.0.0.1 \
             -p 6379:6379 -p 25000-25099:25000-25099 -p 64:64 -p 443:443 \
             at_virtual_env:dual
 

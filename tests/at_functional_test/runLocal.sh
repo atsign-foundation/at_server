@@ -57,6 +57,7 @@ docker stop "$containerName"
 echo "Run docker container"
 docker run -d --rm --name "$containerName" \
   -e testingMode="true" -e httpsEnabled="true" \
+  --add-host vip.ve.atsign.zone:127.0.0.1 \
   $veEnvArgs $vePortArgs \
   "$veImage" $veCmd || exit 1
 

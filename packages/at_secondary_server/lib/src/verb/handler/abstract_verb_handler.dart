@@ -206,6 +206,7 @@ abstract class AbstractVerbHandler implements VerbHandler {
     // connection and for one carrying no enrollment id.
     refuseFlatCredentialWrite(inboundConnectionMetadata, atKey);
     refuseTelemetryKeyMutation(atKey);
+    refuseServerOnlyKey(atKey);
     if (isCramConnection(inboundConnectionMetadata)) {
       return true;
     }
@@ -252,6 +253,23 @@ abstract class AbstractVerbHandler implements VerbHandler {
     if (!AtServerTelemetryKeyGuard.isTelemetryKey(atKey)) return;
     throw UnAuthorizedException(AtServerTelemetryKeyGuard.refusal);
   }
+
+  /// Refuses any verb naming a `local:` key, whatever the connection, CRAM
+  /// included. Only the atServer reads and writes them, through its own
+  /// keystore.
+  static void refuseServerOnlyKey(String? atKey) {
+    if (atKey != null && isServerOnlyKey(atKey)) {
+      throw UnAuthorizedException(serverOnlyKeyRefusal);
+    }
+  }
+
+  /// Whether [atKey] is a `local:` key, one the commit log never records.
+  static bool isServerOnlyKey(String atKey) =>
+      atKey.toLowerCase().startsWith('local:');
+
+  /// What [refuseServerOnlyKey] says.
+  static const String serverOnlyKeyRefusal =
+      'local: keys belong to the atServer and no verb reaches them';
 
   /// What [refuseFlatCredentialWrite] says.
   static const String flatCredentialWriteRefusal =
@@ -366,6 +384,12 @@ abstract class AbstractVerbHandler implements VerbHandler {
     return checkEnrollmentNamespaceAccess(authorizedNamespace.$2!,
         enrolledNamespaceAccess: enrolledNamespaceAccess);
   }
+
+  /// The access [enrollDataStoreValue] holds over [namespace], matched as data
+  /// access is, or null when it holds none.
+  String? enrolledAccessFor(
+          EnrollDataStoreValue enrollDataStoreValue, String namespace) =>
+      _checkForNamespaceAuthorization(enrollDataStoreValue, namespace, null).$2;
 
   /// The enrolled namespace covering [namespace], and the access held on it.
   ///

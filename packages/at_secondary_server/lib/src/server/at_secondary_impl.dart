@@ -9,6 +9,7 @@ import 'package:at_lookup/at_lookup.dart';
 import 'package:at_persistence_secondary_server/hive.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
+import 'package:at_secondary/src/config/at_config.dart';
 import 'package:at_secondary/src/caching/cache_refresh_job.dart';
 import 'package:at_secondary/src/compaction/at_compaction_stats_service_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
@@ -18,6 +19,8 @@ import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dar
 import 'package:at_secondary/src/connection/stream_manager.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
+import 'package:at_secondary/src/gate/gate_store.dart';
+import 'package:at_secondary/src/gate/gatekeeper.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_secondary/src/notification/stats_notification_service.dart';
@@ -141,6 +144,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late NotificationManager notificationManager;
   late EnrollmentManager enrollmentManager;
   late InboundConnectionManager inboundConnectionManager;
+  late Gatekeeper gatekeeper;
 
   @override
   void setExecutor(VerbExecutor executor) {
@@ -213,6 +217,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       logger.info('Removed orphaned APKAM encryption keys: $deletedKeys');
     }
 
+    gatekeeper = await loadGatekeeper(
+        GateStore(keyValueStore, currentAtSign), enrollmentManager);
+
     await prepareStoreForFirstConnection();
 
     await _scheduleNextExpirySweep();
@@ -275,6 +282,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
     cacheManager = AtCacheManager(serverContext!.currentAtSign!, keyValueStore,
         outboundClientManager, notificationManager);
+    gatekeeper.onChange =
+        () => cacheManager.deleteCopiesNotReached(gatekeeper);
+    notificationManager.gatekeeper = gatekeeper;
 
     final int runRefreshJobHour = AtCacheRefreshJob.runJobHourFrom(
         AtSecondaryConfig.runRefreshJobHour,
@@ -871,6 +881,30 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   ConnectionMetrics getMetrics() {
     throw Exception("AtSecondaryServer.getMetrics() is obsolete");
   }
+
+  /// The gate [store] holds, under the operator's limits and holding the
+  /// owner's blocklist. With no default recorded, an activated atSign starts
+  /// `ungated` and any other with the operator's starting default.
+  @visibleForTesting
+  static Future<Gatekeeper> loadGatekeeper(
+      GateStore store, EnrollmentManager enrollments) async {
+    final Gatekeeper gate = await Gatekeeper.load(store,
+        startingDefault: () async => await isActivated(enrollments)
+            ? GateDefault.ungated
+            : AtSecondaryConfig.gateStartingDefault,
+        limits: AtSecondaryConfig.gateLimits);
+    await gate.blocklistChanged(
+        await AtConfig(store.keyStore, '${store.atSign}').getBlockedAtSigns());
+    return gate;
+  }
+
+  /// Whether the atSign has been activated: it has deleted its CRAM secret,
+  /// or holds the flat PKAM key or any enrollment.
+  static Future<bool> isActivated(EnrollmentManager enrollments) async =>
+      await enrollments.keyStore.exists(AtConstants.atCramSecretDeleted) ||
+      await enrollments.legacyPkamPublicKey() != null ||
+      (await enrollments.getAllEnrollmentKeys(includeExpired: true))
+          .isNotEmpty;
 
   /// Plants the CRAM activation secret into [keyValueStore] for first-time
   /// activation, only when it has not been deleted, is not already present,

@@ -1,0 +1,183 @@
+Feature: @alice's own outbound exchanges
+  @alice's rules bind @alice's own atServer on the way out, for notifications
+  (explicit and auto-notify), remote lookup and scan, and cache refresh. In an
+  open namespace it reaches any atSign not denied there; in a closed one, only
+  atSigns admitted there; and where no rule covers a namespace, the atSigns
+  the default lets in (rules.feature). An atSign on @alice's blocklist is
+  reached in no namespace. Nothing @alice sends, looks up or scans
+  changes another atSign's standing: an atSign @alice contacts first, and whose
+  replies should arrive unquarantined, is admitted by the application. The gate
+  verb's grammar is in rules.feature.
+
+  Race: a notification queued before its recipient lost admission is checked
+  again at delivery (refusals.feature). Because sending changes no standing,
+  invitations that cross have nothing to race over.
+  Replay: an outbound refusal is decided on @alice's own authenticated
+  connection, before anything crosses the wire.
+  DoS: a refused outbound exchange queues nothing and opens no connection.
+  Forgery: a reply gains nothing from the exchange it answers, so a
+  notification cannot claim standing by naming one of @alice's invitations,
+  and a remote scan's answer is judged on the atSign scanned, never on the
+  owner its keys name (the scenarios tagged @forgery).
+  Impersonation: outbound checks run on @alice's own authenticated
+  connections, and @alice's atServer reaches each atSign at the atServer the
+  atDirectory names, which this feature leaves as it is.
+
+  Background:
+    Given @alice's atSign has the closed default
+
+  Scenario: A notification to an atSign a closed namespace has not admitted is never sent
+    Given namespace "chat" on @alice's atServer is closed, admitting only @bob
+    When @alice's client sends "notify:@chuck:msg.chat@alice"
+    Then @alice's atServer answers with the not-accepted error
+    And @alice's atServer holds no notification for @chuck
+    And no connection is made to @chuck's atServer
+
+  Scenario: A notification to an atSign a closed namespace has admitted is delivered
+    Given namespace "chat" on @alice's atServer is closed, admitting only @bob
+    When @alice's client sends "notify:@bob:msg.chat@alice"
+    Then @alice's atServer answers with a notification id
+    And delivers it to @bob's atServer
+
+  Scenario: A lookup in a closed namespace of an atSign it has not admitted is never sent
+    Given namespace "chat" on @alice's atServer is closed, admitting only @bob
+    When @alice's client sends "lookup:status.chat@chuck"
+    Then @alice's atServer answers with the not-accepted error
+    And no connection is made to @chuck's atServer
+
+  Scenario: In an open namespace, @alice may notify an atSign seen for the first time
+    Given namespace "invitations.chat" on @alice's atServer is open
+    And @dave is in none of its sets
+    When @alice's client sends "notify:@dave:inv1.invitations.chat@alice"
+    Then @alice's atServer delivers it to @dave's atServer
+    And @dave is still in none of the sets of "invitations.chat"
+
+  Scenario: In an open namespace, @alice may notify a quarantined atSign
+    Given namespace "invitations.chat" on @alice's atServer is open
+    And @chuck is quarantined in it
+    When @alice's client sends "notify:@chuck:no-thanks.invitations.chat@alice"
+    Then @alice's atServer delivers it to @chuck's atServer
+    And @chuck is still quarantined in "invitations.chat"
+
+  Scenario: In an open namespace, @alice may not notify a denied atSign
+    Given namespace "invitations.chat" on @alice's atServer is open, with @chuck denied
+    When @alice's client sends "notify:@chuck:inv2.invitations.chat@alice"
+    Then @alice's atServer answers with the not-accepted error
+    And no connection is made to @chuck's atServer
+
+  Scenario: A lookup changes nobody's standing
+    Given namespace "invitations.chat" on @alice's atServer is open
+    And @dave is in none of its sets
+    When @alice's client sends "lookup:profile.invitations.chat@dave"
+    Then @alice's atServer looks it up on @dave's atServer
+    And @dave is still in none of the sets of "invitations.chat"
+
+  Scenario: A remote scan answers only keys in namespaces where @alice may reach the other atSign
+    Given namespace "chat" on @alice's atServer is closed, admitting only @bob
+    And namespace "photos" on @alice's atServer is open
+    And @chuck's atServer holds "@alice:status.chat@chuck" and "@alice:pic.photos@chuck"
+    When @alice's client sends "scan:@chuck"
+    Then @alice's atServer answers ["pic.photos@chuck"]
+
+  @forgery
+  Scenario: A remote scan's answer is judged on the atSign scanned, not on the owner a key names
+    Given namespace "chat" on @alice's atServer is closed, admitting only @bob
+    And namespace "photos" on @alice's atServer is open
+    And @chuck's atServer answers a scan from @alice with ["msg.chat@bob", "pic.photos@chuck"]
+    When @alice's client sends "scan:@chuck"
+    Then @alice's atServer answers ["pic.photos@chuck"]
+
+  @forgery
+  Scenario: The reply to an invitation arrives in quarantine
+    Given namespace "chat" is closed and "invitations.chat" is open, on both @alice's and @dave's atServers
+    And @alice's client has sent "notify:@dave:inv1.invitations.chat@alice"
+    When @dave's atServer sends "notify:id:7:@alice:inv1.invitations.chat@dave"
+    Then @alice's atServer answers "data:success"
+    And @dave is quarantined in "invitations.chat" on @alice's atServer
+
+  Scenario: Accepting an invitation is the application admitting the atSign
+    Given namespace "chat" on @alice's atServer is closed, admitting nobody
+    And @dave is quarantined in "invitations.chat" on @alice's atServer
+    And @alice's chat client has sent "gate:admit:chat:@dave"
+    When @alice's client sends "notify:@dave:msg.chat@alice"
+    Then @alice's atServer delivers it to @dave's atServer
+
+  Scenario: An update of a key shared with an admitted atSign is notified as today
+    Given namespace "chat" on @alice's atServer is closed, admitting only @bob
+    When @alice's client sends "update:@bob:status.chat@alice <value>"
+    Then @alice's atServer answers with a commit id
+    And delivers a notification of "@bob:status.chat@alice" to @bob's atServer
+
+  Scenario: A key shared with an atSign the namespace refuses is stored, and not notified
+    Given namespace "chat" on @alice's atServer is closed, admitting only @bob
+    When @alice's client sends "update:@chuck:status.chat@alice <value>"
+    Then @alice's atServer answers with a commit id
+    And @alice's atServer holds "@chuck:status.chat@alice"
+    And @alice's atServer holds no notification for @chuck
+
+  Scenario: A stored key becomes reachable when its atSign is admitted
+    Given @alice's atServer holds "@chuck:status.chat@alice"
+    And @alice's chat client has sent "gate:admit:chat:@chuck"
+    When @chuck's atServer sends "lookup:status.chat@alice"
+    Then @alice's atServer answers with the value of "@chuck:status.chat@alice"
+
+  Scenario: Under the ungated default, @alice reaches anyone in a namespace without a rule
+    Given @alice's atSign has the ungated default
+    And namespace "photos" on @alice's atServer has no rule
+    When @alice's client sends "notify:@chuck:pic.photos@alice"
+    Then @alice's atServer delivers it to @chuck's atServer
+
+  Scenario Outline: Under the closed default, @alice reaches only the atSigns the default lets in
+    Given no rule covers "photos" on @alice's atServer, and no admissions are recorded on it
+    And @bob is in @alice's atSign-wide admitted set
+    When @alice's client sends "notify:<atSign>:pic.photos@alice"
+    Then <outcome>
+
+    Examples:
+      | atSign | outcome                                               |
+      | @bob   | @alice's atServer delivers it to @bob's atServer      |
+      | @chuck | @alice's atServer answers with the not-accepted error |
+
+  Scenario: A notification to a blocklisted atSign is never sent, whatever its namespace admits
+    Given namespace "chat" on @alice's atServer is closed, admitting @bob and @chuck
+    And @chuck is on @alice's blocklist
+    When @alice's client sends "notify:@chuck:msg.chat@alice"
+    Then @alice's atServer answers with the not-accepted error
+    And @alice's atServer holds no notification for @chuck
+    And no connection is made to @chuck's atServer
+
+  Scenario: A lookup of a blocklisted atSign's key is never sent
+    Given namespace "chat" on @alice's atServer is closed, admitting @bob and @chuck
+    And @chuck is on @alice's blocklist
+    When @alice's client sends "lookup:status.chat@chuck"
+    Then @alice's atServer answers with the not-accepted error
+    And no connection is made to @chuck's atServer
+
+  Scenario: A key shared with a blocklisted atSign is stored, and not notified
+    Given namespace "chat" on @alice's atServer is closed, admitting @bob and @chuck
+    And @chuck is on @alice's blocklist
+    When @alice's client sends "update:@chuck:status.chat@alice <value>"
+    Then @alice's atServer answers with a commit id
+    And @alice's atServer holds "@chuck:status.chat@alice"
+    And @alice's atServer holds no notification for @chuck
+
+  Scenario: A public lookup of a blocklisted atSign's record is answered as before
+    Given @chuck is on @alice's blocklist
+    When @alice's client sends "plookup:publickey@chuck"
+    Then @alice's atServer answers with @chuck's public encryption key
+
+  Scenario: An atSign taken off the blocklist is reached again
+    Given namespace "chat" on @alice's atServer is closed, admitting @bob and @chuck
+    And @chuck was on @alice's blocklist
+    And @alice's root client has sent "config:block:remove:@chuck"
+    When @alice's client sends "notify:@chuck:msg.chat@alice"
+    Then @alice's atServer answers with a notification id
+    And delivers it to @chuck's atServer
+
+  @race
+  Scenario: A notification queued before its recipient was blocklisted is never delivered
+    Given namespace "chat" on @alice's atServer is closed, admitting @bob and @chuck
+    And @alice's atServer has queued notification 41 for @chuck in "chat", not yet delivered
+    When @alice's root client sends "config:block:add:@chuck"
+    Then @alice's atServer never delivers notification 41
+    And "notify:status:41" on @alice's atServer answers "refused"

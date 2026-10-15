@@ -73,6 +73,7 @@ class KeysVerbHandler extends AbstractVerbHandler {
     if (keyName != null && AtServerTelemetryKeyGuard.isTelemetryKey(keyName)) {
       throw UnAuthorizedException(AtServerTelemetryKeyGuard.refusal);
     }
+    AbstractVerbHandler.refuseServerOnlyKey(keyName);
     final namespace = verbParams[AtConstants.namespace];
     if (operation == 'put' &&
         namespace != null &&

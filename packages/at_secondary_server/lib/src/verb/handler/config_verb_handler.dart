@@ -84,6 +84,9 @@ class ConfigVerbHandler extends AbstractVerbHandler {
           if (nonCurrentAtSignList.isNotEmpty) {
             result =
                 await atConfigInstance.addToBlockList(nonCurrentAtSignList);
+            await AtSecondaryServerImpl.getInstance()
+                .gatekeeper
+                .blocklistChanged(await atConfigInstance.getBlockedAtSigns());
           } else {
             ///if list contains only currentAtSign
             result = 'success';
@@ -91,6 +94,9 @@ class ConfigVerbHandler extends AbstractVerbHandler {
           break;
         case 'remove':
           result = await atConfigInstance.removeFromBlockList(_toSet(atsigns!));
+          await AtSecondaryServerImpl.getInstance()
+              .gatekeeper
+              .blocklistChanged(await atConfigInstance.getBlockedAtSigns());
           break;
         default:
           result = 'unknown operation';

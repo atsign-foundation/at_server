@@ -68,3 +68,10 @@ dependency_overrides:
   # pub runs: every Dockerfile that compiles this package must COPY it in.
   at_server_spec:
     path: ../at_server_spec
+  # The gate's error codes and grammar are not in a published at_commons yet.
+  # This must be replaced by the published version before the gate merges.
+  at_commons:
+    git:
+      url: https://github.com/atsign-foundation/at_client_sdk.git
+      path: packages/at_commons
+      ref: 92603bfbb1900a49badebf5e478d556eb0596bb8

@@ -32,7 +32,8 @@ class AtNotificationAdapter extends TypeAdapter<AtNotification> {
           ..depth = fields[14] as int?
           ..atValue = fields[15] as String?
           ..atMetaData = fields[16] as AtMetaData?
-          ..ttl = fields[17] as int?)
+          ..ttl = fields[17] as int?
+          ..quarantined = fields[18] == true)
         .build();
 
     return atNotification;
@@ -41,7 +42,7 @@ class AtNotificationAdapter extends TypeAdapter<AtNotification> {
   @override
   void write(BinaryWriter writer, AtNotification obj) {
     writer
-      ..writeByte(18)
+      ..writeByte(obj.quarantined ? 19 : 18)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -78,6 +79,11 @@ class AtNotificationAdapter extends TypeAdapter<AtNotification> {
       ..write(obj.atMetadata)
       ..writeByte(17)
       ..write(obj.ttl);
+    if (obj.quarantined) {
+      writer
+        ..writeByte(18)
+        ..write(true);
+    }
   }
 }
 
@@ -166,6 +172,8 @@ class NotificationStatusAdapter extends TypeAdapter<NotificationStatus?> {
         return NotificationStatus.queued;
       case 3:
         return NotificationStatus.expired;
+      case 4:
+        return NotificationStatus.refused;
       default:
         return null;
     }
@@ -185,6 +193,9 @@ class NotificationStatusAdapter extends TypeAdapter<NotificationStatus?> {
         break;
       case NotificationStatus.expired:
         writer.writeByte(3);
+        break;
+      case NotificationStatus.refused:
+        writer.writeByte(4);
         break;
       default:
         break;

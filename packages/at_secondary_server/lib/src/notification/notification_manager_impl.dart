@@ -3,12 +3,16 @@ import 'dart:math' show min;
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/gate/gatekeeper.dart';
 import 'package:at_secondary/src/notification/notify_connection_pool.dart';
 import 'package:at_utils/at_utils.dart' show AtSignLogger;
 import 'package:meta/meta.dart';
 
 class NotificationManager {
   final Atsign atSign;
+
+  /// The gate each delivery is checked against again, or null for none.
+  Gatekeeper? gatekeeper;
 
   final AtNotificationKeystore _notifStore;
 
@@ -537,6 +541,15 @@ class PerAtSignNotifSender {
           return;
         }
 
+        if (notifMgr.gatekeeper?.reaches(atSign, n.notification!,
+                text: n.messageType == MessageType.text) ==
+            false) {
+          logger.warning('Not delivering ${n.id} (${n.notification}) to'
+              ' $atSign: the gate no longer reaches it');
+          await _refused(n);
+          return;
+        }
+
         //   get outbound client and send notify command
         var outBoundClient =
             await notifMgr.notifyConnectionsPool.getOutboundClient(atSign);
@@ -568,6 +581,13 @@ class PerAtSignNotifSender {
           throw Exception('Unexpected response $notifyResponse');
         }
       } catch (e) {
+        if (e is NotAcceptedException ||
+            e is QuarantineLimitException ||
+            e is QuarantineSizeException) {
+          logger.warning('$atSign refused ${n.id} (${n.notification}): $e');
+          await _refused(n);
+          return;
+        }
         try {
           await notifMgr.notifyConnectionsPool.secondaryAddressFinder
               .findSecondary(atSign);
@@ -586,6 +606,16 @@ class PerAtSignNotifSender {
                   maxDelay.inMilliseconds));
         }
       }
+    }
+  }
+
+  /// Marks [n] refused, which is final: it is not sent again.
+  Future<void> _refused(AtNotification n) async {
+    n.notificationStatus = NotificationStatus.refused;
+    try {
+      await notifMgr.put(n.id, n);
+    } catch (e) {
+      logger.warning('Exception $e while setting status refused on ${n.id}');
     }
   }
 

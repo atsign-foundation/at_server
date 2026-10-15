@@ -1,0 +1,300 @@
+# Gatekeeper: design
+
+The agreed behaviour is in [features/](features/), and the rulings behind it
+are in [decisions.md](decisions.md). This document says how the atServer
+delivers that behaviour. gkc agreed it on 2026-10-10.
+
+## 1. One gatekeeper, consulted by every exchange
+
+A single `Gatekeeper` in `at_secondary_server` (`lib/src/gate/`)
+owns the gate's state and answers one question for every exchange: given this
+atSign, this key or namespace, this direction and this kind of exchange, is it
+admitted, quarantined (and so counted and capped), or refused, and with which
+refusal? Handlers never read gate state themselves. That keeps D2 to D16 in one
+place, where one set of unit tests covers them, and leaves each call site one
+line to get wrong.
+
+The decision is taken from the atSign that pol authenticated
+(`InboundConnectionMetadata.fromAtSign`) and never from an atSign named in the
+command (`rules.feature`, `@forgery`). Every atSign is canonicalised before it
+is stored in a set or compared with one.
+
+## 2. Where the gatekeeper is consulted
+
+Inbound, on a pol-authenticated connection:
+
+| Path | What it asks |
+|---|---|
+| `NotifyVerbHandler._handlePolAuthenticatedConnection` | admit, count and cap the notification, and suppress ttr effects when quarantined (D7.6) |
+| `LookupVerbHandler._handlePolAuthConnection` | admit or count the lookup (D8), apply D4 to `shared_key`, and resolve a value reference only into a namespace where the asker is admitted (D23), since `resolveValueReference` looks up `@<from>:<ref>` in any namespace |
+| `ScanVerbHandler`, pol branch | filter entries to namespaces where the atSign is admitted (D14) |
+| `NotifyListVerbHandler`, pol branch | the same filter (D14) |
+
+Outbound, on @alice's own behalf:
+
+| Path | What it asks |
+|---|---|
+| `NotifyVerbHandler._handleAuthenticatedConnection` | refuse before queueing (D9.4) |
+| `AbstractUpdateVerbHandler` and `DeleteVerbHandler` auto-notify | refuse locally, so nothing is queued (D13) |
+| `NotifyAllVerbHandler` | the same, per recipient |
+| `PerAtSignNotifSender.send` | check again at each delivery attempt (D12), and on a gate refusal from the recipient, mark the notification `refused` and stop (D9.1) |
+| `LookupVerbHandler`, remote branch, and `ScanVerbHandler`, remote branch | refuse before connecting, and filter a remote scan's answer (`outbound.feature`) |
+| `AtCacheManager.remoteLookUp` | refuse before connecting, except for `cached:public:` keys, which are `plookup`'s path and outside the gate (D1) |
+| `AtCacheRefreshJob` | it calls `remoteLookUp` with `maintainCache: false` and writes the refreshed copy itself, so the job deletes the cached copy on a refusal (D12) and skips its write if admission was lost while the refresh was in flight ([section 4](#4-concurrency)) |
+| `NotificationManager.reEnqueueUndelivered`, at startup | nothing of its own; the delivery re-check covers what it re-queues |
+
+Every outbound path asks the gatekeeper's `reaches`, which also answers no for
+an atSign on the blocklist (D31). The gatekeeper holds the blocklist in memory,
+loaded at start-up and updated by `config:block`.
+
+Never consulted: `PolVerbHandler`'s verification lookups (D1), `plookup` and
+other public reads (D1), and notifications whose type is `self`.
+
+To the owner's own clients, quarantined notifications are filtered by
+`MonitorVerbHandler`, `NotifyListVerbHandler` and `NotifyFetchVerbHandler`
+unless the client asks for them (D10, [section 5.4](#54-asking-for-quarantined-notifications)).
+
+## 3. State and its records
+
+Gate state is held in memory and written through to `local:` records in the
+keystore (D17). Both commit-log backends skip `local:` keys
+(`hive_at_commit_log.dart`, `sqlite_at_commit_log.dart`), so the records never
+sync.
+
+The records are a rule record per namespace with a rule or recorded admissions
+(D24), a quarantine record per open namespace, and two atSign-wide records:
+
+| Record | Holds |
+|---|---|
+| `local:<ns>.rule.gate@<atSign>` | mode (`none` for admissions recorded without a rule, D25), the admitted and denied sets, the limits (*N*, *W*, size cap) and bounds, as set by the holders |
+| `local:<ns>.quarantine.gate@<atSign>` | the quarantined set, each atSign with its first contact and the time and size of each exchange counted in the current window, so the quarantined bytes accepted in the window can be summed (D28) |
+| `local:admitted.gate@<atSign>` | the atSign-wide admitted set (D3) |
+| `local:default.gate@<atSign>` | `ungated` or `closed` (D11) |
+
+The rule and its counters live in separate records, so a counted exchange
+rewrites only the quarantine record, which is small because D15 bounds it.
+
+**Guards.** A `local:` key is one whose name begins `local:`, as both commit
+logs judge it. On the atServer, every client verb that names one is refused,
+and `_isPrivateKeyForAtSign` hides them from scan. The verbs whose grammar
+admits a `local:` key are `llookup`, `lookup` and `notify`, since their `atKey`
+allows a colon, and `update:json`, which takes its key from the document. The
+plain `update`, `update:meta`, `delete` and `notify:all` patterns exclude a
+colon from the key, and `plookup` reads only `public:` keys and their cached
+copies. `llookup`, `lookup` and `update:json` pass the key they resolve to
+`isAuthorized`, where the guard sits beside `refuseTelemetryKeyMutation` in
+`AbstractVerbHandler`. `notify` puts the recipient in front of the key it
+stores, so its guard tests the key a key notification names; a text
+notification names no key. `keys:get` and `keys:delete` take any key name and
+never call `isAuthorized`, so the guard sits in that handler too, and a `local:`
+key answers the same refusal whether it exists or not. `batch` hands each of its
+commands to that verb's own handler (`verbHandlerManager.getVerbHandler`), so it
+meets the same guards. `notify:list` and `monitor` call `isAuthorized` for each
+stored notification and never trip the guard, since the atServer builds no
+notification key that begins `local:`. `rules.feature`'s `@forgery` outline pins
+the guard for `keys:delete` and `notify`.
+
+## 4. Concurrency
+
+Decided in D21.
+
+- Every write to gate state, whether a counted exchange, an admission or
+  denial, or a rule change, runs under one gate-wide `Mutex` in the
+  `Gatekeeper` (`package:mutex`, which `NotifyVerbHandler` already uses). The
+  in-memory state and its `local:` record are updated together inside it. That
+  serialises the two `@race` scenarios in `quarantine.feature` and the
+  concurrent admissions in `rules.feature`. No lock is held across a network
+  call.
+- A check that only reads takes no lock. In the atServer's single isolate, a
+  synchronous read of the in-memory state cannot interleave with a write, and it
+  sees the state as of the last completed one.
+- A rule or set change applies from the next exchange, because every exchange
+  asks the gatekeeper and nothing caches a verdict per connection
+  (`rules.feature`, `@race`).
+- **A cache refresh in flight** (`refusals.feature`, `@race`): each
+  (namespace, atSign) pair carries a generation that a loss of admission
+  increments. Whatever writes a fetched copy into the cache, whether
+  `AtCacheRefreshJob` or `AtCacheManager.remoteLookUp` maintaining the cache,
+  reads the generation before it connects, and writes only if the generation is
+  unchanged, checking and writing under the mutex.
+- **A queued notification** is checked again by `PerAtSignNotifSender.send` at
+  each attempt (D12). An admission lost between the check and the write to the
+  socket can let one notification through. That window is the length of one
+  send, and it is accepted.
+- A soft restart builds a new `VerbHandlerManager`, and with it new handlers
+  (`AtSecondaryServerImpl`). The `Gatekeeper` and its mutex are owned by the
+  server instance instead, and reload their state from the `local:` records
+  when it starts.
+- Whether the mutex should split per namespace is for the bench ([section 9](#9-performance)) to show.
+
+## 5. Wire changes
+
+### 5.1 The gate verb
+
+A new verb, `gate:` (D19), with the grammar `rules.feature` gives. The verb is accepted only on a connection the owner
+authenticated (PKAM or CRAM), and its authorisation is D5's: `rw` on the
+namespace to change it, `r` to read it, and a root enrollment to switch the
+default and for the atSign-wide admitted set. Any authenticated enrollment
+reads the default (D26). The atServer lower-cases each namespace the verb names
+(D26). `gate` joins `at_server_spec`'s `AtVerb`
+with `requiresAuth: true`, since `ConnectionUtil.validate` refuses any verb the
+enum does not list before a handler sees it.
+
+Its answers, reads and bounds are D24's, as D25 and D26 amend them. An open
+namespace's `gate:show`
+answer, for example:
+`{"namespace":"invitations.chat","mode":"open","settings":{"limit":10,"window":86400,"size":15360,"maxQuarantined":100,"maxQuarantinedBytes":1048576},"admitted":["@bob"],"denied":["@chuck"],"quarantined":[{"atSign":"@dave","counted":3,"bytes":2048,"firstContact":"2026-10-11T09:30:00.000Z"}]}`.
+A closed namespace answers its mode, settings, admitted set and the denied set
+it keeps for reopening (D25), and one with no rule its mode `none`, the default
+and its recorded admissions:
+`{"namespace":"invitations.chat","mode":"none","default":"closed","admitted":[],"governedBy":"chat"}`,
+`governedBy` appearing only when a rule on a broader namespace decides it
+(D26). `gate:check` answers
+`{"namespace":"chat","atSign":"@bob","verdict":"admitted"}`, `gate:show:*`
+`{"namespace":"*","admitted":[...]}`, and `gate:list` a sorted JSON array of
+namespaces.
+
+### 5.2 Error codes
+
+Three exceptions in at_commons' `error_codes`, after AT0032, the highest code
+in use:
+
+| Code | Exception | Meaning |
+|---|---|---|
+| AT0033 | `NotAcceptedException` | closed namespace, not admitted, denied, or namespace-less off D4's list |
+| AT0034 | `QuarantineLimitException` | the window's *N*, or either D15 bound, is reached |
+| AT0035 | `QuarantineSizeException` | the command exceeds the size cap |
+
+A sending atServer treats exactly these three as final (D9.1). Every other error
+keeps today's retry. Two consequences:
+
+- `GlobalExceptionHandler` answers an exception type it does not list as
+  `InternalServerException` and closes the connection, so the three join the
+  list it answers on an open connection (D9.3).
+- The sending atServer decodes an `error:` reply through at_commons'
+  `AtExceptionUtils.get` (`OutboundMessageListener`), so it needs an at_commons
+  that knows the three codes.
+
+Every refused change answers AT0022, `IllegalArgumentException`, with one of
+these messages, so that a client can tell them apart (D26). `<…>` stands for
+the value in force:
+
+| Refusal | Message |
+|---|---|
+| a setting above its ceiling | `<setting> may be at most <ceiling> on this atServer` |
+| a setting below its floor | `<setting> must be at least <floor> on this atServer` |
+| one open namespace too many | `This atSign already has <n> open namespaces, the most it may have` |
+| one namespace with a rule or recorded admissions too many | `This atSign already has <n> namespaces with a rule or recorded admissions, the most it may have` |
+| a full admitted set | `<ns> already admits <n> atSigns, the most it may` |
+| a full denied set | `<ns> already denies <n> atSigns, the most it may` |
+| a full atSign-wide admitted set | `The atSign-wide admitted set already holds <n> atSigns, the most it may` |
+| `deny` where the namespace is not open, or `*` | `Only an open namespace denies; <ns> is not open` |
+
+On an authenticated connection they reach the client as
+`error:AT0022-Illegal arguments : <message>`, or the JSON form a newer client
+asks for.
+
+### 5.3 Notification status
+
+`NotificationStatus` gains `refused` (D9.1), which `notify:status` answers.
+
+### 5.4 Asking for quarantined notifications
+
+By the precedent of monitor's `strict`, `selfNotifications` and `multiplexed`
+flags, `monitor` gains a `:quarantined` flag, and so do
+`notify:list` and `notify:fetch`. Without it, a quarantined notification is
+left out, or for `notify:fetch` answered as for no such notification
+(`quarantine.feature`). The flag widens what is returned only within the
+namespaces the enrollment may already read. An older atServer does not refuse
+the flag; it misreads it (`notify:list:quarantined` takes `quarantined` as the
+regex, `notify:fetch:<id>:quarantined` as part of the id, and only `monitor`
+answers invalid syntax). So a client sends it only when `info` lists `gate`.
+
+### 5.5 Advertising the gate
+
+By the precedent of `InfoFeature.notifyEph` and `InfoFeature.notifyEAtn`,
+`info` lists a `gate` feature, so a client can tell
+whether its atServer enforces the gate before it sets rules.
+
+### 5.6 The notification mark
+
+Monitor, `notify:list` and `notify:fetch` carry `"quarantined": true` on a
+marked notification (D10), through `mapForClient` and `AtNotification.toJson`.
+An unmarked notification carries no new field.
+
+## 6. At-rest changes
+
+| Store | Change | An older atServer reading it |
+|---|---|---|
+| Hive `AtNotificationAdapter` | field 18, `quarantined`, written only when true | ignores field 18, so a marked notification reads as unmarked |
+| Hive `NotificationStatusAdapter` | byte 4, `refused`, in `read` and in `write` | its `read` answers `null` for byte 4 |
+| SQLite notification codec | `quarantined` in the JSON payload; `refused` in the `status` column by name | its `_enum` decoder answers `null` for a name it does not know |
+| keystore | the `local:` gate records ([section 3](#3-state-and-its-records)) | never reads them, so a downgrade drops the gate and keeps the records |
+
+**Note:** `NotificationStatusAdapter.write` writes nothing at all for a status
+it has no case for. Adding `refused` without a `write` case would corrupt every
+record holding it, so the change pins the byte with a raw-literal test.
+
+## 7. Compatibility and rollout
+
+- **Senders** (D18): every atServer implementation ships [section 5.2](#52-error-codes)'s final
+  refusals, and D9.1's `refused` status, no later than it enforces the gate.
+- **The default** (D11, D29): `ungated` for an atSign activated before its
+  atServer first loads the gate. Any other starts with the operator's
+  `startingDefault`, `ungated` until the operator changes it. Either is
+  recorded when the gate first loads, and changes only through `gate:default`.
+- **Clients**: at_client gains the gate API, the `:quarantined` flag and the
+  `refused` status. A released client sees no change until a rule binds it.
+  Then its notify can be answered with AT0033. `AtExceptionUtils.get`
+  turns a code it does not know into a plain `AtException` carrying the
+  description (read on at_commons trunk, not on each released version). A
+  released client polling `notify:status` stops on `refused` as it stops on
+  `errored` or `expired` today, without calling back (`_getFinalNotificationStatus`).
+- **Every atServer implementation** carries the same verb, codes, status and
+  flags. at_commons carries the grammar and the error codes.
+
+## 8. Bounds
+
+D7 and D15 settle what is bounded and how, and D20 the operator's defaults and
+limits, the cap on open namespaces per atSign and the atSign-wide total of
+quarantined bytes accepted in the window (D28). The operator's values are the
+`gate` section of the atServer's `config.yaml`, read by `AtSecondaryConfig`
+beside the existing notification settings, and each can be overridden by an
+environment variable named after its path (`gateLimitMax`,
+`gateMaxOpenNamespaces`). Each quarantine setting has a `default`, a `max` and
+a `min`, and the shipped file states D20's values. A default outside its own
+bounds is refused when the limits are read, and a recorded setting beyond a
+bound the operator has since tightened counts as the bound (D30).
+
+## 9. Performance
+
+The gatekeeper adds a check to every exchange between atSigns, and the check
+reads no storage ([section 3](#3-state-and-its-records)). A bench measures
+notify and lookup throughput between two atServers in one virtualenv, with
+1 and 8 clients. On 2026-10-11 it ran three arms interleaved, twice each: the
+server without the gate (`57c59915`), the gate with no rules (`20347489`), and
+the gate with a closed default admitting the other atSign. Every gate arm's
+median throughput was within 5% of the arm without it, in both directions,
+for llookup, lookup and notify; the llookup control, which the gate does not
+touch, moved by as much, so that is the bench's resolution. Counting
+quarantined exchanges, which writes a record each time, was not measured.
+
+## 10. Tests
+
+Decided in D22. Each scenario's proving test takes the scenario's title,
+character for character; each row of an outline is one test under the
+outline's title.
+
+| Layer | Proves |
+|---|---|
+| Unit, `at_secondary_server/test/gate/` | the `Gatekeeper` decision table, and every scenario whose observable is one atServer's answers, with doubles for the other side: all of `rules.feature`; `namespace_less.feature` except "Authentication is never gated"; all of `quarantine.feature`, the restart scenario by reopening the store; `outbound.feature`'s refusals before connecting, through a recording outbound-client double; `refusals.feature`'s recipient side, D12's deletions, the queued re-check, the refresh race and the `@dos` retry |
+| Unit, `at_persistence_secondary_server/test` | raw-literal pins for Hive field 18 and status byte 4, and for the SQLite payload key and status name; the commit-log skip of `local:` on both backends; a downgrade read of each |
+| Functional pack, `tests/at_functional_test` | the scenarios that need two real atServers: the sender's discard and `refused` status, the invitation flow, D10's marking through monitor, D13, D12's refused refresh deleting the holder's copy, and "Authentication is never gated" |
+| e2e pack, `tests/at_end2end_test` | the same cross-atServer subset across separate hosts in CI, less "Authentication is never gated", which needs a closed default the shared cicd atSigns cannot be given; each scenario runs only where its atServers answer `gate:`, and each test removes the rules it sets |
+| Onboarding-CLI pack | no scenario of its own; it runs before the PR, because the keystore and notification storage change |
+
+In CI, two of the e2e pairs run the branch against a released atServer:
+`end2end_test_34` (@cicd3 on the branch, @cicd4 on
+`atsigncompany/secondary:prod`) and `end2end_test_56` (@cicd5 on `:prod`, @cicd6
+on the branch). D18's tail is still proven by the unit test alone (D22), since
+an e2e test of it would stop meaning anything once `:prod` carries D18.

@@ -7,6 +7,7 @@ import 'package:at_secondary/src/caching/cache_manager.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/wire_param_names.dart';
 import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
+import 'package:at_secondary/src/gate/gatekeeper.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -72,8 +73,8 @@ class ScanVerbHandler extends AbstractVerbHandler {
           throw UnAuthenticatedException(
               'Scan to another atSign cannot be performed without auth');
         }
-        response.data =
-            await _getExternalKeys(forAtSign, scanRegex, atConnection);
+        response.data = _reachable(forAtSign,
+            await _getExternalKeys(forAtSign, scanRegex, atConnection));
       } else {
         response.data = jsonEncode(await getLocalKeys(
             atConnectionMetadata, scanRegex, showHiddenKeys, currentAtSign));
@@ -83,6 +84,26 @@ class ScanVerbHandler extends AbstractVerbHandler {
       response.errorMessage = e.toString();
       rethrow;
     }
+  }
+
+  /// The keys in [scanResult], [forAtSign]'s answer to a scan, in namespaces
+  /// where this atSign may reach [forAtSign]. The atSign scanned decides, not
+  /// any owner a key names.
+  String? _reachable(String forAtSign, String? scanResult) {
+    if (scanResult == null) {
+      return null;
+    }
+    const String prefix = 'data:';
+    final bool prefixed = scanResult.startsWith(prefix);
+    final String keys =
+        prefixed ? scanResult.substring(prefix.length) : scanResult;
+    final Gatekeeper gate = AtSecondaryServerImpl.getInstance().gatekeeper;
+    final Atsign other = forAtSign.toAtsign();
+    final String reachable = jsonEncode([
+      for (final dynamic key in jsonDecode(keys) as List)
+        if (gate.reaches(other, key as String)) key
+    ]);
+    return prefixed ? '$prefix$reachable' : reachable;
   }
 
   /// The keys [forAtSign] shares with this atSign, matching [scanRegex],
@@ -137,6 +158,9 @@ class ScanVerbHandler extends AbstractVerbHandler {
         localKeysList[i] = localKeysList[i]
             .replaceAll('${atConnectionMetadata.fromAtSign}:', '');
       }
+      final Gatekeeper gate = AtSecondaryServerImpl.getInstance().gatekeeper;
+      final Atsign from = atConnectionMetadata.fromAtSign!.toAtsign();
+      localKeysList.removeWhere((key) => !gate.admits(from, key));
       return localKeysList;
     } else {
       localKeysList.removeWhere((key) =>
@@ -212,7 +236,8 @@ class ScanVerbHandler extends AbstractVerbHandler {
     return key.startsWith('private:') ||
         key.startsWith('privatekey:') ||
         key.startsWith('public:_') ||
-        key.startsWith('_');
+        key.startsWith('_') ||
+        AbstractVerbHandler.isServerOnlyKey(key);
   }
 
   /// [localKeysList] narrowed to what the connection's enrollment may read:

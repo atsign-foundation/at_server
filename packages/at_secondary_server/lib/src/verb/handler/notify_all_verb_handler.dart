@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
+import 'package:at_secondary/src/gate/gatekeeper.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -93,8 +94,15 @@ class NotifyAllVerbHandler extends AbstractVerbHandler {
     var resultMap = <String, String?>{};
     var dataSignature = SecondaryUtil.signChallenge(
         key, AtSecondaryServerImpl.getInstance().signingKey);
+    final Gatekeeper gate = AtSecondaryServerImpl.getInstance().gatekeeper;
     for (final forAtSign in recipients) {
       final isSelf = forAtSign == currentAtSign;
+      if (!isSelf &&
+          !gate.reaches(forAtSign.toAtsign(), key,
+              text: messageType == MessageType.text)) {
+        resultMap[forAtSign] = null;
+        continue;
+      }
       var updatedKey = '$forAtSign:$key';
       var atMetadata = AtMetaData()
         ..ttl = ttlMillis

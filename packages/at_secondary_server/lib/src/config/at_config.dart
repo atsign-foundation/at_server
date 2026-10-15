@@ -62,6 +62,21 @@ class AtConfig {
     }
   }
 
+  /// The blocklist as atSigns, leaving out, with a warning, any entry that is
+  /// not one.
+  Future<Set<Atsign>> getBlockedAtSigns() async {
+    final Set<Atsign> atSigns = {};
+    for (final String entry in await getBlockList()) {
+      try {
+        atSigns.add(entry.toAtsign());
+      } on InvalidAtSignException {
+        logger.warning('Leaving out of the gate a blocklist entry that is not'
+            ' an atSign');
+      }
+    }
+    return atSigns;
+  }
+
   /// Returns 'true' if blocklist contains [atsign].
   Future<bool> checkInBlockList(String atsign) async {
     try {
