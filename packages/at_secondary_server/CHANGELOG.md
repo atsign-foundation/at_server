@@ -42,6 +42,10 @@
 - perf: a lookup or notification between atServers no longer waits about
   10 ms for the reply to be noticed.
 
+- build: `at_commons` 5.22.0. An atSign of more than 55 characters after its
+  `@` is now refused; a `notify` to one, for example, is answered with an
+  error.
+
 # 3.17.0
 - feat: a notification can be ephemeral (`eph`): no atServer stores it,
   it lives at most two minutes, and an atServer restart loses it. A client can
