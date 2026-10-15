@@ -370,6 +370,25 @@ void main() {
     expect(after.errorCode, 'AT0028');
   });
 
+  test('An approver whose expiry has passed cannot approve', () async {
+    final a = await approver('a', expiry: Duration(seconds: 2));
+    final DateTime t = (await recordExpiry(a))!;
+    final c = await pending('c');
+    final b = await pending('b');
+    await decide('approve', a, c);
+    expect(await statusOf(c), EnrollmentStatus.approved.name,
+        reason: 'control: A approves before its expiry');
+
+    await Future.delayed(
+        t.difference(DateTime.now().toUtc()) + Duration(milliseconds: 50));
+    await expectLater(
+        decide('approve', a, b),
+        throwsA(isA<UnAuthorizedException>().having((e) => e.message,
+            'message', contains('not authorized for namespaces'))));
+
+    expect(await statusOf(b), EnrollmentStatus.pending.name);
+  });
+
   test('A capped enrollment keeps its expiry through revoke and unrevoke',
       () async {
     final a = await approver('a', expiry: Duration(hours: 1));

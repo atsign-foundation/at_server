@@ -22,9 +22,11 @@ Feature: An approved enrollment expires no later than the enrollment that approv
 
   Races: the approval reads the approver's expiry inside the atSign's
   enrollment-mutation critical section, so a revoke or replacement of the
-  approver lands wholly before or after it. An approver whose expiry passes
-  while its approval is in flight caps the approved enrollment at a moment
-  already past, so it is expired from the start.
+  approver lands wholly before or after it. An approver whose expiry has
+  passed is refused as not authorized. One whose expiry passes in the moment
+  between that check and the cap, inside the same critical section, caps the
+  approved enrollment at a moment already past, so it is expired from the
+  start.
   Replay: an approve acts only on a pending enrollment, so a resent approve
   is refused and changes no expiry.
   DoS: the cap reads one record inside a critical section the approval
@@ -80,6 +82,12 @@ Feature: An approved enrollment expires no later than the enrollment that approv
     Given A expires at T and approved B, which asked for no expiry
     When T passes
     Then B's pkam is refused with AT0028
+
+  Scenario: An approver whose expiry has passed cannot approve
+    Given @alice's enrollment A holds __manage and its expiry has passed, though its record is not yet removed
+    When A approves pending enrollment B
+    Then the approve is refused with AT0009
+    And B is still pending
 
   Scenario: A capped enrollment keeps its expiry through revoke and unrevoke
     Given A approved B, capping it at T
