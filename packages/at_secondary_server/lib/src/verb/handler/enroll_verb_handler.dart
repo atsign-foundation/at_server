@@ -373,7 +373,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     if (AbstractVerbHandler.isCramConnection(atConnection.metaData as InboundConnectionMetadata)) {
       enrollNamespaces[EnrollmentConstants.enrollManageNamespace] = 'rw';
       enrollNamespaces[EnrollmentConstants.allNamespaces] = 'rw';
-      // The atSign's root never expires, whatever expiry it asked for.
+      // NOTE the atSign's root never expires, whatever expiry it asked for.
       enrollmentValue.apkamKeysExpiryDuration = Duration.zero;
       enrollmentValue.approval = EnrollApproval(EnrollmentStatus.approved.name);
       responseJson['status'] = 'approved';
@@ -839,8 +839,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
             ?.expiresAt
             ?.toUtc();
 
-    // NOTE terms are compared before any deadline is computed, so a term
-    // too long for a DateTime is capped rather than thrown on.
+    // NOTE terms are compared before any deadline is computed, so an
+    // approver's expiry caps a term too long for a DateTime.
     DateTime? expiry;
     if (approverExpiry != null &&
         (requestedMs <= 0 ||
@@ -858,7 +858,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       return null;
     }
     final int termMs = expiry.difference(now).inMilliseconds;
-    // Zero is the keystore's "never expires".
+    // NOTE zero is the keystore's "never expires".
     enVal.apkamKeysExpiryDuration =
         Duration(milliseconds: termMs < 1 ? 1 : termMs);
     return expiry;

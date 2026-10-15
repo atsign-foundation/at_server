@@ -41,12 +41,13 @@
   `enroll:approve` response carries `expiresAt`.
 
 - feat: `enroll:fetch` and the `new.enrollments.__manage` notification carry
-  the key expiry a request asks for, as `apkamKeysExpiryInMillis` (0 for
-  none), as `enroll:list` already did.
+  the key expiry a request asks for, as `apkamKeysExpiryInMillis` (0 or
+  less for none), as `enroll:list` already did.
 
 - fix: `enroll:list` and `enroll:fetch` report `apkamKeysExpiryInMillis` as 0
   for an enrollment a CRAM connection requests, which never expires, rather
-  than the expiry the request asked for.
+  than the expiry the request asked for. One requested before this release
+  still reports the expiry it asked for.
 
 - fix: a retrofit successor expires no later than its predecessor, whatever
   term it asks for.
