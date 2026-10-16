@@ -1,4 +1,10 @@
 # 3.17.1
+- ⚠️ BREAKING: text notifications are retired. A client's `notify` or
+  `notify:all` with `messageType:text` is refused with AT0003 (`messageType:text
+  is no longer supported`); one from another atServer is accepted and dropped.
+  `info` lists `notify.text` as `Retired`. Text notifications already stored
+  still list and fetch.
+
 - fix: looking up another atSign's public record no longer leaves a copy on
   this atServer unless the record has a `ttr`, and the 24-hour copies kept
   before are removed. **App authors:** `cached:public:` finds nothing for such
@@ -30,11 +36,46 @@
 - fix: a `from:` naming another atSign on a connection that has already
   authenticated is answered with AT0009, and the connection is closed.
 
+- fix: a `cram:` on a connection that has authenticated with `pkam:` is
+  answered with AT0009, and the connection is closed. A `batch:` answers any
+  `cram:` or `pkam:` among its commands with AT0009 and does not run it.
+  **App authors:** send a `cram:` on a connection that has not authenticated
+  with `pkam:`.
+
+- fix: a `lookup:` on a connection that has not authenticated, including
+  one where another atServer has proved itself with `pol`, may name only this
+  atServer's atSign as the key's owner. A lookup naming another owner is
+  answered with AT0009, and the connection is closed.
+
 - fix: an HTTP request's path and query parameters are logged with control
   characters escaped.
 
 - perf: a lookup or notification between atServers no longer waits about
   10 ms for the reply to be noticed.
+
+- fix: an approved enrollment expires no later than the enrollment that
+  approved it: the atServer caps its expiry on approval, and the
+  `enroll:approve` response carries `expiresAt`.
+
+- feat: `enroll:fetch` and the `new.enrollments.__manage` notification carry
+  the key expiry a request asks for, as `apkamKeysExpiryInMillis` (0 or
+  less for none), as `enroll:list` already did.
+
+- fix: `enroll:list` and `enroll:fetch` report `apkamKeysExpiryInMillis` as 0
+  for an enrollment a CRAM connection requests, which never expires, rather
+  than the expiry the request asked for. One requested before this release
+  still reports the expiry it asked for.
+
+- fix: a retrofit successor expires no later than its predecessor, whatever
+  term it asks for.
+
+- fix: an `enroll:request` is refused with AT0022 unless its
+  `apkamKeysExpiryInMillis`, when given, is a whole number of milliseconds
+  from 0 (never expires) to 3155760000000 (36,525 days).
+
+- build: `at_commons` 5.22.0. An atSign of more than 55 characters after its
+  `@` is now refused; a `notify` to one, for example, is answered with an
+  error.
 
 # 3.17.0
 - feat: a notification can be ephemeral (`eph`): no atServer stores it,

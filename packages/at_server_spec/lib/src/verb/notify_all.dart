@@ -11,12 +11,11 @@ import 'package:at_server_spec/src/verb/verb.dart';
 ///
 /// Syntax: notify:<atsign's to notify>:<key to notify>@<sender AtSign>
 /// Optionally following preferences can be set
-/// 1) messageType: KEY, TEXT
+/// 1) messageType: KEY
 ///   This field indicates the type of notification. This is an optional field. Defaults to Key.
 ///   KEY: To notify a key
 ///     Example: notify:all:messageType:key:@colin:phone@kevin
-///   TEXT: To notify a message.
-///     Example: notify:all:messageType:text:@colin:hi
+///   TEXT is refused with AT0003, as `notify` refuses it.
 /// 2) operation: UPDATE, DELETE
 /// This field indicates the operation. This is an optional field. Defaults to update
 ///  Type: update

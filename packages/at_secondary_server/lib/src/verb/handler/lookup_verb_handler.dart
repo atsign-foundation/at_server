@@ -4,10 +4,12 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_close_reason.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
+import 'package:at_secondary/src/utils/logging_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
@@ -38,6 +40,59 @@ class LookupVerbHandler extends AbstractVerbHandler {
   @override
   Verb getVerb() {
     return lookup;
+  }
+
+  /// What a lookup naming [owner], an atSign other than this atServer's, is
+  /// answered with on a connection that has not authenticated.
+  String _anotherOwnerRefusal(InboundConnectionMetadata md, String owner) {
+    final String here = cacheManager.atSign;
+    return md.isPolAuthenticated
+        ? "Lookup from ${md.fromAtSign} may read only $here's keys, not "
+            "$owner's"
+        : 'Lookup on a connection that has not authenticated may read only '
+            "$here's keys, not $owner's";
+  }
+
+  /// The owner [command] names when [atConnection] has not authenticated and
+  /// that owner is not this atServer's atSign, or null otherwise.
+  String? _anotherOwnerNamedUnauthenticated(
+      String command, InboundConnection atConnection) {
+    final md = atConnection.metaData as InboundConnectionMetadata;
+    if (md.isAuthenticated) {
+      return null;
+    }
+    final String owner;
+    try {
+      owner = AtUtils.fixAtSign(parse(command)[AtConstants.atSign]!);
+    } on Exception {
+      return null;
+    }
+    return owner == cacheManager.atSign ? null : owner;
+  }
+
+  /// Answers a lookup naming another owner on a connection that has not
+  /// authenticated with AT0009 and closes the connection; processes any other
+  /// lookup as usual.
+  @override
+  Future<void> process(String command, InboundConnection atConnection) async {
+    final String? owner =
+        _anotherOwnerNamedUnauthenticated(command, atConnection);
+    if (owner == null) {
+      return super.process(command, atConnection);
+    }
+    final md = atConnection.metaData as InboundConnectionMetadata;
+    final String refusal = _anotherOwnerRefusal(md, owner);
+    logger.warning(
+        'Closing session ${md.sessionID}: ${sanitiseForLogging(refusal)}');
+    final response = Response()
+      ..isError = true
+      ..errorCode = 'AT0009'
+      ..errorMessage = refusal;
+    await responseManager
+        .getResponseHandler(getVerb())
+        .process(atConnection, response);
+    InboundConnectionCloseReason.protocolError.markOn(atConnection);
+    await atConnection.close();
   }
 
   /// Throws an [SecondaryNotFoundException] if unable to establish connection to another secondary
@@ -117,13 +172,9 @@ class LookupVerbHandler extends AbstractVerbHandler {
     }
   }
 
-  /// Handles requests from pol-authenticated connections.
-  ///   - In cases where the 'atSign' does not possess ownership of the data,
-  ///     a pol authentication is initiated towards the 'atSign' that does own the data.
-  ///     For instance, when the current "atSign" is "alice" and the request is
-  ///     "lookup:phone.wavi@bob"(from an authenticated connection), an interaction
-  ///     occurs where Alice proves identity to Bob, who subsequently returns the
-  ///     value of the key "@alice:phone.wavi@bob".
+  /// Handles a lookup, from a pol-authenticated connection, of a key this
+  /// atServer's atSign owns: answers the record that atSign shared with the
+  /// connection's atSign.
   Future<void> _handlePolAuthConnection(
       InboundConnectionMetadata atConnectionMetadata,
       String keyAtAtSign,

@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_close_reason.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
@@ -25,6 +26,32 @@ class CramVerbHandler extends AbstractVerbHandler {
   @override
   Verb getVerb() {
     return cram;
+  }
+
+  /// What a cram on a connection that has authenticated with pkam is
+  /// answered with.
+  static const String afterPkamRefusal =
+      'cram may not follow a successful pkam on this connection';
+
+  /// Answers a cram on a connection that has authenticated with pkam with
+  /// AT0009 and closes the connection; processes any other cram as usual.
+  @override
+  Future<void> process(String command, InboundConnection atConnection) async {
+    final AuthType? authType = atConnection.metaData.authType;
+    if (authType != AuthType.pkamLegacy && authType != AuthType.apkam) {
+      return super.process(command, atConnection);
+    }
+    logger.warning('Closing session ${atConnection.metaData.sessionID}:'
+        ' $afterPkamRefusal');
+    final response = Response()
+      ..isError = true
+      ..errorCode = 'AT0009'
+      ..errorMessage = afterPkamRefusal;
+    await responseManager
+        .getResponseHandler(getVerb())
+        .process(atConnection, response);
+    InboundConnectionCloseReason.protocolError.markOn(atConnection);
+    await atConnection.close();
   }
 
   @override
@@ -67,8 +94,8 @@ class CramVerbHandler extends AbstractVerbHandler {
     if (digestFromClient == expectedDigest) {
       atConnection.metaData.isAuthenticated = true;
       atConnection.metaData.authType = AuthType.cram;
-      // NOTE a CRAM connection stands over no enrollment, so any id left by an
-      // earlier `pkam:` on this connection is cleared.
+      // NOTE a CRAM connection stands over no enrollment, so any id an earlier
+      // `enroll:request` left on this connection is cleared.
       (atConnection.metaData as InboundConnectionMetadata)
         ..enrollmentId = null
         ..enrollmentAppName = null

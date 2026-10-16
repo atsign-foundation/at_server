@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
+import 'package:at_secondary/src/verb/handler/pkam_verb_handler.dart';
 import 'package:at_secondary/src/verb/verb_enum.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -13,6 +15,10 @@ class BatchVerbHandler extends AbstractVerbHandler {
   final VerbHandlerManager verbHandlerManager;
 
   BatchVerbHandler(super.keyStore, this.verbHandlerManager);
+
+  /// Why a cram or pkam among a batch's commands is refused.
+  static const String authenticationRefusal =
+      'cram and pkam may not run inside a batch';
 
   // Method to verify whether command is accepted or not
   // Input: command
@@ -52,6 +58,12 @@ class BatchVerbHandler extends AbstractVerbHandler {
 
       if (verbHandler is AbstractVerbHandler) {
         try {
+          if (verbHandler is CramVerbHandler ||
+              verbHandler is PkamVerbHandler) {
+            logger.warning('Refusing entry $batchId of a batch on session '
+                '${atConnection.metaData.sessionID}: $authenticationRefusal');
+            throw UnAuthorizedException(authenticationRefusal);
+          }
           var response =
               await verbHandler.processInternal(command, atConnection);
           var batchResponse = BatchResponse(batchId, response);

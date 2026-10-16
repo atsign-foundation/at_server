@@ -444,25 +444,21 @@ void main() {
             'predecessor hands out a permanent credential for the asking');
   });
 
-  test('a negative stated expiry is not honoured', () async {
+  /// Catalogue: features/enrollment/requested_key_expiry_bound.feature
+  test('A self-enrollment asking for a key expiry outside the bound is refused',
+      () async {
     final predecessorId = (await etu.createEnrollments(n: 1)).$1.first;
 
-    final r = await selfEnroll(
-        predecessorId: predecessorId,
-        apkamKeysExpiryDuration: Duration(milliseconds: -1));
-    expect(r.isError, false, reason: '${r.errorMessage}');
-    final successorId = jsonDecode(r.data!)['enrollmentId'] as String;
-
-    // NOTE the raw ttl, deliberately not `?? 0`.
-    final successorTtl =
-        (await keyValueStore.get(enMgr.buildEnrollmentKey(successorId)))
-            ?.metaData
-            ?.ttl;
-    expect(successorTtl, 0,
-        reason: 'a negative posture is not a posture; it must fall back to '
-            'the predecessor\'s (unbounded, written as 0) rather than reaching the '
-            'keystore, where a negative ttl skips the expiry write entirely '
-            'and leaves the record immortal');
+    await expectLater(
+        selfEnroll(
+            predecessorId: predecessorId,
+            apkamKeysExpiryDuration: Duration(milliseconds: -1)),
+        throwsA(isA<IllegalArgumentException>().having(
+            (e) => e.message,
+            'message',
+            'apkamKeysExpiryInMillis must be a whole number of milliseconds '
+                'from 0 to 3155760000000')),
+        reason: 'a request may not ask for a negative posture');
   });
 
   test(
@@ -797,8 +793,8 @@ void main() {
     });
   });
 
-  /// A successor's term restarts its clock at its OWN write, so an equal term
-  /// always expires later in absolute time than the credential it replaced.
+  /// A successor's record expires no later than its predecessor's, whatever
+  /// term it asks for.
   group('a successor may not outlive its predecessor\'s deadline', () {
     Future<DateTime?> expiryOf(String id) async =>
         (await keyValueStore.get(enMgr.buildEnrollmentKey(id)))
@@ -878,6 +874,32 @@ void main() {
       expect(successorExpiry!.isBefore(rootExpiry!), isTrue,
           reason: 'a successor asking for less than the predecessor has left '
               'keeps its own shorter life');
+    });
+
+    test('A retrofit successor expires no later than its predecessor',
+        () async {
+      final List<String> later = [];
+      for (int i = 0; i < 150; i++) {
+        await mintUnder('edge-root-$i', null, ttl: Duration(hours: 1));
+        final DateTime t = (await expiryOf('edge-root-$i'))!;
+        // NOTE a millisecond under the time left as seen here, so the
+        // atServer, comparing a moment later, mostly leaves it uncapped.
+        final int leftMs =
+            t.difference(DateTime.now().toUtc()).inMilliseconds;
+        final r = await selfEnroll(
+            predecessorId: 'edge-root-$i',
+            appName: 'edge-app-$i',
+            deviceName: 'edge-device-$i',
+            apkamKeysExpiryDuration: Duration(milliseconds: leftMs - 1),
+            apsk: {'signingPublicKey': 'k$i', 'signingAlgo': 'mldsa65'});
+        expect(r.isError, false, reason: '${r.errorMessage}');
+        final s = jsonDecode(r.data!)['enrollmentId'] as String;
+        final DateTime st = (await expiryOf(s))!;
+        if (st.isAfter(t)) later.add('$s expires at $st, after $t');
+      }
+      expect(later, isEmpty,
+          reason: 'every successor\'s record expires no later than its '
+              'predecessor\'s');
     });
   });
 
@@ -990,12 +1012,22 @@ void main() {
   /// What `enroll:approve` writes onto the record, for postures that are not
   /// a positive number of milliseconds.
   group('a non-positive key-expiry posture', () {
-    Future<AtMetaData?> approveWithPosture(Duration? posture) async {
+    /// Approves a pending enrollment that asked for [posture], or that holds
+    /// [stored] in the keystore when given, a posture no request can ask for.
+    Future<AtMetaData?> approveWithPosture(Duration? posture,
+        {Duration? stored}) async {
       final id = await etu.createPendingEnrollment(
           appName: 'posture-app',
-          deviceName: 'posture-device-${posture?.inMilliseconds}',
+          deviceName: 'posture-device-${(stored ?? posture)?.inMilliseconds}',
           namespaces: {'wavi': 'rw'},
           apkamKeysExpiryDuration: posture);
+      if (stored != null) {
+        final atData = await keyValueStore.get(enMgr.buildEnrollmentKey(id));
+        final value = EnrollDataStoreValue.fromJson(jsonDecode(atData!.data!));
+        value.apkamKeysExpiryDuration = stored;
+        atData.data = jsonEncode(value.toJson());
+        await enMgr.put(id, atData, EnrollmentStatus.pending);
+      }
       final pending =
           await keyValueStore.get(enMgr.buildEnrollmentKey(id));
       expect(pending?.metaData?.expiresAt, isNotNull,
@@ -1006,9 +1038,11 @@ void main() {
       return (await keyValueStore.get(enMgr.buildEnrollmentKey(id)))?.metaData;
     }
 
-    test('a NEGATIVE posture leaves no expiry, not the pending window\'s',
-        () async {
-      final md = await approveWithPosture(Duration(milliseconds: -1));
+    test(
+        'a NEGATIVE posture already in the store leaves no expiry, not the '
+        'pending window\'s', () async {
+      final md = await approveWithPosture(Duration(hours: 1),
+          stored: Duration(milliseconds: -1));
 
       expect(md?.expiresAt, isNull,
           reason: 'a negative posture asks for a credential that does not '
