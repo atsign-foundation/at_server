@@ -454,13 +454,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
             predecessor.apkamKeysExpiryDuration;
       }
       // NOTE a stated posture may narrow the predecessor's, never widen it;
-      // zero and negative both ask for a permanent credential.
+      // zero asks for a permanent credential.
       final predecessorExpiryMs = predecessor.apkamKeysExpiryDuration.inMilliseconds;
       final statedExpiryMs =
           enrollmentValue.apkamKeysExpiryDuration.inMilliseconds;
-      if (statedExpiryMs < 0 ||
-          (predecessorExpiryMs > 0 &&
-              (statedExpiryMs <= 0 || statedExpiryMs > predecessorExpiryMs))) {
+      if (predecessorExpiryMs > 0 &&
+          (statedExpiryMs <= 0 || statedExpiryMs > predecessorExpiryMs)) {
         logger.warning(
             'Self-enrollment under $predecessorId asked for a key-expiry '
             'of ${statedExpiryMs}ms against a predecessor bound to '
