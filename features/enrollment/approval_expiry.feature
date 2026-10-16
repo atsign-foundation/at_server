@@ -3,9 +3,11 @@ Feature: An approved enrollment expires no later than the enrollment that approv
   When an enrollment approves another over its own connection, the atServer
   caps the approved enrollment's expiry at the approver's own, at the moment
   of approval. The approval is never refused for it. An earlier expiry the
-  request asked for is kept. No value, zero and a negative value all ask for
-  no expiry, and are capped like any other. An approval over a CRAM
-  connection, or by an enrollment that never expires, caps nothing.
+  request asked for is kept. No value and zero both ask for no expiry, and
+  are capped like any other. So is a pending record holding an expiry
+  outside the range a request may ask for, negative or too long for a
+  deadline to be computed from it. An approval over a CRAM connection, or by
+  an enrollment that never expires, caps nothing.
   An enrollment a CRAM connection requests is the atSign's root: it never
   expires, whatever expiry it asks for, and its apkamKeysExpiryInMillis is 0.
 
@@ -50,9 +52,23 @@ Feature: An approved enrollment expires no later than the enrollment that approv
       | requested                       | expiry                 |
       | no expiry                       | T                      |
       | an apkamKeysExpiryInMillis of 0 | T                      |
-      | a negative expiry               | T                      |
       | an expiry later than T          | T                      |
       | an expiry earlier than T        | the expiry B asked for |
+
+  Scenario Outline: A pending record holding an expiry outside the request bound is capped at the approver's
+    Given @alice's enrollment A holds __manage and expires at T
+    And enrollment B is pending, and its record holds <stored>
+    When A approves B
+    Then B is approved
+    And B's record expires at T
+    And the encryption keys stored for B on approval expire at T
+    And the approve response carries expiresAt T
+    And enroll:list and enroll:fetch show B's apkamKeysExpiryInMillis as the time from its approval to T
+
+    Examples:
+      | stored                                                   |
+      | a negative expiry                                        |
+      | an expiry too long for a deadline to be computed from it |
 
   Scenario: An approver whose record holds a deadline caps at that deadline
     Given @alice's enrollment A holds __manage, asked for no expiry, and its record expires at T because it replaced an enrollment that expires at T

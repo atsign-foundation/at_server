@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:at_chops/at_chops.dart' show MlDsa65PureDartAlgo;
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/enroll/enroll_datastore_value.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/pkam_verb_handler.dart';
@@ -53,6 +54,23 @@ void main() {
     final id =
         await pending(name, namespaces: approverGrants, expiry: expiry);
     await etu.approveEnrollment(etu.primaryEnId, id);
+    return id;
+  }
+
+  /// A pending enrollment whose record holds [stored], an expiry no request
+  /// may ask for.
+  Future<String> pendingHolding(String name, Duration stored) async {
+    final id = await pending(name);
+    final key = enMgr.buildEnrollmentKey(id);
+    final atData = (await keyValueStore.get(key))!;
+    final value = EnrollDataStoreValue.fromJson(jsonDecode(atData.data!));
+    value.apkamKeysExpiryDuration = stored;
+    atData.data = jsonEncode(value.toJson());
+    await enMgr.put(id, atData, EnrollmentStatus.pending);
+    final reread = EnrollDataStoreValue.fromJson(
+        jsonDecode((await keyValueStore.get(key))!.data!));
+    expect(reread.apkamKeysExpiryDuration, stored,
+        reason: 'precondition: B\'s pending record holds $stored');
     return id;
   }
 
@@ -199,12 +217,7 @@ void main() {
     for (final (String example, List<Duration?> requests) in [
       ('no expiry', [null]),
       ('an apkamKeysExpiryInMillis of 0', [Duration.zero]),
-      ('a negative expiry', [Duration(milliseconds: -1)]),
-      (
-        'an expiry later than T',
-        // The second is longer than a DateTime can hold.
-        [Duration(hours: 2), Duration(milliseconds: 9000000000000000)]
-      ),
+      ('an expiry later than T', [Duration(hours: 2)]),
     ]) {
       test(example, () async {
         for (final (int i, Duration? requested) in requests.indexed) {
@@ -234,6 +247,32 @@ void main() {
               '$before and $after plus ten minutes, but at $granted');
       await expectApprovedExpiringAt(a, b, r, granted, start, after);
     });
+  });
+
+  group(
+      'A pending record holding an expiry outside the request bound is '
+      'capped at the approver\'s', () {
+    late String a;
+    late DateTime t;
+
+    setUp(() async {
+      a = await approver('a', expiry: Duration(hours: 1));
+      t = (await recordExpiry(a))!;
+    });
+
+    for (final (String example, Duration stored) in [
+      ('a negative expiry', Duration(milliseconds: -1)),
+      (
+        'an expiry too long for a deadline to be computed from it',
+        Duration(milliseconds: 9000000000000000)
+      ),
+    ]) {
+      test(example, () async {
+        final b = await pendingHolding('b', stored);
+        final (r, start, end) = await approveTimed(a, b);
+        await expectApprovedExpiringAt(a, b, r, t, start, end);
+      });
+    }
   });
 
   test('An approver whose record holds a deadline caps at that deadline',

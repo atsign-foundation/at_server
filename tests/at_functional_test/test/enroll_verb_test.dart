@@ -1141,6 +1141,35 @@ void main() {
     });
   });
 
+  /// Catalogue: features/enrollment/requested_key_expiry_bound.feature
+  group('A request asking for a key expiry outside the bound is refused', () {
+    test('3155760000001', () async {
+      await firstAtSignConnection.authenticateConnection();
+      final String otp =
+          (await firstAtSignConnection.sendRequestToServer('otp:get'))
+              .replaceFirst('data:', '')
+              .trim();
+      final String deviceName = 'pixel-${Uuid().v4().hashCode}';
+      final OutboundConnectionFactory newDevice =
+          await OutboundConnectionFactory().initiateConnectionWithListener(
+              firstAtSign, firstAtSignHost, firstAtSignPort);
+      addTearDown(newDevice.close);
+
+      final String response = await newDevice.sendRequestToServer(
+          'enroll:request:{"appName":"wavi","deviceName":"$deviceName","namespaces":{"wavi":"rw"},"otp":"$otp","apkamPublicKey":"${mintApkamKeys().publicKey}","encryptedAPKAMSymmetricKey":"${apkamEncryptedKeysMap['encryptedAPKAMSymmetricKey']}","apkamKeysExpiryInMillis":3155760000001}');
+
+      expect(response, startsWith('error:AT0022'));
+      expect(
+          response,
+          contains('apkamKeysExpiryInMillis must be a whole number of '
+              'milliseconds from 0 to 3155760000000'));
+      final String listed =
+          await firstAtSignConnection.sendRequestToServer('enroll:list');
+      expect(listed, startsWith('data:'));
+      expect(listed, isNot(contains(deviceName)));
+    });
+  });
+
   group('A group of test related to Rate limiting enrollment requests', () {
     /// One OTP. Each is stored under its own key, so several can be
     /// outstanding at once - which is what lets these tests fetch every OTP

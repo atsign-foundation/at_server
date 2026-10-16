@@ -43,6 +43,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   /// JSON encoding, the string that lands in the keystore.
   static const int maxEnrollmentRecordBytes = 500 * 1024;
 
+  /// The longest key expiry an enrollment request may ask for: 36,525 days.
+  static const int maxApkamKeysExpiryInMillis = 3155760000000;
+
   final EnrollmentManager enMgr;
   final NotificationManager notifManager;
 
@@ -84,9 +87,13 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         throw IllegalArgumentException('Enroll parameters not provided');
       }
     } else {
-      enrollVerbParams = EnrollParams.fromJson(
+      final Map<String, dynamic> enrollParamsJson =
           jsonDecode(verbParams[AtConstants.enrollParams]!)
-              as Map<String, dynamic>);
+              as Map<String, dynamic>;
+      if (operation == 'request') {
+        _checkRequestedKeysExpiry(enrollParamsJson['apkamKeysExpiryInMillis']);
+      }
+      enrollVerbParams = EnrollParams.fromJson(enrollParamsJson);
       // NOTE folded here, once, to EXACTLY the keystore's fold. Every id
       // comparison on the revoke path is a string comparison against this
       // value.
@@ -451,13 +458,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
             predecessor.apkamKeysExpiryDuration;
       }
       // NOTE a stated posture may narrow the predecessor's, never widen it;
-      // zero and negative both ask for a permanent credential.
+      // zero asks for a permanent credential.
       final predecessorExpiryMs = predecessor.apkamKeysExpiryDuration.inMilliseconds;
       final statedExpiryMs =
           enrollmentValue.apkamKeysExpiryDuration.inMilliseconds;
-      if (statedExpiryMs < 0 ||
-          (predecessorExpiryMs > 0 &&
-              (statedExpiryMs <= 0 || statedExpiryMs > predecessorExpiryMs))) {
+      if (predecessorExpiryMs > 0 &&
+          (statedExpiryMs <= 0 || statedExpiryMs > predecessorExpiryMs)) {
         logger.warning(
             'Self-enrollment under $predecessorId asked for a key-expiry '
             'of ${statedExpiryMs}ms against a predecessor bound to '
@@ -1481,6 +1487,21 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     throw IllegalStateException(
         'The apkamPublicKey is already held by another enrollment on this '
         'atSign; every enrollment needs a keypair of its own$named');
+  }
+
+  /// Throws [IllegalArgumentException] unless [expiry], a request's
+  /// `apkamKeysExpiryInMillis` as sent, is absent or a whole number of
+  /// milliseconds from 0 to [maxApkamKeysExpiryInMillis].
+  static void _checkRequestedKeysExpiry(Object? expiry) {
+    if (expiry == null ||
+        (expiry is int &&
+            expiry >= 0 &&
+            expiry <= maxApkamKeysExpiryInMillis)) {
+      return;
+    }
+    throw IllegalArgumentException(
+        'apkamKeysExpiryInMillis must be a whole number of milliseconds from 0 '
+        'to $maxApkamKeysExpiryInMillis');
   }
 
   /// Throws [IllegalArgumentException] if parameters are not valid.
