@@ -47,6 +47,10 @@
 - perf: a lookup or notification between atServers no longer waits about
   10 ms for the reply to be noticed.
 
+- fix: an `enroll:request` is refused with AT0022 unless its
+  `apkamKeysExpiryInMillis`, when given, is a whole number of milliseconds
+  from 0 (never expires) to 3155760000000 (36,525 days).
+
 - build: `at_commons` 5.22.0. An atSign of more than 55 characters after its
   `@` is now refused; a `notify` to one, for example, is answered with an
   error.

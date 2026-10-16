@@ -432,8 +432,8 @@ void main() {
   });
 
   group('A self-enrolled successor expires, and may not outlive its predecessor', () {
-    // One hour, so a successor asking for longer, for "never", or for a negative
-    // value has something to be clamped against.
+    // One hour, so a successor asking for longer, or for "never", has
+    // something to be clamped against.
     const int oneHourMs = 3600000;
     // ⚠️ A LOWER bound tight enough to mean something. Every successor here is
     // bounded by what is LEFT of the predecessor's hour, and the predecessor
@@ -546,22 +546,22 @@ void main() {
               'Predecessor $predecessorExpiry, successor $successorExpiry');
     });
 
-    test('a negative stated expiry is not honoured', () async {
-      // A negative value skips the ttl write altogether, so it is the same
-      // ask as "never expires" by a different route.
+    /// Catalogue: features/enrollment/requested_key_expiry_bound.feature
+    test(
+        'A self-enrollment asking for a key expiry outside the bound is '
+        'refused', () async {
       OutboundConnectionFactory owner = await ownerConnection();
       String predecessorId = await createApprovedEnrollment(owner,
           namespaces: {'wavi': 'rw'}, apkamKeysExpiryInMillis: oneHourMs);
 
-      String successorId = await selfEnrollId(predecessorId,
-          apkamKeysExpiryInMillis: -1);
-      final successor = await enrollmentRecord(owner, successorId);
-      expect(successor.value['apkamKeysExpiryInMillis'],
-          lessThanOrEqualTo(oneHourMs));
-      expect(successor.metaData['ttl'], greaterThan(almostAnHourMs),
-          reason: 'a negative ask falls back to the predecessor\'s remaining '
-              'hour, not to some tiny value');
-      expect(successor.metaData['ttl'], lessThanOrEqualTo(oneHourMs));
+      String response =
+          await selfEnroll(predecessorId, apkamKeysExpiryInMillis: -1);
+      expect(response, startsWith('error:'), reason: response);
+      expect(response, contains('AT0022'));
+      expect(
+          response,
+          contains('apkamKeysExpiryInMillis must be a whole number of '
+              'milliseconds from 0 to 3155760000000'));
     });
   });
 
