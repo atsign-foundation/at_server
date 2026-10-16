@@ -77,6 +77,7 @@ echo "== run container in DUAL mode =="
 docker rm -f $CONT 2>/dev/null
 docker run -d --name $CONT \
   -e testingMode="true" -e httpsEnabled="true" -e persistenceBackend="dual" \
+  --add-host vip.ve.atsign.zone:127.0.0.1 \
   $veEnvArgs $vePortArgs \
   "$veImage" $veCmd || exit 1
 

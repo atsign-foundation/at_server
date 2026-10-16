@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
+import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/utils/secondary_util.dart';
@@ -1176,4 +1177,147 @@ void main() {
     });
     tearDown(() async => await verbTestsTearDown());
   });
+
+  /// Catalogue: features/lookup/pol_lookup_owner.feature
+  group('Given a connection that has proved itself as @chuck by pol', () {
+    late LookupVerbHandler lookupVerbHandler;
+    late _ClosableConnection connection;
+    final Atsign chuck = '@chuck'.toAtsign();
+
+    setUpAll(() async {
+      await verbTestsSetUpAll();
+    });
+
+    setUp(() async {
+      await verbTestsSetUp();
+      lookupVerbHandler = LookupVerbHandler(
+          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+          accessLog: atAccessLog);
+      connection = _ClosableConnection();
+      connection.metadata
+        ..isPolAuthenticated = true
+        ..from = true
+        ..fromAtSign = chuck;
+    });
+
+    tearDown(() async => await verbTestsTearDown());
+
+    for (final String lookup in [
+      'lookup:public:phone.wavi$bob',
+      'lookup:phone.wavi$bob',
+    ]) {
+      test('when it sends $lookup, then it is refused with AT0009 and closed',
+          () async {
+        // NOTE held where a read of phone.wavi@bob would find it; the
+        // keystore holds no record a read of public:phone.wavi@bob could find.
+        await keyValueStore.put(
+            '$chuck:phone.wavi$bob', AtData()..data = 'held');
+
+        await lookupVerbHandler.process(lookup, connection);
+
+        expect(
+            connection.lastWrittenData,
+            startsWith("error:AT0009:Lookup from @chuck may read only @alice's "
+                "keys, not @bob's"));
+        expect(connection.closed, isTrue);
+      });
+    }
+
+    test(
+        'when it sends lookup:phone.wavi@alice for a key @alice shared with '
+        'it, then it gets the value', () async {
+      await keyValueStore.put(
+          '$chuck:phone.wavi$alice', AtData()..data = '+44 1234');
+
+      await lookupVerbHandler.process('lookup:phone.wavi$alice', connection);
+
+      expect(connection.lastWrittenData, startsWith('data:+44 1234'));
+      expect(connection.closed, isFalse);
+    });
+
+    test(
+        'when it sends a lookup naming @alice in capitals, then it is answered '
+        'as @alice', () async {
+      await keyValueStore.put(
+          '$chuck:phone.wavi$alice', AtData()..data = '+44 1234');
+
+      await lookupVerbHandler.process('lookup:phone.wavi@ALICE', connection);
+
+      expect(connection.lastWrittenData, startsWith('data:+44 1234'));
+      expect(connection.closed, isFalse);
+    });
+  });
+
+  /// Catalogue: features/lookup/unauthenticated_lookup_owner.feature
+  group('Given a connection that has not authenticated', () {
+    late LookupVerbHandler lookupVerbHandler;
+
+    setUpAll(() async {
+      await verbTestsSetUpAll();
+    });
+
+    setUp(() async {
+      await verbTestsSetUp();
+      lookupVerbHandler = LookupVerbHandler(
+          keyValueStore, mockOutboundClientManager, cacheManager, enMgr,
+          accessLog: atAccessLog);
+    });
+
+    tearDown(() async => await verbTestsTearDown());
+
+    final Map<String, void Function(_ClosableConnection)> connections = {
+      'a client has sent from:@alice': (c) => c.metadata.self = true,
+      'a peer has sent to:@alice': (c) => c.metadata.toAtSign = alice,
+      'a client has sent nothing yet': (c) {},
+    };
+
+    for (final MapEntry<String, void Function(_ClosableConnection)> given
+        in connections.entries) {
+      for (final String lookup in [
+        'lookup:public:phone.wavi$bob',
+        'lookup:phone.wavi$bob',
+      ]) {
+        test(
+            'and ${given.key}, when it sends $lookup, then it is refused with '
+            'AT0009 and closed', () async {
+          // NOTE held where a read of phone.wavi@bob would find it; the
+          // keystore holds no record a read of public:phone.wavi@bob could
+          // find.
+          await keyValueStore.put(
+              'public:phone.wavi$bob', AtData()..data = 'held');
+          final connection = _ClosableConnection();
+          given.value(connection);
+
+          await lookupVerbHandler.process(lookup, connection);
+
+          expect(
+              connection.lastWrittenData,
+              startsWith('error:AT0009:Lookup on a connection that has not '
+                  "authenticated may read only @alice's keys, not @bob's"));
+          expect(connection.closed, isTrue);
+        });
+      }
+    }
+
+    test('when it sends lookup:phone.wavi@alice, then it gets the public value',
+        () async {
+      await keyValueStore.put(
+          'public:phone.wavi$alice', AtData()..data = '+44 1234');
+      final connection = _ClosableConnection()..metadata.self = true;
+
+      await lookupVerbHandler.process('lookup:phone.wavi$alice', connection);
+
+      expect(connection.lastWrittenData, startsWith('data:+44 1234'));
+      expect(connection.closed, isFalse);
+    });
+  });
+}
+
+class _ClosableConnection extends DummyInboundConnection {
+  bool closed = false;
+
+  @override
+  Future<void> close() async {
+    closed = true;
+  }
 }

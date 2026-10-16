@@ -1,4 +1,10 @@
 # 3.17.1
+- ⚠️ BREAKING: text notifications are retired. A client's `notify` or
+  `notify:all` with `messageType:text` is refused with AT0003 (`messageType:text
+  is no longer supported`); one from another atServer is accepted and dropped.
+  `info` lists `notify.text` as `Retired`. Text notifications already stored
+  still list and fetch.
+
 - fix: looking up another atSign's public record no longer leaves a copy on
   this atServer unless the record has a `ttr`, and the 24-hour copies kept
   before are removed. **App authors:** `cached:public:` finds nothing for such
@@ -36,11 +42,20 @@
   **App authors:** send a `cram:` on a connection that has not authenticated
   with `pkam:`.
 
+- fix: a `lookup:` on a connection that has not authenticated, including
+  one where another atServer has proved itself with `pol`, may name only this
+  atServer's atSign as the key's owner. A lookup naming another owner is
+  answered with AT0009, and the connection is closed.
+
 - fix: an HTTP request's path and query parameters are logged with control
   characters escaped.
 
 - perf: a lookup or notification between atServers no longer waits about
   10 ms for the reply to be noticed.
+
+- build: `at_commons` 5.22.0. An atSign of more than 55 characters after its
+  `@` is now refused; a `notify` to one, for example, is answered with an
+  error.
 
 # 3.17.0
 - feat: a notification can be ephemeral (`eph`): no atServer stores it,
