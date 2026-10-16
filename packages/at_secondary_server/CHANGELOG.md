@@ -47,6 +47,22 @@
 - perf: a lookup or notification between atServers no longer waits about
   10 ms for the reply to be noticed.
 
+- fix: an approved enrollment expires no later than the enrollment that
+  approved it: the atServer caps its expiry on approval, and the
+  `enroll:approve` response carries `expiresAt`.
+
+- feat: `enroll:fetch` and the `new.enrollments.__manage` notification carry
+  the key expiry a request asks for, as `apkamKeysExpiryInMillis` (0 or
+  less for none), as `enroll:list` already did.
+
+- fix: `enroll:list` and `enroll:fetch` report `apkamKeysExpiryInMillis` as 0
+  for an enrollment a CRAM connection requests, which never expires, rather
+  than the expiry the request asked for. One requested before this release
+  still reports the expiry it asked for.
+
+- fix: a retrofit successor expires no later than its predecessor, whatever
+  term it asks for.
+
 - build: `at_commons` 5.22.0. An atSign of more than 55 characters after its
   `@` is now refused; a `notify` to one, for example, is answered with an
   error.
