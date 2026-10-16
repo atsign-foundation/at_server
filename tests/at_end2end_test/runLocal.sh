@@ -119,6 +119,7 @@ echo "Run docker container"
 # shellcheck disable=SC2086 # veEnvArgs/vePortArgs/veCmd are deliberately split
 docker run -d --rm --name "$containerName" \
   -e testingMode="true" -e httpsEnabled="true" \
+  --add-host vip.ve.atsign.zone:127.0.0.1 \
   $veEnvArgs $vePortArgs \
   "$veImage" $veCmd
 
