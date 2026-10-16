@@ -2384,6 +2384,7 @@ void main() {
             'namespace',
             'encryptedAPKAMSymmetricKey',
             'status',
+            'apkamKeysExpiryInMillis',
             'expiresAt',
             'metadata',
           },
