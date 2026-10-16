@@ -135,7 +135,8 @@
         APKAM public key, and its symmetric key (encrypted). It is recorded as <b>pending</b>. Requests are
         rate-limited, and the passcode is consumed.</li>
       <li>A manager <b>approves</b> — supplying the atSign's encryption keys re-encrypted for the new enrollment
-        (§5). Approval can only grant namespaces the manager itself holds.</li>
+        (§5). Approval can only grant namespaces the manager itself holds, and the new enrollment expires
+        no later than the manager's own enrollment does.</li>
       <li>The app <b>APKAM-authenticates</b> (proving possession of its private key), <b>pulls its delivered
         keys once</b>, and stores them on-device. It is now a live, scoped enrollment.</li>
     </ol>
