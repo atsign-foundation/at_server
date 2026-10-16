@@ -5,12 +5,14 @@ import 'dart:io';
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_persistence_secondary_server/hive.dart';
+import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
 import 'package:at_secondary/src/verb/handler/cram_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/from_verb_handler.dart';
+import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_server_spec/at_verb_spec.dart';
 import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
@@ -189,7 +191,81 @@ void main() {
       expect(connectionMetadata.isAuthenticated, false);
     });
   });
+
+  /// Issues a challenge on [connection] with `from:` and returns the digest
+  /// that answers it with this atSign's CRAM secret.
+  Future<String> answerableDigest(DummyInboundConnection connection) async {
+    const secret =
+        'b26455a907582760ebf35bc4847de549bc41c24b25c8b1c58d5964f7b4f8a43b'
+        'c55b0e9a601c9a9657d9a8b8bbc32f88b4e38ffaca03c8710ebae1b14ca9f364';
+    await keyValueStore.put('privatekey:at_secret', AtData()..data = secret);
+    AtSecondaryServerImpl.getInstance().currentAtSign =
+        '@test_user_1'.toAtsign();
+    connection.metaData.sessionID =
+        '_${DateTime.now().microsecondsSinceEpoch}';
+    final response = Response();
+    await FromVerbHandler(keyValueStore,
+            commitLog: atCommitLog, accessLog: atAccessLog)
+        .processVerb(response,
+            HashMap<String, String>()..['atSign'] = 'test_user_1', connection);
+    final challenge = response.data!.replaceFirst(RegExp('^data:'), '');
+    return sha512.convert(utf8.encode('$secret$challenge')).toString();
+  }
+
+  group('Given a connection that has authenticated with pkam', () {
+    for (final AuthType authType in [AuthType.pkamLegacy, AuthType.apkam]) {
+      test(
+          'when it sends cram:, then it is refused with AT0009 and closed '
+          '($authType)', () async {
+        final connection = _ClosableConnection();
+        connection.metaData
+          ..isAuthenticated = true
+          ..authType = authType;
+        final digest = await answerableDigest(connection);
+
+        await CramVerbHandler(keyValueStore, accessLog: atAccessLog)
+            .process('cram:$digest', connection);
+
+        expect(
+            connection.lastWrittenData,
+            startsWith('error:AT0009:cram may not follow a successful pkam on '
+                'this connection'));
+        expect(connection.closed, isTrue);
+        expect(connection.metaData.authType, authType);
+      });
+    }
+  });
+
+  group('Given a connection that has not authenticated, or has with cram', () {
+    for (final AuthType? authType in [null, AuthType.cram]) {
+      test('when it sends cram:, then the cram runs as usual ($authType)',
+          () async {
+        final connection = _ClosableConnection();
+        connection.metaData
+          ..isAuthenticated = authType != null
+          ..authType = authType;
+        final digest = await answerableDigest(connection);
+
+        await CramVerbHandler(keyValueStore, accessLog: atAccessLog)
+            .process('cram:$digest', connection);
+
+        expect(connection.lastWrittenData, startsWith('data:success'));
+        expect(connection.closed, isFalse);
+        expect(connection.metaData.authType, AuthType.cram);
+      });
+    }
+  });
+
   tearDownAll(() async => await tearDownFunc());
+}
+
+class _ClosableConnection extends DummyInboundConnection {
+  bool closed = false;
+
+  @override
+  Future<void> close() async {
+    closed = true;
+  }
 }
 
 final HiveAtPersistenceFactory _cramTestFactory = HiveAtPersistenceFactory();
