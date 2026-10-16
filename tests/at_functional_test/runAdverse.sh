@@ -78,6 +78,7 @@ trap 'exit 143' TERM
 
 docker run -d --rm --name "$containerName" \
   -e testingMode="true" -e httpsEnabled="true" \
+  --add-host vip.ve.atsign.zone:127.0.0.1 \
   -e "VIRTUALENV_BASE_PORT=${base}" \
   -p "${base}-$((base + 99)):${base}-$((base + 99))" \
   "$veImage" bash /atsign/entrypoint.sh
