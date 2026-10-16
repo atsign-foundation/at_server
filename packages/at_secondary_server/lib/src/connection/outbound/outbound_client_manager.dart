@@ -161,6 +161,10 @@ class OutboundClientManager {
     return _pool.getActiveConnectionSize();
   }
 
+  List<OutboundClient> clients() {
+    return _pool.clients();
+  }
+
   @visibleForTesting
   int get pendingGetClientLocks => _getClientMutexes.length;
 }

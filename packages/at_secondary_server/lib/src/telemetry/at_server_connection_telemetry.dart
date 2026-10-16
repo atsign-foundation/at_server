@@ -1,8 +1,11 @@
 import 'dart:convert';
+import 'dart:math';
 
+import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_close_reason.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_web_socket_connection.dart';
+import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:at_telemetry/at_telemetry.dart';
 
@@ -35,18 +38,26 @@ final class AtServerConnectionTelemetry {
   static const String anonymousCountAttribute = 'atsign.connections.anonymous';
   static const String monitorCountAttribute = 'atsign.connections.monitor';
   static const String capacityAttribute = 'atsign.connections.capacity';
+  static const String outboundCountAttribute = 'atsign.connections.outbound';
+  static const String peerAtSignAttribute = 'atsign.peer.atsign';
+  static const String peerInboundAttribute = 'atsign.peer.inbound';
+  static const String peerOutboundAttribute = 'atsign.peer.outbound';
+  static const String peerLastActiveAtAttribute = 'atsign.peer.last_active_at';
 
   final AtServerTelemetry _telemetry;
   final Iterable<InboundConnection> Function() _connections;
   final int Function() _capacity;
+  final Iterable<OutboundClient> Function() _outboundClients;
 
   AtServerConnectionTelemetry({
     required AtServerTelemetry telemetry,
     required Iterable<InboundConnection> Function() connections,
     required int Function() capacity,
+    required Iterable<OutboundClient> Function() outboundClients,
   })  : _telemetry = telemetry,
         _connections = connections,
-        _capacity = capacity;
+        _capacity = capacity,
+        _outboundClients = outboundClients;
 
   void authenticated(AtConnection connection) {
     if (!_telemetry.isEnabled || connection is! InboundConnection) {
@@ -118,7 +129,11 @@ final class AtServerConnectionTelemetry {
     int peer = 0;
     int anonymous = 0;
     int monitor = 0;
+    int outbound = 0;
     final List<Map<String, Object?>> connections = <Map<String, Object?>>[];
+    final Map<String, int> inboundPeers = <String, int>{};
+    final Map<String, int> outboundPeers = <String, int>{};
+    final Map<String, int> peerLastActiveAt = <String, int>{};
     for (final InboundConnection connection in _connections()) {
       if (connection.isInValid()) {
         continue;
@@ -139,9 +154,21 @@ final class AtServerConnectionTelemetry {
         });
       } else if (metaData.isPolAuthenticated) {
         peer++;
+        if (metaData is InboundConnectionMetadata) {
+          _tallyPeer(inboundPeers, peerLastActiveAt, metaData.fromAtSign,
+              metaData.lastAccessed ?? metaData.created);
+        }
       } else {
         anonymous++;
       }
+    }
+    for (final OutboundClient client in _outboundClients()) {
+      if (!client.isConnectionCreated || client.isInValid()) {
+        continue;
+      }
+      outbound++;
+      _tallyPeer(
+          outboundPeers, peerLastActiveAt, client.toAtSign, client.lastUsed);
     }
     _telemetry.emitEvent(
       atServerConnectionSnapshotEventName,
@@ -151,10 +178,12 @@ final class AtServerConnectionTelemetry {
         anonymousCountAttribute: anonymous,
         monitorCountAttribute: monitor,
         capacityAttribute: _capacity(),
+        outboundCountAttribute: outbound,
       },
       body: jsonEncode(<String, Object?>{
         'version': snapshotVersion,
         'connections': connections,
+        'peers': _describePeers(inboundPeers, outboundPeers, peerLastActiveAt),
       }),
     );
   }
@@ -189,6 +218,51 @@ final class AtServerConnectionTelemetry {
       if (clientVersion != AtConnectionMetaData.clientVersionNotAvailable)
         clientSdkVersionAttribute: _bounded(clientVersion),
     };
+  }
+
+  void _tallyPeer(
+    Map<String, int> counts,
+    Map<String, int> lastActiveAt,
+    String? atSign,
+    DateTime? lastActive,
+  ) {
+    final String? peer = _peerAtSign(atSign);
+    if (peer == null) {
+      return;
+    }
+    counts[peer] = (counts[peer] ?? 0) + 1;
+    if (lastActive != null) {
+      final int millis = lastActive.millisecondsSinceEpoch;
+      lastActiveAt[peer] = max(lastActiveAt[peer] ?? millis, millis);
+    }
+  }
+
+  List<Map<String, Object?>> _describePeers(
+    Map<String, int> inbound,
+    Map<String, int> outbound,
+    Map<String, int> lastActiveAt,
+  ) {
+    return <Map<String, Object?>>[
+      for (final String peer in <String>{...inbound.keys, ...outbound.keys})
+        <String, Object?>{
+          peerAtSignAttribute: peer,
+          peerInboundAttribute: inbound[peer] ?? 0,
+          peerOutboundAttribute: outbound[peer] ?? 0,
+          if (lastActiveAt[peer] case final int millis)
+            peerLastActiveAtAttribute: millis,
+        },
+    ];
+  }
+
+  String? _peerAtSign(String? atSign) {
+    if (atSign == null) {
+      return null;
+    }
+    try {
+      return _bounded(atSign.toAtsign());
+    } on InvalidAtSignException {
+      return null;
+    }
   }
 
   String _authTypeName(AuthType authType) {

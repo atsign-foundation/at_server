@@ -13,7 +13,10 @@ import 'package:at_secondary/src/caching/cache_refresh_job.dart';
 import 'package:at_secondary/src/compaction/at_compaction_stats_service_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_manager.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client.dart'
-    show OutboundConnectionFactory, DefaultOutboundConnectionFactory;
+    show
+        OutboundClient,
+        OutboundConnectionFactory,
+        DefaultOutboundConnectionFactory;
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/connection/stream_manager.dart';
 import 'package:at_secondary/src/enroll/enrollment_manager.dart';
@@ -135,6 +138,10 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
     telemetry: telemetry,
     connections: () => inboundConnectionManager.pool.getConnections(),
     capacity: () => inboundConnectionManager.pool.getCapacity(),
+    outboundClients: () => <OutboundClient>[
+      ...outboundClientManager.clients(),
+      ...notifyConnectionsPool.outboundClientPool.clients(),
+    ],
   );
 
   // the maximum amount of time to wait to send all telemetry when `stop()` is called. Once the timeout passes, pending telemetry is abandoned so `stop()` never blocks on it
@@ -147,6 +154,7 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
   late AtKeyValueStore<String, AtData, AtMetaData?> keyValueStore;
   late AtNotificationKeystore notificationKeystore;
   late NotificationManager notificationManager;
+  late NotifyConnectionsPool notifyConnectionsPool;
   late EnrollmentManager enrollmentManager;
   late InboundConnectionManager inboundConnectionManager;
 
@@ -272,14 +280,13 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
       poolSize: serverContext!.outboundConnectionLimit,
     );
 
+    notifyConnectionsPool = NotifyConnectionsPool(
+      secondaryAddressFinder,
+      outboundConnectionFactory,
+      poolSize: serverContext!.outboundConnectionLimit,
+    );
     notificationManager = NotificationManager(
-        currentAtSign,
-        notificationKeystore,
-        NotifyConnectionsPool(
-          secondaryAddressFinder,
-          outboundConnectionFactory,
-          poolSize: serverContext!.outboundConnectionLimit,
-        ));
+        currentAtSign, notificationKeystore, notifyConnectionsPool);
 
     cacheManager = AtCacheManager(serverContext!.currentAtSign!, keyValueStore,
         outboundClientManager, notificationManager);
