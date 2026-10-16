@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:at_secondary/src/connection/base_connection.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_close_reason.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_message_listener.dart';
@@ -53,6 +54,7 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
     socket.done.onError((error, stackTrace) {
       logger
           .info('socket.done.onError called with $error. Calling this.close()');
+      InboundConnectionCloseReason.socketError.markOn(this);
       close();
     });
   }
@@ -122,6 +124,7 @@ class InboundConnectionImpl<T extends Socket> extends BaseSocketConnection
       metaData.isStale = true;
     } finally {
       metaData.isClosed = true;
+      AtSecondaryServerImpl.getInstance().connectionTelemetry.closed(this);
     }
   }
 

@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_close_reason.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
@@ -49,6 +50,7 @@ class CramVerbHandler extends AbstractVerbHandler {
     await responseManager
         .getResponseHandler(getVerb())
         .process(atConnection, response);
+    InboundConnectionCloseReason.protocolError.markOn(atConnection);
     await atConnection.close();
   }
 
@@ -94,7 +96,10 @@ class CramVerbHandler extends AbstractVerbHandler {
       atConnection.metaData.authType = AuthType.cram;
       // NOTE a CRAM connection stands over no enrollment, so any id an earlier
       // `enroll:request` left on this connection is cleared.
-      (atConnection.metaData as InboundConnectionMetadata).enrollmentId = null;
+      (atConnection.metaData as InboundConnectionMetadata)
+        ..enrollmentId = null
+        ..enrollmentAppName = null
+        ..enrollmentDeviceName = null;
       try {
         await accessLog.insert(atSign, cram.name());
       } on DataStoreException catch (e) {
@@ -102,6 +107,9 @@ class CramVerbHandler extends AbstractVerbHandler {
       }
 
       response.data = 'success';
+      AtSecondaryServerImpl.getInstance()
+          .connectionTelemetry
+          .authenticated(atConnection);
     } else {
       atConnection.metaData.isAuthenticated = false;
       throw UnAuthenticatedException('Authentication Failed');

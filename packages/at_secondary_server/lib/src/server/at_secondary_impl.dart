@@ -25,6 +25,7 @@ import 'package:at_secondary/src/server/at_certificate_validation.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/persistence_backend.dart';
 import 'package:at_secondary/src/server/server_context.dart';
+import 'package:at_secondary/src/telemetry/at_server_connection_telemetry.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_exporter.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_http_exporter.dart';
@@ -128,6 +129,9 @@ class AtSecondaryServerImpl implements AtSecondaryServer {
 
   /// The atServer's telemetry, off unless an endpoint is set.
   final AtServerTelemetry telemetry = AtServerTelemetry();
+
+  late final AtServerConnectionTelemetry connectionTelemetry =
+      AtServerConnectionTelemetry(telemetry: telemetry);
 
   // the maximum amount of time to wait to send all telemetry when `stop()` is called. Once the timeout passes, pending telemetry is abandoned so `stop()` never blocks on it
   static const Duration _telemetryFlushTimeout = Duration(seconds: 15);
