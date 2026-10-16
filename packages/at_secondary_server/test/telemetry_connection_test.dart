@@ -1,17 +1,10 @@
-import 'dart:convert';
-
-import 'package:at_commons/at_commons.dart';
-import 'package:at_secondary/src/connection/inbound/dummy_inbound_connection.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_close_reason.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_impl.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_pool.dart';
-import 'package:at_secondary/src/connection/outbound/outbound_client.dart';
-import 'package:at_secondary/src/connection/outbound/outbound_connection_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/telemetry/at_server_connection_telemetry.dart';
-import 'package:at_secondary/src/telemetry/at_server_heartbeat_scheduler.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry.dart';
 import 'package:at_secondary/src/telemetry/at_server_telemetry_constants.dart';
 import 'package:at_server_spec/at_server_spec.dart';
@@ -23,8 +16,6 @@ import 'test_utils.dart';
 void main() {
   late List<AtTelemetryLogRecord> records;
   late AtServerTelemetry telemetry;
-  late List<InboundConnection> connections;
-  late List<OutboundClient> outboundClients;
   late AtServerConnectionTelemetry subject;
 
   InboundConnectionImpl newConnection() {
@@ -51,27 +42,6 @@ void main() {
     return connection;
   }
 
-  InboundConnectionImpl polConnection(String fromAtSign) {
-    final InboundConnectionImpl connection = newConnection();
-    metaDataOf(connection)
-      ..from = true
-      ..fromAtSign = fromAtSign.toAtsign()
-      ..isPolAuthenticated = true;
-    return connection;
-  }
-
-  OutboundClient outboundClient(String toAtSign) {
-    return OutboundClient(
-      DummyInboundConnection(),
-      toAtSign,
-      MockSecondaryAddressFinder(),
-      true,
-      DefaultOutboundConnectionFactory(clientCertificateRequired: false),
-    )
-      ..isConnectionCreated = true
-      ..outboundConnection = OutboundConnectionImpl(FakeSocket(), toAtSign);
-  }
-
   List<String?> names() {
     return records
         .map((AtTelemetryLogRecord record) => record.eventName)
@@ -87,14 +57,7 @@ void main() {
         serverId: '$alice',
         bootId: 'boot-1',
       );
-    connections = <InboundConnection>[];
-    outboundClients = <OutboundClient>[];
-    subject = AtServerConnectionTelemetry(
-      telemetry: telemetry,
-      connections: () => connections,
-      capacity: () => 200,
-      outboundClients: () => outboundClients,
-    );
+    subject = AtServerConnectionTelemetry(telemetry: telemetry);
     records.clear();
   });
 
@@ -267,202 +230,6 @@ void main() {
             metaDataOf(announced).connectionId,
         AtServerConnectionTelemetry.selfNotificationsAttribute: true,
       });
-    });
-  });
-
-  group('snapshot', () {
-    test('lists valid own connections and counts the rest', () {
-      final InboundConnectionImpl device = apkamConnection()..isMonitor = true;
-      final InboundConnectionImpl closed = apkamConnection();
-      metaDataOf(closed).isClosed = true;
-      final InboundConnectionImpl peer = newConnection();
-      metaDataOf(peer).isPolAuthenticated = true;
-      final InboundConnectionImpl anonymous = newConnection();
-      connections.addAll(<InboundConnection>[device, closed, peer, anonymous]);
-
-      subject.snapshot();
-
-      expect(names(), <String>[atServerConnectionSnapshotEventName]);
-      final AtTelemetryLogRecord record = records.single;
-      expect(record.attributes, <String, Object?>{
-        AtServerConnectionTelemetry.selfCountAttribute: 1,
-        AtServerConnectionTelemetry.peerCountAttribute: 1,
-        AtServerConnectionTelemetry.anonymousCountAttribute: 1,
-        AtServerConnectionTelemetry.monitorCountAttribute: 1,
-        AtServerConnectionTelemetry.capacityAttribute: 200,
-        AtServerConnectionTelemetry.outboundCountAttribute: 0,
-      });
-      final Map<String, Object?> body =
-          jsonDecode(record.body as String) as Map<String, Object?>;
-      expect(body['version'], AtServerConnectionTelemetry.snapshotVersion);
-      final List<Object?> listed = body['connections'] as List<Object?>;
-      final Map<String, Object?> entry = listed.single as Map<String, Object?>;
-      expect(entry[AtServerConnectionTelemetry.connectionIdAttribute],
-          metaDataOf(device).connectionId);
-      expect(entry[AtServerConnectionTelemetry.enrollmentDeviceNameAttribute],
-          'pixel-8');
-      expect(entry[AtServerConnectionTelemetry.monitorAttribute], isTrue);
-      expect(entry[AtServerConnectionTelemetry.lastActiveAtAttribute],
-          metaDataOf(device).created!.millisecondsSinceEpoch);
-    });
-
-    test('is sent even when nothing is connected', () {
-      subject.snapshot();
-
-      final AtTelemetryLogRecord record = records.single;
-      expect(
-          record.attributes[AtServerConnectionTelemetry.selfCountAttribute], 0);
-      expect(
-        jsonDecode(record.body as String),
-        <String, Object?>{
-          'version': AtServerConnectionTelemetry.snapshotVersion,
-          'connections': <Object?>[],
-          'peers': <Object?>[],
-        },
-      );
-    });
-
-    test('lists the atServers it talks to, both ways', () {
-      final DateTime lastUsed = DateTime.timestamp().add(Duration(hours: 1));
-      connections.addAll(<InboundConnection>[
-        polConnection('@bob'),
-        polConnection('@bob'),
-        polConnection('@dave'),
-      ]);
-      outboundClients.addAll(<OutboundClient>[
-        outboundClient('@bob')..lastUsed = lastUsed,
-        outboundClient('Carol'),
-      ]);
-
-      subject.snapshot();
-
-      final AtTelemetryLogRecord record = records.single;
-      expect(
-          record.attributes[AtServerConnectionTelemetry.peerCountAttribute], 3);
-      expect(
-          record.attributes[AtServerConnectionTelemetry.outboundCountAttribute],
-          2);
-      final Map<String, Object?> body =
-          jsonDecode(record.body as String) as Map<String, Object?>;
-      final List<Map<String, Object?>> peers = (body['peers'] as List<Object?>)
-          .cast<Map<String, Object?>>()
-          .toList();
-      expect(
-        peers.map((Map<String, Object?> peer) => <String, Object?>{
-              for (final MapEntry<String, Object?> entry in peer.entries)
-                if (entry.key !=
-                    AtServerConnectionTelemetry.peerLastActiveAtAttribute)
-                  entry.key: entry.value,
-            }),
-        <Map<String, Object?>>[
-          <String, Object?>{
-            AtServerConnectionTelemetry.peerAtSignAttribute: '@bob',
-            AtServerConnectionTelemetry.peerInboundAttribute: 2,
-            AtServerConnectionTelemetry.peerOutboundAttribute: 1,
-          },
-          <String, Object?>{
-            AtServerConnectionTelemetry.peerAtSignAttribute: '@dave',
-            AtServerConnectionTelemetry.peerInboundAttribute: 1,
-            AtServerConnectionTelemetry.peerOutboundAttribute: 0,
-          },
-          <String, Object?>{
-            AtServerConnectionTelemetry.peerAtSignAttribute: '@carol',
-            AtServerConnectionTelemetry.peerInboundAttribute: 0,
-            AtServerConnectionTelemetry.peerOutboundAttribute: 1,
-          },
-        ],
-      );
-      expect(peers.first[AtServerConnectionTelemetry.peerLastActiveAtAttribute],
-          lastUsed.millisecondsSinceEpoch);
-      expect(
-        peers,
-        everyElement(containsPair(
-            AtServerConnectionTelemetry.peerLastActiveAtAttribute, isA<int>())),
-      );
-    });
-
-    test('leaves out outbound clients that are not connected or have gone bad',
-        () {
-      final OutboundClient closed = outboundClient('@bob');
-      closed.outboundConnection!.metaData.isClosed = true;
-      outboundClients.addAll(<OutboundClient>[
-        closed,
-        outboundClient('@carol')..isConnectionCreated = false,
-      ]);
-
-      subject.snapshot();
-
-      final AtTelemetryLogRecord record = records.single;
-      expect(
-          record.attributes[AtServerConnectionTelemetry.outboundCountAttribute],
-          0);
-      expect(
-        (jsonDecode(record.body as String) as Map<String, Object?>)['peers'],
-        isEmpty,
-      );
-    });
-  });
-
-  group('state reports', () {
-    test('follow the started event when telemetry is enabled', () async {
-      final List<AtTelemetryLogRecord> exported = <AtTelemetryLogRecord>[];
-      final AtServerTelemetry reporting =
-          AtServerTelemetry(heartbeatInterval: null);
-      reporting.enable(
-        exporter: _RecordingExporter(exported),
-        serverId: '$alice',
-        bootId: 'boot-2',
-        reportState: () =>
-            reporting.emitEvent(atServerConnectionSnapshotEventName),
-      );
-      await reporting.shutdown();
-
-      expect(
-        exported.map((AtTelemetryLogRecord record) => record.eventName),
-        <String>[
-          atServerStartedEventName,
-          atServerConnectionSnapshotEventName,
-          atServerStoppedEventName,
-        ],
-      );
-    });
-
-    test('that throw are dropped', () async {
-      final List<AtTelemetryLogRecord> exported = <AtTelemetryLogRecord>[];
-      final AtServerTelemetry reporting =
-          AtServerTelemetry(heartbeatInterval: null)
-            ..enable(
-              exporter: _RecordingExporter(exported),
-              serverId: '$alice',
-              bootId: 'boot-3',
-              reportState: () => throw StateError('broken'),
-            );
-
-      expect(reporting.isEnabled, isTrue);
-      await reporting.shutdown();
-      expect(
-        exported.map((AtTelemetryLogRecord record) => record.eventName),
-        <String>[atServerStartedEventName, atServerStoppedEventName],
-      );
-    });
-
-    test('follow every heartbeat', () async {
-      int beats = 0;
-      final AtServerHeartbeatScheduler scheduler = AtServerHeartbeatScheduler(
-        telemetry: telemetry,
-        interval: const Duration(milliseconds: 10),
-        offset: Duration.zero,
-        onBeat: () => beats++,
-      )..start();
-
-      await Future<void>.delayed(const Duration(milliseconds: 60));
-      scheduler.stop();
-
-      final int heartbeats = names()
-          .where((String? name) => name == atServerHeartbeatEventName)
-          .length;
-      expect(beats, greaterThan(0));
-      expect(beats, heartbeats);
     });
   });
 

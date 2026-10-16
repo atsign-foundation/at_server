@@ -17,7 +17,6 @@ final class AtServerTelemetry {
   final AtSignLogger _logger = AtSignLogger('AtServerTelemetry');
   AtTelemetry? _telemetry;
   AtServerHeartbeatScheduler? _heartbeat;
-  void Function()? _reportState;
 
   AtServerTelemetry({
     this.heartbeatInterval = AtServerHeartbeatScheduler.defaultInterval,
@@ -33,7 +32,6 @@ final class AtServerTelemetry {
     required String serverId,
     required String bootId,
     String? serviceVersion,
-    void Function()? reportState,
   }) {
     if (_telemetry != null) {
       throw StateError('Telemetry is already enabled');
@@ -48,26 +46,19 @@ final class AtServerTelemetry {
       exporter: exporter,
       onError: _onError,
     );
-    _reportState = reportState;
     emitEvent(atServerStartedEventName);
-    _sendState();
     final Duration? interval = heartbeatInterval;
     if (interval != null) {
       _heartbeat = AtServerHeartbeatScheduler(
         telemetry: this,
         interval: interval,
-        onBeat: _sendState,
       )..start();
     }
   }
 
   /// Sends the event [name], which must be in the atServer's namespace, or
   /// logs why it was dropped.
-  void emitEvent(
-    String name, {
-    Map<String, Object?> attributes = const {},
-    Object? body,
-  }) {
+  void emitEvent(String name, {Map<String, Object?> attributes = const {}}) {
     final AtTelemetry? telemetry = _telemetry;
     if (telemetry == null) {
       return;
@@ -83,7 +74,7 @@ final class AtServerTelemetry {
     // AtTelemetry throws on invalid attribute values. Telemetry must never
     // take the server down, so log and drop the event instead.
     try {
-      telemetry.event(name, attributes: attributes, body: body);
+      telemetry.event(name, attributes: attributes);
     } on ArgumentError catch (error) {
       _logger.warning('Ignoring invalid telemetry event $name: '
           '${error.name} ${error.message}');
@@ -111,7 +102,6 @@ final class AtServerTelemetry {
     }
     _heartbeat?.stop();
     _heartbeat = null;
-    _reportState = null;
     emitEvent(atServerStoppedEventName);
     _telemetry = null;
     return telemetry.shutdown(timeout: timeout);
@@ -119,17 +109,5 @@ final class AtServerTelemetry {
 
   void _onError(Object error, StackTrace stackTrace) {
     _logger.warning('Telemetry export failed: $error');
-  }
-
-  void _sendState() {
-    final void Function()? reportState = _reportState;
-    if (reportState == null || _telemetry == null) {
-      return;
-    }
-    try {
-      reportState();
-    } on Object catch (error) {
-      _logger.warning('Dropped telemetry state report: $error');
-    }
   }
 }

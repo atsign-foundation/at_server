@@ -13,7 +13,6 @@ final class AtServerHeartbeatScheduler {
   final AtServerTelemetry _telemetry;
   final Duration interval;
   final Duration offset;
-  final void Function()? _onBeat;
   Timer? _timer;
 
   AtServerHeartbeatScheduler({
@@ -21,9 +20,7 @@ final class AtServerHeartbeatScheduler {
     this.interval = defaultInterval,
     Duration? offset,
     Random? random,
-    void Function()? onBeat,
   })  : _telemetry = telemetry,
-        _onBeat = onBeat,
         offset = offset ?? _randomOffset(interval, random ?? Random.secure()) {
     if (interval < _minimumInterval) {
       throw ArgumentError.value(
@@ -63,7 +60,6 @@ final class AtServerHeartbeatScheduler {
 
   void _sendHeartbeat() {
     _telemetry.emitEvent(atServerHeartbeatEventName);
-    _onBeat?.call();
   }
 
   static Duration _randomOffset(Duration interval, Random random) {

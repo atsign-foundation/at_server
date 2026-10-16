@@ -14,5 +14,3 @@ const String atServerConnectionMonitoringEventName =
     '$atServerTelemetryEventPrefix.connection.monitoring';
 const String atServerConnectionClosedEventName =
     '$atServerTelemetryEventPrefix.connection.closed';
-const String atServerConnectionSnapshotEventName =
-    '$atServerTelemetryEventPrefix.connection.snapshot';
