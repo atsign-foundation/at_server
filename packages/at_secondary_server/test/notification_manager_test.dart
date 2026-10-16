@@ -268,24 +268,6 @@ void main() async {
               ':ttln:\\d{6}:@bob:phone$alice')));
     });
 
-    test('Test to verify prepare notification command for message type text',
-        () {
-      var atNotification = (AtNotificationBuilder()
-            ..id = '1234'
-            ..notification = '@bob:phone$alice'
-            ..notifier = 'wavi'
-            ..messageType = MessageType.text)
-          .build();
-      var notifyCommand =
-          notificationManager.prepareNotifyCommandBody(atNotification);
-
-      /// expecting that prepareNotifyCommandBody returns the notify command same as atNotification
-      expect(
-          notifyCommand,
-          matches(RegExp('id:1234:messageType:text:notifier:wavi'
-              ':ttln:\\d{6}:@bob:phone$alice')));
-    });
-
     testNotificationMetaData({required bool immutable}) {
       var ttln = 55555;
       var fromAtsign = alice;
