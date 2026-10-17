@@ -998,10 +998,11 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enVal.apsk = null;
     }
 
-    if (enrollParams.apkamPublicKey != null) {
+    final bool republished =
+        enrollParams.apsk != null || enrollParams.apskLegacy != null;
+    if (enrollParams.apkamPublicKey != null || republished) {
       await _refuseListedKeyAsAuthenticationKey(enId, enVal, currentAtSign,
-          republished:
-              enrollParams.apsk != null || enrollParams.apskLegacy != null);
+          republished: republished);
     }
 
     if (enrollParams.metadata != null) {
@@ -1179,9 +1180,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     responseJson['linked'] = written.keys.toList();
   }
 
-  /// Throws [IllegalArgumentException] when [enVal]'s new `apkamPublicKey` is
-  /// a key its `_apsk`, as this update leaves it, lists beside another key or
-  /// carries a link on.
+  /// Throws [IllegalArgumentException] when [enVal]'s `apkamPublicKey`, as
+  /// this update leaves it, is a key its `_apsk`, as this update leaves it,
+  /// lists beside another key or carries a link on.
   ///
   /// [republished] says whether this update replaces the `_apsk` value with
   /// [enVal]'s; otherwise the stored value stands.
@@ -1197,8 +1198,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     for (final MapEntry<String, ApskKey> key in advertised.entries) {
       if (_isAuthenticationKey(key.value.pub, enVal) &&
           (advertised.length > 1 || links.containsKey(key.key))) {
-        throw IllegalArgumentException('enroll:update: $enId\'s _apsk lists'
-            ' its new apkamPublicKey as ${key.key}, and an authentication key'
+        throw IllegalArgumentException('enroll:update: $enId\'s _apsk would'
+            ' list its apkamPublicKey as ${key.key}, and an authentication key'
             ' may be listed only alone and without a link');
       }
     }

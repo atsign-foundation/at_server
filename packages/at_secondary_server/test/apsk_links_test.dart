@@ -1183,6 +1183,39 @@ void main() {
     });
 
     test(
+        'an update republishing B\'s _apsk to list its authentication key '
+        'beside another is refused, naming it, and nothing is written',
+        () async {
+      final b =
+          await enrollment('b', apsk: listForm([entry(k2, 'rsa2048', p2)]));
+      await rotateOntoK(b);
+      expect(await apkamPublicKeyOf(b), pubK,
+          reason: 'precondition: K, unlisted, is B\'s authentication key');
+      await expectLater(
+          republish(
+              b,
+              listForm(
+                  [entry(kidK, 'rsa2048', pubK), entry(k2, 'rsa2048', p2)])),
+          refusedNaming<IllegalArgumentException>(kidK));
+      expect((await record(b)).data,
+          jsonEncode(listForm([entry(k2, 'rsa2048', p2)])));
+    });
+
+    test(
+        'an update installing K as the only key it republishes is accepted, '
+        'though another key the record listed carries a link', () async {
+      final b = await enrollment('b',
+          apsk: listForm(
+              [entry(kidK, 'rsa2048', pubK), entry(k2, 'rsa2048', p2)]));
+      await link(etu.primaryEnId, b, {
+        k2: {'link': rootLink(payload(b, k2, 'rsa2048', p2)), 'expect': null}
+      });
+      await rotateOntoK(b, apsk: listForm([entry(kidK, 'rsa2048', pubK)]));
+      expect(await apkamPublicKeyOf(b), pubK);
+      expect(await linksOn(b), isNull);
+    });
+
+    test(
         'an update installing the only key B\'s _apsk lists, with no link, '
         'is accepted', () async {
       final b =
@@ -1193,8 +1226,11 @@ void main() {
 
     test(
         'an update installing a key and republishing it as B\'s bare _apsk '
-        'is accepted', () async {
-      final b = await enrollment('b', apsk: k1AndK2);
+        'is accepted, though the record it replaces listed it beside another',
+        () async {
+      final b = await enrollment('b',
+          apsk: listForm(
+              [entry(kidK, 'rsa2048', pubK), entry(k2, 'rsa2048', p2)]));
       await rotateOntoK(b, apskLegacy: pubK);
       expect(await apkamPublicKeyOf(b), pubK);
       expect((await record(b)).data, pubK);
