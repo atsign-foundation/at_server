@@ -63,7 +63,6 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       _validateNotifyVerbParams(verbParams);
       refuseConflictingLifetime(verbParams);
       var currentAtSign = AtSecondaryServerImpl.getInstance().currentAtSign;
-      // If '@' is missing before an atSign, the formatAtSign method prefixes '@' before atSign.
       if (verbParams[AtConstants.forAtSign] != null) {
         verbParams[AtConstants.forAtSign] =
             verbParams[AtConstants.forAtSign]!.toAtsign();
