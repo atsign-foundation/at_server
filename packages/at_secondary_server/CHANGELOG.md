@@ -73,9 +73,16 @@
   `apkamKeysExpiryInMillis`, when given, is a whole number of milliseconds
   from 0 (never expires) to 3155760000000 (36,525 days).
 
-- build: `at_commons` 5.22.0. An atSign of more than 55 characters after its
-  `@` is now refused; a `notify` to one, for example, is answered with an
-  error.
+- fix: an atSign of more than 55 characters after its `@` is refused with
+  AT0003 wherever a command names one; exactly 55 is accepted. Characters are
+  code points, counted once the atSign is lower-cased and its dots are
+  removed. Any other atSign that is not valid, such as one with a reserved
+  character, is answered with AT0003 too, and an authenticated client keeps
+  its connection.
+
+- fix: `config:block:add` and `config:block:remove` take each atSign in its
+  canonical form, lower-cased and without its dots, and `from:` compares
+  atSigns with the blocklist in that form.
 
 # 3.17.0
 - feat: a notification can be ephemeral (`eph`): no atServer stores it,
