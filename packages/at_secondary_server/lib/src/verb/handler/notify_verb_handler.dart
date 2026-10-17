@@ -66,11 +66,11 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       // If '@' is missing before an atSign, the formatAtSign method prefixes '@' before atSign.
       if (verbParams[AtConstants.forAtSign] != null) {
         verbParams[AtConstants.forAtSign] =
-            AtUtils.fixAtSign(verbParams[AtConstants.forAtSign]!);
+            verbParams[AtConstants.forAtSign]!.toAtsign();
       }
       if (verbParams[AtConstants.atSign] != null) {
         verbParams[AtConstants.atSign] =
-            AtUtils.fixAtSign(verbParams[AtConstants.atSign]!);
+            verbParams[AtConstants.atSign]!.toAtsign();
       }
       // When connection is authenticated, it indicates the sender side of the
       // the notification
@@ -394,7 +394,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       atNotificationBuilder.id = verbParams[AtConstants.id];
     }
     atNotificationBuilder = atNotificationBuilder
-      ..toAtSign = AtUtils.fixAtSign(verbParams[AtConstants.forAtSign] ?? '')
+      ..toAtSign = (verbParams[AtConstants.forAtSign] ?? '').toAtsign()
       ..fromAtSign = fromAtSign
       ..notificationDateTime = DateTime.now().toUtcMillisecondsPrecision()
       ..notification = _getFullFormedAtKey(verbParams)
@@ -405,7 +405,7 @@ class NotifyVerbHandler extends AbstractVerbHandler {
       ..notificationStatus = NotificationStatus.queued
       ..atMetaData = _metadataFromParams(verbParams)
       ..type = _getNotificationType(
-          AtUtils.fixAtSign(verbParams[AtConstants.forAtSign] ?? ''),
+          (verbParams[AtConstants.forAtSign] ?? '').toAtsign(),
           AtSecondaryServerImpl.getInstance().currentAtSign)
       ..ttl =
           getNotificationExpiryInMillis(verbParams[AtConstants.ttlNotification])

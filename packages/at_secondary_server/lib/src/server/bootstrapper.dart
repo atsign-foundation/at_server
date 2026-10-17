@@ -2,13 +2,14 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:args/args.dart';
+import 'package:at_commons/at_commons.dart';
 import 'package:at_secondary/src/arg_utils.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_secondary/src/server/at_security_context_impl.dart';
 import 'package:at_secondary/src/server/server_context.dart';
 import 'package:at_secondary/src/verb/executor/default_verb_executor.dart';
-import 'package:at_utils/at_utils.dart';
+import 'package:at_utils/at_logger.dart';
 
 /// The bootstrapper class for initializing the secondary server configuration parameters from [config.yaml]
 /// and call the start method to start the secondary server.
@@ -30,7 +31,8 @@ class SecondaryServerBootStrapper {
       var results = CommandLineParser().getParserResults(arguments);
       var secondaryContext = AtSecondaryContext();
       secondaryContext.port = int.parse(results['server_port']);
-      secondaryContext.currentAtSign = AtUtils.fixAtSign(results['at_sign']);
+      secondaryContext.currentAtSign =
+          (results['at_sign'] as String).toAtsign();
       secondaryContext.sharedSecret = results['shared_secret'];
       if (useTLS!) {
         secondaryContext.securityContext = AtSecurityContextImpl();
