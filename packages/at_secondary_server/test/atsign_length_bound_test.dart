@@ -309,6 +309,15 @@ void main() {
     verify(() => atDirectory.findSecondary('@dave')).called(1);
   });
 
+  test('A blocklist entry for this atServer\'s own atSign blocks nothing',
+      () async {
+    await AtConfig(keyValueStore, alice).addToBlockList({'@Alice'});
+    final connection = unauthenticated();
+    await send('from:@alice', connection);
+    expect(connection.writes.single, startsWith('data:'));
+    expect(connection.closeCount, 0);
+  });
+
   test('An atSign with a reserved character is refused with AT0003', () async {
     final connection = unauthenticated();
     await send('from:@a!b', connection);

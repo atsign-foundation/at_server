@@ -13,7 +13,6 @@ class AtConfig {
   final String configKey;
 
   final AtKeyValueStore _keyStore;
-  // ignore: unused_field
   final String? _atSign;
 
   AtConfig(this._keyStore, this._atSign)
@@ -66,8 +65,12 @@ class AtConfig {
   }
 
   /// Whether the blocklist holds [atSign], comparing each entry in canonical
-  /// form and skipping any entry that is not an atSign.
+  /// form and skipping any entry that is not an atSign. This atServer's own
+  /// atSign is never blocked.
   Future<bool> checkInBlockList(Atsign atSign) async {
+    if (atSign == _atSign) {
+      return false;
+    }
     try {
       final blockList = await getBlockList();
       return blockList.any((entry) => _canonicalOrNull(entry) == atSign);
