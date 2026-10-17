@@ -15,7 +15,9 @@ Feature: Links vouch for an enrollment's signing keys, one per key
   one rsa2048 key whose kid is the first 8 bytes, hex-encoded, of the SHA-256
   of the decoded key, as every other kid is derived. A key that is the
   enrollment's authentication key, the apkamPublicKey its record holds,
-  takes no link, whether the record carries it bare or in the list form.
+  takes no link, whether the record carries it bare or in the list form. A
+  key takes a link only when its public key is spelt as clients write it, in
+  padded standard base64.
 
   Races: enroll:link, and every other write of an approved enrollment's
   _apsk record a client can send, a delete included, run under the atSign's
@@ -43,7 +45,7 @@ Feature: Links vouch for an enrollment's signing keys, one per key
 
   Scenario: enroll:link checks structure, and writes all or nothing
     Given B approved, its _apsk advertising K1 and K2
-    When one call carries a well-formed link for K1 and any of: a link for an unadvertised K9; a link whose payload names another enrollment, or another kid, alg or public key; a link over 16 KiB; or the call, or B's _apsk record with every link it would then hold, is over the 500 KiB limit
+    When one call carries a well-formed link for K1 and any of: a link for an unadvertised K9, or for a key not spelt in padded standard base64; a link whose payload names another enrollment, or another kid, alg or public key; a link over 16 KiB; or the call, or B's _apsk record with every link it would then hold, is over the 500 KiB limit
     Then the whole call is refused, naming what failed, and K1's link is not written either
     And a call for an enrollment that isn't approved is refused
     And a call carrying well-formed links for K1 and K2 writes both

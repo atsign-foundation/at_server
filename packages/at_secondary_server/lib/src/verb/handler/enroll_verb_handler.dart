@@ -1113,10 +1113,17 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     for (final MapEntry<String, dynamic> request in requested.entries) {
       final String kid = request.key;
       final ApskKey? key = advertised[kid];
-      // NOTE an authentication key takes no link.
-      if (key == null || ApskLinks.sameKey(key.pub, enVal.apkamPublicKey)) {
+      // NOTE an authentication key takes no link, and any other key takes
+      // one only when spelt in padded standard base64.
+      if (key == null ||
+          EnrollmentManager.sameApkamKeyMaterial(
+              key.pub, key.alg, enVal.apkamPublicKey, enVal.signingAlgo)) {
         throw IllegalArgumentException('enroll:link: $enId advertises no key'
             ' $kid that can take a link; an authentication key takes none');
+      }
+      if (!ApskLinks.isCanonical(key.pub)) {
+        throw IllegalArgumentException('enroll:link: the key $kid is not spelt'
+            ' in padded standard base64, so it takes no link');
       }
       final Object? link = (request.value as Map)['link'];
       if (utf8.encode(jsonEncode(link)).length > ApskLinks.maxLinkBytes) {

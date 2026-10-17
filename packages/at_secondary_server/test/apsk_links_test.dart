@@ -43,6 +43,8 @@ void main() {
   const String p3 = 'BBEC';
   const String k3 = '6d88ca9748ee2a19';
   const String k9 = 'e2aae1e175b15d00';
+  const String pFbff = '+/8=';
+  const String kFbff = 'db8fed54159afe40';
 
   Map<String, dynamic> entry(String kid, String alg, String pub,
           {String? status}) =>
@@ -464,6 +466,50 @@ void main() {
           }),
           refusedNaming<IllegalArgumentException>('_apsk record would be'));
       expect(await linksOn(b), {k1: k1Link});
+    });
+
+    /// Lists, beside K1 and K2, the key 0xfb 0xff spelt as [pub].
+    Future<void> listFbffAs(String pub) => put(
+        b,
+        jsonEncode(listForm([
+          entry(k1, 'mldsa65', p1),
+          entry(k2, 'rsa2048', p2),
+          entry(kFbff, 'mldsa65', pub)
+        ])));
+
+    for (final (String form, String pub) in [
+      ('in the URL-safe alphabet', '-_8='),
+      ('without padding', '+/8'),
+      ('with non-zero pad bits', '+/9='),
+      ('wrapped in whitespace', ' $pFbff '),
+      ('as an empty string', ''),
+    ]) {
+      test(
+          'a link for a key spelt $form refuses the call, naming the key, '
+          'and K1 is not written', () async {
+        await listFbffAs(pub);
+        await expectLater(
+            link(etu.primaryEnId, b, {
+              k1: wellFormedK1,
+              kFbff: {
+                'link': chainLink(payload(b, kFbff, 'mldsa65', pub)),
+                'expect': null
+              }
+            }),
+            refusedNaming<IllegalArgumentException>(
+                'the key $kFbff is not spelt'));
+        expect(await linksOn(b), isNull);
+      });
+    }
+
+    test('a key spelt in padded standard base64 takes a link', () async {
+      await listFbffAs(pFbff);
+      final Map<String, dynamic> fbffLink =
+          chainLink(payload(b, kFbff, 'mldsa65', pFbff));
+      await link(etu.primaryEnId, b, {
+        kFbff: {'link': fbffLink, 'expect': null}
+      });
+      expect(await linksOn(b), {kFbff: fbffLink});
     });
 
     test('a call for a pending enrollment is refused', () async {
@@ -911,46 +957,47 @@ void main() {
       expect(await linksOn(b), isNull);
     });
 
-    const String fbffStandard = '+/8=';
-    const String fbffUrlSafe = '-_8=';
-    const String kidOfFbff = 'db8fed54159afe40';
-
-    for (final (String form, String pub) in [
-      ('in the other base64 alphabet', fbffUrlSafe),
-      ('without padding', '+/8'),
+    for (final (String form, String apkamPublicKey) in [
+      ('in the URL-safe alphabet', '-_8='),
+      ('with a trailing newline', '$pFbff\n'),
+      ('with a leading space', ' $pFbff'),
     ]) {
       test(
-          'an authentication key the list form spells $form is refused a '
-          'link, and nothing is written', () async {
+          'an authentication key its record holds spelt $form, listed in '
+          'padded standard base64, is refused a link, and nothing is written',
+          () async {
         final b = await enrollment('b',
-            apkamPublicKey: fbffStandard,
+            apkamPublicKey: apkamPublicKey,
             signingAlgo: 'mldsa65',
-            apsk: listForm([entry(kidOfFbff, 'mldsa65', pub)]));
+            apsk: listForm([entry(kFbff, 'mldsa65', pFbff)]));
         await expectLater(
             link(etu.primaryEnId, b, {
-              kidOfFbff: {
-                'link': chainLink(payload(b, kidOfFbff, 'mldsa65', pub)),
+              kFbff: {
+                'link': chainLink(payload(b, kFbff, 'mldsa65', pFbff)),
                 'expect': null
               }
             }),
-            refusedNaming<IllegalArgumentException>(kidOfFbff));
+            refusedNaming<IllegalArgumentException>(
+                'advertises no key $kFbff that can take a link'));
         expect(await linksOn(b), isNull);
       });
     }
 
     test(
-        'a bare _apsk spelling the authentication key in the other base64 '
-        'alphabet is refused a link, and nothing is written', () async {
-      final b = await enrollment('b',
-          apkamPublicKey: fbffStandard, apskLegacy: fbffUrlSafe);
+        'a bare _apsk that is the authentication key its record holds in the '
+        'URL-safe alphabet is refused a link, and nothing is written',
+        () async {
+      final b =
+          await enrollment('b', apkamPublicKey: '-_8=', apskLegacy: pFbff);
       await expectLater(
           link(etu.primaryEnId, b, {
-            kidOfFbff: {
-              'link': chainLink(payload(b, kidOfFbff, 'rsa2048', fbffUrlSafe)),
+            kFbff: {
+              'link': chainLink(payload(b, kFbff, 'rsa2048', pFbff)),
               'expect': null
             }
           }),
-          refusedNaming<IllegalArgumentException>(kidOfFbff));
+          refusedNaming<IllegalArgumentException>(
+              'advertises no key $kFbff that can take a link'));
       expect(await linksOn(b), isNull);
     });
   });
