@@ -1,4 +1,9 @@
+import 'dart:convert';
+
+import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/verb/handler/abstract_verb_handler.dart';
+import 'package:at_server_spec/at_server_spec.dart';
 import 'package:test/test.dart';
 
 import 'atsign_bound_harness.dart';
@@ -94,5 +99,60 @@ void main() {
         expectNothingLookedUp();
       });
     }
+
+    test(
+        'when a batch carries a command naming an atSign of 56 characters, '
+        'then that entry is answered AT0003 before anything is done', () async {
+      final connection = aliceClient();
+      final before = await footprint();
+      await send(
+          'batch:${jsonEncode([
+                {'id': 1, 'command': commands['NotifyVerbHandler.forAtSign']}
+              ])}',
+          connection);
+      expect(connection.writes, [
+        'data:[{"id":1,"response":{"error_code":"AT0003",'
+            '"error_message":"Invalid syntax"}}]\n@alice@'
+      ]);
+      expect(await footprint(), before);
+      expectNothingLookedUp();
+    });
+  });
+
+  group('Given @alice\'s client authenticated by APKAM', () {
+    late Connection connection;
+
+    setUp(() async {
+      final enrollmentId = await createAndPersistAnEnrollment(
+          'wavi_app', 'phone', {'wavi': 'rw'});
+      connection = Connection(InboundConnectionMetadata()
+        ..isAuthenticated = true
+        ..authType = AuthType.apkam
+        ..enrollmentId = enrollmentId);
+    });
+
+    for (final group in [
+      'UpdateVerbHandler.forAtSign',
+      'NotifyVerbHandler.forAtSign',
+    ]) {
+      test(
+          'when $group names an atSign of 56 characters, '
+          'then the command is refused with AT0003 before anything is done',
+          () async {
+        final before = await footprint();
+        await send(commands[group]!, connection);
+        expect(connection.writes, [tooLongForAlice]);
+        expect(await footprint(), before);
+        expectNothingLookedUp();
+        expect(connection.closeCount, 0);
+      });
+    }
+
+    test('when it notifies an atSign of 55 characters, then that is queued',
+        () async {
+      await send(
+          'notify:update:messageType:key:$max:phone.wavi@alice:v', connection);
+      expect(await sentTo(max), [NotificationStatus.queued]);
+    });
   });
 }
