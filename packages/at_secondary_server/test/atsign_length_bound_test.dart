@@ -225,6 +225,7 @@ void main() {
         await send(command, connection);
         expect(connection.writes, [tooLongUnauthenticated]);
         expect(await footprint(), before);
+        expectNothingLookedUp();
         expect(connection.closeCount, 0);
       });
     }
