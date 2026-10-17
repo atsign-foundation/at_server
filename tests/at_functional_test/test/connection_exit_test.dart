@@ -10,6 +10,8 @@ import 'package:test/test.dart';
 import 'pol_peer.dart';
 
 /// Catalogue: features/connection/exit.feature
+///
+/// In the pol example, @xavier plays @alice and @jeremy plays @bob.
 void main() {
   final String atSign =
       ConfigUtil.getYaml()!['firstAtSignServer']['firstAtSignName'];
@@ -25,11 +27,11 @@ void main() {
     final StringBuffer received = StringBuffer();
     final Completer<void> closed = Completer<void>();
     void markClosed() => closed.isCompleted ? null : closed.complete();
-    socket.listen(
-      (bytes) => received.write(utf8.decode(bytes)),
-      onDone: markClosed,
-      onError: (_) => markClosed(),
-    );
+    utf8.decoder.bind(socket).listen(
+          received.write,
+          onDone: markClosed,
+          onError: (_) => markClosed(),
+        );
     return (socket: socket, received: received, closed: closed.future);
   }
 
@@ -63,7 +65,7 @@ void main() {
     socket.write(
       'cram:${AuthenticationUtils.getCRAMDigest(atSign, challenge)}\n',
     );
-    // The prompt too, so nothing of the reply is still to arrive.
+    // NOTE the prompt too, so nothing of the reply is still to arrive.
     await until(received, 'data:success\n$atSign@');
   }
 
@@ -115,7 +117,6 @@ void main() {
       );
     });
 
-    // @xavier plays @alice, and @jeremy plays @bob.
     test(
       'a peer atServer that has proved itself as @bob by pol',
       () async {
@@ -141,7 +142,7 @@ void main() {
       final c = await connect();
       await cram(c.socket, c.received);
       final int before = c.received.length;
-      // ONE write, so the three commands reach the atServer together.
+      // NOTE one write, so the three commands reach the atServer together.
       c.socket.write('noop:0\n@exit\nnoop:0\n');
       await expectClosed(c.closed, c.received);
       final String after = c.received.toString().substring(before);
@@ -171,7 +172,8 @@ void main() {
       reason: 'the update is answered with its commit id',
     );
     final int before = c.received.length;
-    // ONE write, so @exit arrives while the llookup's reply is being sent.
+    // NOTE one write, so @exit arrives while the llookup's reply is being
+    // sent.
     c.socket.write('llookup:$key\n@exit\n');
     await expectClosed(c.closed, c.received);
     final String after = c.received.toString().substring(before);
@@ -189,7 +191,6 @@ void main() {
     c.socket.write('exit\n');
     await until(c.received, 'error:');
     expect(c.received.toString(), contains('AT0003'));
-    // The connection stays open: a later command on it is still answered.
     c.socket.write('noop:0\n');
     await until(c.received, 'data:ok');
   });
