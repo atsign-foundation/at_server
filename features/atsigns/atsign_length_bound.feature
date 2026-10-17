@@ -145,3 +145,14 @@ Feature: An atSign has at most 55 characters
     When it sends from:@a!b
     Then it is refused with AT0003: invalid @sign: Cannot contain !*'`();:&=+$,/?#[]{} characters
     And the connection is closed
+
+  Scenario: config:block takes each atSign in its canonical form
+    Given @alice's authenticated client
+    When it sends config:block:add:@Dave
+    Then config:block:show lists @dave
+    And a connection that sends from:@dave is refused as blocked
+
+  Scenario: A blocklist entry stored before this release blocks its canonical atSign
+    Given @alice's blocklist already holds @Dave as it was typed
+    When a connection sends from:@dave
+    Then it is refused as blocked
