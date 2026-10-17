@@ -78,8 +78,9 @@
   is accepted. Characters are code points, counted once the atSign is
   lower-cased and its dots are removed, as `at_commons` 5.22.0 counts them.
   Any other atSign that is not valid, such as one with a reserved character,
-  is answered with AT0003 too. An authenticated client, or a peer that has
-  proved itself by `pol`, keeps its connection.
+  is answered with AT0003 too, as is a `notify` that names no recipient. An
+  authenticated client, or a peer that has proved itself by `pol`, keeps its
+  connection.
 
 - fix: `config:block:add`, `config:block:remove`, `scan` and `stream:` take
   each atSign in its canonical form, lower-cased and without its dots.
