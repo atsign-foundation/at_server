@@ -57,13 +57,17 @@ void serve(Atsign atSign) {
 }
 
 /// Sends [command] on [connection] as the atServer does: the executor picks
-/// the handler, and GlobalExceptionHandler answers whatever it throws.
+/// the handler, and GlobalExceptionHandler answers whatever it throws, an
+/// [Error] as an [InternalServerError].
 Future<void> send(String command, FakeInboundConnection connection) async {
   try {
     await DefaultVerbExecutor().execute(command, connection, verbs);
   } on Exception catch (e) {
     await GlobalExceptionHandler.getInstance()
         .handle(e, atConnection: connection);
+  } on Error catch (e) {
+    await GlobalExceptionHandler.getInstance()
+        .handle(InternalServerError(e.toString()), atConnection: connection);
   }
 }
 
