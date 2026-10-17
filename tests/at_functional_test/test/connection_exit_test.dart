@@ -17,7 +17,7 @@ void main() {
 
   /// A raw connection that records everything received and when it closes.
   Future<({SecureSocket socket, StringBuffer received, Future<void> closed})>
-  connect() async {
+      connect() async {
     final SecureSocket socket = await SecureSocket.connect(host, port);
     addTearDown(socket.destroy);
     final StringBuffer received = StringBuffer();
@@ -103,13 +103,34 @@ void main() {
       expect(
         'data:ok'.allMatches(after).length,
         1,
-        reason:
-            'the first noop:0 is answered and the second is not; '
+        reason: 'the first noop:0 is answered and the second is not; '
             'received after authenticating: $after',
       );
       expect(after, isNot(contains('error:')));
     },
   );
+
+  test('A large response sent before @exit arrives whole', () async {
+    final c = await connect();
+    await cram(c.socket, c.received);
+    final String key = 'exitlarge${DateTime.now().microsecondsSinceEpoch}'
+        '.wavi$atSign';
+    final String value = 'v' * (512 * 1024);
+    c.socket.write('update:$key $value\n');
+    await until(c.received, 'data:');
+    await until(c.received, '\n$atSign@');
+    final int before = c.received.length;
+    // ONE write, so @exit arrives while the llookup's reply is being sent.
+    c.socket.write('llookup:$key\n@exit\n');
+    await expectClosed(c.closed, c.received);
+    final String after = c.received.toString().substring(before);
+    expect(
+      after.contains('data:$value\n'),
+      isTrue,
+      reason: 'received ${after.length} characters of a reply of '
+          '${value.length + 6}',
+    );
+  });
 
   test('A command that only resembles @exit is refused as before', () async {
     final c = await connect();

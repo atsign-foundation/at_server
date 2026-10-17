@@ -18,7 +18,8 @@ void main() {
   late List<String> dispatched;
 
   /// Listens on a connection with [metadata], sends [flow] as one write,
-  /// and records the commands the listener dispatches.
+  /// records the commands the listener dispatches, and returns once the
+  /// connection is closed or written to, or after two seconds.
   Future<void> send(InboundConnectionMetadata metadata, String flow) async {
     AtSecondaryServerImpl.getInstance().currentAtSign = '@alice'.toAtsign();
     connection = FakeInboundConnection(FakeSocket(), metadata);
@@ -33,7 +34,14 @@ void main() {
         (String command, InboundConnection c) async => dispatched.add(command),
         (List<int> data, InboundConnection c) {});
     connection.socket.addData(flow);
-    await Future.delayed(Duration(milliseconds: 60));
+    final deadline = DateTime.now().add(Duration(seconds: 2));
+    while (connection.closeCount == 0 &&
+        connection.writes.isEmpty &&
+        DateTime.now().isBefore(deadline)) {
+      await Future.delayed(Duration(milliseconds: 5));
+    }
+    // Lets anything still queued behind the close or the write be dispatched.
+    await Future.delayed(Duration(milliseconds: 20));
   }
 
   group('An atServer closes the connection on @exit', () {

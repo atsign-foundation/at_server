@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:at_commons/at_commons.dart';
@@ -98,6 +99,7 @@ class InboundMessageListener {
       }
       // if command is '@exit', close the connection.
       if (command == '@exit') {
+        await _flushWrites();
         await _finishedHandler();
         return;
       }
@@ -158,6 +160,22 @@ class InboundMessageListener {
   Future<void> _errorHandler(error, StackTrace st) async {
     logger.severe(error.toString());
     await _closeConnection();
+  }
+
+  /// Waits, for up to five seconds, until everything written to a socket
+  /// connection has been handed to the socket, so that closing it does not
+  /// drop the end of a response.
+  Future<void> _flushWrites() async {
+    final underlying = connection.underlying;
+    if (underlying is! Socket) {
+      return;
+    }
+    try {
+      await underlying.flush().timeout(const Duration(seconds: 5));
+    } on Object catch (e) {
+      // NOTE a failed or slow flush must not keep the connection open.
+      logger.info('flush before closing on @exit did not complete: $e');
+    }
   }
 
   /// Closes the [InboundConnection]
