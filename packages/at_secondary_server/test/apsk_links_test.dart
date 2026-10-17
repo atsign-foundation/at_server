@@ -4,7 +4,9 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:at_secondary/src/enroll/apsk_links.dart';
 import 'package:at_secondary/src/utils/handler_util.dart';
+import 'package:at_secondary/src/verb/handler/delete_verb_handler.dart';
 import 'package:at_secondary/src/verb/handler/update_meta_verb_handler.dart';
 import 'package:at_server_spec/at_server_spec.dart';
 import 'package:test/test.dart';
@@ -122,22 +124,25 @@ void main() {
     inboundConnection.metadata.enrollmentId = callerId;
   }
 
-  /// Sends `enroll:link` for [targetId] as [callerId], or over CRAM when
-  /// [callerId] is null, carrying [links] as the wire spells them.
-  Future<Map<String, dynamic>> link(
-      String? callerId, String targetId, Map<String, dynamic> links) async {
+  /// Sends `enroll:link` carrying [params] as the wire spells them, as
+  /// [callerId], or over CRAM when [callerId] is null.
+  Future<Map<String, dynamic>> send(
+      String? callerId, Map<String, dynamic> params) async {
     connectAs(callerId);
     final r = Response();
     await etu.evh.processVerb(
         r,
-        getVerbParam(
-            VerbSyntax.enroll,
-            'enroll:link:'
-            '${jsonEncode({'enrollmentId': targetId, 'links': links})}'),
+        getVerbParam(VerbSyntax.enroll, 'enroll:link:${jsonEncode(params)}'),
         inboundConnection);
     expect(r.isError, false, reason: '${r.errorMessage}');
     return jsonDecode(r.data!);
   }
+
+  /// Sends `enroll:link` for [targetId] as [callerId], or over CRAM when
+  /// [callerId] is null, carrying [links].
+  Future<Map<String, dynamic>> link(
+          String? callerId, String targetId, Map<String, dynamic> links) =>
+      send(callerId, {'enrollmentId': targetId, 'links': links});
 
   /// Sends `enroll:update` as [enrollmentId] on itself, republishing [apsk].
   Future<void> republish(String enrollmentId, Map<String, dynamic> apsk) async {
@@ -353,6 +358,85 @@ void main() {
           }),
           refusedNaming<IllegalArgumentException>(k2));
       expect(await linksOn(b), isNull);
+    });
+
+    final Map<String, (String, Map<String, dynamic> Function(String b))>
+        malformedCalls = {
+      'a call carrying no links': (
+        'at least one link',
+        (b) => {'enrollmentId': b, 'links': {}}
+      ),
+      'a call with no links field': (
+        'at least one link',
+        (b) => {'enrollmentId': b}
+      ),
+      'a call naming no enrollment': (
+        'enrollmentId is mandatory',
+        (b) => {
+              'links': {
+                k1: {
+                  'link': chainLink(payload(b, k1, 'mldsa65', p1)),
+                  'expect': null
+                }
+              }
+            }
+      ),
+      'a call whose link is not an object': (
+        'and $k1 does not',
+        (b) => {
+              'enrollmentId': b,
+              'links': {
+                k1: {'link': 'a link', 'expect': null}
+              }
+            }
+      ),
+      'a call whose expect is neither a link nor null': (
+        'and $k1 does not',
+        (b) => {
+              'enrollmentId': b,
+              'links': {
+                k1: {
+                  'link': chainLink(payload(b, k1, 'mldsa65', p1)),
+                  'expect': 'a link'
+                }
+              }
+            }
+      ),
+    };
+
+    for (final MapEntry(key: String name, value: (String message, params))
+        in malformedCalls.entries) {
+      test('$name is refused, and nothing is written', () async {
+        await expectLater(send(etu.primaryEnId, params(b)),
+            refusedNaming<IllegalArgumentException>(message));
+        expect(await linksOn(b), isNull);
+      });
+    }
+
+    test('a link of exactly 16 KiB is written, and one a byte longer refused',
+        () async {
+      Map<String, dynamic> k2LinkOf(int bytes) {
+        final int unsigned = utf8
+            .encode(jsonEncode(
+                chainLink(payload(b, k2, 'rsa2048', p2), signature: '')))
+            .length;
+        return chainLink(payload(b, k2, 'rsa2048', p2),
+            signature: 'x' * (bytes - unsigned));
+      }
+
+      final Map<String, dynamic> exact = k2LinkOf(16 * 1024);
+      expect(utf8.encode(jsonEncode(exact)).length, 16 * 1024,
+          reason: 'precondition: the link is 16 KiB encoded');
+      await expectLater(
+          link(etu.primaryEnId, b, {
+            k2: {'link': k2LinkOf(16 * 1024 + 1), 'expect': null}
+          }),
+          refusedNaming<IllegalArgumentException>(k2));
+      expect(await linksOn(b), isNull);
+      await link(etu.primaryEnId, b, {
+        k2: {'link': exact, 'expect': null}
+      });
+      expect(await linksOn(b), {k2: exact});
     });
 
     test('a call for a pending enrollment is refused', () async {
@@ -575,16 +659,145 @@ void main() {
       expect(await linksOn(b), {k1: l1});
     });
 
+    test('an enroll:update republish keeps the record\'s other appMetadata',
+        () async {
+      await put(b, jsonEncode(k1AndK2),
+          appMetadata:
+              AppMetadata(providerId: 'acme', additional: {'other': 'kept'}));
+      await republish(b, k1K2AndK3);
+      final AppMetadata stored = (await record(b)).metaData!.appMetadata!;
+      expect(stored.providerId, 'acme');
+      expect(stored.additional!['other'], 'kept');
+      expect(await linksOn(b), {k1: l1, k2: l2});
+    });
+
+    test(
+        'a write that leaves no listed key with a link stores no link map, '
+        'not even an empty one', () async {
+      final Map<String, dynamic> k3Only = listForm([entry(k3, 'mldsa65', p3)]);
+      await put(b, jsonEncode(k3Only),
+          appMetadata:
+              AppMetadata(providerId: 'acme', additional: {'other': 'kept'}));
+      expect((await record(b)).metaData!.appMetadata!.additional,
+          {'other': 'kept'});
+      await put(b, jsonEncode(k1AndK2));
+      await link(etu.primaryEnId, b, {
+        k1: {'link': l1, 'expect': null}
+      });
+      await put(b, jsonEncode(k3Only),
+          appMetadata: AppMetadata(providerId: 'acme'));
+      expect((await record(b)).metaData!.appMetadata!.additional, isNull);
+    });
+
+    test(
+        'a put of an _apsk record with no links, sending no appMetadata, '
+        'stores none', () async {
+      final String c = await enrollment('c', apsk: k1AndK2);
+      expect((await record(c)).metaData?.appMetadata, isNull,
+          reason: 'precondition: the published record carries none');
+      await put(c, jsonEncode(k1K2AndK3));
+      expect((await record(c)).data, jsonEncode(k1K2AndK3));
+      expect((await record(c)).metaData?.appMetadata, isNull);
+    });
+
+    test('a put of any other key stores the appMetadata it sends', () async {
+      const String other = 'public:other.buzz';
+      final AppMetadata sent = olderClientAppMetadata();
+      connectAs(null);
+      final r = Response();
+      await etu.uvh.processVerb(
+          r,
+          getVerbParam(
+              VerbSyntax.update,
+              'update:appMetadata:${Metadata.encodeAppMetadata(sent)}:'
+              '$other$alice ${jsonEncode(k1Only)}'),
+          inboundConnection);
+      expect(r.isError, false, reason: '${r.errorMessage}');
+      expect(
+          (await keyValueStore.get('$other$alice'))!
+              .metaData!
+              .appMetadata!
+              .additional,
+          sent.additional);
+    });
+
+    test('only an approved enrollment\'s own _apsk key is taken for one', () {
+      expect(ApskLinks.enrollmentIdOf(apskKey(b), alice), b);
+      expect(ApskLinks.enrollmentIdOf(apskKey(b).toUpperCase(), alice), b);
+      for (final String other in [
+        'public:_apsk.$b.d.__e$alice',
+        'public:_apsx.$b.a.__e$alice',
+        'public:_apsk.x.$b.a.__e$alice',
+        'public:_apsk.$b.a.__e@bob',
+      ]) {
+        expect(ApskLinks.enrollmentIdOf(other, alice), isNull, reason: other);
+      }
+    });
+
+    DeleteVerbHandler deleteHandler() => DeleteVerbHandler(
+        keyValueStore, statsNotificationService, notificationManager);
+
+    test(
+        'a delete of B\'s _apsk waits for an enrollment write in progress, '
+        'and then removes it', () async {
+      final Completer<void> release = Completer<void>();
+      final Future<void> held = enMgr.serialiseMutation(() => release.future);
+      connectAs(b);
+      final r = Response();
+      final DeleteVerbHandler handler = deleteHandler();
+      final Future<void> deleting = handler.processVerb(
+          r, handler.parse('delete:${apskKey(b)}'), inboundConnection);
+      await Future.delayed(Duration(milliseconds: 50));
+      expect(await keyValueStore.exists(apskKey(b)), true,
+          reason: 'the delete has not removed it while the lock is held');
+      release.complete();
+      await held;
+      await deleting;
+      expect(r.isError, false, reason: '${r.errorMessage}');
+      expect(await keyValueStore.exists(apskKey(b)), false);
+    });
+
+    test('a delete of any other key does not wait for an enrollment write',
+        () async {
+      const String other = 'public:other.buzz';
+      await keyValueStore.put('$other$alice', AtData()..data = 'value');
+      final Completer<void> release = Completer<void>();
+      final Future<void> held = enMgr.serialiseMutation(() => release.future);
+      connectAs(null);
+      final DeleteVerbHandler handler = deleteHandler();
+      try {
+        await handler
+            .processVerb(Response(), handler.parse('delete:$other$alice'),
+                inboundConnection)
+            .timeout(Duration(seconds: 5));
+        expect(await keyValueStore.exists('$other$alice'), false);
+      } finally {
+        release.complete();
+        await held;
+      }
+    });
+
+    /// Sends an `enroll:link` for K1 and [removeK1] while an enrollment write
+    /// is in progress, then lets them run.
     Future<void> together(Future<void> Function() removeK1) async {
       final Map<String, dynamic> relinked =
           rootLink(payload(b, k1, 'mldsa65', p1), signature: 'relinked');
-      final List<Object?> outcomes = await Future.wait([
+      final Completer<void> release = Completer<void>();
+      final Future<void> held = enMgr.serialiseMutation(() => release.future);
+      final Future<List<Object?>> outcomes = Future.wait([
         link(b, b, {
           k1: {'link': relinked, 'expect': l1}
         }).then<Object?>((r) => r, onError: (Object e) => e),
         removeK1().then<Object?>((_) => null, onError: (Object e) => e),
       ]);
-      expect(outcomes[1], isNull, reason: 'the republish succeeds');
+      await Future.delayed(Duration(milliseconds: 50));
+      expect((await record(b)).data, jsonEncode(k1AndK2),
+          reason: 'neither writes while an enrollment write is in progress');
+      expect(await linksOn(b), {k1: l1, k2: l2},
+          reason: 'neither writes while an enrollment write is in progress');
+      release.complete();
+      await held;
+      expect((await outcomes)[1], isNull, reason: 'the republish succeeds');
       expect(await linksOn(b), {k2: l2});
     }
 
@@ -650,6 +863,50 @@ void main() {
             }
           }),
           refusedNaming<IllegalArgumentException>(k1));
+      expect(await linksOn(b), isNull);
+    });
+
+    // One key, the bytes 0xfb 0xff, spelt in each base64 alphabet.
+    const String standard = '+/8=';
+    const String urlSafe = '-_8=';
+    const String kidOfBoth = 'db8fed54159afe40';
+
+    for (final (String form, String pub) in [
+      ('in the other base64 alphabet', urlSafe),
+      ('without padding', '+/8'),
+    ]) {
+      test(
+          'an authentication key the list form spells $form is refused a '
+          'link, and nothing is written', () async {
+        final b = await enrollment('b',
+            apkamPublicKey: standard,
+            signingAlgo: 'mldsa65',
+            apsk: listForm([entry(kidOfBoth, 'mldsa65', pub)]));
+        await expectLater(
+            link(etu.primaryEnId, b, {
+              kidOfBoth: {
+                'link': chainLink(payload(b, kidOfBoth, 'mldsa65', pub)),
+                'expect': null
+              }
+            }),
+            refusedNaming<IllegalArgumentException>(kidOfBoth));
+        expect(await linksOn(b), isNull);
+      });
+    }
+
+    test(
+        'a bare _apsk spelling the authentication key in the other base64 '
+        'alphabet is refused a link, and nothing is written', () async {
+      final b =
+          await enrollment('b', apkamPublicKey: standard, apskLegacy: urlSafe);
+      await expectLater(
+          link(etu.primaryEnId, b, {
+            kidOfBoth: {
+              'link': chainLink(payload(b, kidOfBoth, 'rsa2048', urlSafe)),
+              'expect': null
+            }
+          }),
+          refusedNaming<IllegalArgumentException>(kidOfBoth));
       expect(await linksOn(b), isNull);
     });
   });

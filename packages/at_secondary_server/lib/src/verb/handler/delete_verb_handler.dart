@@ -4,6 +4,8 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/constants/wire_param_names.dart';
+import 'package:at_secondary/src/enroll/apsk_links.dart';
+import 'package:at_secondary/src/enroll/enrollment_manager.dart';
 import 'package:at_secondary/src/notification/notification_manager_impl.dart';
 import 'package:at_secondary/src/server/at_secondary_config.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
@@ -105,30 +107,33 @@ class DeleteVerbHandler extends ChangeVerbHandler {
           ' is not authorized to delete key: $deleteKey');
     }
     bool cramSecretExisted = false;
+    final String removedKey = deleteKey;
     try {
-      // NOTE cached data is exempt: another atSign's cached copy may always
-      // be deleted.
-      if (verbParams['isCached'] != 'true') {
-        if (await keyStore.exists(deleteKey)) {
-          AtData atData = (await keyStore.get(deleteKey))!;
-          if (atData.metaData?.immutable == true) {
-            bool force = verbParams[AtConstants.force] == AtConstants.force;
-            if (!force) {
-              throw IllegalStateException(
-                  'Immutable records may not be deleted without the force flag');
+      await _serialisedIfApsk(removedKey, () async {
+        // NOTE cached data is exempt: another atSign's cached copy may always
+        // be deleted.
+        if (verbParams['isCached'] != 'true') {
+          if (await keyStore.exists(removedKey)) {
+            AtData atData = (await keyStore.get(removedKey))!;
+            if (atData.metaData?.immutable == true) {
+              bool force = verbParams[AtConstants.force] == AtConstants.force;
+              if (!force) {
+                throw IllegalStateException('Immutable records may not be'
+                    ' deleted without the force flag');
+              }
             }
           }
         }
-      }
-      // NOTE read immediately before the removal: removing a key the store
-      // does not hold is not an error here.
-      cramSecretExisted = deleteKey == AtConstants.atCramSecret &&
-          await keyStore.exists(deleteKey);
-      var result = await keyStore.remove(deleteKey,
-          skipCommit: verbParams[WireParams.noCommit] != null,
-          deletedAt: deletedAt);
-      response.data = result?.toString();
-      logger.finer('delete success. delete key: $deleteKey');
+        // NOTE read immediately before the removal: removing a key the store
+        // does not hold is not an error here.
+        cramSecretExisted = removedKey == AtConstants.atCramSecret &&
+            await keyStore.exists(removedKey);
+        var result = await keyStore.remove(removedKey,
+            skipCommit: verbParams[WireParams.noCommit] != null,
+            deletedAt: deletedAt);
+        response.data = result?.toString();
+        logger.finer('delete success. delete key: $removedKey');
+      });
     } on KeyNotFoundException {
       logger.warning('key $deleteKey does not exist in keystore');
       rethrow;
@@ -197,6 +202,18 @@ class DeleteVerbHandler extends ChangeVerbHandler {
                 ..updatedAt = deletedAt.toUtcMillisecondsPrecision()))
         .build();
     await notificationManager.notify(atNotification);
+  }
+
+  /// Runs [removal] of [key] under the enrollment lock when [key] is an
+  /// approved enrollment's `_apsk` record, which `enroll:link` writes under
+  /// that lock, and straight through otherwise.
+  Future<void> _serialisedIfApsk(String key, Future<void> Function() removal) {
+    final EnrollmentManager enMgr =
+        AtSecondaryServerImpl.getInstance().enrollmentManager;
+    if (ApskLinks.enrollmentIdOf(key, enMgr.atSign) == null) {
+      return removal();
+    }
+    return enMgr.serialiseMutation(removal);
   }
 
   /// The atServer's own protected keys, folded as the keystore folds keys.

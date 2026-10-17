@@ -76,7 +76,8 @@
 - feat: `enroll:link` (experimental) stores links vouching for an approved
   enrollment's signing keys, one per key its `_apsk` record lists. The
   enrollment itself, a connection that could approve it, or a CRAM connection
-  may write them, and any other write of that `_apsk` record keeps them.
+  may write them, and any other write of that `_apsk` record keeps the links
+  for the keys it still lists.
 
 - build: `at_commons` 5.23.0-rc1. An atSign of more than 55 characters after
   its `@` is now refused; a `notify` to one, for example, is answered with

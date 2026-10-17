@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
+import 'package:collection/collection.dart';
 import 'package:crypto/crypto.dart';
 
 /// A key an `_apsk` record advertises.
@@ -55,6 +56,24 @@ abstract final class ApskLinks {
   static String? kidOf(String pub) {
     try {
       return sha256.convert(base64Decode(pub)).toString().substring(0, 16);
+    } on FormatException {
+      return null;
+    }
+  }
+
+  /// Whether [pub] and [other] hold the same key as base64, in either
+  /// alphabet and padded or not; compared as text when either is not base64.
+  static bool sameKey(String pub, String? other) {
+    if (other == null) return false;
+    final List<int>? a = _decoded(pub);
+    final List<int>? b = _decoded(other);
+    if (a == null || b == null) return pub == other;
+    return const ListEquality<int>().equals(a, b);
+  }
+
+  static List<int>? _decoded(String key) {
+    try {
+      return base64.decode(base64.normalize(key));
     } on FormatException {
       return null;
     }
@@ -116,7 +135,7 @@ abstract final class ApskLinks {
     if (links.isNotEmpty) additional[field] = links;
     return AppMetadata(
         providerId: appMetadata?.providerId ?? providerId,
-        additional: additional.isEmpty ? null : additional);
+        additional: additional);
   }
 
   /// The appMetadata a write of an `_apsk` record other than `enroll:link`

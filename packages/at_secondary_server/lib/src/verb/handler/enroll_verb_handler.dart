@@ -1068,8 +1068,8 @@ class EnrollVerbHandler extends AbstractVerbHandler {
     Map<dynamic, dynamic> responseJson,
   ) async {
     _validateEnrollParams(enrollParams);
-    return enMgr.serialiseMutation(() => _linkUnderLock(enMgr,
-        connectionMetadata, enrollParams, currentAtSign, responseJson));
+    return enMgr.serialiseMutation(() => _linkUnderLock(
+        enMgr, connectionMetadata, enrollParams, currentAtSign, responseJson));
   }
 
   /// The read-decide-write half of [_handleLink], run under
@@ -1112,7 +1112,7 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       final String kid = request.key;
       final ApskKey? key = advertised[kid];
       // NOTE an authentication key takes no link.
-      if (key == null || key.pub == enVal.apkamPublicKey) {
+      if (key == null || ApskLinks.sameKey(key.pub, enVal.apkamPublicKey)) {
         throw IllegalArgumentException('enroll:link: $enId advertises no key'
             ' $kid that can take a link; an authentication key takes none');
       }
@@ -1147,12 +1147,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
         AtData()
           ..data = record.data
           ..metaData = metaData,
-        assertedTimestamps: metaData.expiresAt == null &&
-                metaData.availableAt == null
-            ? null
-            : AtAssertedTimestamps(
-                expiresAt: metaData.expiresAt,
-                availableAt: metaData.availableAt));
+        assertedTimestamps:
+            metaData.expiresAt == null && metaData.availableAt == null
+                ? null
+                : AtAssertedTimestamps(
+                    expiresAt: metaData.expiresAt,
+                    availableAt: metaData.availableAt));
 
     responseJson['enrollmentId'] = enId;
     responseJson['linked'] = written.keys.toList();
