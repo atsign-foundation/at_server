@@ -24,6 +24,7 @@ Feature: An atServer closes a connection on @exit
       | a client that has not authenticated                   |
       | a client authenticated as @alice                      |
       | a peer atServer that has proved itself as @bob by pol |
+      | a client connected over a WebSocket                   |
 
   Scenario: Commands before @exit are answered, and commands after it are not
     Given a client authenticated as @alice
@@ -44,3 +45,10 @@ Feature: An atServer closes a connection on @exit
     When it sends exit
     Then it is answered with AT0003
     And the connection stays open
+
+  Scenario: A command that starts with @exit is judged as the command it is
+    Given a client that has not authenticated
+    When it sends @exit update:public:phone@alice 1
+    Then it is answered with AT0003
+    And the update is not handled
+    And the connection is closed
