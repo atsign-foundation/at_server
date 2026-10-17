@@ -31,7 +31,7 @@ void main() async {
       var atConfigInstance = AtConfig(keyValueStore, '@test_user_1');
       var atsignsToBeBlocked = {'@alice', '@bob', '@charlie'};
       await atConfigInstance.addToBlockList(atsignsToBeBlocked);
-      var atsignsToBeUnblocked = {'@alice', '@bob'};
+      var atsignsToBeUnblocked = {'@alice'.toAtsign(), '@bob'.toAtsign()};
       var result =
           await atConfigInstance.removeFromBlockList(atsignsToBeUnblocked);
       expect(result, 'success');
@@ -44,13 +44,13 @@ void main() async {
       var data = {'@alice', '@bob'};
       var atConfigInstance = AtConfig(keyValueStore, '@test_user_1');
       await atConfigInstance.addToBlockList(data);
-      var removeData = {'@colin'};
+      var removeData = {'@colin'.toAtsign()};
       var result = await atConfigInstance.removeFromBlockList(removeData);
       expect(result, 'success');
     });
 
     test('test for removing empty data', () async {
-      var removeData = <String>{};
+      var removeData = <Atsign>{};
       var atConfigInstance = AtConfig(keyValueStore, '@test_user_1');
       expect(() async => await atConfigInstance.removeFromBlockList(removeData),
           throwsA(predicate((dynamic e) => e is IllegalArgumentException)));
@@ -101,7 +101,7 @@ void main() async {
     });
 
     test('when another atSign is removed, then that entry is kept', () async {
-      await atConfig.removeFromBlockList({'@carol'});
+      await atConfig.removeFromBlockList({'@carol'.toAtsign()});
       expect(await atConfig.getBlockList(), {'@a!b'});
     });
   });

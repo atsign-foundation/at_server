@@ -162,11 +162,11 @@ Object _valueFor(ModifiableConfigs config, String raw) {
 }
 
 /// The canonical form of each atSign in the space-separated [atsigns].
-Set<String> _toSet(String atsigns) =>
+Set<Atsign> _toSet(String atsigns) =>
     {for (final atSign in atsigns.split(' ')) atSign.toAtsign()};
 
 ///returns atsigns set by removing currentAtSign if exists.
-Set<String> _retainNonCurrentAtsign(String currentAtSign, String atsign) {
+Set<Atsign> _retainNonCurrentAtsign(String currentAtSign, String atsign) {
   var nonCurrentAtSignsList = _toSet(atsign);
   nonCurrentAtSignsList.removeWhere((data) => data == currentAtSign);
   return nonCurrentAtSignsList;

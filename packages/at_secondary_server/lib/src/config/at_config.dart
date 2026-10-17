@@ -35,7 +35,7 @@ class AtConfig {
 
   /// Removes from the blocklist every entry whose canonical form is one of
   /// [unblockAtsignsList], whatever spelling the entry was stored in.
-  Future<String?> removeFromBlockList(Set<String> unblockAtsignsList) async {
+  Future<String?> removeFromBlockList(Set<Atsign> unblockAtsignsList) async {
     if (unblockAtsignsList.isEmpty) {
       throw IllegalArgumentException(
           'Provided list of atsigns to unblock is empty');
