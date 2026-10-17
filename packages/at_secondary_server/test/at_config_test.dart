@@ -64,6 +64,27 @@ void main() async {
 
     tearDown(() async => await tearDownFunc());
   });
+
+  group('Given a blocklist entry that is not an atSign', () {
+    late AtConfig atConfig;
+
+    setUp(() async {
+      await setUpFunc(storageDir);
+      atConfig = AtConfig(keyValueStore, '@test_user_1');
+      await atConfig.addToBlockList({'@a!b', '@carol'});
+    });
+    tearDown(() async => await tearDownFunc());
+
+    test('when an atSign is checked, then that entry is passed over', () async {
+      expect(await atConfig.checkInBlockList('@carol'.toAtsign()), isTrue);
+      expect(await atConfig.checkInBlockList('@dave'.toAtsign()), isFalse);
+    });
+
+    test('when another atSign is removed, then that entry is kept', () async {
+      await atConfig.removeFromBlockList({'@carol'});
+      expect(await atConfig.getBlockList(), {'@a!b'});
+    });
+  });
 }
 
 late HiveAtPersistenceFactory _atConfigTestFactory;
