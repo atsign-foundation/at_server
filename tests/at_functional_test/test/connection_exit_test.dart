@@ -3,8 +3,11 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:at_functional_test/conf/config_util.dart';
+import 'package:at_functional_test/connection/outbound_connection_wrapper.dart';
 import 'package:at_functional_test/utils/auth_utils.dart';
 import 'package:test/test.dart';
+
+import 'pol_peer.dart';
 
 /// Catalogue: features/connection/exit.feature
 void main() {
@@ -17,9 +20,8 @@ void main() {
 
   /// A raw connection that records everything received and when it closes.
   Future<({SecureSocket socket, StringBuffer received, Future<void> closed})>
-      connect() async {
+      open() async {
     final SecureSocket socket = await SecureSocket.connect(host, port);
-    addTearDown(socket.destroy);
     final StringBuffer received = StringBuffer();
     final Completer<void> closed = Completer<void>();
     void markClosed() => closed.isCompleted ? null : closed.complete();
@@ -31,10 +33,19 @@ void main() {
     return (socket: socket, received: received, closed: closed.future);
   }
 
-  /// Waits until [received] contains [text], failing after ten seconds.
-  Future<void> until(StringBuffer received, String text) async {
+  /// A raw connection, as [open] makes, destroyed at tear-down.
+  Future<({SecureSocket socket, StringBuffer received, Future<void> closed})>
+      connect() async {
+    final c = await open();
+    addTearDown(c.socket.destroy);
+    return c;
+  }
+
+  /// Waits until [received], from offset [from] on, contains [text], failing
+  /// after ten seconds.
+  Future<void> until(StringBuffer received, String text, {int from = 0}) async {
     final DateTime deadline = DateTime.now().add(const Duration(seconds: 10));
-    while (!received.toString().contains(text)) {
+    while (!received.toString().substring(from).contains(text)) {
       if (DateTime.now().isAfter(deadline)) {
         fail('waited for "$text"; received: $received');
       }
@@ -63,6 +74,21 @@ void main() {
             fail('the atServer left the connection open; received: $received'),
       );
 
+  /// Sends [command] on a connection of its own, authenticated as [atSign],
+  /// and answers the reply up to its prompt.
+  Future<String> sendAlone(String command) async {
+    final c = await open();
+    try {
+      await cram(c.socket, c.received);
+      final int from = c.received.length;
+      c.socket.write('$command\n');
+      await until(c.received, '\n$atSign@', from: from);
+      return c.received.toString().substring(from);
+    } finally {
+      c.socket.destroy();
+    }
+  }
+
   group('An atServer closes the connection on @exit', () {
     test('a client that has not authenticated', () async {
       final c = await connect();
@@ -88,6 +114,25 @@ void main() {
         reason: 'nothing is written in reply to @exit',
       );
     });
+
+    // @xavier plays @alice, and @jeremy plays @bob.
+    test(
+      'a peer atServer that has proved itself as @bob by pol',
+      () async {
+        final OutboundConnectionFactory jeremyClient =
+            await clientOf('@jeremy');
+        addTearDown(jeremyClient.close);
+        final (SecureSocket socket, Future<String?> Function() next) =
+            await polAs('@jeremy', jeremyClient, await addressOf('@xavier'));
+        socket.write('@exit\n');
+        expect(
+          await next(),
+          isNull,
+          reason: 'the atServer writes nothing and closes the connection',
+        );
+      },
+      timeout: Timeout(Duration(minutes: 2)),
+    );
   });
 
   test(
@@ -115,10 +160,16 @@ void main() {
     await cram(c.socket, c.received);
     final String key = 'exitlarge${DateTime.now().microsecondsSinceEpoch}'
         '.wavi$atSign';
+    addTearDown(() => sendAlone('delete:$key'));
     final String value = 'v' * (512 * 1024);
+    final int updated = c.received.length;
     c.socket.write('update:$key $value\n');
-    await until(c.received, 'data:');
-    await until(c.received, '\n$atSign@');
+    await until(c.received, '\n$atSign@', from: updated);
+    expect(
+      c.received.toString().substring(updated),
+      startsWith('data:'),
+      reason: 'the update is answered with its commit id',
+    );
     final int before = c.received.length;
     // ONE write, so @exit arrives while the llookup's reply is being sent.
     c.socket.write('llookup:$key\n@exit\n');
@@ -142,4 +193,24 @@ void main() {
     c.socket.write('noop:0\n');
     await until(c.received, 'data:ok');
   });
+
+  test(
+    'A command that starts with @exit is judged as the command it is',
+    () async {
+      final c = await connect();
+      await until(c.received, '@');
+      final String key =
+          'public:exithead${DateTime.now().microsecondsSinceEpoch}$atSign';
+      c.socket.write('@exit update:$key 1\n');
+      await expectClosed(c.closed, c.received);
+      final String after = c.received.toString().substring('@'.length);
+      expect(after, startsWith('error:AT0003'));
+      expect('error:'.allMatches(after).length, 1, reason: 'received $after');
+      expect(
+        await sendAlone('llookup:$key'),
+        startsWith('error:AT0015'),
+        reason: 'the update is not handled, so there is no $key',
+      );
+    },
+  );
 }
