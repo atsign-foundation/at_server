@@ -73,7 +73,8 @@
   `apkamKeysExpiryInMillis`, when given, is a whole number of milliseconds
   from 0 (never expires) to 3155760000000 (36,525 days).
 
-- fix: an atServer closes the connection when a client sends `@exit`.
+- fix: an atServer closes the connection, writing nothing, when a client sends
+  `@exit`.
 
 - build: `at_commons` 5.22.0. An atSign of more than 55 characters after its
   `@` is now refused; a `notify` to one, for example, is answered with an
