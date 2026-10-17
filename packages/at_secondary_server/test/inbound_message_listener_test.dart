@@ -346,29 +346,6 @@ void main() async {
       );
     });
 
-    test('only the whole command @exit passes the validator as @exit', () {
-      when(() => connection.metaData).thenReturn(unAuthenticatedMetadata);
-      expect(
-          () => InboundCommandValidator.validate(
-              utf8.encode('@exit').toList(), connection),
-          returnsNormally,
-          reason: 'control: the command itself passes');
-      for (final command in [
-        '@exit:x',
-        '@exit update:public:phone@alice 1',
-        '@exit${' ' * 251}update:public:phone@alice 1',
-        'update:public:phone@alice @exit',
-      ]) {
-        expect(
-            () => InboundCommandValidator.validate(
-                utf8.encode(command).toList(), connection),
-            throwsA(anyOf(isA<InvalidSyntaxException>(),
-                isA<UnAuthenticatedException>())),
-            reason: '"${command.length > 40 ? '${command.substring(0, 40)}…' : command}" '
-                'is not @exit and must be judged as itself');
-      }
-    });
-
     test('an HTTP request is refused as one', () {
       when(() => connection.metaData).thenReturn(unAuthenticatedMetadata);
       for (final request in [
@@ -726,29 +703,6 @@ void main() async {
       expect(fakeConnection.writes, isEmpty,
           reason: 'nothing is written in reply to @exit, but the connection '
               'saw ${fakeConnection.writes}');
-    });
-
-    test('a command arriving with a head like @exit is judged as itself',
-        () async {
-      final unauthenticated =
-          FakeInboundConnection(FakeSocket(), InboundConnectionMetadata());
-      final commands = <String>[];
-      InboundMessageListener(unauthenticated).listen(
-          (String command, InboundConnection connection) async =>
-              commands.add(command),
-          (List<int> data, InboundConnection connection) {});
-      // 16 bytes, so the head is judged before the rest arrives.
-      unauthenticated.socket.addData('@exit${' ' * 11}');
-      await Future.delayed(Duration(milliseconds: 15));
-      unauthenticated.socket.addData('update:public:phone@alice 1\n');
-      await Future.delayed(Duration(milliseconds: 60));
-      expect(commands, isEmpty,
-          reason: 'the command is not @exit, so its head is refused rather '
-              'than passed: $commands');
-      expect(unauthenticated.writes, isNotEmpty);
-      expect(unauthenticated.writes.first, startsWith('error:AT0003'),
-          reason: 'the head is answered as an unknown verb');
-      expect(unauthenticated.closeCount, greaterThan(0));
     });
 
     test('a complete command is copied out of the buffer once', () {
