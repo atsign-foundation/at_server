@@ -71,13 +71,13 @@ void main() async {
     setUp(() async {
       await setUpFunc(storageDir);
       atConfig = AtConfig(keyValueStore, '@test_user_1');
-      await atConfig.addToBlockList({'@Dave', '@e.ve', 'frank'});
+      await atConfig.addToBlockList({'@Dave', '@e.rin', 'frank'});
     });
     tearDown(() async => await tearDownFunc());
 
     test('when each one\'s canonical atSign is checked, then it is blocked',
         () async {
-      for (final atSign in ['@dave', '@eve', '@frank']) {
+      for (final atSign in ['@dave', '@erin', '@frank']) {
         expect(await atConfig.checkInBlockList(atSign.toAtsign()), isTrue,
             reason: atSign);
       }
