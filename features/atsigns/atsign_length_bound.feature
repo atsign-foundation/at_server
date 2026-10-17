@@ -156,3 +156,9 @@ Feature: An atSign has at most 55 characters
     Given @alice's blocklist already holds @Dave as it was typed
     When a connection sends from:@dave
     Then it is refused as blocked
+
+  Scenario: config:block:remove removes a blocklist entry stored before this release
+    Given @alice's blocklist already holds @Dave as it was typed
+    When @alice's authenticated client sends config:block:remove:@dave
+    Then config:block:show does not list @Dave
+    And a connection that sends from:@dave is not refused as blocked
