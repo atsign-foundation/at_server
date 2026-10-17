@@ -74,15 +74,17 @@
   from 0 (never expires) to 3155760000000 (36,525 days).
 
 - fix: an atSign of more than 55 characters after its `@` is refused with
-  AT0003 wherever a command names one; exactly 55 is accepted. Characters are
-  code points, counted once the atSign is lower-cased and its dots are
-  removed. Any other atSign that is not valid, such as one with a reserved
-  character, is answered with AT0003 too, and an authenticated client keeps
-  its connection.
+  AT0003 wherever a command names one, a `batch:` entry included; exactly 55
+  is accepted. Characters are code points, counted once the atSign is
+  lower-cased and its dots are removed, as `at_commons` 5.22.0 counts them.
+  Any other atSign that is not valid, such as one with a reserved character,
+  is answered with AT0003 too. An authenticated client, or a peer that has
+  proved itself by `pol`, keeps its connection.
 
-- fix: `config:block:add` and `config:block:remove` take each atSign in its
-  canonical form, lower-cased and without its dots, and `from:` compares
-  atSigns with the blocklist in that form.
+- fix: `config:block:add`, `config:block:remove`, `scan` and `stream:` take
+  each atSign in its canonical form, lower-cased and without its dots.
+  `from:` compares atSigns with the blocklist in that form, and never blocks
+  this atServer's own atSign.
 
 # 3.17.0
 - feat: a notification can be ephemeral (`eph`): no atServer stores it,
