@@ -73,7 +73,9 @@ class AtConfig {
     }
     try {
       final blockList = await getBlockList();
-      return blockList.any((entry) => _canonicalOrNull(entry) == atSign);
+      return blockList.any((entry) =>
+          entry == atSign ||
+          (!_spelledCanonically(entry) && _canonicalOrNull(entry) == atSign));
     } on Exception catch (e) {
       throw DataStoreException('Failed to check blocklist: $e');
     }
@@ -85,6 +87,14 @@ class AtConfig {
     await _keyStore.put(configKey, atData, skipCommit: true);
     return 'success';
   }
+
+  /// Whether [entry] is spelled as a canonical atSign is: a leading `@`, lower
+  /// case and no dots. Such an entry's canonical form, if it has one, is
+  /// itself.
+  static bool _spelledCanonically(String entry) =>
+      entry.startsWith('@') &&
+      !entry.contains('.') &&
+      entry == entry.toLowerCase();
 
   /// [entry] in canonical form, or null when it is not an atSign.
   static String? _canonicalOrNull(String entry) {

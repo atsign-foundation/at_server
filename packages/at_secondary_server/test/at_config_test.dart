@@ -65,6 +65,26 @@ void main() async {
     tearDown(() async => await tearDownFunc());
   });
 
+  group('Given blocklist entries stored as they were typed', () {
+    late AtConfig atConfig;
+
+    setUp(() async {
+      await setUpFunc(storageDir);
+      atConfig = AtConfig(keyValueStore, '@test_user_1');
+      await atConfig.addToBlockList({'@Dave', '@e.ve', 'frank'});
+    });
+    tearDown(() async => await tearDownFunc());
+
+    test('when each one\'s canonical atSign is checked, then it is blocked',
+        () async {
+      for (final atSign in ['@dave', '@eve', '@frank']) {
+        expect(await atConfig.checkInBlockList(atSign.toAtsign()), isTrue,
+            reason: atSign);
+      }
+      expect(await atConfig.checkInBlockList('@grace'.toAtsign()), isFalse);
+    });
+  });
+
   group('Given a blocklist entry that is not an atSign', () {
     late AtConfig atConfig;
 
