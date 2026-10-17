@@ -5,6 +5,7 @@ import 'package:at_commons/at_commons.dart';
 import 'package:at_lookup/at_lookup.dart' as at_lookup;
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/caching/cache_manager.dart';
+import 'package:at_secondary/src/config/at_config.dart';
 import 'package:at_secondary/src/connection/inbound/inbound_connection_metadata.dart';
 import 'package:at_secondary/src/connection/outbound/outbound_client_manager.dart';
 import 'package:at_secondary/src/exception/global_exception_handler.dart';
@@ -42,7 +43,9 @@ late DefaultVerbHandlerManager verbs;
 
 /// Serves [atSign], as the atServer's own, with the verb handlers it runs.
 void serve(Atsign atSign) {
-  AtSecondaryServerImpl.getInstance().currentAtSign = atSign;
+  AtSecondaryServerImpl.getInstance()
+    ..currentAtSign = atSign
+    ..secondaryAddressFinder = atDirectory;
   outbound = OutboundClientManager(atDirectory, mockOutboundConnectionFactory);
   verbs = DefaultVerbHandlerManager(
     keyValueStore,
@@ -210,6 +213,8 @@ void main() {
       'llookup:$over:phone.wavi@alice',
       'llookup:cached:@alice:phone.wavi$over',
       'scan:$over',
+      'config:block:add:$over',
+      'config:block:remove:$over',
       'stream:init$over namespace:wavi startByte:0 s1 f.txt 10',
     ]) {
       test(command.replaceAll(over, '@over'), () async {
@@ -375,6 +380,51 @@ void main() {
       expect(await keyValueStore.exists('public:mock-session-id$bob'), isTrue);
       verify(() => mockOutboundConnection.write('pol\n')).called(1);
     });
+  });
+
+  /// What a connection that names a blocked atSign in its from: is answered
+  /// with.
+  const String blocked = 'error:AT0013-Exception: Unable to connect\n@';
+
+  test('config:block takes each atSign in its canonical form', () async {
+    final connection = client();
+    await send('config:block:add:@Dave', connection);
+    await send('config:block:show', connection);
+    expect(connection.writes.last, 'data:["@dave"]\n@alice@');
+
+    final dave = unauthenticated();
+    await send('from:@dave', dave);
+    expect(dave.writes, [blocked]);
+    expect(dave.closeCount, 1);
+    verifyNever(() => atDirectory.findSecondary(any()));
+  });
+
+  test(
+      'A blocklist entry stored before this release blocks its canonical atSign',
+      () async {
+    await AtConfig(keyValueStore, alice).addToBlockList({'@Dave'});
+    final dave = unauthenticated();
+    await send('from:@dave', dave);
+    expect(dave.writes, [blocked]);
+    expect(dave.closeCount, 1);
+    verifyNever(() => atDirectory.findSecondary(any()));
+  });
+
+  test(
+      'config:block:remove removes a blocklist entry stored before this release',
+      () async {
+    await AtConfig(keyValueStore, alice).addToBlockList({'@Dave', '@carol'});
+    final connection = client();
+    await send('config:block:remove:@dave', connection);
+    await send('config:block:show', connection);
+    expect(connection.writes.last, 'data:["@carol"]\n@alice@');
+
+    final dave = unauthenticated();
+    await send('from:@dave', dave);
+    expect(dave.writes,
+        ['error:AT0007-Exception: No entry in atDirectory for @dave\n@'],
+        reason: 'past the blocklist, from: checks @dave\'s certificate');
+    verify(() => atDirectory.findSecondary('@dave')).called(1);
   });
 
   test('An atSign with a reserved character is refused with AT0003', () async {

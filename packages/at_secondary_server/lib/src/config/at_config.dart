@@ -34,7 +34,8 @@ class AtConfig {
     }
   }
 
-  /// Removes [unblockAtsignsList] from blocklist if satisfies basic conditions.
+  /// Removes from the blocklist every entry whose canonical form is one of
+  /// [unblockAtsignsList], whatever spelling the entry was stored in.
   Future<String?> removeFromBlockList(Set<String> unblockAtsignsList) async {
     if (unblockAtsignsList.isEmpty) {
       throw IllegalArgumentException(
@@ -46,7 +47,9 @@ class AtConfig {
       if (current.isEmpty) {
         return null;
       }
-      final updated = current.difference(unblockAtsignsList);
+      final updated = current
+        ..removeWhere(
+            (entry) => unblockAtsignsList.contains(_canonicalOrNull(entry)));
       return await _writeConfig(Configuration(updated.toList()));
     } on Exception catch (e) {
       throw DataStoreException('Failed to update blocklist: $e');
@@ -62,11 +65,12 @@ class AtConfig {
     }
   }
 
-  /// Returns 'true' if blocklist contains [atsign].
-  Future<bool> checkInBlockList(String atsign) async {
+  /// Whether the blocklist holds [atSign], comparing each entry in canonical
+  /// form and skipping any entry that is not an atSign.
+  Future<bool> checkInBlockList(Atsign atSign) async {
     try {
       final blockList = await getBlockList();
-      return blockList.contains(atsign);
+      return blockList.any((entry) => _canonicalOrNull(entry) == atSign);
     } on Exception catch (e) {
       throw DataStoreException('Failed to check blocklist: $e');
     }
@@ -77,6 +81,15 @@ class AtConfig {
     logger.finest('Storing the config key:$configKey | Value: $atData');
     await _keyStore.put(configKey, atData, skipCommit: true);
     return 'success';
+  }
+
+  /// [entry] in canonical form, or null when it is not an atSign.
+  static String? _canonicalOrNull(String entry) {
+    try {
+      return entry.toAtsign();
+    } on InvalidAtSignException {
+      return null;
+    }
   }
 
   Set<String> _decodeBlockList(AtData? existingData) {

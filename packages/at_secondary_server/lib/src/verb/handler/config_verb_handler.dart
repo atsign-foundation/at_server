@@ -161,11 +161,9 @@ Object _valueFor(ModifiableConfigs config, String raw) {
   return raw;
 }
 
-/// Returns atsigns set.
-Set<String> _toSet(String atsign) {
-  var stringList = Set<String>.from(atsign.split(' '));
-  return stringList;
-}
+/// The canonical form of each atSign in the space-separated [atsigns].
+Set<String> _toSet(String atsigns) =>
+    {for (final atSign in atsigns.split(' ')) atSign.toAtsign()};
 
 ///returns atsigns set by removing currentAtSign if exists.
 Set<String> _retainNonCurrentAtsign(String currentAtSign, String atsign) {
