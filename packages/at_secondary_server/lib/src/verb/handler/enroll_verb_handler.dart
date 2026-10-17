@@ -1059,7 +1059,9 @@ class EnrollVerbHandler extends AbstractVerbHandler {
   ///
   /// Admits the target itself and any caller `enroll:approve` would admit.
   /// Checks each link's structure, never its signature, and replaces a stored
-  /// link only when the request's `expect` equals it as JSON.
+  /// link only when the request's `expect` equals it as JSON. Refuses a call
+  /// that would take the `_apsk` record, its value and appMetadata with every
+  /// link, over [maxEnrollmentRecordBytes].
   Future<void> _handleLink(
     EnrollmentManager enMgr,
     InboundConnectionMetadata connectionMetadata,
@@ -1139,9 +1141,17 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       written[kid] = link;
     }
 
-    final AtMetaData metaData = record!.metaData!
-      ..appMetadata = ApskLinks.withLinks(record.metaData!.appMetadata,
-          {...ApskLinks.pruned(stored, advertised), ...written});
+    final AppMetadata? appMetadata = ApskLinks.withLinks(
+        record!.metaData!.appMetadata,
+        {...ApskLinks.pruned(stored, advertised), ...written});
+    final int length = utf8.encode(record.data ?? '').length +
+        utf8.encode(jsonEncode(appMetadata?.toJson())).length;
+    if (length > maxEnrollmentRecordBytes) {
+      throw IllegalArgumentException('enroll:link: $enId\'s _apsk record would'
+          ' be $length bytes encoded with these links, over the'
+          ' $maxEnrollmentRecordBytes byte enrollment record limit');
+    }
+    final AtMetaData metaData = record.metaData!..appMetadata = appMetadata;
     await keyStore.put(
         apskKey,
         AtData()

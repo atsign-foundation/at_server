@@ -413,23 +413,29 @@ void main() {
       });
     }
 
+    /// A chain link on B for [kid] whose JSON encoding is [bytes] long.
+    Map<String, dynamic> sizedLink(
+        String kid, String alg, String pub, int bytes) {
+      final int unsigned = utf8
+          .encode(
+              jsonEncode(chainLink(payload(b, kid, alg, pub), signature: '')))
+          .length;
+      return chainLink(payload(b, kid, alg, pub),
+          signature: 'x' * (bytes - unsigned));
+    }
+
     test('a link of exactly 16 KiB is written, and one a byte longer refused',
         () async {
-      Map<String, dynamic> k2LinkOf(int bytes) {
-        final int unsigned = utf8
-            .encode(jsonEncode(
-                chainLink(payload(b, k2, 'rsa2048', p2), signature: '')))
-            .length;
-        return chainLink(payload(b, k2, 'rsa2048', p2),
-            signature: 'x' * (bytes - unsigned));
-      }
-
-      final Map<String, dynamic> exact = k2LinkOf(16 * 1024);
+      final Map<String, dynamic> exact =
+          sizedLink(k2, 'rsa2048', p2, 16 * 1024);
       expect(utf8.encode(jsonEncode(exact)).length, 16 * 1024,
           reason: 'precondition: the link is 16 KiB encoded');
       await expectLater(
           link(etu.primaryEnId, b, {
-            k2: {'link': k2LinkOf(16 * 1024 + 1), 'expect': null}
+            k2: {
+              'link': sizedLink(k2, 'rsa2048', p2, 16 * 1024 + 1),
+              'expect': null
+            }
           }),
           refusedNaming<IllegalArgumentException>(k2));
       expect(await linksOn(b), isNull);
@@ -437,6 +443,26 @@ void main() {
         k2: {'link': exact, 'expect': null}
       });
       expect(await linksOn(b), {k2: exact});
+    });
+
+    test(
+        'a call that would take B\'s _apsk record, with every link it would '
+        'then hold, over 500 KiB is refused, and nothing is written', () async {
+      await put(b, jsonEncode({...k1AndK2, 'padding': 'x' * 410000}),
+          appMetadata: AppMetadata(
+              providerId: 'acme', additional: {'other': 'y' * 72000}));
+      final Map<String, dynamic> k1Link = sizedLink(k1, 'mldsa65', p1, 15000);
+      await link(etu.primaryEnId, b, {
+        k1: {'link': k1Link, 'expect': null}
+      });
+      expect(await linksOn(b), {k1: k1Link},
+          reason: 'precondition: the record with K1\'s link is under 500 KiB');
+      await expectLater(
+          link(etu.primaryEnId, b, {
+            k2: {'link': sizedLink(k2, 'rsa2048', p2, 16000), 'expect': null}
+          }),
+          refusedNaming<IllegalArgumentException>('_apsk record would be'));
+      expect(await linksOn(b), {k1: k1Link});
     });
 
     test('a call for a pending enrollment is refused', () async {

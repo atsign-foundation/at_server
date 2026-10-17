@@ -26,8 +26,9 @@ Feature: Links vouch for an enrollment's signing keys, one per key
   that key; re-sending a stored link with its own expect is refused unless
   the stored link is still the one expected.
   DoS: only the target or a caller passing the approve gate can write; one
-  link per key the record advertises, each at most 16 KiB encoded, and the
-  whole call within the 500 KiB enrollment-record limit.
+  link per key the record advertises, each at most 16 KiB encoded, and both
+  the whole call and the _apsk record with all its links within the 500 KiB
+  enrollment-record limit.
   Forgery and impersonation: the atServer stores a link without checking
   its signature, and a stored link is a claim the reader checks. The right
   to write one is the right to approve or revoke the target.
@@ -42,7 +43,7 @@ Feature: Links vouch for an enrollment's signing keys, one per key
 
   Scenario: enroll:link checks structure, and writes all or nothing
     Given B approved, its _apsk advertising K1 and K2
-    When one call carries a well-formed link for K1 and any of: a link for an unadvertised K9; a link whose payload names another enrollment, or another kid, alg or public key; a link over 16 KiB; or the call is over the 500 KiB limit
+    When one call carries a well-formed link for K1 and any of: a link for an unadvertised K9; a link whose payload names another enrollment, or another kid, alg or public key; a link over 16 KiB; or the call, or B's _apsk record with every link it would then hold, is over the 500 KiB limit
     Then the whole call is refused, naming what failed, and K1's link is not written either
     And a call for an enrollment that isn't approved is refused
     And a call carrying well-formed links for K1 and K2 writes both
