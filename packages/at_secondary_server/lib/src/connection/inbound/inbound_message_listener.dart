@@ -173,8 +173,8 @@ class InboundMessageListener {
     try {
       await underlying.flush().timeout(const Duration(seconds: 5));
     } on Object catch (e) {
-      // NOTE a failed or slow flush must not keep the connection open.
-      logger.info('flush before closing on @exit did not complete: $e');
+      logger.warning(logger.getAtConnectionLogMessage(connection.metaData,
+          'closing on @exit before earlier replies were sent: $e'));
     }
   }
 

@@ -9,6 +9,8 @@ import 'package:at_secondary/src/connection/inbound/inbound_message_listener.dar
 import 'package:at_secondary/src/connection/inbound/inbound_web_socket_connection.dart';
 import 'package:at_secondary/src/server/at_secondary_impl.dart';
 import 'package:at_server_spec/at_server_spec.dart';
+import 'package:fake_async/fake_async.dart';
+import 'package:logging/logging.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
@@ -56,6 +58,7 @@ void main() {
   });
 
   late FakeInboundConnection connection;
+  late InboundMessageListener listener;
   late List<String> dispatched;
 
   /// Listens on a connection with [metadata] over [socket], recording the
@@ -70,9 +73,11 @@ void main() {
     AtSecondaryServerImpl.getInstance().inboundConnectionManager = manager;
 
     dispatched = <String>[];
-    InboundMessageListener(connection).listen(
-        (String command, InboundConnection c) async => dispatched.add(command),
-        (List<int> data, InboundConnection c) {});
+    listener = InboundMessageListener(connection)
+      ..listen(
+          (String command, InboundConnection c) async =>
+              dispatched.add(command),
+          (List<int> data, InboundConnection c) {});
   }
 
   /// Returns once the connection is closed or written to, or after two
@@ -173,6 +178,58 @@ void main() {
     expect(connection.writes, isEmpty,
         reason: 'nothing is written for @exit, and the handler stub writes '
             'nothing for noop:0');
+  });
+
+  group('A large response sent before @exit arrives whole', () {
+    test('the connection is closed only once its writes are flushed', () async {
+      final socket = FlushingSocket(Duration(milliseconds: 50));
+      listenOn(InboundConnectionMetadata()..isAuthenticated = true, socket);
+      socket.closes = () => connection.closeCount;
+      socket.addData('noop:0\n@exit\n');
+      await settle();
+      expect(socket.events,
+          ['flush started after 0 closes', 'flush completed after 0 closes'],
+          reason: 'the connection is flushed once, and closed only after the '
+              'flush completes');
+      expect(connection.closeCount, 1, reason: 'the connection is closed');
+    });
+  });
+
+  test('Waiting for its earlier replies to be sent takes at most five seconds',
+      () {
+    fakeAsync((async) {
+      final socket = FlushingSocket(null);
+      listenOn(
+          InboundConnectionMetadata()
+            ..isAuthenticated = true
+            ..sessionID = 'exit-session',
+          socket);
+      socket.closes = () => connection.closeCount;
+      final Level prior = listener.logger.logger.level;
+      listener.logger.level = 'warning';
+      final records = <LogRecord>[];
+      final sub = listener.logger.logger.onRecord.listen(records.add);
+      addTearDown(() {
+        sub.cancel();
+        listener.logger.logger.level = prior;
+      });
+
+      socket.addData('@exit\n');
+      async.elapse(Duration(milliseconds: 4900));
+      expect(connection.closeCount, 0,
+          reason: 'the close waits for the flush to complete');
+      async.elapse(Duration(milliseconds: 200));
+      expect(connection.closeCount, 1,
+          reason: 'but for no more than five seconds');
+
+      final warnings = records.where((r) => r.level == Level.WARNING).toList();
+      expect(warnings, hasLength(1),
+          reason: 'closing before earlier replies were sent is a warning');
+      expect(warnings.single.message, contains('${'exit-session'.hashCode}|'),
+          reason: 'the warning names the connection');
+      expect(warnings.single.message,
+          contains('closing on @exit before earlier replies were sent'));
+    });
   });
 
   test('A command that only resembles @exit is refused as before', () async {
