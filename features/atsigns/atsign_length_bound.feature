@@ -2,22 +2,22 @@ Feature: An atSign has at most 55 characters
 
   An atSign has at most 55 characters after its @. Characters are Unicode
   code points, counted once the atSign is lower-cased and its dots are
-  removed: @a.b has 2 characters, and an emoji has 1. An atServer refuses a
-  longer atSign wherever a command names one: the atSign a connection
-  declares, a key's owner or recipient, a notification's recipient or
-  sender, a stream's receiver, or a blocklist entry. It answers AT0003 with
-  "invalid @sign: must have at most 55 characters after the @" before it
-  looks anything up, stores, queues or sends anything. An authenticated
-  client, or a peer that has proved itself by pol, keeps its connection.
-  Any other connection is closed. An atSign of exactly 55 characters is
-  accepted everywhere. An atServer does not start for an atSign longer than
-  55 characters.
+  removed: @a.b has 2 characters, and a single-code-point emoji such as 😀
+  has 1. An atServer refuses a longer atSign wherever a command names one:
+  the atSign a connection declares, a key's owner or recipient, a
+  notification's recipient or sender, a stream's receiver, or a blocklist
+  entry. It answers AT0003 with "invalid @sign: must have at most 55
+  characters after the @" before it looks anything up, stores, queues or
+  sends anything. An authenticated client, or a peer that has proved itself
+  by pol, keeps its connection. Any other connection is closed. An atSign of
+  exactly 55 characters is accepted everywhere. An atServer does not start
+  for an atSign longer than 55 characters.
 
   Here @max stands for an atSign of 55 characters after its @, and @over
   for one of 56.
 
-  Races: the check reads only the request, before the command reads or
-  writes anything.
+  Races: the check reads only the request and the connection's enrollment,
+  before the command writes anything.
   Replay: nothing is written, spent or queued before the refusal, so no
   refused notification is retried after a restart.
   DoS: the check measures one string before any atDirectory lookup,
@@ -162,3 +162,8 @@ Feature: An atSign has at most 55 characters
     When @alice's authenticated client sends config:block:remove:@dave
     Then config:block:show does not list @Dave
     And a connection that sends from:@dave is not refused as blocked
+
+  Scenario: A blocklist entry for this atServer's own atSign blocks nothing
+    Given @alice's blocklist already holds @Alice as it was typed
+    When a client sends from:@alice
+    Then it gets a data: challenge
