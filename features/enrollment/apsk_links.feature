@@ -69,6 +69,12 @@ Feature: Links vouch for an enrollment's signing keys, one per key
     When enroll:link is asked to link that key
     Then the atServer refuses it, since the key is the one B's enrollment record holds as its apkamPublicKey, and nothing is written
 
+  Scenario: an enroll:update cannot make B's signing key its authentication key
+    Given B's _apsk lists K1
+    When B's enroll:update installs K1 as its apkamPublicKey, and afterwards B's _apsk still lists K1 beside another key, or K1 carries a link
+    Then the atServer refuses the update, naming K1, and nothing is written
+    And an update that installs K1 as the only key B's _apsk lists, with no link, is accepted, as for an enrollment holding no signing key of its own
+
   Scenario: a bare RSA signing key is linked like a listed one
     Given B on the pqReady posture, authenticating with ML-DSA-65, whose _apsk is the RSA-2048 signing key it minted, published bare
     When enroll:link links that key

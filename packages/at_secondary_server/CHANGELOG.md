@@ -77,7 +77,8 @@
   enrollment's signing keys, one per key its `_apsk` record lists. The
   enrollment itself, a connection that could approve it, or a CRAM connection
   may write them, and any other write of that `_apsk` record keeps the links
-  for the keys it still lists.
+  for the keys it still lists. An `enroll:update` can no longer make one of
+  the enrollment's signing keys its authentication key.
 
 - build: `at_commons` 5.23.0-rc1. An atSign of more than 55 characters after
   its `@` is now refused; a `notify` to one, for example, is answered with

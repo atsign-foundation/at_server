@@ -998,6 +998,12 @@ class EnrollVerbHandler extends AbstractVerbHandler {
       enVal.apsk = null;
     }
 
+    if (enrollParams.apkamPublicKey != null) {
+      await _refuseListedKeyAsAuthenticationKey(enId, enVal, currentAtSign,
+          republished:
+              enrollParams.apsk != null || enrollParams.apskLegacy != null);
+    }
+
     if (enrollParams.metadata != null) {
       final merged = Map<String, dynamic>.from(enVal.metadata ?? {});
       merged.addAll(enrollParams.metadata!);
@@ -1171,6 +1177,31 @@ class EnrollVerbHandler extends AbstractVerbHandler {
 
     responseJson['enrollmentId'] = enId;
     responseJson['linked'] = written.keys.toList();
+  }
+
+  /// Throws [IllegalArgumentException] when [enVal]'s new `apkamPublicKey` is
+  /// a key its `_apsk`, as this update leaves it, lists beside another key or
+  /// carries a link on.
+  ///
+  /// [republished] says whether this update replaces the `_apsk` value with
+  /// [enVal]'s; otherwise the stored value stands.
+  Future<void> _refuseListedKeyAsAuthenticationKey(
+      String enId, EnrollDataStoreValue enVal, String currentAtSign,
+      {required bool republished}) async {
+    final AtData? record =
+        await _storedOrNull(ApskLinks.keyFor(enId, currentAtSign));
+    final Map<String, ApskKey> advertised = ApskLinks.advertisedKeys(
+        republished ? _apskRecordValue(enVal) : record?.data);
+    final Map<String, dynamic> links =
+        ApskLinks.linksIn(record?.metaData?.appMetadata);
+    for (final MapEntry<String, ApskKey> key in advertised.entries) {
+      if (_isAuthenticationKey(key.value.pub, enVal) &&
+          (advertised.length > 1 || links.containsKey(key.key))) {
+        throw IllegalArgumentException('enroll:update: $enId\'s _apsk lists'
+            ' its new apkamPublicKey as ${key.key}, and an authentication key'
+            ' may be listed only alone and without a link');
+      }
+    }
   }
 
   /// Whether [pub] is the key [enVal] authenticates with, read both as base64

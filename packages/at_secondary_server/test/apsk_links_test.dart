@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:typed_data';
 
+import 'package:at_chops/at_chops.dart' show RsaSignatureAlgo;
 import 'package:at_commons/at_commons.dart';
 import 'package:at_persistence_secondary_server/at_persistence_secondary_server.dart';
 import 'package:at_secondary/src/enroll/apsk_links.dart';
@@ -1095,6 +1097,128 @@ void main() {
         expect(await linksOn(b), isNull);
       });
     }
+  });
+
+  group('an enroll:update cannot make B\'s signing key its authentication key',
+      () {
+    late String pubK;
+    late String kidK;
+    late Uint8List secretK;
+
+    setUp(() async {
+      final pair = await RsaSignatureAlgo.rsa2048().generateKeyPair();
+      pubK = base64Encode(pair.publicKey);
+      kidK = ApskLinks.kidOf(pubK)!;
+      secretK = pair.secretKey;
+    });
+
+    /// Sends B's own `enroll:update` installing K as its apkamPublicKey,
+    /// with proof of possession, and [apsk] or [apskLegacy] when given.
+    Future<void> rotateOntoK(String b,
+        {Map<String, dynamic>? apsk, String? apskLegacy}) async {
+      final Uint8List proof = await RsaSignatureAlgo.rsa2048()
+          .signBytes(utf8.encode('$b|$pubK|rsa2048'), secretKey: secretK);
+      final EnrollParams params = EnrollParams()
+        ..enrollmentId = b
+        ..apkamPublicKey = pubK
+        ..signingAlgo = 'rsa2048'
+        ..apkamPublicKeySignature = base64Encode(proof)
+        ..apsk = apsk
+        ..apskLegacy = apskLegacy;
+      connectAs(b);
+      final r = Response();
+      await etu.evh.processVerb(
+          r,
+          getVerbParam(VerbSyntax.enroll,
+              'enroll:update:${jsonEncode(params.toJson())}'),
+          inboundConnection);
+      expect(r.isError, false, reason: '${r.errorMessage}');
+    }
+
+    Future<String> apkamPublicKeyOf(String b) async =>
+        (await enMgr.getEnrollmentById(b)).apkamPublicKey;
+
+    test(
+        'an update installing a key B\'s _apsk lists beside another is '
+        'refused, naming it, and nothing is written', () async {
+      final b = await enrollment('b',
+          apsk: listForm(
+              [entry(kidK, 'rsa2048', pubK), entry(k2, 'rsa2048', p2)]));
+      final String before = await apkamPublicKeyOf(b);
+      await expectLater(
+          rotateOntoK(b), refusedNaming<IllegalArgumentException>(kidK));
+      expect(await apkamPublicKeyOf(b), before);
+    });
+
+    test(
+        'an update installing the only key B\'s _apsk lists, when it carries '
+        'a link, is refused, naming it, and nothing is written', () async {
+      final b =
+          await enrollment('b', apsk: listForm([entry(kidK, 'rsa2048', pubK)]));
+      final Map<String, dynamic> kLink =
+          chainLink(payload(b, kidK, 'rsa2048', pubK));
+      await link(etu.primaryEnId, b, {
+        kidK: {'link': kLink, 'expect': null}
+      });
+      final String before = await apkamPublicKeyOf(b);
+      await expectLater(
+          rotateOntoK(b), refusedNaming<IllegalArgumentException>(kidK));
+      expect(await apkamPublicKeyOf(b), before);
+      expect(await linksOn(b), {kidK: kLink});
+    });
+
+    test(
+        'an update installing a key that a put of B\'s _apsk listed beside '
+        'another is refused, naming it, and nothing is written', () async {
+      final b =
+          await enrollment('b', apsk: listForm([entry(kidK, 'rsa2048', pubK)]));
+      await put(
+          b,
+          jsonEncode(listForm(
+              [entry(kidK, 'rsa2048', pubK), entry(k2, 'rsa2048', p2)])));
+      final String before = await apkamPublicKeyOf(b);
+      await expectLater(
+          rotateOntoK(b), refusedNaming<IllegalArgumentException>(kidK));
+      expect(await apkamPublicKeyOf(b), before);
+    });
+
+    test(
+        'an update installing the only key B\'s _apsk lists, with no link, '
+        'is accepted', () async {
+      final b =
+          await enrollment('b', apsk: listForm([entry(kidK, 'rsa2048', pubK)]));
+      await rotateOntoK(b);
+      expect(await apkamPublicKeyOf(b), pubK);
+    });
+
+    test(
+        'an update installing a key and republishing it as B\'s bare _apsk '
+        'is accepted', () async {
+      final b = await enrollment('b', apsk: k1AndK2);
+      await rotateOntoK(b, apskLegacy: pubK);
+      expect(await apkamPublicKeyOf(b), pubK);
+      expect((await record(b)).data, pubK);
+    });
+
+    test(
+        'an update installing a linked key while its republished _apsk no '
+        'longer lists it is accepted, and the link goes with it', () async {
+      final b = await enrollment('b',
+          apsk: listForm(
+              [entry(kidK, 'rsa2048', pubK), entry(k2, 'rsa2048', p2)]));
+      final Map<String, dynamic> k2Link =
+          rootLink(payload(b, k2, 'rsa2048', p2));
+      await link(etu.primaryEnId, b, {
+        kidK: {
+          'link': chainLink(payload(b, kidK, 'rsa2048', pubK)),
+          'expect': null
+        },
+        k2: {'link': k2Link, 'expect': null}
+      });
+      await rotateOntoK(b, apsk: listForm([entry(k2, 'rsa2048', p2)]));
+      expect(await apkamPublicKeyOf(b), pubK);
+      expect(await linksOn(b), {k2: k2Link});
+    });
   });
 
   group('a bare RSA signing key is linked like a listed one', () {
